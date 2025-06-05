@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ForceAtlas2 Layout Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+        }
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        .visualization {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="range"], input[type="number"], select {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin: 5px 0;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #graph-svg {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .back-link {
+            margin-bottom: 20px;
+        }
+        .back-link a {
+            color: #2c5aa0;
+            text-decoration: none;
+        }
+        .info-box {
+            background: #f0f7ff;
+            border: 1px solid #c0d7f0;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.85em;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="back-link">
+        <a href="index.html">← Back to Index</a>
+    </div>
+    
+    <h1>ForceAtlas2 Layout Test</h1>
+    
+    <div class="container">
+        <div class="controls">
+            <h3>Layout Parameters</h3>
+            
+            <div class="control-group">
+                <label for="num-nodes">Number of nodes:</label>
+                <input type="range" id="num-nodes" min="5" max="25" value="15">
+                <span id="num-nodes-value">15</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="graph-type">Graph type:</label>
+                <select id="graph-type">
+                    <option value="scale-free">Scale-Free</option>
+                    <option value="small-world">Small World</option>
+                    <option value="random">Random</option>
+                    <option value="community">Community</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="iterations">Iterations:</label>
+                <input type="range" id="iterations" min="10" max="200" value="100">
+                <span id="iterations-value">100</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="scale">Scale:</label>
+                <input type="range" id="scale" min="0.5" max="3" step="0.1" value="1">
+                <span id="scale-value">1.0</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="gravity">Gravity:</label>
+                <input type="range" id="gravity" min="0.01" max="0.1" step="0.01" value="0.05">
+                <span id="gravity-value">0.05</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="lin-log">Linear/Log mode:</label>
+                <select id="lin-log">
+                    <option value="false">Linear</option>
+                    <option value="true">Log</option>
+                </select>
+            </div>
+            
+            <button onclick="updateLayout()">Update Layout</button>
+            <button onclick="animateLayout()">Step-by-Step Animation</button>
+            <div id="loading" class="loading" style="display: none;">Calculating...</div>
+            
+            <div class="info-box">
+                <strong>Info:</strong> ForceAtlas2 is an advanced force-based layout algorithm, 
+                optimized for graphs with communities and complex structures.
+            </div>
+        </div>
+        
+        <div class="visualization">
+            <svg id="graph-svg" width="800" height="600"></svg>
+        </div>
+    </div>
+
+    <script type="module">
+        import { forceAtlas2Layout } from './layout.js';
+        
+        function generateGraph(type, numNodes) {
+            const nodes = Array.from({length: numNodes}, (_, i) => i);
+            const edges = [];
+            
+            switch(type) {
+                case 'scale-free':
+                    // Simplified Barabási-Albert model
+                    for(let i = 1; i < numNodes; i++) {
+                        const m = Math.min(2, i);
+                        for(let j = 0; j < m; j++) {
+                            let target = Math.floor(Math.random() * i);
+                            if(!edges.some(e => (e[0] === i && e[1] === target) || (e[0] === target && e[1] === i))) {
+                                edges.push([i, target]);
+                            }
+                        }
+                    }
+                    break;
+                case 'small-world':
+                    // Ring lattice + random rewiring
+                    for(let i = 0; i < numNodes; i++) {
+                        edges.push([i, (i + 1) % numNodes]);
+                        if(numNodes > 4) {
+                            edges.push([i, (i + 2) % numNodes]);
+                        }
+                    }
+                    // Random rewiring
+                    for(let i = 0; i < numNodes / 4; i++) {
+                        const a = Math.floor(Math.random() * numNodes);
+                        const b = Math.floor(Math.random() * numNodes);
+                        if(a !== b && !edges.some(e => (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a))) {
+                            edges.push([a, b]);
+                        }
+                    }
+                    break;
+                case 'community':
+                    // Create communities
+                    const communitySize = Math.floor(numNodes / 3);
+                    for(let c = 0; c < 3; c++) {
+                        const start = c * communitySize;
+                        const end = Math.min(start + communitySize, numNodes);
+                        
+                        // Dense connections within community
+                        for(let i = start; i < end; i++) {
+                            for(let j = i + 1; j < end; j++) {
+                                if(Math.random() < 0.7) {
+                                    edges.push([i, j]);
+                                }
+                            }
+                        }
+                        
+                        // Sparse connections between communities
+                        if(c < 2) {
+                            const nextStart = (c + 1) * communitySize;
+                            const nextEnd = Math.min(nextStart + communitySize, numNodes);
+                            for(let i = start; i < end; i++) {
+                                for(let j = nextStart; j < nextEnd; j++) {
+                                    if(Math.random() < 0.1) {
+                                        edges.push([i, j]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    break;
+                case 'random':
+                default:
+                    const numEdges = Math.floor(numNodes * 1.5);
+                    for(let i = 0; i < numEdges; i++) {
+                        const a = Math.floor(Math.random() * numNodes);
+                        const b = Math.floor(Math.random() * numNodes);
+                        if(a !== b && !edges.some(e => (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a))) {
+                            edges.push([a, b]);
+                        }
+                    }
+                    break;
+            }
+            
+            return { nodes: () => nodes, edges: () => edges };
+        }
+        
+        function visualizeGraph(graph, positions) {
+            const svg = document.getElementById('graph-svg');
+            const svgRect = svg.getBoundingClientRect();
+            const width = svgRect.width;
+            const height = svgRect.height;
+            
+            svg.innerHTML = '';
+            
+            const margin = 50;
+            const scaleX = (width - 2 * margin);
+            const scaleY = (height - 2 * margin);
+            
+            const nodes = graph.nodes();
+            const posValues = nodes.map(n => positions[n]);
+            const minX = Math.min(...posValues.map(p => p[0]));
+            const maxX = Math.max(...posValues.map(p => p[0]));
+            const minY = Math.min(...posValues.map(p => p[1]));
+            const maxY = Math.max(...posValues.map(p => p[1]));
+            
+            const rangeX = maxX - minX || 1;
+            const rangeY = maxY - minY || 1;
+            
+            // Draw edges
+            const edges = graph.edges();
+            edges.forEach(([source, target]) => {
+                const sourcePos = positions[source];
+                const targetPos = positions[target];
+                
+                const x1 = margin + (sourcePos[0] - minX) / rangeX * scaleX;
+                const y1 = margin + (sourcePos[1] - minY) / rangeY * scaleY;
+                const x2 = margin + (targetPos[0] - minX) / rangeX * scaleX;
+                const y2 = margin + (targetPos[1] - minY) / rangeY * scaleY;
+                
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x1);
+                line.setAttribute('y1', y1);
+                line.setAttribute('x2', x2);
+                line.setAttribute('y2', y2);
+                line.setAttribute('stroke', '#999');
+                line.setAttribute('stroke-width', '1');
+                svg.appendChild(line);
+            });
+            
+            // Draw nodes with colors based on degree
+            const degrees = {};
+            nodes.forEach(node => degrees[node] = 0);
+            edges.forEach(([s, t]) => {
+                degrees[s]++;
+                degrees[t]++;
+            });
+            
+            const maxDegree = Math.max(...Object.values(degrees));
+            
+            nodes.forEach(node => {
+                const pos = positions[node];
+                const x = margin + (pos[0] - minX) / rangeX * scaleX;
+                const y = margin + (pos[1] - minY) / rangeY * scaleY;
+                
+                // Color based on degree
+                const degreeRatio = degrees[node] / (maxDegree || 1);
+                const hue = 240 - (degreeRatio * 180); // From blue to red
+                const color = `hsl(${hue}, 70%, 50%)`;
+                
+                const radius = 4 + degreeRatio * 6; // Size based on degree
+                
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('r', radius);
+                circle.setAttribute('fill', color);
+                circle.setAttribute('stroke', '#333');
+                circle.setAttribute('stroke-width', '2');
+                svg.appendChild(circle);
+                
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', x);
+                text.setAttribute('y', y + 3);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('font-size', '9');
+                text.setAttribute('fill', 'white');
+                text.textContent = node;
+                svg.appendChild(text);
+            });
+        }
+        
+        window.updateLayout = async function() {
+            const numNodes = parseInt(document.getElementById('num-nodes').value);
+            const graphType = document.getElementById('graph-type').value;
+            const iterations = parseInt(document.getElementById('iterations').value);
+            const scale = parseFloat(document.getElementById('scale').value);
+            const gravity = parseFloat(document.getElementById('gravity').value);
+            const linLog = document.getElementById('lin-log').value === 'true';
+            
+            const loadingDiv = document.getElementById('loading');
+            loadingDiv.style.display = 'block';
+            
+            try {
+                const graph = generateGraph(graphType, numNodes);
+                const positions = await forceAtlas2Layout(graph, iterations, scale, [0, 0], gravity, linLog);
+                
+                visualizeGraph(graph, positions);
+            } catch (error) {
+                console.error('Error in ForceAtlas2 layout:', error);
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        };
+        
+        window.animateLayout = async function() {
+            // Implementation of step-by-step animation
+            updateLayout();
+        };
+        
+        function setupControls() {
+            const controls = ['num-nodes', 'iterations', 'scale', 'gravity'];
+            controls.forEach(id => {
+                const slider = document.getElementById(id);
+                const valueSpan = document.getElementById(id + '-value');
+                slider.oninput = function() {
+                    valueSpan.textContent = this.value;
+                    updateLayout();
+                };
+            });
+            
+            document.getElementById('graph-type').onchange = updateLayout;
+            document.getElementById('lin-log').onchange = updateLayout;
+        }
+        
+        setupControls();
+        updateLayout();
+    </script>
+</body>
+</html>

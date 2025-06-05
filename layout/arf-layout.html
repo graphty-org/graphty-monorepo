@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARF Layout Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+        }
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        .visualization {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="range"], input[type="number"], select {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin: 5px 0;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #graph-svg {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .back-link {
+            margin-bottom: 20px;
+        }
+        .back-link a {
+            color: #2c5aa0;
+            text-decoration: none;
+        }
+        .back-link a:hover {
+            text-decoration: underline;
+        }
+        .info-box {
+            background: #f0f7ff;
+            border: 1px solid #c0d7f0;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.85em;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="back-link">
+        <a href="index.html">← Back to Index</a>
+    </div>
+    
+    <h1>ARF Layout Test (Attractive-Repulsive Forces)</h1>
+    
+    <div class="container">
+        <div class="controls">
+            <h3>Layout Parameters</h3>
+            
+            <div class="control-group">
+                <label for="num-nodes">Number of nodes:</label>
+                <input type="range" id="num-nodes" min="5" max="30" value="20">
+                <span id="num-nodes-value">20</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="graph-type">Graph type:</label>
+                <select id="graph-type">
+                    <option value="random">Random</option>
+                    <option value="clustered">Clustered</option>
+                    <option value="hierarchical">Hierarchical</option>
+                    <option value="small-world">Small World</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="iterations">Iterations:</label>
+                <input type="range" id="iterations" min="10" max="500" value="200">
+                <span id="iterations-value">200</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="scale">Scale:</label>
+                <input type="range" id="scale" min="0.5" max="3" step="0.1" value="1">
+                <span id="scale-value">1.0</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="attraction">Attractive Force:</label>
+                <input type="range" id="attraction" min="0.01" max="0.2" step="0.01" value="0.05">
+                <span id="attraction-value">0.05</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="repulsion">Repulsive Force:</label>
+                <input type="range" id="repulsion" min="0.1" max="2" step="0.1" value="1">
+                <span id="repulsion-value">1.0</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="damping">Damping:</label>
+                <input type="range" id="damping" min="0.1" max="0.9" step="0.1" value="0.9">
+                <span id="damping-value">0.9</span>
+            </div>
+            
+            <button onclick="updateLayout()">Update Layout</button>
+            <button onclick="animateLayout()">Real-time Animation</button>
+            <div id="loading" class="loading" style="display: none;">Simulation running...</div>
+            
+            <div class="info-box">
+                <strong>Info:</strong> ARF Layout uses attractive forces between connected nodes 
+                and repulsive forces between all nodes to create balanced and readable layouts.
+            </div>
+        </div>
+        
+        <div class="visualization">
+            <svg id="graph-svg" width="800" height="600"></svg>
+        </div>
+    </div>
+
+    <script type="module">
+        import { arfLayout } from './layout.js';
+        
+        let animationRunning = false;
+        
+        function generateGraph(type, numNodes) {
+            const nodes = Array.from({length: numNodes}, (_, i) => i);
+            const edges = [];
+            
+            switch(type) {
+                case 'clustered':
+                    // Create clusters
+                    const clusterSize = Math.floor(numNodes / 3);
+                    for(let c = 0; c < 3; c++) {
+                        const start = c * clusterSize;
+                        const end = Math.min(start + clusterSize, numNodes);
+                        
+                        // Dense connections within cluster
+                        for(let i = start; i < end; i++) {
+                            for(let j = i + 1; j < end; j++) {
+                                if(Math.random() < 0.8) {
+                                    edges.push([i, j]);
+                                }
+                            }
+                        }
+                        
+                        // Few connections between clusters
+                        if(c < 2 && Math.random() < 0.3) {
+                            const nextStart = (c + 1) * clusterSize;
+                            edges.push([start, nextStart]);
+                        }
+                    }
+                    break;
+                case 'hierarchical':
+                    // Tree-like structure with extra connections
+                    for(let i = 1; i < numNodes; i++) {
+                        const parent = Math.floor((i - 1) / 2);
+                        edges.push([parent, i]);
+                    }
+                    // Add some cross-connections
+                    for(let i = 0; i < numNodes / 3; i++) {
+                        const a = Math.floor(Math.random() * numNodes);
+                        const b = Math.floor(Math.random() * numNodes);
+                        if(a !== b && !edges.some(e => (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a))) {
+                            edges.push([a, b]);
+                        }
+                    }
+                    break;
+                case 'small-world':
+                    // Ring lattice
+                    for(let i = 0; i < numNodes; i++) {
+                        edges.push([i, (i + 1) % numNodes]);
+                        if(numNodes > 4) {
+                            edges.push([i, (i + 2) % numNodes]);
+                        }
+                    }
+                    // Random rewiring
+                    for(let i = 0; i < numNodes / 3; i++) {
+                        const a = Math.floor(Math.random() * numNodes);
+                        const b = Math.floor(Math.random() * numNodes);
+                        if(a !== b && !edges.some(e => (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a))) {
+                            edges.push([a, b]);
+                        }
+                    }
+                    break;
+                case 'random':
+                default:
+                    const numEdges = Math.floor(numNodes * 1.8);
+                    for(let i = 0; i < numEdges; i++) {
+                        const a = Math.floor(Math.random() * numNodes);
+                        const b = Math.floor(Math.random() * numNodes);
+                        if(a !== b && !edges.some(e => (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a))) {
+                            edges.push([a, b]);
+                        }
+                    }
+                    break;
+            }
+            
+            return { nodes: () => nodes, edges: () => edges };
+        }
+        
+        function visualizeGraph(graph, positions) {
+            const svg = document.getElementById('graph-svg');
+            const svgRect = svg.getBoundingClientRect();
+            const width = svgRect.width;
+            const height = svgRect.height;
+            
+            svg.innerHTML = '';
+            
+            const margin = 50;
+            const scaleX = (width - 2 * margin);
+            const scaleY = (height - 2 * margin);
+            
+            const nodes = graph.nodes();
+            const posValues = nodes.map(n => positions[n]);
+            const minX = Math.min(...posValues.map(p => p[0]));
+            const maxX = Math.max(...posValues.map(p => p[0]));
+            const minY = Math.min(...posValues.map(p => p[1]));
+            const maxY = Math.max(...posValues.map(p => p[1]));
+            
+            const rangeX = maxX - minX || 1;
+            const rangeY = maxY - minY || 1;
+            
+            // Draw edges
+            const edges = graph.edges();
+            edges.forEach(([source, target]) => {
+                const sourcePos = positions[source];
+                const targetPos = positions[target];
+                
+                const x1 = margin + (sourcePos[0] - minX) / rangeX * scaleX;
+                const y1 = margin + (sourcePos[1] - minY) / rangeY * scaleY;
+                const x2 = margin + (targetPos[0] - minX) / rangeX * scaleX;
+                const y2 = margin + (targetPos[1] - minY) / rangeY * scaleY;
+                
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x1);
+                line.setAttribute('y1', y1);
+                line.setAttribute('x2', x2);
+                line.setAttribute('y2', y2);
+                line.setAttribute('stroke', '#999');
+                line.setAttribute('stroke-width', '1');
+                svg.appendChild(line);
+            });
+            
+            // Draw nodes with energetic colors
+            nodes.forEach(node => {
+                const pos = positions[node];
+                const x = margin + (pos[0] - minX) / rangeX * scaleX;
+                const y = margin + (pos[1] - minY) / rangeY * scaleY;
+                
+                // Energetic color based on position
+                const centerX = width / 2;
+                const centerY = height / 2;
+                const distance = Math.sqrt((x - centerX)**2 + (y - centerY)**2);
+                const maxDistance = Math.sqrt(centerX**2 + centerY**2);
+                const energy = distance / maxDistance;
+                
+                const hue = energy * 360; // Full color wheel
+                const color = `hsl(${hue}, 70%, 50%)`;
+                
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('r', '7');
+                circle.setAttribute('fill', color);
+                circle.setAttribute('stroke', '#333');
+                circle.setAttribute('stroke-width', '2');
+                svg.appendChild(circle);
+                
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', x);
+                text.setAttribute('y', y + 3);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('font-size', '9');
+                text.setAttribute('fill', 'white');
+                text.textContent = node;
+                svg.appendChild(text);
+            });
+        }
+        
+        window.updateLayout = async function() {
+            const numNodes = parseInt(document.getElementById('num-nodes').value);
+            const graphType = document.getElementById('graph-type').value;
+            const iterations = parseInt(document.getElementById('iterations').value);
+            const scale = parseFloat(document.getElementById('scale').value);
+            const attraction = parseFloat(document.getElementById('attraction').value);
+            const repulsion = parseFloat(document.getElementById('repulsion').value);
+            const damping = parseFloat(document.getElementById('damping').value);
+            
+            const loadingDiv = document.getElementById('loading');
+            loadingDiv.style.display = 'block';
+            
+            try {
+                const graph = generateGraph(graphType, numNodes);
+                const positions = await arfLayout(graph, iterations, scale, [0, 0], attraction, repulsion, damping);
+                
+                visualizeGraph(graph, positions);
+            } catch (error) {
+                console.error('Error in ARF layout:', error);
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        };
+        
+        window.animateLayout = async function() {
+            if(animationRunning) {
+                animationRunning = false;
+                return;
+            }
+            
+            animationRunning = true;
+            const button = document.querySelector('button[onclick="animateLayout()"]');
+            button.textContent = 'Stop Animation';
+            
+            // Implementation of real-time animation
+            // For now just calls updateLayout
+            await updateLayout();
+            
+            animationRunning = false;
+            button.textContent = 'Real-time Animation';
+        };
+        
+        function setupControls() {
+            const controls = ['num-nodes', 'iterations', 'scale', 'attraction', 'repulsion', 'damping'];
+            controls.forEach(id => {
+                const slider = document.getElementById(id);
+                const valueSpan = document.getElementById(id + '-value');
+                slider.oninput = function() {
+                    valueSpan.textContent = this.value;
+                    updateLayout();
+                };
+            });
+            
+            document.getElementById('graph-type').onchange = updateLayout;
+        }
+        
+        setupControls();
+        updateLayout();
+    </script>
+</body>
+</html>

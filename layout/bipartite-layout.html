@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bipartite Layout Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+        }
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        .visualization {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="range"], input[type="number"], select {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin: 5px 0;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #graph-svg {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .back-link {
+            margin-bottom: 20px;
+        }
+        .back-link a {
+            color: #2c5aa0;
+            text-decoration: none;
+        }
+        .back-link a:hover {
+            text-decoration: underline;
+        }
+        .partition-info {
+            background: #f0f7ff;
+            border: 1px solid #c0d7f0;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <div class="back-link">
+        <a href="index.html">← Back to Index</a>
+    </div>
+    
+    <h1>Bipartite Layout Test</h1>
+    
+    <div class="container">
+        <div class="controls">
+            <h3>Layout Parameters</h3>
+            
+            <div class="control-group">
+                <label for="num-nodes">Total number of nodes:</label>
+                <input type="range" id="num-nodes" min="4" max="20" value="12">
+                <span id="num-nodes-value">12</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="partition-ratio">Partition ratio (A:B):</label>
+                <input type="range" id="partition-ratio" min="0.2" max="0.8" step="0.1" value="0.5">
+                <span id="partition-ratio-value">50%-50%</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="alignment">Alignment:</label>
+                <select id="alignment">
+                    <option value="vertical">Vertical</option>
+                    <option value="horizontal">Horizontal</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="scale">Scale:</label>
+                <input type="range" id="scale" min="0.5" max="3" step="0.1" value="1">
+                <span id="scale-value">1.0</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="aspect-ratio">Aspect Ratio:</label>
+                <input type="range" id="aspect-ratio" min="0.5" max="3" step="0.1" value="1.33">
+                <span id="aspect-ratio-value">1.33</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="edge-density">Edge density:</label>
+                <input type="range" id="edge-density" min="0.1" max="1" step="0.1" value="0.3">
+                <span id="edge-density-value">0.3</span>
+            </div>
+            
+            <button onclick="updateLayout()">Update Layout</button>
+            <div id="partition-info" class="partition-info"></div>
+        </div>
+        
+        <div class="visualization">
+            <svg id="graph-svg" width="800" height="600"></svg>
+        </div>
+    </div>
+
+    <script type="module">
+        import { bipartiteLayout } from './layout.js';
+        
+        function generateBipartiteGraph(totalNodes, partitionRatio, edgeDensity) {
+            const setASize = Math.round(totalNodes * partitionRatio);
+            const setBSize = totalNodes - setASize;
+            
+            const setA = Array.from({length: setASize}, (_, i) => `A${i}`);
+            const setB = Array.from({length: setBSize}, (_, i) => `B${i}`);
+            const allNodes = [...setA, ...setB];
+            
+            const edges = [];
+            const maxEdges = setASize * setBSize;
+            const targetEdges = Math.floor(maxEdges * edgeDensity);
+            
+            // Generate random bipartite edges (only between setA and setB)
+            for (let i = 0; i < targetEdges; i++) {
+                const nodeA = setA[Math.floor(Math.random() * setA.length)];
+                const nodeB = setB[Math.floor(Math.random() * setB.length)];
+                
+                // Check if edge already exists
+                const edgeExists = edges.some(([s, t]) => 
+                    (s === nodeA && t === nodeB) || (s === nodeB && t === nodeA)
+                );
+                
+                if (!edgeExists) {
+                    edges.push([nodeA, nodeB]);
+                }
+            }
+            
+            return { 
+                nodes: () => allNodes, 
+                edges: () => edges,
+                setA,
+                setB
+            };
+        }
+        
+        function visualizeGraph(graph, positions) {
+            const svg = document.getElementById('graph-svg');
+            const svgRect = svg.getBoundingClientRect();
+            const width = svgRect.width;
+            const height = svgRect.height;
+            
+            svg.innerHTML = '';
+            
+            const margin = 50;
+            const scaleX = (width - 2 * margin);
+            const scaleY = (height - 2 * margin);
+            
+            const nodes = graph.nodes();
+            const posValues = nodes.map(n => positions[n]);
+            const minX = Math.min(...posValues.map(p => p[0]));
+            const maxX = Math.max(...posValues.map(p => p[0]));
+            const minY = Math.min(...posValues.map(p => p[1]));
+            const maxY = Math.max(...posValues.map(p => p[1]));
+            
+            const rangeX = maxX - minX || 1;
+            const rangeY = maxY - minY || 1;
+            
+            // Draw edges
+            const edges = graph.edges();
+            edges.forEach(([source, target]) => {
+                const sourcePos = positions[source];
+                const targetPos = positions[target];
+                
+                const x1 = margin + (sourcePos[0] - minX) / rangeX * scaleX;
+                const y1 = margin + (sourcePos[1] - minY) / rangeY * scaleY;
+                const x2 = margin + (targetPos[0] - minX) / rangeX * scaleX;
+                const y2 = margin + (targetPos[1] - minY) / rangeY * scaleY;
+                
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x1);
+                line.setAttribute('y1', y1);
+                line.setAttribute('x2', x2);
+                line.setAttribute('y2', y2);
+                line.setAttribute('stroke', '#999');
+                line.setAttribute('stroke-width', '2');
+                svg.appendChild(line);
+            });
+            
+            // Draw nodes with different colors for set A and B
+            nodes.forEach(node => {
+                const pos = positions[node];
+                const x = margin + (pos[0] - minX) / rangeX * scaleX;
+                const y = margin + (pos[1] - minY) / rangeY * scaleY;
+                
+                // Determine color based on set
+                const isSetA = graph.setA.includes(node);
+                const color = isSetA ? '#E91E63' : '#2196F3';
+                
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('r', '8');
+                circle.setAttribute('fill', color);
+                circle.setAttribute('stroke', '#333');
+                circle.setAttribute('stroke-width', '2');
+                svg.appendChild(circle);
+                
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', x);
+                text.setAttribute('y', y + 4);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('font-size', '10');
+                text.setAttribute('fill', 'white');
+                text.textContent = node;
+                svg.appendChild(text);
+            });
+            
+            // Add legend
+            const legendGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            
+            // Set A
+            const circleA = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circleA.setAttribute('cx', width - 100);
+            circleA.setAttribute('cy', 30);
+            circleA.setAttribute('r', '6');
+            circleA.setAttribute('fill', '#E91E63');
+            circleA.setAttribute('stroke', '#333');
+            legendGroup.appendChild(circleA);
+            
+            const textA = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            textA.setAttribute('x', width - 85);
+            textA.setAttribute('y', 35);
+            textA.setAttribute('font-size', '12');
+            textA.textContent = 'Set A';
+            legendGroup.appendChild(textA);
+            
+            // Set B
+            const circleB = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circleB.setAttribute('cx', width - 100);
+            circleB.setAttribute('cy', 50);
+            circleB.setAttribute('r', '6');
+            circleB.setAttribute('fill', '#2196F3');
+            circleB.setAttribute('stroke', '#333');
+            legendGroup.appendChild(circleB);
+            
+            const textB = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            textB.setAttribute('x', width - 85);
+            textB.setAttribute('y', 55);
+            textB.setAttribute('font-size', '12');
+            textB.textContent = 'Set B';
+            legendGroup.appendChild(textB);
+            
+            svg.appendChild(legendGroup);
+        }
+        
+        window.updateLayout = function() {
+            const totalNodes = parseInt(document.getElementById('num-nodes').value);
+            const partitionRatio = parseFloat(document.getElementById('partition-ratio').value);
+            const alignment = document.getElementById('alignment').value;
+            const scale = parseFloat(document.getElementById('scale').value);
+            const aspectRatio = parseFloat(document.getElementById('aspect-ratio').value);
+            const edgeDensity = parseFloat(document.getElementById('edge-density').value);
+            
+            const graph = generateBipartiteGraph(totalNodes, partitionRatio, edgeDensity);
+            const positions = bipartiteLayout(graph, graph.setA, alignment, scale, [0, 0], aspectRatio);
+            
+            visualizeGraph(graph, positions);
+            
+            // Update partition info
+            const infoDiv = document.getElementById('partition-info');
+            infoDiv.innerHTML = `
+                <strong>Partition:</strong><br>
+                Set A: ${graph.setA.length} nodes (${((graph.setA.length / totalNodes) * 100).toFixed(1)}%)<br>
+                Set B: ${graph.setB.length} nodes (${((graph.setB.length / totalNodes) * 100).toFixed(1)}%)<br>
+                Edges: ${graph.edges().length}
+            `;
+        };
+        
+        function setupControls() {
+            const controls = ['num-nodes', 'partition-ratio', 'scale', 'aspect-ratio', 'edge-density'];
+            controls.forEach(id => {
+                const slider = document.getElementById(id);
+                const valueSpan = document.getElementById(id + '-value');
+                slider.oninput = function() {
+                    if (id === 'partition-ratio') {
+                        const ratio = parseFloat(this.value);
+                        valueSpan.textContent = `${(ratio * 100).toFixed(0)}%-${((1 - ratio) * 100).toFixed(0)}%`;
+                    } else {
+                        valueSpan.textContent = this.value;
+                    }
+                    updateLayout();
+                };
+            });
+            
+            document.getElementById('alignment').onchange = updateLayout;
+        }
+        
+        setupControls();
+        updateLayout();
+    </script>
+</body>
+</html>

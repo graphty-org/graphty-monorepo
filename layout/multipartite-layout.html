@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multipartite Layout Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+        }
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        .visualization {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="range"], input[type="number"], select {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin: 5px 0;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #graph-svg {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .back-link {
+            margin-bottom: 20px;
+        }
+        .back-link a {
+            color: #2c5aa0;
+            text-decoration: none;
+        }
+        .back-link a:hover {
+            text-decoration: underline;
+        }
+        .layers-info {
+            background: #f0f7ff;
+            border: 1px solid #c0d7f0;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <div class="back-link">
+        <a href="index.html">← Back to Index</a>
+    </div>
+    
+    <h1>Multipartite Layout Test</h1>
+    
+    <div class="container">
+        <div class="controls">
+            <h3>Layout Parameters</h3>
+            
+            <div class="control-group">
+                <label for="num-layers">Number of layers:</label>
+                <input type="range" id="num-layers" min="2" max="5" value="3">
+                <span id="num-layers-value">3</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="nodes-per-layer">Nodes per layer:</label>
+                <input type="range" id="nodes-per-layer" min="2" max="8" value="4">
+                <span id="nodes-per-layer-value">4</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="alignment">Alignment:</label>
+                <select id="alignment">
+                    <option value="vertical">Vertical</option>
+                    <option value="horizontal">Horizontal</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="scale">Scale:</label>
+                <input type="range" id="scale" min="0.5" max="3" step="0.1" value="1">
+                <span id="scale-value">1.0</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="edge-type">Connection type:</label>
+                <select id="edge-type">
+                    <option value="adjacent">Adjacent layers</option>
+                    <option value="random">Random between layers</option>
+                    <option value="hierarchical">Hierarchical</option>
+                    <option value="complete">Complete</option>
+                </select>
+            </div>
+            
+            <button onclick="updateLayout()">Update Layout</button>
+            <div id="layers-info" class="layers-info"></div>
+        </div>
+        
+        <div class="visualization">
+            <svg id="graph-svg" width="800" height="600"></svg>
+        </div>
+    </div>
+
+    <script type="module">
+        import { multipartiteLayout } from './layout.js';
+        
+        function generateMultipartiteGraph(numLayers, nodesPerLayer, edgeType) {
+            const layers = {};
+            const allNodes = [];
+            
+            // Create layers
+            for (let layer = 0; layer < numLayers; layer++) {
+                const layerNodes = [];
+                for (let node = 0; node < nodesPerLayer; node++) {
+                    const nodeName = `L${layer}N${node}`;
+                    layerNodes.push(nodeName);
+                    allNodes.push(nodeName);
+                }
+                layers[layer] = layerNodes;
+            }
+            
+            const edges = [];
+            
+            // Generate edges based on type
+            switch(edgeType) {
+                case 'adjacent':
+                    // Connect only adjacent layers
+                    for (let layer = 0; layer < numLayers - 1; layer++) {
+                        const currentLayer = layers[layer];
+                        const nextLayer = layers[layer + 1];
+                        
+                        currentLayer.forEach(node1 => {
+                            nextLayer.forEach(node2 => {
+                                if (Math.random() < 0.4) { // 40% probability
+                                    edges.push([node1, node2]);
+                                }
+                            });
+                        });
+                    }
+                    break;
+                
+                case 'random':
+                    // Random connections between all layers
+                    for (let i = 0; i < allNodes.length * 0.8; i++) {
+                        const node1 = allNodes[Math.floor(Math.random() * allNodes.length)];
+                        const node2 = allNodes[Math.floor(Math.random() * allNodes.length)];
+                        
+                        // Avoid self-loops and duplicates
+                        if (node1 !== node2 && !edges.some(([s, t]) => 
+                            (s === node1 && t === node2) || (s === node2 && t === node1))) {
+                            edges.push([node1, node2]);
+                        }
+                    }
+                    break;
+                
+                case 'hierarchical':
+                    // Hierarchical connections (each node connects to nodes in the next layer)
+                    for (let layer = 0; layer < numLayers - 1; layer++) {
+                        const currentLayer = layers[layer];
+                        const nextLayer = layers[layer + 1];
+                        
+                        currentLayer.forEach((node1, idx) => {
+                            // Connect to 1-2 nodes in the next layer
+                            const connections = Math.min(2, nextLayer.length);
+                            for (let c = 0; c < connections; c++) {
+                                const targetIdx = (idx + c) % nextLayer.length;
+                                edges.push([node1, nextLayer[targetIdx]]);
+                            }
+                        });
+                    }
+                    break;
+                
+                case 'complete':
+                    // Each layer is fully connected to the next
+                    for (let layer = 0; layer < numLayers - 1; layer++) {
+                        const currentLayer = layers[layer];
+                        const nextLayer = layers[layer + 1];
+                        
+                        currentLayer.forEach(node1 => {
+                            nextLayer.forEach(node2 => {
+                                edges.push([node1, node2]);
+                            });
+                        });
+                    }
+                    break;
+            }
+            
+            return { 
+                nodes: () => allNodes, 
+                edges: () => edges,
+                layers
+            };
+        }
+        
+        function visualizeGraph(graph, positions) {
+            const svg = document.getElementById('graph-svg');
+            const svgRect = svg.getBoundingClientRect();
+            const width = svgRect.width;
+            const height = svgRect.height;
+            
+            svg.innerHTML = '';
+            
+            const margin = 50;
+            const scaleX = (width - 2 * margin);
+            const scaleY = (height - 2 * margin);
+            
+            const nodes = graph.nodes();
+            const posValues = nodes.map(n => positions[n]);
+            const minX = Math.min(...posValues.map(p => p[0]));
+            const maxX = Math.max(...posValues.map(p => p[0]));
+            const minY = Math.min(...posValues.map(p => p[1]));
+            const maxY = Math.max(...posValues.map(p => p[1]));
+            
+            const rangeX = maxX - minX || 1;
+            const rangeY = maxY - minY || 1;
+            
+            // Draw layer guidelines
+            const layerColors = ['#F44336', '#9C27B0', '#3F51B5', '#009688', '#FF9800'];
+            Object.entries(graph.layers).forEach(([layerIdx, layerNodes]) => {
+                const layerPositions = layerNodes.map(node => positions[node]);
+                
+                if (layerPositions.length > 1) {
+                    // Find layer bounds
+                    const layerMinX = Math.min(...layerPositions.map(p => p[0]));
+                    const layerMaxX = Math.max(...layerPositions.map(p => p[0]));
+                    const layerMinY = Math.min(...layerPositions.map(p => p[1]));
+                    const layerMaxY = Math.max(...layerPositions.map(p => p[1]));
+                    
+                    // Draw layer rectangle
+                    const x1 = margin + (layerMinX - minX) / rangeX * scaleX - 20;
+                    const y1 = margin + (layerMinY - minY) / rangeY * scaleY - 20;
+                    const x2 = margin + (layerMaxX - minX) / rangeX * scaleX + 20;
+                    const y2 = margin + (layerMaxY - minY) / rangeY * scaleY + 20;
+                    
+                    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    rect.setAttribute('x', x1);
+                    rect.setAttribute('y', y1);
+                    rect.setAttribute('width', x2 - x1);
+                    rect.setAttribute('height', y2 - y1);
+                    rect.setAttribute('fill', layerColors[layerIdx % layerColors.length]);
+                    rect.setAttribute('fill-opacity', '0.1');
+                    rect.setAttribute('stroke', layerColors[layerIdx % layerColors.length]);
+                    rect.setAttribute('stroke-width', '1');
+                    rect.setAttribute('stroke-dasharray', '5,5');
+                    svg.appendChild(rect);
+                }
+            });
+            
+            // Draw edges
+            const edges = graph.edges();
+            edges.forEach(([source, target]) => {
+                const sourcePos = positions[source];
+                const targetPos = positions[target];
+                
+                const x1 = margin + (sourcePos[0] - minX) / rangeX * scaleX;
+                const y1 = margin + (sourcePos[1] - minY) / rangeY * scaleY;
+                const x2 = margin + (targetPos[0] - minX) / rangeX * scaleX;
+                const y2 = margin + (targetPos[1] - minY) / rangeY * scaleY;
+                
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x1);
+                line.setAttribute('y1', y1);
+                line.setAttribute('x2', x2);
+                line.setAttribute('y2', y2);
+                line.setAttribute('stroke', '#999');
+                line.setAttribute('stroke-width', '2');
+                svg.appendChild(line);
+            });
+            
+            // Draw nodes
+            nodes.forEach(node => {
+                const pos = positions[node];
+                const x = margin + (pos[0] - minX) / rangeX * scaleX;
+                const y = margin + (pos[1] - minY) / rangeY * scaleY;
+                
+                // Determine color based on layer
+                let nodeColor = '#666';
+                Object.entries(graph.layers).forEach(([layerIdx, layerNodes]) => {
+                    if (layerNodes.includes(node)) {
+                        nodeColor = layerColors[layerIdx % layerColors.length];
+                    }
+                });
+                
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('r', '8');
+                circle.setAttribute('fill', nodeColor);
+                circle.setAttribute('stroke', '#333');
+                circle.setAttribute('stroke-width', '2');
+                svg.appendChild(circle);
+                
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', x);
+                text.setAttribute('y', y + 4);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('font-size', '9');
+                text.setAttribute('fill', 'white');
+                text.textContent = node.replace(/L\d+N/, '');
+                svg.appendChild(text);
+            });
+        }
+        
+        window.updateLayout = function() {
+            const numLayers = parseInt(document.getElementById('num-layers').value);
+            const nodesPerLayer = parseInt(document.getElementById('nodes-per-layer').value);
+            const alignment = document.getElementById('alignment').value;
+            const scale = parseFloat(document.getElementById('scale').value);
+            const edgeType = document.getElementById('edge-type').value;
+            
+            const graph = generateMultipartiteGraph(numLayers, nodesPerLayer, edgeType);
+            const positions = multipartiteLayout(graph, graph.layers, alignment, scale, [0, 0]);
+            
+            visualizeGraph(graph, positions);
+            
+            // Update layer info
+            const infoDiv = document.getElementById('layers-info');
+            const layerInfo = Object.entries(graph.layers).map(([idx, nodes]) => 
+                `Layer ${idx}: ${nodes.length} nodes`
+            ).join('<br>');
+            
+            infoDiv.innerHTML = `
+                <strong>Structure:</strong><br>
+                ${layerInfo}<br>
+                <strong>Total edges:</strong> ${graph.edges().length}
+            `;
+        };
+        
+        function setupControls() {
+            const controls = ['num-layers', 'nodes-per-layer', 'scale'];
+            controls.forEach(id => {
+                const slider = document.getElementById(id);
+                const valueSpan = document.getElementById(id + '-value');
+                slider.oninput = function() {
+                    valueSpan.textContent = this.value;
+                    updateLayout();
+                };
+            });
+            
+            document.getElementById('alignment').onchange = updateLayout;
+            document.getElementById('edge-type').onchange = updateLayout;
+        }
+        
+        setupControls();
+        updateLayout();
+    </script>
+</body>
+</html>

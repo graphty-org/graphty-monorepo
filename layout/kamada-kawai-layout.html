@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kamada-Kawai Layout Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+        }
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        .visualization {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="range"], input[type="number"], select {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin: 5px 0;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #graph-svg {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .back-link {
+            margin-bottom: 20px;
+        }
+        .back-link a {
+            color: #2c5aa0;
+            text-decoration: none;
+        }
+        .info-box {
+            background: #f0f7ff;
+            border: 1px solid #c0d7f0;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.85em;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="back-link">
+        <a href="index.html">← Back to Index</a>
+    </div>
+    
+    <h1>Kamada-Kawai Layout Test</h1>
+    
+    <div class="container">
+        <div class="controls">
+            <h3>Layout Parameters</h3>
+            
+            <div class="control-group">
+                <label for="num-nodes">Number of nodes:</label>
+                <input type="range" id="num-nodes" min="4" max="15" value="10">
+                <span id="num-nodes-value">10</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="graph-type">Graph type:</label>
+                <select id="graph-type">
+                    <option value="complete">Complete</option>
+                    <option value="cycle">Cycle</option>
+                    <option value="path">Path</option>
+                    <option value="star">Star</option>
+                    <option value="random">Random</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="scale">Scale:</label>
+                <input type="range" id="scale" min="0.5" max="3" step="0.1" value="1">
+                <span id="scale-value">1.0</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="max-iterations">Max iterations:</label>
+                <input type="range" id="max-iterations" min="10" max="200" value="100">
+                <span id="max-iterations-value">100</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="tolerance">Tolerance:</label>
+                <input type="range" id="tolerance" min="0.0001" max="0.01" step="0.0001" value="0.001">
+                <span id="tolerance-value">0.001</span>
+            </div>
+            
+            <button onclick="updateLayout()">Update Layout</button>
+            <div id="loading" class="loading" style="display: none;">Optimization in progress...</div>
+            
+            <div class="info-box">
+                <strong>Info:</strong> The Kamada-Kawai Layout optimizes node positions 
+                to respect graph distances. May take time to converge.
+            </div>
+        </div>
+        
+        <div class="visualization">
+            <svg id="graph-svg" width="800" height="600"></svg>
+        </div>
+    </div>
+
+    <script type="module">
+        import { kamadaKawaiLayout } from './layout.js';
+        
+        function generateGraph(type, numNodes) {
+            const nodes = Array.from({length: numNodes}, (_, i) => i);
+            const edges = [];
+            
+            switch(type) {
+                case 'complete':
+                    for(let i = 0; i < numNodes; i++) {
+                        for(let j = i + 1; j < numNodes; j++) {
+                            edges.push([i, j]);
+                        }
+                    }
+                    break;
+                case 'cycle':
+                    for(let i = 0; i < numNodes; i++) {
+                        edges.push([i, (i + 1) % numNodes]);
+                    }
+                    break;
+                case 'path':
+                    for(let i = 0; i < numNodes - 1; i++) {
+                        edges.push([i, i + 1]);
+                    }
+                    break;
+                case 'star':
+                    for(let i = 1; i < numNodes; i++) {
+                        edges.push([0, i]);
+                    }
+                    break;
+                case 'random':
+                default:
+                    const numEdges = Math.floor(numNodes * 1.5);
+                    for(let i = 0; i < numEdges; i++) {
+                        const a = Math.floor(Math.random() * numNodes);
+                        const b = Math.floor(Math.random() * numNodes);
+                        if(a !== b && !edges.some(e => (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a))) {
+                            edges.push([a, b]);
+                        }
+                    }
+                    break;
+            }
+            
+            return { nodes: () => nodes, edges: () => edges };
+        }
+        
+        function visualizeGraph(graph, positions) {
+            const svg = document.getElementById('graph-svg');
+            const svgRect = svg.getBoundingClientRect();
+            const width = svgRect.width;
+            const height = svgRect.height;
+            
+            svg.innerHTML = '';
+            
+            const margin = 50;
+            const scaleX = (width - 2 * margin);
+            const scaleY = (height - 2 * margin);
+            
+            const nodes = graph.nodes();
+            const posValues = nodes.map(n => positions[n]);
+            const minX = Math.min(...posValues.map(p => p[0]));
+            const maxX = Math.max(...posValues.map(p => p[0]));
+            const minY = Math.min(...posValues.map(p => p[1]));
+            const maxY = Math.max(...posValues.map(p => p[1]));
+            
+            const rangeX = maxX - minX || 1;
+            const rangeY = maxY - minY || 1;
+            
+            // Draw edges
+            const edges = graph.edges();
+            edges.forEach(([source, target]) => {
+                const sourcePos = positions[source];
+                const targetPos = positions[target];
+                
+                const x1 = margin + (sourcePos[0] - minX) / rangeX * scaleX;
+                const y1 = margin + (sourcePos[1] - minY) / rangeY * scaleY;
+                const x2 = margin + (targetPos[0] - minX) / rangeX * scaleX;
+                const y2 = margin + (targetPos[1] - minY) / rangeY * scaleY;
+                
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x1);
+                line.setAttribute('y1', y1);
+                line.setAttribute('x2', x2);
+                line.setAttribute('y2', y2);
+                line.setAttribute('stroke', '#999');
+                line.setAttribute('stroke-width', '2');
+                svg.appendChild(line);
+            });
+            
+            // Draw nodes
+            nodes.forEach(node => {
+                const pos = positions[node];
+                const x = margin + (pos[0] - minX) / rangeX * scaleX;
+                const y = margin + (pos[1] - minY) / rangeY * scaleY;
+                
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('r', '8');
+                circle.setAttribute('fill', '#FF5722');
+                circle.setAttribute('stroke', '#333');
+                circle.setAttribute('stroke-width', '2');
+                svg.appendChild(circle);
+                
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', x);
+                text.setAttribute('y', y + 4);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('font-size', '11');
+                text.setAttribute('fill', 'white');
+                text.textContent = node;
+                svg.appendChild(text);
+            });
+        }
+        
+        window.updateLayout = async function() {
+            const numNodes = parseInt(document.getElementById('num-nodes').value);
+            const graphType = document.getElementById('graph-type').value;
+            const scale = parseFloat(document.getElementById('scale').value);
+            const maxIterations = parseInt(document.getElementById('max-iterations').value);
+            const tolerance = parseFloat(document.getElementById('tolerance').value);
+            
+            const loadingDiv = document.getElementById('loading');
+            loadingDiv.style.display = 'block';
+            
+            try {
+                const graph = generateGraph(graphType, numNodes);
+                const positions = await kamadaKawaiLayout(graph, scale, [0, 0], 2, maxIterations, tolerance);
+                
+                visualizeGraph(graph, positions);
+            } catch (error) {
+                console.error('Error in Kamada-Kawai layout:', error);
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        };
+        
+        function setupControls() {
+            const controls = ['num-nodes', 'scale', 'max-iterations', 'tolerance'];
+            controls.forEach(id => {
+                const slider = document.getElementById(id);
+                const valueSpan = document.getElementById(id + '-value');
+                slider.oninput = function() {
+                    valueSpan.textContent = this.value;
+                    updateLayout();
+                };
+            });
+            
+            document.getElementById('graph-type').onchange = updateLayout;
+        }
+        
+        setupControls();
+        updateLayout();
+    </script>
+</body>
+</html>

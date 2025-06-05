@@ -154,7 +154,7 @@
     </div>
 
     <script type="module">
-        import { forceAtlas2Layout } from './layout.js';
+        import { forceatlas2Layout } from './layout.js';
         
         function generateGraph(type, numNodes) {
             const nodes = Array.from({length: numNodes}, (_, i) => i);
@@ -334,7 +334,7 @@
             
             try {
                 const graph = generateGraph(graphType, numNodes);
-                const positions = await forceAtlas2Layout(graph, iterations, scale, [0, 0], gravity, linLog);
+                const positions = await forceatlas2Layout(graph, iterations, scale, [0, 0], gravity, linLog);
                 
                 visualizeGraph(graph, positions);
             } catch (error) {

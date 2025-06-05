@@ -145,7 +145,7 @@
                 <span id="damping-value">0.9</span>
             </div>
             
-            <button onclick="updateLayout()">Update Layout</button>
+            <button onclick="newGraph()">New Graph</button>
             <button onclick="animateLayout()">Real-time Animation</button>
             <div id="loading" class="loading" style="display: none;">Simulation running...</div>
             
@@ -320,7 +320,7 @@
             });
         }
         
-        window.updateLayout = async function() {
+        window.newGraph = async function() {
             const numNodes = parseInt(document.getElementById('num-nodes').value);
             const graphType = document.getElementById('graph-type').value;
             const iterations = parseInt(document.getElementById('iterations').value);
@@ -355,8 +355,8 @@
             button.textContent = 'Stop Animation';
             
             // Implementation of real-time animation
-            // For now just calls updateLayout
-            await updateLayout();
+            // For now just calls newGraph
+            await newGraph();
             
             animationRunning = false;
             button.textContent = 'Real-time Animation';
@@ -369,15 +369,15 @@
                 const valueSpan = document.getElementById(id + '-value');
                 slider.oninput = function() {
                     valueSpan.textContent = this.value;
-                    updateLayout();
+                    newGraph();
                 };
             });
             
-            document.getElementById('graph-type').onchange = updateLayout;
+            document.getElementById('graph-type').onchange = newGraph;
         }
         
         setupControls();
-        updateLayout();
+        newGraph();
     </script>
 </body>
 </html>

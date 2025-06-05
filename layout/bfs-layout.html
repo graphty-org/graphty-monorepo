@@ -132,7 +132,7 @@
                 <span id="scale-value">1.0</span>
             </div>
             
-            <button onclick="updateLayout()">Update Layout</button>
+            <button onclick="newGraph()">New Graph</button>
             <div id="bfs-info" class="bfs-info"></div>
         </div>
         
@@ -403,7 +403,7 @@
             `;
         }
         
-        window.updateLayout = function() {
+        window.newGraph = function() {
             const numNodes = parseInt(document.getElementById('num-nodes').value);
             const graphType = document.getElementById('graph-type').value;
             const startNode = parseInt(document.getElementById('start-node').value);
@@ -446,17 +446,17 @@
                 const valueSpan = document.getElementById(id + '-value');
                 slider.oninput = function() {
                     valueSpan.textContent = this.value;
-                    updateLayout();
+                    newGraph();
                 };
             });
             
-            document.getElementById('graph-type').onchange = updateLayout;
-            document.getElementById('start-node').onchange = updateLayout;
-            document.getElementById('alignment').onchange = updateLayout;
+            document.getElementById('graph-type').onchange = newGraph;
+            document.getElementById('start-node').onchange = newGraph;
+            document.getElementById('alignment').onchange = newGraph;
         }
         
         setupControls();
-        updateLayout();
+        newGraph();
     </script>
 </body>
 </html>

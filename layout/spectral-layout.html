@@ -89,7 +89,7 @@
                 <span id="num-nodes-value">15</span>
             </div>
             
-            <button onclick="updateLayout()">Update Layout</button>
+            <button onclick="newGraph()">New Graph</button>
         </div>
         
         <div class="visualization">
@@ -230,7 +230,7 @@
             });
         }
         
-        window.updateLayout = function() {
+        window.newGraph = function() {
             const numNodes = parseInt(document.getElementById('num-nodes').value);
             const graphType = document.getElementById('graph-type').value);
             const scale = parseFloat(document.getElementById('scale').value);
@@ -248,15 +248,15 @@
                 const valueSpan = document.getElementById(id + '-value');
                 slider.oninput = function() {
                     valueSpan.textContent = this.value;
-                    updateLayout();
+                    newGraph();
                 };
             });
             
-            document.getElementById('graph-type').onchange = updateLayout;
+            document.getElementById('graph-type').onchange = newGraph;
         }
         
         setupControls();
-        updateLayout();
+        newGraph();
     </script>
 </body>
 </html>

@@ -138,7 +138,7 @@
                 </select>
             </div>
             
-            <button onclick="updateLayout()">Update Layout</button>
+            <button onclick="newGraph()">New Graph</button>
             <button onclick="animateLayout()">Step-by-Step Animation</button>
             <div id="loading" class="loading" style="display: none;">Calculating...</div>
             
@@ -321,7 +321,7 @@
             });
         }
         
-        window.updateLayout = async function() {
+        window.newGraph = async function() {
             const numNodes = parseInt(document.getElementById('num-nodes').value);
             const graphType = document.getElementById('graph-type').value;
             const iterations = parseInt(document.getElementById('iterations').value);
@@ -346,7 +346,7 @@
         
         window.animateLayout = async function() {
             // Implementation of step-by-step animation
-            updateLayout();
+            newGraph();
         };
         
         function setupControls() {
@@ -356,16 +356,16 @@
                 const valueSpan = document.getElementById(id + '-value');
                 slider.oninput = function() {
                     valueSpan.textContent = this.value;
-                    updateLayout();
+                    newGraph();
                 };
             });
             
-            document.getElementById('graph-type').onchange = updateLayout;
-            document.getElementById('lin-log').onchange = updateLayout;
+            document.getElementById('graph-type').onchange = newGraph;
+            document.getElementById('lin-log').onchange = newGraph;
         }
         
         setupControls();
-        updateLayout();
+        newGraph();
     </script>
 </body>
 </html>

@@ -130,7 +130,7 @@
                 </select>
             </div>
             
-            <button onclick="updateLayout()">Update Layout</button>
+            <button onclick="newGraph()">New Graph</button>
             <div id="layers-info" class="layers-info"></div>
         </div>
         
@@ -339,7 +339,7 @@
             });
         }
         
-        window.updateLayout = function() {
+        window.newGraph = function() {
             const numLayers = parseInt(document.getElementById('num-layers').value);
             const nodesPerLayer = parseInt(document.getElementById('nodes-per-layer').value);
             const alignment = document.getElementById('alignment').value;
@@ -371,16 +371,16 @@
                 const valueSpan = document.getElementById(id + '-value');
                 slider.oninput = function() {
                     valueSpan.textContent = this.value;
-                    updateLayout();
+                    newGraph();
                 };
             });
             
-            document.getElementById('alignment').onchange = updateLayout;
-            document.getElementById('edge-type').onchange = updateLayout;
+            document.getElementById('alignment').onchange = newGraph;
+            document.getElementById('edge-type').onchange = newGraph;
         }
         
         setupControls();
-        updateLayout();
+        newGraph();
     </script>
 </body>
 </html>

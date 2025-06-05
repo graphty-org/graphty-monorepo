@@ -132,7 +132,7 @@
                 <span id="edge-density-value">0.3</span>
             </div>
             
-            <button onclick="updateLayout()">Update Layout</button>
+            <button onclick="newGraph()">New Graph</button>
             <div id="partition-info" class="partition-info"></div>
         </div>
         
@@ -289,7 +289,7 @@
             svg.appendChild(legendGroup);
         }
         
-        window.updateLayout = function() {
+        window.newGraph = function() {
             const totalNodes = parseInt(document.getElementById('num-nodes').value);
             const partitionRatio = parseFloat(document.getElementById('partition-ratio').value);
             const alignment = document.getElementById('alignment').value;
@@ -324,15 +324,15 @@
                     } else {
                         valueSpan.textContent = this.value;
                     }
-                    updateLayout();
+                    newGraph();
                 };
             });
             
-            document.getElementById('alignment').onchange = updateLayout;
+            document.getElementById('alignment').onchange = newGraph;
         }
         
         setupControls();
-        updateLayout();
+        newGraph();
     </script>
 </body>
 </html>

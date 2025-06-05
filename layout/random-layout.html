@@ -125,7 +125,7 @@
                 <input type="number" id="seed" value="42">
             </div>
             
-            <button onclick="updateLayout()">Update Layout</button>
+            <button onclick="newGraph()">New Graph</button>
             <button onclick="randomizeSeed()">Random Seed</button>
         </div>
         
@@ -250,8 +250,8 @@
             });
         }
         
-        // Update layout
-        window.updateLayout = function() {
+        // New Graph
+        window.newGraph = function() {
             const numNodes = parseInt(document.getElementById('num-nodes').value);
             const graphType = document.getElementById('graph-type').value;
             const scale = parseFloat(document.getElementById('scale').value);
@@ -268,7 +268,7 @@
         // Generate random seed
         window.randomizeSeed = function() {
             document.getElementById('seed').value = Math.floor(Math.random() * 10000);
-            updateLayout();
+            newGraph();
         };
         
         // Setup controls
@@ -279,16 +279,16 @@
                 const valueSpan = document.getElementById(id + '-value');
                 slider.oninput = function() {
                     valueSpan.textContent = this.value;
-                    updateLayout();
+                    newGraph();
                 };
             });
             
-            document.getElementById('graph-type').onchange = updateLayout;
+            document.getElementById('graph-type').onchange = newGraph;
         }
         
         // Initialize
         setupControls();
-        updateLayout();
+        newGraph();
     </script>
 </body>
 </html>

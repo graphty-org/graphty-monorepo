@@ -89,6 +89,36 @@
                 <span id="num-nodes-value">15</span>
             </div>
             
+            <div class="control-group">
+                <label for="graph-type">Graph Type:</label>
+                <select id="graph-type">
+                    <option value="random">Random</option>
+                    <option value="path">Path</option>
+                    <option value="cycle">Cycle</option>
+                    <option value="grid">Grid</option>
+                    <option value="star">Star</option>
+                    <option value="complete">Complete</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="scale">Scale:</label>
+                <input type="range" id="scale" min="0.1" max="2" step="0.1" value="1">
+                <span id="scale-value">1</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="center-x">Center X:</label>
+                <input type="range" id="center-x" min="-1" max="1" step="0.1" value="0">
+                <span id="center-x-value">0</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="center-y">Center Y:</label>
+                <input type="range" id="center-y" min="-1" max="1" step="0.1" value="0">
+                <span id="center-y-value">0</span>
+            </div>
+            
             <button onclick="newGraph()">New Graph</button>
         </div>
         
@@ -232,11 +262,13 @@
         
         window.newGraph = function() {
             const numNodes = parseInt(document.getElementById('num-nodes').value);
-            const graphType = document.getElementById('graph-type').value);
+            const graphType = document.getElementById('graph-type').value;
             const scale = parseFloat(document.getElementById('scale').value);
+            const centerX = parseFloat(document.getElementById('center-x').value);
+            const centerY = parseFloat(document.getElementById('center-y').value);
             
             const graph = generateGraph(graphType, numNodes);
-            const positions = spectralLayout(graph, scale, [0, 0], 2);
+            const positions = spectralLayout(graph, scale, [centerX, centerY], 2);
             
             visualizeGraph(graph, positions);
         };
@@ -246,13 +278,18 @@
             controls.forEach(id => {
                 const slider = document.getElementById(id);
                 const valueSpan = document.getElementById(id + '-value');
-                slider.oninput = function() {
-                    valueSpan.textContent = this.value;
-                    newGraph();
-                };
+                if (slider && valueSpan) {
+                    slider.oninput = function() {
+                        valueSpan.textContent = this.value;
+                        newGraph();
+                    };
+                }
             });
             
-            document.getElementById('graph-type').onchange = newGraph;
+            const graphTypeSelect = document.getElementById('graph-type');
+            if (graphTypeSelect) {
+                graphTypeSelect.onchange = newGraph;
+            }
         }
         
         setupControls();

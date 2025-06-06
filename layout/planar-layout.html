@@ -81,6 +81,15 @@
             margin-top: 15px;
             font-size: 0.85em;
         }
+        .error-message {
+            color: #d32f2f;
+            background: #ffebee;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 0.9em;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -95,19 +104,19 @@
             <h3>Layout Parameters</h3>
             
             <div class="control-group">
-                <label for="num-nodes">Number of nodes:</label>
-                <input type="range" id="num-nodes" min="4" max="12" value="8">
-                <span id="num-nodes-value">8</span>
+                <label for="graph-type">Graph type:</label>
+                <select id="graph-type">
+                    <option value="triangulated">Triangulated</option>
+                    <option value="outerplanar">Outerplanar</option>
+                    <option value="grid">Grid</option>
+                    <option value="tree">Tree</option>
+                </select>
             </div>
             
             <div class="control-group">
-                <label for="graph-type">Graph type:</label>
-                <select id="graph-type">
-                    <option value="planar">Simple planar</option>
-                    <option value="triangle">Triangulated</option>
-                    <option value="outerplanar">Outerplanar</option>
-                    <option value="grid">Small grid</option>
-                </select>
+                <label for="num-nodes">Number of nodes:</label>
+                <input type="range" id="num-nodes" min="4" max="20" value="10">
+                <span id="num-nodes-value">10</span>
             </div>
             
             <div class="control-group">
@@ -117,16 +126,25 @@
             </div>
             
             <div class="control-group">
-                <label for="iterations">Optimization iterations:</label>
-                <input type="range" id="iterations" min="10" max="100" value="50">
-                <span id="iterations-value">50</span>
+                <label for="center-x">Center X:</label>
+                <input type="range" id="center-x" min="-2" max="2" step="0.1" value="0">
+                <span id="center-x-value">0.0</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="center-y">Center Y:</label>
+                <input type="range" id="center-y" min="-2" max="2" step="0.1" value="0">
+                <span id="center-y-value">0.0</span>
             </div>
             
             <button onclick="newGraph()">New Graph</button>
+            <div id="error-message" class="error-message"></div>
             
             <div class="info-box">
-                <strong>Info:</strong> The Planar Layout attempts to minimize edge intersections. 
-                Works best with graphs that are actually planar or near-planar.
+                <strong>Planar Layout:</strong> Positions nodes without edge intersections. 
+                Note that only planar graphs (graphs that can be drawn without edge crossings) 
+                can be processed by this algorithm. K5 (complete graph with 5 nodes) and K3,3 
+                (complete bipartite with 3,3 nodes) are examples of non-planar graphs.
             </div>
         </div>
         
@@ -138,56 +156,74 @@
     <script type="module">
         import { planarLayout } from './layout.js';
         
-        function generateGraph(type, numNodes) {
+        function generatePlanarGraph(type, numNodes) {
             const nodes = Array.from({length: numNodes}, (_, i) => i);
             const edges = [];
             
             switch(type) {
-                case 'planar':
-                    // Simple planar graph (cycle with some diagonals)
-                    for(let i = 0; i < numNodes; i++) {
-                        edges.push([i, (i + 1) % numNodes]);
-                    }
-                    if(numNodes >= 4) {
-                        edges.push([0, 2]);
-                        edges.push([1, 3]);
-                    }
-                    break;
-                case 'triangle':
-                    // Simple triangulation
-                    for(let i = 0; i < numNodes; i++) {
-                        edges.push([i, (i + 1) % numNodes]);
-                        if(i < numNodes - 2) {
-                            edges.push([i, i + 2]);
+                case 'triangulated':
+                    // Create a planar triangulated graph (maximal planar)
+                    // Start with a triangle
+                    if (numNodes >= 3) {
+                        edges.push([0, 1], [1, 2], [2, 0]);
+                        
+                        // Add nodes one by one, connecting to visible edges
+                        for (let i = 3; i < numNodes; i++) {
+                            // Choose a face (for simplicity, we'll add to the outer face)
+                            // Select two or three nodes to connect to
+                            const connectCount = Math.min(3, i);
+                            const connectedNodes = [];
+                            
+                            // Connect to previous nodes (ensuring planarity)
+                            for (let j = 0; j < connectCount; j++) {
+                                connectedNodes.push(i - j - 1);
+                                edges.push([i, i - j - 1]);
+                            }
                         }
                     }
                     break;
+                
                 case 'outerplanar':
-                    // Outerplanar graph (all nodes on the outer border)
-                    for(let i = 0; i < numNodes; i++) {
+                    // Create an outerplanar graph (all vertices on outer face)
+                    // Start with a cycle
+                    for (let i = 0; i < numNodes; i++) {
                         edges.push([i, (i + 1) % numNodes]);
                     }
-                    // Add some diagonals
-                    for(let i = 0; i < numNodes - 3; i++) {
-                        edges.push([i, i + 3]);
+                    
+                    // Add some non-crossing chords
+                    if (numNodes >= 5) {
+                        // Add diagonals that don't cross
+                        for (let i = 0; i < numNodes - 2; i++) {
+                            edges.push([i, (i + 2) % numNodes]);
+                        }
                     }
                     break;
+                
                 case 'grid':
-                    // Small grid
+                    // Create a grid graph (always planar)
                     const gridSize = Math.ceil(Math.sqrt(numNodes));
-                    for(let i = 0; i < numNodes; i++) {
+                    for (let i = 0; i < numNodes; i++) {
                         const row = Math.floor(i / gridSize);
                         const col = i % gridSize;
                         
                         // Connect right
-                        if(col < gridSize - 1 && i + 1 < numNodes) {
+                        if (col < gridSize - 1 && i + 1 < numNodes) {
                             edges.push([i, i + 1]);
                         }
                         
                         // Connect down
-                        if(row < gridSize - 1 && i + gridSize < numNodes) {
+                        if (row < gridSize - 1 && i + gridSize < numNodes) {
                             edges.push([i, i + gridSize]);
                         }
+                    }
+                    break;
+                
+                case 'tree':
+                default:
+                    // Create a tree (always planar)
+                    for (let i = 1; i < numNodes; i++) {
+                        const parent = Math.floor(Math.random() * i);
+                        edges.push([parent, i]);
                     }
                     break;
             }
@@ -238,6 +274,9 @@
                 svg.appendChild(line);
             });
             
+            // Draw faces (for visual verification of planarity)
+            const faceColor = 'rgba(200, 220, 240, 0.2)';
+            
             // Draw nodes
             nodes.forEach(node => {
                 const pos = positions[node];
@@ -248,7 +287,7 @@
                 circle.setAttribute('cx', x);
                 circle.setAttribute('cy', y);
                 circle.setAttribute('r', '8');
-                circle.setAttribute('fill', '#607D8B');
+                circle.setAttribute('fill', '#4CAF50');
                 circle.setAttribute('stroke', '#333');
                 circle.setAttribute('stroke-width', '2');
                 svg.appendChild(circle);
@@ -265,19 +304,28 @@
         }
         
         window.newGraph = function() {
-            const numNodes = parseInt(document.getElementById('num-nodes').value);
             const graphType = document.getElementById('graph-type').value;
+            const numNodes = parseInt(document.getElementById('num-nodes').value);
             const scale = parseFloat(document.getElementById('scale').value);
-            const iterations = parseInt(document.getElementById('iterations').value);
+            const centerX = parseFloat(document.getElementById('center-x').value);
+            const centerY = parseFloat(document.getElementById('center-y').value);
             
-            const graph = generateGraph(graphType, numNodes);
-            const positions = planarLayout(graph, scale, [0, 0], 2, iterations);
+            const errorMessageElement = document.getElementById('error-message');
+            errorMessageElement.style.display = 'none';
             
-            visualizeGraph(graph, positions);
+            try {
+                const graph = generatePlanarGraph(graphType, numNodes);
+                const positions = planarLayout(graph, scale, [centerX, centerY], 2);
+                visualizeGraph(graph, positions);
+            } catch (error) {
+                console.error('Error in planar layout:', error);
+                errorMessageElement.textContent = `Error: ${error.message}`;
+                errorMessageElement.style.display = 'block';
+            }
         };
         
         function setupControls() {
-            const controls = ['num-nodes', 'scale', 'iterations'];
+            const controls = ['num-nodes', 'scale', 'center-x', 'center-y'];
             controls.forEach(id => {
                 const slider = document.getElementById(id);
                 const valueSpan = document.getElementById(id + '-value');

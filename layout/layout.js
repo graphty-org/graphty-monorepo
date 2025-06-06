@@ -955,7 +955,7 @@ function planarLayout(G, scale = 1, center = null, dim = 2) {
 /**
  * Position nodes using Kamada-Kawai path-length cost-function.
  * 
- * @param {Object} G - Graph or list of nodes
+ * @param {Object} G - NetworkX graph or list of nodes
  * @param {Object} dist - A two-level dictionary of optimal distances between nodes
  * @param {Object} pos - Initial positions for nodes
  * @param {string} weight - The edge attribute used for edge weights
@@ -965,7 +965,7 @@ function planarLayout(G, scale = 1, center = null, dim = 2) {
  * @returns {Object} Positions dictionary keyed by node
  */
 function kamadaKawaiLayout(G, dist = null, pos = null, weight = 'weight', scale = 1, center = null, dim = 2) {
-  const processed = _processParams(G, center || [0, 0], dim);
+  const processed = _processParams(G, center, dim);
   const graph = processed.G;
   center = processed.center;
   
@@ -981,101 +981,371 @@ function kamadaKawaiLayout(G, dist = null, pos = null, weight = 'weight', scale 
   
   // Initialize distance matrix
   if (!dist) {
-    // This is a simplified approach - in a real implementation we would compute
-    // shortest paths between all pairs of nodes
-    dist = {};
-    nodes.forEach(u => {
-      dist[u] = {};
-      nodes.forEach(v => {
-        dist[u][v] = u === v ? 0 : 1; // Default distance of 1 between different nodes
-      });
-    });
+    dist = _compute_shortest_path_distances(graph, weight);
+  }
+  
+  // Convert distances to a matrix
+  const nodesArray = Array.from(nodes);
+  const nNodes = nodesArray.length;
+  const distMatrix = Array(nNodes).fill().map(() => Array(nNodes).fill(1e6));
+  
+  for (let i = 0; i < nNodes; i++) {
+    const nodeI = nodesArray[i];
+    distMatrix[i][i] = 0;
     
-    // Update distances based on edges
-    const edges = graph.edges ? graph.edges() : [];
-    for (const [u, v] of edges) {
-      dist[u][v] = 1;
-      dist[v][u] = 1;
+    if (!dist[nodeI]) continue;
+    
+    for (let j = 0; j < nNodes; j++) {
+      const nodeJ = nodesArray[j];
+      if (dist[nodeI][nodeJ] !== undefined) {
+        distMatrix[i][j] = dist[nodeI][nodeJ];
+      }
     }
   }
   
   // Initialize positions if not provided
   if (!pos) {
     if (dim >= 3) {
-      pos = randomLayout(graph, null, dim);
+      pos = randomLayout(G, null, dim);
+    } else if (dim === 2) {
+      pos = circularLayout(G, 1, [0, 0], dim);
     } else {
-      pos = circularLayout(graph, 1, [0, 0], dim);
+      // For 1D, use a linear layout
+      const posArray = {};
+      nodesArray.forEach((node, i) => {
+        posArray[node] = [i / (nNodes - 1 || 1)];
+      });
+      pos = posArray;
     }
   }
   
-  // This is a simplified optimization - a full Kamada-Kawai would require
-  // more complex numerical optimization
-  console.warn("JavaScript kamadaKawaiLayout is a simplified approximation");
-  
-  // Perform a simplified force-directed layout using the distance matrix
-  const iterations = 50;
-  const tolerance = 1e-4;
-  
-  // Convert positions to array for easier manipulation
-  const posArray = nodes.map(node => pos[node] ? [...pos[node]] : Array(dim).fill(0));
-  
-  for (let iter = 0; iter < iterations; iter++) {
-    let maxDelta = 0;
+  // Convert positions to array for computation
+  const posArray = new Array(nNodes);
+  for (let i = 0; i < nNodes; i++) {
+    const node = nodesArray[i];
+    posArray[i] = pos[node] ? [...pos[node]] : Array(dim).fill(0);
     
-    for (let i = 0; i < nodes.length; i++) {
-      const node = nodes[i];
-      const displacement = Array(dim).fill(0);
-      
-      for (let j = 0; j < nodes.length; j++) {
-        if (i === j) continue;
-        
-        const otherNode = nodes[j];
-        const targetDist = dist[node][otherNode];
-        
-        // Calculate actual distance
-        const actualDist = Math.sqrt(
-          posArray[i].reduce((sum, coord, idx) => {
-            return sum + Math.pow(coord - posArray[j][idx], 2);
-          }, 0)
-        ) || 0.1; // Avoid division by zero
-        
-        // Calculate direction unit vector
-        const direction = posArray[i].map((coord, idx) => {
-          return (coord - posArray[j][idx]) / actualDist;
-        });
-        
-        // Calculate attractive/repulsive force
-        const force = (actualDist - targetDist) / targetDist;
-        
-        // Update displacement
-        direction.forEach((dir, idx) => {
-          displacement[idx] += dir * force;
-        });
-      }
-      
-      // Update position
-      const delta = Math.sqrt(displacement.reduce((sum, d) => sum + d * d, 0));
-      maxDelta = Math.max(maxDelta, delta);
-      
-      for (let dim = 0; dim < posArray[i].length; dim++) {
-        posArray[i][dim] += displacement[dim] * 0.1; // Scale factor to control update magnitude
+    // Ensure correct dimensionality
+    while (posArray[i].length < dim) {
+      posArray[i].push(0);
+    }
+  }
+  
+  // Run the Kamada-Kawai algorithm
+  const newPositions = _kamadaKawaiSolve(distMatrix, posArray, dim);
+  
+  // Convert positions array back to dictionary and rescale
+  const finalPos = {};
+  for (let i = 0; i < nNodes; i++) {
+    finalPos[nodesArray[i]] = newPositions[i];
+  }
+  
+  return rescaleLayout(finalPos, scale, center);
+}
+
+/**
+ * Compute all-pairs shortest path distances for the graph
+ * 
+ * @param {Object} G - NetworkX graph
+ * @param {string} weight - Edge attribute for weight
+ * @returns {Object} Dictionary of dictionaries of shortest path distances
+ */
+function _compute_shortest_path_distances(G, weight) {
+  const distances = {};
+  const nodes = G.nodes ? G.nodes() : G;
+  const edges = G.edges ? G.edges() : [];
+  
+  // Initialize distances with direct edges
+  for (const node of nodes) {
+    distances[node] = {};
+    distances[node][node] = 0;
+    
+    for (const other of nodes) {
+      if (node !== other) {
+        distances[node][other] = Infinity;
       }
     }
+  }
+  
+  // Add direct edges
+  for (const [source, target] of edges) {
+    // In a real implementation, we would get the weight from the graph
+    // For now, assume weight = 1
+    distances[source][target] = 1;
+    distances[target][source] = 1;  // Assuming undirected graph
+  }
+  
+  // Floyd-Warshall algorithm for all-pairs shortest paths
+  for (const k of nodes) {
+    for (const i of nodes) {
+      for (const j of nodes) {
+        if (distances[i][k] + distances[k][j] < distances[i][j]) {
+          distances[i][j] = distances[i][k] + distances[k][j];
+        }
+      }
+    }
+  }
+  
+  return distances;
+}
+
+/**
+ * Solve the Kamada-Kawai layout optimization problem
+ * 
+ * @param {Array} distMatrix - Matrix of desired distances between nodes
+ * @param {Array} positions - Initial node positions
+ * @param {number} dim - Dimension of layout
+ * @returns {Array} Optimized node positions
+ */
+function _kamadaKawaiSolve(distMatrix, positions, dim) {
+  // Implementation of L-BFGS optimization for Kamada-Kawai
+  const nNodes = positions.length;
+  const meanWeight = 1e-3;
+  
+  // Convert distances to inverse distances (with protection against division by zero)
+  const invDistMatrix = distMatrix.map(row => 
+    row.map(d => d === 0 ? 0 : 1 / (d + 1e-3))
+  );
+  
+  // Flatten positions for optimization
+  let posVec = positions.flat();
+  
+  // Optimization parameters
+  const maxIter = 500;
+  const gtol = 1e-5;
+  const m = 10;  // L-BFGS memory size
+  
+  // Implement a simplified L-BFGS-B algorithm
+  let alpha = 1.0;
+  const oldValues = [];
+  const oldGrads = [];
+  
+  for (let iter = 0; iter < maxIter; iter++) {
+    // Calculate cost and gradient
+    const [cost, grad] = _kamadaKawaiCostfn(posVec, invDistMatrix, meanWeight, dim);
     
-    // Check for convergence
-    if (maxDelta < tolerance) {
+    // Compute search direction using L-BFGS approximation
+    const direction = _lbfgsDirection(grad, oldValues, oldGrads, m);
+    
+    // Simple line search for step size
+    alpha = _backtrackingLineSearch(
+      posVec, direction, cost, grad, 
+      (x) => _kamadaKawaiCostfn(x, invDistMatrix, meanWeight, dim)[0],
+      alpha
+    );
+    
+    // Save current position and gradient for next iteration
+    const oldPos = [...posVec];
+    
+    // Update position
+    for (let i = 0; i < posVec.length; i++) {
+      posVec[i] += alpha * direction[i];
+    }
+    
+    // Calculate new gradient
+    const [, newGrad] = _kamadaKawaiCostfn(posVec, invDistMatrix, meanWeight, dim);
+    
+    // Update L-BFGS memory
+    oldValues.push(posVec.map((val, i) => val - oldPos[i]));
+    oldGrads.push(newGrad.map((val, i) => val - grad[i]));
+    
+    // Keep only m most recent updates
+    if (oldValues.length > m) {
+      oldValues.shift();
+      oldGrads.shift();
+    }
+    
+    // Check convergence
+    const gradNorm = Math.sqrt(newGrad.reduce((sum, g) => sum + g * g, 0));
+    if (gradNorm < gtol) {
       break;
     }
   }
   
-  // Convert positions back to dictionary
-  const finalPos = {};
-  nodes.forEach((node, i) => {
-    finalPos[node] = posArray[i];
-  });
+  // Reshape result back into positions array
+  const result = [];
+  for (let i = 0; i < nNodes; i++) {
+    result.push(posVec.slice(i * dim, (i + 1) * dim));
+  }
   
-  // Rescale positions
-  return rescaleLayout(finalPos, scale, center);
+  return result;
+}
+
+/**
+ * Cost function and gradient for Kamada-Kawai layout algorithm
+ * 
+ * @param {Array} posVec - Flattened position array
+ * @param {Array} invDist - Inverse distance matrix
+ * @param {number} meanWeight - Weight for centering positions
+ * @param {number} dim - Dimension of layout
+ * @returns {Array} Array with [cost, gradient]
+ */
+function _kamadaKawaiCostfn(posVec, invDist, meanWeight, dim) {
+  const nNodes = invDist.length;
+  const positions = [];
+  
+  // Reshape flat vector into positions array
+  for (let i = 0; i < nNodes; i++) {
+    positions.push(posVec.slice(i * dim, (i + 1) * dim));
+  }
+  
+  // Calculate cost
+  let cost = 0;
+  
+  // Add mean position penalty term
+  const sumPos = Array(dim).fill(0);
+  for (let i = 0; i < nNodes; i++) {
+    for (let d = 0; d < dim; d++) {
+      sumPos[d] += positions[i][d];
+    }
+  }
+  cost += 0.5 * meanWeight * sumPos.reduce((sum, val) => sum + val * val, 0);
+  
+  // Add distance penalty terms
+  for (let i = 0; i < nNodes; i++) {
+    for (let j = i + 1; j < nNodes; j++) {
+      // Calculate actual distance
+      const diff = positions[i].map((val, d) => val - positions[j][d]);
+      const distance = Math.sqrt(diff.reduce((sum, d) => sum + d * d, 0));
+      
+      // Add penalty for difference between actual and ideal distance
+      const idealInvDist = invDist[i][j];
+      const offset = distance * idealInvDist - 1.0;
+      cost += 0.5 * offset * offset;
+    }
+  }
+  
+  // Calculate gradient
+  const grad = new Array(posVec.length).fill(0);
+  
+  // Add gradient of mean position penalty
+  for (let i = 0; i < nNodes; i++) {
+    for (let d = 0; d < dim; d++) {
+      grad[i * dim + d] += meanWeight * sumPos[d];
+    }
+  }
+  
+  // Add gradient of distance penalties
+  for (let i = 0; i < nNodes; i++) {
+    for (let j = i + 1; j < nNodes; j++) {
+      // Calculate actual distance and direction
+      const diff = positions[i].map((val, d) => val - positions[j][d]);
+      const distance = Math.sqrt(diff.reduce((sum, d) => sum + d * d, 0)) || 1e-10;
+      const direction = diff.map(d => d / distance);
+      
+      // Calculate contribution to gradient
+      const idealInvDist = invDist[i][j];
+      const offset = distance * idealInvDist - 1.0;
+      
+      for (let d = 0; d < dim; d++) {
+        const force = idealInvDist * offset * direction[d];
+        grad[i * dim + d] += force;
+        grad[j * dim + d] -= force;
+      }
+    }
+  }
+  
+  return [cost, grad];
+}
+
+/**
+ * Compute the search direction using L-BFGS approximation
+ * 
+ * @param {Array} grad - Current gradient
+ * @param {Array} sList - List of position differences (s_k)
+ * @param {Array} yList - List of gradient differences (y_k)
+ * @param {number} m - Memory size
+ * @returns {Array} Direction vector
+ */
+function _lbfgsDirection(grad, sList, yList, m) {
+  if (sList.length === 0) {
+    // First iteration - use negative gradient
+    return grad.map(g => -g);
+  }
+  
+  const q = grad.slice();
+  const alpha = Array(sList.length).fill(0);
+  const rho = [];
+  
+  // Compute rho values
+  for (let i = 0; i < sList.length; i++) {
+    const s = sList[i];
+    const y = yList[i];
+    rho.push(1 / y.reduce((sum, val, j) => sum + val * s[j], 0));
+  }
+  
+  // Forward pass
+  for (let i = sList.length - 1; i >= 0; i--) {
+    const s = sList[i];
+    alpha[i] = rho[i] * s.reduce((sum, val, j) => sum + val * q[j], 0);
+    for (let j = 0; j < q.length; j++) {
+      q[j] -= alpha[i] * yList[i][j];
+    }
+  }
+  
+  // Scale initial Hessian approximation
+  let gamma = 1;
+  if (sList.length > 0 && yList.length > 0) {
+    const y = yList[yList.length - 1];
+    const s = sList[sList.length - 1];
+    gamma = s.reduce((sum, val, i) => sum + val * y[i], 0) / 
+            y.reduce((sum, val) => sum + val * val, 0);
+  }
+  
+  // Initialize direction with scaled negative gradient
+  const direction = q.map(val => -gamma * val);
+  
+  // Backward pass
+  for (let i = 0; i < sList.length; i++) {
+    const s = sList[i];
+    const y = yList[i];
+    const beta = rho[i] * y.reduce((sum, val, j) => sum + val * direction[j], 0);
+    for (let j = 0; j < direction.length; j++) {
+      direction[j] += s[j] * (alpha[i] - beta);
+    }
+  }
+  
+  return direction;
+}
+
+/**
+ * Backtracking line search to find step size
+ * 
+ * @param {Array} x - Current position
+ * @param {Array} direction - Search direction
+ * @param {number} f - Function value at current position
+ * @param {Array} grad - Gradient at current position
+ * @param {Function} func - Function to evaluate cost
+ * @param {number} alpha0 - Initial step size
+ * @returns {number} Optimal step size
+ */
+function _backtrackingLineSearch(x, direction, f, grad, func, alpha0) {
+  const c1 = 1e-4;
+  const c2 = 0.9;
+  const initialSlope = grad.reduce((sum, g, i) => sum + g * direction[i], 0);
+  
+  if (initialSlope >= 0) {
+    return 1e-8;  // Direction is not a descent direction
+  }
+  
+  let alpha = alpha0;
+  const maxIter = 20;
+  
+  for (let i = 0; i < maxIter; i++) {
+    // Try step
+    const newX = x.map((val, i) => val + alpha * direction[i]);
+    const newF = func(newX);
+    
+    // Check sufficient decrease condition (Armijo condition)
+    if (newF <= f + c1 * alpha * initialSlope) {
+      return alpha;
+    }
+    
+    // Reduce step size
+    alpha *= c2;
+  }
+  
+  return alpha;  // Return last alpha even if not optimal
 }
 
 /**

@@ -272,7 +272,7 @@
             
             try {
                 const graph = generateGraph(graphType, numNodes);
-                const positions = await kamadaKawaiLayout(graph, scale, [0, 0], 2, maxIterations, tolerance);
+                const positions = await kamadaKawaiLayout(graph);
                 
                 visualizeGraph(graph, positions);
             } catch (error) {

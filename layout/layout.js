@@ -1398,206 +1398,342 @@ function forceatlas2Layout(
   const rng = new RandomNumberGenerator(seed);
   
   // Initialize positions if not provided
-  if (!pos) {
+  let pos_arr;
+  if (pos === null) {
     pos = {};
-    nodes.forEach(node => {
-      pos[node] = Array(dim).fill(0).map(() => rng.rand() * 2 - 1);
-    });
+    pos_arr = new Array(nodes.length);
+    for (let i = 0; i < nodes.length; i++) {
+      pos_arr[i] = Array(dim).fill(0).map(() => rng.rand() * 2 - 1);
+      pos[nodes[i]] = pos_arr[i];
+    }
+  } else if (Object.keys(pos).length === nodes.length) {
+    // Use provided positions
+    pos_arr = new Array(nodes.length);
+    for (let i = 0; i < nodes.length; i++) {
+      pos_arr[i] = [...pos[nodes[i]]];
+    }
   } else {
-    // Make sure all nodes have positions
-    nodes.forEach(node => {
-      if (!pos[node]) {
-        pos[node] = Array(dim).fill(0).map(() => rng.rand() * 2 - 1);
+    // Some nodes don't have positions, initialize within the range of existing positions
+    let min_pos = Array(dim).fill(Number.POSITIVE_INFINITY);
+    let max_pos = Array(dim).fill(Number.NEGATIVE_INFINITY);
+    
+    // Find min and max of existing positions
+    for (const node in pos) {
+      for (let d = 0; d < dim; d++) {
+        min_pos[d] = Math.min(min_pos[d], pos[node][d]);
+        max_pos[d] = Math.max(max_pos[d], pos[node][d]);
       }
-    });
+    }
+    
+    pos_arr = new Array(nodes.length);
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      if (pos[node]) {
+        pos_arr[i] = [...pos[node]];
+      } else {
+        pos_arr[i] = Array(dim).fill(0).map((_, d) => 
+          min_pos[d] + rng.rand() * (max_pos[d] - min_pos[d])
+        );
+        pos[node] = pos_arr[i];
+      }
+    }
   }
   
-  // Initialize node masses and sizes
-  const mass = {};
-  const size = {};
+  // Initialize mass and size arrays
+  const mass = new Array(nodes.length).fill(0);
+  const size = new Array(nodes.length).fill(0);
   
-  nodes.forEach(node => {
-    // Default mass is degree + 1
-    mass[node] = nodeMass && nodeMass[node] ? 
+  // Flag to track whether to adjust for node sizes
+  const adjustSizes = nodeSize !== null;
+  
+  // Set node masses and sizes
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+    mass[i] = nodeMass && nodeMass[node] ? 
       nodeMass[node] : 
-      (graph.edges ? 
-        getNodeDegree(graph, node) + 1 : 
-        1
-      );
+      (graph.edges ? getNodeDegree(graph, node) + 1 : 1);
     
-    // Default size is 1
-    size[node] = nodeSize && nodeSize[node] ? nodeSize[node] : 1;
-  });
+    size[i] = nodeSize && nodeSize[node] ? nodeSize[node] : 1;
+  }
   
-  // Get edge weights
+  // Create adjacency matrix
+  const n = nodes.length;
+  const A = Array(n).fill().map(() => Array(n).fill(0));
+  
+  // Populate adjacency matrix with edge weights
   const edges = graph.edges ? graph.edges() : [];
-  const edgeWeights = {};
+  const nodeIndices = {};
+  nodes.forEach((node, i) => { nodeIndices[node] = i; });
   
-  edges.forEach(edge => {
-    const [source, target] = edge;
-    edgeWeights[`${source}-${target}`] = 1; // Default weight
-    // In a real implementation, we would get edge weights from the graph
-  });
+  for (const [source, target] of edges) {
+    const i = nodeIndices[source];
+    const j = nodeIndices[target];
+    
+    // Use edge weight if provided, otherwise default to 1
+    let edgeWeight = 1;
+    if (weight && graph.getEdgeData) {
+      edgeWeight = graph.getEdgeData(source, target, weight) || 1;
+    }
+    
+    A[i][j] = edgeWeight;
+    A[j][i] = edgeWeight; // For undirected graphs
+  }
   
-  // Initialize speed and temperature
+  // Initialize force arrays
+  const gravities = Array(n).fill().map(() => Array(dim).fill(0));
+  const attraction = Array(n).fill().map(() => Array(dim).fill(0));
+  const repulsion = Array(n).fill().map(() => Array(dim).fill(0));
+  
+  // Simulation parameters
   let speed = 1;
   let speedEfficiency = 1;
+  let swing = 1;
+  let traction = 1;
   
-  // Main layout loop
-  for (let iter = 0; iter < maxIter; iter++) {
-    // Calculate repulsive forces
-    const repulsion = {};
-    nodes.forEach(node => {
-      repulsion[node] = Array(dim).fill(0);
-    });
+  // Helper function to estimate factor for force scaling
+  function estimateFactor(n, swing, traction, speed, speedEfficiency, jitterTolerance) {
+    // Optimal jitter parameters
+    const optJitter = 0.05 * Math.sqrt(n);
+    const minJitter = Math.sqrt(optJitter);
+    const maxJitter = 10;
+    const minSpeedEfficiency = 0.05;
     
-    // Calculate attractive forces
-    const attraction = {};
-    nodes.forEach(node => {
-      attraction[node] = Array(dim).fill(0);
-    });
+    // Estimate jitter based on current state
+    const other = Math.min(maxJitter, optJitter * traction / (n * n));
+    let jitter = jitterTolerance * Math.max(minJitter, other);
     
-    // Calculate gravity forces
-    const gravityForces = {};
-    nodes.forEach(node => {
-      gravityForces[node] = Array(dim).fill(0);
-    });
-    
-    // Calculate repulsive forces between all pairs of nodes
-    for (let i = 0; i < nodes.length; i++) {
-      const node1 = nodes[i];
-      for (let j = i + 1; j < nodes.length; j++) {
-        const node2 = nodes[j];
-        
-        // Calculate distance vector
-        const diff = pos[node1].map((coord, dim) => coord - pos[node2][dim]);
-        
-        // Calculate Euclidean distance with size adjustment
-        let distance = Math.sqrt(diff.reduce((sum, d) => sum + d * d, 0));
-        
-        if (nodeSize) {
-          distance -= size[node1] - size[node2];
-        }
-        
-        distance = Math.max(distance, 0.01); // Prevent division by zero
-        
-        // Calculate repulsion (inverse square law)
-        const repulsiveForce = (mass[node1] * mass[node2] * scalingRatio) / (distance * distance);
-        
-        // Apply force along the distance vector
-        for (let d = 0; d < dim; d++) {
-          const direction = diff[d] / distance;
-          repulsion[node1][d] += direction * repulsiveForce;
-          repulsion[node2][d] -= direction * repulsiveForce;
-        }
+    // Adjust speed efficiency based on swing/traction ratio
+    if (swing / traction > 2.0) {
+      if (speedEfficiency > minSpeedEfficiency) {
+        speedEfficiency *= 0.5;
       }
+      jitter = Math.max(jitter, jitterTolerance);
     }
     
-    // Calculate attractive forces along edges
-    for (const [source, target] of edges) {
-      // Calculate distance vector
-      const diff = pos[source].map((coord, dim) => coord - pos[target][dim]);
-      
-      // Calculate Euclidean distance
-      const distance = Math.sqrt(diff.reduce((sum, d) => sum + d * d, 0)) || 0.01;
-      
-      // Calculate attraction
-      let attractiveForce;
-      
-      if (linlog) {
-        attractiveForce = -Math.log(1 + distance) / distance;
-      } else {
-        attractiveForce = -distance;
+    // Calculate target speed
+    let targetSpeed = swing === 0 ? 
+      Number.POSITIVE_INFINITY : 
+      jitter * speedEfficiency * traction / swing;
+    
+    // Further adjust speed efficiency
+    if (swing > jitter * traction) {
+      if (speedEfficiency > minSpeedEfficiency) {
+        speedEfficiency *= 0.7;
       }
-      
-      // Weight by edge weight
-      const edgeKey = `${source}-${target}`;
-      attractiveForce *= edgeWeights[edgeKey] || 1;
-      
-      // Distribute attraction force if enabled
-      if (distributedAction) {
-        attractiveForce /= mass[source];
-        attractiveForce /= mass[target];
-      }
-      
-      // Apply force along the distance vector
-      for (let d = 0; d < dim; d++) {
-        const direction = diff[d] / distance;
-        attraction[source][d] += direction * attractiveForce;
-        attraction[target][d] -= direction * attractiveForce;
-      }
+    } else if (speed < 1000) {
+      speedEfficiency *= 1.3;
     }
     
-    // Calculate gravitational forces to center
-    const center = Array(dim).fill(0);
+    // Limit the speed increase
+    const maxRise = 0.5;
+    speed = speed + Math.min(targetSpeed - speed, maxRise * speed);
     
-    // Calculate current center of mass
-    nodes.forEach(node => {
-      for (let d = 0; d < dim; d++) {
-        center[d] += pos[node][d] / nodes.length;
-      }
-    });
-    
-    nodes.forEach(node => {
-      // Vector from center to node
-      const diff = pos[node].map((coord, dim) => coord - center[dim]);
-      
-      // Distance from center
-      const distance = Math.sqrt(diff.reduce((sum, d) => sum + d * d, 0)) || 0.01;
-      
-      // Gravitational force
-      let gravForce;
-      
-      if (strongGravity) {
-        gravForce = -gravity * mass[node];
-      } else {
-        gravForce = -gravity * mass[node] / distance;
-      }
-      
-      // Apply force along the direction to center
-      for (let d = 0; d < dim; d++) {
-        const direction = diff[d] / distance;
-        gravityForces[node][d] = direction * gravForce;
-      }
-    });
-    
-    // Calculate total forces and update positions
-    let swinging = 0;
-    let traction = 0;
-    const forces = {};
-    
-    nodes.forEach(node => {
-      forces[node] = Array(dim).fill(0);
-      
-      // Combine all forces
-      for (let d = 0; d < dim; d++) {
-        forces[node][d] = repulsion[node][d] + attraction[node][d] + gravityForces[node][d];
-      }
-      
-      // Calculate swinging and traction
-      const forceMagnitude = Math.sqrt(forces[node].reduce((sum, f) => sum + f * f, 0));
-      swinging += mass[node] * forceMagnitude;
-      traction += 0.5 * mass[node] * forceMagnitude;
-    });
-    
-    // Update speed and cooling parameters
-    // This is a simplified version of the original algorithm
-    if (swinging > 0) {
-      speed = 0.1 * speed + 0.9 * Math.min(speedEfficiency * traction / swinging, 2);
-    }
-    
-    // Update positions
-    nodes.forEach(node => {
-      const forceMagnitude = Math.sqrt(forces[node].reduce((sum, f) => sum + f * f, 0));
-      const scaleFactor = Math.min(speed / (1 + speed * Math.sqrt(mass[node] * forceMagnitude)), 10);
-      
-      for (let d = 0; d < dim; d++) {
-        pos[node][d] += forces[node][d] * scaleFactor;
-      }
-    });
+    return [speed, speedEfficiency];
   }
   
-  return rescaleLayout(pos);
+  // Main simulation loop
+  for (let iter = 0; iter < maxIter; iter++) {
+    // Reset forces for this iteration
+    for (let i = 0; i < n; i++) {
+      for (let d = 0; d < dim; d++) {
+        attraction[i][d] = 0;
+        repulsion[i][d] = 0;
+        gravities[i][d] = 0;
+      }
+    }
+    
+    // Compute pairwise differences and distances
+    const diff = Array(n).fill().map(() => 
+      Array(n).fill().map(() => Array(dim).fill(0))
+    );
+    
+    const distance = Array(n).fill().map(() => Array(n).fill(0));
+    
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        if (i === j) continue;
+        
+        for (let d = 0; d < dim; d++) {
+          diff[i][j][d] = pos_arr[i][d] - pos_arr[j][d];
+        }
+        
+        distance[i][j] = Math.sqrt(diff[i][j].reduce((sum, d) => sum + d * d, 0));
+        // Prevent division by zero
+        if (distance[i][j] < 0.01) distance[i][j] = 0.01;
+      }
+    }
+    
+    // Calculate attraction forces
+    if (linlog) {
+      // Logarithmic attraction model
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          if (i === j || A[i][j] === 0) continue;
+          
+          const dist = distance[i][j];
+          const factor = -Math.log(1 + dist) / dist * A[i][j];
+          
+          for (let d = 0; d < dim; d++) {
+            const force = factor * diff[i][j][d];
+            attraction[i][d] += force;
+          }
+        }
+      }
+    } else {
+      // Linear attraction model
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          if (i === j || A[i][j] === 0) continue;
+          
+          for (let d = 0; d < dim; d++) {
+            const force = -diff[i][j][d] * A[i][j];
+            attraction[i][d] += force;
+          }
+        }
+      }
+    }
+    
+    // Apply distributed attraction if enabled
+    if (distributedAction) {
+      for (let i = 0; i < n; i++) {
+        for (let d = 0; d < dim; d++) {
+          attraction[i][d] /= mass[i];
+        }
+      }
+    }
+    
+    // Calculate repulsion forces
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        if (i === j) continue;
+        
+        let dist = distance[i][j];
+        
+        // Adjust distance for node sizes if needed
+        if (adjustSizes) {
+          dist -= size[i] - size[j];
+          dist = Math.max(dist, 0.01); // Prevent negative or zero distances
+        }
+        
+        const distSquared = dist * dist;
+        const massProduct = mass[i] * mass[j];
+        const factor = (massProduct / distSquared) * scalingRatio;
+        
+        for (let d = 0; d < dim; d++) {
+          const direction = diff[i][j][d] / dist;
+          repulsion[i][d] += direction * factor;
+        }
+      }
+    }
+    
+    // Calculate gravity forces
+    // First find the center of mass
+    const centerOfMass = Array(dim).fill(0);
+    for (let i = 0; i < n; i++) {
+      for (let d = 0; d < dim; d++) {
+        centerOfMass[d] += pos_arr[i][d] / n;
+      }
+    }
+    
+    for (let i = 0; i < n; i++) {
+      const posCentered = Array(dim);
+      for (let d = 0; d < dim; d++) {
+        posCentered[d] = pos_arr[i][d] - centerOfMass[d];
+      }
+      
+      if (strongGravity) {
+        // Strong gravity model
+        for (let d = 0; d < dim; d++) {
+          gravities[i][d] = -gravity * mass[i] * posCentered[d];
+        }
+      } else {
+        // Regular gravity model
+        const dist = Math.sqrt(posCentered.reduce((sum, val) => sum + val * val, 0));
+        
+        if (dist > 0.01) {
+          for (let d = 0; d < dim; d++) {
+            const direction = posCentered[d] / dist;
+            gravities[i][d] = -gravity * mass[i] * direction;
+          }
+        }
+      }
+    }
+    
+    // Calculate total forces and update positions
+    const update = Array(n).fill().map(() => Array(dim).fill(0));
+    let totalSwing = 0;
+    let totalTraction = 0;
+    
+    for (let i = 0; i < n; i++) {
+      for (let d = 0; d < dim; d++) {
+        update[i][d] = attraction[i][d] + repulsion[i][d] + gravities[i][d];
+      }
+      
+      // Calculate swing and traction for this node
+      const oldPos = [...pos_arr[i]];
+      const newPos = oldPos.map((p, d) => p + update[i][d]);
+      
+      const swingVector = oldPos.map((p, d) => p - newPos[d]);
+      const tractionVector = oldPos.map((p, d) => p + newPos[d]);
+      
+      const swingMagnitude = Math.sqrt(swingVector.reduce((sum, val) => sum + val * val, 0));
+      const tractionMagnitude = Math.sqrt(tractionVector.reduce((sum, val) => sum + val * val, 0));
+      
+      totalSwing += mass[i] * swingMagnitude;
+      totalTraction += 0.5 * mass[i] * tractionMagnitude;
+    }
+    
+    // Update speed and efficiency
+    [speed, speedEfficiency] = estimateFactor(
+      n,
+      totalSwing,
+      totalTraction,
+      speed,
+      speedEfficiency,
+      jitterTolerance
+    );
+    
+    // Apply forces to update positions
+    let totalMovement = 0;
+    
+    for (let i = 0; i < n; i++) {
+      let factor;
+      
+      if (adjustSizes) {
+        // Calculate displacement magnitude
+        const df = Math.sqrt(update[i].reduce((sum, val) => sum + val * val, 0));
+        const swinging = mass[i] * df;
+        
+        // Determine scaling factor with size adjustments
+        factor = 0.1 * speed / (1 + Math.sqrt(speed * swinging));
+        factor = Math.min(factor * df, 10) / df;
+      } else {
+        // Standard scaling factor
+        const swinging = mass[i] * Math.sqrt(update[i].reduce((sum, val) => sum + val * val, 0));
+        factor = speed / (1 + Math.sqrt(speed * swinging));
+      }
+      
+      // Apply factor to update position
+      for (let d = 0; d < dim; d++) {
+        const movement = update[i][d] * factor;
+        pos_arr[i][d] += movement;
+        totalMovement += Math.abs(movement);
+      }
+    }
+    
+    // Check for convergence
+    if (totalMovement < 1e-10) {
+      break;
+    }
+  }
+  
+  // Create position dictionary
+  const positions = {};
+  for (let i = 0; i < n; i++) {
+    positions[nodes[i]] = pos_arr[i];
+  }
+  
+  return rescaleLayout(positions);
   
   // Helper function to get node degree
   function getNodeDegree(graph, node) {

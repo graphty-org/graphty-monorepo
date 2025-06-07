@@ -598,14 +598,15 @@ function spectralLayout(G, scale = 1, center = null, dim = 2) {
  * @param {Array|null} center - Coordinate pair around which to center the layout
  * @param {number} dim - Dimension of layout
  * @param {number} resolution - Controls the spacing between spiral elements
+ * @param {boolean} equidistant - Whether to place nodes equidistant from each other
  * @returns {Object} Positions dictionary keyed by node
  */
-function spiralLayout(G, scale = 1, center = null, dim = 2, resolution = 0.35) {
+function spiralLayout(G, scale = 1, center = null, dim = 2, resolution = 0.35, equidistant = false) {
   if (dim !== 2) {
     throw new Error("can only handle 2 dimensions");
   }
   
-  const processed = _processParams(G, center, dim);
+  const processed = _processParams(G, center || [0, 0], dim);
   const nodes = processed.G.nodes ? processed.G.nodes() : processed.G;
   center = processed.center;
   
@@ -620,17 +621,51 @@ function spiralLayout(G, scale = 1, center = null, dim = 2, resolution = 0.35) {
     return pos;
   }
   
-  // Calculate positions along a spiral
-  const theta = resolution * np.linspace(0, nodes.length - 1, nodes.length);
-  const distances = np.linspace(0, scale, nodes.length);
+  let positions = [];
   
-  nodes.forEach((node, i) => {
-    const x = Math.cos(theta[i]) * distances[i] + center[0];
-    const y = Math.sin(theta[i]) * distances[i] + center[1];
-    pos[node] = [x, y];
-  });
+  if (equidistant) {
+    // Create equidistant points along the spiral
+    // This matches the Python implementation logic
+    const chord = 1;
+    const step = 0.5;
+    let theta = resolution;
+    theta += chord / (step * theta);
+    
+    for (let i = 0; i < nodes.length; i++) {
+      const r = step * theta;
+      theta += chord / r;
+      positions.push([Math.cos(theta) * r, Math.sin(theta) * r]);
+    }
+  } else {
+    // Create points with equal angle but increasing distance
+    const dist = Array.from({length: nodes.length}, (_, i) => parseFloat(i));
+    const angle = dist.map(d => resolution * d);
+    
+    positions = dist.map((d, i) => [
+      Math.cos(angle[i]) * d,
+      Math.sin(angle[i]) * d
+    ]);
+  }
   
-  return rescaleLayout(pos, scale, center);
+  // Convert position array to position matrix for rescaling
+  const posArray = [];
+  for (let i = 0; i < positions.length; i++) {
+    posArray.push(positions[i]);
+  }
+  
+  // Rescale positions and add center offset
+  const scaledPositions = rescaleLayout(posArray, scale);
+  for (let i = 0; i < scaledPositions.length; i++) {
+    scaledPositions[i][0] += center[0];
+    scaledPositions[i][1] += center[1];
+  }
+  
+  // Create position dictionary
+  for (let i = 0; i < nodes.length; i++) {
+    pos[nodes[i]] = scaledPositions[i];
+  }
+  
+  return pos;
 }
 
 /**

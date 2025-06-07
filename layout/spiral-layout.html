@@ -47,7 +47,7 @@
             font-weight: bold;
             color: #333;
         }
-        input[type="range"], input[type="number"], select {
+        input[type="range"], input[type="number"], select, input[type="checkbox"] {
             width: 100%;
             padding: 5px;
             border: 1px solid #ddd;
@@ -77,11 +77,25 @@
             color: #2c5aa0;
             text-decoration: none;
         }
-        .spiral-guide {
-            stroke: #e0e0e0;
-            stroke-width: 1;
-            fill: none;
-            stroke-dasharray: 3,3;
+        .back-link a:hover {
+            text-decoration: underline;
+        }
+        .checkbox-control {
+            display: flex;
+            align-items: center;
+            margin-top: 5px;
+        }
+        .checkbox-control input {
+            width: auto;
+            margin-right: 10px;
+        }
+        .info-box {
+            background: #f0f7ff;
+            border: 1px solid #c0d7f0;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.85em;
         }
     </style>
 </head>
@@ -98,21 +112,28 @@
             
             <div class="control-group">
                 <label for="num-nodes">Number of nodes:</label>
-                <input type="range" id="num-nodes" min="3" max="50" value="20">
+                <input type="range" id="num-nodes" min="3" max="40" value="20">
                 <span id="num-nodes-value">20</span>
             </div>
             
             <div class="control-group">
                 <label for="graph-type">Graph type:</label>
                 <select id="graph-type">
-                    <option value="random">Random</option>
                     <option value="path">Path</option>
                     <option value="cycle">Cycle</option>
-                    <option value="sequential">Sequential</option>
+                    <option value="random">Random</option>
+                    <option value="star">Star</option>
+                    <option value="tree">Tree</option>
                 </select>
             </div>
             
             <button onclick="newGraph()">New Graph</button>
+            
+            <div class="info-box">
+                <strong>Spiral Layout:</strong> Positions nodes in a spiral pattern. 
+                Use the "Equidistant" option to make nodes equidistant from each other along the spiral. 
+                The "Resolution" parameter controls the spacing between spiral arms.
+            </div>
         </div>
         
         <div class="visualization">
@@ -123,47 +144,41 @@
             <h3>Layout Parameters</h3>
             
             <div class="control-group">
-                <label for="spiral-type">Spiral type:</label>
-                <select id="spiral-type">
-                    <option value="archimedean">Archimedean</option>
-                    <option value="logarithmic">Logarithmic</option>
-                    <option value="fermat">Fermat's Spiral</option>
-                </select>
-            </div>
-            
-            <div class="control-group">
                 <label for="scale">Scale:</label>
-                <input type="range" id="scale" min="0.1" max="10" step="0.1" value="1">
-                <span id="scale-value">1</span>
+                <input type="range" id="scale" min="0.5" max="3" step="0.1" value="1">
+                <span id="scale-value">1.0</span>
             </div>
             
             <div class="control-group">
                 <label for="resolution">Resolution:</label>
-                <input type="range" id="resolution" min="0.1" max="6.28" step="0.01" value="0.5">
-                <span id="resolution-value">0.5</span>
+                <input type="range" id="resolution" min="0.1" max="1" step="0.05" value="0.35">
+                <span id="resolution-value">0.35</span>
             </div>
             
             <div class="control-group">
                 <label for="center-x">Center X:</label>
-                <input type="range" id="center-x" min="-1" max="1" step="0.1" value="0">
-                <span id="center-x-value">0</span>
+                <input type="range" id="center-x" min="-2" max="2" step="0.1" value="0">
+                <span id="center-x-value">0.0</span>
             </div>
             
             <div class="control-group">
                 <label for="center-y">Center Y:</label>
-                <input type="range" id="center-y" min="-1" max="1" step="0.1" value="0">
-                <span id="center-y-value">0</span>
+                <input type="range" id="center-y" min="-2" max="2" step="0.1" value="0">
+                <span id="center-y-value">0.0</span>
+            </div>
+            
+            <div class="control-group checkbox-control">
+                <input type="checkbox" id="equidistant">
+                <label for="equidistant">Equidistant nodes</label>
             </div>
             
             <button onclick="applyLayout()">Apply Layout</button>
-            <button onclick="toggleSpiralGuide()">Toggle Spiral Guide</button>
         </div>
     </div>
 
     <script type="module">
         import { spiralLayout } from './layout.js';
         
-        let showSpiralGuide = false;
         let currentGraph = null;
         
         function generateGraph(type, numNodes) {
@@ -172,71 +187,62 @@
             
             switch(type) {
                 case 'path':
+                    // Simple path graph
                     for(let i = 0; i < numNodes - 1; i++) {
                         edges.push([i, i + 1]);
                     }
                     break;
                 case 'cycle':
+                    // Cycle graph
                     for(let i = 0; i < numNodes; i++) {
                         edges.push([i, (i + 1) % numNodes]);
                     }
                     break;
-                case 'sequential':
-                    // Connect each node to the next 2-3 nodes
-                    for(let i = 0; i < numNodes; i++) {
-                        for(let j = 1; j <= 2; j++) {
-                            if(i + j < numNodes) {
-                                edges.push([i, i + j]);
-                            }
-                        }
+                case 'star':
+                    // Star graph with center at node 0
+                    for(let i = 1; i < numNodes; i++) {
+                        edges.push([0, i]);
+                    }
+                    break;
+                case 'tree':
+                    // Tree graph
+                    for(let i = 1; i < numNodes; i++) {
+                        const parent = Math.floor(Math.random() * i);
+                        edges.push([parent, i]);
                     }
                     break;
                 case 'random':
                 default:
-                    const numEdges = Math.floor(numNodes * 1.2);
-                    for(let i = 0; i < numEdges; i++) {
+                    // Random graph with controlled density
+                    const density = 0.15;
+                    const possibleEdges = (numNodes * (numNodes - 1)) / 2;
+                    const targetEdges = Math.ceil(possibleEdges * density);
+                    
+                    // Ensure connectivity with spanning tree
+                    for(let i = 1; i < numNodes; i++) {
+                        const parent = Math.floor(Math.random() * i);
+                        edges.push([parent, i]);
+                    }
+                    
+                    // Add random edges
+                    let additionalEdges = targetEdges - (numNodes - 1);
+                    let attempts = 0;
+                    
+                    while(additionalEdges > 0 && attempts < 1000) {
                         const a = Math.floor(Math.random() * numNodes);
                         const b = Math.floor(Math.random() * numNodes);
+                        
                         if(a !== b && !edges.some(e => (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a))) {
                             edges.push([a, b]);
+                            additionalEdges--;
                         }
+                        
+                        attempts++;
                     }
                     break;
             }
             
             return { nodes: () => nodes, edges: () => edges };
-        }
-        
-        function drawSpiralGuide(svg, positions, resolution, scale, center, svgWidth, svgHeight) {
-            const numNodes = Object.keys(positions).length;
-            const margin = 50;
-            const scaleX = (svgWidth - 2 * margin);
-            const scaleY = (svgHeight - 2 * margin);
-            
-            // Calculate the spiral path
-            const points = [];
-            const steps = numNodes * 3; // More steps for smoother curve
-            
-            for(let i = 0; i <= steps; i++) {
-                const t = i / steps * (numNodes - 1);
-                const theta = resolution * t;
-                const distance = scale * t / (numNodes - 1 || 1);
-                
-                const x = Math.cos(theta) * distance + center[0];
-                const y = Math.sin(theta) * distance + center[1];
-                
-                // Transform to SVG coordinates
-                const svgX = margin + (x + scale) / (2 * scale) * scaleX;
-                const svgY = margin + (y + scale) / (2 * scale) * scaleY;
-                
-                points.push(`${svgX},${svgY}`);
-            }
-            
-            // Create path element
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            path.setAttribute('d', `M ${points.join(' L ')}`);
-            path.setAttribute('class', 'spiral-guide');
-            svg.appendChild(path);
         }
         
         function visualizeGraph(graph, positions) {
@@ -253,21 +259,75 @@
             
             const nodes = graph.nodes();
             const posValues = nodes.map(n => positions[n]);
-            const maxX = Math.max(...posValues.map(p => p[0]));
             const minX = Math.min(...posValues.map(p => p[0]));
+            const maxX = Math.max(...posValues.map(p => p[0]));
             const minY = Math.min(...posValues.map(p => p[1]));
             const maxY = Math.max(...posValues.map(p => p[1]));
             
             const rangeX = maxX - minX || 1;
             const rangeY = maxY - minY || 1;
             
-            // Draw spiral guide if enabled
-            if(showSpiralGuide) {
+            // Draw spiral guide (light gray)
+            if (document.getElementById('equidistant').checked) {
+                // Draw equidistant spiral guide with points
                 const resolution = parseFloat(document.getElementById('resolution').value);
-                const scale = parseFloat(document.getElementById('scale').value);
-                const centerX = parseFloat(document.getElementById('center-x').value);
-                const centerY = parseFloat(document.getElementById('center-y').value);
-                drawSpiralGuide(svg, positions, resolution, scale, [centerX, centerY], width, height);
+                const chord = 1;
+                const step = 0.5;
+                let theta = resolution;
+                theta += chord / (step * theta);
+                
+                const guidePoints = [];
+                for (let i = 0; i < 100; i++) {
+                    const r = step * theta;
+                    theta += chord / r;
+                    
+                    const x = Math.cos(theta) * r;
+                    const y = Math.sin(theta) * r;
+                    guidePoints.push([x, y]);
+                }
+                
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                let pathData = `M ${margin + (guidePoints[0][0] - minX) / rangeX * scaleX} ${margin + (guidePoints[0][1] - minY) / rangeY * scaleY}`;
+                
+                for (let i = 1; i < guidePoints.length; i++) {
+                    const x = margin + (guidePoints[i][0] - minX) / rangeX * scaleX;
+                    const y = margin + (guidePoints[i][1] - minY) / rangeY * scaleY;
+                    pathData += ` L ${x} ${y}`;
+                }
+                
+                path.setAttribute('d', pathData);
+                path.setAttribute('stroke', '#ddd');
+                path.setAttribute('stroke-width', '1');
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke-dasharray', '3,3');
+                svg.appendChild(path);
+            } else {
+                // Draw Archimedean spiral guide
+                const resolution = parseFloat(document.getElementById('resolution').value);
+                const guidePoints = [];
+                
+                for (let t = 0; t < 10 * Math.PI; t += 0.1) {
+                    const r = resolution * t;
+                    const x = r * Math.cos(t);
+                    const y = r * Math.sin(t);
+                    guidePoints.push([x, y]);
+                }
+                
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                let pathData = `M ${margin + (guidePoints[0][0] - minX) / rangeX * scaleX} ${margin + (guidePoints[0][1] - minY) / rangeY * scaleY}`;
+                
+                for (let i = 1; i < guidePoints.length; i++) {
+                    const x = margin + (guidePoints[i][0] - minX) / rangeX * scaleX;
+                    const y = margin + (guidePoints[i][1] - minY) / rangeY * scaleY;
+                    pathData += ` L ${x} ${y}`;
+                }
+                
+                path.setAttribute('d', pathData);
+                path.setAttribute('stroke', '#ddd');
+                path.setAttribute('stroke-width', '1');
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke-dasharray', '3,3');
+                svg.appendChild(path);
             }
             
             // Draw edges
@@ -291,16 +351,15 @@
                 svg.appendChild(line);
             });
             
-            // Draw nodes with color gradient along the spiral
+            // Draw nodes
             nodes.forEach(node => {
                 const pos = positions[node];
                 const x = margin + (pos[0] - minX) / rangeX * scaleX;
                 const y = margin + (pos[1] - minY) / rangeY * scaleY;
                 
-                // Calculate color based on position in the spiral
-                const progress = node / (nodes.length - 1 || 1);
-                const hue = progress * 300; // From red (0) to purple (300)
-                const color = `hsl(${hue}, 70%, 50%)`;
+                // Color gradient based on node index
+                const hue = 360 * node / nodes.length;
+                const color = `hsl(${hue}, 70%, 60%)`;
                 
                 const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 circle.setAttribute('cx', x);
@@ -315,8 +374,9 @@
                 text.setAttribute('x', x);
                 text.setAttribute('y', y + 4);
                 text.setAttribute('text-anchor', 'middle');
-                text.setAttribute('font-size', '11');
+                text.setAttribute('font-size', '10');
                 text.setAttribute('fill', 'white');
+                text.setAttribute('font-weight', 'bold');
                 text.textContent = node;
                 svg.appendChild(text);
             });
@@ -347,15 +407,18 @@
             const resolution = parseFloat(document.getElementById('resolution').value);
             const centerX = parseFloat(document.getElementById('center-x').value);
             const centerY = parseFloat(document.getElementById('center-y').value);
+            const equidistant = document.getElementById('equidistant').checked;
             
-            const positions = spiralLayout(currentGraph, scale, [centerX, centerY], 2, resolution);
+            const positions = spiralLayout(
+                currentGraph, 
+                scale, 
+                [centerX, centerY], 
+                2, 
+                resolution,
+                equidistant
+            );
             
             visualizeGraph(currentGraph, positions);
-        };
-        
-        window.toggleSpiralGuide = function() {
-            showSpiralGuide = !showSpiralGuide;
-            if (currentGraph) applyLayout();
         };
         
         function setupControls() {
@@ -369,7 +432,7 @@
             });
             
             document.getElementById('graph-type').onchange = null;
-            document.getElementById('spiral-type').onchange = null;
+            document.getElementById('equidistant').onchange = null;
         }
         
         setupControls();

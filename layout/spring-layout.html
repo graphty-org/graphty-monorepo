@@ -15,10 +15,17 @@
             max-width: 1400px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 300px 1fr;
+            grid-template-columns: 250px 1fr 250px;
             gap: 20px;
         }
-        .controls {
+        .graph-controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        .layout-controls {
             background: white;
             padding: 20px;
             border-radius: 8px;
@@ -26,6 +33,9 @@
             height: fit-content;
         }
         .visualization {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             padding: 20px;
         }
         .control-group {
@@ -85,8 +95,8 @@
     <h1>Spring Layout Test</h1>
     
     <div class="container">
-        <div class="controls">
-            <h3>Layout Parameters</h3>
+        <div class="graph-controls">
+            <h3>Graph Settings</h3>
             
             <div class="control-group">
                 <label for="num-nodes">Number of nodes:</label>
@@ -103,6 +113,16 @@
                     <option value="star">Star</option>
                 </select>
             </div>
+            
+            <button onclick="newGraph()">New Graph</button>
+        </div>
+        
+        <div class="visualization">
+            <svg id="graph-svg" width="800" height="600"></svg>
+        </div>
+
+        <div class="layout-controls">
+            <h3>Layout Parameters</h3>
             
             <div class="control-group">
                 <label for="iterations">Iterations:</label>
@@ -122,16 +142,14 @@
                 <span id="k-value-value">1.0</span>
             </div>
             
-            <button onclick="newGraph()">New Graph</button>
-        </div>
-        
-        <div class="visualization">
-            <svg id="graph-svg" width="800" height="600"></svg>
+            <button onclick="applyLayout()">Apply Layout</button>
         </div>
     </div>
 
     <script type="module">
         import { springLayout } from './layout.js';
+        
+        let currentGraph = null;
         
         function generateGraph(type, numNodes) {
             const nodes = Array.from({length: numNodes}, (_, i) => i);
@@ -243,14 +261,31 @@
         window.newGraph = function() {
             const numNodes = parseInt(document.getElementById('num-nodes').value);
             const graphType = document.getElementById('graph-type').value;
+            
+            currentGraph = generateGraph(graphType, numNodes);
+            
+            // Just visualize with random positions initially
+            const positions = {};
+            currentGraph.nodes().forEach(node => {
+                positions[node] = [
+                    (Math.random() - 0.5) * 1.5,
+                    (Math.random() - 0.5) * 1.5
+                ];
+            });
+            
+            visualizeGraph(currentGraph, positions);
+        };
+        
+        window.applyLayout = function() {
+            if(!currentGraph) return;
+            
             const iterations = parseInt(document.getElementById('iterations').value);
             const scale = parseFloat(document.getElementById('scale').value);
             const k = parseFloat(document.getElementById('k-value').value);
             
-            const graph = generateGraph(graphType, numNodes);
-            const positions = springLayout(graph, k, null, null, iterations, scale, [0, 0], 2);
+            const positions = springLayout(currentGraph, k, null, null, iterations, scale, [0, 0], 2);
             
-            visualizeGraph(graph, positions);
+            visualizeGraph(currentGraph, positions);
         };
         
         function setupControls() {
@@ -260,11 +295,10 @@
                 const valueSpan = document.getElementById(id + '-value');
                 slider.oninput = function() {
                     valueSpan.textContent = this.value;
-                    newGraph();
                 };
             });
             
-            document.getElementById('graph-type').onchange = newGraph;
+            document.getElementById('graph-type').onchange = null;
         }
         
         setupControls();

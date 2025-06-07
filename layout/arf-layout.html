@@ -15,10 +15,17 @@
             max-width: 1400px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 300px 1fr;
+            grid-template-columns: 250px 1fr 250px;
             gap: 20px;
         }
-        .controls {
+        .graph-controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        .layout-controls {
             background: white;
             padding: 20px;
             border-radius: 8px;
@@ -106,8 +113,8 @@
     <h1>ARF Layout Test</h1>
     
     <div class="container">
-        <div class="controls">
-            <h3>Layout Parameters</h3>
+        <div class="graph-controls">
+            <h3>Graph Settings</h3>
             
             <div class="control-group">
                 <label for="num-nodes">Number of nodes:</label>
@@ -126,6 +133,23 @@
                     <option value="star">Star</option>
                 </select>
             </div>
+            
+            <button onclick="newGraph()">New Graph</button>
+            
+            <div class="info-box">
+                <strong>ARF Layout:</strong> Attractive and Repulsive Forces algorithm. 
+                Uses spring forces between connected nodes (attraction) and repulsive forces 
+                between all nodes. The parameter 'a' controls the strength of springs - 
+                higher values create tighter clustering of connected components.
+            </div>
+        </div>
+        
+        <div class="visualization">
+            <svg id="graph-svg" width="800" height="600"></svg>
+        </div>
+
+        <div class="layout-controls">
+            <h3>Layout Parameters</h3>
             
             <div class="control-group">
                 <label for="scaling">Scaling factor:</label>
@@ -148,20 +172,8 @@
                 <span id="max-iterations-value">1000</span>
             </div>
             
-            <button onclick="newGraph()">New Graph</button>
-            <button onclick="restartSimulation()">Restart Simulation</button>
+            <button onclick="applyLayout()">Apply Layout</button>
             <div id="loading" class="loading" style="display: none;">Computing layout...</div>
-            
-            <div class="info-box">
-                <strong>ARF Layout:</strong> Attractive and Repulsive Forces algorithm. 
-                Uses spring forces between connected nodes (attraction) and repulsive forces 
-                between all nodes. The parameter 'a' controls the strength of springs - 
-                higher values create tighter clustering of connected components.
-            </div>
-        </div>
-        
-        <div class="visualization">
-            <svg id="graph-svg" width="800" height="600"></svg>
         </div>
     </div>
 
@@ -401,31 +413,34 @@
             });
         }
         
-        window.newGraph = async function() {
+        window.newGraph = function() {
             const numNodes = parseInt(document.getElementById('num-nodes').value);
             const graphType = document.getElementById('graph-type').value;
-            
-            const loadingDiv = document.getElementById('loading');
-            loadingDiv.style.display = 'block';
             
             try {
                 // Generate new graph
                 currentGraph = generateGraph(graphType, numNodes);
                 currentSeed = Math.floor(Math.random() * 1000);
                 
-                // Run ARF layout
-                await runARFLayout();
+                // Just visualize with random positions initially
+                const positions = {};
+                currentGraph.nodes().forEach(node => {
+                    positions[node] = [
+                        (Math.random() - 0.5) * 1.5,
+                        (Math.random() - 0.5) * 1.5
+                    ];
+                });
+                
+                visualizeGraph(currentGraph, positions);
                 
             } catch (error) {
-                console.error('Error in ARF layout:', error);
+                console.error('Error in graph generation:', error);
                 const svg = document.getElementById('graph-svg');
                 svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="red">Error: ${error.message}</text>`;
-            } finally {
-                loadingDiv.style.display = 'none';
             }
         };
         
-        window.restartSimulation = async function() {
+        window.applyLayout = async function() {
             if (!currentGraph) return;
             
             const loadingDiv = document.getElementById('loading');
@@ -484,15 +499,10 @@
                             warning.style.display = 'none';
                         }
                     }
-                    
-                    // Auto-restart simulation for parameter changes (except num-nodes)
-                    if (id !== 'num-nodes') {
-                        restartSimulation();
-                    }
                 };
             });
             
-            document.getElementById('graph-type').onchange = newGraph;
+            document.getElementById('graph-type').onchange = null;
         }
         
         setupControls();

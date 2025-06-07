@@ -15,10 +15,17 @@
             max-width: 1400px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 300px 1fr;
+            grid-template-columns: 250px 1fr 250px;
             gap: 20px;
         }
-        .controls {
+        .graph-controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        .layout-controls {
             background: white;
             padding: 20px;
             border-radius: 8px;
@@ -100,8 +107,8 @@
     <h1>Planar Layout Test</h1>
     
     <div class="container">
-        <div class="controls">
-            <h3>Layout Parameters</h3>
+        <div class="graph-controls">
+            <h3>Graph Settings</h3>
             
             <div class="control-group">
                 <label for="graph-type">Graph type:</label>
@@ -118,6 +125,17 @@
                 <input type="range" id="num-nodes" min="4" max="20" value="10">
                 <span id="num-nodes-value">10</span>
             </div>
+            
+            <button onclick="newGraph()">New Graph</button>
+            <div id="error-message" class="error-message"></div>
+        </div>
+        
+        <div class="visualization">
+            <svg id="graph-svg" width="800" height="600"></svg>
+        </div>
+        
+        <div class="layout-controls">
+            <h3>Layout Parameters</h3>
             
             <div class="control-group">
                 <label for="scale">Scale:</label>
@@ -137,8 +155,7 @@
                 <span id="center-y-value">0.0</span>
             </div>
             
-            <button onclick="newGraph()">New Graph</button>
-            <div id="error-message" class="error-message"></div>
+            <button onclick="applyLayout()">Apply Layout</button>
             
             <div class="info-box">
                 <strong>Planar Layout:</strong> Positions nodes without edge intersections. 
@@ -147,14 +164,12 @@
                 (complete bipartite with 3,3 nodes) are examples of non-planar graphs.
             </div>
         </div>
-        
-        <div class="visualization">
-            <svg id="graph-svg" width="800" height="600"></svg>
-        </div>
     </div>
 
     <script type="module">
         import { planarLayout } from './layout.js';
+        
+        let currentGraph = null;
         
         function generatePlanarGraph(type, numNodes) {
             const nodes = Array.from({length: numNodes}, (_, i) => i);
@@ -306,6 +321,33 @@
         window.newGraph = function() {
             const graphType = document.getElementById('graph-type').value;
             const numNodes = parseInt(document.getElementById('num-nodes').value);
+            
+            const errorMessageElement = document.getElementById('error-message');
+            errorMessageElement.style.display = 'none';
+            
+            try {
+                currentGraph = generatePlanarGraph(graphType, numNodes);
+                
+                // Just visualize with random positions initially
+                const positions = {};
+                currentGraph.nodes().forEach(node => {
+                    positions[node] = [
+                        (Math.random() - 0.5) * 1.5,
+                        (Math.random() - 0.5) * 1.5
+                    ];
+                });
+                
+                visualizeGraph(currentGraph, positions);
+            } catch (error) {
+                console.error('Error generating graph:', error);
+                errorMessageElement.textContent = `Error: ${error.message}`;
+                errorMessageElement.style.display = 'block';
+            }
+        };
+        
+        window.applyLayout = function() {
+            if(!currentGraph) return;
+            
             const scale = parseFloat(document.getElementById('scale').value);
             const centerX = parseFloat(document.getElementById('center-x').value);
             const centerY = parseFloat(document.getElementById('center-y').value);
@@ -314,9 +356,8 @@
             errorMessageElement.style.display = 'none';
             
             try {
-                const graph = generatePlanarGraph(graphType, numNodes);
-                const positions = planarLayout(graph, scale, [centerX, centerY], 2);
-                visualizeGraph(graph, positions);
+                const positions = planarLayout(currentGraph, scale, [centerX, centerY], 2);
+                visualizeGraph(currentGraph, positions);
             } catch (error) {
                 console.error('Error in planar layout:', error);
                 errorMessageElement.textContent = `Error: ${error.message}`;
@@ -331,11 +372,8 @@
                 const valueSpan = document.getElementById(id + '-value');
                 slider.oninput = function() {
                     valueSpan.textContent = this.value;
-                    newGraph();
                 };
             });
-            
-            document.getElementById('graph-type').onchange = newGraph;
         }
         
         setupControls();

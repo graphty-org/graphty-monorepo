@@ -15,10 +15,17 @@
             max-width: 1400px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 300px 1fr;
+            grid-template-columns: 250px 1fr 250px;
             gap: 20px;
         }
-        .controls {
+        .graph-controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        .layout-controls {
             background: white;
             padding: 20px;
             border-radius: 8px;
@@ -91,8 +98,8 @@
     <h1>Bipartite Layout Test</h1>
     
     <div class="container">
-        <div class="controls">
-            <h3>Layout Parameters</h3>
+        <div class="graph-controls">
+            <h3>Graph Settings</h3>
             
             <div class="control-group">
                 <label for="num-nodes">Total number of nodes:</label>
@@ -105,6 +112,23 @@
                 <input type="range" id="partition-ratio" min="0.2" max="0.8" step="0.1" value="0.5">
                 <span id="partition-ratio-value">50%-50%</span>
             </div>
+            
+            <div class="control-group">
+                <label for="edge-density">Edge density:</label>
+                <input type="range" id="edge-density" min="0.1" max="1" step="0.1" value="0.3">
+                <span id="edge-density-value">0.3</span>
+            </div>
+            
+            <button onclick="newGraph()">New Graph</button>
+            <div id="partition-info" class="partition-info"></div>
+        </div>
+        
+        <div class="visualization">
+            <svg id="graph-svg" width="800" height="600"></svg>
+        </div>
+
+        <div class="layout-controls">
+            <h3>Layout Parameters</h3>
             
             <div class="control-group">
                 <label for="alignment">Alignment:</label>
@@ -126,23 +150,14 @@
                 <span id="aspect-ratio-value">1.33</span>
             </div>
             
-            <div class="control-group">
-                <label for="edge-density">Edge density:</label>
-                <input type="range" id="edge-density" min="0.1" max="1" step="0.1" value="0.3">
-                <span id="edge-density-value">0.3</span>
-            </div>
-            
-            <button onclick="newGraph()">New Graph</button>
-            <div id="partition-info" class="partition-info"></div>
-        </div>
-        
-        <div class="visualization">
-            <svg id="graph-svg" width="800" height="600"></svg>
+            <button onclick="applyLayout()">Apply Layout</button>
         </div>
     </div>
 
     <script type="module">
         import { bipartiteLayout } from './layout.js';
+        
+        let currentGraph = null;
         
         function generateBipartiteGraph(totalNodes, partitionRatio, edgeDensity) {
             const setASize = Math.round(totalNodes * partitionRatio);
@@ -292,24 +307,41 @@
         window.newGraph = function() {
             const totalNodes = parseInt(document.getElementById('num-nodes').value);
             const partitionRatio = parseFloat(document.getElementById('partition-ratio').value);
-            const alignment = document.getElementById('alignment').value;
-            const scale = parseFloat(document.getElementById('scale').value);
-            const aspectRatio = parseFloat(document.getElementById('aspect-ratio').value);
             const edgeDensity = parseFloat(document.getElementById('edge-density').value);
             
-            const graph = generateBipartiteGraph(totalNodes, partitionRatio, edgeDensity);
-            const positions = bipartiteLayout(graph, graph.setA, alignment, scale, [0, 0], aspectRatio);
+            currentGraph = generateBipartiteGraph(totalNodes, partitionRatio, edgeDensity);
             
-            visualizeGraph(graph, positions);
+            // Just visualize with random positions initially
+            const positions = {};
+            currentGraph.nodes().forEach(node => {
+                positions[node] = [
+                    (Math.random() - 0.5) * 1.5,
+                    (Math.random() - 0.5) * 1.5
+                ];
+            });
+            
+            visualizeGraph(currentGraph, positions);
             
             // Update partition info
             const infoDiv = document.getElementById('partition-info');
             infoDiv.innerHTML = `
                 <strong>Partition:</strong><br>
-                Set A: ${graph.setA.length} nodes (${((graph.setA.length / totalNodes) * 100).toFixed(1)}%)<br>
-                Set B: ${graph.setB.length} nodes (${((graph.setB.length / totalNodes) * 100).toFixed(1)}%)<br>
-                Edges: ${graph.edges().length}
+                Set A: ${currentGraph.setA.length} nodes (${((currentGraph.setA.length / totalNodes) * 100).toFixed(1)}%)<br>
+                Set B: ${currentGraph.setB.length} nodes (${((currentGraph.setB.length / totalNodes) * 100).toFixed(1)}%)<br>
+                Edges: ${currentGraph.edges().length}
             `;
+        };
+        
+        window.applyLayout = function() {
+            if (!currentGraph) return;
+            
+            const alignment = document.getElementById('alignment').value;
+            const scale = parseFloat(document.getElementById('scale').value);
+            const aspectRatio = parseFloat(document.getElementById('aspect-ratio').value);
+            
+            const positions = bipartiteLayout(currentGraph, currentGraph.setA, alignment, scale, [0, 0], aspectRatio);
+            
+            visualizeGraph(currentGraph, positions);
         };
         
         function setupControls() {
@@ -324,11 +356,10 @@
                     } else {
                         valueSpan.textContent = this.value;
                     }
-                    newGraph();
                 };
             });
             
-            document.getElementById('alignment').onchange = newGraph;
+            document.getElementById('alignment').onchange = null;
         }
         
         setupControls();

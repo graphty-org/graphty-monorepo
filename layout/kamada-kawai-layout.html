@@ -15,10 +15,17 @@
             max-width: 1400px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 300px 1fr;
+            grid-template-columns: 250px 1fr 250px;
             gap: 20px;
         }
-        .controls {
+        .graph-controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        .layout-controls {
             background: white;
             padding: 20px;
             border-radius: 8px;
@@ -96,8 +103,8 @@
     <h1>Kamada-Kawai Layout Test</h1>
     
     <div class="container">
-        <div class="controls">
-            <h3>Layout Parameters</h3>
+        <div class="graph-controls">
+            <h3>Graph Settings</h3>
             
             <div class="control-group">
                 <label for="num-nodes">Number of nodes:</label>
@@ -115,6 +122,16 @@
                     <option value="complete">Complete</option>
                 </select>
             </div>
+            
+            <button onclick="newGraph()">New Graph</button>
+        </div>
+        
+        <div class="visualization">
+            <svg id="graph-svg" width="800" height="600"></svg>
+        </div>
+        
+        <div class="layout-controls">
+            <h3>Layout Parameters</h3>
             
             <div class="control-group">
                 <label for="scale">Scale:</label>
@@ -134,7 +151,7 @@
                 <span id="center-y-value">0.0</span>
             </div>
             
-            <button onclick="newGraph()">New Graph</button>
+            <button onclick="applyLayout()">Apply Layout</button>
             <div id="loading" class="loading" style="display: none;">Computing layout...</div>
             
             <div class="info-box">
@@ -143,14 +160,14 @@
                 preserve the "shape" of the graph.
             </div>
         </div>
-        
-        <div class="visualization">
-            <svg id="graph-svg" width="800" height="600"></svg>
-        </div>
     </div>
 
     <script type="module">
         import { kamadaKawaiLayout } from './layout.js';
+        
+        let currentGraph = null;
+        let distances = null;
+        let initialPositions = null;
         
         function generateGraph(type, numNodes) {
             const nodes = Array.from({length: numNodes}, (_, i) => i);
@@ -334,9 +351,30 @@
             return dist;
         }
         
-        window.newGraph = async function() {
+        window.newGraph = function() {
             const numNodes = parseInt(document.getElementById('num-nodes').value);
             const graphType = document.getElementById('graph-type').value;
+            
+            currentGraph = generateGraph(graphType, numNodes);
+            
+            // Compute all-pairs shortest paths for distance dictionary
+            distances = computeDistances(currentGraph);
+            
+            // Get initial circular layout as starting positions
+            initialPositions = {};
+            const angleStep = 2 * Math.PI / numNodes;
+            currentGraph.nodes().forEach((node, i) => {
+                const angle = i * angleStep;
+                initialPositions[node] = [Math.cos(angle), Math.sin(angle)];
+            });
+            
+            // Just visualize with initial positions
+            visualizeGraph(currentGraph, initialPositions);
+        };
+        
+        window.applyLayout = async function() {
+            if(!currentGraph) return;
+            
             const scale = parseFloat(document.getElementById('scale').value);
             const centerX = parseFloat(document.getElementById('center-x').value);
             const centerY = parseFloat(document.getElementById('center-y').value);
@@ -345,23 +383,18 @@
             loadingDiv.style.display = 'block';
             
             try {
-                const graph = generateGraph(graphType, numNodes);
-                
-                // Compute all-pairs shortest paths for distance dictionary
-                const dist = computeDistances(graph);
-                
-                // Get initial circular layout as starting positions
-                const initialPos = {};
-                const angleStep = 2 * Math.PI / numNodes;
-                graph.nodes().forEach((node, i) => {
-                    const angle = i * angleStep;
-                    initialPos[node] = [Math.cos(angle), Math.sin(angle)];
-                });
-                
                 // Run Kamada-Kawai layout
-                const positions = await kamadaKawaiLayout(graph, dist, initialPos, null, scale, [centerX, centerY], 2);
+                const positions = await kamadaKawaiLayout(
+                    currentGraph, 
+                    distances, 
+                    initialPositions, 
+                    null, 
+                    scale, 
+                    [centerX, centerY], 
+                    2
+                );
                 
-                visualizeGraph(graph, positions);
+                visualizeGraph(currentGraph, positions);
             } catch (error) {
                 console.error('Error in Kamada-Kawai layout:', error);
             } finally {
@@ -376,11 +409,8 @@
                 const valueSpan = document.getElementById(id + '-value');
                 slider.oninput = function() {
                     valueSpan.textContent = this.value;
-                    newGraph();
                 };
             });
-            
-            document.getElementById('graph-type').onchange = newGraph;
         }
         
         setupControls();

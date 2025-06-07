@@ -15,10 +15,17 @@
             max-width: 1400px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 300px 1fr;
+            grid-template-columns: 250px 1fr 250px;
             gap: 20px;
         }
-        .controls {
+        .graph-controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        .layout-controls {
             background: white;
             padding: 20px;
             border-radius: 8px;
@@ -91,8 +98,8 @@
     <h1>Multipartite Layout Test</h1>
     
     <div class="container">
-        <div class="controls">
-            <h3>Layout Parameters</h3>
+        <div class="graph-controls">
+            <h3>Graph Settings</h3>
             
             <div class="control-group">
                 <label for="num-layers">Number of layers:</label>
@@ -105,6 +112,26 @@
                 <input type="range" id="nodes-per-layer" min="2" max="8" value="4">
                 <span id="nodes-per-layer-value">4</span>
             </div>
+            
+            <div class="control-group">
+                <label for="edge-type">Connection type:</label>
+                <select id="edge-type">
+                    <option value="adjacent">Adjacent layers</option>
+                    <option value="random">Random between layers</option>
+                    <option value="hierarchical">Hierarchical</option>
+                    <option value="complete">Complete</option>
+                </select>
+            </div>
+            
+            <button onclick="newGraph()">New Graph</button>
+        </div>
+        
+        <div class="visualization">
+            <svg id="graph-svg" width="800" height="600"></svg>
+        </div>
+        
+        <div class="layout-controls">
+            <h3>Layout Parameters</h3>
             
             <div class="control-group">
                 <label for="alignment">Alignment:</label>
@@ -120,27 +147,15 @@
                 <span id="scale-value">1.0</span>
             </div>
             
-            <div class="control-group">
-                <label for="edge-type">Connection type:</label>
-                <select id="edge-type">
-                    <option value="adjacent">Adjacent layers</option>
-                    <option value="random">Random between layers</option>
-                    <option value="hierarchical">Hierarchical</option>
-                    <option value="complete">Complete</option>
-                </select>
-            </div>
-            
-            <button onclick="newGraph()">New Graph</button>
+            <button onclick="applyLayout()">Apply Layout</button>
             <div id="layers-info" class="layers-info"></div>
-        </div>
-        
-        <div class="visualization">
-            <svg id="graph-svg" width="800" height="600"></svg>
         </div>
     </div>
 
     <script type="module">
         import { multipartiteLayout } from './layout.js';
+        
+        let currentGraph = null;
         
         function generateMultipartiteGraph(numLayers, nodesPerLayer, edgeType) {
             const layers = {};
@@ -342,26 +357,43 @@
         window.newGraph = function() {
             const numLayers = parseInt(document.getElementById('num-layers').value);
             const nodesPerLayer = parseInt(document.getElementById('nodes-per-layer').value);
-            const alignment = document.getElementById('alignment').value;
-            const scale = parseFloat(document.getElementById('scale').value);
             const edgeType = document.getElementById('edge-type').value;
             
-            const graph = generateMultipartiteGraph(numLayers, nodesPerLayer, edgeType);
-            const positions = multipartiteLayout(graph, graph.layers, alignment, scale, [0, 0]);
+            currentGraph = generateMultipartiteGraph(numLayers, nodesPerLayer, edgeType);
             
-            visualizeGraph(graph, positions);
+            // Just visualize with random positions initially
+            const positions = {};
+            currentGraph.nodes().forEach(node => {
+                positions[node] = [
+                    (Math.random() - 0.5) * 1.5,
+                    (Math.random() - 0.5) * 1.5
+                ];
+            });
+            
+            visualizeGraph(currentGraph, positions);
             
             // Update layer info
             const infoDiv = document.getElementById('layers-info');
-            const layerInfo = Object.entries(graph.layers).map(([idx, nodes]) => 
+            const layerInfo = Object.entries(currentGraph.layers).map(([idx, nodes]) => 
                 `Layer ${idx}: ${nodes.length} nodes`
             ).join('<br>');
             
             infoDiv.innerHTML = `
                 <strong>Structure:</strong><br>
                 ${layerInfo}<br>
-                <strong>Total edges:</strong> ${graph.edges().length}
+                <strong>Total edges:</strong> ${currentGraph.edges().length}
             `;
+        };
+        
+        window.applyLayout = function() {
+            if(!currentGraph) return;
+            
+            const alignment = document.getElementById('alignment').value;
+            const scale = parseFloat(document.getElementById('scale').value);
+            
+            const positions = multipartiteLayout(currentGraph, currentGraph.layers, alignment, scale, [0, 0]);
+            
+            visualizeGraph(currentGraph, positions);
         };
         
         function setupControls() {
@@ -371,12 +403,8 @@
                 const valueSpan = document.getElementById(id + '-value');
                 slider.oninput = function() {
                     valueSpan.textContent = this.value;
-                    newGraph();
                 };
             });
-            
-            document.getElementById('alignment').onchange = newGraph;
-            document.getElementById('edge-type').onchange = newGraph;
         }
         
         setupControls();

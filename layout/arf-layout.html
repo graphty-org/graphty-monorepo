@@ -85,6 +85,16 @@
             text-align: center;
             color: #666;
             font-style: italic;
+            margin-top: 10px;
+        }
+        .parameter-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 5px;
+            font-size: 0.8em;
         }
     </style>
 </head>
@@ -93,7 +103,7 @@
         <a href="index.html">← Back to Index</a>
     </div>
     
-    <h1>ARF Layout Test (Attractive-Repulsive Forces)</h1>
+    <h1>ARF Layout Test</h1>
     
     <div class="container">
         <div class="controls">
@@ -101,57 +111,52 @@
             
             <div class="control-group">
                 <label for="num-nodes">Number of nodes:</label>
-                <input type="range" id="num-nodes" min="5" max="30" value="20">
-                <span id="num-nodes-value">20</span>
+                <input type="range" id="num-nodes" min="5" max="30" value="15">
+                <span id="num-nodes-value">15</span>
             </div>
             
             <div class="control-group">
                 <label for="graph-type">Graph type:</label>
                 <select id="graph-type">
                     <option value="random">Random</option>
-                    <option value="clustered">Clustered</option>
-                    <option value="hierarchical">Hierarchical</option>
+                    <option value="scale-free">Scale-free</option>
                     <option value="small-world">Small World</option>
+                    <option value="complete">Complete</option>
+                    <option value="cycle">Cycle</option>
+                    <option value="star">Star</option>
                 </select>
             </div>
             
             <div class="control-group">
-                <label for="iterations">Iterations:</label>
-                <input type="range" id="iterations" min="10" max="500" value="200">
-                <span id="iterations-value">200</span>
+                <label for="scaling">Scaling factor:</label>
+                <input type="range" id="scaling" min="0.5" max="5" step="0.1" value="1">
+                <span id="scaling-value">1.0</span>
             </div>
             
             <div class="control-group">
-                <label for="scale">Scale:</label>
-                <input type="range" id="scale" min="0.5" max="3" step="0.1" value="1">
-                <span id="scale-value">1.0</span>
+                <label for="spring-strength">Spring strength (a):</label>
+                <input type="range" id="spring-strength" min="1.1" max="5" step="0.1" value="1.1">
+                <span id="spring-strength-value">1.1</span>
+                <div id="spring-warning" class="parameter-warning" style="display: none;">
+                    Parameter 'a' must be > 1 for stability
+                </div>
             </div>
             
             <div class="control-group">
-                <label for="attraction">Attractive Force:</label>
-                <input type="range" id="attraction" min="0.01" max="0.2" step="0.01" value="0.05">
-                <span id="attraction-value">0.05</span>
-            </div>
-            
-            <div class="control-group">
-                <label for="repulsion">Repulsive Force:</label>
-                <input type="range" id="repulsion" min="0.1" max="2" step="0.1" value="1">
-                <span id="repulsion-value">1.0</span>
-            </div>
-            
-            <div class="control-group">
-                <label for="damping">Damping:</label>
-                <input type="range" id="damping" min="0.1" max="0.9" step="0.1" value="0.9">
-                <span id="damping-value">0.9</span>
+                <label for="max-iterations">Max iterations:</label>
+                <input type="range" id="max-iterations" min="100" max="3000" step="100" value="1000">
+                <span id="max-iterations-value">1000</span>
             </div>
             
             <button onclick="newGraph()">New Graph</button>
-            <button onclick="animateLayout()">Real-time Animation</button>
-            <div id="loading" class="loading" style="display: none;">Simulation running...</div>
+            <button onclick="restartSimulation()">Restart Simulation</button>
+            <div id="loading" class="loading" style="display: none;">Computing layout...</div>
             
             <div class="info-box">
-                <strong>Info:</strong> ARF Layout uses attractive forces between connected nodes 
-                and repulsive forces between all nodes to create balanced and readable layouts.
+                <strong>ARF Layout:</strong> Attractive and Repulsive Forces algorithm. 
+                Uses spring forces between connected nodes (attraction) and repulsive forces 
+                between all nodes. The parameter 'a' controls the strength of springs - 
+                higher values create tighter clustering of connected components.
             </div>
         </div>
         
@@ -163,82 +168,141 @@
     <script type="module">
         import { arfLayout } from './layout.js';
         
-        let animationRunning = false;
+        let currentGraph = null;
+        let currentSeed = Math.floor(Math.random() * 1000);
         
         function generateGraph(type, numNodes) {
             const nodes = Array.from({length: numNodes}, (_, i) => i);
             const edges = [];
             
             switch(type) {
-                case 'clustered':
-                    // Create clusters
-                    const clusterSize = Math.floor(numNodes / 3);
-                    for(let c = 0; c < 3; c++) {
-                        const start = c * clusterSize;
-                        const end = Math.min(start + clusterSize, numNodes);
-                        
-                        // Dense connections within cluster
-                        for(let i = start; i < end; i++) {
-                            for(let j = i + 1; j < end; j++) {
-                                if(Math.random() < 0.8) {
-                                    edges.push([i, j]);
-                                }
-                            }
-                        }
-                        
-                        // Few connections between clusters
-                        if(c < 2 && Math.random() < 0.3) {
-                            const nextStart = (c + 1) * clusterSize;
-                            edges.push([start, nextStart]);
+                case 'complete':
+                    for(let i = 0; i < numNodes; i++) {
+                        for(let j = i + 1; j < numNodes; j++) {
+                            edges.push([i, j]);
                         }
                     }
                     break;
-                case 'hierarchical':
-                    // Tree-like structure with extra connections
-                    for(let i = 1; i < numNodes; i++) {
-                        const parent = Math.floor((i - 1) / 2);
-                        edges.push([parent, i]);
-                    }
-                    // Add some cross-connections
-                    for(let i = 0; i < numNodes / 3; i++) {
-                        const a = Math.floor(Math.random() * numNodes);
-                        const b = Math.floor(Math.random() * numNodes);
-                        if(a !== b && !edges.some(e => (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a))) {
-                            edges.push([a, b]);
-                        }
-                    }
-                    break;
-                case 'small-world':
-                    // Ring lattice
+                    
+                case 'cycle':
                     for(let i = 0; i < numNodes; i++) {
                         edges.push([i, (i + 1) % numNodes]);
-                        if(numNodes > 4) {
-                            edges.push([i, (i + 2) % numNodes]);
-                        }
                     }
-                    // Random rewiring
-                    for(let i = 0; i < numNodes / 3; i++) {
-                        const a = Math.floor(Math.random() * numNodes);
-                        const b = Math.floor(Math.random() * numNodes);
-                        if(a !== b && !edges.some(e => (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a))) {
-                            edges.push([a, b]);
+                    break;
+                    
+                case 'star':
+                    for(let i = 1; i < numNodes; i++) {
+                        edges.push([0, i]);
+                    }
+                    break;
+                    
+                case 'scale-free':
+                    // Barabási–Albert model
+                    for(let i = 1; i < Math.min(4, numNodes); i++) {
+                        edges.push([0, i]);
+                    }
+                    
+                    for(let i = 4; i < numNodes; i++) {
+                        const newEdges = Math.min(2, i);
+                        const nodeDegrees = new Array(i).fill(0);
+                        
+                        for(const edge of edges) {
+                            nodeDegrees[edge[0]]++;
+                            nodeDegrees[edge[1]]++;
+                        }
+                        
+                        const totalDegree = nodeDegrees.reduce((sum, deg) => sum + deg, 0);
+                        const added = new Set();
+                        
+                        for(let j = 0; j < newEdges; j++) {
+                            let targetNode;
+                            do {
+                                let rand = Math.random() * totalDegree;
+                                targetNode = 0;
+                                while(targetNode < i && rand > 0) {
+                                    rand -= nodeDegrees[targetNode];
+                                    if(rand > 0) targetNode++;
+                                }
+                                if(targetNode >= i) targetNode = Math.floor(Math.random() * i);
+                            } while(added.has(targetNode));
+                            
+                            edges.push([i, targetNode]);
+                            added.add(targetNode);
                         }
                     }
                     break;
+                    
+                case 'small-world':
+                    // Watts-Strogatz model
+                    const k = Math.max(2, Math.min(6, Math.floor(numNodes / 3)));
+                    
+                    // Start with ring lattice
+                    for(let i = 0; i < numNodes; i++) {
+                        for(let j = 1; j <= k / 2; j++) {
+                            const target = (i + j) % numNodes;
+                            if(!edges.some(e => (e[0] === i && e[1] === target) || (e[0] === target && e[1] === i))) {
+                                edges.push([i, target]);
+                            }
+                        }
+                    }
+                    
+                    // Rewire with probability 0.1
+                    const rewireProbability = 0.1;
+                    const edgesToRewire = [];
+                    
+                    edges.forEach((edge, idx) => {
+                        if(Math.random() < rewireProbability) {
+                            edgesToRewire.push(idx);
+                        }
+                    });
+                    
+                    edgesToRewire.forEach(idx => {
+                        const [source] = edges[idx];
+                        let newTarget;
+                        do {
+                            newTarget = Math.floor(Math.random() * numNodes);
+                        } while(newTarget === source || 
+                                edges.some(e => (e[0] === source && e[1] === newTarget) || 
+                                              (e[0] === newTarget && e[1] === source)));
+                        
+                        edges[idx][1] = newTarget;
+                    });
+                    break;
+                    
                 case 'random':
                 default:
-                    const numEdges = Math.floor(numNodes * 1.8);
-                    for(let i = 0; i < numEdges; i++) {
+                    const density = 0.15;
+                    const possibleEdges = (numNodes * (numNodes - 1)) / 2;
+                    const targetEdges = Math.ceil(possibleEdges * density);
+                    
+                    // Ensure connectivity with spanning tree
+                    for(let i = 1; i < numNodes; i++) {
+                        const parent = Math.floor(Math.random() * i);
+                        edges.push([parent, i]);
+                    }
+                    
+                    // Add random edges
+                    let additionalEdges = targetEdges - (numNodes - 1);
+                    let attempts = 0;
+                    
+                    while(additionalEdges > 0 && attempts < 1000) {
                         const a = Math.floor(Math.random() * numNodes);
                         const b = Math.floor(Math.random() * numNodes);
+                        
                         if(a !== b && !edges.some(e => (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a))) {
                             edges.push([a, b]);
+                            additionalEdges--;
                         }
+                        
+                        attempts++;
                     }
                     break;
             }
             
-            return { nodes: () => nodes, edges: () => edges };
+            return { 
+                nodes: () => nodes, 
+                edges: () => edges
+            };
         }
         
         function visualizeGraph(graph, positions) {
@@ -255,6 +319,9 @@
             
             const nodes = graph.nodes();
             const posValues = nodes.map(n => positions[n]);
+            
+            if (posValues.length === 0) return;
+            
             const minX = Math.min(...posValues.map(p => p[0]));
             const maxX = Math.max(...posValues.map(p => p[0]));
             const minY = Math.min(...posValues.map(p => p[1]));
@@ -263,8 +330,17 @@
             const rangeX = maxX - minX || 1;
             const rangeY = maxY - minY || 1;
             
-            // Draw edges
+            // Calculate node degrees for sizing
+            const nodeDegrees = {};
+            nodes.forEach(node => { nodeDegrees[node] = 0; });
+            
             const edges = graph.edges();
+            edges.forEach(([source, target]) => {
+                nodeDegrees[source]++;
+                nodeDegrees[target]++;
+            });
+            
+            // Draw edges
             edges.forEach(([source, target]) => {
                 const sourcePos = positions[source];
                 const targetPos = positions[target];
@@ -280,96 +356,139 @@
                 line.setAttribute('x2', x2);
                 line.setAttribute('y2', y2);
                 line.setAttribute('stroke', '#999');
-                line.setAttribute('stroke-width', '1');
+                line.setAttribute('stroke-width', '1.5');
+                line.setAttribute('stroke-opacity', '0.7');
                 svg.appendChild(line);
             });
             
-            // Draw nodes with energetic colors
+            // Draw nodes
             nodes.forEach(node => {
                 const pos = positions[node];
                 const x = margin + (pos[0] - minX) / rangeX * scaleX;
                 const y = margin + (pos[1] - minY) / rangeY * scaleY;
                 
-                // Energetic color based on position
-                const centerX = width / 2;
-                const centerY = height / 2;
-                const distance = Math.sqrt((x - centerX)**2 + (y - centerY)**2);
-                const maxDistance = Math.sqrt(centerX**2 + centerY**2);
-                const energy = distance / maxDistance;
+                // Node size based on degree
+                const degree = nodeDegrees[node];
+                const radius = 5 + Math.sqrt(degree + 1) * 2;
                 
-                const hue = energy * 360; // Full color wheel
+                // Color based on degree
+                const maxDegree = Math.max(...Object.values(nodeDegrees));
+                const normalizedDegree = maxDegree > 0 ? degree / maxDegree : 0;
+                const hue = 220 - normalizedDegree * 60; // Blue to orange
                 const color = `hsl(${hue}, 70%, 50%)`;
                 
                 const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 circle.setAttribute('cx', x);
                 circle.setAttribute('cy', y);
-                circle.setAttribute('r', '7');
+                circle.setAttribute('r', radius);
                 circle.setAttribute('fill', color);
                 circle.setAttribute('stroke', '#333');
-                circle.setAttribute('stroke-width', '2');
+                circle.setAttribute('stroke-width', '1.5');
                 svg.appendChild(circle);
                 
-                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                text.setAttribute('x', x);
-                text.setAttribute('y', y + 3);
-                text.setAttribute('text-anchor', 'middle');
-                text.setAttribute('font-size', '9');
-                text.setAttribute('fill', 'white');
-                text.textContent = node;
-                svg.appendChild(text);
+                // Add node label for smaller graphs
+                if(nodes.length <= 20) {
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', x);
+                    text.setAttribute('y', y + 3);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('font-size', '10');
+                    text.setAttribute('fill', 'white');
+                    text.setAttribute('font-weight', 'bold');
+                    text.textContent = node;
+                    svg.appendChild(text);
+                }
             });
         }
         
         window.newGraph = async function() {
             const numNodes = parseInt(document.getElementById('num-nodes').value);
             const graphType = document.getElementById('graph-type').value;
-            const iterations = parseInt(document.getElementById('iterations').value);
-            const scale = parseFloat(document.getElementById('scale').value);
-            const attraction = parseFloat(document.getElementById('attraction').value);
-            const repulsion = parseFloat(document.getElementById('repulsion').value);
-            const damping = parseFloat(document.getElementById('damping').value);
             
             const loadingDiv = document.getElementById('loading');
             loadingDiv.style.display = 'block';
             
             try {
-                const graph = generateGraph(graphType, numNodes);
-                const positions = await arfLayout(graph, iterations, scale, [0, 0], attraction, repulsion, damping);
+                // Generate new graph
+                currentGraph = generateGraph(graphType, numNodes);
+                currentSeed = Math.floor(Math.random() * 1000);
                 
-                visualizeGraph(graph, positions);
+                // Run ARF layout
+                await runARFLayout();
+                
             } catch (error) {
                 console.error('Error in ARF layout:', error);
+                const svg = document.getElementById('graph-svg');
+                svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="red">Error: ${error.message}</text>`;
             } finally {
                 loadingDiv.style.display = 'none';
             }
         };
         
-        window.animateLayout = async function() {
-            if(animationRunning) {
-                animationRunning = false;
-                return;
+        window.restartSimulation = async function() {
+            if (!currentGraph) return;
+            
+            const loadingDiv = document.getElementById('loading');
+            loadingDiv.style.display = 'block';
+            
+            try {
+                await runARFLayout();
+            } catch (error) {
+                console.error('Error in ARF layout:', error);
+                const svg = document.getElementById('graph-svg');
+                svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="red">Error: ${error.message}</text>`;
+            } finally {
+                loadingDiv.style.display = 'none';
             }
-            
-            animationRunning = true;
-            const button = document.querySelector('button[onclick="animateLayout()"]');
-            button.textContent = 'Stop Animation';
-            
-            // Implementation of real-time animation
-            // For now just calls newGraph
-            await newGraph();
-            
-            animationRunning = false;
-            button.textContent = 'Real-time Animation';
         };
         
+        async function runARFLayout() {
+            const scaling = parseFloat(document.getElementById('scaling').value);
+            const springStrength = parseFloat(document.getElementById('spring-strength').value);
+            const maxIterations = parseInt(document.getElementById('max-iterations').value);
+            
+            // Validate spring strength parameter
+            if (springStrength <= 1) {
+                throw new Error("Spring strength parameter 'a' must be > 1");
+            }
+            
+            // Run layout with a small delay to allow UI update
+            await new Promise(resolve => setTimeout(resolve, 10));
+            
+            const positions = arfLayout(
+                currentGraph,
+                null, // pos - let algorithm initialize
+                scaling,
+                springStrength,
+                maxIterations,
+                currentSeed
+            );
+            
+            visualizeGraph(currentGraph, positions);
+        }
+        
         function setupControls() {
-            const controls = ['num-nodes', 'iterations', 'scale', 'attraction', 'repulsion', 'damping'];
-            controls.forEach(id => {
+            const sliders = ['num-nodes', 'scaling', 'spring-strength', 'max-iterations'];
+            sliders.forEach(id => {
                 const slider = document.getElementById(id);
                 const valueSpan = document.getElementById(id + '-value');
                 slider.oninput = function() {
                     valueSpan.textContent = this.value;
-                    newGraph();
+                    
+                    // Show warning for spring strength
+                    if (id === 'spring-strength') {
+                        const warning = document.getElementById('spring-warning');
+                        if (parseFloat(this.value) <= 1.0) {
+                            warning.style.display = 'block';
+                        } else {
+                            warning.style.display = 'none';
+                        }
+                    }
+                    
+                    // Auto-restart simulation for parameter changes (except num-nodes)
+                    if (id !== 'num-nodes') {
+                        restartSimulation();
+                    }
                 };
             });
             

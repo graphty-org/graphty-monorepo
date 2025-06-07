@@ -1,53 +1,76 @@
-# NetworkX JavaScript Components
+# Layout.js
 
-This directory contains JavaScript implementations of various NetworkX algorithms and utilities.
+Layout.js is a JavaScript library for node positioning in graphs. It is a JavaScript port of the layout algorithms found in the Python NetworkX library.
 
-## Layout Algorithms
+## Features
 
-The `layout.js` file provides JavaScript implementations of the graph layout algorithms that are 
-available in the Python version of NetworkX. These algorithms position the nodes of a graph 
-in 2D or 3D space for visualization.
+The library offers various graph layout algorithms, including:
+- Random Layout
+- Circular Layout
+- Shell Layout
+- Spring Layout (Fruchterman-Reingold)
+- Spectral Layout
+- Spiral Layout
+- Bipartite Layout
+- Multipartite Layout
+- BFS Layout
+- Planar Layout
+- Kamada-Kawai Layout
+- ForceAtlas2 Layout
+- ARF Layout (Attractive and Repulsive Forces)
 
-### Available Layouts
+## How to Use
 
-- `randomLayout`: Position nodes uniformly at random 
-- `circularLayout`: Position nodes on a circle
-- `shellLayout`: Position nodes in concentric circles
-- `springLayout`: Position nodes using Fruchterman-Reingold force-directed algorithm
-- `fruchtermanReingoldLayout`: Alias for springLayout
-- `spectralLayout`: Position nodes using the eigenvectors of graph Laplacian
-- `spiralLayout`: Position nodes in a spiral pattern
-- `bipartiteLayout`: Position nodes in two straight lines (bipartite layout)
-- `kamadaKawaiLayout`: Position nodes using Kamada-Kawai path-length cost-function
-- `forceatlas2Layout`: Position nodes using the ForceAtlas2 force-directed algorithm
-- `multipartiteLayout`: Position nodes in layers of straight lines
-- `bfsLayout`: Position nodes according to breadth-first search algorithm
-- `planarLayout`: Position nodes without edge intersections
-- `arfLayout`: Layout algorithm with attractive and repulsive forces
-- `rescaleLayout`: Rescale node positions
-- `rescaleLayoutDict`: Rescale positions in a dictionary
-
-### Usage
+Import the library into your JavaScript project:
 
 ```javascript
-import { layout } from 'networkx/drawing/js';
-
-// Create a graph (using your preferred JS graph library)
-const graph = createGraph();
-
-// Position nodes using a layout algorithm
-const positions = layout.circularLayout(graph);
-
-// Use positions to draw the graph
-drawGraph(graph, positions);
+import { 
+  randomLayout, 
+  circularLayout, 
+  springLayout,
+  // other layout functions...
+} from './layout.js';
 ```
 
-## Implementation Notes
+Usage example:
 
-- The JavaScript implementations aim to produce similar results to their Python counterparts
-- Some algorithms are simplified due to lack of specialized libraries like NumPy or SciPy
-- The implementations require a graph object with `nodes()` and `edges()` methods
+```javascript
+// Create a graph (data structure with nodes() and edges())
+const graph = { 
+  nodes: () => [0, 1, 2, 3], 
+  edges: () => [[0, 1], [1, 2], [2, 3], [3, 0]]
+};
 
-## Contributing
+// Apply a layout
+const positions = circularLayout(graph);
 
-Contributions to improve these JavaScript implementations or add new ones are welcome.
+// positions will be an object with x,y coordinates for each node
+// { 0: [1, 0], 1: [0, 1], 2: [-1, 0], 3: [0, -1] }
+```
+
+## Interactive Tests
+
+The repository includes a series of interactive tests for each layout algorithm.
+
+### Running the tests
+
+1. Start a local HTTP server. For example, with Python:
+   ```
+   python -m http.server 9000
+   ```
+   or with Python 2:
+   ```
+   python -m SimpleHTTPServer 9000
+   ```
+
+2. Open a browser and go to:
+   ```
+   http://localhost:9000/index.html
+   ```
+
+3. From here, you can access all the interactive tests for each layout algorithm and experiment with the various parameters.
+
+## Requirements
+
+- Modern browser with ES6 support
+- Local HTTP server for running tests

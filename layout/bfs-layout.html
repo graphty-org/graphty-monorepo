@@ -143,12 +143,6 @@
                 </select>
             </div>
             
-            <div class="control-group">
-                <label for="scale">Scale:</label>
-                <input type="range" id="scale" min="0.5" max="3" step="0.1" value="1">
-                <span id="scale-value">1.0</span>
-            </div>
-            
             <button onclick="applyLayout()">Apply Layout</button>
             <div id="bfs-info" class="bfs-info"></div>
         </div>
@@ -440,13 +434,12 @@
             
             const startNode = parseInt(document.getElementById('start-node').value);
             const alignment = document.getElementById('alignment').value;
-            const scale = parseFloat(document.getElementById('scale').value);
             
             const actualStartNode = isNaN(startNode) ? 0 : startNode;
             const bfsLayers = computeBFSLayers(currentGraph, actualStartNode);
             
             try {
-                const positions = bfsLayout(currentGraph, actualStartNode, alignment, scale, [0, 0]);
+                const positions = bfsLayout(currentGraph, actualStartNode, alignment, 1, [0, 0]);
                 visualizeGraph(currentGraph, positions, actualStartNode, bfsLayers);
                 
                 // Update BFS info
@@ -469,7 +462,7 @@
         };
         
         function setupControls() {
-            const controls = ['num-nodes', 'scale'];
+            const controls = ['num-nodes'];
             controls.forEach(id => {
                 const slider = document.getElementById(id);
                 const valueSpan = document.getElementById(id + '-value');

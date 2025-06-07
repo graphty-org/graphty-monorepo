@@ -141,12 +141,6 @@
                 </select>
             </div>
             
-            <div class="control-group">
-                <label for="scale">Scale:</label>
-                <input type="range" id="scale" min="0.5" max="3" step="0.1" value="1">
-                <span id="scale-value">1.0</span>
-            </div>
-            
             <button onclick="applyLayout()">Apply Layout</button>
             <div id="layers-info" class="layers-info"></div>
         </div>
@@ -389,15 +383,14 @@
             if(!currentGraph) return;
             
             const alignment = document.getElementById('alignment').value;
-            const scale = parseFloat(document.getElementById('scale').value);
             
-            const positions = multipartiteLayout(currentGraph, currentGraph.layers, alignment, scale, [0, 0]);
+            const positions = multipartiteLayout(currentGraph, currentGraph.layers, alignment, 1, [0, 0]);
             
             visualizeGraph(currentGraph, positions);
         };
         
         function setupControls() {
-            const controls = ['num-layers', 'nodes-per-layer', 'scale'];
+            const controls = ['num-layers', 'nodes-per-layer'];
             controls.forEach(id => {
                 const slider = document.getElementById(id);
                 const valueSpan = document.getElementById(id + '-value');

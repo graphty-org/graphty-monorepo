@@ -124,12 +124,6 @@
                 </select>
             </div>
             
-            <div class="control-group">
-                <label for="scale">Scale:</label>
-                <input type="range" id="scale" min="0.5" max="3" step="0.1" value="1">
-                <span id="scale-value">1.0</span>
-            </div>
-            
             <button onclick="applyLayout()">Apply Layout</button>
         </div>
     </div>
@@ -268,17 +262,16 @@
             if(!currentGraph) return;
             
             const pattern = document.getElementById('shell-pattern').value;
-            const scale = parseFloat(document.getElementById('scale').value);
             const numNodes = currentGraph.nodes().length;
             
             const shells = getShellConfiguration(pattern, numNodes);
-            const positions = shellLayout(currentGraph, shells, scale, [0, 0], 2);
+            const positions = shellLayout(currentGraph, shells, 1, [0, 0], 2);
             
             visualizeGraph(currentGraph, positions);
         };
         
         function setupControls() {
-            const controls = ['num-nodes', 'scale'];
+            const controls = ['num-nodes'];
             controls.forEach(id => {
                 const slider = document.getElementById(id);
                 const valueSpan = document.getElementById(id + '-value');

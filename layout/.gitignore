@@ -9,3 +9,4 @@ docs.json
 log/*
 .ipynb_checkpoints/
 tmp
+.husky

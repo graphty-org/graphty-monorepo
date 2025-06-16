@@ -3,12 +3,16 @@
   "version": "1.0.1",
   "description": "graph layout algorithms based on networkx",
   "main": "layout.js",
+  "type": "module",
   "directories": {
     "example": "examples"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prepare": "husky"
+    "prepare": "husky",
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "dev": "tsc --watch"
   },
   "repository": {
     "type": "git",
@@ -34,6 +38,7 @@
     "@commitlint/cli": "^19.8.1",
     "@commitlint/config-conventional": "^19.8.1",
     "cz-conventional-changelog": "^3.3.0",
-    "husky": "^9.1.7"
+    "husky": "^9.1.7",
+    "typescript": "^5.3.3"
   }
 }

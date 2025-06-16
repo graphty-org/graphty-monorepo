@@ -34,7 +34,7 @@ interface Embedding {
 
 // Utility array manipulation functions (NumPy-like)
 const np = {
-  zeros: function(shape: number | number[]): number | number[] | number[][] {
+  zeros: function(shape: number | number[]): number | number[] | number[][] | any[] {
     if (typeof shape === 'number') {
       return Array(shape).fill(0);
     }
@@ -44,7 +44,7 @@ const np = {
     return Array(shape[0]).fill(0).map(() => this.zeros(shape.slice(1)));
   },
   
-  ones: function(shape: number | number[]): number | number[] | number[][] {
+  ones: function(shape: number | number[]): number | any[] {
     if (typeof shape === 'number') {
       return Array(shape).fill(1);
     }
@@ -214,12 +214,12 @@ function randomLayout(G: Graph, center: number[] | null = null, dim: number = 2,
   const nodes = processed.G.nodes ? processed.G.nodes() : processed.G as Node[];
   center = processed.center;
   
-  const rng = new RandomNumberGenerator(seed);
+  const rng = new RandomNumberGenerator(seed ?? undefined);
   const pos: PositionMap = {};
   
-  nodes.forEach(node => {
-    pos[node] = (rng.rand(dim) as number[]).map((val, i) => val + center[i]);
-  });
+nodes.forEach((node: Node) => {
+    pos[node] = (rng.rand(dim) as number[]).map((val: number, i: number) => val + center[i]);
+});
   
   return pos;
 }
@@ -256,11 +256,11 @@ function circularLayout(G: Graph, scale: number = 1, center: number[] | null = n
   // Calculate positions on a circle
   const theta = np.linspace(0, 2 * Math.PI, nodes.length + 1).slice(0, -1);
   
-  nodes.forEach((node, i) => {
-    const x = Math.cos(theta[i]) * scale + center[0];
-    const y = Math.sin(theta[i]) * scale + center[1];
-    pos[node] = Array(dim).fill(0).map((_, j) => j === 0 ? x : j === 1 ? y : 0);
-  });
+nodes.forEach((node: Node, i: number) => {
+    const x: number = Math.cos(theta[i]) * scale + center[0];
+    const y: number = Math.sin(theta[i]) * scale + center[1];
+    pos[node] = Array(dim).fill(0).map((_, j: number) => j === 0 ? x : j === 1 ? y : 0);
+});
   
   return pos;
 }
@@ -325,7 +325,7 @@ function shellLayout(G: Graph, nlist: Node[][] | null = null, scale: number = 1,
     // Calculate positions on a circle
     const theta = np.linspace(0, 2 * Math.PI, shell.length + 1).slice(0, -1);
     
-    shell.forEach((node, j) => {
+    shell.forEach((node: Node, j) => {
       const x = Math.cos(theta[j]) * radius + center[0];
       const y = Math.sin(theta[j]) * radius + center[1];
       pos[node] = [x, y];
@@ -416,13 +416,13 @@ function fruchtermanReingoldLayout(
       if (pos[node]) {
         positions[node] = [...pos[node]];
       } else {
-        const rng = new RandomNumberGenerator(seed);
+        const rng = new RandomNumberGenerator(seed ?? undefined);
         positions[node] = rng.rand(dim) as number[];
       }
     }
   } else {
     // Random initial positions
-    const rng = new RandomNumberGenerator(seed);
+    const rng = new RandomNumberGenerator(seed ?? undefined);
     for (const node of nodes) {
       positions[node] = rng.rand(dim) as number[];
     }
@@ -515,7 +515,7 @@ function fruchtermanReingoldLayout(
   
   // Rescale positions
   if (!fixed) {
-    positions = rescaleLayout(positions, scale, center);
+    positions = rescaleLayout(positions, scale, center) as PositionMap;
   }
   
   return positions;
@@ -558,7 +558,7 @@ function spectralLayout(
   // Create adjacency matrix
   const N = nodes.length;
   const nodeIndices: Record<Node, number> = {};
-  nodes.forEach((node, i) => { nodeIndices[node] = i; });
+nodes.forEach((node: Node, i: number) => { nodeIndices[node] = i; });
   
   const A = Array(N).fill(0).map(() => Array(N).fill(0));
   const edges = graph.edges ? graph.edges() : [];
@@ -634,9 +634,9 @@ function spectralLayout(
   // Rescale and create position dictionary
   const scaledPositions = rescaleLayout(positions as any, scale);
   const pos: PositionMap = {};
-  nodes.forEach((node, i) => {
-    pos[node] = (scaledPositions as any)[i].map((val: number, j: number) => val + center[j]);
-  });
+nodes.forEach((node: Node, i: number) => {
+    pos[node] = (scaledPositions as number[][])[i].map((val: number, j: number) => val + center[j]);
+});
   
   return pos;
 }
@@ -842,11 +842,11 @@ function bipartiteLayout(
   if (!nodes) {
     // A simple heuristic for bipartite detection: use nodes with even/odd indices
     // This is a simplification, in Python NetworkX has bipartite.sets()
-    nodes = allNodes.filter((_, i) => i % 2 === 0);
+    nodes = allNodes.filter((_: Node, i: number): boolean => i % 2 === 0);
   }
   
   const left = new Set(nodes);
-  const right = new Set(allNodes.filter(n => !left.has(n)));
+const right: Set<Node> = new Set(allNodes.filter((n: Node) => !left.has(n)));
   
   const height = 1;
   const width = aspectRatio * height;
@@ -1031,7 +1031,7 @@ function bfsLayout(
     
     if (nextLayer.length === 0) {
       // No more connected nodes
-      const unvisited = allNodes.filter(node => !visited.has(node));
+    const unvisited: Node[] = allNodes.filter((node: Node) => !visited.has(node));
       if (unvisited.length > 0) {
         throw new Error("bfs_layout didn't include all nodes. Graph may be disconnected.");
       }
@@ -1050,8 +1050,8 @@ function bfsLayout(
     if (!graph.edges) return [];
     
     return graph.edges()
-      .filter(edge => edge[0] === node || edge[1] === node)
-      .map(edge => edge[0] === node ? edge[1] : edge[0]);
+        .filter((edge: Edge) => edge[0] === node || edge[1] === node)
+        .map((edge: Edge): Node => edge[0] === node ? edge[1] : edge[0]);
   }
 }
 
@@ -1090,6 +1090,10 @@ function planarLayout(
   
   if (!isPlanar) {
     throw new Error("G is not planar.");
+  }
+  
+  if (!embedding) {
+    throw new Error("Failed to generate planar embedding.");
   }
   
   // Convert embedding to positions
@@ -1571,7 +1575,7 @@ function kamadaKawaiLayout(
   }
   
   // Convert distances to a matrix
-  const nodesArray = Array.from(nodes);
+  const nodesArray: Node[] = Array.from(nodes);
   const nNodes = nodesArray.length;
   const distMatrix: number[][] = Array(nNodes).fill(0).map(() => Array(nNodes).fill(1e6));
   
@@ -2402,9 +2406,9 @@ function arfLayout(
     pos = randomLayout(G, null, 2, seed);
   } else {
     // Make sure all nodes have positions
-    const rng = new RandomNumberGenerator(seed);
+    const rng = new RandomNumberGenerator(seed ?? undefined);
     const defaultPos: PositionMap = {};
-    nodes.forEach(node => {
+    nodes.forEach((node: Node) => {
       if (!pos![node]) {
         defaultPos[node] = [(rng.rand() as number), (rng.rand() as number)];
       }
@@ -2414,12 +2418,12 @@ function arfLayout(
   
   // Create node index mapping
   const nodeIndex: Record<Node, number> = {};
-  nodes.forEach((node, i) => {
+nodes.forEach((node: Node, i: number) => {
     nodeIndex[node] = i;
-  });
+});
   
   // Create positions array
-  const positions: number[][] = nodes.map(node => [...pos![node]]);
+const positions: number[][] = nodes.map((node: Node) => [...pos![node]]);
   
   // Initialize spring constant matrix
   const N = nodes.length;
@@ -2486,9 +2490,9 @@ function arfLayout(
   
   // Convert positions array back to object
   const finalPos: PositionMap = {};
-  nodes.forEach((node, i) => {
+nodes.forEach((node: Node, i: number) => {
     finalPos[node] = positions[i];
-  });
+});
   
   return finalPos;
 }

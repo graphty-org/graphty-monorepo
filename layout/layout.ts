@@ -187,6 +187,26 @@ class RandomNumberGenerator {
   }
 }
 
+/**
+ * Extract nodes from a graph object
+ * 
+ * @param G - Graph or list of nodes
+ * @returns Array of nodes
+ */
+function getNodesFromGraph(G: Graph): Node[] {
+  return G.nodes ? G.nodes() : G as Node[];
+}
+
+/**
+ * Extract edges from a graph object
+ * 
+ * @param G - Graph or list of nodes
+ * @returns Array of edges
+ */
+function getEdgesFromGraph(G: Graph): Edge[] {
+  return G.edges ? G.edges() : [] as Edge[];
+}
+
 // Helper function similar to _process_params in Python version
 function _processParams(G: Graph, center: number[] | null, dim: number): { G: Graph; center: number[] } {
   if (!center) {
@@ -211,7 +231,7 @@ function _processParams(G: Graph, center: number[] | null, dim: number): { G: Gr
  */
 function randomLayout(G: Graph, center: number[] | null = null, dim: number = 2, seed: number | null = null): PositionMap {
   const processed = _processParams(G, center, dim);
-  const nodes = processed.G.nodes ? processed.G.nodes() : processed.G as Node[];
+  const nodes = getNodesFromGraph(processed.G);
   center = processed.center;
   
   const rng = new RandomNumberGenerator(seed ?? undefined);
@@ -239,7 +259,7 @@ function circularLayout(G: Graph, scale: number = 1, center: number[] | null = n
   }
   
   const processed = _processParams(G, center, dim);
-  const nodes = processed.G.nodes ? processed.G.nodes() : processed.G as Node[];
+  const nodes = getNodesFromGraph(processed.G);
   center = processed.center;
   
   const pos: PositionMap = {};
@@ -281,7 +301,7 @@ function shellLayout(G: Graph, nlist: Node[][] | null = null, scale: number = 1,
   }
   
   const processed = _processParams(G, center, dim);
-  const nodes = processed.G.nodes ? processed.G.nodes() : processed.G as Node[];
+  const nodes = getNodesFromGraph(processed.G);
   center = processed.center;
   
   const pos: PositionMap = {};
@@ -395,8 +415,8 @@ function fruchtermanReingoldLayout(
   let graph = processed.G;
   center = processed.center;
   
-  const nodes = graph.nodes ? graph.nodes() : graph as Node[];
-  const edges = graph.edges ? graph.edges() : [];
+  const nodes = getNodesFromGraph(graph);
+  const edges = getEdgesFromGraph(graph);
   
   if (nodes.length === 0) {
     return {};
@@ -540,7 +560,7 @@ function spectralLayout(
   const graph = processed.G;
   center = processed.center;
   
-  const nodes = graph.nodes ? graph.nodes() : graph as Node[];
+  const nodes = getNodesFromGraph(graph);
   
   if (nodes.length <= 2) {
     if (nodes.length === 0) {
@@ -561,7 +581,7 @@ function spectralLayout(
 nodes.forEach((node: Node, i: number) => { nodeIndices[node] = i; });
   
   const A = Array(N).fill(0).map(() => Array(N).fill(0));
-  const edges = graph.edges ? graph.edges() : [];
+  const edges = getEdgesFromGraph(graph);
   
   for (const [source, target] of edges) {
     const i = nodeIndices[source];
@@ -665,7 +685,7 @@ function spiralLayout(
   }
   
   const processed = _processParams(G, center || [0, 0], dim);
-  const nodes = processed.G.nodes ? processed.G.nodes() : processed.G as Node[];
+  const nodes = getNodesFromGraph(processed.G);
   center = processed.center;
   
   const pos: PositionMap = {};
@@ -832,7 +852,7 @@ function bipartiteLayout(
   const graph = processed.G;
   center = processed.center;
   
-  const allNodes = graph.nodes ? graph.nodes() : graph as Node[];
+  const allNodes = getNodesFromGraph(graph);
   
   if (allNodes.length === 0) {
     return {};
@@ -916,7 +936,7 @@ function multipartiteLayout(
   const graph = processed.G;
   center = processed.center;
   
-  const allNodes = graph.nodes ? graph.nodes() : graph as Node[];
+  const allNodes = getNodesFromGraph(graph);
   
   if (allNodes.length === 0) {
     return {};
@@ -996,7 +1016,7 @@ function bfsLayout(
   const graph = processed.G;
   center = processed.center;
   
-  const allNodes = graph.nodes ? graph.nodes() : graph as Node[];
+  const allNodes = getNodesFromGraph(graph);
   
   if (allNodes.length === 0) {
     return {};
@@ -1078,8 +1098,8 @@ function planarLayout(
   const graph = processed.G;
   center = processed.center;
   
-  const nodes = graph.nodes ? graph.nodes() : graph as Node[];
-  const edges = graph.edges ? graph.edges() : [] as Edge[];
+  const nodes = getNodesFromGraph(graph);
+  const edges = getEdgesFromGraph(graph);
   
   if (nodes.length === 0) {
     return {};
@@ -1559,7 +1579,7 @@ function kamadaKawaiLayout(
   const graph = processed.G;
   center = processed.center;
   
-  const nodes = graph.nodes ? graph.nodes() : graph as Node[];
+  const nodes = getNodesFromGraph(graph);
   
   if (nodes.length === 0) {
     return {};
@@ -2007,14 +2027,14 @@ function forceatlas2Layout(
   const processed = _processParams(G, null, dim);
   const graph = processed.G;
   
-  const nodes = graph.nodes ? graph.nodes() : graph as Node[];
+  const nodes = getNodesFromGraph(graph);
   
   if (nodes.length === 0) {
     return {};
   }
   
   // Initialize random number generator
-  const rng = new RandomNumberGenerator(seed);
+  const rng = new RandomNumberGenerator(seed ?? undefined);
   
   // Initialize positions if not provided
   let posArray: number[][];
@@ -2359,13 +2379,13 @@ function forceatlas2Layout(
     positions[nodes[i]] = posArray[i];
   }
   
-  return rescaleLayout(positions);
+  return rescaleLayout(positions) as PositionMap;
   
   // Helper function to get node degree
   function getNodeDegree(graph: Graph, node: Node): number {
     if (!graph.edges) return 0;
     
-    return graph.edges().filter(edge => 
+    return graph.edges().filter((edge: Edge) => 
       edge[0] === node || edge[1] === node
     ).length;
   }
@@ -2394,8 +2414,8 @@ function arfLayout(
     throw new Error("The parameter a should be larger than 1");
   }
   
-  const nodes = G.nodes ? G.nodes() : G as Node[];
-  const edges = G.edges ? G.edges() : [] as Edge[];
+  const nodes = getNodesFromGraph(G);
+  const edges = getEdgesFromGraph(G);
   
   if (nodes.length === 0) {
     return {};

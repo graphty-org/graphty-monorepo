@@ -352,6 +352,37 @@ try {
 npm install @graphty/layout
 ```
 
+## Building from Source
+
+If you want to build the TypeScript module from source:
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/graphty-org/layout.git
+   cd layout
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Compile TypeScript to JavaScript:**
+   ```bash
+   npm run build
+   ```
+   
+   This will compile the `layout.ts` file to JavaScript and generate type declarations in the `dist/` directory.
+
+4. **For development with automatic compilation:**
+   ```bash
+   npm run dev
+   ```
+   
+   This will watch for changes and automatically recompile the TypeScript files.
+
+**Note:** The compiled JavaScript files will be available in the `dist/` directory. You can import from the compiled JavaScript files or directly use the TypeScript source files in a TypeScript project.
+
 ## Implementation
 
 The module includes complete implementations of:

@@ -2570,6 +2570,273 @@ function rescaleLayoutDict(
   return scaledPos;
 }
 
+// Graph generation utilities
+/**
+ * Create a complete graph with n nodes
+ * @param n - Number of nodes
+ * @returns Graph object with all nodes connected to all other nodes
+ */
+function completeGraph(n: number): Graph {
+  const nodes: Node[] = Array.from({ length: n }, (_, i) => i);
+  const edges: Edge[] = [];
+  
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      edges.push([i, j]);
+    }
+  }
+  
+  return {
+    nodes: () => nodes,
+    edges: () => edges
+  };
+}
+
+/**
+ * Create a cycle graph with n nodes
+ * @param n - Number of nodes
+ * @returns Graph object with nodes connected in a cycle
+ */
+function cycleGraph(n: number): Graph {
+  const nodes: Node[] = Array.from({ length: n }, (_, i) => i);
+  const edges: Edge[] = [];
+  
+  for (let i = 0; i < n; i++) {
+    edges.push([i, (i + 1) % n]);
+  }
+  
+  return {
+    nodes: () => nodes,
+    edges: () => edges
+  };
+}
+
+/**
+ * Create a star graph with n nodes (1 center + n-1 leaves)
+ * @param n - Total number of nodes
+ * @returns Graph object with star topology
+ */
+function starGraph(n: number): Graph {
+  const nodes: Node[] = Array.from({ length: n }, (_, i) => i);
+  const edges: Edge[] = [];
+  
+  // Connect all nodes to node 0 (center)
+  for (let i = 1; i < n; i++) {
+    edges.push([0, i]);
+  }
+  
+  return {
+    nodes: () => nodes,
+    edges: () => edges
+  };
+}
+
+/**
+ * Create a wheel graph with n nodes (1 center + n-1 rim nodes)
+ * @param n - Total number of nodes
+ * @returns Graph object with wheel topology
+ */
+function wheelGraph(n: number): Graph {
+  const nodes: Node[] = Array.from({ length: n }, (_, i) => i);
+  const edges: Edge[] = [];
+  
+  // Connect all rim nodes to center (node 0)
+  for (let i = 1; i < n; i++) {
+    edges.push([0, i]);
+  }
+  
+  // Connect rim nodes in a cycle
+  for (let i = 1; i < n - 1; i++) {
+    edges.push([i, i + 1]);
+  }
+  if (n > 2) {
+    edges.push([n - 1, 1]);
+  }
+  
+  return {
+    nodes: () => nodes,
+    edges: () => edges
+  };
+}
+
+/**
+ * Create a grid graph with rows x cols nodes
+ * @param rows - Number of rows
+ * @param cols - Number of columns
+ * @returns Graph object with grid topology
+ */
+function gridGraph(rows: number, cols: number): Graph {
+  const nodes: Node[] = [];
+  const edges: Edge[] = [];
+  
+  // Create nodes
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+      nodes.push(`${i},${j}`);
+    }
+  }
+  
+  // Create edges
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+      // Connect to right neighbor
+      if (j < cols - 1) {
+        edges.push([`${i},${j}`, `${i},${j + 1}`]);
+      }
+      // Connect to bottom neighbor
+      if (i < rows - 1) {
+        edges.push([`${i},${j}`, `${i + 1},${j}`]);
+      }
+    }
+  }
+  
+  return {
+    nodes: () => nodes,
+    edges: () => edges
+  };
+}
+
+/**
+ * Create a random graph with n nodes and given edge probability
+ * @param n - Number of nodes
+ * @param p - Probability of edge between any two nodes (0-1)
+ * @param seed - Random seed for reproducibility
+ * @returns Graph object with random edges
+ */
+function randomGraph(n: number, p: number, seed?: number): Graph {
+  const nodes: Node[] = Array.from({ length: n }, (_, i) => i);
+  const edges: Edge[] = [];
+  
+  // Simple deterministic pseudo-random if seed provided
+  let currentSeed = seed;
+  let random = seed !== undefined 
+    ? () => {
+        currentSeed = (currentSeed! * 9301 + 49297) % 233280;
+        return currentSeed / 233280;
+      }
+    : Math.random;
+  
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (random() < p) {
+        edges.push([i, j]);
+      }
+    }
+  }
+  
+  return {
+    nodes: () => nodes,
+    edges: () => edges
+  };
+}
+
+/**
+ * Create a bipartite graph with two sets of nodes
+ * @param n1 - Number of nodes in first set
+ * @param n2 - Number of nodes in second set
+ * @param p - Probability of edge between nodes in different sets
+ * @param seed - Random seed for reproducibility
+ * @returns Graph object with bipartite structure and setA/setB properties
+ */
+function bipartiteGraph(n1: number, n2: number, p: number, seed?: number): Graph & { setA: Node[], setB: Node[] } {
+  const setA: Node[] = Array.from({ length: n1 }, (_, i) => `A${i}`);
+  const setB: Node[] = Array.from({ length: n2 }, (_, i) => `B${i}`);
+  const nodes = [...setA, ...setB];
+  const edges: Edge[] = [];
+  
+  // Simple deterministic pseudo-random if seed provided
+  let currentSeed = seed;
+  let random = seed !== undefined 
+    ? () => {
+        currentSeed = (currentSeed! * 9301 + 49297) % 233280;
+        return currentSeed / 233280;
+      }
+    : Math.random;
+  
+  // Only connect nodes between sets
+  for (const a of setA) {
+    for (const b of setB) {
+      if (random() < p) {
+        edges.push([a, b]);
+      }
+    }
+  }
+  
+  return {
+    nodes: () => nodes,
+    edges: () => edges,
+    setA,
+    setB
+  };
+}
+
+/**
+ * Create a scale-free graph using Barabási-Albert model
+ * @param n - Total number of nodes
+ * @param m - Number of edges to attach from new node
+ * @param seed - Random seed for reproducibility
+ * @returns Graph object with scale-free properties
+ */
+function scaleFreeGraph(n: number, m: number, seed?: number): Graph {
+  if (m >= n) {
+    throw new Error('m must be less than n');
+  }
+  
+  const nodes: Node[] = Array.from({ length: n }, (_, i) => i);
+  const edges: Edge[] = [];
+  const degrees = new Array(n).fill(0);
+  
+  // Simple deterministic pseudo-random if seed provided
+  let currentSeed = seed;
+  let random = seed !== undefined 
+    ? () => {
+        currentSeed = (currentSeed! * 9301 + 49297) % 233280;
+        return currentSeed / 233280;
+      }
+    : Math.random;
+  
+  // Start with complete graph of m+1 nodes
+  for (let i = 0; i <= m; i++) {
+    for (let j = i + 1; j <= m; j++) {
+      edges.push([i, j]);
+      degrees[i]++;
+      degrees[j]++;
+    }
+  }
+  
+  // Add remaining nodes
+  for (let i = m + 1; i < n; i++) {
+    const targets = new Set<number>();
+    const totalDegree = degrees.reduce((sum, d) => sum + d, 0);
+    
+    // Choose m targets based on preferential attachment
+    while (targets.size < m) {
+      let r = random() * totalDegree;
+      let cumSum = 0;
+      
+      for (let j = 0; j < i; j++) {
+        cumSum += degrees[j];
+        if (r <= cumSum && !targets.has(j)) {
+          targets.add(j);
+          break;
+        }
+      }
+    }
+    
+    // Add edges to targets
+    for (const target of targets) {
+      edges.push([i, target]);
+      degrees[i]++;
+      degrees[target]++;
+    }
+  }
+  
+  return {
+    nodes: () => nodes,
+    edges: () => edges
+  };
+}
+
 // Export the layout functions
 export {
   randomLayout,
@@ -2587,5 +2854,14 @@ export {
   forceatlas2Layout,
   arfLayout,
   rescaleLayout,
-  rescaleLayoutDict
+  rescaleLayoutDict,
+  // Graph generation utilities
+  completeGraph,
+  cycleGraph,
+  starGraph,
+  wheelGraph,
+  gridGraph,
+  randomGraph,
+  bipartiteGraph,
+  scaleFreeGraph
 };

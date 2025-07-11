@@ -75,9 +75,24 @@ Edit `tsconfig.json`. Current settings:
 - Output: `dist/` directory
 - Generates declaration files and source maps
 
+## Testing
+
+### Running Tests
+```bash
+npm test           # Run tests in watch mode
+npm run test:run   # Run tests once
+npm run test:coverage  # Run with coverage report
+```
+
+### Testing Preferences
+- Use `assert` instead of `expect` for test assertions
+- Tests are organized by layout algorithm in `test/` directory
+- Each test file covers: basic functionality, parameter variations, edge cases, and algorithm-specific behaviors
+- Graph generation utilities are available for creating test graphs
+
 ## Important Notes
 
-- No automated tests currently exist - test manually with example files
 - All algorithms should match NetworkX Python library behavior where possible
-- Graph interface is minimal - algorithms work with any object providing adjacency(), nodes(), edges()
+- Graph interface is minimal - algorithms work with any object providing nodes() and edges() methods
 - Examples in `examples/` directory demonstrate usage patterns
+- Tests serve as additional documentation for expected behavior

@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/graphty-org/layout/compare/v1.1.0...v1.1.1) (2025-07-12)
+
+
+### Bug Fixes
+
+* correct main entry point to dist/layout.js ([4e9f95b](https://github.com/graphty-org/layout/commit/4e9f95bfae3d2974808fa4a306b677e95d9706b9))
+
 # 1.0.0 (2025-07-12)
 
 

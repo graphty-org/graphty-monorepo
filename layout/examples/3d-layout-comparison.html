@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Eruda Mobile Console -->
+  <script src="https://cdn.jsdelivr.net/npm/eruda@3/eruda.min.js"></script>
+  <script>
+    // Initialize Eruda console for mobile debugging
+    if (typeof eruda !== "undefined") {
+      eruda.init();
+      // Auto-show on mobile devices
+      if (/mobile|android|ios|iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase())) {
+        eruda.show();
+      }
+    }
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Layout Comparison - @graphty/layout</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+      background: #0a0a0a;
+    }
+    #container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      width: 100vw;
+      height: 100vh;
+      gap: 2px;
+    }
+    .viewport {
+      position: relative;
+      background: #111;
+    }
+    .viewport canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+    .viewport-label {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: bold;
+      pointer-events: none;
+    }
+    #controls {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.9);
+      padding: 20px;
+      border-radius: 8px;
+      color: white;
+      border: 1px solid #333;
+      z-index: 100;
+    }
+    #info {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      color: white;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 12px;
+    }
+    button {
+      display: block;
+      margin: 10px 0;
+      padding: 8px 16px;
+      cursor: pointer;
+      width: 100%;
+      background: #2a2a2a;
+      color: white;
+      border: 1px solid #444;
+      border-radius: 4px;
+    }
+    button:hover {
+      background: #3a3a3a;
+    }
+    label {
+      display: block;
+      margin: 10px 0;
+    }
+    select {
+      width: 100%;
+      padding: 5px;
+      margin-top: 5px;
+      background: #2a2a2a;
+      color: white;
+      border: 1px solid #444;
+      border-radius: 4px;
+    }
+    .sync-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: #4f4;
+      border-radius: 50%;
+      margin-left: 5px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div class="viewport" id="viewport1">
+      <div class="viewport-label">Spherical Layout</div>
+    </div>
+    <div class="viewport" id="viewport2">
+      <div class="viewport-label">Kamada-Kawai Layout</div>
+    </div>
+    <div class="viewport" id="viewport3">
+      <div class="viewport-label">Spring Layout</div>
+    </div>
+    <div class="viewport" id="viewport4">
+      <div class="viewport-label">ForceAtlas2 Layout</div>
+    </div>
+  </div>
+  
+  <div id="controls">
+    <h3>3D Layout Comparison <span class="sync-indicator"></span></h3>
+    <label>
+      Graph Type:
+      <select id="graphType">
+        <option value="grid">Grid Graph (4×4)</option>
+        <option value="complete">Complete Graph (K8)</option>
+        <option value="cycle">Cycle Graph (C20)</option>
+        <option value="star">Star Graph (S15)</option>
+        <option value="wheel">Wheel Graph (W12)</option>
+        <option value="bipartite">Bipartite Graph</option>
+        <option value="scalefree">Scale-Free Graph</option>
+        <option value="random">Random Graph</option>
+      </select>
+    </label>
+    <button id="regenerate">Generate New Graph</button>
+    <button id="syncCameras">Sync All Cameras</button>
+    <label>
+      <input type="checkbox" id="autoRotate" checked> Auto Rotate
+    </label>
+  </div>
+  
+  <div id="info">
+    <div>Drag to rotate • Scroll to zoom • Click center panel to change graph</div>
+    <div>Nodes: <span id="nodeCount">0</span> • Edges: <span id="edgeCount">0</span></div>
+  </div>
+
+  <!-- Import map for module resolution -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.157.0/build/three.module.js';
+    import { OrbitControls } from 'https://unpkg.com/three@0.157.0/examples/jsm/controls/OrbitControls.js';
+    import { 
+      circularLayout,
+      kamadaKawaiLayout,
+      springLayout,
+      forceatlas2Layout,
+      completeGraph, 
+      cycleGraph, 
+      starGraph,
+      wheelGraph,
+      gridGraph,
+      bipartiteGraph,
+      scaleFreeGraph,
+      randomGraph
+    } from './layout.js';
+
+    // Viewport configurations
+    const viewports = [
+      { id: 'viewport1', layout: 'spherical', scene: null, camera: null, renderer: null, controls: null },
+      { id: 'viewport2', layout: 'kamadaKawai', scene: null, camera: null, renderer: null, controls: null },
+      { id: 'viewport3', layout: 'spring', scene: null, camera: null, renderer: null, controls: null },
+      { id: 'viewport4', layout: 'forceatlas2', scene: null, camera: null, renderer: null, controls: null }
+    ];
+
+    // Shared graph data
+    let currentGraph = null;
+    let sharedNodeMaterial = null;
+    let sharedEdgeMaterial = null;
+
+    // Create materials
+    function createMaterials() {
+      sharedNodeMaterial = new THREE.MeshPhongMaterial({
+        vertexColors: true,
+        emissive: 0x222222,
+        shininess: 100
+      });
+      
+      sharedEdgeMaterial = new THREE.LineBasicMaterial({
+        color: 0x4466ff,
+        transparent: true,
+        opacity: 0.3
+      });
+    }
+
+    // Initialize viewport
+    function initViewport(viewport) {
+      const container = document.getElementById(viewport.id);
+      const rect = container.getBoundingClientRect();
+
+      // Scene
+      viewport.scene = new THREE.Scene();
+      viewport.scene.background = new THREE.Color(0x111111);
+
+      // Camera
+      viewport.camera = new THREE.PerspectiveCamera(
+        60,
+        rect.width / rect.height,
+        0.1,
+        2000
+      );
+      viewport.camera.position.set(300, 200, 400);
+
+      // Renderer
+      viewport.renderer = new THREE.WebGLRenderer({ antialias: true });
+      viewport.renderer.setSize(rect.width, rect.height);
+      container.appendChild(viewport.renderer.domElement);
+
+      // Controls
+      viewport.controls = new OrbitControls(viewport.camera, viewport.renderer.domElement);
+      viewport.controls.enableDamping = true;
+      viewport.controls.dampingFactor = 0.05;
+
+      // Lighting
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      viewport.scene.add(ambientLight);
+      
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.4);
+      directionalLight.position.set(1, 1, 1);
+      viewport.scene.add(directionalLight);
+
+      // Groups
+      viewport.nodeGroup = new THREE.Group();
+      viewport.edgeGroup = new THREE.Group();
+      viewport.scene.add(viewport.nodeGroup);
+      viewport.scene.add(viewport.edgeGroup);
+
+    }
+
+    // Create graph
+    function createGraph(type) {
+      switch (type) {
+        case 'complete':
+          return completeGraph(8);
+        case 'cycle':
+          return cycleGraph(20);
+        case 'star':
+          return starGraph(15);
+        case 'wheel':
+          return wheelGraph(12);
+        case 'grid':
+          return gridGraph(4, 4);
+        case 'bipartite':
+          return bipartiteGraph(8, 7, 0.4, Date.now());
+        case 'scalefree':
+          return scaleFreeGraph(20, 2, Date.now());
+        case 'random':
+          return randomGraph(20, 0.15, Date.now());
+        default:
+          return gridGraph(4, 4);
+      }
+    }
+
+    // Get layout positions
+    function getLayoutPositions(layoutType, graph) {
+      const scale = 150;
+      const center = [0, 0, 0];
+      
+      switch (layoutType) {
+        case 'spherical':
+          return circularLayout(graph, scale, center, 3);
+        case 'kamadaKawai':
+          return kamadaKawaiLayout(graph, null, null, 'weight', scale/150, center, 3);
+        case 'spring':
+          return springLayout(graph, 1, null, null, 50, scale/150, center, 3);
+        case 'forceatlas2':
+          return forceatlas2Layout(graph, null, 100, 1.0, 2.0, 1.0, false, false, null, null, null, false, false, null, 3);
+        default:
+          return circularLayout(graph, scale, center, 3);
+      }
+    }
+
+    // Visualize graph in viewport
+    function visualizeInViewport(viewport, graph, positions) {
+      // Clear previous
+      viewport.nodeGroup.clear();
+      viewport.edgeGroup.clear();
+      
+      const nodes = graph.nodes();
+      const edges = graph.edges();
+      
+      // Calculate node colors based on degree
+      const degrees = {};
+      nodes.forEach(node => degrees[node] = 0);
+      edges.forEach(([u, v]) => {
+        degrees[u]++;
+        degrees[v]++;
+      });
+      const maxDegree = Math.max(...Object.values(degrees), 1);
+      
+      // Create nodes
+      const nodeGeometry = new THREE.SphereGeometry(6, 16, 16);
+      const nodeColors = [];
+      const color = new THREE.Color();
+      
+      nodes.forEach((node, i) => {
+        const degree = degrees[node];
+        color.setHSL(0.6 - (degree / maxDegree) * 0.6, 0.8, 0.5);
+        
+        for (let j = 0; j < nodeGeometry.attributes.position.count; j++) {
+          nodeColors.push(color.r, color.g, color.b);
+        }
+      });
+      
+      nodeGeometry.setAttribute('color', new THREE.Float32BufferAttribute(nodeColors, 3));
+      
+      nodes.forEach((node, i) => {
+        const mesh = new THREE.Mesh(nodeGeometry.clone(), sharedNodeMaterial.clone());
+        const pos = positions[node];
+        mesh.position.set(pos[0], pos[1], pos[2]);
+        viewport.nodeGroup.add(mesh);
+      });
+      
+      // Create edges
+      edges.forEach(([source, target]) => {
+        const sourcePos = positions[source];
+        const targetPos = positions[target];
+        
+        const points = [
+          new THREE.Vector3(sourcePos[0], sourcePos[1], sourcePos[2]),
+          new THREE.Vector3(targetPos[0], targetPos[1], targetPos[2])
+        ];
+        
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const line = new THREE.Line(geometry, sharedEdgeMaterial);
+        viewport.edgeGroup.add(line);
+      });
+    }
+
+    // Update all viewports
+    function updateAllViewports() {
+      if (!currentGraph) return;
+      
+      const nodes = currentGraph.nodes();
+      const edges = currentGraph.edges();
+      document.getElementById('nodeCount').textContent = nodes.length;
+      document.getElementById('edgeCount').textContent = edges.length;
+      
+      viewports.forEach(viewport => {
+        const positions = getLayoutPositions(viewport.layout, currentGraph);
+        visualizeInViewport(viewport, currentGraph, positions);
+      });
+    }
+
+    // Sync cameras
+    function syncCameras() {
+      const sourceCamera = viewports[0].camera;
+      const sourceControls = viewports[0].controls;
+      
+      viewports.slice(1).forEach(viewport => {
+        viewport.camera.position.copy(sourceCamera.position);
+        viewport.camera.quaternion.copy(sourceCamera.quaternion);
+        viewport.controls.target.copy(sourceControls.target);
+        viewport.controls.update();
+      });
+    }
+
+    // Initialize
+    createMaterials();
+    viewports.forEach(viewport => initViewport(viewport));
+    
+    // Create initial graph
+    currentGraph = createGraph('grid');
+    updateAllViewports();
+
+    // Controls
+    const controlPanel = document.getElementById('controls');
+    const graphTypeSelect = document.getElementById('graphType');
+    const autoRotateCheckbox = document.getElementById('autoRotate');
+    
+    document.getElementById('regenerate').addEventListener('click', () => {
+      currentGraph = createGraph(graphTypeSelect.value);
+      updateAllViewports();
+    });
+    
+    document.getElementById('syncCameras').addEventListener('click', syncCameras);
+    
+    graphTypeSelect.addEventListener('change', () => {
+      currentGraph = createGraph(graphTypeSelect.value);
+      updateAllViewports();
+    });
+
+    // Hide controls when clicking outside
+    let controlsVisible = true;
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('#controls')) return;
+      controlsVisible = !controlsVisible;
+      controlPanel.style.display = controlsVisible ? 'block' : 'none';
+    });
+
+    // Animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+      
+      viewports.forEach(viewport => {
+        if (autoRotateCheckbox.checked) {
+          viewport.nodeGroup.rotation.y += 0.001;
+          viewport.edgeGroup.rotation.y += 0.001;
+        }
+        
+        viewport.controls.update();
+        viewport.renderer.render(viewport.scene, viewport.camera);
+      });
+    }
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      viewports.forEach(viewport => {
+        const container = document.getElementById(viewport.id);
+        const rect = container.getBoundingClientRect();
+        
+        viewport.camera.aspect = rect.width / rect.height;
+        viewport.camera.updateProjectionMatrix();
+        viewport.renderer.setSize(rect.width, rect.height);
+      });
+    });
+
+    animate();
+  </script>
+</body>
+</html>

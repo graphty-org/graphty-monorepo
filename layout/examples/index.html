@@ -1,6 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!-- Eruda Mobile Console -->
+  <script src="https://cdn.jsdelivr.net/npm/eruda@3/eruda.min.js"></script>
+  <script>
+    // Initialize Eruda console for mobile debugging
+    if (typeof eruda !== "undefined") {
+      eruda.init();
+      // Auto-show on mobile devices
+      if (/mobile|android|ios|iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase())) {
+        eruda.show();
+      }
+    }
+  </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NetworkX Layout Tests</title>
@@ -71,12 +83,49 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             padding: 20px;
         }
+        .section-header {
+            text-align: center;
+            margin: 40px 0 20px 0;
+            color: #333;
+        }
+        .section-header h2 {
+            color: #2c5aa0;
+            margin-bottom: 10px;
+        }
+        .section-header p {
+            color: #666;
+            margin: 0;
+        }
+        .layout-card.threed {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .layout-card.threed .layout-title {
+            color: #fff;
+        }
+        .layout-card.threed .layout-description {
+            color: #f0f0f0;
+        }
+        .layout-card.threed .test-button {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        .layout-card.threed .test-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>NetworkX Layout Algorithm Tests</h1>
         <p>Interactive tests for graph layout algorithms in JavaScript</p>
+    </div>
+
+    <div class="section-header">
+        <h2>2D Layout Algorithms</h2>
+        <p>Classic graph layout algorithms for 2D visualization</p>
     </div>
 
     <div class="layout-grid">
@@ -157,6 +206,32 @@
             <div class="layout-description">Layout with customizable attractive and repulsive forces</div>
             <a href="arf-layout.html" class="test-button">Test Layout</a>
         </div>
+    </div>
+
+    <div class="section-header">
+        <h2>3D Layout Algorithms</h2>
+        <p>Interactive 3D visualizations with Three.js - drag to rotate, scroll to zoom</p>
+    </div>
+
+    <div class="layout-grid">
+        <div class="layout-card threed">
+            <div class="layout-title">3D Force-Directed Layouts</div>
+            <div class="layout-description">Compare spring, ForceAtlas2, and ARF algorithms in immersive 3D space with interactive controls</div>
+            <a href="3d-force-directed.html" class="test-button">Explore 3D</a>
+        </div>
+
+        <div class="layout-card threed">
+            <div class="layout-title">3D Kamada-Kawai Layout</div>
+            <div class="layout-description">Stress-minimization algorithm in 3D with real-time stress calculation and graph generation</div>
+            <a href="3d-kamada-kawai.html" class="test-button">Explore 3D</a>
+        </div>
+
+        <div class="layout-card threed">
+            <div class="layout-title">3D Spherical Layout</div>
+            <div class="layout-description">Nodes positioned on a 3D sphere surface with auto-rotation and customizable graph types</div>
+            <a href="3d-spherical-layout.html" class="test-button">Explore 3D</a>
+        </div>
+
     </div>
 
     <div class="footer">

@@ -14,9 +14,12 @@
     "test:coverage": "vitest run --coverage",
     "prepare": "husky",
     "build": "tsc",
+    "build:examples": "npm run build && cp dist/layout.js examples/layout.js",
     "watch": "tsc --watch",
     "dev": "tsc --watch",
-    "commit": "cz"
+    "commit": "cz",
+    "serve": "npm run build:examples && vite",
+    "examples": "npm run build:examples && vite"
   },
   "repository": {
     "type": "git",

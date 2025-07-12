@@ -7,7 +7,7 @@ import {
   wheelGraph,
   gridGraph,
   randomGraph
-} from '../layout.ts';
+} from '../layout.js';
 
 describe('Circular Layout', () => {
   describe('Basic functionality', () => {
@@ -172,8 +172,8 @@ describe('Circular Layout', () => {
       const positions3D = circularLayout(graph, 1, [0, 0, 0], 3);
       graph.nodes().forEach(node => {
         assert.equal(positions3D[node].length, 3);
-        // In 3D circular layout, all z-coordinates should be 0
-        assert.equal(positions3D[node][2], 0);
+        // In 3D spherical layout, z-coordinates should vary
+        assert.isNumber(positions3D[node][2]);
       });
     });
 
@@ -295,6 +295,148 @@ describe('Circular Layout', () => {
       for (let i = 1; i < angles.length; i++) {
         assert.isAbove(angles[i], angles[i - 1]);
       }
+    });
+  });
+
+  describe('3D spherical layout', () => {
+    it('should create spherical layout for dim=3', () => {
+      const graph = completeGraph(8);
+      const positions = circularLayout(graph, 1, [0, 0, 0], 3);
+      
+      assert.equal(Object.keys(positions).length, 8);
+      graph.nodes().forEach(node => {
+        assert.isDefined(positions[node]);
+        assert.equal(positions[node].length, 3);
+        assert.isNumber(positions[node][0]);
+        assert.isNumber(positions[node][1]);
+        assert.isNumber(positions[node][2]);
+      });
+    });
+
+    it('should place all nodes on unit sphere', () => {
+      const graph = cycleGraph(12);
+      const positions = circularLayout(graph, 1, [0, 0, 0], 3);
+      
+      graph.nodes().forEach(node => {
+        const [x, y, z] = positions[node];
+        const radius = Math.sqrt(x * x + y * y + z * z);
+        assert.approximately(radius, 1, 1e-10, `Node ${node} should be on unit sphere`);
+      });
+    });
+
+    it('should respect scale in 3D', () => {
+      const graph = starGraph(6);
+      const scale = 2.5;
+      const positions = circularLayout(graph, scale, [0, 0, 0], 3);
+      
+      graph.nodes().forEach(node => {
+        const [x, y, z] = positions[node];
+        const radius = Math.sqrt(x * x + y * y + z * z);
+        assert.approximately(radius, scale, 1e-10);
+      });
+    });
+
+    it('should respect center in 3D', () => {
+      const graph = completeGraph(4);
+      const center = [10, -5, 7];
+      const positions = circularLayout(graph, 1, center, 3);
+      
+      graph.nodes().forEach(node => {
+        const [x, y, z] = positions[node];
+        const dx = x - center[0];
+        const dy = y - center[1];
+        const dz = z - center[2];
+        const radius = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        assert.approximately(radius, 1, 1e-10);
+      });
+    });
+
+    it('should distribute nodes evenly on sphere using Fibonacci spiral', () => {
+      const graph = completeGraph(20);
+      const positions = circularLayout(graph, 1, [0, 0, 0], 3);
+      
+      // Check that no two nodes are too close together
+      const nodes = graph.nodes();
+      const minDistance = 0.3; // Reasonable minimum distance for 20 nodes on unit sphere
+      
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const pos1 = positions[nodes[i]];
+          const pos2 = positions[nodes[j]];
+          const dx = pos1[0] - pos2[0];
+          const dy = pos1[1] - pos2[1];
+          const dz = pos1[2] - pos2[2];
+          const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          assert.isAbove(distance, minDistance, `Nodes ${i} and ${j} are too close`);
+        }
+      }
+    });
+
+    it('should handle single node in 3D', () => {
+      const singleNode = { nodes: () => ['A'], edges: () => [] };
+      const center = [1, 2, 3];
+      const positions = circularLayout(singleNode, 1, center, 3);
+      
+      assert.equal(Object.keys(positions).length, 1);
+      assert.deepEqual(positions['A'], center);
+    });
+
+    it('should produce deterministic results in 3D', () => {
+      const graph = cycleGraph(10);
+      
+      const positions1 = circularLayout(graph, 1, [0, 0, 0], 3);
+      const positions2 = circularLayout(graph, 1, [0, 0, 0], 3);
+      
+      graph.nodes().forEach(node => {
+        assert.deepEqual(positions1[node], positions2[node]);
+      });
+    });
+
+    it('should handle higher dimensions gracefully', () => {
+      const graph = completeGraph(5);
+      const positions = circularLayout(graph, 1, [0, 0, 0, 0], 4);
+      
+      assert.equal(Object.keys(positions).length, 5);
+      graph.nodes().forEach(node => {
+        assert.equal(positions[node].length, 4);
+        // Should be on unit hypersphere
+        const radius = Math.sqrt(positions[node].reduce((sum, coord) => sum + coord * coord, 0));
+        assert.approximately(radius, 1, 0.1); // Allow some tolerance for random hypersphere
+      });
+    });
+
+    it('should use all three dimensions meaningfully', () => {
+      const graph = completeGraph(30);
+      const positions = circularLayout(graph, 1, [0, 0, 0], 3);
+      
+      // Extract all z-coordinates
+      const zCoords = graph.nodes().map(node => positions[node][2]);
+      
+      // Check that z-coordinates have meaningful variation
+      const minZ = Math.min(...zCoords);
+      const maxZ = Math.max(...zCoords);
+      const zRange = maxZ - minZ;
+      
+      assert.isAbove(zRange, 1.5, 'Z-coordinates should have significant variation');
+      assert.approximately(maxZ, 1, 0.1, 'Max Z should be near 1');
+      assert.approximately(minZ, -1, 0.1, 'Min Z should be near -1');
+    });
+
+    it('should produce valid 3D layout for string node IDs', () => {
+      const graph = {
+        nodes: () => ['alice', 'bob', 'charlie', 'david', 'eve'],
+        edges: () => [['alice', 'bob'], ['bob', 'charlie'], ['charlie', 'david'], 
+                      ['david', 'eve'], ['eve', 'alice']]
+      };
+      
+      const positions = circularLayout(graph, 1, [0, 0, 0], 3);
+      
+      assert.equal(Object.keys(positions).length, 5);
+      graph.nodes().forEach(node => {
+        const [x, y, z] = positions[node];
+        const radius = Math.sqrt(x * x + y * y + z * z);
+        assert.approximately(radius, 1, 1e-10);
+      });
     });
   });
 });

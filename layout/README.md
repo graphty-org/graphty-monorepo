@@ -857,6 +857,59 @@ If you want to build the TypeScript module from source:
    
    This will watch for changes and automatically recompile the TypeScript files.
 
+## Development Server
+
+The project includes a Vite development server for testing and viewing examples.
+
+### Starting the Development Server
+
+```bash
+npm run serve
+```
+
+This will:
+- Start a development server on port 3000
+- Automatically open your browser to `/examples/`
+- Provide hot module reloading for development
+
+### Configuring the Development Server
+
+You can customize the server configuration using environment variables:
+
+1. **Create a `.env` file** (copy from `.env.example`):
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Configure server options in `.env`:**
+   ```bash
+   # Server host (defaults to true for network exposure)
+   HOST=localhost    # For local-only access
+   HOST=0.0.0.0     # For network access
+   HOST=my.server.com # For custom domain
+   
+   # Server port (defaults to 3000)
+   PORT=3000
+   PORT=8080        # Custom port
+   ```
+
+3. **Start the server with your configuration:**
+   ```bash
+   npm run serve
+   ```
+
+### Alternative: Build and Serve
+
+To build the project and then serve the examples:
+
+```bash
+npm run examples
+```
+
+This command:
+1. Builds the TypeScript files to JavaScript
+2. Starts the Vite development server
+
 **Note:** The compiled JavaScript files will be available in the `dist/` directory. You can import from the compiled JavaScript files or directly use the TypeScript source files in a TypeScript project.
 
 ## Implementation

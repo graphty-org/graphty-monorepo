@@ -1,6 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!-- Eruda Mobile Console -->
+  <script src="https://cdn.jsdelivr.net/npm/eruda@3/eruda.min.js"></script>
+  <script>
+    // Initialize Eruda console for mobile debugging
+    if (typeof eruda !== "undefined") {
+      eruda.init();
+      // Auto-show on mobile devices
+      if (/mobile|android|ios|iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase())) {
+        eruda.show();
+      }
+    }
+  </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multipartite Layout Test</title>
@@ -162,7 +174,7 @@
             randomGraph,
             groupNodes,
             findBestRoot
-        } from '../dist/layout.js';
+        } from "./layout.js";
         
         let currentGraph = null;
         let currentLayers = null;
@@ -208,46 +220,6 @@
                     
                     return { nodes: () => nodes, edges: () => edges };
             }
-        }
-                    break;
-                
-                case 'hierarchical':
-                    // Hierarchical connections (each node connects to nodes in the next layer)
-                    for (let layer = 0; layer < numLayers - 1; layer++) {
-                        const currentLayer = layers[layer];
-                        const nextLayer = layers[layer + 1];
-                        
-                        currentLayer.forEach((node1, idx) => {
-                            // Connect to 1-2 nodes in the next layer
-                            const connections = Math.min(2, nextLayer.length);
-                            for (let c = 0; c < connections; c++) {
-                                const targetIdx = (idx + c) % nextLayer.length;
-                                edges.push([node1, nextLayer[targetIdx]]);
-                            }
-                        });
-                    }
-                    break;
-                
-                case 'complete':
-                    // Each layer is fully connected to the next
-                    for (let layer = 0; layer < numLayers - 1; layer++) {
-                        const currentLayer = layers[layer];
-                        const nextLayer = layers[layer + 1];
-                        
-                        currentLayer.forEach(node1 => {
-                            nextLayer.forEach(node2 => {
-                                edges.push([node1, node2]);
-                            });
-                        });
-                    }
-                    break;
-            }
-            
-            return { 
-                nodes: () => allNodes, 
-                edges: () => edges,
-                layers
-            };
         }
         
         function visualizeGraph(graph, positions) {

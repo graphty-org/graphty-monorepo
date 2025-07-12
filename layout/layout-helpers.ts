@@ -545,7 +545,8 @@ function groupByCommunity(nodes: Node[], edges: Edge[], targetGroups: number): N
     if (!improved) break;
     
     // Count communities
-    numCommunities = new Set(communities.values()).size;
+    const currentNumCommunities = new Set(communities.values()).size;
+    numCommunities = currentNumCommunities;
   }
   
   // Group nodes by community

@@ -289,7 +289,7 @@ describe('ForceAtlas2 Layout', () => {
       const graph = gridGraph(10, 10); // 100 nodes
       
       const startTime = performance.now();
-      const positions = forceatlas2Layout(graph, null, 30); // Fewer iterations for speed
+      const positions = forceatlas2Layout(graph, null, 30, 1.0, 2.0, 1.0, false, false, null, null, null, false, false, 42); // Fewer iterations for speed
       const endTime = performance.now();
       
       assert.equal(Object.keys(positions).length, 100);

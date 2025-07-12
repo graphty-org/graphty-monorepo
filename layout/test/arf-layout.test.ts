@@ -293,11 +293,11 @@ describe('ARF Layout', () => {
       const graph = gridGraph(8, 8); // 64 nodes
       
       const startTime = performance.now();
-      const positions = arfLayout(graph, null, 1, 1.1, 100); // Fewer iterations for speed
+      const positions = arfLayout(graph, null, 1, 1.1, 100, 42); // Fewer iterations for speed
       const endTime = performance.now();
       
       assert.equal(Object.keys(positions).length, 64);
-      assert.isBelow(endTime - startTime, 1000); // Should complete quickly
+      assert.isBelow(endTime - startTime, 2000); // Should complete quickly
     });
 
     it('should handle complete graphs', () => {

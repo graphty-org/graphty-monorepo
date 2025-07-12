@@ -218,7 +218,7 @@ describe('Kamada-Kawai Layout', () => {
       const graph = gridGraph(8, 8); // 64 nodes
       
       const startTime = performance.now();
-      const positions = kamadaKawaiLayout(graph);
+      const positions = kamadaKawaiLayout(graph, null, null, 'weight', 1, [0, 0], 2);
       const endTime = performance.now();
       
       assert.equal(Object.keys(positions).length, 64);

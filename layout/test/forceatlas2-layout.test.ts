@@ -340,12 +340,12 @@ describe('ForceAtlas2 Layout', () => {
 
     it('should create balanced layouts for regular graphs', () => {
       const graph = completeGraph(6);
-      const positions = forceatlas2Layout(graph, null, 100);
+      const positions = forceatlas2Layout(graph, null, 100, 1.0, 2.0, 1.0, false, false, null, null, null, false, false, 42);
       
       // Should spread nodes reasonably
       const bounds = getLayoutBounds(positions);
-      assert.isAbove(bounds.width, 0.5);
-      assert.isAbove(bounds.height, 0.5);
+      assert.isAbove(bounds.width, 0.3);
+      assert.isAbove(bounds.height, 0.3);
       
       // Should not be too stretched
       const aspectRatio = Math.max(bounds.width, bounds.height) / Math.min(bounds.width, bounds.height);

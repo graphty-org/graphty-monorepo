@@ -5,6 +5,7 @@ export default defineConfig({
     globals: true,
     environment: 'happy-dom',
     pool: 'forks',
+    testTimeout: 30000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

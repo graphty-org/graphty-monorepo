@@ -274,7 +274,17 @@
             if(!currentGraph) return;
             
             const iterations = parseInt(document.getElementById('iterations').value);
-            const k = parseFloat(document.getElementById('k-value').value);
+            const autoConfig = document.getElementById('auto-config').checked;
+            
+            let k;
+            if (autoConfig && currentConfig) {
+                k = currentConfig.k;
+                // Update slider to show auto-configured value
+                document.getElementById('k-value').value = k;
+                document.getElementById('k-value-value').textContent = k.toFixed(2);
+            } else {
+                k = parseFloat(document.getElementById('k-value').value);
+            }
             
             const positions = springLayout(currentGraph, k, null, null, iterations, 1, [0, 0], 2);
             

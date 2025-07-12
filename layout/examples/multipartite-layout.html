@@ -114,12 +114,11 @@
             </div>
             
             <div class="control-group">
-                <label for="edge-type">Connection type:</label>
-                <select id="edge-type">
-                    <option value="adjacent">Adjacent layers</option>
-                    <option value="random">Random between layers</option>
-                    <option value="hierarchical">Hierarchical</option>
-                    <option value="complete">Complete</option>
+                <label for="graph-type">Graph type:</label>
+                <select id="graph-type">
+                    <option value="scale-free">Scale-Free (automatic layers)</option>
+                    <option value="tree">Tree-like</option>
+                    <option value="custom-layers">Custom Layers</option>
                 </select>
             </div>
             
@@ -141,63 +140,75 @@
                 </select>
             </div>
             
+            <div class="control-group">
+                <label for="layer-method">Layer assignment:</label>
+                <select id="layer-method">
+                    <option value="bfs">BFS (distance-based)</option>
+                    <option value="degree">Degree-based</option>
+                    <option value="community">Community-based</option>
+                </select>
+            </div>
+            
             <button onclick="applyLayout()">Apply Layout</button>
             <div id="layers-info" class="layers-info"></div>
         </div>
     </div>
 
     <script type="module">
-        import { multipartiteLayout } from '../dist/layout.js';
+        import { 
+            multipartiteLayout,
+            scaleFreeGraph,
+            starGraph,
+            randomGraph,
+            groupNodes,
+            findBestRoot
+        } from '../dist/layout.js';
         
         let currentGraph = null;
+        let currentLayers = null;
         
-        function generateMultipartiteGraph(numLayers, nodesPerLayer, edgeType) {
-            const layers = {};
-            const allNodes = [];
+        function generateGraph(type, numLayers, nodesPerLayer) {
+            const totalNodes = numLayers * nodesPerLayer;
             
-            // Create layers
-            for (let layer = 0; layer < numLayers; layer++) {
-                const layerNodes = [];
-                for (let node = 0; node < nodesPerLayer; node++) {
-                    const nodeName = `L${layer}N${node}`;
-                    layerNodes.push(nodeName);
-                    allNodes.push(nodeName);
-                }
-                layers[layer] = layerNodes;
-            }
-            
-            const edges = [];
-            
-            // Generate edges based on type
-            switch(edgeType) {
-                case 'adjacent':
-                    // Connect only adjacent layers
-                    for (let layer = 0; layer < numLayers - 1; layer++) {
-                        const currentLayer = layers[layer];
-                        const nextLayer = layers[layer + 1];
-                        
-                        currentLayer.forEach(node1 => {
-                            nextLayer.forEach(node2 => {
-                                if (Math.random() < 0.4) { // 40% probability
-                                    edges.push([node1, node2]);
-                                }
-                            });
-                        });
-                    }
-                    break;
-                
-                case 'random':
-                    // Random connections between all layers
-                    for (let i = 0; i < allNodes.length * 0.8; i++) {
-                        const node1 = allNodes[Math.floor(Math.random() * allNodes.length)];
-                        const node2 = allNodes[Math.floor(Math.random() * allNodes.length)];
-                        
-                        // Avoid self-loops and duplicates
-                        if (node1 !== node2 && !edges.some(([s, t]) => 
-                            (s === node1 && t === node2) || (s === node2 && t === node1))) {
-                            edges.push([node1, node2]);
+            switch(type) {
+                case 'scale-free':
+                    // Generate scale-free network
+                    return scaleFreeGraph(totalNodes, 2, Date.now());
+                    
+                case 'tree':
+                    // Generate tree-like structure
+                    return starGraph(totalNodes);
+                    
+                case 'custom-layers':
+                default:
+                    // Generate custom layered graph
+                    const nodes = [];
+                    const edges = [];
+                    
+                    // Create nodes
+                    for (let layer = 0; layer < numLayers; layer++) {
+                        for (let node = 0; node < nodesPerLayer; node++) {
+                            nodes.push(`L${layer}N${node}`);
                         }
                     }
+                    
+                    // Connect adjacent layers
+                    for (let layer = 0; layer < numLayers - 1; layer++) {
+                        for (let n1 = 0; n1 < nodesPerLayer; n1++) {
+                            for (let n2 = 0; n2 < nodesPerLayer; n2++) {
+                                if (Math.random() < 0.3) {
+                                    edges.push([
+                                        `L${layer}N${n1}`,
+                                        `L${layer + 1}N${n2}`
+                                    ]);
+                                }
+                            }
+                        }
+                    }
+                    
+                    return { nodes: () => nodes, edges: () => edges };
+            }
+        }
                     break;
                 
                 case 'hierarchical':
@@ -263,7 +274,8 @@
             
             // Draw layer guidelines
             const layerColors = ['#F44336', '#9C27B0', '#3F51B5', '#009688', '#FF9800'];
-            Object.entries(graph.layers).forEach(([layerIdx, layerNodes]) => {
+            if (currentLayers) {
+                currentLayers.forEach((layerNodes, layerIdx) => {
                 const layerPositions = layerNodes.map(node => positions[node]);
                 
                 if (layerPositions.length > 1) {
@@ -291,7 +303,8 @@
                     rect.setAttribute('stroke-dasharray', '5,5');
                     svg.appendChild(rect);
                 }
-            });
+                });
+            }
             
             // Draw edges
             const edges = graph.edges();

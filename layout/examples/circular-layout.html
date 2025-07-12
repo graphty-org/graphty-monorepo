@@ -136,51 +136,30 @@
     </div>
 
     <script type="module">
-        import { circularLayout } from '../dist/layout.js';
+        import { 
+            circularLayout, 
+            completeGraph, 
+            cycleGraph, 
+            wheelGraph, 
+            randomGraph 
+        } from '../dist/layout.js';
         
         let currentGraph = null;
         
         function generateGraph(type, numNodes) {
-            const nodes = Array.from({length: numNodes}, (_, i) => i);
-            const edges = [];
-            
             switch(type) {
                 case 'complete':
-                    for(let i = 0; i < numNodes; i++) {
-                        for(let j = i + 1; j < numNodes; j++) {
-                            edges.push([i, j]);
-                        }
-                    }
-                    break;
+                    return completeGraph(numNodes);
                 case 'cycle':
-                    for(let i = 0; i < numNodes; i++) {
-                        edges.push([i, (i + 1) % numNodes]);
-                    }
-                    break;
+                    return cycleGraph(numNodes);
                 case 'wheel':
-                    // Center connected to all
-                    for(let i = 1; i < numNodes; i++) {
-                        edges.push([0, i]);
-                    }
-                    // Outer cycle
-                    for(let i = 1; i < numNodes; i++) {
-                        edges.push([i, i === numNodes - 1 ? 1 : i + 1]);
-                    }
-                    break;
+                    return wheelGraph(numNodes);
                 case 'random':
                 default:
-                    const numEdges = Math.floor(numNodes * 1.2);
-                    for(let i = 0; i < numEdges; i++) {
-                        const a = Math.floor(Math.random() * numNodes);
-                        const b = Math.floor(Math.random() * numNodes);
-                        if(a !== b && !edges.some(e => (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a))) {
-                            edges.push([a, b]);
-                        }
-                    }
-                    break;
+                    // Random graph with ~1.2 edges per node
+                    const edgeProbability = Math.min(2.4 / (numNodes - 1), 1);
+                    return randomGraph(numNodes, edgeProbability, Date.now());
             }
-            
-            return { nodes: () => nodes, edges: () => edges };
         }
         
         function visualizeGraph(graph, positions) {

@@ -129,6 +129,14 @@
             <h3>Layout Parameters</h3>
             
             <div class="control-group">
+                <label for="root-selection">Root selection:</label>
+                <select id="root-selection">
+                    <option value="auto">Auto (best root)</option>
+                    <option value="manual">Manual selection</option>
+                </select>
+            </div>
+            
+            <div class="control-group" id="manual-node-group">
                 <label for="start-node">Starting node:</label>
                 <select id="start-node">
                     <!-- Dynamically populated -->
@@ -149,55 +157,38 @@
     </div>
 
     <script type="module">
-        import { bfsLayout } from '../dist/layout.js';
+        import { 
+            bfsLayout,
+            starGraph,
+            gridGraph,
+            randomGraph,
+            scaleFreeGraph,
+            findBestRoot
+        } from '../dist/layout.js';
         
         let currentGraph = null;
+        let bestRoot = null;
         
         function generateGraph(type, numNodes) {
-            const nodes = Array.from({length: numNodes}, (_, i) => i);
-            const edges = [];
-            
             switch(type) {
                 case 'tree':
-                    // Generate a connected tree
-                    for (let i = 1; i < numNodes; i++) {
-                        const parent = Math.floor(Math.random() * i);
-                        edges.push([parent, i]);
-                    }
-                    break;
+                    // Generate tree-like structure using scale-free with low m
+                    return scaleFreeGraph(numNodes, 1, Date.now());
                 
                 case 'connected':
-                    // First create a tree to ensure connectivity
-                    for (let i = 1; i < numNodes; i++) {
-                        const parent = Math.floor(Math.random() * i);
-                        edges.push([parent, i]);
-                    }
-                    // Add some extra edges
-                    const extraEdges = Math.floor(numNodes * 0.3);
-                    for (let i = 0; i < extraEdges; i++) {
-                        const a = Math.floor(Math.random() * numNodes);
-                        const b = Math.floor(Math.random() * numNodes);
-                        if (a !== b && !edges.some(([s, t]) => 
-                            (s === a && t === b) || (s === b && t === a))) {
-                            edges.push([a, b]);
-                        }
-                    }
-                    break;
+                    // Generate connected random graph
+                    return randomGraph(numNodes, 0.15, Date.now());
                 
                 case 'grid':
-                    // Create an approximate grid
-                    const gridSize = Math.ceil(Math.sqrt(numNodes));
-                    for (let i = 0; i < numNodes; i++) {
-                        const row = Math.floor(i / gridSize);
-                        const col = i % gridSize;
-                        
-                        // Connect to the right
-                        if (col < gridSize - 1 && i + 1 < numNodes) {
-                            edges.push([i, i + 1]);
-                        }
-                        
-                        // Connect below
-                        if (row < gridSize - 1 && i + gridSize < numNodes) {
+                    // Create grid
+                    const size = Math.ceil(Math.sqrt(numNodes));
+                    return gridGraph(size, size);
+                
+                case 'star':
+                    return starGraph(numNodes);
+                
+                default:
+                    return randomGraph(numNodes, 0.2, Date.now());
                             edges.push([i, i + gridSize]);
                         }
                     }
@@ -470,6 +461,13 @@
                     valueSpan.textContent = this.value;
                 };
             });
+            
+            // Root selection handler
+            document.getElementById('root-selection').onchange = function() {
+                const manualGroup = document.getElementById('manual-node-group');
+                manualGroup.style.opacity = this.value === 'auto' ? '0.5' : '1';
+                manualGroup.style.pointerEvents = this.value === 'auto' ? 'none' : 'auto';
+            };
             
             document.getElementById('graph-type').onchange = null;
             document.getElementById('start-node').onchange = null;

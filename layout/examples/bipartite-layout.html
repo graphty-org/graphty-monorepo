@@ -102,15 +102,15 @@
             <h3>Graph Settings</h3>
             
             <div class="control-group">
-                <label for="num-nodes">Total number of nodes:</label>
-                <input type="range" id="num-nodes" min="4" max="20" value="12">
-                <span id="num-nodes-value">12</span>
+                <label for="set-a-size">Set A size:</label>
+                <input type="range" id="set-a-size" min="2" max="15" value="5">
+                <span id="set-a-size-value">5</span>
             </div>
             
             <div class="control-group">
-                <label for="partition-ratio">Partition ratio (A:B):</label>
-                <input type="range" id="partition-ratio" min="0.2" max="0.8" step="0.1" value="0.5">
-                <span id="partition-ratio-value">50%-50%</span>
+                <label for="set-b-size">Set B size:</label>
+                <input type="range" id="set-b-size" min="2" max="15" value="7">
+                <span id="set-b-size-value">7</span>
             </div>
             
             <div class="control-group">
@@ -119,7 +119,8 @@
                 <span id="edge-density-value">0.3</span>
             </div>
             
-            <button onclick="newGraph()">New Graph</button>
+            <button onclick="newGraph()">Generate Bipartite Graph</button>
+            <button onclick="generateMixedGraph()">Generate Random Graph</button>
             <div id="partition-info" class="partition-info"></div>
         </div>
         
@@ -149,44 +150,15 @@
     </div>
 
     <script type="module">
-        import { bipartiteLayout } from '../dist/layout.js';
+        import { 
+            bipartiteLayout,
+            bipartiteGraph,
+            detectBipartite,
+            randomGraph
+        } from '../dist/layout.js';
         
         let currentGraph = null;
-        
-        function generateBipartiteGraph(totalNodes, partitionRatio, edgeDensity) {
-            const setASize = Math.round(totalNodes * partitionRatio);
-            const setBSize = totalNodes - setASize;
-            
-            const setA = Array.from({length: setASize}, (_, i) => `A${i}`);
-            const setB = Array.from({length: setBSize}, (_, i) => `B${i}`);
-            const allNodes = [...setA, ...setB];
-            
-            const edges = [];
-            const maxEdges = setASize * setBSize;
-            const targetEdges = Math.floor(maxEdges * edgeDensity);
-            
-            // Generate random bipartite edges (only between setA and setB)
-            for (let i = 0; i < targetEdges; i++) {
-                const nodeA = setA[Math.floor(Math.random() * setA.length)];
-                const nodeB = setB[Math.floor(Math.random() * setB.length)];
-                
-                // Check if edge already exists
-                const edgeExists = edges.some(([s, t]) => 
-                    (s === nodeA && t === nodeB) || (s === nodeB && t === nodeA)
-                );
-                
-                if (!edgeExists) {
-                    edges.push([nodeA, nodeB]);
-                }
-            }
-            
-            return { 
-                nodes: () => allNodes, 
-                edges: () => edges,
-                setA,
-                setB
-            };
-        }
+        let detectedBipartite = null;
         
         function visualizeGraph(graph, positions) {
             const svg = document.getElementById('graph-svg');
@@ -237,8 +209,9 @@
                 const x = margin + (pos[0] - minX) / rangeX * scaleX;
                 const y = margin + (pos[1] - minY) / rangeY * scaleY;
                 
-                // Determine color based on set
-                const isSetA = graph.setA.includes(node);
+                // Determine color based on set (use detected sets if available)
+                const setA = detectedBipartite ? detectedBipartite.setA : graph.setA;
+                const isSetA = setA.includes(node);
                 const color = isSetA ? '#E91E63' : '#2196F3';
                 
                 const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -299,30 +272,28 @@
         }
         
         window.newGraph = function() {
-            const totalNodes = parseInt(document.getElementById('num-nodes').value);
-            const partitionRatio = parseFloat(document.getElementById('partition-ratio').value);
+            const setASize = parseInt(document.getElementById('set-a-size').value);
+            const setBSize = parseInt(document.getElementById('set-b-size').value);
             const edgeDensity = parseFloat(document.getElementById('edge-density').value);
             
-            currentGraph = generateBipartiteGraph(totalNodes, partitionRatio, edgeDensity);
+            // Generate bipartite graph using our generator
+            currentGraph = bipartiteGraph(setASize, setBSize, edgeDensity, Date.now());
             
-            // Just visualize with random positions initially
-            const positions = {};
-            currentGraph.nodes().forEach(node => {
-                positions[node] = [
-                    (Math.random() - 0.5) * 1.5,
-                    (Math.random() - 0.5) * 1.5
-                ];
-            });
+            // Auto-detect bipartite structure
+            detectedBipartite = detectBipartite(currentGraph);
             
-            visualizeGraph(currentGraph, positions);
+            // Apply layout immediately
+            applyLayout();
             
             // Update partition info
             const infoDiv = document.getElementById('partition-info');
+            const totalNodes = setASize + setBSize;
             infoDiv.innerHTML = `
-                <strong>Partition:</strong><br>
-                Set A: ${currentGraph.setA.length} nodes (${((currentGraph.setA.length / totalNodes) * 100).toFixed(1)}%)<br>
-                Set B: ${currentGraph.setB.length} nodes (${((currentGraph.setB.length / totalNodes) * 100).toFixed(1)}%)<br>
-                Edges: ${currentGraph.edges().length}
+                <strong>Generated Bipartite Graph:</strong><br>
+                Set A: ${currentGraph.setA.length} nodes (${((setASize / totalNodes) * 100).toFixed(1)}%)<br>
+                Set B: ${currentGraph.setB.length} nodes (${((setBSize / totalNodes) * 100).toFixed(1)}%)<br>
+                Edges: ${currentGraph.edges().length}<br>
+                <strong>Auto-detected:</strong> ${detectedBipartite ? 'Yes ✓' : 'No ✗'}
             `;
         };
         
@@ -332,28 +303,65 @@
             const alignment = document.getElementById('alignment').value;
             const aspectRatio = parseFloat(document.getElementById('aspect-ratio').value);
             
-            const positions = bipartiteLayout(currentGraph, currentGraph.setA, alignment, 1, [0, 0], aspectRatio);
+            // Use detected sets if available, otherwise use generated sets
+            const setA = detectedBipartite ? detectedBipartite.setA : currentGraph.setA;
+            const positions = bipartiteLayout(currentGraph, setA, alignment, 1, [0, 0], aspectRatio);
             
             visualizeGraph(currentGraph, positions);
         };
         
         function setupControls() {
-            const controls = ['num-nodes', 'partition-ratio', 'aspect-ratio', 'edge-density'];
+            const controls = ['set-a-size', 'set-b-size', 'aspect-ratio', 'edge-density'];
             controls.forEach(id => {
                 const slider = document.getElementById(id);
                 const valueSpan = document.getElementById(id + '-value');
                 slider.oninput = function() {
-                    if (id === 'partition-ratio') {
-                        const ratio = parseFloat(this.value);
-                        valueSpan.textContent = `${(ratio * 100).toFixed(0)}%-${((1 - ratio) * 100).toFixed(0)}%`;
-                    } else {
-                        valueSpan.textContent = this.value;
-                    }
+                    valueSpan.textContent = this.value;
                 };
             });
             
             document.getElementById('alignment').onchange = null;
         }
+        
+        window.generateMixedGraph = function() {
+            const totalNodes = parseInt(document.getElementById('set-a-size').value) + 
+                               parseInt(document.getElementById('set-b-size').value);
+            const edgeDensity = parseFloat(document.getElementById('edge-density').value);
+            
+            // Generate random graph that might or might not be bipartite
+            currentGraph = randomGraph(totalNodes, edgeDensity * 0.3, Date.now());
+            
+            // Try to detect bipartite structure
+            detectedBipartite = detectBipartite(currentGraph);
+            
+            if (detectedBipartite) {
+                // If bipartite, use bipartite layout
+                applyLayout();
+                
+                const infoDiv = document.getElementById('partition-info');
+                infoDiv.innerHTML = `
+                    <strong>Random Graph (Bipartite Detected!):</strong><br>
+                    Set A: ${detectedBipartite.setA.length} nodes<br>
+                    Set B: ${detectedBipartite.setB.length} nodes<br>
+                    Edges: ${currentGraph.edges().length}<br>
+                    <strong>Auto-detected:</strong> Yes ✓
+                `;
+            } else {
+                // Not bipartite - show with spring layout instead
+                const { springLayout } = await import('../dist/layout.js');
+                const positions = springLayout(currentGraph);
+                visualizeGraph(currentGraph, positions);
+                
+                const infoDiv = document.getElementById('partition-info');
+                infoDiv.innerHTML = `
+                    <strong>Random Graph (Not Bipartite):</strong><br>
+                    Nodes: ${currentGraph.nodes().length}<br>
+                    Edges: ${currentGraph.edges().length}<br>
+                    <strong>Auto-detected:</strong> No ✗<br>
+                    <em>Using spring layout instead</em>
+                `;
+            }
+        };
         
         setupControls();
         newGraph();

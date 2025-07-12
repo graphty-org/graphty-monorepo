@@ -117,10 +117,12 @@
             <div class="control-group">
                 <label for="shell-pattern">Shell pattern:</label>
                 <select id="shell-pattern">
-                    <option value="auto">Automatic</option>
-                    <option value="centered">Center + Ring</option>
-                    <option value="triple">Three Rings</option>
-                    <option value="nested">Nested Rings</option>
+                    <option value="degree">By Degree (hubs in center)</option>
+                    <option value="k-core">By K-Core (density)</option>
+                    <option value="bfs">By Distance (BFS)</option>
+                    <option value="community">By Community</option>
+                    <option value="manual-center">Manual: Center + Ring</option>
+                    <option value="manual-triple">Manual: Three Rings</option>
                 </select>
             </div>
             
@@ -129,46 +131,64 @@
     </div>
 
     <script type="module">
-        import { shellLayout } from '../dist/layout.js';
+        import { 
+            shellLayout, 
+            scaleFreeGraph,
+            randomGraph,
+            groupNodes,
+            findBestRoot
+        } from '../dist/layout.js';
         
         let currentGraph = null;
         
         function generateGraph(numNodes) {
-            const nodes = Array.from({length: numNodes}, (_, i) => i);
-            const edges = [];
-            
-            // Generate simple connected graph
-            for(let i = 1; i < numNodes; i++) {
-                edges.push([Math.floor(Math.random() * i), i]);
+            // Use scale-free graph for interesting shell patterns
+            if (numNodes < 50) {
+                return scaleFreeGraph(numNodes, 2, Date.now());
+            } else {
+                // For larger graphs, use random graph
+                return randomGraph(numNodes, 0.05, Date.now());
             }
-            
-            return { nodes: () => nodes, edges: () => edges };
         }
         
-        function getShellConfiguration(pattern, numNodes) {
+        function getShellConfiguration(pattern, graph) {
+            const numNodes = graph.nodes().length;
+            
             switch(pattern) {
-                case 'centered':
-                    return [[0], Array.from({length: numNodes - 1}, (_, i) => i + 1)];
-                case 'triple':
+                case 'degree':
+                    // Group by degree - hubs in center
+                    return groupNodes(graph, 'degree', Math.min(4, Math.ceil(numNodes / 10)));
+                    
+                case 'k-core':
+                    // Group by k-core decomposition
+                    return groupNodes(graph, 'k-core');
+                    
+                case 'bfs':
+                    // Group by distance from best root
+                    const root = findBestRoot(graph);
+                    return groupNodes(graph, 'bfs', 0, { root });
+                    
+                case 'community':
+                    // Group by detected communities
+                    return groupNodes(graph, 'community', Math.min(5, Math.ceil(numNodes / 20)));
+                    
+                case 'manual-center':
+                    // Manual: center node + outer ring
+                    const nodes = graph.nodes();
+                    return [[nodes[0]], nodes.slice(1)];
+                    
+                case 'manual-triple':
+                    // Manual: three equal rings
                     const third = Math.floor(numNodes / 3);
+                    const allNodes = graph.nodes();
                     return [
-                        Array.from({length: third}, (_, i) => i),
-                        Array.from({length: third}, (_, i) => i + third),
-                        Array.from({length: numNodes - 2 * third}, (_, i) => i + 2 * third)
+                        allNodes.slice(0, third),
+                        allNodes.slice(third, 2 * third),
+                        allNodes.slice(2 * third)
                     ];
-                case 'nested':
-                    const shells = [];
-                    let remaining = numNodes;
-                    let start = 0;
-                    while(remaining > 0) {
-                        const shellSize = Math.min(Math.ceil(remaining / 2), remaining);
-                        shells.push(Array.from({length: shellSize}, (_, i) => i + start));
-                        start += shellSize;
-                        remaining -= shellSize;
-                    }
-                    return shells;
+                    
                 default:
-                    return null; // Auto-configuration
+                    return groupNodes(graph, 'degree', 3);
             }
         }
         
@@ -262,9 +282,8 @@
             if(!currentGraph) return;
             
             const pattern = document.getElementById('shell-pattern').value;
-            const numNodes = currentGraph.nodes().length;
             
-            const shells = getShellConfiguration(pattern, numNodes);
+            const shells = getShellConfiguration(pattern, currentGraph);
             const positions = shellLayout(currentGraph, shells, 1, [0, 0], 2);
             
             visualizeGraph(currentGraph, positions);

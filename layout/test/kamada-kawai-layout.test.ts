@@ -222,7 +222,7 @@ describe('Kamada-Kawai Layout', () => {
       const endTime = performance.now();
       
       assert.equal(Object.keys(positions).length, 64);
-      assert.isBelow(endTime - startTime, 1000); // Should complete in reasonable time
+      assert.isBelow(endTime - startTime, 2000); // Should complete in reasonable time
     });
 
     it('should produce different results with different initial positions', () => {

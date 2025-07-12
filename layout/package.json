@@ -2,7 +2,7 @@
   "name": "@graphty/layout",
   "version": "1.1.0",
   "description": "graph layout algorithms based on networkx",
-  "main": "layout.js",
+  "main": "dist/layout.js",
   "type": "module",
   "directories": {
     "example": "examples"

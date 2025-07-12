@@ -96,3 +96,9 @@ npm run test:coverage  # Run with coverage report
 - Graph interface is minimal - algorithms work with any object providing nodes() and edges() methods
 - Examples in `examples/` directory demonstrate usage patterns
 - Tests serve as additional documentation for expected behavior
+
+## Claude Preferences
+
+- NEVER automatically stage files with git add or create commits
+- NEVER create commits unless explicitly requested by the user
+- User prefers to handle git operations manually

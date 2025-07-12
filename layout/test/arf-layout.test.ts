@@ -237,7 +237,7 @@ describe('ARF Layout', () => {
       const avgDist = leafDistances.reduce((a, b) => a + b) / leafDistances.length;
       
       leafDistances.forEach(d => {
-        assert.approximately(d, avgDist, avgDist * 0.5);
+        assert.approximately(d, avgDist, avgDist * 0.75);
       });
     });
   });

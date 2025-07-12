@@ -1,5 +1,10 @@
 # Layout
 
+[![CI](https://github.com/graphty-org/layout/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/layout/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/graphty-org/layout/branch/main/graph/badge.svg)](https://codecov.io/gh/graphty-org/layout)
+[![npm version](https://badge.fury.io/js/%40graphty%2Flayout.svg)](https://badge.fury.io/js/%40graphty%2Flayout)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Layout is a TypeScript library for positioning nodes in graphs. It's a TypeScript port of the [layout algorithms](https://networkx.org/documentation/stable/reference/drawing.html) from the Python [NetworkX](https://networkx.org/documentation/stable/) library.
 
 ## Features

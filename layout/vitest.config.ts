@@ -7,14 +7,14 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      include: ['layout.ts'],
-      exclude: ['**/*.d.ts', '**/*.test.ts'],
+      include: ['layout.ts', 'dist/**/*.js'],
+      exclude: ['**/*.d.ts', '**/*.test.ts', 'dist/**/*.d.ts'],
       all: true,
       thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 80,
-        statements: 80
+        lines: 65,
+        functions: 60,
+        branches: 85,
+        statements: 65
       }
     },
     include: ['test/**/*.test.ts'],

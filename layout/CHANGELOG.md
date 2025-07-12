@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/graphty-org/layout/compare/v1.1.1...v1.2.0) (2025-07-12)
+
+
+### Features
+
+* add 3D examples and enhance development setup ([dbcb911](https://github.com/graphty-org/layout/commit/dbcb9117f77243c0c105c3bcf29252f0cf5d5484))
+
 ## [1.1.1](https://github.com/graphty-org/layout/compare/v1.1.0...v1.1.1) (2025-07-12)
 
 

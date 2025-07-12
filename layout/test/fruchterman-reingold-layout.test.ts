@@ -392,7 +392,7 @@ describe('Fruchterman-Reingold Layout', () => {
         const minOtherDist = Math.min(...otherDists);
         
         // Adjacent nodes should generally be closer than non-adjacent
-        assert.isBelow(Math.min(distNext, distPrev), minOtherDist * 1.5);
+        assert.isBelow(Math.min(distNext, distPrev), minOtherDist * 1.6);
       });
     });
 

@@ -5,7 +5,7 @@ import {
   cycleGraph,
   starGraph,
   randomGraph
-} from '../dist/layout.js';
+} from '../layout.ts';
 
 describe('Spring Layout', () => {
   describe('Basic functionality', () => {

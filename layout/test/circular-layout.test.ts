@@ -7,7 +7,7 @@ import {
   wheelGraph,
   gridGraph,
   randomGraph
-} from '../dist/layout.js';
+} from '../layout.ts';
 
 describe('Circular Layout', () => {
   describe('Basic functionality', () => {

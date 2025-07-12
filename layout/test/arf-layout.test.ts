@@ -6,7 +6,7 @@ import {
   starGraph,
   gridGraph,
   randomGraph
-} from '../dist/layout.js';
+} from '../layout.ts';
 
 describe('ARF Layout', () => {
   describe('Basic functionality', () => {

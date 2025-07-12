@@ -2,7 +2,7 @@ import { describe, it, assert } from 'vitest';
 import { 
   bipartiteLayout,
   bipartiteGraph
-} from '../dist/layout.js';
+} from '../layout.ts';
 
 describe('Bipartite Layout', () => {
   describe('Basic functionality', () => {

@@ -7,7 +7,7 @@ import {
   gridGraph,
   randomGraph,
   scaleFreeGraph
-} from '../dist/layout.js';
+} from '../layout.ts';
 
 describe('ForceAtlas2 Layout', () => {
   describe('Basic functionality', () => {

@@ -6,7 +6,7 @@ import {
   starGraph,
   gridGraph,
   wheelGraph
-} from '../dist/layout.js';
+} from '../layout.ts';
 
 describe('Planar Layout', () => {
   describe('Basic functionality', () => {

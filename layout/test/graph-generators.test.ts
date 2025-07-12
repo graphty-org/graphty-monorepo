@@ -7,7 +7,8 @@ import {
   gridGraph,
   randomGraph,
   bipartiteGraph,
-  scaleFreeGraph
+  scaleFreeGraph,
+  circularLayout
 } from '../layout.ts';
 
 describe('Graph Generators', () => {
@@ -388,9 +389,6 @@ describe('Graph Generators', () => {
 
   describe('Graph generator integration', () => {
     it('should work with layout algorithms', () => {
-      // Import a layout to test
-      const { circularLayout } = require('../dist/layout.js');
-      
       // Test each generator with a layout
       const generators = [
         () => completeGraph(5),

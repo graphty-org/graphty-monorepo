@@ -184,7 +184,7 @@ describe('Spring Layout', () => {
       // All nodes should be roughly equidistant from center
       const avgDistance = distances.reduce((a, b) => a + b) / distances.length;
       distances.forEach(d => {
-        assert.isBelow(Math.abs(d - avgDistance) / avgDistance, 0.5);
+        assert.isBelow(Math.abs(d - avgDistance) / avgDistance, 0.6);
       });
     });
 

@@ -8,7 +8,7 @@ import {
   randomGraph,
   bipartiteGraph,
   scaleFreeGraph
-} from '../dist/layout.js';
+} from '../layout.ts';
 
 describe('Graph Generators', () => {
   describe('completeGraph', () => {

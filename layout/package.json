@@ -1,6 +1,6 @@
 {
   "name": "@graphty/layout",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "graph layout algorithms based on networkx",
   "main": "dist/src/index.js",
   "type": "module",

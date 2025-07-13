@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/graphty-org/layout/compare/v1.2.0...v1.2.1) (2025-07-13)
+
+
+### Bug Fixes
+
+* resolve import errors and browser hang in shell layout example ([d65e436](https://github.com/graphty-org/layout/commit/d65e4360d9c42c885731ec952ea52978da61c7d5))
+
 # [1.2.0](https://github.com/graphty-org/layout/compare/v1.1.1...v1.2.0) (2025-07-12)
 
 

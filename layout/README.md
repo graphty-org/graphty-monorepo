@@ -1,7 +1,7 @@
 # Layout
 
 [![CI](https://github.com/graphty-org/layout/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/layout/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/graphty-org/layout/branch/main/graph/badge.svg)](https://codecov.io/gh/graphty-org/layout)
+[![Coverage Status](https://coveralls.io/repos/github/graphty-org/layout/badge.svg?branch=main)](https://coveralls.io/github/graphty-org/layout?branch=main)
 [![npm version](https://badge.fury.io/js/%40graphty%2Flayout.svg)](https://badge.fury.io/js/%40graphty%2Flayout)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 

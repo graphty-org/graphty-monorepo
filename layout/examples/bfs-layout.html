@@ -169,61 +169,55 @@
     </div>
 
     <script type="module">
-        import { 
-            bfsLayout,
-            starGraph,
-            gridGraph,
-            randomGraph,
-            scaleFreeGraph,
-            findBestRoot
-        } from "./layout.js";
+        import { bfsLayout, scaleFreeGraph, randomGraph, gridGraph, starGraph } from "./layout.js";
         
         let currentGraph = null;
         let bestRoot = null;
         
         function generateGraph(type, numNodes) {
+            let graph;
             switch(type) {
                 case 'tree':
                     // Generate tree-like structure using scale-free with low m
-                    return scaleFreeGraph(numNodes, 1, Date.now());
+                    graph = scaleFreeGraph(numNodes, 1, Date.now());
+                    break;
                 
                 case 'connected':
                     // Generate connected random graph
-                    return randomGraph(numNodes, 0.15, Date.now());
+                    graph = randomGraph(numNodes, 0.15, Date.now());
+                    break;
                 
                 case 'grid':
                     // Create grid
                     const size = Math.ceil(Math.sqrt(numNodes));
-                    return gridGraph(size, size);
-                
-                case 'star':
-                    return starGraph(numNodes);
-                
-                default:
-                    return randomGraph(numNodes, 0.2, Date.now());
-                            edges.push([i, i + gridSize]);
-                        }
-                    }
+                    const gridG = gridGraph(size, size);
+                    // Convert string node IDs to numbers for consistency
+                    const nodeMap = new Map();
+                    gridG.nodes().forEach((node, i) => nodeMap.set(node, i));
+                    graph = {
+                        nodes: () => Array.from({length: gridG.nodes().length}, (_, i) => i),
+                        edges: () => gridG.edges().map(([u, v]) => [nodeMap.get(u), nodeMap.get(v)])
+                    };
                     break;
                 
                 case 'star':
-                    // Star with center at node 0
-                    for (let i = 1; i < numNodes; i++) {
-                        edges.push([0, i]);
-                    }
+                    graph = starGraph(numNodes);
+                    break;
+                
+                default:
+                    graph = randomGraph(numNodes, 0.2, Date.now());
                     break;
             }
             
-            return { 
-                nodes: () => nodes, 
-                edges: () => edges,
-                // Simplified implementation to get neighbors
-                getNeighbors: function(node) {
-                    return edges
-                        .filter(([s, t]) => s === node || t === node)
-                        .map(([s, t]) => s === node ? t : s);
-                }
+            // Add getNeighbors method to the graph
+            graph.getNeighbors = function(node) {
+                const edges = this.edges();
+                return edges
+                    .filter(([s, t]) => s === node || t === node)
+                    .map(([s, t]) => s === node ? t : s);
             };
+            
+            return graph;
         }
         
         function updateStartNodeOptions() {

@@ -203,15 +203,116 @@
 
     <script type="module">
         import { 
-            forceatlas2Layout,
-            randomGraph,
-            scaleFreeGraph,
-            gridGraph,
-            autoConfigureForce
+            forceatlas2Layout
         } from "./layout.js";
+        
+        import {
+            autoConfigureForce
+        } from "./layout-helpers.js";
         
         let currentGraph = null;
         let currentConfig = null;
+        
+        // Graph generation utilities
+        function randomGraph(n, p, seed) {
+            const nodes = Array.from({length: n}, (_, i) => i);
+            const edges = [];
+            
+            // Simple random graph with probability p for each edge
+            for (let i = 0; i < n; i++) {
+                for (let j = i + 1; j < n; j++) {
+                    if (Math.random() < p) {
+                        edges.push([i, j]);
+                    }
+                }
+            }
+            
+            return {
+                nodes: () => nodes,
+                edges: () => edges
+            };
+        }
+        
+        function scaleFreeGraph(n, m, seed) {
+            const nodes = Array.from({length: n}, (_, i) => i);
+            const edges = [];
+            
+            // Start with a complete graph of m+1 nodes
+            for (let i = 0; i <= m; i++) {
+                for (let j = i + 1; j <= m; j++) {
+                    edges.push([i, j]);
+                }
+            }
+            
+            // Add remaining nodes with preferential attachment
+            for (let i = m + 1; i < n; i++) {
+                const degrees = new Map();
+                for (const [u, v] of edges) {
+                    degrees.set(u, (degrees.get(u) || 0) + 1);
+                    degrees.set(v, (degrees.get(v) || 0) + 1);
+                }
+                
+                const totalDegree = Array.from(degrees.values()).reduce((a, b) => a + b, 0);
+                const targets = new Set();
+                
+                while (targets.size < Math.min(m, i)) {
+                    let r = Math.random() * totalDegree;
+                    let node = 0;
+                    
+                    for (const [n, d] of degrees) {
+                        r -= d;
+                        if (r <= 0) {
+                            node = n;
+                            break;
+                        }
+                    }
+                    
+                    if (!targets.has(node)) {
+                        targets.add(node);
+                        edges.push([i, node]);
+                    }
+                }
+            }
+            
+            return {
+                nodes: () => nodes,
+                edges: () => edges
+            };
+        }
+        
+        function gridGraph(rows, cols) {
+            const nodes = [];
+            const edges = [];
+            
+            // Create nodes
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    nodes.push(r * cols + c);
+                }
+            }
+            
+            // Create edges
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const node = r * cols + c;
+                    
+                    // Right edge
+                    if (c < cols - 1) {
+                        edges.push([node, node + 1]);
+                    }
+                    
+                    // Down edge
+                    if (r < rows - 1) {
+                        edges.push([node, node + cols]);
+                    }
+                }
+            }
+            
+            return {
+                nodes: () => nodes,
+                edges: () => edges
+            };
+        }
         
         function generateGraph(type, numNodes) {
             switch(type) {
@@ -263,150 +364,7 @@
                 case 'random':
                 default:
                     return randomGraph(numNodes, 0.1, Date.now());
-                    for(let i = 1; i < Math.min(5, numNodes); i++) {
-                        edges.push([0, i]);
-                    }
-                    
-                    // Add nodes with preferential attachment
-                    for(let i = 5; i < numNodes; i++) {
-                        // Number of connections for new node
-                        const newEdges = Math.min(3, i);
-                        
-                        // Track edge count per node for preferential attachment
-                        const nodeDegrees = new Array(i).fill(0);
-                        for(const edge of edges) {
-                            nodeDegrees[edge[0]]++;
-                            nodeDegrees[edge[1]]++;
-                        }
-                        
-                        // Calculate total degree for probability
-                        const totalDegree = nodeDegrees.reduce((sum, deg) => sum + deg, 0);
-                        
-                        // Add edges based on preferential attachment
-                        const added = new Set();
-                        for(let j = 0; j < newEdges; j++) {
-                            let targetNode;
-                            do {
-                                // Choose node with probability proportional to its degree
-                                let rand = Math.random() * totalDegree;
-                                targetNode = 0;
-                                while(targetNode < i && rand > 0) {
-                                    rand -= nodeDegrees[targetNode];
-                                    if(rand > 0) targetNode++;
-                                }
-                                if(targetNode >= i) targetNode = Math.floor(Math.random() * i);
-                            } while(added.has(targetNode));
-                            
-                            edges.push([i, targetNode]);
-                            added.add(targetNode);
-                        }
-                    }
-                    break;
-                    
-                case 'community':
-                    // Create community structure with 3-4 communities
-                    const numCommunities = Math.min(4, Math.ceil(numNodes / 10));
-                    const communitySizes = [];
-                    let remainingNodes = numNodes;
-                    
-                    for(let i = 0; i < numCommunities - 1; i++) {
-                        const size = Math.ceil(numNodes / numCommunities);
-                        communitySizes.push(size);
-                        remainingNodes -= size;
-                    }
-                    communitySizes.push(remainingNodes);
-                    
-                    let nodeIndex = 0;
-                    for(let c = 0; c < numCommunities; c++) {
-                        const communityStart = nodeIndex;
-                        const communityEnd = communityStart + communitySizes[c];
-                        
-                        // Connect nodes within community (dense)
-                        for(let i = communityStart; i < communityEnd; i++) {
-                            for(let j = i + 1; j < communityEnd; j++) {
-                                if(Math.random() < 0.7) { // High probability within community
-                                    edges.push([i, j]);
-                                }
-                            }
-                        }
-                        
-                        // Connect to other communities (sparse)
-                        if(c > 0) {
-                            const prevCommunityStart = nodeIndex - communitySizes[c-1];
-                            const bridgeEdges = Math.max(1, Math.floor(communitySizes[c] * 0.1));
-                            for(let e = 0; e < bridgeEdges; e++) {
-                                const source = communityStart + Math.floor(Math.random() * communitySizes[c]);
-                                const target = prevCommunityStart + Math.floor(Math.random() * communitySizes[c-1]);
-                                edges.push([source, target]);
-                            }
-                        }
-                        
-                        nodeIndex = communityEnd;
-                    }
-                    break;
-                    
-                case 'grid':
-                    // Create a grid-like structure
-                    const gridSize = Math.ceil(Math.sqrt(numNodes));
-                    for(let i = 0; i < numNodes; i++) {
-                        const row = Math.floor(i / gridSize);
-                        const col = i % gridSize;
-                        
-                        // Connect right
-                        if(col < gridSize - 1 && i + 1 < numNodes) {
-                            edges.push([i, i + 1]);
-                        }
-                        
-                        // Connect down
-                        if(row < gridSize - 1 && i + gridSize < numNodes) {
-                            edges.push([i, i + gridSize]);
-                        }
-                    }
-                    break;
-                    
-                case 'random':
-                default:
-                    // Random graph with controlled density
-                    const density = 0.1; // 10% of possible edges
-                    const possibleEdges = (numNodes * (numNodes - 1)) / 2;
-                    const targetEdges = Math.ceil(possibleEdges * density);
-                    
-                    // Ensure connected graph with spanning tree
-                    for(let i = 1; i < numNodes; i++) {
-                        const parent = Math.floor(Math.random() * i);
-                        edges.push([parent, i]);
-                    }
-                    
-                    // Add random edges up to target density
-                    let additionalEdges = targetEdges - (numNodes - 1);
-                    let attempts = 0;
-                    
-                    while(additionalEdges > 0 && attempts < 1000) {
-                        const a = Math.floor(Math.random() * numNodes);
-                        const b = Math.floor(Math.random() * numNodes);
-                        
-                        if(a !== b && !edges.some(e => (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a))) {
-                            edges.push([a, b]);
-                            additionalEdges--;
-                        }
-                        
-                        attempts++;
-                    }
-                    break;
             }
-            
-            // Create node masses based on degree
-            const masses = {};
-            for(const edge of edges) {
-                masses[edge[0]] = (masses[edge[0]] || 1) + 0.1;
-                masses[edge[1]] = (masses[edge[1]] || 1) + 0.1;
-            }
-            
-            return { 
-                nodes: () => nodes, 
-                edges: () => edges,
-                masses: masses
-            };
         }
         
         function visualizeGraph(graph, positions) {
@@ -514,9 +472,6 @@
                 
                 // Apply layout immediately
                 applyLayout();
-                });
-                
-                visualizeGraph(currentGraph, positions);
                 
             } catch (error) {
                 console.error('Error in graph generation:', error);

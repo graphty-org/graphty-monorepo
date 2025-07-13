@@ -171,10 +171,13 @@
             multipartiteLayout,
             scaleFreeGraph,
             starGraph,
-            randomGraph,
+            randomGraph
+        } from "./layout.js";
+        
+        import { 
             groupNodes,
             findBestRoot
-        } from "./layout.js";
+        } from "./layout-helpers.js";
         
         let currentGraph = null;
         let currentLayers = null;
@@ -307,11 +310,13 @@
                 
                 // Determine color based on layer
                 let nodeColor = '#666';
-                Object.entries(graph.layers).forEach(([layerIdx, layerNodes]) => {
-                    if (layerNodes.includes(node)) {
-                        nodeColor = layerColors[layerIdx % layerColors.length];
-                    }
-                });
+                if (currentLayers) {
+                    currentLayers.forEach((layerNodes, layerIdx) => {
+                        if (layerNodes.includes(node)) {
+                            nodeColor = layerColors[layerIdx % layerColors.length];
+                        }
+                    });
+                }
                 
                 const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 circle.setAttribute('cx', x);
@@ -328,7 +333,7 @@
                 text.setAttribute('text-anchor', 'middle');
                 text.setAttribute('font-size', '9');
                 text.setAttribute('fill', 'white');
-                text.textContent = node.replace(/L\d+N/, '');
+                text.textContent = String(node).replace(/L\d+N/, '') || String(node);
                 svg.appendChild(text);
             });
         }
@@ -336,9 +341,9 @@
         window.newGraph = function() {
             const numLayers = parseInt(document.getElementById('num-layers').value);
             const nodesPerLayer = parseInt(document.getElementById('nodes-per-layer').value);
-            const edgeType = document.getElementById('edge-type').value;
+            const graphType = document.getElementById('graph-type').value;
             
-            currentGraph = generateMultipartiteGraph(numLayers, nodesPerLayer, edgeType);
+            currentGraph = generateGraph(graphType, numLayers, nodesPerLayer);
             
             // Just visualize with random positions initially
             const positions = {};
@@ -349,13 +354,26 @@
                 ];
             });
             
+            // Generate layers for multipartite layout
+            const layerMethod = document.getElementById('layer-method').value;
+            
+            if (layerMethod === 'bfs') {
+                const root = findBestRoot(currentGraph);
+                currentLayers = groupNodes(currentGraph, 'bfs', 0, { root });
+            } else if (layerMethod === 'degree') {
+                currentLayers = groupNodes(currentGraph, 'degree', numLayers);
+            } else {
+                // community-based
+                currentLayers = groupNodes(currentGraph, 'community', numLayers);
+            }
+            
             visualizeGraph(currentGraph, positions);
             
             // Update layer info
             const infoDiv = document.getElementById('layers-info');
-            const layerInfo = Object.entries(currentGraph.layers).map(([idx, nodes]) => 
+            const layerInfo = currentLayers ? currentLayers.map((nodes, idx) => 
                 `Layer ${idx}: ${nodes.length} nodes`
-            ).join('<br>');
+            ).join('<br>') : 'No layers generated';
             
             infoDiv.innerHTML = `
                 <strong>Structure:</strong><br>
@@ -365,11 +383,11 @@
         };
         
         window.applyLayout = function() {
-            if(!currentGraph) return;
+            if(!currentGraph || !currentLayers) return;
             
             const alignment = document.getElementById('alignment').value;
             
-            const positions = multipartiteLayout(currentGraph, currentGraph.layers, alignment, 1, [0, 0]);
+            const positions = multipartiteLayout(currentGraph, currentLayers, alignment, 1, [0, 0]);
             
             visualizeGraph(currentGraph, positions);
         };

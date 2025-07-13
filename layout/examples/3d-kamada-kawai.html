@@ -95,12 +95,6 @@
     </label>
     <button id="regenerate">Regenerate Graph</button>
     <button id="relayout">Re-run Layout</button>
-    <label>
-      <input type="checkbox" id="showAxes" checked> Show Axes
-    </label>
-    <label>
-      <input type="checkbox" id="animateNodes"> Animate Nodes
-    </label>
   </div>
   <div id="status">
     <div>Nodes: <span id="nodeCount">0</span></div>
@@ -327,7 +321,6 @@
     const scaleLabel = document.getElementById('scaleLabel');
     const regenerateBtn = document.getElementById('regenerate');
     const relayoutBtn = document.getElementById('relayout');
-    const animateNodesCheckbox = document.getElementById('animateNodes');
 
     graphSizeSlider.addEventListener('input', (e) => {
       sizeLabel.textContent = e.target.value;
@@ -364,18 +357,10 @@
       
       time += 0.01;
       
-      // Animate nodes
-      if (animateNodesCheckbox.checked) {
-        nodeAnimations.forEach((mesh, i) => {
-          const offset = Math.sin(time + i * 0.5) * 5;
-          mesh.position.copy(mesh.userData.originalPosition);
-          mesh.position.y += offset;
-        });
-      } else {
-        nodeAnimations.forEach((mesh) => {
-          mesh.position.copy(mesh.userData.originalPosition);
-        });
-      }
+      // Keep nodes at their original positions
+      nodeAnimations.forEach((mesh) => {
+        mesh.position.copy(mesh.userData.originalPosition);
+      });
       
       controls.update();
       renderer.render(scene, camera);

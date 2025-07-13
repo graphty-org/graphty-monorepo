@@ -2,7 +2,7 @@
   "name": "@graphty/layout",
   "version": "1.1.1",
   "description": "graph layout algorithms based on networkx",
-  "main": "dist/layout.js",
+  "main": "dist/src/index.js",
   "type": "module",
   "directories": {
     "example": "examples"
@@ -14,7 +14,7 @@
     "test:coverage": "vitest run --coverage",
     "prepare": "husky",
     "build": "tsc",
-    "build:examples": "npm run build && cp dist/layout.js examples/layout.js",
+    "build:examples": "npm run build && node build-examples-script.js",
     "watch": "tsc --watch",
     "dev": "tsc --watch",
     "commit": "cz",

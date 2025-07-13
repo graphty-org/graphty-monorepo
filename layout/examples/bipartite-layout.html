@@ -165,9 +165,9 @@
         import { 
             bipartiteLayout,
             bipartiteGraph,
-            detectBipartite,
             randomGraph
         } from "./layout.js";
+        import { detectBipartite } from "./layout-helpers.js";
         
         let currentGraph = null;
         let detectedBipartite = null;
@@ -335,7 +335,7 @@
             document.getElementById('alignment').onchange = null;
         }
         
-        window.generateMixedGraph = function() {
+        window.generateMixedGraph = async function() {
             const totalNodes = parseInt(document.getElementById('set-a-size').value) + 
                                parseInt(document.getElementById('set-b-size').value);
             const edgeDensity = parseFloat(document.getElementById('edge-density').value);
@@ -360,7 +360,7 @@
                 `;
             } else {
                 // Not bipartite - show with spring layout instead
-                const { springLayout } = await import('../dist/layout.js');
+                const { springLayout } = await import('./layout.js');
                 const positions = springLayout(currentGraph);
                 visualizeGraph(currentGraph, positions);
                 

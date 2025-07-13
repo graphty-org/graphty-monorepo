@@ -6,7 +6,7 @@ import {
   starGraph,
   gridGraph,
   randomGraph
-} from '../layout.ts';
+} from '../src';
 
 describe('Fruchterman-Reingold Layout', () => {
   describe('Basic functionality', () => {

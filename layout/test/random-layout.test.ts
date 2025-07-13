@@ -5,7 +5,7 @@ import {
   cycleGraph,
   starGraph,
   gridGraph
-} from '../layout.ts';
+} from '../src';
 
 describe('Random Layout', () => {
   describe('Basic functionality', () => {

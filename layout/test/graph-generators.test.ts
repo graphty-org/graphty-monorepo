@@ -9,7 +9,7 @@ import {
   bipartiteGraph,
   scaleFreeGraph,
   circularLayout
-} from '../layout.ts';
+} from '../src';
 
 describe('Graph Generators', () => {
   describe('completeGraph', () => {

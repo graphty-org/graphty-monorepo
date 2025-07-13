@@ -4,7 +4,7 @@ import {
   completeGraph,
   cycleGraph,
   randomGraph
-} from '../layout.ts';
+} from '../src';
 
 describe('Multipartite Layout', () => {
   describe('Basic functionality', () => {

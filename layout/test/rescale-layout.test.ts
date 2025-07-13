@@ -6,7 +6,7 @@ import {
   randomLayout,
   completeGraph,
   starGraph
-} from '../layout.ts';
+} from '../src';
 
 describe('Rescale Layout', () => {
   describe('Dictionary format (rescaleLayout)', () => {

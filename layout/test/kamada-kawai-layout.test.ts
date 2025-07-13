@@ -6,7 +6,7 @@ import {
   starGraph,
   gridGraph,
   randomGraph
-} from '../layout.js';
+} from '../src';
 
 describe('Kamada-Kawai Layout', () => {
   describe('Basic functionality', () => {

@@ -7,7 +7,7 @@ import {
   wheelGraph,
   gridGraph,
   randomGraph
-} from '../layout.ts';
+} from '../src';
 
 describe('BFS Layout', () => {
   describe('Basic functionality', () => {

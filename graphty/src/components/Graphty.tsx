@@ -1,6 +1,7 @@
 // Import from local development path - will need to be updated when graphty-element is published
-import "graphty-element";
+// import "graphty-element";
 
+import {Box, Text, Title} from "@mantine/core";
 import {useEffect, useRef} from "react";
 
 export function Graphty(): React.JSX.Element {
@@ -26,12 +27,21 @@ export function Graphty(): React.JSX.Element {
     }, []);
 
     return (
-        <div className="graphty-container">
-            <graphty-element
-                ref={graphtyRef}
-                layout="d3"
-                style={{width: "100%", height: "600px"}}
-            />
-        </div>
+        <Box
+            className="graphty-container"
+            style={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+            }}
+        >
+            <Box style={{textAlign: "center"}}>
+                <Text size="4rem" mb="md" style={{opacity: 0.5}}>📊</Text>
+                <Title order={2} size="h3" mb="xs" c="gray.5">Graph Canvas</Title>
+                <Text size="sm" c="gray.6">Graphty-element will be rendered here</Text>
+            </Box>
+        </Box>
     );
 }

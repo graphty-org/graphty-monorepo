@@ -29,3 +29,6 @@ coverage
 # Storybook
 storybook-static
 build-storybook.log
+
+# Environment variables
+.env

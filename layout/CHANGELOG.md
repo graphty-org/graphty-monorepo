@@ -1,3 +1,10 @@
+## [1.2.2](https://github.com/graphty-org/layout/compare/v1.2.1...v1.2.2) (2025-07-13)
+
+
+### Bug Fixes
+
+* numpy linspace error. improve test coverage ([2e820f1](https://github.com/graphty-org/layout/commit/2e820f181bd7242ef251c1833b10533699485209))
+
 ## [1.2.1](https://github.com/graphty-org/layout/compare/v1.2.0...v1.2.1) (2025-07-13)
 
 

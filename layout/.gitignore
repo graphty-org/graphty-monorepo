@@ -11,6 +11,5 @@ log/*
 tmp
 .husky
 dist
-examples/layout.js
 .env
 .env.local

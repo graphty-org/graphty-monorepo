@@ -57,6 +57,10 @@ async function buildGitHubPages() {
     await fs.rm(ghPagesDir, { recursive: true, force: true });
     await ensureDirectoryExists(ghPagesDir);
     
+    // Create examples subdirectory
+    const ghPagesExamplesDir = path.join(ghPagesDir, 'examples');
+    await ensureDirectoryExists(ghPagesExamplesDir);
+    
     // 2. Ensure dist/layout.js exists
     const layoutJsPath = path.join(distDir, 'layout.js');
     try {
@@ -66,32 +70,47 @@ async function buildGitHubPages() {
       process.exit(1);
     }
     
-    // 3. Copy dist/layout.js to gh-pages
-    await copyFile(layoutJsPath, path.join(ghPagesDir, 'layout.js'));
-    console.log('Copied dist/layout.js');
+    // 3. Copy dist/layout.js to gh-pages/examples
+    await copyFile(layoutJsPath, path.join(ghPagesExamplesDir, 'layout.js'));
+    console.log('Copied dist/layout.js to examples/');
     
     // 4. Copy and process example HTML files
     const files = await fs.readdir(examplesDir);
     for (const file of files) {
       if (file.endsWith('.html')) {
         const inputPath = path.join(examplesDir, file);
-        const outputPath = path.join(ghPagesDir, file);
+        const outputPath = path.join(ghPagesExamplesDir, file);
         await processExampleHtml(inputPath, outputPath);
         console.log(`Processed ${file}`);
       } else if (file.endsWith('.js')) {
         // Copy helper JS files
         await copyFile(
           path.join(examplesDir, file),
-          path.join(ghPagesDir, file)
+          path.join(ghPagesExamplesDir, file)
         );
         console.log(`Copied ${file}`);
       }
     }
     
-    // 5. Create a .nojekyll file to prevent GitHub Pages from processing files
+    // 5. Create a redirect index.html at the root
+    const redirectHtml = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="0; url=examples/index.html">
+    <title>Redirecting to examples...</title>
+</head>
+<body>
+    <p>Redirecting to <a href="examples/index.html">examples</a>...</p>
+</body>
+</html>`;
+    await fs.writeFile(path.join(ghPagesDir, 'index.html'), redirectHtml);
+    console.log('Created redirect index.html');
+    
+    // 6. Create a .nojekyll file to prevent GitHub Pages from processing files
     await fs.writeFile(path.join(ghPagesDir, '.nojekyll'), '');
     
-    // 6. Create a simple deployment instruction file
+    // 7. Create a simple deployment instruction file
     const deployInstructions = `# GitHub Pages Deployment
 
 This directory contains the built static site for GitHub Pages.

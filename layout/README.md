@@ -51,6 +51,12 @@ Additionally, the library includes:
 - **combineLayouts** - Blend multiple layout algorithms
 - **interpolateLayouts** - Smooth animation between layouts
 
+## Installation
+
+```bash
+npm install @graphty/layout
+```
+
 ## How to Use
 
 Import the library in your TypeScript/JavaScript project:
@@ -91,7 +97,7 @@ import {
   layoutQuality,
   combineLayouts,
   interpolateLayouts
-} from './layout.js'
+} from '@graphty/layout'
 ```
 
 ## Quick Start
@@ -476,12 +482,30 @@ if (detected) {
 }
 ```
 
+## 3D Support
+
+All layout algorithms support 3D positioning by setting the `dim` parameter to 3:
+
+```typescript
+// Any layout algorithm in 3D
+const positions3D = springLayout(graph, null, null, null, 50, 1, [0, 0, 0], 3)
+// Returns: { node1: [x, y, z], node2: [x, y, z], ... }
+
+// ForceAtlas2 in 3D
+const fa3D = forceatlas2Layout(graph, null, 100, 1, 2, 1, false, false, null, null, null, false, false, 42, 3)
+
+// Circular layout in 3D (creates a sphere)
+const circular3D = circularLayout(graph, 1, [0, 0, 0], 3)
+```
+
+When using 3D layouts, positions will have three coordinates `[x, y, z]` instead of two.
+
 ## Common Parameters
 
 Most layout functions share these parameters:
 
 - **scale** (number): Scale factor for positions (default: 1)
-- **center** (number[]): Center coordinates around which to center the layout (default: [0, 0])
+- **center** (number[]): Center coordinates around which to center the layout (default: [0, 0] for 2D, [0, 0, 0] for 3D)
 - **dim** (number): Layout dimension - 2D or 3D (default: 2)
 - **seed** (number): Seed for random generation (for reproducible layouts)
 
@@ -722,7 +746,26 @@ const positions = forceatlas2Layout(
   true, // dissuadeHubs: good for scale-free
   false, // linlog: logarithmic attraction
   42, // seed
-  2 // dim
+  2 // dim: 2 for 2D, 3 for 3D
+)
+
+// 3D layout example
+const positions3D = forceatlas2Layout(
+  graph,
+  null,
+  100,
+  1.0,
+  2.0,
+  1.0,
+  false,
+  false,
+  null,
+  null,
+  null,
+  false,
+  false,
+  42,
+  3 // 3D mode - returns [x, y, z] coordinates
 )
 ```
 
@@ -1097,6 +1140,13 @@ To deploy to GitHub Pages, see `gh-pages/DEPLOY.md` after building.
 3. **Run tests** with `npm test`
 4. **Build for production** with `npm run build:all`
 5. **Deploy examples** with `npm run build:gh-pages`
+
+## Recent Updates
+
+### Version 1.2.7 (Latest)
+- **Fixed**: ForceAtlas2 now correctly returns numeric Z coordinates in 3D mode (previously returned NaN)
+- **Fixed**: NPM package now uses the correct bundled entry point (`dist/layout.js`)
+- **Added**: Full 3D support documentation and examples
 
 ## Contributing
 

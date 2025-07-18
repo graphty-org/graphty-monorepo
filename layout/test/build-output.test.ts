@@ -6,15 +6,17 @@ describe('Build Output Tests', () => {
   it('should have correct package.json configuration', () => {
     const packageJson = JSON.parse(readFileSync(resolve('./package.json'), 'utf-8'));
     
-    // Check main entry point
-    expect(packageJson.main).toBe('dist/src/index.js');
+    // Check main entry point - now using the bundle
+    // This fixes the npm package bug where dist/src/index.js had ES module import issues
+    // and ForceAtlas2 returned NaN for Z coordinates in 3D mode
+    expect(packageJson.main).toBe('dist/layout.js');
     expect(packageJson.type).toBe('module');
     expect(packageJson.types).toBe('dist/src/index.d.ts');
     
-    // Check exports field
+    // Check exports field - now using the bundle
     expect(packageJson.exports).toBeDefined();
     expect(packageJson.exports['.']).toBeDefined();
-    expect(packageJson.exports['.'].import).toBe('./dist/src/index.js');
+    expect(packageJson.exports['.'].import).toBe('./dist/layout.js');
     expect(packageJson.exports['.'].types).toBe('./dist/src/index.d.ts');
     
     // Check files field

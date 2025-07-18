@@ -4,22 +4,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-@graphty/layout is a TypeScript graph layout library that ports NetworkX Python algorithms to JavaScript. All layout algorithms are implemented in a single file: `layout.ts`.
+@graphty/layout is a TypeScript graph layout library that ports NetworkX Python algorithms to JavaScript. The library has been refactored from a single file into a modular structure but maintains a bundled distribution.
 
 ## Key Commands
 
 ### Development
 ```bash
-# Build TypeScript to JavaScript
+# Build TypeScript output
 npm run build
+
+# Build ES module bundle (dist/layout.js)
+npm run build:bundle
+
+# Build everything (TypeScript + bundle)
+npm run build:all
 
 # Watch mode for development
 npm run watch
 # or
 npm run dev
 
-# Currently no test framework is configured
-# npm test exits with error code 1
+# Run tests
+npm test           # Watch mode
+npm run test:run   # Run once
+npm run test:coverage  # With coverage
 ```
 
 ### Git Commits
@@ -33,23 +41,24 @@ Commit types: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, 
 
 ## Architecture
 
-The entire library is contained in `layout.ts` with the following structure:
+The library is now modularly organized but distributed as a single bundle:
 
-1. **Type System** (lines 1-50):
-   - `Node`: string | number
-   - `Edge`: [Node, Node] 
-   - `Graph`: Interface with adjacency(), nodes(), edges() methods
-   - `PositionMap`: Map<Node, Position> for storing layouts
+### Source Structure (`src/`)
+- `types/` - TypeScript interfaces and types
+- `utils/` - Utility functions (numpy-like operations, rescaling, etc.)
+- `layouts/` - Layout algorithms organized by category
+  - `force-directed/` - Spring, ForceAtlas2, ARF, Kamada-Kawai
+  - `geometric/` - Random, Circular, Shell, Spiral
+  - `hierarchical/` - BFS, Bipartite, Multipartite
+  - `spectral/` - Spectral layout
+  - `planar/` - Planar layout
+- `generators/` - Graph generation utilities
+- `algorithms/` - Graph algorithms (helpers)
 
-2. **NumPy-like Utilities** (lines 50-500):
-   - Array manipulation functions under `np` object
-   - Used for mathematical operations in layout algorithms
-
-3. **Layout Algorithms** (lines 500-2591):
-   - Force-directed: springLayout, forceatlas2Layout, arfLayout, kamadaKawaiLayout
-   - Geometric: randomLayout, circularLayout, shellLayout, spiralLayout
-   - Specialized: spectralLayout, bipartiteLayout, multipartiteLayout, bfsLayout, planarLayout
-   - Utilities: rescaleLayout, rescaleLayoutDict
+### Distribution
+- **NPM Package Entry**: `dist/layout.js` (bundled ES module)
+- **TypeScript Types**: `dist/src/index.d.ts`
+- The bundle includes all algorithms and works correctly with 3D layouts
 
 Each algorithm returns a `PositionMap` with node positions.
 
@@ -63,10 +72,13 @@ import { springLayout, circularLayout } from '@graphty/layout';
 ## Common Tasks
 
 ### Adding a New Layout Algorithm
-1. Add the function to `layout.ts` following the existing pattern
-2. Export it at the bottom of the file
-3. Update README.md with documentation and example
-4. Add an example HTML file in `examples/`
+1. Add the function to the appropriate category under `src/layouts/`
+2. Export it from the category's index file
+3. Ensure it's exported from `src/index.ts`
+4. Run `npm run build:all` to update the bundle
+5. Update README.md with documentation
+6. Add an example HTML file in `examples/`
+7. Add tests in `test/`
 
 ### Modifying Build Output
 Edit `tsconfig.json`. Current settings:
@@ -96,6 +108,9 @@ npm run test:coverage  # Run with coverage report
 - Graph interface is minimal - algorithms work with any object providing nodes() and edges() methods
 - Examples in `examples/` directory demonstrate usage patterns
 - Tests serve as additional documentation for expected behavior
+- **NPM Package Structure**: The package uses `dist/layout.js` as the main entry, NOT `dist/src/index.js`
+- **3D Support**: All layout algorithms support 3D when `dim=3` is specified
+- **Build Process**: Always run `npm run build:all` before publishing to ensure both TypeScript and bundle are built
 
 ## Claude Preferences
 

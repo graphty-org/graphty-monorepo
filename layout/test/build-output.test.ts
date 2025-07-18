@@ -11,13 +11,13 @@ describe('Build Output Tests', () => {
     // and ForceAtlas2 returned NaN for Z coordinates in 3D mode
     expect(packageJson.main).toBe('dist/layout.js');
     expect(packageJson.type).toBe('module');
-    expect(packageJson.types).toBe('dist/src/index.d.ts');
+    expect(packageJson.types).toBe('dist/layout.d.ts');
     
     // Check exports field - now using the bundle
     expect(packageJson.exports).toBeDefined();
     expect(packageJson.exports['.']).toBeDefined();
     expect(packageJson.exports['.'].import).toBe('./dist/layout.js');
-    expect(packageJson.exports['.'].types).toBe('./dist/src/index.d.ts');
+    expect(packageJson.exports['.'].types).toBe('./dist/layout.d.ts');
     
     // Check files field
     expect(packageJson.files).toBeDefined();

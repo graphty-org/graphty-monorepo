@@ -28,12 +28,13 @@
     "test:coverage": "vitest run --coverage",
     "prepare": "husky",
     "build": "tsc",
-    "build:examples": "npm run build && node build-examples-script.js",
+    "build:bundle": "node scripts/build-bundle.js",
+    "build:all": "npm run build && npm run build:bundle",
     "watch": "tsc --watch",
     "dev": "tsc --watch",
     "commit": "cz",
-    "serve": "npm run build:examples && vite",
-    "examples": "npm run build:examples && vite"
+    "serve": "npm run build:bundle && vite",
+    "examples": "npm run build:bundle && vite"
   },
   "repository": {
     "type": "git",
@@ -67,6 +68,7 @@
     "husky": "^9.1.7",
     "semantic-release": "^24.2.7",
     "typescript": "^5.3.3",
+    "vite": "^7.0.5",
     "vitest": "^3.2.4"
   }
 }

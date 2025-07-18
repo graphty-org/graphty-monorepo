@@ -66,7 +66,11 @@ export function forceatlas2Layout(
     // Use provided positions
     posArray = new Array(nodes.length);
     for (let i = 0; i < nodes.length; i++) {
-      posArray[i] = [...pos[nodes[i]]];
+      const nodePos = pos[nodes[i]];
+      posArray[i] = new Array(dim);
+      for (let d = 0; d < dim; d++) {
+        posArray[i][d] = d < nodePos.length ? nodePos[d] : (rng.rand() as number * 2 - 1);
+      }
     }
   } else {
     // Some nodes don't have positions, initialize within the range of existing positions
@@ -75,9 +79,20 @@ export function forceatlas2Layout(
 
     // Find min and max of existing positions
     for (const node in pos) {
+      const nodePos = pos[node];
       for (let d = 0; d < dim; d++) {
-        minPos[d] = Math.min(minPos[d], pos[node][d]);
-        maxPos[d] = Math.max(maxPos[d], pos[node][d]);
+        if (d < nodePos.length) {
+          minPos[d] = Math.min(minPos[d], nodePos[d]);
+          maxPos[d] = Math.max(maxPos[d], nodePos[d]);
+        }
+      }
+    }
+
+    // If min/max are still infinity for some dimensions, use default range
+    for (let d = 0; d < dim; d++) {
+      if (!isFinite(minPos[d]) || !isFinite(maxPos[d])) {
+        minPos[d] = -1;
+        maxPos[d] = 1;
       }
     }
 
@@ -85,7 +100,11 @@ export function forceatlas2Layout(
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
       if (pos[node]) {
-        posArray[i] = [...pos[node]];
+        const nodePos = pos[node];
+        posArray[i] = new Array(dim);
+        for (let d = 0; d < dim; d++) {
+          posArray[i][d] = d < nodePos.length ? nodePos[d] : (rng.rand() as number * 2 - 1);
+        }
       } else {
         posArray[i] = Array(dim).fill(0).map((_, d) =>
           minPos[d] + (rng.rand() as number) * (maxPos[d] - minPos[d])

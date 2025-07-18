@@ -1,3 +1,10 @@
+## [1.2.5](https://github.com/graphty-org/layout/compare/v1.2.4...v1.2.5) (2025-07-18)
+
+
+### Bug Fixes
+
+* force atlas 2 3d bugs, fix build ([fbeeec2](https://github.com/graphty-org/layout/commit/fbeeec207e97a3c1a5c8d334df33886f24f598e2))
+
 ## [1.2.4](https://github.com/graphty-org/layout/compare/v1.2.3...v1.2.4) (2025-07-18)
 
 

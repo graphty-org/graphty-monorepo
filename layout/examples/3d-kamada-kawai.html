@@ -113,6 +113,7 @@
   </script>
 
   <script type="module">
+    console.log("loading module")
     import * as THREE from 'https://unpkg.com/three@0.157.0/build/three.module.js';
     import { OrbitControls } from 'https://unpkg.com/three@0.157.0/examples/jsm/controls/OrbitControls.js';
     import { 
@@ -161,6 +162,9 @@
 
     // Node animation
     let nodeAnimations = [];
+    let edgeAnimations = [];
+    let currentGraph = null;
+    let nodeMeshesGlobal = {};
 
     // Create graph based on type
     function createGraph(type, size) {
@@ -226,17 +230,57 @@
     }
 
     // Visualize graph in 3D
-    function visualizeGraph(graph, scale = 1) {
+    function visualizeGraph(graph, scale = 1, forceNewLayout = false) {
+      console.log('=== visualizeGraph called ===');
+      console.log('Scale:', scale);
+      console.log('Graph nodes:', graph.nodes().length);
+      console.log('Graph edges:', graph.edges().length);
+      console.log('Force new layout:', forceNewLayout);
+      
       // Clear previous visualization
       nodeGroup.clear();
       edgeGroup.clear();
       nodeAnimations = [];
+      edgeAnimations = [];
       
       // Get 3D Kamada-Kawai layout
-      const positions = kamadaKawaiLayout(graph, null, null, 'weight', scale * 200, [0, 0, 0], 3);
+      const nodes = graph.nodes();
+      let positions;
+      
+      if (forceNewLayout) {
+        // Use more varied initial positions for re-layout
+        const initialPos = {};
+        const spread = 400; // Larger spread for more variation
+        nodes.forEach((node, i) => {
+          // Use different strategies for initial positions
+          const angle = (i / nodes.length) * Math.PI * 2;
+          const radius = Math.random() * spread;
+          initialPos[node] = [
+            Math.cos(angle) * radius + (Math.random() - 0.5) * 100,
+            Math.sin(angle) * radius + (Math.random() - 0.5) * 100,
+            (Math.random() - 0.5) * spread
+          ];
+        });
+        
+        console.log('Initial positions sample:', Object.entries(initialPos).slice(0, 3));
+        console.log('Calling kamadaKawaiLayout with random initial positions...');
+        positions = kamadaKawaiLayout(graph, initialPos, null, 'weight', scale * 200, [0, 0, 0], 3);
+        
+        // Add small random perturbation to final positions
+        console.log('Before perturbation:', positions[nodes[0]]);
+        Object.keys(positions).forEach(node => {
+          positions[node] = positions[node].map(coord => coord + (Math.random() - 0.5) * 20);
+        });
+        console.log('After perturbation:', positions[nodes[0]]);
+      } else {
+        // Use default layout (deterministic)
+        console.log('Calling kamadaKawaiLayout with default initial positions...');
+        positions = kamadaKawaiLayout(graph, null, null, 'weight', scale * 200, [0, 0, 0], 3);
+      }
+      
+      console.log('Layout complete. Positions sample:', Object.entries(positions).slice(0, 3));
       
       // Update stats
-      const nodes = graph.nodes();
       const edges = graph.edges();
       document.getElementById('nodeCount').textContent = nodes.length;
       document.getElementById('edgeCount').textContent = edges.length;
@@ -257,7 +301,7 @@
       
       const maxDegree = Math.max(...Object.values(degrees));
       
-      nodes.forEach((node) => {
+      nodes.forEach((node, index) => {
         const degree = degrees[node];
         const size = 5 + (degree / maxDegree) * 10;
         
@@ -273,25 +317,30 @@
         
         const mesh = new THREE.Mesh(geometry, material);
         const [x, y, z] = positions[node];
+        if (index < 3) {
+          console.log(`Node ${node} position:`, x, y, z);
+        }
         mesh.position.set(x, y, z);
         mesh.userData = { originalPosition: new THREE.Vector3(x, y, z) };
+        
+        if (index === 0) {
+          console.log('Mesh 0 position set to:', mesh.position.x, mesh.position.y, mesh.position.z);
+          console.log('Mesh 0 userData.originalPosition:', mesh.userData.originalPosition.x, mesh.userData.originalPosition.y, mesh.userData.originalPosition.z);
+        }
         
         nodeGroup.add(mesh);
         nodeMeshes[node] = mesh;
         nodeAnimations.push(mesh);
       });
       
+      // Store globally for edge updates
+      nodeMeshesGlobal = nodeMeshes;
+      
       // Create edges with gradient based on node degrees
       edges.forEach(([source, target]) => {
-        const sourcePos = positions[source];
-        const targetPos = positions[target];
-        
-        const points = [
-          new THREE.Vector3(sourcePos[0], sourcePos[1], sourcePos[2]),
-          new THREE.Vector3(targetPos[0], targetPos[1], targetPos[2])
-        ];
-        
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const geometry = new THREE.BufferGeometry();
+        const positionsArray = new Float32Array(6); // 2 points * 3 coordinates
+        geometry.setAttribute('position', new THREE.BufferAttribute(positionsArray, 3));
         
         // Color based on average degree
         const avgDegree = (degrees[source] + degrees[target]) / 2;
@@ -305,12 +354,14 @@
         });
         
         const line = new THREE.Line(geometry, material);
+        line.userData = { source, target };
         edgeGroup.add(line);
+        edgeAnimations.push(line);
       });
     }
 
     // Initial graph
-    let currentGraph = createGraph('grid', 16);
+    currentGraph = createGraph('grid', 16);
     visualizeGraph(currentGraph);
 
     // Controls
@@ -328,7 +379,7 @@
 
     scaleSlider.addEventListener('input', (e) => {
       scaleLabel.textContent = e.target.value;
-      visualizeGraph(currentGraph, parseFloat(e.target.value));
+      visualizeGraph(currentGraph, parseFloat(e.target.value), false); // Keep same layout, just rescale
     });
 
     regenerateBtn.addEventListener('click', () => {
@@ -341,8 +392,10 @@
     });
 
     relayoutBtn.addEventListener('click', () => {
+      console.log('=== Re-layout button clicked ===');
       const scale = parseFloat(scaleSlider.value);
-      visualizeGraph(currentGraph, scale);
+      console.log('Current scale:', scale);
+      visualizeGraph(currentGraph, scale, true); // Force new layout with random initial positions
     });
 
     graphTypeSelect.addEventListener('change', () => {
@@ -352,14 +405,41 @@
 
     // Animation
     let time = 0;
+    let frameCount = 0;
     function animate() {
       requestAnimationFrame(animate);
       
       time += 0.01;
+      frameCount++;
       
-      // Keep nodes at their original positions
-      nodeAnimations.forEach((mesh) => {
-        mesh.position.copy(mesh.userData.originalPosition);
+      // Animation: subtle floating effect
+      nodeAnimations.forEach((mesh, index) => {
+        if (mesh.userData.originalPosition) {
+          const floatY = Math.sin(time + index * 0.5) * 2;
+          mesh.position.set(
+            mesh.userData.originalPosition.x,
+            mesh.userData.originalPosition.y + floatY,
+            mesh.userData.originalPosition.z
+          );
+        }
+      });
+      
+      // Update edge positions
+      edgeAnimations.forEach(line => {
+        const { source, target } = line.userData;
+        const sourceMesh = nodeMeshesGlobal[source];
+        const targetMesh = nodeMeshesGlobal[target];
+        
+        if (sourceMesh && targetMesh) {
+          const positions = line.geometry.attributes.position.array;
+          positions[0] = sourceMesh.position.x;
+          positions[1] = sourceMesh.position.y;
+          positions[2] = sourceMesh.position.z;
+          positions[3] = targetMesh.position.x;
+          positions[4] = targetMesh.position.y;
+          positions[5] = targetMesh.position.z;
+          line.geometry.attributes.position.needsUpdate = true;
+        }
       });
       
       controls.update();

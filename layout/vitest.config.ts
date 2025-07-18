@@ -19,7 +19,7 @@ export default defineConfig({
         statements: 65
       }
     },
-    include: ['test/**/*.test.ts'],
+    include: ['test/**/*.test.ts', 'test/**/*.test.js'],
     reporters: ['verbose']
   },
   resolve: {

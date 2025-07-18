@@ -8,10 +8,10 @@
   "exports": {
     ".": {
       "import": "./dist/layout.js",
-      "types": "./dist/src/index.d.ts"
+      "types": "./dist/layout.d.ts"
     }
   },
-  "types": "dist/src/index.d.ts",
+  "types": "dist/layout.d.ts",
   "files": [
     "dist/",
     "src/",

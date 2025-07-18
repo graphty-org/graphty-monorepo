@@ -11,6 +11,7 @@
 import { build } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { spawnSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,6 +29,7 @@ async function buildBundle() {
           fileName: () => 'layout.js'
         },
         outDir: path.resolve(__dirname, '../dist'),
+        emptyOutDir: false, // Don't clean the dist directory
         rollupOptions: {
           external: [],
           output: {
@@ -41,6 +43,17 @@ async function buildBundle() {
     });
     
     console.log('Successfully built dist/layout.js');
+    
+    // Bundle TypeScript declarations to match the bundle
+    const result = spawnSync('node', [path.resolve(__dirname, 'bundle-types.js')], {
+      stdio: 'inherit',
+      shell: true
+    });
+    
+    if (result.error) {
+      console.error('Warning: Could not bundle TypeScript declarations:', result.error);
+      console.error('Make sure to run "npm run build" before "npm run build:bundle"');
+    }
   } catch (error) {
     console.error('Error building bundle:', error);
     process.exit(1);

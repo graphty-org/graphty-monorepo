@@ -4,8 +4,9 @@
 [![Coverage Status](https://coveralls.io/repos/github/graphty-org/layout/badge.svg?branch=main)](https://coveralls.io/github/graphty-org/layout?branch=main)
 [![npm version](https://badge.fury.io/js/%40graphty%2Flayout.svg)](https://badge.fury.io/js/%40graphty%2Flayout)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub Pages](https://img.shields.io/badge/demo-github%20pages-blue)](https://graphty-org.github.io/layout/)
 
-**[View Interactive Examples →](https://graphty-org.github.io/layout/examples/index.html)**
+**[View Interactive Examples →](https://graphty-org.github.io/layout/index.html)**
 
 Layout is a TypeScript library for positioning nodes in graphs. It's a TypeScript port of the [layout algorithms](https://networkx.org/documentation/stable/reference/drawing.html) from the Python [NetworkX](https://networkx.org/documentation/stable/) library.
 
@@ -1041,6 +1042,61 @@ The module includes complete implementations of:
      }
    }
    ```
+
+## Development
+
+### Building the Project
+
+The project uses a unified build system:
+
+```bash
+# Build TypeScript to JavaScript
+npm run build
+
+# Build the bundled ES module (dist/layout.js)
+npm run build:bundle
+
+# Build everything
+npm run build:all
+```
+
+### Running Examples Locally
+
+```bash
+# Start development server with examples
+npm run examples
+# or
+npm run serve
+```
+
+This will:
+1. Build the bundled `dist/layout.js`
+2. Start a Vite dev server at http://localhost:3000
+3. Automatically redirect imports to use the bundled version
+
+### Building for GitHub Pages
+
+To build a static site for GitHub Pages deployment:
+
+```bash
+# Build static site in gh-pages/ directory
+npm run build:gh-pages
+```
+
+This creates a `gh-pages/` directory with:
+- All example HTML files
+- The bundled `layout.js`
+- All necessary assets
+
+To deploy to GitHub Pages, see `gh-pages/DEPLOY.md` after building.
+
+### Development Workflow
+
+1. **Make changes** to TypeScript source files in `src/`
+2. **Test locally** with `npm run examples`
+3. **Run tests** with `npm test`
+4. **Build for production** with `npm run build:all`
+5. **Deploy examples** with `npm run build:gh-pages`
 
 ## Contributing
 

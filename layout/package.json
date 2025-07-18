@@ -30,6 +30,7 @@
     "build": "tsc",
     "build:bundle": "node scripts/build-bundle.js",
     "build:all": "npm run build && npm run build:bundle",
+    "build:gh-pages": "npm run build:bundle && node scripts/build-gh-pages.js",
     "watch": "tsc --watch",
     "dev": "tsc --watch",
     "commit": "cz",

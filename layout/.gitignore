@@ -16,3 +16,6 @@ dist
 
 # Unified build - examples use dist/layout.js directly
 examples/layout.js
+
+# GitHub Pages build output
+gh-pages/

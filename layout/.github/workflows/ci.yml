@@ -31,6 +31,9 @@ jobs:
       - name: Run TypeScript compiler
         run: npm run build
         
+      - name: Build bundle
+        run: npm run build:bundle
+        
       - name: Run tests
         run: npm run test:run
         
@@ -92,7 +95,7 @@ jobs:
         run: npm ci
         
       - name: Build package
-        run: npm run build
+        run: npm run build:all
         
       - name: Release
         env:

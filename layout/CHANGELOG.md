@@ -1,3 +1,10 @@
+## [1.2.3](https://github.com/graphty-org/layout/compare/v1.2.2...v1.2.3) (2025-07-17)
+
+
+### Bug Fixes
+
+* github pages ([da26028](https://github.com/graphty-org/layout/commit/da26028da1f7638322f2a6e199f0bbdf70baec91))
+
 ## [1.2.2](https://github.com/graphty-org/layout/compare/v1.2.1...v1.2.2) (2025-07-13)
 
 

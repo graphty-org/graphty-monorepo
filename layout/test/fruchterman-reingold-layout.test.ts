@@ -192,7 +192,7 @@ describe('Fruchterman-Reingold Layout', () => {
         edges: () => [[0, 1], [2, 3]] // Two separate edges
       };
       
-      const positions = fruchtermanReingoldLayout(graph, null, null, null, 100);
+      const positions = fruchtermanReingoldLayout(graph, null, null, null, 200, 1, null, 2, 42);
       
       // Connected pairs should be at reasonable distance
       const d01 = getDistance(positions, 0, 1);

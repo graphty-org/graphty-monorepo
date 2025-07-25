@@ -147,13 +147,85 @@
             shellLayout, 
             scaleFreeGraph,
             randomGraph
-        } from "./layout.js";
-        import {
-            groupNodes,
-            findBestRoot
-        } from "./layout-helpers.js";
+        } from "../dist/layout.js";
         
         let currentGraph = null;
+        
+        // Helper functions for shell layout grouping
+        function groupNodesByDegree(graph, numShells) {
+            const nodes = graph.nodes();
+            const edges = graph.edges();
+            
+            // Calculate degree for each node
+            const degrees = {};
+            nodes.forEach(n => degrees[n] = 0);
+            edges.forEach(([u, v]) => {
+                degrees[u]++;
+                degrees[v]++;
+            });
+            
+            // Sort nodes by degree
+            const sortedNodes = nodes.slice().sort((a, b) => degrees[b] - degrees[a]);
+            
+            // Divide into shells
+            const shells = [];
+            const nodesPerShell = Math.ceil(nodes.length / numShells);
+            
+            for (let i = 0; i < numShells; i++) {
+                const start = i * nodesPerShell;
+                const end = Math.min(start + nodesPerShell, sortedNodes.length);
+                const shell = sortedNodes.slice(start, end);
+                if (shell.length > 0) {
+                    shells.push(shell);
+                }
+            }
+            
+            return shells;
+        }
+        
+        function groupNodesByBFS(graph, startNode = null) {
+            const nodes = graph.nodes();
+            const edges = graph.edges();
+            
+            // Build adjacency list
+            const adj = {};
+            nodes.forEach(n => adj[n] = []);
+            edges.forEach(([u, v]) => {
+                adj[u].push(v);
+                adj[v].push(u);
+            });
+            
+            // Start from first node or specified node
+            const start = startNode || nodes[0];
+            const visited = new Set();
+            const shells = [];
+            let currentLevel = [start];
+            
+            while (currentLevel.length > 0) {
+                shells.push(currentLevel.slice());
+                currentLevel.forEach(n => visited.add(n));
+                
+                const nextLevel = [];
+                currentLevel.forEach(node => {
+                    adj[node].forEach(neighbor => {
+                        if (!visited.has(neighbor)) {
+                            visited.add(neighbor);
+                            nextLevel.push(neighbor);
+                        }
+                    });
+                });
+                
+                currentLevel = nextLevel;
+            }
+            
+            // Add any disconnected nodes as last shell
+            const unvisited = nodes.filter(n => !visited.has(n));
+            if (unvisited.length > 0) {
+                shells.push(unvisited);
+            }
+            
+            return shells;
+        }
         
         function generateGraph(numNodes) {
             // Use scale-free graph for interesting shell patterns
@@ -171,20 +243,19 @@
             switch(pattern) {
                 case 'degree':
                     // Group by degree - hubs in center
-                    return groupNodes(graph, 'degree', Math.min(4, Math.ceil(numNodes / 10)));
+                    return groupNodesByDegree(graph, Math.min(4, Math.ceil(numNodes / 10)));
                     
                 case 'k-core':
-                    // Group by k-core decomposition
-                    return groupNodes(graph, 'k-core');
+                    // Simple k-core approximation: group by degree
+                    return groupNodesByDegree(graph, 3);
                     
                 case 'bfs':
-                    // Group by distance from best root
-                    const root = findBestRoot(graph);
-                    return groupNodes(graph, 'bfs', 0, { root });
+                    // Group by distance from a node
+                    return groupNodesByBFS(graph);
                     
                 case 'community':
-                    // Group by detected communities
-                    return groupNodes(graph, 'community', Math.min(5, Math.ceil(numNodes / 20)));
+                    // Simple community detection: group by degree
+                    return groupNodesByDegree(graph, Math.min(5, Math.ceil(numNodes / 20)));
                     
                 case 'manual-center':
                     // Manual: center node + outer ring
@@ -202,7 +273,7 @@
                     ];
                     
                 default:
-                    return groupNodes(graph, 'degree', 3);
+                    return groupNodesByDegree(graph, 3);
             }
         }
         

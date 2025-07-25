@@ -166,11 +166,9 @@
             bipartiteLayout,
             bipartiteGraph,
             randomGraph
-        } from "./layout.js";
-        import { detectBipartite } from "./layout-helpers.js";
+        } from "../dist/layout.js";
         
         let currentGraph = null;
-        let detectedBipartite = null;
         
         function visualizeGraph(graph, positions) {
             const svg = document.getElementById('graph-svg');
@@ -221,8 +219,8 @@
                 const x = margin + (pos[0] - minX) / rangeX * scaleX;
                 const y = margin + (pos[1] - minY) / rangeY * scaleY;
                 
-                // Determine color based on set (use detected sets if available)
-                const setA = detectedBipartite ? detectedBipartite.setA : graph.setA;
+                // Determine color based on set
+                const setA = graph.setA || [];
                 const isSetA = setA.includes(node);
                 const color = isSetA ? '#E91E63' : '#2196F3';
                 
@@ -291,8 +289,7 @@
             // Generate bipartite graph using our generator
             currentGraph = bipartiteGraph(setASize, setBSize, edgeDensity, Date.now());
             
-            // Auto-detect bipartite structure
-            detectedBipartite = detectBipartite(currentGraph);
+            // Bipartite graph generated with explicit sets
             
             // Apply layout immediately
             applyLayout();
@@ -304,8 +301,7 @@
                 <strong>Generated Bipartite Graph:</strong><br>
                 Set A: ${currentGraph.setA.length} nodes (${((setASize / totalNodes) * 100).toFixed(1)}%)<br>
                 Set B: ${currentGraph.setB.length} nodes (${((setBSize / totalNodes) * 100).toFixed(1)}%)<br>
-                Edges: ${currentGraph.edges().length}<br>
-                <strong>Auto-detected:</strong> ${detectedBipartite ? 'Yes ✓' : 'No ✗'}
+                Edges: ${currentGraph.edges().length}
             `;
         };
         
@@ -315,8 +311,8 @@
             const alignment = document.getElementById('alignment').value;
             const aspectRatio = parseFloat(document.getElementById('aspect-ratio').value);
             
-            // Use detected sets if available, otherwise use generated sets
-            const setA = detectedBipartite ? detectedBipartite.setA : currentGraph.setA;
+            // Use generated sets
+            const setA = currentGraph.setA;
             const positions = bipartiteLayout(currentGraph, setA, alignment, 1, [0, 0], aspectRatio);
             
             visualizeGraph(currentGraph, positions);
@@ -343,36 +339,18 @@
             // Generate random graph that might or might not be bipartite
             currentGraph = randomGraph(totalNodes, edgeDensity * 0.3, Date.now());
             
-            // Try to detect bipartite structure
-            detectedBipartite = detectBipartite(currentGraph);
+            // Random graphs don't have bipartite structure - use spring layout
+            const { springLayout } = await import('../dist/layout.js');
+            const positions = springLayout(currentGraph);
+            visualizeGraph(currentGraph, positions);
             
-            if (detectedBipartite) {
-                // If bipartite, use bipartite layout
-                applyLayout();
-                
-                const infoDiv = document.getElementById('partition-info');
-                infoDiv.innerHTML = `
-                    <strong>Random Graph (Bipartite Detected!):</strong><br>
-                    Set A: ${detectedBipartite.setA.length} nodes<br>
-                    Set B: ${detectedBipartite.setB.length} nodes<br>
-                    Edges: ${currentGraph.edges().length}<br>
-                    <strong>Auto-detected:</strong> Yes ✓
-                `;
-            } else {
-                // Not bipartite - show with spring layout instead
-                const { springLayout } = await import('./layout.js');
-                const positions = springLayout(currentGraph);
-                visualizeGraph(currentGraph, positions);
-                
-                const infoDiv = document.getElementById('partition-info');
-                infoDiv.innerHTML = `
-                    <strong>Random Graph (Not Bipartite):</strong><br>
-                    Nodes: ${currentGraph.nodes().length}<br>
-                    Edges: ${currentGraph.edges().length}<br>
-                    <strong>Auto-detected:</strong> No ✗<br>
-                    <em>Using spring layout instead</em>
-                `;
-            }
+            const infoDiv = document.getElementById('partition-info');
+            infoDiv.innerHTML = `
+                <strong>Random Graph:</strong><br>
+                Nodes: ${currentGraph.nodes().length}<br>
+                Edges: ${currentGraph.edges().length}<br>
+                <em>Using spring layout</em>
+            `;
         };
         
         setupControls();

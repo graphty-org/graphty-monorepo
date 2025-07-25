@@ -14,7 +14,8 @@ import { createTriangulationEmbedding } from './embedding';
  */
 export function lrPlanarityTest(
   nodes: Node[],
-  edges: Edge[]
+  edges: Edge[],
+  seed: number | null = null
 ): { isPlanar: boolean; embedding: Embedding | null } {
   // Create adjacency list for the graph
   const adjList: Record<Node, Node[]> = {};
@@ -48,7 +49,7 @@ export function lrPlanarityTest(
   // If the graph is disconnected, it's still planar but we need to handle each component
   if (ordering.length < nodes.length) {
     // Create a simple triangulation embedding for disconnected graphs
-    return { isPlanar: true, embedding: createTriangulationEmbedding(nodes, edges) };
+    return { isPlanar: true, embedding: createTriangulationEmbedding(nodes, edges, seed) };
   }
 
   // Step 2: For a general implementation, we'll use a simplified approach
@@ -64,7 +65,7 @@ export function lrPlanarityTest(
   }
 
   // Create a planar embedding using a triangulation approach
-  const embedding = createTriangulationEmbedding(nodes, edges);
+  const embedding = createTriangulationEmbedding(nodes, edges, seed);
 
   return { isPlanar: true, embedding };
 }

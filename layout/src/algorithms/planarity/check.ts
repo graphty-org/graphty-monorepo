@@ -19,11 +19,12 @@ import { createTriangulationEmbedding } from './embedding';
 export function checkPlanarity(
   G: Graph,
   nodes: Node[],
-  edges: Edge[]
+  edges: Edge[],
+  seed: number | null = null
 ): { isPlanar: boolean; embedding: Embedding | null } {
   // For small graphs (n <= 4), all are planar
   if (nodes.length <= 4) {
-    return { isPlanar: true, embedding: createTriangulationEmbedding(nodes, edges) };
+    return { isPlanar: true, embedding: createTriangulationEmbedding(nodes, edges, seed) };
   }
 
   // For K5 (complete graph with 5 nodes) and K3,3 (complete bipartite with 3,3 nodes)
@@ -33,6 +34,6 @@ export function checkPlanarity(
   }
 
   // For other graphs, use LR algorithm (Left-Right Planarity Test)
-  const result = lrPlanarityTest(nodes, edges);
+  const result = lrPlanarityTest(nodes, edges, seed);
   return result;
 }

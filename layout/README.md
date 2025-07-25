@@ -4,7 +4,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/graphty-org/layout/badge.svg?branch=main)](https://coveralls.io/github/graphty-org/layout?branch=main)
 [![npm version](https://badge.fury.io/js/%40graphty%2Flayout.svg)](https://badge.fury.io/js/%40graphty%2Flayout)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GitHub Pages](https://img.shields.io/badge/demo-github%20pages-blue)](https://graphty-org.github.io/layout/examples/index.html)
+[![Examples](https://img.shields.io/badge/demo-github%20pages-blue)](https://graphty-org.github.io/layout/examples/index.html)
 
 **[View Interactive Examples →](https://graphty-org.github.io/layout/examples/index.html)**
 

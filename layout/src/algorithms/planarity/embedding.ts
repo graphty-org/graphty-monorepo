@@ -3,6 +3,7 @@
  */
 
 import { Node, Edge, Embedding, PositionMap } from '../../types';
+import { RandomNumberGenerator } from '../../utils/random';
 
 /**
  * Create a triangulation-based embedding for a planar graph
@@ -13,8 +14,12 @@ import { Node, Edge, Embedding, PositionMap } from '../../types';
  */
 export function createTriangulationEmbedding(
   nodes: Node[],
-  edges: Edge[]
+  edges: Edge[],
+  seed: number | null = null
 ): Embedding {
+  // Create RNG instance for deterministic randomness
+  const rng = new RandomNumberGenerator(seed ?? undefined);
+  
   // Create a simple embedding using the incremental approach
   const embedding: Embedding = {
     nodeOrder: [...nodes],
@@ -67,15 +72,15 @@ export function createTriangulationEmbedding(
 
       if (count > 0) {
         // Place slightly away from center to avoid overlaps
-        const jitter = 0.1 * Math.random();
+        const jitter = 0.1 * (rng.rand() as number);
         embedding.nodePositions[node] = [
-          xSum / count + jitter * (Math.random() - 0.5),
-          ySum / count + jitter * (Math.random() - 0.5)
+          xSum / count + jitter * ((rng.rand() as number) - 0.5),
+          ySum / count + jitter * ((rng.rand() as number) - 0.5)
         ];
       } else {
         // No neighbors have positions yet, place randomly inside unit circle
-        const r = 0.5 * Math.random();
-        const angle = 2 * Math.PI * Math.random();
+        const r = 0.5 * (rng.rand() as number);
+        const angle = 2 * Math.PI * (rng.rand() as number);
         embedding.nodePositions[node] = [r * Math.cos(angle), r * Math.sin(angle)];
       }
     }

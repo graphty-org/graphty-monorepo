@@ -15,13 +15,15 @@ import { checkPlanarity, combinatorialEmbeddingToPos } from '../../algorithms/pl
  * @param scale - Scale factor for positions
  * @param center - Coordinate pair around which to center the layout
  * @param dim - Dimension of layout (must be 2)
+ * @param seed - Random seed for reproducible layouts
  * @returns Positions dictionary keyed by node
  */
 export function planarLayout(
   G: Graph,
   scale: number = 1,
   center: number[] | null = null,
-  dim: number = 2
+  dim: number = 2,
+  seed: number | null = null
 ): PositionMap {
   if (dim !== 2) {
     throw new Error("can only handle 2 dimensions");
@@ -45,7 +47,7 @@ export function planarLayout(
   }
 
   // Check if graph is planar and get embedding
-  const { isPlanar, embedding } = checkPlanarity(graph, nodes, edges);
+  const { isPlanar, embedding } = checkPlanarity(graph, nodes, edges, seed);
 
   if (!isPlanar) {
     throw new Error("G is not planar.");

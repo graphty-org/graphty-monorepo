@@ -154,7 +154,15 @@
     </div>
 
     <script type="module">
+        console.log('[DEBUG] Starting module script');
+        console.log('[DEBUG] About to import from:', "../dist/layout.js");
+        
         import { randomLayout } from "../dist/layout.js";
+        
+        console.log('[DEBUG] randomLayout imported:', typeof randomLayout);
+        
+        // Make it globally available for testing
+        window.randomLayout = randomLayout;
         
         let currentGraph = null;
         
@@ -199,10 +207,16 @@
         
         // Visualize the graph
         function visualizeGraph(graph, positions) {
+            console.log('[DEBUG] visualizeGraph called with:', { graph, positions });
             const svg = document.getElementById('graph-svg');
+            if (!svg) {
+                console.error('[DEBUG] SVG element not found!');
+                return;
+            }
             const svgRect = svg.getBoundingClientRect();
             const width = svgRect.width;
             const height = svgRect.height;
+            console.log('[DEBUG] SVG dimensions:', { width, height });
             
             // Clear SVG
             svg.innerHTML = '';
@@ -215,13 +229,21 @@
             // Find position bounds
             const nodes = graph.nodes();
             const posValues = nodes.map(n => positions[n]);
+            console.log('[DEBUG] Position values:', posValues);
+            
+            if (posValues.length === 0) {
+                console.error('[DEBUG] No position values!');
+                return;
+            }
+            
             const minX = Math.min(...posValues.map(p => p[0]));
             const maxX = Math.max(...posValues.map(p => p[0]));
             const minY = Math.min(...posValues.map(p => p[1]));
             const maxY = Math.max(...posValues.map(p => p[1]));
             
-            const rangeX = maxX - minX;
-            const rangeY = maxY - minY;
+            const rangeX = maxX - minX || 1;
+            const rangeY = maxY - minY || 1;
+            console.log('[DEBUG] Position bounds:', { minX, maxX, minY, maxY, rangeX, rangeY });
             
             // Draw edges
             const edges = graph.edges();
@@ -273,10 +295,16 @@
         
         // New Graph
         window.newGraph = function() {
+            console.log('[DEBUG] newGraph called');
             const numNodes = parseInt(document.getElementById('num-nodes').value);
             const graphType = document.getElementById('graph-type').value;
+            console.log('[DEBUG] Graph params:', { numNodes, graphType });
             
             currentGraph = generateGraph(graphType, numNodes);
+            console.log('[DEBUG] Graph generated:', { 
+                nodes: currentGraph.nodes(), 
+                edges: currentGraph.edges() 
+            });
             
             // Just visualize with random positions initially
             const positions = {};
@@ -287,7 +315,9 @@
                 ];
             });
             
+            console.log('[DEBUG] Initial positions:', positions);
             visualizeGraph(currentGraph, positions);
+            console.log('[DEBUG] Visualization complete');
         };
         
         // Apply Layout
@@ -298,9 +328,14 @@
             const centerY = parseFloat(document.getElementById('center-y').value);
             const seed = parseInt(document.getElementById('seed').value);
             
-            const positions = randomLayout(currentGraph, [centerX, centerY], 2, seed);
-            
-            visualizeGraph(currentGraph, positions);
+            console.log('[DEBUG] Calling randomLayout with:', { centerX, centerY, seed });
+            try {
+                const positions = randomLayout(currentGraph, [centerX, centerY], 2, seed);
+                console.log('[DEBUG] randomLayout returned:', positions);
+                visualizeGraph(currentGraph, positions);
+            } catch (error) {
+                console.error('[DEBUG] Error in randomLayout:', error);
+            }
         };
         
         // Generate random seed
@@ -321,8 +356,25 @@
         }
         
         // Initialize
-        setupControls();
-        newGraph();
+        console.log('[DEBUG] Waiting for DOM to be ready...');
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                console.log('[DEBUG] DOM ready, initializing...');
+                console.log('[DEBUG] Setting up controls');
+                setupControls();
+                console.log('[DEBUG] Calling newGraph on load');
+                newGraph();
+                console.log('[DEBUG] Initialization complete');
+            });
+        } else {
+            // DOM already loaded
+            console.log('[DEBUG] DOM already loaded, initializing...');
+            console.log('[DEBUG] Setting up controls');
+            setupControls();
+            console.log('[DEBUG] Calling newGraph on load');
+            newGraph();
+            console.log('[DEBUG] Initialization complete');
+        }
     </script>
 </body>
 </html>

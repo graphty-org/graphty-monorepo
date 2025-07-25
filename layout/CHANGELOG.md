@@ -1,3 +1,10 @@
+## [1.2.8](https://github.com/graphty-org/layout/compare/v1.2.7...v1.2.8) (2025-07-18)
+
+
+### Bug Fixes
+
+* build ([0c43e32](https://github.com/graphty-org/layout/commit/0c43e32d9dadb102c881a8e7448526f6f5cdcd82))
+
 ## [1.2.7](https://github.com/graphty-org/layout/compare/v1.2.6...v1.2.7) (2025-07-18)
 
 

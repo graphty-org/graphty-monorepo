@@ -1,3 +1,11 @@
+## [1.2.9](https://github.com/graphty-org/layout/compare/v1.2.8...v1.2.9) (2025-07-25)
+
+
+### Bug Fixes
+
+* imports, examples, and flaky test ([f9b0298](https://github.com/graphty-org/layout/commit/f9b02981067373c0645262785738ef6ffe389d18))
+* planar layout using wrong rng ([b55c178](https://github.com/graphty-org/layout/commit/b55c178a81b567cf110836bb08c3392451984711))
+
 ## [1.2.8](https://github.com/graphty-org/layout/compare/v1.2.7...v1.2.8) (2025-07-18)
 
 

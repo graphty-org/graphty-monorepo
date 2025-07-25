@@ -36,11 +36,10 @@ async function processExampleHtml(htmlPath, outputPath) {
   let content = await fs.readFile(htmlPath, 'utf-8');
   
   // Replace the import path to use the bundled layout.js
-  // Change: import { springLayout } from "./layout.js";
-  // To: import { springLayout } from "./layout.js";
-  // (No change needed since we'll copy layout.js to the same directory)
+  // Change: from "../dist/layout.js"
+  // To: from "./layout.js"
+  content = content.replace(/from\s+["']\.\.\/dist\/layout\.js["']/g, 'from "./layout.js"');
   
-  // The examples already use "./layout.js" which will work with our copied bundle
   await fs.writeFile(outputPath, content);
 }
 

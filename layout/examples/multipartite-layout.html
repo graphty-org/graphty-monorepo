@@ -338,7 +338,7 @@
             });
         }
         
-        function newGraph() {
+        window.newGraph = function() {
             const numLayers = parseInt(document.getElementById('num-layers').value);
             const nodesPerLayer = parseInt(document.getElementById('nodes-per-layer').value);
             const graphType = document.getElementById('graph-type').value;
@@ -382,7 +382,7 @@
             `;
         }
         
-        function applyLayout() {
+        window.applyLayout = function() {
             if(!currentGraph || !currentLayers) return;
             
             const alignment = document.getElementById('alignment').value;
@@ -403,12 +403,8 @@
             });
         }
         
-        // Expose functions to global scope for onclick handlers
-        window.newGraph = newGraph;
-        window.applyLayout = applyLayout;
-        
         setupControls();
-        newGraph();
+        window.newGraph();
     </script>
 </body>
 </html>

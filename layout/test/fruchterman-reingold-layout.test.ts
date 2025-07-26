@@ -135,8 +135,8 @@ describe('Fruchterman-Reingold Layout', () => {
     it('should respect scale parameter', () => {
       const graph = gridGraph(4, 4);
       
-      const positions1 = fruchtermanReingoldLayout(graph, null, null, null, 50, 1);
-      const positions2 = fruchtermanReingoldLayout(graph, null, null, null, 50, 2);
+      const positions1 = fruchtermanReingoldLayout(graph, null, null, null, 50, 1, [0, 0], 2, 42);
+      const positions2 = fruchtermanReingoldLayout(graph, null, null, null, 50, 2, [0, 0], 2, 42);
       
       // Calculate spans
       const span1 = getLayoutSpan(positions1);

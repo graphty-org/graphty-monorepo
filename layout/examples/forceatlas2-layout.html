@@ -449,7 +449,7 @@
             });
         }
         
-        function newGraph() {
+        window.newGraph = function() {
             const numNodes = parseInt(document.getElementById('num-nodes').value);
             const graphType = document.getElementById('graph-type').value;
             
@@ -478,7 +478,7 @@
             }
         }
         
-        async function applyLayout() {
+        window.applyLayout = async function() {
             if (!currentGraph) return;
             
             const loadingDiv = document.getElementById('loading');
@@ -581,12 +581,8 @@
             });
         }
         
-        // Expose functions to global scope
-        window.newGraph = newGraph;
-        window.applyLayout = applyLayout;
-        
         setupControls();
-        newGraph();
+        window.newGraph();
     </script>
 </body>
 </html>

@@ -40,6 +40,9 @@ async function processExampleHtml(htmlPath, outputPath) {
   // To: from "./layout.js"
   content = content.replace(/from\s+["']\.\.\/dist\/layout\.js["']/g, 'from "./layout.js"');
   
+  // Also update debug messages that reference the old path
+  content = content.replace(/["']\.\.\/dist\/layout\.js["']/g, '"./layout.js"');
+  
   await fs.writeFile(outputPath, content);
 }
 

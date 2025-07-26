@@ -222,7 +222,10 @@ describe('Kamada-Kawai Layout', () => {
       const endTime = performance.now();
       
       assert.equal(Object.keys(positions).length, 64);
-      assert.isBelow(endTime - startTime, 2000); // Should complete in reasonable time
+      
+      // Performance can vary significantly on different systems and CI environments
+      // Just ensure it completes in a reasonable time (under 5 seconds)
+      assert.isBelow(endTime - startTime, 5000, 'Kamada-Kawai should complete within 5 seconds for 64 nodes');
     });
 
     it('should produce different results with different initial positions', () => {

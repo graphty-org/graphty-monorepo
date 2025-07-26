@@ -338,7 +338,7 @@
             });
         }
         
-        window.newGraph = function() {
+        function newGraph() {
             const numLayers = parseInt(document.getElementById('num-layers').value);
             const nodesPerLayer = parseInt(document.getElementById('nodes-per-layer').value);
             const graphType = document.getElementById('graph-type').value;
@@ -380,9 +380,9 @@
                 ${layerInfo}<br>
                 <strong>Total edges:</strong> ${currentGraph.edges().length}
             `;
-        };
+        }
         
-        window.applyLayout = function() {
+        function applyLayout() {
             if(!currentGraph || !currentLayers) return;
             
             const alignment = document.getElementById('alignment').value;
@@ -390,7 +390,7 @@
             const positions = multipartiteLayout(currentGraph, currentLayers, alignment, 1, [0, 0]);
             
             visualizeGraph(currentGraph, positions);
-        };
+        }
         
         function setupControls() {
             const controls = ['num-layers', 'nodes-per-layer'];
@@ -402,6 +402,10 @@
                 };
             });
         }
+        
+        // Expose functions to global scope for onclick handlers
+        window.newGraph = newGraph;
+        window.applyLayout = applyLayout;
         
         setupControls();
         newGraph();

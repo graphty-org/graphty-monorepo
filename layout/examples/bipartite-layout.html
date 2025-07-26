@@ -165,7 +165,8 @@
         import { 
             bipartiteLayout,
             bipartiteGraph,
-            randomGraph
+            randomGraph,
+            springLayout
         } from "../dist/layout.js";
         
         let currentGraph = null;
@@ -331,7 +332,7 @@
             document.getElementById('alignment').onchange = null;
         }
         
-        window.generateMixedGraph = async function() {
+        window.generateMixedGraph = function() {
             const totalNodes = parseInt(document.getElementById('set-a-size').value) + 
                                parseInt(document.getElementById('set-b-size').value);
             const edgeDensity = parseFloat(document.getElementById('edge-density').value);
@@ -340,7 +341,6 @@
             currentGraph = randomGraph(totalNodes, edgeDensity * 0.3, Date.now());
             
             // Random graphs don't have bipartite structure - use spring layout
-            const { springLayout } = await import('../dist/layout.js');
             const positions = springLayout(currentGraph);
             visualizeGraph(currentGraph, positions);
             

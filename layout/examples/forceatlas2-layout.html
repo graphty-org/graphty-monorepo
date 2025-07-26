@@ -143,7 +143,7 @@
                 </select>
             </div>
             
-            <button onclick="window.newGraph()">New Graph</button>
+            <button onclick="newGraph()">New Graph</button>
 
             <div class="info-box">
                 <strong>ForceAtlas2:</strong> An advanced force-directed layout algorithm designed for network visualization. 
@@ -196,7 +196,7 @@
                 <label for="linlog">LinLog Mode</label>
             </div>
             
-            <button onclick="window.applyLayout()">Apply Layout</button>
+            <button onclick="applyLayout()">Apply Layout</button>
             <div id="loading" class="loading" style="display: none;">Computing layout...</div>
         </div>
     </div>
@@ -582,7 +582,7 @@
         }
         
         setupControls();
-        window.newGraph();
+        newGraph();
     </script>
 </body>
 </html>

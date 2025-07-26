@@ -449,7 +449,7 @@
             });
         }
         
-        window.newGraph = function() {
+        function newGraph() {
             const numNodes = parseInt(document.getElementById('num-nodes').value);
             const graphType = document.getElementById('graph-type').value;
             
@@ -476,9 +476,9 @@
             } catch (error) {
                 console.error('Error in graph generation:', error);
             }
-        };
+        }
         
-        window.applyLayout = async function() {
+        async function applyLayout() {
             if (!currentGraph) return;
             
             const loadingDiv = document.getElementById('loading');
@@ -580,6 +580,10 @@
                 document.getElementById(id).onchange = null;
             });
         }
+        
+        // Expose functions to global scope
+        window.newGraph = newGraph;
+        window.applyLayout = applyLayout;
         
         setupControls();
         newGraph();

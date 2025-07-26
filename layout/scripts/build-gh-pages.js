@@ -85,12 +85,15 @@ async function buildGitHubPages() {
         await processExampleHtml(inputPath, outputPath);
         console.log(`Processed ${file}`);
       } else if (file.endsWith('.js')) {
-        // Copy helper JS files
-        await copyFile(
-          path.join(examplesDir, file),
-          path.join(ghPagesExamplesDir, file)
-        );
-        console.log(`Copied ${file}`);
+        // Process and copy helper JS files
+        const inputPath = path.join(examplesDir, file);
+        let content = await fs.readFile(inputPath, 'utf-8');
+        
+        // Replace the import path to use the bundled layout.js
+        content = content.replace(/from\s+["']\.\.\/dist\/layout\.js["']/g, 'from "./layout.js"');
+        
+        await fs.writeFile(path.join(ghPagesExamplesDir, file), content);
+        console.log(`Processed ${file}`);
       }
     }
     

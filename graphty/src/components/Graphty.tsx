@@ -4,8 +4,8 @@ import {useEffect, useRef} from "react";
 import type {LayerItem} from "./layout/LeftSidebar";
 
 interface GraphtyElementType extends HTMLElement {
-    nodeData?: Array<{id: number | string; [key: string]: unknown}>;
-    edgeData?: Array<{src: number | string; dst: number | string; [key: string]: unknown}>;
+    nodeData?: {id: number | string, [key: string]: unknown}[];
+    edgeData?: {src: number | string, dst: number | string, [key: string]: unknown}[];
     layout?: string;
     layoutConfig?: Record<string, unknown>;
     styleTemplate?: unknown;
@@ -65,17 +65,17 @@ export function Graphty({layers}: GraphtyProps): React.JSX.Element {
                 graph: {
                     addDefaultStyle: true,
                 },
-                layers: [...layers]
+                layers: [... layers]
                     .reverse()
                     .map((layer) => {
-                        const layerObj: {node?: unknown; edge?: unknown} = {};
+                        const layerObj: {node?: unknown, edge?: unknown} = {};
 
                         // Convert node style if present - check for undefined, not falsy (allow empty string)
                         if (layer.styleLayer.node !== undefined) {
                             const nodeStyle: Record<string, unknown> = {};
 
                             // Convert color to texture.color format if present
-                            if (layer.styleLayer.node.style?.color) {
+                            if (layer.styleLayer.node.style.color) {
                                 nodeStyle.texture = {
                                     color: layer.styleLayer.node.style.color,
                                 };
@@ -91,7 +91,7 @@ export function Graphty({layers}: GraphtyProps): React.JSX.Element {
                         if (layer.styleLayer.edge !== undefined) {
                             layerObj.edge = {
                                 selector: layer.styleLayer.edge.selector || "",
-                                style: layer.styleLayer.edge.style || {},
+                                style: layer.styleLayer.edge.style,
                             };
                         }
 
@@ -100,7 +100,6 @@ export function Graphty({layers}: GraphtyProps): React.JSX.Element {
                     .filter((layer) => layer.node !== undefined || layer.edge !== undefined),
             };
 
-            console.log("Setting styleTemplate:", JSON.stringify(styleTemplate, null, 2));
             graphtyRef.current.styleTemplate = styleTemplate;
         }
     }, [layers]);

@@ -55,14 +55,18 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                     styleLayer: {
                         ... layer.styleLayer,
                         node: {
+                            selector: "",
+                            style: {},
                             ... layer.styleLayer.node,
                             ... updates,
                         },
                     },
                 };
             }
+
             return layer;
         });
+
         setLayers(updatedLayers);
     };
 

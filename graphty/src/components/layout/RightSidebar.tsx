@@ -1,6 +1,6 @@
 import {Box, ColorInput, Group, Stack, Text, TextInput} from "@mantine/core";
 import {Settings} from "lucide-react";
-import React, {useState, useEffect} from "react";
+import React, {useEffect, useState} from "react";
 
 import type {LayerItem} from "./LeftSidebar";
 
@@ -16,7 +16,7 @@ export function RightSidebar({className, style, selectedLayer, onLayerUpdate}: R
 
     // Update local state when selected layer changes
     useEffect(() => {
-        setSelectorValue(selectedLayer?.styleLayer.node?.selector || "");
+        setSelectorValue(selectedLayer?.styleLayer.node?.selector ?? "");
     }, [selectedLayer]);
     return (
         <Box
@@ -74,10 +74,10 @@ export function RightSidebar({className, style, selectedLayer, onLayerUpdate}: R
                                         setSelectorValue(e.currentTarget.value);
                                     }}
                                     onBlur={() => {
-                                        if (onLayerUpdate && selectedLayer) {
+                                        if (onLayerUpdate) {
                                             onLayerUpdate(selectedLayer.id, {
                                                 selector: selectorValue,
-                                                style: selectedLayer.styleLayer.node?.style || {},
+                                                style: selectedLayer.styleLayer.node?.style ?? {},
                                             });
                                         }
                                     }}
@@ -90,13 +90,13 @@ export function RightSidebar({className, style, selectedLayer, onLayerUpdate}: R
                                 <ColorInput
                                     label="Node Color"
                                     description="Color for selected nodes"
-                                    value={(selectedLayer.styleLayer.node?.style?.color as string) || "#5b8ff9"}
+                                    value={((selectedLayer.styleLayer.node?.style.color ?? "#5b8ff9") as string)}
                                     onChange={(color) => {
                                         if (onLayerUpdate) {
                                             onLayerUpdate(selectedLayer.id, {
-                                                selector: selectedLayer.styleLayer.node?.selector || "",
+                                                selector: selectedLayer.styleLayer.node?.selector ?? "",
                                                 style: {
-                                                    ... (selectedLayer.styleLayer.node?.style || {}),
+                                                    ... (selectedLayer.styleLayer.node?.style ?? {}),
                                                     color,
                                                 },
                                             });

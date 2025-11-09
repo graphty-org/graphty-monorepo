@@ -10,3 +10,4 @@
 
 - If there are bugs with graphty-element or if the API is difficult to use, let me know so that I can fix it
 - store all temporary files, images, scripts, etc. in the ./tmp directory
+- always store temporary files -- screenshots, debug scripts, etc. -- in the ./tmp directory

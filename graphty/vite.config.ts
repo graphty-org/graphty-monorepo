@@ -9,6 +9,8 @@ export default defineConfig(({mode}) => {
     const env = loadEnv(mode, process.cwd(), "");
     const config: UserConfig = {
         plugins: [react()],
+        // Set base path for GitHub Pages deployment
+        base: env.VITE_BASE_PATH || "/",
         resolve: {
             alias: {
                 "@": resolve(__dirname, "./src"),

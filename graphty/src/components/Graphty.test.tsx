@@ -1,6 +1,6 @@
-import {render} from "@testing-library/react";
 import {describe, expect, it, vi} from "vitest";
 
+import {render} from "../test/test-utils";
 import {Graphty} from "./Graphty";
 
 // Mock the graphty-element module
@@ -40,13 +40,13 @@ if (!customElements.get("graphty-element")) {
 
 describe("Graphty", () => {
     it("renders graphty-element", () => {
-        const {container} = render(<Graphty />);
+        const {container} = render(<Graphty layers={[]} />);
         const graphtyElement = container.querySelector("graphty-element");
         expect(graphtyElement).toBeInTheDocument();
     });
 
     it("sets the layout attribute", async() => {
-        const {container} = render(<Graphty />);
+        const {container} = render(<Graphty layers={[]} />);
         const graphtyElement = container.querySelector("graphty-element") as unknown as MockGraphtyElement;
         // In React 19, properties might be set instead of attributes for custom elements
         await vi.waitFor(() => {
@@ -58,9 +58,9 @@ describe("Graphty", () => {
     });
 
     it("has proper styling", () => {
-        const {container} = render(<Graphty />);
+        const {container} = render(<Graphty layers={[]} />);
         const graphtyElement = container.querySelector("graphty-element");
         expect(graphtyElement?.style.width).toBe("100%");
-        expect(graphtyElement?.style.height).toBe("600px");
+        expect(graphtyElement?.style.height).toBe("100%");
     });
 });

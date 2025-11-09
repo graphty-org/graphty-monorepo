@@ -1,9 +1,9 @@
 import {Box} from "@mantine/core";
-import React, {useState} from "react";
+import React, {useRef, useState} from "react";
 
 import {Graphty} from "../Graphty";
 import {BottomToolbar} from "./BottomToolbar";
-import {LeftSidebar} from "./LeftSidebar";
+import {LayerItem, LeftSidebar} from "./LeftSidebar";
 import {RightSidebar} from "./RightSidebar";
 import {TopMenuBar} from "./TopMenuBar";
 
@@ -15,23 +15,58 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
     const [leftSidebarVisible, setLeftSidebarVisible] = useState(true);
     const [rightSidebarVisible, setRightSidebarVisible] = useState(true);
     const [toolbarVisible, setToolbarVisible] = useState(true);
+    const [layers, setLayers] = useState<LayerItem[]>([]);
+    const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
+    const layerCounter = useRef(1);
 
-    // Force desktop layout regardless of screen size
-    const getGridCols = (): string => {
-        if (leftSidebarVisible && rightSidebarVisible) {
-            return "280px 1fr 320px";
-        }
-
-        if (leftSidebarVisible && !rightSidebarVisible) {
-            return "280px 1fr";
-        }
-
-        if (!leftSidebarVisible && rightSidebarVisible) {
-            return "1fr 320px";
-        }
-
-        return "1fr";
+    const handleAddLayer = (): void => {
+        const newLayer: LayerItem = {
+            id: `layer-${Date.now()}`,
+            name: `New Layer ${layerCounter.current}`,
+            styleLayer: {
+                node: {
+                    selector: "",
+                    style: {},
+                },
+                edge: {
+                    selector: "",
+                    style: {},
+                },
+            },
+        };
+        layerCounter.current += 1;
+        setLayers([... layers, newLayer]);
+        setSelectedLayerId(newLayer.id);
     };
+
+    const handleLayersChange = (updatedLayers: LayerItem[]): void => {
+        setLayers(updatedLayers);
+    };
+
+    const handleLayerSelect = (layerId: string): void => {
+        setSelectedLayerId(layerId);
+    };
+
+    const handleLayerUpdate = (layerId: string, updates: Partial<LayerItem["styleLayer"]["node"]>): void => {
+        const updatedLayers = layers.map((layer) => {
+            if (layer.id === layerId) {
+                return {
+                    ... layer,
+                    styleLayer: {
+                        ... layer.styleLayer,
+                        node: {
+                            ... layer.styleLayer.node,
+                            ... updates,
+                        },
+                    },
+                };
+            }
+            return layer;
+        });
+        setLayers(updatedLayers);
+    };
+
+    const selectedLayer = layers.find((layer) => layer.id === selectedLayerId) ?? null;
 
     return (
         <Box
@@ -41,22 +76,8 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                 overflow: "hidden",
                 display: "grid",
                 gridTemplateRows: "48px 1fr",
-                gridTemplateColumns: getGridCols(),
-                gridTemplateAreas: (() => {
-                    if (leftSidebarVisible && rightSidebarVisible) {
-                        return "\"header header header\" \"left-sidebar canvas right-sidebar\"";
-                    }
-
-                    if (leftSidebarVisible && !rightSidebarVisible) {
-                        return "\"header header\" \"left-sidebar canvas\"";
-                    }
-
-                    if (!leftSidebarVisible && rightSidebarVisible) {
-                        return "\"header header\" \"canvas right-sidebar\"";
-                    }
-
-                    return "\"header\" \"canvas\"";
-                })(),
+                gridTemplateColumns: "1fr",
+                gridTemplateAreas: "\"header\" \"canvas\"",
             }}
         >
             {/* Header */}
@@ -73,14 +94,7 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                 }}
             />
 
-            {/* Left Sidebar */}
-            {leftSidebarVisible && (
-                <LeftSidebar
-                    style={{gridArea: "left-sidebar"}}
-                />
-            )}
-
-            {/* Main Canvas Area */}
+            {/* Main Canvas Area - Full Screen */}
             <Box
                 component="main"
                 style={{
@@ -92,7 +106,43 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                     position: "relative",
                 }}
             >
-                <Graphty />
+                <Graphty layers={layers} />
+
+                {/* Left Sidebar - Overlaid */}
+                {leftSidebarVisible && (
+                    <Box
+                        style={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            height: "100%",
+                            zIndex: 10,
+                        }}
+                    >
+                        <LeftSidebar
+                            layers={layers}
+                            selectedLayerId={selectedLayerId}
+                            onLayersChange={handleLayersChange}
+                            onLayerSelect={handleLayerSelect}
+                            onAddLayer={handleAddLayer}
+                        />
+                    </Box>
+                )}
+
+                {/* Right Sidebar - Overlaid */}
+                {rightSidebarVisible && (
+                    <Box
+                        style={{
+                            position: "absolute",
+                            top: 0,
+                            right: 0,
+                            height: "100%",
+                            zIndex: 10,
+                        }}
+                    >
+                        <RightSidebar selectedLayer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
+                    </Box>
+                )}
 
                 {/* Floating Centered Toolbar */}
                 {toolbarVisible && (
@@ -109,13 +159,6 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                     </Box>
                 )}
             </Box>
-
-            {/* Right Sidebar */}
-            {rightSidebarVisible && (
-                <RightSidebar
-                    style={{gridArea: "right-sidebar"}}
-                />
-            )}
         </Box>
     );
 }

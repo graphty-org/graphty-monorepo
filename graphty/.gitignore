@@ -32,3 +32,11 @@ build-storybook.log
 
 # Environment variables
 .env
+
+# debug files
+tmp/
+
+# PUPT
+.pt-config.json.backup
+.pthistory
+.git-prompts

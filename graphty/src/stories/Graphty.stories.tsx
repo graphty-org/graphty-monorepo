@@ -21,7 +21,7 @@ if (typeof window !== "undefined" && !window.customElements.get("graphty-element
                     <h3 style="margin: 0 0 1rem 0;">Graphty Element Mock</h3>
                     <p style="margin: 0;">Layout: ${this.getAttribute("layout") ?? "default"}</p>
                     <p style="margin: 0.5rem 0 0 0; font-size: 0.875rem; opacity: 0.7;">
-                        (graphty-element will be loaded from ../graphty-element)
+                        (graphty-element will be loaded from @graphty/graphty-element)
                     </p>
                 </div>
             </div>`;

@@ -23,8 +23,7 @@
     /* Path mapping */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "graphty-element": ["../graphty-element/index.ts"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src", ".storybook"],

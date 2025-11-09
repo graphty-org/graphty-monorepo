@@ -4,7 +4,7 @@ import {describe, expect, it, vi} from "vitest";
 import {Graphty} from "./Graphty";
 
 // Mock the graphty-element module
-vi.mock("../../graphty-element", () => {
+vi.mock("@graphty/graphty-element", () => {
     return {
         default: {},
     };

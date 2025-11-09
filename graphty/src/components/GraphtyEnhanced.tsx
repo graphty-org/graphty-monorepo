@@ -1,5 +1,4 @@
-// Import from local development path
-import "../../graphty-element";
+import "@graphty/graphty-element";
 
 import {useEffect, useRef} from "react";
 

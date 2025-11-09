@@ -1,11 +1,22 @@
 import "./index.css";
 import "@mantine/core/styles.css";
+// WORKAROUND: Import InstancedMesh first to satisfy Babylon.js side-effect requirement
+// This is needed in development mode where Vite may bypass the package's index.ts
+import "@babylonjs/core/Meshes/instancedMesh";
+import "@graphty/graphty-element";
 
 import {createTheme, MantineProvider} from "@mantine/core";
 import React from "react";
 import ReactDOM from "react-dom/client";
 
 import {App} from "./App.tsx";
+
+// Initialize Eruda for development/testing (mobile console)
+if (import.meta.env.DEV) {
+    void import("eruda").then(({default: eruda}) => {
+        eruda.init();
+    });
+}
 
 const theme = createTheme({
     colors: {

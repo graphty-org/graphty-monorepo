@@ -1,4 +1,4 @@
-declare module "graphty-element" {
+declare module "@graphty/graphty-element" {
     export interface GraphtyElementAttributes {
         "layout"?: string;
         "layout2d"?: boolean;

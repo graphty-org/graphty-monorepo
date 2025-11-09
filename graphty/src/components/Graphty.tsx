@@ -1,47 +1,129 @@
-// Import from local development path - will need to be updated when graphty-element is published
-// import "graphty-element";
-
-import {Box, Text, Title} from "@mantine/core";
+import {Box} from "@mantine/core";
 import {useEffect, useRef} from "react";
 
-export function Graphty(): React.JSX.Element {
-    const graphtyRef = useRef<HTMLElement>(null);
+import type {LayerItem} from "./layout/LeftSidebar";
+
+interface GraphtyElementType extends HTMLElement {
+    nodeData?: Array<{id: number | string; [key: string]: unknown}>;
+    edgeData?: Array<{src: number | string; dst: number | string; [key: string]: unknown}>;
+    layout?: string;
+    layoutConfig?: Record<string, unknown>;
+    styleTemplate?: unknown;
+}
+
+interface GraphtyProps {
+    layers: LayerItem[];
+}
+
+declare module "react" {
+    interface IntrinsicElements {
+        "graphty-element": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
+    }
+}
+
+// Example data - using src/dst format like graphty-element stories
+const nodeData = [
+    {id: 0},
+    {id: 1},
+    {id: 2},
+    {id: 3},
+    {id: 4},
+    {id: 5},
+];
+
+const edgeData = [
+    {src: 0, dst: 1},
+    {src: 0, dst: 2},
+    {src: 1, dst: 2},
+    {src: 1, dst: 3},
+    {src: 2, dst: 3},
+    {src: 2, dst: 4},
+    {src: 3, dst: 4},
+    {src: 3, dst: 5},
+    {src: 4, dst: 5},
+    {src: 5, dst: 0},
+    {src: 1, dst: 4},
+    {src: 0, dst: 3},
+];
+
+export function Graphty({layers}: GraphtyProps): React.JSX.Element {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const graphtyRef = useRef<GraphtyElementType>(null);
 
     useEffect(() => {
-        // Example data - replace with your actual data
-        const nodeData = [
-            {id: "1", label: "Node 1"},
-            {id: "2", label: "Node 2"},
-            {id: "3", label: "Node 3"},
-        ];
-
-        const edgeData = [
-            {source: "1", target: "2"},
-            {source: "2", target: "3"},
-        ];
-
         if (graphtyRef.current) {
-            graphtyRef.current.setAttribute("node-data", JSON.stringify(nodeData));
-            graphtyRef.current.setAttribute("edge-data", JSON.stringify(edgeData));
+            // Set properties directly on the element, not as string attributes
+            graphtyRef.current.nodeData = nodeData;
+            graphtyRef.current.edgeData = edgeData;
+            graphtyRef.current.layout = "d3";
+
+            // Create styleTemplate from layers
+            // Reverse the array so layers at the top of the UI have higher precedence
+            const styleTemplate = {
+                graphtyTemplate: true,
+                majorVersion: "1",
+                graph: {
+                    addDefaultStyle: true,
+                },
+                layers: [...layers]
+                    .reverse()
+                    .map((layer) => {
+                        const layerObj: {node?: unknown; edge?: unknown} = {};
+
+                        // Convert node style if present - check for undefined, not falsy (allow empty string)
+                        if (layer.styleLayer.node !== undefined) {
+                            const nodeStyle: Record<string, unknown> = {};
+
+                            // Convert color to texture.color format if present
+                            if (layer.styleLayer.node.style?.color) {
+                                nodeStyle.texture = {
+                                    color: layer.styleLayer.node.style.color,
+                                };
+                            }
+
+                            layerObj.node = {
+                                selector: layer.styleLayer.node.selector || "",
+                                style: nodeStyle,
+                            };
+                        }
+
+                        // Convert edge style if present - check for undefined, not falsy
+                        if (layer.styleLayer.edge !== undefined) {
+                            layerObj.edge = {
+                                selector: layer.styleLayer.edge.selector || "",
+                                style: layer.styleLayer.edge.style || {},
+                            };
+                        }
+
+                        return layerObj;
+                    })
+                    .filter((layer) => layer.node !== undefined || layer.edge !== undefined),
+            };
+
+            console.log("Setting styleTemplate:", JSON.stringify(styleTemplate, null, 2));
+            graphtyRef.current.styleTemplate = styleTemplate;
         }
-    }, []);
+    }, [layers]);
 
     return (
         <Box
+            ref={containerRef}
             className="graphty-container"
             style={{
                 width: "100%",
                 height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                position: "relative",
+                overflow: "hidden",
             }}
         >
-            <Box style={{textAlign: "center"}}>
-                <Text size="4rem" mb="md" style={{opacity: 0.5}}>📊</Text>
-                <Title order={2} size="h3" mb="xs" c="gray.5">Graph Canvas</Title>
-                <Text size="sm" c="gray.6">Graphty-element will be rendered here</Text>
-            </Box>
+            <graphty-element
+                ref={graphtyRef}
+                style={{
+                    display: "block",
+                    width: "100%",
+                    height: "100%",
+                }}
+            />
         </Box>
     );
 }

@@ -1,13 +1,23 @@
-import {Box, Group, Text} from "@mantine/core";
+import {Box, ColorInput, Group, Stack, Text, TextInput} from "@mantine/core";
 import {Settings} from "lucide-react";
-import React from "react";
+import React, {useState, useEffect} from "react";
+
+import type {LayerItem} from "./LeftSidebar";
 
 interface RightSidebarProps {
     className?: string;
     style?: React.CSSProperties;
+    selectedLayer: LayerItem | null;
+    onLayerUpdate?: (layerId: string, updates: Partial<LayerItem["styleLayer"]["node"]>) => void;
 }
 
-export function RightSidebar({className, style}: RightSidebarProps): React.JSX.Element {
+export function RightSidebar({className, style, selectedLayer, onLayerUpdate}: RightSidebarProps): React.JSX.Element {
+    const [selectorValue, setSelectorValue] = useState("");
+
+    // Update local state when selected layer changes
+    useEffect(() => {
+        setSelectorValue(selectedLayer?.styleLayer.node?.selector || "");
+    }, [selectedLayer]);
     return (
         <Box
             component="aside"
@@ -17,7 +27,8 @@ export function RightSidebar({className, style}: RightSidebarProps): React.JSX.E
                 borderLeft: "1px solid var(--mantine-color-dark-5)",
                 display: "flex",
                 flexDirection: "column",
-                width: "100%",
+                width: "300px",
+                minWidth: "300px",
                 height: "100%",
                 overflow: "hidden",
                 color: "var(--mantine-color-gray-1)",
@@ -34,24 +45,82 @@ export function RightSidebar({className, style}: RightSidebarProps): React.JSX.E
                 <Group gap="xs">
                     <Settings size={16} />
                     <Text size="sm" fw={500} c="gray.1">
-                        Design Properties
+                        {selectedLayer ? selectedLayer.name : "Design Properties"}
                     </Text>
                 </Group>
             </Box>
 
             {/* Sidebar Content */}
-            <Box style={{flex: 1, padding: "16px"}}>
-                <Box style={{textAlign: "center", paddingTop: "32px", paddingBottom: "32px"}}>
-                    <Box style={{display: "flex", justifyContent: "center", marginBottom: "8px"}}>
-                        <Settings size={32} style={{color: "var(--mantine-color-dark-3)"}} />
+            <Box style={{flex: 1, padding: "16px", overflowY: "auto"}}>
+                {selectedLayer ? (
+                    <Stack gap="md">
+                        <Box>
+                            <Text size="sm" fw={500} c="gray.3" mb="md">
+                                Layer: {selectedLayer.name}
+                            </Text>
+                        </Box>
+
+                        <Box>
+                            <Text size="sm" fw={500} c="gray.1" mb="xs">
+                                Node Properties
+                            </Text>
+                            <Stack gap="sm">
+                                <TextInput
+                                    label="Node Selector"
+                                    description="JMESPath expression to select nodes"
+                                    placeholder="e.g., id == `0`"
+                                    value={selectorValue}
+                                    onChange={(e) => {
+                                        setSelectorValue(e.currentTarget.value);
+                                    }}
+                                    onBlur={() => {
+                                        if (onLayerUpdate && selectedLayer) {
+                                            onLayerUpdate(selectedLayer.id, {
+                                                selector: selectorValue,
+                                                style: selectedLayer.styleLayer.node?.style || {},
+                                            });
+                                        }
+                                    }}
+                                    size="sm"
+                                    styles={{
+                                        label: {color: "var(--mantine-color-gray-3)", fontSize: "12px"},
+                                        description: {fontSize: "11px"},
+                                    }}
+                                />
+                                <ColorInput
+                                    label="Node Color"
+                                    description="Color for selected nodes"
+                                    value={(selectedLayer.styleLayer.node?.style?.color as string) || "#5b8ff9"}
+                                    onChange={(color) => {
+                                        if (onLayerUpdate) {
+                                            onLayerUpdate(selectedLayer.id, {
+                                                selector: selectedLayer.styleLayer.node?.selector || "",
+                                                style: {
+                                                    ... (selectedLayer.styleLayer.node?.style || {}),
+                                                    color,
+                                                },
+                                            });
+                                        }
+                                    }}
+                                    size="sm"
+                                    styles={{
+                                        label: {color: "var(--mantine-color-gray-3)", fontSize: "12px"},
+                                        description: {fontSize: "11px"},
+                                    }}
+                                />
+                            </Stack>
+                        </Box>
+                    </Stack>
+                ) : (
+                    <Box style={{textAlign: "center", paddingTop: "32px", paddingBottom: "32px"}}>
+                        <Box style={{display: "flex", justifyContent: "center", marginBottom: "8px"}}>
+                            <Settings size={32} style={{color: "var(--mantine-color-dark-3)"}} />
+                        </Box>
+                        <Text size="sm" c="gray.5">
+                            Select a layer to view properties
+                        </Text>
                     </Box>
-                    <Text size="sm" c="gray.5">
-                        Property panels
-                    </Text>
-                    <Text size="sm" c="gray.5">
-                        coming soon...
-                    </Text>
-                </Box>
+                )}
             </Box>
         </Box>
     );

@@ -7,7 +7,6 @@ export default defineConfig({
     resolve: {
         alias: {
             "@": resolve(__dirname, "./src"),
-            "graphty-element": resolve(__dirname, "../graphty-element/index.ts"),
         },
     },
     test: {

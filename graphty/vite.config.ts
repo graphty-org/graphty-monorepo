@@ -14,8 +14,6 @@ export default defineConfig(({mode}) => {
         resolve: {
             alias: {
                 "@": resolve(__dirname, "./src"),
-                // Force Vite to use the built version of graphty-element to avoid InstancedMesh import issues
-                "@graphty/graphty-element": resolve(__dirname, "../graphty-element/dist/graphty.js"),
             },
         },
         server: {

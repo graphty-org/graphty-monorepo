@@ -30,6 +30,9 @@ export default defineConfig(({mode}) => {
             outDir: "dist",
             sourcemap: true,
         },
+        optimizeDeps: {
+            include: ["@babylonjs/core/Meshes/instancedMesh", "@graphty/graphty-element"],
+        },
     };
 
     if (env.HOST && config.server) {

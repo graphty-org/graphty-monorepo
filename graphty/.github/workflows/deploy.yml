@@ -59,8 +59,9 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # Set base path for GitHub Pages
-          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          # Use root base path for custom domain (graphty.app)
+          # Only use /${{ github.event.repository.name }}/ if hosting at username.github.io/repo/
+          VITE_BASE_PATH: /
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

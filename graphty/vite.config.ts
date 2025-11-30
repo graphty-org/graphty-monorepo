@@ -1,4 +1,5 @@
 import react from "@vitejs/plugin-react";
+import {readFileSync} from "fs";
 import {resolve} from "path";
 import {defineConfig, loadEnv, UserConfig} from "vite";
 
@@ -41,6 +42,13 @@ export default defineConfig(({mode}) => {
 
     if (env.PORT && config.server) {
         config.server.port = parseInt(env.PORT);
+    }
+
+    if (env.HTTPS_KEY_PATH && env.HTTPS_CERT_PATH && config.server) {
+        config.server.https = {
+            key: readFileSync(env.HTTPS_KEY_PATH),
+            cert: readFileSync(env.HTTPS_CERT_PATH),
+        };
     }
 
     return config;

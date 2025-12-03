@@ -1,4 +1,7 @@
 declare module "@graphty/graphty-element" {
+    // Graphty is the LitElement-based web component class
+    export class Graphty extends HTMLElement {}
+
     export interface GraphtyElementAttributes {
         "layout"?: string;
         "layout2d"?: boolean;

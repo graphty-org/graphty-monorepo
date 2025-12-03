@@ -2,7 +2,7 @@ import {Box} from "@mantine/core";
 import React, {useRef, useState} from "react";
 
 import {Graphty} from "../Graphty";
-import {BottomToolbar} from "./BottomToolbar";
+import {BottomToolbar, ViewMode} from "./BottomToolbar";
 import {LayerItem, LeftSidebar} from "./LeftSidebar";
 import {RightSidebar} from "./RightSidebar";
 import {TopMenuBar} from "./TopMenuBar";
@@ -17,6 +17,7 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
     const [toolbarVisible, setToolbarVisible] = useState(true);
     const [layers, setLayers] = useState<LayerItem[]>([]);
     const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
+    const [viewMode, setViewMode] = useState<ViewMode>("3d");
     const layerCounter = useRef(1);
 
     const handleAddLayer = (): void => {
@@ -110,7 +111,7 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                     position: "relative",
                 }}
             >
-                <Graphty layers={layers} />
+                <Graphty layers={layers} layout2d={viewMode === "2d"} />
 
                 {/* Left Sidebar - Overlaid */}
                 {leftSidebarVisible && (
@@ -159,7 +160,7 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                             zIndex: 20,
                         }}
                     >
-                        <BottomToolbar />
+                        <BottomToolbar viewMode={viewMode} onViewModeChange={setViewMode} />
                     </Box>
                 )}
             </Box>

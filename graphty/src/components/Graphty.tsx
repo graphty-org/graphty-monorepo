@@ -13,6 +13,7 @@ interface GraphtyElementType extends HTMLElement {
 
 interface GraphtyProps {
     layers: LayerItem[];
+    layout2d?: boolean;
 }
 
 declare module "react" {
@@ -46,7 +47,7 @@ const edgeData = [
     {src: 0, dst: 3},
 ];
 
-export function Graphty({layers}: GraphtyProps): React.JSX.Element {
+export function Graphty({layers, layout2d = false}: GraphtyProps): React.JSX.Element {
     const containerRef = useRef<HTMLDivElement>(null);
     const graphtyRef = useRef<GraphtyElementType>(null);
 
@@ -103,6 +104,12 @@ export function Graphty({layers}: GraphtyProps): React.JSX.Element {
             graphtyRef.current.styleTemplate = styleTemplate;
         }
     }, [layers]);
+
+    useEffect(() => {
+        if (graphtyRef.current) {
+            graphtyRef.current.layout2d = layout2d;
+        }
+    }, [layout2d]);
 
     return (
         <Box

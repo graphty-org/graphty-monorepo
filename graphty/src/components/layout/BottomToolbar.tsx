@@ -1,15 +1,18 @@
-import {ActionIcon, Divider, Group, Paper, ScrollArea, SegmentedControl} from "@mantine/core";
-import {ArrowRight, Box, Hand, MousePointer, Plus, Square, Trash2, ZoomIn} from "lucide-react";
+import {ActionIcon, Divider, Group, Menu, Paper, ScrollArea, Text} from "@mantine/core";
+import {ArrowRight, Box, Hand, MousePointer, Plus, Square, Trash2, Video, ZoomIn} from "lucide-react";
 import React, {useState} from "react";
+
+export type ViewMode = "2d" | "3d";
 
 interface BottomToolbarProps {
     className?: string;
     style?: React.CSSProperties;
+    viewMode?: ViewMode;
+    onViewModeChange?: (mode: ViewMode) => void;
 }
 
-export function BottomToolbar({className, style}: BottomToolbarProps): React.JSX.Element {
+export function BottomToolbar({className, style, viewMode = "3d", onViewModeChange}: BottomToolbarProps): React.JSX.Element {
     const [selectedTool, setSelectedTool] = useState("pointer");
-    const [viewMode, setViewMode] = useState("2d");
 
     return (
         <Paper
@@ -75,37 +78,41 @@ export function BottomToolbar({className, style}: BottomToolbarProps): React.JSX
 
                     <Divider orientation="vertical" color="dark.5" />
 
-                    {/* 2D/3D Toggle */}
-                    <SegmentedControl
-                        size="xs"
-                        value={viewMode}
-                        onChange={setViewMode}
-                        data={[
-                            {
-                                value: "2d",
-                                label: (
-                                    <Group gap={4}>
-                                        <Square size={14} />
-                                        <span>2D</span>
-                                    </Group>
-                                ),
-                            },
-                            {
-                                value: "3d",
-                                label: (
-                                    <Group gap={4}>
-                                        <Box size={14} />
-                                        <span>3D</span>
-                                    </Group>
-                                ),
-                            },
-                        ]}
-                        styles={{
-                            root: {
-                                backgroundColor: "var(--mantine-color-dark-6)",
-                            },
-                        }}
-                    />
+                    {/* 2D/3D Camera Menu */}
+                    <Menu position="top" offset={8} shadow="md">
+                        <Menu.Target>
+                            <ActionIcon variant="subtle" color="gray" size="lg">
+                                <Video size={18} />
+                            </ActionIcon>
+                        </Menu.Target>
+                        <Menu.Dropdown
+                            style={{
+                                backgroundColor: "var(--mantine-color-dark-7)",
+                                border: "1px solid var(--mantine-color-dark-5)",
+                            }}
+                        >
+                            <Menu.Item
+                                leftSection={<Square size={14} />}
+                                onClick={() => onViewModeChange?.("2d")}
+                                style={{
+                                    backgroundColor: viewMode === "2d" ? "var(--mantine-color-blue-filled)" : undefined,
+                                    color: viewMode === "2d" ? "white" : undefined,
+                                }}
+                            >
+                                <Text size="sm">2D</Text>
+                            </Menu.Item>
+                            <Menu.Item
+                                leftSection={<Box size={14} />}
+                                onClick={() => onViewModeChange?.("3d")}
+                                style={{
+                                    backgroundColor: viewMode === "3d" ? "var(--mantine-color-blue-filled)" : undefined,
+                                    color: viewMode === "3d" ? "white" : undefined,
+                                }}
+                            >
+                                <Text size="sm">3D</Text>
+                            </Menu.Item>
+                        </Menu.Dropdown>
+                    </Menu>
                 </Group>
             </ScrollArea>
         </Paper>

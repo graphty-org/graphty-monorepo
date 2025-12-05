@@ -10,11 +10,21 @@ interface GraphtyElementType extends HTMLElement {
     layout2d?: boolean;
     layoutConfig?: Record<string, unknown>;
     styleTemplate?: unknown;
+    dataSource?: string;
+    dataSourceConfig?: Record<string, unknown>;
+    graph?: {
+        dataManager: {
+            clear: () => void;
+        };
+    };
 }
 
 interface GraphtyProps {
     layers: LayerItem[];
     layout2d?: boolean;
+    dataSource?: string;
+    dataSourceConfig?: Record<string, unknown>;
+    replaceExisting?: boolean;
 }
 
 declare module "react" {
@@ -23,40 +33,13 @@ declare module "react" {
     }
 }
 
-// Example data - using src/dst format like graphty-element stories
-const nodeData = [
-    {id: 0},
-    {id: 1},
-    {id: 2},
-    {id: 3},
-    {id: 4},
-    {id: 5},
-];
-
-const edgeData = [
-    {src: 0, dst: 1},
-    {src: 0, dst: 2},
-    {src: 1, dst: 2},
-    {src: 1, dst: 3},
-    {src: 2, dst: 3},
-    {src: 2, dst: 4},
-    {src: 3, dst: 4},
-    {src: 3, dst: 5},
-    {src: 4, dst: 5},
-    {src: 5, dst: 0},
-    {src: 1, dst: 4},
-    {src: 0, dst: 3},
-];
-
-export function Graphty({layers, layout2d = false}: GraphtyProps): React.JSX.Element {
+export function Graphty({layers, layout2d = false, dataSource, dataSourceConfig, replaceExisting}: GraphtyProps): React.JSX.Element {
     const containerRef = useRef<HTMLDivElement>(null);
     const graphtyRef = useRef<GraphtyElementType>(null);
 
     useEffect(() => {
         if (graphtyRef.current) {
-            // Set properties directly on the element, not as string attributes
-            graphtyRef.current.nodeData = nodeData;
-            graphtyRef.current.edgeData = edgeData;
+            // Set default layout
             graphtyRef.current.layout = "d3";
 
             // Create styleTemplate from layers
@@ -111,6 +94,20 @@ export function Graphty({layers, layout2d = false}: GraphtyProps): React.JSX.Ele
             graphtyRef.current.layout2d = layout2d;
         }
     }, [layout2d]);
+
+    // Handle external data source loading
+    useEffect(() => {
+        if (graphtyRef.current && dataSource && dataSourceConfig) {
+            // Clear existing data if replaceExisting is true
+            if (replaceExisting && graphtyRef.current.graph) {
+                graphtyRef.current.graph.dataManager.clear();
+            }
+
+            // Set the data source properties
+            graphtyRef.current.dataSource = dataSource;
+            graphtyRef.current.dataSourceConfig = dataSourceConfig;
+        }
+    }, [dataSource, dataSourceConfig, replaceExisting]);
 
     return (
         <Box

@@ -1,7 +1,8 @@
 import {Box} from "@mantine/core";
-import React, {useRef, useState} from "react";
+import React, {useCallback, useRef, useState} from "react";
 
 import {Graphty} from "../Graphty";
+import {LoadDataModal} from "../LoadDataModal";
 import {BottomToolbar, ViewMode} from "./BottomToolbar";
 import {LayerItem, LeftSidebar} from "./LeftSidebar";
 import {RightSidebar} from "./RightSidebar";
@@ -11,6 +12,12 @@ interface AppLayoutProps {
     className?: string;
 }
 
+interface DataSourceState {
+    dataSource: string;
+    dataSourceConfig: Record<string, unknown>;
+    replaceExisting: boolean;
+}
+
 export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
     const [leftSidebarVisible, setLeftSidebarVisible] = useState(true);
     const [rightSidebarVisible, setRightSidebarVisible] = useState(true);
@@ -18,6 +25,8 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
     const [layers, setLayers] = useState<LayerItem[]>([]);
     const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<ViewMode>("3d");
+    const [loadDataModalOpen, setLoadDataModalOpen] = useState(false);
+    const [dataSourceState, setDataSourceState] = useState<DataSourceState | null>(null);
     const layerCounter = useRef(1);
 
     const handleAddLayer = (): void => {
@@ -73,6 +82,10 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
 
     const selectedLayer = layers.find((layer) => layer.id === selectedLayerId) ?? null;
 
+    const handleLoadData = useCallback((dataSource: string, dataSourceConfig: Record<string, unknown>, replaceExisting: boolean) => {
+        setDataSourceState({dataSource, dataSourceConfig, replaceExisting});
+    }, []);
+
     return (
         <Box
             className={className}
@@ -97,6 +110,18 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                 onToggleToolbar={() => {
                     setToolbarVisible(!toolbarVisible);
                 }}
+                onLoadData={() => {
+                    setLoadDataModalOpen(true);
+                }}
+            />
+
+            {/* Load Data Modal */}
+            <LoadDataModal
+                opened={loadDataModalOpen}
+                onClose={() => {
+                    setLoadDataModalOpen(false);
+                }}
+                onLoad={handleLoadData}
             />
 
             {/* Main Canvas Area - Full Screen */}
@@ -111,7 +136,13 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                     position: "relative",
                 }}
             >
-                <Graphty layers={layers} layout2d={viewMode === "2d"} />
+                <Graphty
+                    layers={layers}
+                    layout2d={viewMode === "2d"}
+                    dataSource={dataSourceState?.dataSource}
+                    dataSourceConfig={dataSourceState?.dataSourceConfig}
+                    replaceExisting={dataSourceState?.replaceExisting}
+                />
 
                 {/* Left Sidebar - Overlaid */}
                 {leftSidebarVisible && (
@@ -154,7 +185,7 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                     <Box
                         style={{
                             position: "absolute",
-                            bottom: "80px",
+                            bottom: "10px",
                             left: "50%",
                             transform: "translateX(-50%)",
                             zIndex: 20,

@@ -23,7 +23,7 @@ export function BottomToolbar({className, style, viewMode = "3d", onViewModeChan
             style={{
                 backgroundColor: "var(--mantine-color-dark-7)",
                 border: "1px solid var(--mantine-color-dark-5)",
-                padding: "8px 16px",
+                padding: "4px 8px",
                 maxWidth: "90vw",
                 ... style,
             }}

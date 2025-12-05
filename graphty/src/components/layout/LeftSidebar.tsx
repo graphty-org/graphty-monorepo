@@ -95,7 +95,7 @@ function SortableLayerItem({layer, isSelected, onSelect, onNameChange}: Sortable
     const style = {
         transform: CSS.Transform.toString(transform),
         transition,
-        padding: "8px 12px",
+        padding: "4px 6px",
         backgroundColor,
         borderRadius: "4px",
         border: `1px solid ${isSelected ? "var(--mantine-color-blue-7)" : "var(--mantine-color-dark-5)"}`,

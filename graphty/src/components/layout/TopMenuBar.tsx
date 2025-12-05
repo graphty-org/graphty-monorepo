@@ -1,5 +1,5 @@
 import {ActionIcon, Box, Group, Menu as MantineMenu, Title} from "@mantine/core";
-import {Download, FileText, FolderOpen, Menu, Save, Settings, Share} from "lucide-react";
+import {Download, Menu, Settings, Share, Upload} from "lucide-react";
 import React from "react";
 
 interface TopMenuBarProps {
@@ -8,6 +8,7 @@ interface TopMenuBarProps {
     onToggleLeftSidebar?: () => void;
     onToggleRightSidebar?: () => void;
     onToggleToolbar?: () => void;
+    onLoadData?: () => void;
 }
 
 export function TopMenuBar({
@@ -16,6 +17,7 @@ export function TopMenuBar({
     onToggleLeftSidebar,
     onToggleRightSidebar,
     onToggleToolbar,
+    onLoadData,
 }: TopMenuBarProps): React.JSX.Element {
     return (
         <Box
@@ -48,14 +50,8 @@ export function TopMenuBar({
 
                     <MantineMenu.Dropdown>
                         <MantineMenu.Label>File</MantineMenu.Label>
-                        <MantineMenu.Item leftSection={<FileText size={14} />}>
-                            New Graph
-                        </MantineMenu.Item>
-                        <MantineMenu.Item leftSection={<FolderOpen size={14} />}>
-                            Open
-                        </MantineMenu.Item>
-                        <MantineMenu.Item leftSection={<Save size={14} />}>
-                            Save
+                        <MantineMenu.Item leftSection={<Upload size={14} />} onClick={onLoadData}>
+                            Load Data...
                         </MantineMenu.Item>
                         <MantineMenu.Item leftSection={<Download size={14} />}>
                             Export

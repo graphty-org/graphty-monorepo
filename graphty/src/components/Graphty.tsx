@@ -7,6 +7,7 @@ interface GraphtyElementType extends HTMLElement {
     nodeData?: {id: number | string, [key: string]: unknown}[];
     edgeData?: {src: number | string, dst: number | string, [key: string]: unknown}[];
     layout?: string;
+    layout2d?: boolean;
     layoutConfig?: Record<string, unknown>;
     styleTemplate?: unknown;
 }

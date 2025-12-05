@@ -1,5 +1,4 @@
 import {createTheme, MantineProvider} from "@mantine/core";
-import {render, RenderOptions} from "@testing-library/react";
 import React, {ReactElement} from "react";
 
 const theme = createTheme({
@@ -19,18 +18,10 @@ const theme = createTheme({
     },
 });
 
-function AllProviders({children}: {children: React.ReactNode}): ReactElement {
+export function AllProviders({children}: {children: React.ReactNode}): ReactElement {
     return (
         <MantineProvider theme={theme} defaultColorScheme="dark">
             {children}
         </MantineProvider>
     );
 }
-
-function customRender(ui: ReactElement, options?: Omit<RenderOptions, "wrapper">): ReturnType<typeof render> {
-    return render(ui, {wrapper: AllProviders, ... options});
-}
-
-// Re-export everything
-export * from "@testing-library/react";
-export {customRender as render};

@@ -1,6 +1,7 @@
 import {Box} from "@mantine/core";
 import {useEffect, useRef} from "react";
 
+import type {ColorConfig, ShapeConfig} from "../types/style-layer";
 import type {LayerItem} from "./layout/LeftSidebar";
 
 interface GraphtyElementType extends HTMLElement {
@@ -17,6 +18,69 @@ interface GraphtyElementType extends HTMLElement {
             clear: () => void;
         };
     };
+}
+
+/**
+ * Map UI shape types to graphty-element shape types.
+ */
+const SHAPE_TYPE_MAP: Record<string, string> = {
+    torusKnot: "torus-knot",
+    torus: "torus-knot", // torus not supported, fallback to torus-knot
+    disc: "geodesic", // disc not supported, fallback to geodesic
+    plane: "box", // plane not supported, fallback to box
+};
+
+/**
+ * Convert ShapeConfig to graphty-element format.
+ */
+function convertShapeConfig(shape: ShapeConfig): {type?: string, size?: number} {
+    const type = SHAPE_TYPE_MAP[shape.type] ?? shape.type;
+    return {
+        type,
+        size: shape.size,
+    };
+}
+
+/**
+ * Convert ColorConfig to graphty-element texture.color format.
+ */
+function convertColorConfig(colorConfig: ColorConfig): string | {colorType: string, value?: string, colors?: string[], direction?: number, opacity?: number} {
+    switch (colorConfig.mode) {
+        case "solid": {
+            // For solid colors, we can use either a simple string or the advanced format
+            const {opacity, color} = colorConfig;
+            if (opacity === 1.0) {
+                // Use simple string format
+                return color;
+            }
+
+            // Use advanced format with opacity
+            return {
+                colorType: "solid",
+                value: color,
+                opacity,
+            };
+        }
+
+        case "gradient":
+            return {
+                colorType: "gradient",
+                colors: colorConfig.stops.map((stop) => stop.color),
+                direction: colorConfig.direction,
+                opacity: colorConfig.opacity,
+            };
+
+        case "radial":
+            return {
+                colorType: "radial-gradient",
+                colors: colorConfig.stops.map((stop) => stop.color),
+                opacity: colorConfig.opacity,
+            };
+
+        default:
+            // This should never happen, but TypeScript requires exhaustive handling
+            return "#5b8ff9";
+    }
 }
 
 interface GraphtyProps {
@@ -58,12 +122,21 @@ export function Graphty({layers, layout2d = false, dataSource, dataSourceConfig,
                         // Convert node style if present - check for undefined, not falsy (allow empty string)
                         if (layer.styleLayer.node !== undefined) {
                             const nodeStyle: Record<string, unknown> = {};
+                            const {style} = layer.styleLayer.node;
+
+                            // Convert shape if present
+                            if (style.shape) {
+                                nodeStyle.shape = convertShapeConfig(style.shape as ShapeConfig);
+                            }
 
                             // Convert color to texture.color format if present
-                            if (layer.styleLayer.node.style.color) {
+                            if (style.color && typeof style.color === "object" && "mode" in style.color) {
                                 nodeStyle.texture = {
-                                    color: layer.styleLayer.node.style.color,
+                                    color: convertColorConfig(style.color as ColorConfig),
                                 };
+                            } else if (style.texture && typeof style.texture === "object") {
+                                // Legacy texture.color format - pass through
+                                nodeStyle.texture = style.texture;
                             }
 
                             layerObj.node = {

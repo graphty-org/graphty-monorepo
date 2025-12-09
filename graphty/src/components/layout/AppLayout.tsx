@@ -1,5 +1,5 @@
 import {Box} from "@mantine/core";
-import React, {useCallback, useRef, useState} from "react";
+import React, {useCallback, useEffect, useRef, useState} from "react";
 
 import {Graphty} from "../Graphty";
 import {LoadDataModal} from "../LoadDataModal";
@@ -7,6 +7,25 @@ import {BottomToolbar, ViewMode} from "./BottomToolbar";
 import {LayerItem, LeftSidebar} from "./LeftSidebar";
 import {RightSidebar} from "./RightSidebar";
 import {TopMenuBar} from "./TopMenuBar";
+
+// Sample test data for development - a simple graph with a few nodes and edges
+const TEST_GRAPH_DATA = {
+    nodes: [
+        {id: "1", label: "Node 1", group: "A"},
+        {id: "2", label: "Node 2", group: "A"},
+        {id: "3", label: "Node 3", group: "B"},
+        {id: "4", label: "Node 4", group: "B"},
+        {id: "5", label: "Node 5", group: "C"},
+    ],
+    edges: [
+        {src: "1", dst: "2"},
+        {src: "1", dst: "3"},
+        {src: "2", dst: "4"},
+        {src: "3", dst: "4"},
+        {src: "4", dst: "5"},
+        {src: "2", dst: "5"},
+    ],
+};
 
 interface AppLayoutProps {
     className?: string;
@@ -84,6 +103,18 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
 
     const handleLoadData = useCallback((dataSource: string, dataSourceConfig: Record<string, unknown>, replaceExisting: boolean) => {
         setDataSourceState({dataSource, dataSourceConfig, replaceExisting});
+    }, []);
+
+    // Load test data if ?test=true query parameter is present
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("test") === "true") {
+            setDataSourceState({
+                dataSource: "json",
+                dataSourceConfig: {data: JSON.stringify(TEST_GRAPH_DATA)},
+                replaceExisting: true,
+            });
+        }
     }, []);
 
     return (

@@ -58,9 +58,46 @@ export interface NodeStyle {
 }
 
 /**
- * Edge style configuration (placeholder for future phases).
+ * Edge line type options.
+ * Matches graphty-element LineType enum.
  */
-export type EdgeStyle = Record<string, unknown>;
+export type EdgeLineType = "solid" | "dot" | "star" | "box" | "dash" | "diamond" | "dash-dot" | "sinewave" | "zigzag";
+
+/**
+ * Edge arrow type options.
+ * Matches graphty-element ArrowType enum.
+ */
+export type ArrowType = "none" | "normal" | "inverted" | "dot" | "sphere-dot" | "open-dot" | "tee" | "open-normal" | "diamond" | "open-diamond" | "crow" | "box" | "half-open" | "vee";
+
+/**
+ * Edge line configuration.
+ */
+export interface EdgeLineConfig {
+    type: EdgeLineType;
+    width: number;
+    color: string;
+    opacity: number;
+    animationSpeed?: number;
+}
+
+/**
+ * Arrow configuration for head or tail.
+ */
+export interface ArrowConfig {
+    type: ArrowType;
+    size: number;
+    color: string;
+    opacity: number;
+}
+
+/**
+ * Complete edge style configuration.
+ */
+export interface EdgeStyle {
+    line?: EdgeLineConfig;
+    arrowHead?: ArrowConfig;
+    arrowTail?: ArrowConfig;
+}
 
 /**
  * Represents the state of a style layer with node and edge styling configurations.

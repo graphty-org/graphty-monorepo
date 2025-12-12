@@ -35,6 +35,7 @@ build-storybook.log
 
 # debug files
 tmp/
+**/__screenshots__
 
 # PUPT
 .pt-config.json.backup

@@ -38,12 +38,13 @@ describe("NodeShapeControl", () => {
         });
     });
 
-    it("calls onChange when size changes", () => {
+    it("calls onChange when size changes (on blur)", () => {
         const onChange = vi.fn();
         render(<NodeShapeControl value={defaultValue} onChange={onChange} />);
 
         const sizeInput = screen.getByLabelText("Size");
         fireEvent.change(sizeInput, {target: {value: "2"}});
+        fireEvent.blur(sizeInput);
 
         expect(onChange).toHaveBeenCalledWith({
             type: "sphere",

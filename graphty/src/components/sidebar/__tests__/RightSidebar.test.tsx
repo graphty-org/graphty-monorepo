@@ -32,8 +32,8 @@ describe("RightSidebar", () => {
         // Should show the layer name and node properties
         expect(screen.getByText("Node Properties")).toBeInTheDocument();
         expect(screen.getByLabelText("Node Selector")).toBeInTheDocument();
-        // Color control now has swatch + hex input
-        expect(screen.getByLabelText("Color hex value")).toBeInTheDocument();
+        // Color control now has swatch + hex input (multiple on page due to edge controls)
+        expect(screen.getAllByLabelText("Color hex value").length).toBeGreaterThan(0);
     });
 
     it("displays the selected layer's name", () => {

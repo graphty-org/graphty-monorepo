@@ -1,27 +1,27 @@
 import {Box, Stack, Text, TextInput} from "@mantine/core";
 import React, {useEffect, useState} from "react";
 
-import type {ColorConfig, NodeStyle, ShapeConfig} from "../../../types/style-layer";
+import type {ArrowConfig, ColorConfig, EdgeLineConfig, EdgeStyle, NodeStyle, ShapeConfig} from "../../../types/style-layer";
+import {
+    DEFAULT_ARROW_HEAD,
+    DEFAULT_ARROW_TAIL,
+    DEFAULT_COLOR,
+    DEFAULT_EDGE_LINE,
+    DEFAULT_SHAPE,
+} from "../../../utils/style-defaults";
 import type {LayerItem} from "../../layout/LeftSidebar";
 import {ControlGroup} from "../controls/ControlGroup";
+import {ControlSection} from "../controls/ControlSection";
+import {EdgeArrowControl} from "../edge-controls/EdgeArrowControl";
+import {EdgeLineControl} from "../edge-controls/EdgeLineControl";
 import {NodeColorControl} from "../node-controls/NodeColorControl";
 import {NodeShapeControl} from "../node-controls/NodeShapeControl";
 
 interface StyleLayerPropertiesPanelProps {
     layer: LayerItem;
     onUpdate?: (layerId: string, updates: Partial<LayerItem["styleLayer"]["node"]>) => void;
+    onEdgeUpdate?: (layerId: string, updates: Partial<LayerItem["styleLayer"]["edge"]>) => void;
 }
-
-const DEFAULT_SHAPE: ShapeConfig = {
-    type: "sphere",
-    size: 1.0,
-};
-
-const DEFAULT_COLOR: ColorConfig = {
-    mode: "solid",
-    color: "#5b8ff9",
-    opacity: 1.0,
-};
 
 type StyleRecord = Record<string, unknown>;
 
@@ -75,17 +75,26 @@ function colorConfigToStyle(colorConfig: ColorConfig): NodeStyle {
 export function StyleLayerPropertiesPanel({
     layer,
     onUpdate,
+    onEdgeUpdate,
 }: StyleLayerPropertiesPanelProps): React.JSX.Element {
     const [selectorValue, setSelectorValue] = useState(layer.styleLayer.node?.selector ?? "");
+    const [edgeSelectorValue, setEdgeSelectorValue] = useState(layer.styleLayer.edge?.selector ?? "");
 
     // Update local state when layer changes
     useEffect(() => {
         setSelectorValue(layer.styleLayer.node?.selector ?? "");
+        setEdgeSelectorValue(layer.styleLayer.edge?.selector ?? "");
     }, [layer]);
 
     const currentStyle: StyleRecord = layer.styleLayer.node?.style ?? {};
     const shapeConfig: ShapeConfig = (currentStyle.shape as ShapeConfig | undefined) ?? DEFAULT_SHAPE;
     const colorConfig = getColorConfig(currentStyle);
+
+    // Edge style extraction
+    const currentEdgeStyle: EdgeStyle = (layer.styleLayer.edge?.style as EdgeStyle | undefined) ?? {};
+    const edgeLineConfig: EdgeLineConfig = currentEdgeStyle.line ?? DEFAULT_EDGE_LINE;
+    const arrowHeadConfig: ArrowConfig = currentEdgeStyle.arrowHead ?? DEFAULT_ARROW_HEAD;
+    const arrowTailConfig: ArrowConfig = currentEdgeStyle.arrowTail ?? DEFAULT_ARROW_TAIL;
 
     const handleSelectorBlur = (): void => {
         if (onUpdate) {
@@ -116,6 +125,52 @@ export function StyleLayerPropertiesPanel({
                 style: {
                     ... currentStyle,
                     ... colorStyle,
+                },
+            });
+        }
+    };
+
+    // Edge handlers
+    const handleEdgeSelectorBlur = (): void => {
+        if (onEdgeUpdate) {
+            onEdgeUpdate(layer.id, {
+                selector: edgeSelectorValue,
+                style: layer.styleLayer.edge?.style ?? {},
+            });
+        }
+    };
+
+    const handleEdgeLineChange = (line: EdgeLineConfig): void => {
+        if (onEdgeUpdate) {
+            onEdgeUpdate(layer.id, {
+                selector: layer.styleLayer.edge?.selector ?? "",
+                style: {
+                    ... currentEdgeStyle,
+                    line,
+                },
+            });
+        }
+    };
+
+    const handleArrowHeadChange = (arrowHead: ArrowConfig): void => {
+        if (onEdgeUpdate) {
+            onEdgeUpdate(layer.id, {
+                selector: layer.styleLayer.edge?.selector ?? "",
+                style: {
+                    ... currentEdgeStyle,
+                    arrowHead,
+                },
+            });
+        }
+    };
+
+    const handleArrowTailChange = (arrowTail: ArrowConfig): void => {
+        if (onEdgeUpdate) {
+            onEdgeUpdate(layer.id, {
+                selector: layer.styleLayer.edge?.selector ?? "",
+                style: {
+                    ... currentEdgeStyle,
+                    arrowTail,
                 },
             });
         }
@@ -179,12 +234,51 @@ export function StyleLayerPropertiesPanel({
                 </Stack>
             </Box>
 
-            {/* Edge Properties Section - Placeholder for future phases */}
-            <ControlGroup label="Edge Properties">
-                <Text size="xs" c="dark.4" style={{fontSize: "10px"}}>
-                    Edge styling options coming soon
-                </Text>
-            </ControlGroup>
+            {/* Edge Properties Section */}
+            <ControlSection label="Edge Properties">
+                {/* Edge Selector */}
+                <TextInput
+                    label="Edge Selector"
+                    aria-label="Edge Selector"
+                    description="JMESPath expression to select edges"
+                    placeholder="e.g., source == `0`"
+                    value={edgeSelectorValue}
+                    onChange={(e) => {
+                        setEdgeSelectorValue(e.currentTarget.value);
+                    }}
+                    onBlur={handleEdgeSelectorBlur}
+                    size="compact"
+                    styles={{
+                        description: {fontSize: "9px", color: "var(--mantine-color-dark-3)", lineHeight: 1.2},
+                    }}
+                />
+
+                {/* Line Style */}
+                <ControlGroup label="Line">
+                    <EdgeLineControl
+                        value={edgeLineConfig}
+                        onChange={handleEdgeLineChange}
+                    />
+                </ControlGroup>
+
+                {/* Arrow Head */}
+                <ControlGroup label="Arrow Head">
+                    <EdgeArrowControl
+                        label="Arrow Head"
+                        value={arrowHeadConfig}
+                        onChange={handleArrowHeadChange}
+                    />
+                </ControlGroup>
+
+                {/* Arrow Tail */}
+                <ControlGroup label="Arrow Tail">
+                    <EdgeArrowControl
+                        label="Arrow Tail"
+                        value={arrowTailConfig}
+                        onChange={handleArrowTailChange}
+                    />
+                </ControlGroup>
+            </ControlSection>
         </Stack>
     );
 }

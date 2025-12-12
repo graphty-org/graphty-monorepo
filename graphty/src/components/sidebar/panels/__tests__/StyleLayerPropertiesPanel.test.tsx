@@ -37,9 +37,9 @@ describe("StyleLayerPropertiesPanel", () => {
     it("renders node color input", () => {
         render(<StyleLayerPropertiesPanel layer={mockLayer} />);
 
-        // Color control now has swatch + hex input
-        const colorInput = screen.getByLabelText("Color hex value");
-        expect(colorInput).toBeInTheDocument();
+        // Color control now has swatch + hex input (multiple on page due to edge controls)
+        const colorInputs = screen.getAllByLabelText("Color hex value");
+        expect(colorInputs.length).toBeGreaterThan(0);
     });
 
     it("calls onUpdate when selector changes", () => {
@@ -56,12 +56,14 @@ describe("StyleLayerPropertiesPanel", () => {
         });
     });
 
-    it("calls onUpdate when color changes", () => {
+    it("calls onUpdate when color changes (on blur)", () => {
         const onUpdate = vi.fn();
         render(<StyleLayerPropertiesPanel layer={mockLayer} onUpdate={onUpdate} />);
 
-        const colorInput = screen.getByLabelText("Color hex value");
-        fireEvent.change(colorInput, {target: {value: "00FF00"}});
+        // First color hex input is for node color
+        const colorInputs = screen.getAllByLabelText("Color hex value");
+        fireEvent.change(colorInputs[0], {target: {value: "00FF00"}});
+        fireEvent.blur(colorInputs[0]);
 
         expect(onUpdate).toHaveBeenCalledWith(mockLayer.id, expect.objectContaining({
             selector: "id == `1`",

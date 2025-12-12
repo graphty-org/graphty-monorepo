@@ -1,5 +1,5 @@
 import {ActionIcon, Box, ColorPicker, ColorSwatch, Group, NumberInput, Popover, Stack, Text, TextInput} from "@mantine/core";
-import React, {useState} from "react";
+import React, {useEffect, useState} from "react";
 
 export interface CompactColorInputProps {
     /** Hex color value (e.g., "#5B8FF9") */
@@ -29,6 +29,22 @@ export function CompactColorInput({
     label,
 }: CompactColorInputProps): React.JSX.Element {
     const [colorPickerOpen, setColorPickerOpen] = useState(false);
+
+    // Local state for hex input to prevent focus loss during typing
+    const [localHex, setLocalHex] = useState(color.replace("#", "").toUpperCase());
+
+    // Local state for opacity input to prevent focus loss during typing
+    const [localOpacity, setLocalOpacity] = useState<string | number>(opacity);
+
+    // Sync local hex state when prop changes (e.g., from color picker)
+    useEffect(() => {
+        setLocalHex(color.replace("#", "").toUpperCase());
+    }, [color]);
+
+    // Sync local opacity state when prop changes
+    useEffect(() => {
+        setLocalOpacity(opacity);
+    }, [opacity]);
 
     // Handle color picker change - parses HEXA format and updates both hex and opacity
     const handleColorPickerChange = (hexaColor: string): void => {
@@ -62,22 +78,40 @@ export function CompactColorInput({
     };
 
     const handleHexInputChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
-        let hex = e.currentTarget.value.toUpperCase();
-        // Add # if missing
+        // Update local state freely to allow typing
+        setLocalHex(e.currentTarget.value.toUpperCase());
+    };
+
+    const handleHexInputBlur = (): void => {
+        let hex = localHex.toUpperCase();
+        // Add # if missing for validation
         if (hex && !hex.startsWith("#")) {
             hex = `#${hex}`;
         }
 
-        // Only update if valid hex
-        if (/^#[0-9A-F]{6}$/i.test(hex)) {
+        // Only commit if valid hex and different from current value
+        if (/^#[0-9A-F]{6}$/i.test(hex) && hex !== color) {
             onColorChange(hex);
+        } else {
+            // Reset to current value if invalid
+            setLocalHex(color.replace("#", "").toUpperCase());
         }
     };
 
-    const handleOpacityChange = (newOpacity: string | number): void => {
-        const opacityValue = typeof newOpacity === "string" ? parseFloat(newOpacity) : newOpacity;
+    const handleLocalOpacityChange = (newOpacity: string | number): void => {
+        setLocalOpacity(newOpacity);
+    };
+
+    const handleOpacityBlur = (): void => {
+        const opacityValue = typeof localOpacity === "string" ? parseFloat(localOpacity) : localOpacity;
         if (!isNaN(opacityValue)) {
-            onOpacityChange(Math.min(100, Math.max(0, opacityValue)));
+            const clampedOpacity = Math.min(100, Math.max(0, opacityValue));
+            if (clampedOpacity !== opacity) {
+                onOpacityChange(clampedOpacity);
+            }
+        } else {
+            // Reset to current value if invalid
+            setLocalOpacity(opacity);
         }
     };
 
@@ -138,8 +172,9 @@ export function CompactColorInput({
             {/* Hex input */}
             <TextInput
                 size="compact"
-                value={color.replace("#", "").toUpperCase()}
+                value={localHex}
                 onChange={handleHexInputChange}
+                onBlur={handleHexInputBlur}
                 aria-label="Color hex value"
                 w={72}
                 styles={{
@@ -163,8 +198,9 @@ export function CompactColorInput({
             {/* Opacity input */}
             <NumberInput
                 size="compact"
-                value={opacity}
-                onChange={handleOpacityChange}
+                value={localOpacity}
+                onChange={handleLocalOpacityChange}
+                onBlur={handleOpacityBlur}
                 min={0}
                 max={100}
                 hideControls

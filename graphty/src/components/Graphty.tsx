@@ -1,7 +1,7 @@
 import {Box} from "@mantine/core";
 import {useEffect, useRef} from "react";
 
-import type {ColorConfig, ShapeConfig} from "../types/style-layer";
+import type {ArrowConfig, ColorConfig, EdgeLineConfig, EdgeStyle, ShapeConfig} from "../types/style-layer";
 import type {LayerItem} from "./layout/LeftSidebar";
 
 interface GraphtyElementType extends HTMLElement {
@@ -83,6 +83,64 @@ function convertColorConfig(colorConfig: ColorConfig): string | {colorType: stri
     }
 }
 
+/**
+ * Convert EdgeLineConfig to graphty-element line format.
+ * Converts opacity from 0-100 to 0-1.
+ */
+function convertEdgeLineConfig(line: EdgeLineConfig): {type?: string, width?: number, color?: string, opacity?: number} {
+    return {
+        type: line.type,
+        width: line.width,
+        color: line.color,
+        opacity: line.opacity / 100, // Convert 0-100 to 0-1
+    };
+}
+
+/**
+ * Convert ArrowConfig to graphty-element arrow format.
+ * Converts opacity from 0-100 to 0-1.
+ */
+function convertArrowConfig(arrow: ArrowConfig): {type?: string, size?: number, color?: string, opacity?: number} | undefined {
+    // Don't include arrow config if type is "none"
+    if (arrow.type === "none") {
+        return undefined;
+    }
+
+    return {
+        type: arrow.type,
+        size: arrow.size,
+        color: arrow.color,
+        opacity: arrow.opacity / 100, // Convert 0-100 to 0-1
+    };
+}
+
+/**
+ * Convert EdgeStyle to graphty-element edge style format.
+ */
+function convertEdgeStyle(edgeStyle: EdgeStyle): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+
+    if (edgeStyle.line) {
+        result.line = convertEdgeLineConfig(edgeStyle.line);
+    }
+
+    if (edgeStyle.arrowHead) {
+        const converted = convertArrowConfig(edgeStyle.arrowHead);
+        if (converted) {
+            result.arrowHead = converted;
+        }
+    }
+
+    if (edgeStyle.arrowTail) {
+        const converted = convertArrowConfig(edgeStyle.arrowTail);
+        if (converted) {
+            result.arrowTail = converted;
+        }
+    }
+
+    return result;
+}
+
 interface GraphtyProps {
     layers: LayerItem[];
     layout2d?: boolean;
@@ -147,9 +205,10 @@ export function Graphty({layers, layout2d = false, dataSource, dataSourceConfig,
 
                         // Convert edge style if present - check for undefined, not falsy
                         if (layer.styleLayer.edge !== undefined) {
+                            const edgeStyle = layer.styleLayer.edge.style as EdgeStyle | undefined;
                             layerObj.edge = {
                                 selector: layer.styleLayer.edge.selector || "",
-                                style: layer.styleLayer.edge.style,
+                                style: edgeStyle ? convertEdgeStyle(edgeStyle) : {},
                             };
                         }
 

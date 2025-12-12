@@ -75,3 +75,40 @@ export function getShapeLabel(value: string): string {
     const option = getFlatShapeOptions().find((opt) => opt.value === value);
     return option?.label ?? value;
 }
+
+/**
+ * Edge line type options.
+ * Matches graphty-element LineType enum.
+ */
+export const LINE_TYPE_OPTIONS = [
+    {value: "solid", label: "Solid"},
+    {value: "dash", label: "Dash"},
+    {value: "dot", label: "Dot"},
+    {value: "dash-dot", label: "Dash-Dot"},
+    {value: "box", label: "Box"},
+    {value: "diamond", label: "Diamond"},
+    {value: "star", label: "Star"},
+    {value: "sinewave", label: "Sinewave"},
+    {value: "zigzag", label: "Zigzag"},
+] as const;
+
+/**
+ * Arrow type options for edge heads and tails.
+ * Matches graphty-element ArrowType enum.
+ */
+export const ARROW_TYPE_OPTIONS = [
+    {value: "none", label: "None"},
+    {value: "normal", label: "Normal"},
+    {value: "inverted", label: "Inverted"},
+    {value: "vee", label: "Vee"},
+    {value: "tee", label: "Tee"},
+    {value: "diamond", label: "Diamond"},
+    {value: "open-diamond", label: "Open Diamond"},
+    {value: "box", label: "Box"},
+    {value: "dot", label: "Dot"},
+    {value: "sphere-dot", label: "Sphere Dot"},
+    {value: "open-dot", label: "Open Dot"},
+    {value: "crow", label: "Crow"},
+    {value: "half-open", label: "Half Open"},
+    {value: "open-normal", label: "Open Normal"},
+] as const;

@@ -64,12 +64,13 @@ describe("NodeColorControl", () => {
         );
     });
 
-    it("calls onChange when color changes in solid mode", () => {
+    it("calls onChange when color changes in solid mode (on blur)", () => {
         const onChange = vi.fn();
         render(<NodeColorControl value={solidColorValue} onChange={onChange} />);
 
         const colorInput = screen.getByLabelText("Color hex value");
         fireEvent.change(colorInput, {target: {value: "00FF00"}});
+        fireEvent.blur(colorInput);
 
         expect(onChange).toHaveBeenCalledWith(
             expect.objectContaining({

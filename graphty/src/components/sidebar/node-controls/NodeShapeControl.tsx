@@ -1,6 +1,6 @@
 import {Box, Group, NativeSelect, NumberInput} from "@mantine/core";
 import {ChevronDown} from "lucide-react";
-import React from "react";
+import React, {useEffect, useState} from "react";
 
 import {NODE_SHAPE_OPTIONS} from "../../../constants/style-options";
 
@@ -19,6 +19,14 @@ interface NodeShapeControlProps {
  * Displays shapes in grouped categories (Basic, Platonic, Spherical, Other).
  */
 export function NodeShapeControl({value, onChange}: NodeShapeControlProps): React.JSX.Element {
+    // Local state for size to prevent focus loss during typing
+    const [localSize, setLocalSize] = useState<string | number>(value.size);
+
+    // Sync local state when prop changes (e.g., from external updates)
+    useEffect(() => {
+        setLocalSize(value.size);
+    }, [value.size]);
+
     const handleShapeChange = (event: React.ChangeEvent<HTMLSelectElement>): void => {
         onChange({
             ... value,
@@ -27,11 +35,17 @@ export function NodeShapeControl({value, onChange}: NodeShapeControlProps): Reac
     };
 
     const handleSizeChange = (newSize: string | number): void => {
-        const size = typeof newSize === "string" ? parseFloat(newSize) || value.size : newSize;
-        onChange({
-            ... value,
-            size,
-        });
+        setLocalSize(newSize);
+    };
+
+    const handleSizeBlur = (): void => {
+        const size = typeof localSize === "string" ? parseFloat(localSize) || value.size : localSize;
+        if (size !== value.size) {
+            onChange({
+                ... value,
+                size,
+            });
+        }
     };
 
     // Build options with groups for NativeSelect
@@ -59,10 +73,10 @@ export function NodeShapeControl({value, onChange}: NodeShapeControlProps): Reac
             <Box style={{flex: 1}}>
                 <NumberInput
                     label="Size"
-                    value={value.size}
+                    value={localSize}
                     onChange={handleSizeChange}
+                    onBlur={handleSizeBlur}
                     min={0.1}
-                    max={10}
                     step={0.1}
                     decimalScale={1}
                     hideControls

@@ -99,6 +99,29 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
         setLayers(updatedLayers);
     };
 
+    const handleEdgeUpdate = (layerId: string, updates: Partial<LayerItem["styleLayer"]["edge"]>): void => {
+        const updatedLayers = layers.map((layer) => {
+            if (layer.id === layerId) {
+                return {
+                    ... layer,
+                    styleLayer: {
+                        ... layer.styleLayer,
+                        edge: {
+                            selector: "",
+                            style: {},
+                            ... layer.styleLayer.edge,
+                            ... updates,
+                        },
+                    },
+                };
+            }
+
+            return layer;
+        });
+
+        setLayers(updatedLayers);
+    };
+
     const selectedLayer = layers.find((layer) => layer.id === selectedLayerId) ?? null;
 
     const handleLoadData = useCallback((dataSource: string, dataSourceConfig: Record<string, unknown>, replaceExisting: boolean) => {
@@ -207,7 +230,7 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                             zIndex: 10,
                         }}
                     >
-                        <RightSidebar selectedLayer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
+                        <RightSidebar selectedLayer={selectedLayer} onLayerUpdate={handleLayerUpdate} onEdgeUpdate={handleEdgeUpdate} />
                     </Box>
                 )}
 

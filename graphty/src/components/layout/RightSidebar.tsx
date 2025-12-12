@@ -10,9 +10,10 @@ interface RightSidebarProps {
     style?: React.CSSProperties;
     selectedLayer: LayerItem | null;
     onLayerUpdate?: (layerId: string, updates: Partial<LayerItem["styleLayer"]["node"]>) => void;
+    onEdgeUpdate?: (layerId: string, updates: Partial<LayerItem["styleLayer"]["edge"]>) => void;
 }
 
-export function RightSidebar({className, style, selectedLayer, onLayerUpdate}: RightSidebarProps): React.JSX.Element {
+export function RightSidebar({className, style, selectedLayer, onLayerUpdate, onEdgeUpdate}: RightSidebarProps): React.JSX.Element {
     return (
         <Box
             component="aside"
@@ -58,6 +59,7 @@ export function RightSidebar({className, style, selectedLayer, onLayerUpdate}: R
                         <StyleLayerPropertiesPanel
                             layer={selectedLayer}
                             onUpdate={onLayerUpdate}
+                            onEdgeUpdate={onEdgeUpdate}
                         />
                     ) : (
                         <Box style={{textAlign: "center", paddingTop: "24px", paddingBottom: "24px"}}>

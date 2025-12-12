@@ -76,8 +76,9 @@ describe("Compact Size Style Regression", () => {
         it("Color hex input has correct compact styles", () => {
             render(<RightSidebar selectedLayer={mockLayer} />);
 
-            const input = screen.getByLabelText("Color hex value");
-            const computed = window.getComputedStyle(input);
+            // First color hex input is for node color
+            const inputs = screen.getAllByLabelText("Color hex value");
+            const computed = window.getComputedStyle(inputs[0]);
 
             expect(computed.height).toBe("24px");
             expect(computed.fontSize).toBe("11px");
@@ -116,8 +117,9 @@ describe("Compact Size Style Regression", () => {
         it("Opacity input has correct compact styles", () => {
             render(<RightSidebar selectedLayer={mockLayer} />);
 
-            const input = screen.getByLabelText("Opacity");
-            const computed = window.getComputedStyle(input);
+            // First opacity input is for node color
+            const inputs = screen.getAllByLabelText("Opacity");
+            const computed = window.getComputedStyle(inputs[0]);
 
             expect(computed.height).toBe("24px");
             expect(computed.fontSize).toBe("11px");
@@ -157,8 +159,9 @@ describe("Compact Size Style Regression", () => {
 
             const nodeSelector = screen.getByLabelText("Node Selector");
             const size = screen.getByLabelText("Size");
-            const hexColor = screen.getByLabelText("Color hex value");
-            const opacity = screen.getByLabelText("Opacity");
+            // First color hex and opacity inputs are for node color
+            const hexColor = screen.getAllByLabelText("Color hex value")[0];
+            const opacity = screen.getAllByLabelText("Opacity")[0];
 
             const heights = [nodeSelector, size, hexColor, opacity].map(
                 (el) => window.getComputedStyle(el).height,
@@ -174,8 +177,9 @@ describe("Compact Size Style Regression", () => {
 
             const nodeSelector = screen.getByLabelText("Node Selector");
             const size = screen.getByLabelText("Size");
-            const hexColor = screen.getByLabelText("Color hex value");
-            const opacity = screen.getByLabelText("Opacity");
+            // First color hex and opacity inputs are for node color
+            const hexColor = screen.getAllByLabelText("Color hex value")[0];
+            const opacity = screen.getAllByLabelText("Opacity")[0];
 
             const fontSizes = [nodeSelector, size, hexColor, opacity].map(
                 (el) => window.getComputedStyle(el).fontSize,
@@ -191,8 +195,9 @@ describe("Compact Size Style Regression", () => {
 
             const nodeSelector = screen.getByLabelText("Node Selector");
             const size = screen.getByLabelText("Size");
-            const hexColor = screen.getByLabelText("Color hex value");
-            const opacity = screen.getByLabelText("Opacity");
+            // First color hex and opacity inputs are for node color
+            const hexColor = screen.getAllByLabelText("Color hex value")[0];
+            const opacity = screen.getAllByLabelText("Opacity")[0];
 
             const bgColors = [nodeSelector, size, hexColor, opacity].map(
                 (el) => window.getComputedStyle(el).backgroundColor,

@@ -15,7 +15,7 @@
  * - Colors: converted to uppercase hex format
  */
 
-import type {ArrowConfig, ColorConfig, EdgeLineConfig, ShapeConfig} from "../types/style-layer";
+import type {ArrowConfig, ColorConfig, EdgeLineConfig, GlowConfig, NodeEffectsConfig, OutlineConfig, RichTextStyle, ShapeConfig, TextBackgroundStyle, TextOutlineStyle, TextShadowStyle} from "../types/style-layer";
 
 /**
  * Default shape configuration derived from graphty-element defaults.
@@ -72,4 +72,90 @@ export const DEFAULT_ARROW_TAIL: ArrowConfig = {
     size: 1,
     color: "#A9A9A9",
     opacity: 100,
+};
+
+/**
+ * Default glow effect configuration.
+ * Uses a subtle cyan/white glow by default.
+ */
+export const DEFAULT_GLOW: GlowConfig = {
+    enabled: true,
+    color: "#FFFFFF",
+    strength: 0.5,
+};
+
+/**
+ * Default outline effect configuration.
+ * Uses a white outline with medium width.
+ */
+export const DEFAULT_OUTLINE: OutlineConfig = {
+    enabled: true,
+    color: "#FFFFFF",
+    width: 1,
+};
+
+/**
+ * Default node effects configuration.
+ * All effects disabled by default.
+ */
+export const DEFAULT_NODE_EFFECTS: NodeEffectsConfig = {
+    glow: undefined,
+    outline: undefined,
+    wireframe: false,
+    flatShaded: false,
+};
+
+/**
+ * Default text outline style configuration.
+ */
+export const DEFAULT_TEXT_OUTLINE: TextOutlineStyle = {
+    enabled: false,
+    color: "#000000",
+    width: 1,
+};
+
+/**
+ * Default text shadow style configuration.
+ */
+export const DEFAULT_TEXT_SHADOW: TextShadowStyle = {
+    enabled: false,
+    color: "#000000",
+    blur: 2,
+    offsetX: 1,
+    offsetY: 1,
+};
+
+/**
+ * Default text background style configuration.
+ */
+export const DEFAULT_TEXT_BACKGROUND: TextBackgroundStyle = {
+    enabled: false,
+    color: "#000000",
+    padding: 4,
+    borderRadius: 2,
+};
+
+/**
+ * Default rich text style configuration for labels and tooltips.
+ * Note: fontSize 48 matches graphty-element default for visibility on 3D graphs.
+ */
+export const DEFAULT_RICH_TEXT_STYLE: RichTextStyle = {
+    enabled: false,
+    text: "",
+    location: "static",
+    font: {
+        family: "Arial",
+        size: 48,
+        weight: 400,
+        color: "#FFFFFF",
+    },
+    background: undefined,
+    position: {
+        attachPosition: "above",
+        offset: 0,
+        billboard: true,
+    },
+    effects: undefined,
+    animation: undefined,
+    advanced: undefined,
 };

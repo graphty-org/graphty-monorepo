@@ -48,6 +48,34 @@ export interface ShapeConfig {
 }
 
 /**
+ * Glow effect configuration.
+ */
+export interface GlowConfig {
+    enabled: boolean;
+    color: string;
+    strength: number;
+}
+
+/**
+ * Outline effect configuration.
+ */
+export interface OutlineConfig {
+    enabled: boolean;
+    color: string;
+    width: number;
+}
+
+/**
+ * Combined node effects configuration.
+ */
+export interface NodeEffectsConfig {
+    glow?: GlowConfig;
+    outline?: OutlineConfig;
+    wireframe: boolean;
+    flatShaded: boolean;
+}
+
+/**
  * Node style configuration with shape and color options.
  */
 export interface NodeStyle {
@@ -55,6 +83,11 @@ export interface NodeStyle {
     color?: ColorConfig;
     // Legacy support for simple color string
     texture?: {color?: string};
+    // Node effects
+    effects?: NodeEffectsConfig;
+    // Labels and tooltips
+    label?: RichTextStyle;
+    tooltip?: RichTextStyle;
 }
 
 /**
@@ -97,6 +130,90 @@ export interface EdgeStyle {
     line?: EdgeLineConfig;
     arrowHead?: ArrowConfig;
     arrowTail?: ArrowConfig;
+    label?: RichTextStyle;
+    tooltip?: RichTextStyle;
+}
+
+/**
+ * Text location options for labels and tooltips.
+ * Matches graphty-element TextLocation enum.
+ */
+export type TextLocation = "static" | "textPath";
+
+/**
+ * Text attach position options.
+ * Matches graphty-element TextAttachPosition enum.
+ */
+export type TextAttachPosition = "above" | "below" | "left" | "right" | "center";
+
+/**
+ * Text animation options.
+ * Matches graphty-element TextAnimation enum.
+ */
+export type TextAnimation = "none" | "typewriter" | "fade-in" | "slide-in";
+
+/**
+ * Text outline style configuration.
+ */
+export interface TextOutlineStyle {
+    enabled: boolean;
+    color: string;
+    width: number;
+}
+
+/**
+ * Text shadow style configuration.
+ */
+export interface TextShadowStyle {
+    enabled: boolean;
+    color: string;
+    blur: number;
+    offsetX: number;
+    offsetY: number;
+}
+
+/**
+ * Text background style configuration.
+ */
+export interface TextBackgroundStyle {
+    enabled: boolean;
+    color: string;
+    padding: number;
+    borderRadius: number;
+}
+
+/**
+ * Rich text style configuration for labels and tooltips.
+ * Supports comprehensive text styling options.
+ */
+export interface RichTextStyle {
+    enabled: boolean;
+    text: string;
+    location: TextLocation;
+    font: {
+        family: string;
+        size: number;
+        weight: number;
+        color: string;
+    };
+    background?: TextBackgroundStyle;
+    position: {
+        attachPosition: TextAttachPosition;
+        offset: number;
+        billboard: boolean;
+    };
+    effects?: {
+        outline?: TextOutlineStyle;
+        shadow?: TextShadowStyle;
+    };
+    animation?: {
+        type: TextAnimation;
+        duration: number;
+    };
+    advanced?: {
+        resolution: number;
+        depthFade: boolean;
+    };
 }
 
 /**

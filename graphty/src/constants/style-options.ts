@@ -112,3 +112,60 @@ export const ARROW_TYPE_OPTIONS = [
     {value: "half-open", label: "Half Open"},
     {value: "open-normal", label: "Open Normal"},
 ] as const;
+
+/**
+ * Font family options for text labels.
+ */
+export const FONT_OPTIONS = [
+    {value: "Arial", label: "Arial"},
+    {value: "Helvetica", label: "Helvetica"},
+    {value: "Times New Roman", label: "Times New Roman"},
+    {value: "Georgia", label: "Georgia"},
+    {value: "Verdana", label: "Verdana"},
+    {value: "Courier New", label: "Courier New"},
+    {value: "monospace", label: "Monospace"},
+] as const;
+
+/**
+ * Font weight options for text labels.
+ */
+export const FONT_WEIGHT_OPTIONS = [
+    {value: 100, label: "Thin"},
+    {value: 300, label: "Light"},
+    {value: 400, label: "Normal"},
+    {value: 500, label: "Medium"},
+    {value: 700, label: "Bold"},
+    {value: 900, label: "Black"},
+] as const;
+
+/**
+ * Text location options for labels.
+ * Matches graphty-element TextLocation enum.
+ */
+export const TEXT_LOCATION_OPTIONS = [
+    {value: "static", label: "Static"},
+    {value: "textPath", label: "Text Path"},
+] as const;
+
+/**
+ * Text attach position options.
+ * Matches graphty-element TextAttachPosition enum.
+ */
+export const TEXT_ATTACH_POSITION_OPTIONS = [
+    {value: "above", label: "Above"},
+    {value: "below", label: "Below"},
+    {value: "left", label: "Left"},
+    {value: "right", label: "Right"},
+    {value: "center", label: "Center"},
+] as const;
+
+/**
+ * Text animation options.
+ * Matches graphty-element TextAnimation enum.
+ */
+export const TEXT_ANIMATION_OPTIONS = [
+    {value: "none", label: "None"},
+    {value: "typewriter", label: "Typewriter"},
+    {value: "fade-in", label: "Fade In"},
+    {value: "slide-in", label: "Slide In"},
+] as const;

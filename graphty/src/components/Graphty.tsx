@@ -1,7 +1,7 @@
 import {Box} from "@mantine/core";
 import {useEffect, useRef} from "react";
 
-import type {ArrowConfig, ColorConfig, EdgeLineConfig, EdgeStyle, ShapeConfig} from "../types/style-layer";
+import type {ArrowConfig, ColorConfig, EdgeLineConfig, EdgeStyle, NodeEffectsConfig, RichTextStyle, ShapeConfig} from "../types/style-layer";
 import type {LayerItem} from "./layout/LeftSidebar";
 
 interface GraphtyElementType extends HTMLElement {
@@ -138,6 +138,141 @@ function convertEdgeStyle(edgeStyle: EdgeStyle): Record<string, unknown> {
         }
     }
 
+    // Convert label if present and enabled
+    if (edgeStyle.label) {
+        const convertedLabel = convertRichTextStyle(edgeStyle.label);
+        if (convertedLabel) {
+            result.label = convertedLabel;
+        }
+    }
+
+    // Convert tooltip if present and enabled
+    if (edgeStyle.tooltip) {
+        const convertedTooltip = convertRichTextStyle(edgeStyle.tooltip);
+        if (convertedTooltip) {
+            result.tooltip = convertedTooltip;
+        }
+    }
+
+    return result;
+}
+
+/**
+ * Convert NodeEffectsConfig to graphty-element effect format.
+ */
+function convertEffectsConfig(effects: NodeEffectsConfig): Record<string, unknown> | undefined {
+    const result: Record<string, unknown> = {};
+
+    // Add glow if enabled
+    if (effects.glow?.enabled) {
+        result.glow = {
+            color: effects.glow.color,
+            strength: effects.glow.strength,
+        };
+    }
+
+    // Add outline if enabled
+    if (effects.outline?.enabled) {
+        result.outline = {
+            color: effects.outline.color,
+            width: effects.outline.width,
+        };
+    }
+
+    // Add wireframe if true
+    if (effects.wireframe) {
+        result.wireframe = true;
+    }
+
+    // Add flatShaded if true
+    if (effects.flatShaded) {
+        result.flatShaded = true;
+    }
+
+    // Return undefined if no effects are set
+    if (Object.keys(result).length === 0) {
+        return undefined;
+    }
+
+    return result;
+}
+
+/**
+ * Map UI attach position to graphty-element attach position.
+ */
+const ATTACH_POSITION_MAP: Record<string, string> = {
+    above: "top",
+    below: "bottom",
+    left: "left",
+    right: "right",
+    center: "center",
+};
+
+/**
+ * Convert RichTextStyle to graphty-element text format.
+ * Returns undefined if the text style is not enabled.
+ */
+function convertRichTextStyle(textStyle: RichTextStyle): Record<string, unknown> | undefined {
+    // Don't include if not enabled or no text
+    if (!textStyle.enabled || !textStyle.text) {
+        return undefined;
+    }
+
+    // Map attachPosition to location (where the label appears relative to the node)
+    const location = ATTACH_POSITION_MAP[textStyle.position.attachPosition] ?? "top";
+
+    const result: Record<string, unknown> = {
+        enabled: true,
+        text: textStyle.text,
+        // Location determines where label appears relative to node
+        location,
+        // Font settings - flat properties
+        font: textStyle.font.family,
+        fontSize: textStyle.font.size,
+        fontWeight: String(textStyle.font.weight),
+        textColor: textStyle.font.color,
+        // Position settings
+        attachOffset: textStyle.position.offset,
+        // Billboard mode: 7 = BILLBOARDMODE_ALL, 0 = none
+        billboardMode: textStyle.position.billboard ? 7 : 0,
+    };
+
+    // Add background if enabled
+    if (textStyle.background?.enabled) {
+        result.backgroundColor = textStyle.background.color;
+        result.backgroundPadding = textStyle.background.padding;
+        result.cornerRadius = textStyle.background.borderRadius;
+    }
+
+    // Add outline effect if enabled
+    if (textStyle.effects?.outline?.enabled) {
+        result.textOutline = true;
+        result.textOutlineColor = textStyle.effects.outline.color;
+        result.textOutlineWidth = textStyle.effects.outline.width;
+    }
+
+    // Add shadow effect if enabled
+    if (textStyle.effects?.shadow?.enabled) {
+        result.textShadow = true;
+        result.textShadowColor = textStyle.effects.shadow.color;
+        result.textShadowBlur = textStyle.effects.shadow.blur;
+    }
+
+    // Add animation if not "none" - map our animation types to graphty-element types
+    // graphty-element supports: "none", "pulse", "bounce", "shake", "glow", "fill"
+    // We have: "none", "typewriter", "fade-in", "slide-in"
+    // For now, map unsupported animations to "none"
+    if (textStyle.animation && textStyle.animation.type !== "none") {
+        // Our animation types don't directly map to graphty-element, skip for now
+        result.animation = "none";
+    }
+
+    // Add advanced options if present
+    if (textStyle.advanced) {
+        result.resolution = textStyle.advanced.resolution;
+        result.depthFadeEnabled = textStyle.advanced.depthFade;
+    }
+
     return result;
 }
 
@@ -195,6 +330,30 @@ export function Graphty({layers, layout2d = false, dataSource, dataSourceConfig,
                             } else if (style.texture && typeof style.texture === "object") {
                                 // Legacy texture.color format - pass through
                                 nodeStyle.texture = style.texture;
+                            }
+
+                            // Convert effects if present
+                            if (style.effects && typeof style.effects === "object") {
+                                const convertedEffects = convertEffectsConfig(style.effects as NodeEffectsConfig);
+                                if (convertedEffects) {
+                                    nodeStyle.effect = convertedEffects;
+                                }
+                            }
+
+                            // Convert label if present and enabled
+                            if (style.label && typeof style.label === "object") {
+                                const convertedLabel = convertRichTextStyle(style.label as RichTextStyle);
+                                if (convertedLabel) {
+                                    nodeStyle.label = convertedLabel;
+                                }
+                            }
+
+                            // Convert tooltip if present and enabled
+                            if (style.tooltip && typeof style.tooltip === "object") {
+                                const convertedTooltip = convertRichTextStyle(style.tooltip as RichTextStyle);
+                                if (convertedTooltip) {
+                                    nodeStyle.tooltip = convertedTooltip;
+                                }
                             }
 
                             layerObj.node = {

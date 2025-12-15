@@ -282,6 +282,8 @@ interface GraphtyProps {
     dataSource?: string;
     dataSourceConfig?: Record<string, unknown>;
     replaceExisting?: boolean;
+    layout?: string;
+    layoutConfig?: Record<string, unknown>;
 }
 
 declare module "react" {
@@ -290,15 +292,22 @@ declare module "react" {
     }
 }
 
-export function Graphty({layers, layout2d = false, dataSource, dataSourceConfig, replaceExisting}: GraphtyProps): React.JSX.Element {
+export function Graphty({layers, layout2d = false, dataSource, dataSourceConfig, replaceExisting, layout = "d3", layoutConfig}: GraphtyProps): React.JSX.Element {
     const containerRef = useRef<HTMLDivElement>(null);
     const graphtyRef = useRef<GraphtyElementType>(null);
 
+    // Handle layout changes
     useEffect(() => {
         if (graphtyRef.current) {
-            // Set default layout
-            graphtyRef.current.layout = "d3";
+            graphtyRef.current.layout = layout;
+            if (layoutConfig) {
+                graphtyRef.current.layoutConfig = layoutConfig;
+            }
+        }
+    }, [layout, layoutConfig]);
 
+    useEffect(() => {
+        if (graphtyRef.current) {
             // Create styleTemplate from layers
             // Reverse the array so layers at the top of the UI have higher precedence
             const styleTemplate = {

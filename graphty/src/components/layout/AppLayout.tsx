@@ -3,6 +3,7 @@ import React, {useCallback, useEffect, useRef, useState} from "react";
 
 import {Graphty} from "../Graphty";
 import {LoadDataModal} from "../LoadDataModal";
+import {RunLayoutsModal} from "../RunLayoutsModal";
 import {BottomToolbar, ViewMode} from "./BottomToolbar";
 import {LayerItem, LeftSidebar} from "./LeftSidebar";
 import {RightSidebar} from "./RightSidebar";
@@ -45,7 +46,10 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
     const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<ViewMode>("3d");
     const [loadDataModalOpen, setLoadDataModalOpen] = useState(false);
+    const [runLayoutsModalOpen, setRunLayoutsModalOpen] = useState(false);
     const [dataSourceState, setDataSourceState] = useState<DataSourceState | null>(null);
+    const [currentLayout, setCurrentLayout] = useState<string>("d3");
+    const [currentLayoutConfig, setCurrentLayoutConfig] = useState<Record<string, unknown>>({});
     const layerCounter = useRef(1);
 
     const handleAddLayer = (): void => {
@@ -128,6 +132,11 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
         setDataSourceState({dataSource, dataSourceConfig, replaceExisting});
     }, []);
 
+    const handleApplyLayout = useCallback((layoutType: string, config: Record<string, unknown>) => {
+        setCurrentLayout(layoutType);
+        setCurrentLayoutConfig(config);
+    }, []);
+
     // Load test data if ?test=true query parameter is present
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -167,6 +176,9 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                 onLoadData={() => {
                     setLoadDataModalOpen(true);
                 }}
+                onRunLayouts={() => {
+                    setRunLayoutsModalOpen(true);
+                }}
             />
 
             {/* Load Data Modal */}
@@ -176,6 +188,18 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                     setLoadDataModalOpen(false);
                 }}
                 onLoad={handleLoadData}
+            />
+
+            {/* Run Layouts Modal */}
+            <RunLayoutsModal
+                opened={runLayoutsModalOpen}
+                onClose={() => {
+                    setRunLayoutsModalOpen(false);
+                }}
+                onApply={handleApplyLayout}
+                is2DMode={viewMode === "2d"}
+                currentLayout={currentLayout}
+                currentLayoutConfig={currentLayoutConfig}
             />
 
             {/* Main Canvas Area - Full Screen */}
@@ -196,6 +220,8 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                     dataSource={dataSourceState?.dataSource}
                     dataSourceConfig={dataSourceState?.dataSourceConfig}
                     replaceExisting={dataSourceState?.replaceExisting}
+                    layout={currentLayout}
+                    layoutConfig={currentLayoutConfig}
                 />
 
                 {/* Left Sidebar - Overlaid */}

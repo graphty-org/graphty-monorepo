@@ -31,7 +31,7 @@ export default tseslint.config(
                 },
                 tsconfigRootDir: import.meta.dirname,
                 projectService: {
-                    allowDefaultProject: ["*.js", "*.mjs", ".storybook/*.ts"],
+                    allowDefaultProject: ["*.js", "*.mjs", ".storybook/*.ts", ".storybook/*.tsx"],
                 },
             },
         },

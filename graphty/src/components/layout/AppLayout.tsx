@@ -1,6 +1,8 @@
 import {Box} from "@mantine/core";
 import React, {useCallback, useEffect, useRef, useState} from "react";
 
+import {useGraphInfo} from "../../hooks/useGraphInfo";
+import type {GraphTypeConfig} from "../../types/selection";
 import {Graphty} from "../Graphty";
 import {LoadDataModal} from "../LoadDataModal";
 import {BottomToolbar, ViewMode} from "./BottomToolbar";
@@ -47,6 +49,7 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
     const [loadDataModalOpen, setLoadDataModalOpen] = useState(false);
     const [dataSourceState, setDataSourceState] = useState<DataSourceState | null>(null);
     const layerCounter = useRef(1);
+    const {graphInfo, updateStats, addDataSource, setGraphType} = useGraphInfo();
 
     const handleAddLayer = (): void => {
         const newLayer: LayerItem = {
@@ -126,7 +129,36 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
 
     const handleLoadData = useCallback((dataSource: string, dataSourceConfig: Record<string, unknown>, replaceExisting: boolean) => {
         setDataSourceState({dataSource, dataSourceConfig, replaceExisting});
+        // Add the data source to the graph info
+        // Extract filename from config if available, otherwise use the data source type
+        const fileName = typeof dataSourceConfig.fileName === "string" ?
+            dataSourceConfig.fileName :
+            `${dataSource}-source`;
+        addDataSource({name: fileName, type: dataSource});
+    }, [addDataSource]);
+
+    const handleGraphTypeChange = useCallback((newGraphType: GraphTypeConfig) => {
+        setGraphType(newGraphType);
+    }, [setGraphType]);
+
+    const handleLayerDeselect = useCallback(() => {
+        setSelectedLayerId(null);
     }, []);
+
+    // Handle global keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent): void => {
+            // Escape key deselects the current layer
+            if (event.key === "Escape" && selectedLayerId !== null) {
+                setSelectedLayerId(null);
+            }
+        };
+
+        document.addEventListener("keydown", handleKeyDown);
+        return () => {
+            document.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [selectedLayerId]);
 
     // Load test data if ?test=true query parameter is present
     useEffect(() => {
@@ -137,8 +169,11 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                 dataSourceConfig: {data: JSON.stringify(TEST_GRAPH_DATA)},
                 replaceExisting: true,
             });
+            // Update graph stats with test data counts
+            updateStats(TEST_GRAPH_DATA.nodes.length, TEST_GRAPH_DATA.edges.length);
+            addDataSource({name: "test-data.json", type: "json"});
         }
-    }, []);
+    }, [updateStats, addDataSource]);
 
     return (
         <Box
@@ -230,7 +265,14 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                             zIndex: 10,
                         }}
                     >
-                        <RightSidebar selectedLayer={selectedLayer} onLayerUpdate={handleLayerUpdate} onEdgeUpdate={handleEdgeUpdate} />
+                        <RightSidebar
+                            selectedLayer={selectedLayer}
+                            graphInfo={graphInfo}
+                            onLayerUpdate={handleLayerUpdate}
+                            onEdgeUpdate={handleEdgeUpdate}
+                            onGraphTypeChange={handleGraphTypeChange}
+                            onLayerDeselect={handleLayerDeselect}
+                        />
                     </Box>
                 )}
 

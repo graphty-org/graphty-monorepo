@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from "vitest";
 
-import {SourceMapTestContent} from "../stories/ErrorBoundary.stories";
+import {SourceMapTestContent} from "../stories/Sentry.stories";
 import {fireEvent, render, screen} from "../test/test-utils";
 import {ErrorBoundary, ErrorFallback} from "./ErrorBoundary";
 

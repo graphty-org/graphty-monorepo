@@ -9,6 +9,9 @@ export default defineConfig({
             "@": resolve(__dirname, "./src"),
         },
     },
+    optimizeDeps: {
+        include: ["@mantine/hooks", "@graphty/graphty-element"],
+    },
     test: {
         globals: true,
         browser: {

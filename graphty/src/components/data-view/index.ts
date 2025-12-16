@@ -5,3 +5,5 @@ export {
     mantineJsonGridLightTheme,
     mantineJsonGridTheme,
 } from "./mantineTheme";
+export type {ViewDataModalProps} from "./ViewDataModal";
+export {ViewDataModal} from "./ViewDataModal";

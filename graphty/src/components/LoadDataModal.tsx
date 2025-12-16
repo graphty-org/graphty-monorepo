@@ -17,10 +17,19 @@ import {useCallback, useState} from "react";
 type InputMethod = "file" | "url" | "paste";
 type FormatType = "auto" | "json" | "graphml" | "gexf" | "csv" | "gml" | "dot" | "pajek";
 
+export interface LoadDataRequest {
+    inputMethod: InputMethod;
+    format: FormatType;
+    url?: string;
+    file?: File;
+    data?: string;
+    replaceExisting: boolean;
+}
+
 interface LoadDataModalProps {
     opened: boolean;
     onClose: () => void;
-    onLoad: (dataSource: string, dataSourceConfig: Record<string, unknown>, replaceExisting: boolean) => void;
+    onLoad: (request: LoadDataRequest) => void;
 }
 
 interface DetectionResult {
@@ -220,25 +229,32 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
 
     const handleLoad = useCallback(() => {
         const format = getEffectiveFormat();
-        if (!format) {
+
+        // For auto format with URL or file, we can let graphty-element do the detection
+        // For paste, we need at least a detected format
+        if (!format && inputMethod === "paste") {
             setError("Could not determine file format. Please select a format manually.");
             return;
         }
 
-        let config: Record<string, unknown> = {};
+        const request: LoadDataRequest = {
+            inputMethod,
+            format: format ?? "auto",
+            replaceExisting,
+        };
 
         if (inputMethod === "file" && selectedFile) {
-            config = {file: selectedFile};
+            request.file = selectedFile;
         } else if (inputMethod === "url" && url) {
-            config = {url};
+            request.url = url;
         } else if (inputMethod === "paste" && pastedContent) {
-            config = {data: pastedContent};
+            request.data = pastedContent;
         } else {
             setError("Please provide data to load.");
             return;
         }
 
-        onLoad(format, config, replaceExisting);
+        onLoad(request);
         handleClose();
     }, [inputMethod, selectedFile, url, pastedContent, getEffectiveFormat, onLoad, handleClose, replaceExisting]);
 
@@ -247,7 +263,12 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
             (inputMethod === "url" && url.trim() !== "") ||
             (inputMethod === "paste" && pastedContent.trim() !== "");
 
-        const hasFormat = selectedFormat !== "auto" || detectedFormat?.format !== null;
+        // For URL and file, we can use auto-detection even without a detected format
+        // For paste, we need either explicit format or detected format
+        const hasFormat = selectedFormat !== "auto" ||
+            detectedFormat?.format !== null ||
+            inputMethod === "url" ||
+            inputMethod === "file";
 
         return hasData && hasFormat;
     }, [inputMethod, selectedFile, url, pastedContent, selectedFormat, detectedFormat]);
@@ -262,7 +283,25 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
             return `${label} (detected)`;
         }
 
+        // For URL and file, show that auto-detect will be used
+        if (inputMethod === "url" || inputMethod === "file") {
+            return "Auto-detect";
+        }
+
         return "Auto-detect";
+    };
+
+    const getFormatDescription = (): string => {
+        if (detectedFormat?.format && selectedFormat === "auto") {
+            const label = FORMAT_OPTIONS.find((o) => o.value === detectedFormat.format)?.label ?? detectedFormat.format;
+            return `Detected: ${label} (${detectedFormat.confidence} confidence)`;
+        }
+
+        if ((inputMethod === "url" || inputMethod === "file") && selectedFormat === "auto") {
+            return "Format will be auto-detected from URL/file";
+        }
+
+        return "Select a format or use auto-detect";
     };
 
     return (
@@ -438,9 +477,7 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
                 {/* Format Selection */}
                 <Select
                     label="Format"
-                    description={detectedFormat?.format && selectedFormat === "auto" ?
-                        `Detected: ${FORMAT_OPTIONS.find((o) => o.value === detectedFormat.format)?.label} (${detectedFormat.confidence} confidence)` :
-                        "Select a format or use auto-detect"}
+                    description={getFormatDescription()}
                     value={selectedFormat}
                     onChange={(value) => {
                         setSelectedFormat(value ? (value as FormatType) : "auto");

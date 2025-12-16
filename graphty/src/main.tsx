@@ -19,6 +19,10 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import {App} from "./App.tsx";
+import {initSentry} from "./lib/sentry";
+
+// Initialize Sentry before React render
+initSentry();
 
 // Initialize Eruda for development/testing (mobile console)
 if (import.meta.env.DEV) {

@@ -1,3 +1,4 @@
+import {sentryVitePlugin} from "@sentry/vite-plugin";
 import react from "@vitejs/plugin-react";
 import {readFileSync} from "fs";
 import {resolve} from "path";
@@ -8,8 +9,18 @@ export default defineConfig(({mode}) => {
     // Load env file based on `mode` in the current working directory.
     // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
     const env = loadEnv(mode, process.cwd(), "");
+    const plugins = [
+        react(),
+        // Only include Sentry plugin in CI when auth token is available
+        process.env.SENTRY_AUTH_TOKEN && sentryVitePlugin({
+            org: env.VITE_SENTRY_ORG,
+            project: env.VITE_SENTRY_PROJECT,
+            authToken: process.env.SENTRY_AUTH_TOKEN,
+        }),
+    ].filter(Boolean);
+
     const config: UserConfig = {
-        plugins: [react()],
+        plugins,
         // Set base path for GitHub Pages deployment
         base: env.VITE_BASE_PATH || "/",
         resolve: {

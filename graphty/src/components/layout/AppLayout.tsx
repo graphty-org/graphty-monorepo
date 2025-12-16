@@ -1,6 +1,7 @@
 import {Box} from "@mantine/core";
 import React, {useCallback, useRef, useState} from "react";
 
+import {FeedbackModal} from "../FeedbackModal";
 import {Graphty} from "../Graphty";
 import {LoadDataModal} from "../LoadDataModal";
 import {BottomToolbar, ViewMode} from "./BottomToolbar";
@@ -26,6 +27,7 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
     const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<ViewMode>("3d");
     const [loadDataModalOpen, setLoadDataModalOpen] = useState(false);
+    const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [dataSourceState, setDataSourceState] = useState<DataSourceState | null>(null);
     const layerCounter = useRef(1);
 
@@ -86,6 +88,10 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
         setDataSourceState({dataSource, dataSourceConfig, replaceExisting});
     }, []);
 
+    const handleSendFeedback = useCallback(() => {
+        setFeedbackModalOpen(true);
+    }, []);
+
     return (
         <Box
             className={className}
@@ -113,6 +119,7 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                 onLoadData={() => {
                     setLoadDataModalOpen(true);
                 }}
+                onSendFeedback={handleSendFeedback}
             />
 
             {/* Load Data Modal */}
@@ -122,6 +129,14 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                     setLoadDataModalOpen(false);
                 }}
                 onLoad={handleLoadData}
+            />
+
+            {/* Feedback Modal */}
+            <FeedbackModal
+                opened={feedbackModalOpen}
+                onClose={() => {
+                    setFeedbackModalOpen(false);
+                }}
             />
 
             {/* Main Canvas Area - Full Screen */}

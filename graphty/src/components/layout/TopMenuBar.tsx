@@ -1,5 +1,5 @@
 import {ActionIcon, Box, Group, Menu as MantineMenu, Title} from "@mantine/core";
-import {Download, Menu, Settings, Share, Upload} from "lucide-react";
+import {Download, Menu, MessageSquare, Settings, Share, Upload} from "lucide-react";
 import React from "react";
 
 interface TopMenuBarProps {
@@ -9,6 +9,7 @@ interface TopMenuBarProps {
     onToggleRightSidebar?: () => void;
     onToggleToolbar?: () => void;
     onLoadData?: () => void;
+    onSendFeedback?: () => void;
 }
 
 export function TopMenuBar({
@@ -18,6 +19,7 @@ export function TopMenuBar({
     onToggleRightSidebar,
     onToggleToolbar,
     onLoadData,
+    onSendFeedback,
 }: TopMenuBarProps): React.JSX.Element {
     return (
         <Box
@@ -68,6 +70,16 @@ export function TopMenuBar({
                         </MantineMenu.Item>
                         <MantineMenu.Item onClick={onToggleToolbar}>
                             Toggle Toolbar
+                        </MantineMenu.Item>
+
+                        <MantineMenu.Divider />
+
+                        <MantineMenu.Label>Help</MantineMenu.Label>
+                        <MantineMenu.Item
+                            leftSection={<MessageSquare size={14} />}
+                            onClick={onSendFeedback}
+                        >
+                            Send feedback...
                         </MantineMenu.Item>
                     </MantineMenu.Dropdown>
                 </MantineMenu>

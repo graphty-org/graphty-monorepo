@@ -45,7 +45,7 @@ export const theme = createTheme({
                             "--input-size": "24px",
                             "--input-fz": "11px",
                             "--input-bg": "var(--mantine-color-default)",
-                            "--input-bd": "none",
+                            "--input-bd": "1px solid var(--mantine-color-gray-4)",
                         },
                     };
                 }
@@ -64,6 +64,7 @@ export const theme = createTheme({
                         input: {
                             paddingLeft: 8,
                             paddingRight: 8,
+                            border: "1px solid var(--mantine-color-gray-4)",
                         },
                     };
                 }
@@ -81,7 +82,7 @@ export const theme = createTheme({
                             "--input-size": "24px",
                             "--input-fz": "11px",
                             "--input-bg": "var(--mantine-color-default)",
-                            "--input-bd": "none",
+                            "--input-bd": "1px solid var(--mantine-color-gray-4)",
                         },
                         controls: {},
                     };
@@ -101,6 +102,7 @@ export const theme = createTheme({
                         input: {
                             paddingLeft: 8,
                             paddingRight: 8,
+                            border: "1px solid var(--mantine-color-gray-4)",
                         },
                     };
                 }
@@ -118,7 +120,7 @@ export const theme = createTheme({
                             "--input-size": "24px",
                             "--input-fz": "11px",
                             "--input-bg": "var(--mantine-color-default)",
-                            "--input-bd": "none",
+                            "--input-bd": "1px solid var(--mantine-color-gray-4)",
                         },
                     };
                 }
@@ -137,6 +139,7 @@ export const theme = createTheme({
                         input: {
                             paddingLeft: 8,
                             paddingRight: 8,
+                            border: "1px solid var(--mantine-color-gray-4)",
                         },
                     };
                 }
@@ -269,7 +272,7 @@ export const theme = createTheme({
                             "--input-size": "24px",
                             "--input-fz": "11px",
                             "--input-bg": "var(--mantine-color-default)",
-                            "--input-bd": "none",
+                            "--input-bd": "1px solid var(--mantine-color-gray-4)",
                         },
                     };
                 }
@@ -288,6 +291,7 @@ export const theme = createTheme({
                         input: {
                             paddingLeft: 8,
                             paddingRight: 8,
+                            border: "1px solid var(--mantine-color-gray-4)",
                         },
                     };
                 }
@@ -304,7 +308,7 @@ export const theme = createTheme({
                         wrapper: {
                             "--input-fz": "11px",
                             "--input-bg": "var(--mantine-color-default)",
-                            "--input-bd": "none",
+                            "--input-bd": "1px solid var(--mantine-color-gray-4)",
                         },
                     };
                 }
@@ -323,6 +327,7 @@ export const theme = createTheme({
                         input: {
                             paddingLeft: 8,
                             paddingRight: 8,
+                            border: "1px solid var(--mantine-color-gray-4)",
                         },
                     };
                 }
@@ -340,7 +345,7 @@ export const theme = createTheme({
                             "--input-size": "24px",
                             "--input-fz": "11px",
                             "--input-bg": "var(--mantine-color-default)",
-                            "--input-bd": "none",
+                            "--input-bd": "1px solid var(--mantine-color-gray-4)",
                         },
                     };
                 }
@@ -359,6 +364,7 @@ export const theme = createTheme({
                         input: {
                             paddingLeft: 8,
                             paddingRight: 8,
+                            border: "1px solid var(--mantine-color-gray-4)",
                         },
                     };
                 }
@@ -376,7 +382,7 @@ export const theme = createTheme({
                             "--input-size": "24px",
                             "--input-fz": "11px",
                             "--input-bg": "var(--mantine-color-default)",
-                            "--input-bd": "none",
+                            "--input-bd": "1px solid var(--mantine-color-gray-4)",
                         },
                     };
                 }
@@ -395,6 +401,7 @@ export const theme = createTheme({
                         input: {
                             paddingLeft: 8,
                             paddingRight: 8,
+                            border: "1px solid var(--mantine-color-gray-4)",
                         },
                     };
                 }
@@ -412,7 +419,7 @@ export const theme = createTheme({
                             "--input-size": "24px",
                             "--input-fz": "11px",
                             "--input-bg": "var(--mantine-color-default)",
-                            "--input-bd": "none",
+                            "--input-bd": "1px solid var(--mantine-color-gray-4)",
                         },
                         eyeDropperIcon: {},
                         eyeDropperButton: {},
@@ -434,6 +441,7 @@ export const theme = createTheme({
                         input: {
                             paddingLeft: 8,
                             paddingRight: 8,
+                            border: "1px solid var(--mantine-color-gray-4)",
                         },
                     };
                 }

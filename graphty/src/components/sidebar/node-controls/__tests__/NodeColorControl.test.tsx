@@ -13,8 +13,8 @@ describe("NodeColorControl", () => {
     const gradientColorValue: ColorConfig = {
         mode: "gradient",
         stops: [
-            {offset: 0, color: "#ff0000"},
-            {offset: 1, color: "#0000ff"},
+            {id: "stop-1", offset: 0, color: "#ff0000"},
+            {id: "stop-2", offset: 1, color: "#0000ff"},
         ],
         direction: 0,
         opacity: 1.0,
@@ -104,8 +104,8 @@ describe("NodeColorControl", () => {
         const radialValue: ColorConfig = {
             mode: "radial",
             stops: [
-                {offset: 0, color: "#ff0000"},
-                {offset: 1, color: "#0000ff"},
+                {id: "stop-1", offset: 0, color: "#ff0000"},
+                {id: "stop-2", offset: 1, color: "#0000ff"},
             ],
             opacity: 1.0,
         };

@@ -3,6 +3,7 @@ import {Minus, Plus} from "lucide-react";
 import React from "react";
 
 import type {ColorStop} from "../../../types/style-layer";
+import {createColorStop} from "../../../utils/color-stops";
 
 // Re-export ColorStop for backwards compatibility
 export type {ColorStop} from "../../../types/style-layer";
@@ -46,7 +47,7 @@ export function GradientEditor({
         }
 
         const newOffset = stops.length > 0 ? (stops[stops.length - 1].offset + 1) / 2 : 0.5;
-        const newStops = [... stops, {offset: newOffset, color: "#888888"}];
+        const newStops = [... stops, createColorStop(newOffset, "#888888")];
         newStops.sort((a, b) => a.offset - b.offset);
         onChange(newStops, direction);
     };
@@ -79,7 +80,7 @@ export function GradientEditor({
             </Group>
 
             {stops.map((stop, index) => (
-                <Group key={index} gap="xs" align="flex-end">
+                <Group key={stop.id} gap="xs" align="flex-end">
                     <Box style={{flex: 1}}>
                         <ColorInput
                             size="compact"

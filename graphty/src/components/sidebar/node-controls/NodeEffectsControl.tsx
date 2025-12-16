@@ -1,8 +1,9 @@
-import {Checkbox, Group, NumberInput, Stack, Text} from "@mantine/core";
+import {Group, NumberInput, Stack, Text} from "@mantine/core";
 import React from "react";
 
 import type {GlowConfig, NodeEffectsConfig, OutlineConfig} from "../../../types/style-layer";
 import {DEFAULT_GLOW, DEFAULT_OUTLINE} from "../../../utils/style-defaults";
+import {CompactCheckbox} from "../controls/CompactCheckbox";
 import {CompactColorInput} from "../controls/CompactColorInput";
 import {EffectToggle} from "../controls/EffectToggle";
 
@@ -147,30 +148,16 @@ export function NodeEffectsControl({value, onChange}: NodeEffectsControlProps): 
             </EffectToggle>
 
             {/* Simple checkboxes for wireframe and flat shaded */}
-            <Checkbox
+            <CompactCheckbox
                 label="Wireframe"
                 checked={value.wireframe}
                 onChange={handleWireframeToggle}
-                size="xs"
-                styles={{
-                    label: {
-                        fontSize: "11px",
-                        paddingLeft: "4px",
-                    },
-                }}
             />
 
-            <Checkbox
+            <CompactCheckbox
                 label="Flat Shaded"
                 checked={value.flatShaded}
                 onChange={handleFlatShadedToggle}
-                size="xs"
-                styles={{
-                    label: {
-                        fontSize: "11px",
-                        paddingLeft: "4px",
-                    },
-                }}
             />
         </Stack>
     );
@@ -196,9 +183,6 @@ function GlowControls({glow, onColorChange, onStrengthChange}: GlowControlsProps
                 color={glow.color}
                 opacity={100}
                 onColorChange={onColorChange}
-                onOpacityChange={() => {
-                    // Effects don't use opacity
-                }}
             />
             <Group gap={8} align="flex-end">
                 <Stack gap={0} style={{flex: 1}}>
@@ -246,9 +230,6 @@ function OutlineControls({outline, onColorChange, onWidthChange}: OutlineControl
                 color={outline.color}
                 opacity={100}
                 onColorChange={onColorChange}
-                onOpacityChange={() => {
-                    // Effects don't use opacity
-                }}
             />
             <Group gap={8} align="flex-end">
                 <Stack gap={0} style={{flex: 1}}>

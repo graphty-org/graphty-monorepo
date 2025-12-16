@@ -5,8 +5,11 @@ export type ColorMode = "solid" | "gradient" | "radial";
 
 /**
  * Color stop for gradient configurations.
+ * Each stop has a unique ID for stable React keys.
  */
 export interface ColorStop {
+    /** Unique identifier for stable React keys */
+    id: string;
     offset: number;
     color: string;
 }

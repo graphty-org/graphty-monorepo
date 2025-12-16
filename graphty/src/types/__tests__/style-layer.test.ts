@@ -24,7 +24,7 @@ describe("style-layer types", () => {
     it("should allow creating GradientColorConfig with stops", () => {
         const config: GradientColorConfig = {
             mode: "gradient",
-            stops: [{offset: 0, color: "#ff0000"}, {offset: 100, color: "#00ff00"}],
+            stops: [{id: "stop-1", offset: 0, color: "#ff0000"}, {id: "stop-2", offset: 100, color: "#00ff00"}],
             direction: 90,
             opacity: 100,
         };
@@ -36,18 +36,20 @@ describe("style-layer types", () => {
     it("should allow creating RadialColorConfig with stops", () => {
         const config: RadialColorConfig = {
             mode: "radial",
-            stops: [{offset: 0, color: "#ff0000"}, {offset: 100, color: "#00ff00"}],
+            stops: [{id: "stop-1", offset: 0, color: "#ff0000"}, {id: "stop-2", offset: 100, color: "#00ff00"}],
             opacity: 100,
         };
         expect(config.mode).toBe("radial");
         expect(config.stops).toHaveLength(2);
     });
 
-    it("should allow creating ColorStop", () => {
+    it("should allow creating ColorStop with id", () => {
         const stop: ColorStop = {
+            id: "stop-1",
             offset: 50,
             color: "#888888",
         };
+        expect(stop.id).toBe("stop-1");
         expect(stop.offset).toBe(50);
         expect(stop.color).toBe("#888888");
     });

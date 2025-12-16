@@ -100,7 +100,7 @@ export function StyleColorInput({
                                     size={14}
                                     radius={2}
                                     style={{
-                                        border: "1px solid rgba(255,255,255,0.1)",
+                                        border: "1px solid var(--mantine-color-default-border)",
                                     }}
                                 />
                             </ActionIcon>

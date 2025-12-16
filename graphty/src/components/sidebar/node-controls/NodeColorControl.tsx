@@ -2,6 +2,7 @@ import {Box, SegmentedControl, Stack, Text} from "@mantine/core";
 import React from "react";
 
 import type {ColorConfig, ColorMode, ColorStop} from "../../../types/style-layer";
+import {createColorStop} from "../../../utils/color-stops";
 import {CompactColorInput} from "../controls/CompactColorInput";
 import {GradientEditor} from "../controls/GradientEditor";
 
@@ -36,7 +37,7 @@ export function NodeColorControl({value, onChange}: NodeColorControlProps): Reac
         } else if (mode === "gradient") {
             const stops =
                 value.mode === "solid" ?
-                    [{offset: 0, color: value.color}, {offset: 1, color: "#ffffff"}] :
+                    [createColorStop(0, value.color), createColorStop(1, "#ffffff")] :
                     value.stops;
             onChange({
                 mode: "gradient",
@@ -47,7 +48,7 @@ export function NodeColorControl({value, onChange}: NodeColorControlProps): Reac
         } else {
             const stops =
                 value.mode === "solid" ?
-                    [{offset: 0, color: value.color}, {offset: 1, color: "#ffffff"}] :
+                    [createColorStop(0, value.color), createColorStop(1, "#ffffff")] :
                     value.stops;
             onChange({
                 mode: "radial",

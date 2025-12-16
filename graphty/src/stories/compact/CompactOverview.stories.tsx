@@ -323,7 +323,7 @@ export const FigmaStyleColorRow: Story = {
                                 height: 14,
                                 borderRadius: 2,
                                 backgroundColor: "#5B8FF9",
-                                border: "1px solid rgba(255,255,255,0.1)",
+                                border: "1px solid var(--mantine-color-default-border)",
                             }}
                         />
                     </ActionIcon>

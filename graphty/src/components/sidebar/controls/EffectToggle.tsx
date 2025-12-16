@@ -1,5 +1,7 @@
-import {Box, Checkbox, Stack} from "@mantine/core";
+import {Box, Stack} from "@mantine/core";
 import React from "react";
+
+import {CompactCheckbox} from "./CompactCheckbox";
 
 interface EffectToggleProps {
     label: string;
@@ -16,18 +18,11 @@ interface EffectToggleProps {
 export function EffectToggle({label, checked, onChange, children}: EffectToggleProps): React.JSX.Element {
     return (
         <Stack gap={4}>
-            <Checkbox
+            <CompactCheckbox
                 label={label}
                 checked={checked}
                 onChange={(e) => {
                     onChange(e.currentTarget.checked);
-                }}
-                size="xs"
-                styles={{
-                    label: {
-                        fontSize: "11px",
-                        paddingLeft: "4px",
-                    },
                 }}
             />
             {checked && (

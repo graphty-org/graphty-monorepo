@@ -43,13 +43,33 @@ const preview: Preview = {
                 includeNames: true,
             },
         },
+        // Disable the default backgrounds addon since we use Mantine's color scheme
+        backgrounds: {disable: true},
+    },
+    globalTypes: {
+        colorScheme: {
+            name: "Color Scheme",
+            description: "Mantine color scheme (light/dark)",
+            defaultValue: "dark",
+            toolbar: {
+                icon: "mirror",
+                items: [
+                    {value: "light", title: "Light"},
+                    {value: "dark", title: "Dark"},
+                ],
+                dynamicTitle: true,
+            },
+        },
     },
     decorators: [
-        (Story) => createElement(
-            MantineProvider,
-            {theme, defaultColorScheme: "dark"},
-            createElement(Story),
-        ),
+        (Story, context) => {
+            const colorScheme = (context.globals.colorScheme ?? "dark") as "light" | "dark";
+            return createElement(
+                MantineProvider,
+                {theme, forceColorScheme: colorScheme},
+                createElement(Story),
+            );
+        },
     ],
 };
 

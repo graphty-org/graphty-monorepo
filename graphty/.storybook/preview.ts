@@ -45,6 +45,14 @@ const preview: Preview = {
         },
         // Disable the default backgrounds addon since we use Mantine's color scheme
         backgrounds: {disable: true},
+        // Chromatic visual testing configuration
+        chromatic: {
+            // Capture both light and dark color schemes
+            modes: {
+                light: {colorScheme: "light"},
+                dark: {colorScheme: "dark"},
+            },
+        },
     },
     globalTypes: {
         colorScheme: {

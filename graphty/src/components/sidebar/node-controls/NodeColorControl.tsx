@@ -1,31 +1,13 @@
 import {Box, SegmentedControl, Stack, Text} from "@mantine/core";
 import React from "react";
 
+import type {ColorConfig, ColorMode, ColorStop} from "../../../types/style-layer";
 import {CompactColorInput} from "../controls/CompactColorInput";
-import {ColorStop, GradientEditor} from "../controls/GradientEditor";
+import {GradientEditor} from "../controls/GradientEditor";
 
-export type ColorMode = "solid" | "gradient" | "radial";
-
-export interface SolidColorConfig {
-    mode: "solid";
-    color: string;
-    opacity: number;
-}
-
-export interface GradientColorConfig {
-    mode: "gradient";
-    stops: ColorStop[];
-    direction: number;
-    opacity: number;
-}
-
-export interface RadialColorConfig {
-    mode: "radial";
-    stops: ColorStop[];
-    opacity: number;
-}
-
-export type ColorConfig = SolidColorConfig | GradientColorConfig | RadialColorConfig;
+// Re-export types for backwards compatibility
+export type {ColorConfig, ColorMode, ColorStop} from "../../../types/style-layer";
+export type {GradientColorConfig, RadialColorConfig, SolidColorConfig} from "../../../types/style-layer";
 
 interface NodeColorControlProps {
     value: ColorConfig;
@@ -115,7 +97,7 @@ export function NodeColorControl({value, onChange}: NodeColorControlProps): Reac
         <Stack gap={4}>
             {/* Color Mode selector */}
             <Box>
-                <Text size="xs" c="dark.2" mb={1} lh={1.2}>Color Mode</Text>
+                <Text size="xs" c="dimmed" mb={1} lh={1.2}>Color Mode</Text>
                 <SegmentedControl
                     value={value.mode}
                     onChange={handleModeChange}

@@ -130,7 +130,7 @@ export function CompactColorInput({
                         size={24}
                         radius={0}
                         style={{
-                            backgroundColor: "var(--mantine-color-dark-8)",
+                            backgroundColor: "var(--mantine-color-default)",
                             borderRadius: "4px 0 0 4px",
                         }}
                         onClick={() => {
@@ -191,7 +191,7 @@ export function CompactColorInput({
                 style={{
                     width: 1,
                     height: 24,
-                    backgroundColor: "var(--mantine-color-dark-5)",
+                    backgroundColor: "var(--mantine-color-default-border)",
                 }}
             />
 
@@ -221,7 +221,7 @@ export function CompactColorInput({
     if (label) {
         return (
             <Stack gap={0}>
-                <Text size="xs" c="dark.2" mb={1} lh={1.2}>{label}</Text>
+                <Text size="xs" c="dimmed" mb={1} lh={1.2}>{label}</Text>
                 {colorInput}
             </Stack>
         );

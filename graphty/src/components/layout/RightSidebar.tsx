@@ -48,9 +48,9 @@ function renderPanelContent(
     return (
         <Box style={{textAlign: "center", paddingTop: "24px", paddingBottom: "24px"}}>
             <Box style={{display: "flex", justifyContent: "center", marginBottom: "8px"}}>
-                <Settings size={24} style={{color: "var(--mantine-color-dark-4)"}} />
+                <Settings size={24} style={{color: "var(--mantine-color-dimmed)"}} />
             </Box>
-            <Text size="xs" c="dark.3" style={{fontSize: "11px"}}>
+            <Text size="xs" c="dimmed" style={{fontSize: "11px"}}>
                 Select a layer to view properties
             </Text>
         </Box>
@@ -71,15 +71,14 @@ export function RightSidebar({className, style, selectedLayer, graphInfo, onLaye
             onKeyDown={handleKeyDown}
             tabIndex={-1}
             style={{
-                backgroundColor: "var(--mantine-color-dark-7)",
-                borderLeft: "1px solid var(--mantine-color-dark-5)",
+                backgroundColor: "var(--mantine-color-body)",
+                borderLeft: "1px solid var(--mantine-color-default-border)",
                 display: "flex",
                 flexDirection: "column",
                 width: "260px",
                 minWidth: "260px",
                 height: "100%",
                 overflow: "hidden",
-                color: "var(--mantine-color-gray-1)",
                 outline: "none",
                 ... style,
             }}
@@ -88,16 +87,15 @@ export function RightSidebar({className, style, selectedLayer, graphInfo, onLaye
             <Box
                 style={{
                     padding: "10px 16px",
-                    borderBottom: "1px solid var(--mantine-color-dark-5)",
-                    backgroundColor: "var(--mantine-color-dark-6)",
+                    borderBottom: "1px solid var(--mantine-color-default-border)",
+                    backgroundColor: "var(--mantine-color-default-hover)",
                 }}
             >
                 <Group gap="xs">
-                    <Settings size={14} style={{color: "var(--mantine-color-dark-2)"}} />
+                    <Settings size={14} style={{color: "var(--mantine-color-dimmed)"}} />
                     <Text
                         size="xs"
                         fw={500}
-                        c="gray.0"
                         style={{fontSize: "12px"}}
                     >
                         {selectedLayer ? selectedLayer.name : "Graph Properties"}

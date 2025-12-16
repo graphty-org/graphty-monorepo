@@ -15,7 +15,7 @@
  * - Colors: converted to uppercase hex format
  */
 
-import type {ArrowConfig, ColorConfig, EdgeLineConfig, GlowConfig, NodeEffectsConfig, OutlineConfig, RichTextStyle, ShapeConfig, TextBackgroundStyle, TextOutlineStyle, TextShadowStyle} from "../types/style-layer";
+import type {ArrowConfig, EdgeLineConfig, GlowConfig, NodeEffectsConfig, OutlineConfig, RichTextStyle, ShapeConfig, SolidColorConfig, TextBackgroundStyle, TextOutlineStyle, TextShadowStyle} from "../types/style-layer";
 
 /**
  * Default shape configuration derived from graphty-element defaults.
@@ -29,8 +29,9 @@ export const DEFAULT_SHAPE: ShapeConfig = {
 /**
  * Default color configuration derived from graphty-element defaults.
  * Source: defaultNodeStyle.texture.color = "#6366F1"
+ * Typed as SolidColorConfig specifically since default is always solid.
  */
-export const DEFAULT_COLOR: ColorConfig = {
+export const DEFAULT_COLOR: SolidColorConfig = {
     mode: "solid",
     color: "#6366F1",
     opacity: 1.0,

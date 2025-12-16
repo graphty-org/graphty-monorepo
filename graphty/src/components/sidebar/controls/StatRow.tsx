@@ -15,10 +15,10 @@ interface StatRowProps {
 export function StatRow({label, value}: StatRowProps): React.JSX.Element {
     return (
         <Group justify="space-between" py={4}>
-            <Text size="xs" c="gray.4" style={{fontSize: "11px"}}>
+            <Text size="xs" c="dimmed" style={{fontSize: "11px"}}>
                 {label}
             </Text>
-            <Text size="xs" c="gray.1" fw={500} style={{fontSize: "11px"}}>
+            <Text size="xs" c="var(--mantine-color-text)" fw={500} style={{fontSize: "11px"}}>
                 {String(value)}
             </Text>
         </Group>

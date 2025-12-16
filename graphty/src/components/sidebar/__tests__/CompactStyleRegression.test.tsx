@@ -12,8 +12,11 @@ import {RightSidebar} from "../../layout/RightSidebar";
  * Expected compact size styles:
  * - height: 24px
  * - fontSize: 11px
- * - backgroundColor: rgb(22, 27, 34) (dark-8)
+ * - backgroundColor: uses semantic color (--mantine-color-default)
  * - border: none
+ *
+ * Note: Background colors are now semantic and adapt to light/dark mode,
+ * so we test for consistency rather than specific RGB values.
  */
 describe("Compact Size Style Regression", () => {
     const mockLayer: LayerItem = {
@@ -53,14 +56,17 @@ describe("Compact Size Style Regression", () => {
             expect(computed.fontSize).toBe("11px");
         });
 
-        it("Node Selector input has dark-8 background color", () => {
+        it("Node Selector input has semantic background color applied", () => {
             render(<RightSidebar selectedLayer={mockLayer} />);
 
             const input = screen.getByLabelText("Node Selector");
             const computed = window.getComputedStyle(input);
 
-            // dark-8 = #161b22 = rgb(22, 27, 34)
-            expect(computed.backgroundColor).toBe("rgb(22, 27, 34)");
+            // Verify a background color is applied (not transparent/inherit)
+            expect(computed.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+            expect(computed.backgroundColor).not.toBe("transparent");
+            // Should be an rgb color
+            expect(computed.backgroundColor).toMatch(/^rgb/);
         });
 
         it("Node Selector input has no border", () => {
@@ -82,7 +88,8 @@ describe("Compact Size Style Regression", () => {
 
             expect(computed.height).toBe("24px");
             expect(computed.fontSize).toBe("11px");
-            expect(computed.backgroundColor).toBe("rgb(22, 27, 34)");
+            // Verify a background color is applied
+            expect(computed.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
         });
     });
 
@@ -105,13 +112,15 @@ describe("Compact Size Style Regression", () => {
             expect(computed.fontSize).toBe("11px");
         });
 
-        it("Size input has dark-8 background color", () => {
+        it("Size input has semantic background color applied", () => {
             render(<RightSidebar selectedLayer={mockLayer} />);
 
             const input = screen.getByLabelText("Size");
             const computed = window.getComputedStyle(input);
 
-            expect(computed.backgroundColor).toBe("rgb(22, 27, 34)");
+            // Verify a background color is applied (not transparent/inherit)
+            expect(computed.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+            expect(computed.backgroundColor).toMatch(/^rgb/);
         });
 
         it("Opacity input has correct compact styles", () => {
@@ -123,7 +132,8 @@ describe("Compact Size Style Regression", () => {
 
             expect(computed.height).toBe("24px");
             expect(computed.fontSize).toBe("11px");
-            expect(computed.backgroundColor).toBe("rgb(22, 27, 34)");
+            // Verify a background color is applied
+            expect(computed.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
         });
     });
 
@@ -190,7 +200,7 @@ describe("Compact Size Style Regression", () => {
             expect(fontSizes[0]).toBe("11px");
         });
 
-        it("all compact inputs have same background color", () => {
+        it("all compact inputs have consistent background color", () => {
             render(<RightSidebar selectedLayer={mockLayer} />);
 
             const nodeSelector = screen.getByLabelText("Node Selector");
@@ -203,9 +213,11 @@ describe("Compact Size Style Regression", () => {
                 (el) => window.getComputedStyle(el).backgroundColor,
             );
 
-            // All should be dark-8 = rgb(22, 27, 34)
+            // All should have the same background color (semantic color resolves consistently)
             expect(new Set(bgColors).size).toBe(1);
-            expect(bgColors[0]).toBe("rgb(22, 27, 34)");
+            // Verify it's not transparent
+            expect(bgColors[0]).not.toBe("rgba(0, 0, 0, 0)");
+            expect(bgColors[0]).toMatch(/^rgb/);
         });
     });
 });

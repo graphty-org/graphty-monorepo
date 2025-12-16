@@ -94,7 +94,7 @@ export function StyleNumberInput({
                 styles={{
                     input: isDefault ? {
                         fontStyle: "italic",
-                        color: "var(--mantine-color-dark-2)",
+                        color: "var(--mantine-color-dimmed)",
                     } : undefined,
                 }}
                 style={{flex: 1}}
@@ -103,7 +103,7 @@ export function StyleNumberInput({
                 <ActionIcon
                     variant="subtle"
                     size="xs"
-                    c="dark.3"
+                    c="dimmed"
                     aria-label={`Reset ${label} to default`}
                     onClick={handleReset}
                     style={{marginBottom: 2}}

@@ -2,10 +2,10 @@ import {ActionIcon, Box, ColorInput, Group, Slider, Stack, Text} from "@mantine/
 import {Minus, Plus} from "lucide-react";
 import React from "react";
 
-export interface ColorStop {
-    offset: number;
-    color: string;
-}
+import type {ColorStop} from "../../../types/style-layer";
+
+// Re-export ColorStop for backwards compatibility
+export type {ColorStop} from "../../../types/style-layer";
 
 interface GradientEditorProps {
     stops: ColorStop[];
@@ -63,7 +63,7 @@ export function GradientEditor({
     return (
         <Stack gap="xs">
             <Group justify="space-between" align="center">
-                <Text size="xs" c="gray.4">
+                <Text size="xs" c="dimmed">
                     Color Stops
                 </Text>
                 <ActionIcon
@@ -120,7 +120,7 @@ export function GradientEditor({
 
             {showDirection && (
                 <Box>
-                    <Text size="xs" c="gray.4" mb={4}>
+                    <Text size="xs" c="dimmed" mb={4}>
                         Direction
                     </Text>
                     <Slider

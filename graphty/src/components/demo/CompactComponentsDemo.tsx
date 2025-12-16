@@ -98,43 +98,43 @@ export function CompactComponentsDemo(): React.JSX.Element {
     };
 
     return (
-        <Box style={{height: "100vh", overflow: "auto", backgroundColor: "var(--mantine-color-dark-7)"}}>
+        <Box style={{height: "100vh", overflow: "auto", backgroundColor: "var(--mantine-color-body)"}}>
             <Box p="md" style={{maxWidth: 800, margin: "0 auto"}}>
                 <Title order={1} mb="lg" c="white">
                     Compact Components Demo
                 </Title>
-                <Text c="dark.2" mb="xl">
+                <Text c="dimmed" mb="xl">
                     All components below use <code>size="compact"</code> (24px height, 11px font).
                     This demonstrates the Figma-style dense UI suitable for properties panels.
                 </Text>
 
                 {/* Comparison Section */}
                 <Section title="Size Comparison">
-                    <Text size="sm" c="dark.2" mb="md">
+                    <Text size="sm" c="dimmed" mb="md">
                         Compare compact size with standard Mantine sizes:
                     </Text>
                     <Stack gap="xs">
                         <Group gap="md" align="flex-end">
                             <Box w={100}>
-                                <Text size="xs" c="dark.3">xs (28px)</Text>
+                                <Text size="xs" c="dimmed">xs (28px)</Text>
                             </Box>
                             <TextInput size="xs" placeholder="Size xs" style={{flex: 1}} />
                         </Group>
                         <Group gap="md" align="flex-end">
                             <Box w={100}>
-                                <Text size="xs" c="dark.3">compact (24px)</Text>
+                                <Text size="xs" c="dimmed">compact (24px)</Text>
                             </Box>
                             <TextInput size="compact" placeholder="Size compact" style={{flex: 1}} />
                         </Group>
                         <Group gap="md" align="flex-end">
                             <Box w={100}>
-                                <Text size="xs" c="dark.3">sm (32px)</Text>
+                                <Text size="xs" c="dimmed">sm (32px)</Text>
                             </Box>
                             <TextInput size="sm" placeholder="Size sm" style={{flex: 1}} />
                         </Group>
                         <Group gap="md" align="flex-end">
                             <Box w={100}>
-                                <Text size="xs" c="dark.3">md (36px)</Text>
+                                <Text size="xs" c="dimmed">md (36px)</Text>
                             </Box>
                             <TextInput size="md" placeholder="Size md" style={{flex: 1}} />
                         </Group>
@@ -245,7 +245,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
 
                 {/* Figma-Style Input Components */}
                 <Section title="Figma-Style Components">
-                    <Text size="sm" c="dark.2" mb="md">
+                    <Text size="sm" c="dimmed" mb="md">
                         These patterns match Figma's properties panel design.
                     </Text>
 
@@ -255,7 +255,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                 <TextInput
                                     size="compact"
                                     value="400"
-                                    leftSection={<Text size="xs" c="dark.3" fw={500}>W</Text>}
+                                    leftSection={<Text size="xs" c="dimmed" fw={500}>W</Text>}
                                     leftSectionWidth={24}
                                     leftSectionPointerEvents="none"
                                     style={{flex: 1}}
@@ -264,7 +264,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                 <TextInput
                                     size="compact"
                                     value="300"
-                                    leftSection={<Text size="xs" c="dark.3" fw={500}>H</Text>}
+                                    leftSection={<Text size="xs" c="dimmed" fw={500}>H</Text>}
                                     leftSectionWidth={24}
                                     leftSectionPointerEvents="none"
                                     style={{flex: 1}}
@@ -281,14 +281,14 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                 <TextInput
                                     size="compact"
                                     value="0"
-                                    rightSection={<RotateCw size={12} color="var(--mantine-color-dark-3)" />}
+                                    rightSection={<RotateCw size={12} color="var(--mantine-color-dimmed)" />}
                                     rightSectionWidth={24}
                                     style={{flex: 1}}
                                 />
                                 <TextInput
                                     size="compact"
                                     value="100%"
-                                    rightSection={<Move size={12} color="var(--mantine-color-dark-3)" />}
+                                    rightSection={<Move size={12} color="var(--mantine-color-dimmed)" />}
                                     rightSectionWidth={24}
                                     style={{flex: 1}}
                                 />
@@ -336,7 +336,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                             size={24}
                                             radius={0}
                                             style={{
-                                                backgroundColor: "var(--mantine-color-dark-8)",
+                                                backgroundColor: "var(--mantine-color-default)",
                                                 borderRadius: "4px 0 0 4px",
                                             }}
                                             onClick={() => {
@@ -394,7 +394,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                     style={{
                                         width: 1,
                                         height: 24,
-                                        backgroundColor: "var(--mantine-color-dark-5)",
+                                        backgroundColor: "var(--mantine-color-default-border)",
                                     }}
                                 />
                                 {/* Opacity input */}
@@ -520,7 +520,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                         leftSectionPointerEvents="none"
                                         styles={{
                                             input: {
-                                                backgroundColor: "var(--mantine-color-dark-8)",
+                                                backgroundColor: "var(--mantine-color-default)",
                                                 border: "none",
                                                 fontFamily: "monospace",
                                                 textTransform: "uppercase",
@@ -532,7 +532,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                         style={{
                                             width: 1,
                                             height: 16,
-                                            backgroundColor: "var(--mantine-color-dark-5)",
+                                            backgroundColor: "var(--mantine-color-default-border)",
                                         }}
                                     />
                                     <NumberInput
@@ -543,7 +543,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                         w={56}
                                         styles={{
                                             input: {
-                                                backgroundColor: "var(--mantine-color-dark-8)",
+                                                backgroundColor: "var(--mantine-color-default)",
                                                 border: "none",
                                                 textAlign: "right",
                                             },
@@ -768,7 +768,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                     <Box
                         p="sm"
                         style={{
-                            backgroundColor: "var(--mantine-color-dark-6)",
+                            backgroundColor: "var(--mantine-color-default-hover)",
                             borderRadius: "var(--mantine-radius-sm)",
                         }}
                     >
@@ -778,7 +778,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
 
                         <Stack gap={8}>
                             <Box>
-                                <Text size="xs" c="dark.2" mb={2}>Shape</Text>
+                                <Text size="xs" c="dimmed" mb={2}>Shape</Text>
                                 <Group gap={4} grow>
                                     <NativeSelect
                                         size="compact"
@@ -803,7 +803,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                             <Divider color="dark.5" />
 
                             <Box>
-                                <Text size="xs" c="dark.2" mb={2}>Color Mode</Text>
+                                <Text size="xs" c="dimmed" mb={2}>Color Mode</Text>
                                 <SegmentedControl
                                     size="compact"
                                     data={[
@@ -816,7 +816,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                             </Box>
 
                             <Box>
-                                <Text size="xs" c="dark.2" mb={2}>Color</Text>
+                                <Text size="xs" c="dimmed" mb={2}>Color</Text>
                                 <Group gap={8}>
                                     <ColorInput
                                         size="compact"
@@ -838,7 +838,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                             <Divider color="dark.5" />
 
                             <Box>
-                                <Text size="xs" c="dark.2" mb={2}>Visibility</Text>
+                                <Text size="xs" c="dimmed" mb={2}>Visibility</Text>
                                 <Group gap="md">
                                     <Checkbox size="compact" label="Visible" defaultChecked />
                                     <Checkbox size="compact" label="Selectable" defaultChecked />
@@ -846,7 +846,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                             </Box>
 
                             <Box>
-                                <Text size="xs" c="dark.2" mb={2}>Opacity</Text>
+                                <Text size="xs" c="dimmed" mb={2}>Opacity</Text>
                                 <Slider
                                     size="compact"
                                     value={100}
@@ -871,13 +871,13 @@ export function CompactComponentsDemo(): React.JSX.Element {
                     <Box
                         p="sm"
                         style={{
-                            backgroundColor: "var(--mantine-color-dark-8)",
+                            backgroundColor: "var(--mantine-color-default)",
                             borderRadius: "var(--mantine-radius-sm)",
                             fontFamily: "monospace",
                             fontSize: "12px",
                         }}
                     >
-                        <Text c="dark.1" component="pre" style={{margin: 0}}>
+                        <Text c="dimmed" component="pre" style={{margin: 0}}>
                             {`/* Input Components */
 --input-size: 24px;
 --input-fz: 11px;
@@ -960,7 +960,7 @@ function GridItem({
 }): React.JSX.Element {
     return (
         <Box style={fullWidth ? {gridColumn: "1 / -1"} : undefined}>
-            <Text size="xs" c="dark.2" mb={4}>
+            <Text size="xs" c="dimmed" mb={4}>
                 {label}
             </Text>
             {children}

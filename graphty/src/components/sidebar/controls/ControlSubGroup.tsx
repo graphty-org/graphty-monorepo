@@ -29,12 +29,12 @@ export function ControlSubGroup({label, defaultOpen = false, children}: ControlS
                 <ActionIcon
                     variant="subtle"
                     size="xs"
-                    c="gray.5"
+                    c="dimmed"
                     aria-label={opened ? `Collapse ${label}` : `Expand ${label}`}
                 >
                     {opened ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                 </ActionIcon>
-                <Text size="xs" c="gray.4" lh={1.2}>
+                <Text size="xs" c="dimmed" lh={1.2}>
                     {label}
                 </Text>
             </Group>

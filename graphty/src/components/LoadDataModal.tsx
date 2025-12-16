@@ -274,18 +274,17 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
             centered
             styles={{
                 header: {
-                    backgroundColor: "var(--mantine-color-dark-7)",
-                    borderBottom: "1px solid var(--mantine-color-dark-5)",
+                    backgroundColor: "var(--mantine-color-body)",
+                    borderBottom: "1px solid var(--mantine-color-default-border)",
                 },
                 body: {
-                    backgroundColor: "var(--mantine-color-dark-7)",
+                    backgroundColor: "var(--mantine-color-body)",
                     padding: "20px",
                 },
                 content: {
-                    backgroundColor: "var(--mantine-color-dark-7)",
+                    backgroundColor: "var(--mantine-color-body)",
                 },
                 title: {
-                    color: "var(--mantine-color-gray-1)",
                     fontWeight: 500,
                 },
             }}
@@ -331,7 +330,7 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
                     fullWidth
                     styles={{
                         root: {
-                            backgroundColor: "var(--mantine-color-dark-6)",
+                            backgroundColor: "var(--mantine-color-default)",
                         },
                     }}
                 />
@@ -344,12 +343,12 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
                         onDragLeave={handleDragLeave}
                         onClick={() => document.getElementById("file-input")?.click()}
                         style={{
-                            border: `2px dashed ${isDragging ? "var(--mantine-color-blue-5)" : "var(--mantine-color-dark-4)"}`,
+                            border: `2px dashed ${isDragging ? "var(--mantine-color-blue-5)" : "var(--mantine-color-default-border)"}`,
                             borderRadius: "8px",
                             padding: "40px 20px",
                             textAlign: "center",
                             cursor: "pointer",
-                            backgroundColor: isDragging ? "var(--mantine-color-dark-6)" : "transparent",
+                            backgroundColor: isDragging ? "var(--mantine-color-default)" : "transparent",
                             transition: "all 0.2s ease",
                         }}
                     >
@@ -363,25 +362,25 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
                         <Upload
                             size={32}
                             style={{
-                                color: "var(--mantine-color-dark-3)",
+                                color: "var(--mantine-color-dimmed)",
                                 marginBottom: "12px",
                             }}
                         />
                         {selectedFile ? (
                             <>
-                                <Text size="sm" c="gray.1" fw={500}>
+                                <Text size="sm" fw={500}>
                                     {selectedFile.name}
                                 </Text>
-                                <Text size="xs" c="gray.5" mt="xs">
+                                <Text size="xs" c="dimmed" mt="xs">
                                     {(selectedFile.size / 1024).toFixed(1)} KB
                                 </Text>
                             </>
                         ) : (
                             <>
-                                <Text size="sm" c="gray.3">
+                                <Text size="sm" c="dimmed">
                                     Drag & drop a file here
                                 </Text>
-                                <Text size="xs" c="gray.5" mt="xs">
+                                <Text size="xs" c="dimmed" mt="xs">
                                     or click to browse
                                 </Text>
                             </>
@@ -400,7 +399,7 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
                         }}
                         leftSection={<Link size={14} />}
                         styles={{
-                            label: {color: "var(--mantine-color-gray-3)"},
+                            label: {color: "var(--mantine-color-dimmed)"},
                         }}
                     />
                 )}
@@ -426,7 +425,7 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
                         maxRows={12}
                         autosize
                         styles={{
-                            label: {color: "var(--mantine-color-gray-3)"},
+                            label: {color: "var(--mantine-color-dimmed)"},
                             input: {
                                 fontFamily: "monospace",
                                 fontSize: "12px",
@@ -447,15 +446,15 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
                     }}
                     data={FORMAT_OPTIONS}
                     styles={{
-                        label: {color: "var(--mantine-color-gray-3)"},
+                        label: {color: "var(--mantine-color-dimmed)"},
                         description: {
-                            color: detectedFormat?.format ? "var(--mantine-color-green-5)" : "var(--mantine-color-gray-5)",
+                            color: detectedFormat?.format ? "var(--mantine-color-green-5)" : "var(--mantine-color-dimmed)",
                         },
                     }}
                 />
 
                 {/* Supported Formats Help */}
-                <Text size="xs" c="gray.5">
+                <Text size="xs" c="dimmed">
                     Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek NET
                 </Text>
 
@@ -468,8 +467,7 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
                         setReplaceExisting(e.currentTarget.checked);
                     }}
                     styles={{
-                        label: {color: "var(--mantine-color-gray-1)"},
-                        description: {color: "var(--mantine-color-gray-5)"},
+                        description: {color: "var(--mantine-color-dimmed)"},
                     }}
                 />
 

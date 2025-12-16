@@ -202,7 +202,7 @@ function GlowControls({glow, onColorChange, onStrengthChange}: GlowControlsProps
             />
             <Group gap={8} align="flex-end">
                 <Stack gap={0} style={{flex: 1}}>
-                    <Text size="xs" c="dark.2" lh={1.2}>Strength</Text>
+                    <Text size="xs" c="dimmed" lh={1.2}>Strength</Text>
                     <NumberInput
                         size="compact"
                         value={localStrength}
@@ -252,7 +252,7 @@ function OutlineControls({outline, onColorChange, onWidthChange}: OutlineControl
             />
             <Group gap={8} align="flex-end">
                 <Stack gap={0} style={{flex: 1}}>
-                    <Text size="xs" c="dark.2" lh={1.2}>Width</Text>
+                    <Text size="xs" c="dimmed" lh={1.2}>Width</Text>
                     <NumberInput
                         size="compact"
                         value={localWidth}

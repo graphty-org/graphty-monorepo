@@ -1,4 +1,9 @@
 /**
+ * Color mode options for node and edge colors.
+ */
+export type ColorMode = "solid" | "gradient" | "radial";
+
+/**
  * Color stop for gradient configurations.
  */
 export interface ColorStop {

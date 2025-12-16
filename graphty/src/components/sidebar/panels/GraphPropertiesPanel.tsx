@@ -56,7 +56,7 @@ export function GraphPropertiesPanel({
                         {graphInfo.dataSources.map((source, index) => (
                             <Group key={index} gap="xs">
                                 <FileText size={12} style={{color: "var(--mantine-color-gray-5)"}} />
-                                <Text size="xs" c="gray.3" style={{fontSize: "11px"}}>
+                                <Text size="xs" c="dimmed" style={{fontSize: "11px"}}>
                                     {source.name}
                                 </Text>
                                 <Badge size="compact" variant="light" color="gray">
@@ -67,7 +67,7 @@ export function GraphPropertiesPanel({
                     </Stack>
                 ) : (
                     <Box py={8}>
-                        <Text size="xs" c="gray.5" fs="italic" style={{fontSize: "11px"}}>
+                        <Text size="xs" c="dimmed" fs="italic" style={{fontSize: "11px"}}>
                             No data loaded
                         </Text>
                     </Box>

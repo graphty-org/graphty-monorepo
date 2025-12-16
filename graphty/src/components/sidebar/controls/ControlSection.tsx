@@ -36,7 +36,7 @@ export function ControlSection({label, defaultOpen = true, children, hasConfigur
                     <ActionIcon
                         variant="subtle"
                         size="xs"
-                        c="gray.5"
+                        c="dimmed"
                         aria-label={opened ? `Collapse ${label}` : `Expand ${label}`}
                     >
                         {opened ? <ChevronDown size={12} /> : <ChevronRight size={12} />}

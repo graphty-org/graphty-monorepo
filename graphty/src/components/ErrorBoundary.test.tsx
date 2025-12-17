@@ -2,7 +2,8 @@ import {describe, expect, it, vi} from "vitest";
 
 import {SourceMapTestContent} from "../stories/Sentry.stories";
 import {fireEvent, render, screen} from "../test/test-utils";
-import {ErrorBoundary, ErrorFallback} from "./ErrorBoundary";
+import {ErrorBoundary} from "./ErrorBoundary";
+import {ErrorFallback} from "./ErrorFallback";
 
 function ThrowingComponent(): React.JSX.Element {
     throw new Error("Test render error");

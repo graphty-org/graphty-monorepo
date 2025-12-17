@@ -20,6 +20,7 @@ export default defineConfig(
             "storybook-static",
             "coverage",
             "node_modules",
+            ".worktrees",
         ],
     },
     {

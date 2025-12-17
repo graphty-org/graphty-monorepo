@@ -2,7 +2,8 @@ import {Alert, Button, Stack, Text, Title} from "@mantine/core";
 import type {Meta, StoryObj} from "@storybook/react";
 import {useState} from "react";
 
-import {ErrorBoundary, ErrorFallback} from "../components/ErrorBoundary";
+import {ErrorBoundary} from "../components/ErrorBoundary";
+import {ErrorFallback} from "../components/ErrorFallback";
 import {isSentryEnabled, testCaptureError} from "../lib/sentry";
 
 const meta: Meta<typeof ErrorFallback> = {

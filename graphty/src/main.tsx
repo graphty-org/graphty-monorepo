@@ -39,6 +39,10 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import {App} from "./App.tsx";
+import {initSentry} from "./lib/sentry";
+
+// Initialize Sentry before React render
+initSentry();
 
 // Initialize Eruda for development/testing (mobile console)
 if (import.meta.env.DEV) {
@@ -443,11 +447,12 @@ const theme = createTheme({
                             "--input-bd": "none",
                         },
                         eyeDropperIcon: {},
+                        eyeDropperButton: {},
                         colorPreview: {},
                     };
                 }
 
-                return {root: {}, wrapper: {}, eyeDropperIcon: {}, colorPreview: {}};
+                return {root: {}, wrapper: {}, eyeDropperIcon: {}, eyeDropperButton: {}, colorPreview: {}};
             },
             styles: (_theme, props) => {
                 if (props.size === "compact") {

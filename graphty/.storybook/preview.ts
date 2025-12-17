@@ -1,9 +1,33 @@
 import "../src/index.css";
+import "@mantine/core/styles.css";
 
+import {createTheme, MantineProvider} from "@mantine/core";
 import type {Preview} from "@storybook/react";
 import eruda from "eruda";
+import React from "react";
 
+import {initSentry} from "../src/lib/sentry";
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
+
+// Initialize Sentry for error tracking in Storybook
+initSentry();
+
+const theme = createTheme({
+    colors: {
+        dark: [
+            "#d5d7da",
+            "#a3a8b1",
+            "#7a828e",
+            "#5f6873",
+            "#48525c",
+            "#374047",
+            "#2a3035",
+            "#1f2428",
+            "#161b22",
+            "#0d1117",
+        ],
+    },
+});
 
 // Initialize eruda for mobile debugging
 eruda.init();
@@ -37,6 +61,13 @@ const preview: Preview = {
             },
         },
     },
+    decorators: [
+        (Story) => React.createElement(
+            MantineProvider,
+            {theme, defaultColorScheme: "dark"},
+            React.createElement(Story),
+        ),
+    ],
 };
 
 export default preview;

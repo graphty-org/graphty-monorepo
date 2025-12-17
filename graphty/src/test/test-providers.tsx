@@ -375,11 +375,12 @@ const theme = createTheme({
                             "--input-bd": "none",
                         },
                         eyeDropperIcon: {},
+                        eyeDropperButton: {},
                         colorPreview: {},
                     };
                 }
 
-                return {root: {}, wrapper: {}, eyeDropperIcon: {}, colorPreview: {}};
+                return {root: {}, wrapper: {}, eyeDropperIcon: {}, eyeDropperButton: {}, colorPreview: {}};
             },
             styles: (_theme, props) => {
                 if (props.size === "compact") {

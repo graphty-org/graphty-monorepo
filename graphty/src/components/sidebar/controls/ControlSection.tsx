@@ -7,13 +7,18 @@ interface ControlSectionProps {
     label: string;
     defaultOpen?: boolean;
     children: React.ReactNode;
+    /** Whether this section has any configured (non-default) values */
+    hasConfiguredValues?: boolean;
 }
 
 /**
  * A collapsible section for grouping related controls.
  * Provides consistent Figma-style styling with toggle functionality.
+ *
+ * When hasConfiguredValues is true, shows a small indicator dot
+ * to visually highlight that the section contains explicitly set values.
  */
-export function ControlSection({label, defaultOpen = true, children}: ControlSectionProps): React.JSX.Element {
+export function ControlSection({label, defaultOpen = true, children, hasConfiguredValues = false}: ControlSectionProps): React.JSX.Element {
     const [opened, {toggle}] = useDisclosure(defaultOpen);
 
     return (
@@ -39,6 +44,19 @@ export function ControlSection({label, defaultOpen = true, children}: ControlSec
                     <Text size="xs" fw={500} c="white" lh={1.2}>
                         {label}
                     </Text>
+                    {/* Indicator dot for sections with configured values */}
+                    {hasConfiguredValues && (
+                        <Box
+                            aria-label={`${label} has configured values`}
+                            style={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: "50%",
+                                backgroundColor: "var(--mantine-color-blue-5)",
+                                marginLeft: 4,
+                            }}
+                        />
+                    )}
                 </Group>
             </Group>
 

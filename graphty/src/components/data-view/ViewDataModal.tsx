@@ -15,6 +15,8 @@ export interface ViewDataModalProps {
         nodes: Record<string, unknown>[];
         edges: Record<string, unknown>[];
     };
+    /** Whether to show copy button when a cell is selected. Defaults to true. */
+    showCopyButton?: boolean;
 }
 
 type TabValue = "nodes" | "edges";
@@ -23,7 +25,12 @@ type TabValue = "nodes" | "edges";
  * Modal component for viewing all graph data in a tabbed interface.
  * Displays nodes and edges in separate tabs with a search input.
  */
-export function ViewDataModal({opened, onClose, data}: ViewDataModalProps): React.JSX.Element {
+export function ViewDataModal({
+    opened,
+    onClose,
+    data,
+    showCopyButton = true,
+}: ViewDataModalProps): React.JSX.Element {
     const [activeTab, setActiveTab] = useState<TabValue>("nodes");
     const [searchText, setSearchText] = useState("");
     const [debouncedSearch] = useDebouncedValue(searchText, 300);
@@ -107,6 +114,7 @@ export function ViewDataModal({opened, onClose, data}: ViewDataModalProps): Reac
                             data={currentData}
                             defaultExpandDepth={1}
                             searchText={debouncedSearch || undefined}
+                            showCopyButton={showCopyButton}
                         />
                     ) : (
                         <Text c="gray.5" ta="center" py="xl">

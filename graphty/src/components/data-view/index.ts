@@ -1,3 +1,5 @@
+export type {CopyButtonProps} from "./CopyButton";
+export {CopyButton} from "./CopyButton";
 export type {DataGridProps, keyPathNode} from "./DataGrid";
 export {DataGrid} from "./DataGrid";
 export {
@@ -5,5 +7,6 @@ export {
     mantineJsonGridLightTheme,
     mantineJsonGridTheme,
 } from "./mantineTheme";
+export {getValueAtPath, keyPathToJMESPath} from "./pathUtils";
 export type {ViewDataModalProps} from "./ViewDataModal";
 export {ViewDataModal} from "./ViewDataModal";

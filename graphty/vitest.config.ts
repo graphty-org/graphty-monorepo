@@ -17,6 +17,11 @@ export default defineConfig({
             provider: "playwright",
             instances: [{browser: "chromium"}],
         },
+        exclude: [
+            "**/node_modules/**",
+            "**/dist/**",
+            "**/.worktrees/**",
+        ],
         setupFiles: "./src/test/setup.ts",
         coverage: {
             reporter: ["text", "json", "html"],

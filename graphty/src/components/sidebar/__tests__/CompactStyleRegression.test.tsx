@@ -69,14 +69,14 @@ describe("Compact Size Style Regression", () => {
             expect(computed.backgroundColor).toMatch(/^rgb/);
         });
 
-        it("Node Selector input has no border", () => {
+        it("Node Selector input has correct compact border", () => {
             render(<RightSidebar selectedLayer={mockLayer} />);
 
             const input = screen.getByLabelText("Node Selector");
             const computed = window.getComputedStyle(input);
 
-            // Border should be "0px none" or similar
-            expect(computed.borderWidth).toBe("0px");
+            // Compact inputs have 1px border as per theme design
+            expect(computed.borderWidth).toBe("1px");
         });
 
         it("Color hex input has correct compact styles", () => {

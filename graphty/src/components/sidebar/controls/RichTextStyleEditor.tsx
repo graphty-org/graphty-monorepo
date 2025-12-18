@@ -1,4 +1,4 @@
-import {Checkbox, Group, NativeSelect, NumberInput, Stack, TextInput} from "@mantine/core";
+import {Group, NativeSelect, NumberInput, Stack, TextInput} from "@mantine/core";
 import React, {useState} from "react";
 
 import {
@@ -10,6 +10,7 @@ import {
 } from "../../../constants/style-options";
 import type {RichTextStyle, TextAnimation, TextAttachPosition, TextBackgroundStyle, TextLocation} from "../../../types/style-layer";
 import {DEFAULT_TEXT_BACKGROUND, DEFAULT_TEXT_OUTLINE, DEFAULT_TEXT_SHADOW} from "../../../utils/style-defaults";
+import {CompactCheckbox} from "./CompactCheckbox";
 import {CompactColorInput} from "./CompactColorInput";
 import {ControlSubGroup} from "./ControlSubGroup";
 import {EffectToggle} from "./EffectToggle";
@@ -26,12 +27,8 @@ interface RichTextStyleEditorProps {
  * Provides controls for text content, font styling, positioning,
  * background, effects, and animation.
  */
-// No-op function for opacity changes when opacity control is not needed
-const noOpOpacity = (): void => {
-    // Intentionally empty - opacity is fixed at 100% for text colors
-};
-
 export function RichTextStyleEditor({
+    label,
     value,
     onChange,
 }: RichTextStyleEditorProps): React.JSX.Element {
@@ -266,17 +263,13 @@ export function RichTextStyleEditor({
     const advancedValue = value.advanced ?? {resolution: 64, depthFade: false};
 
     return (
-        <Stack gap={4}>
+        <Stack gap={4} data-testid={`rich-text-editor-${label}`}>
             {/* Enabled Toggle */}
-            <Checkbox
+            <CompactCheckbox
                 label="Enabled"
                 checked={value.enabled}
                 onChange={(e) => {
                     handleEnabledChange(e.currentTarget.checked);
-                }}
-                size="xs"
-                styles={{
-                    label: {fontSize: "11px", paddingLeft: "4px"},
                 }}
             />
 
@@ -349,7 +342,6 @@ export function RichTextStyleEditor({
                             color={value.font.color}
                             opacity={100}
                             onColorChange={handleFontColorChange}
-                            onOpacityChange={noOpOpacity}
                         />
                     </Group>
 
@@ -375,14 +367,10 @@ export function RichTextStyleEditor({
                         />
                     </Group>
 
-                    <Checkbox
+                    <CompactCheckbox
                         label="Billboard"
                         checked={value.position.billboard}
                         onChange={handleBillboardChange}
-                        size="xs"
-                        styles={{
-                            label: {fontSize: "11px", paddingLeft: "4px"},
-                        }}
                     />
 
                     {/* Background */}
@@ -396,7 +384,6 @@ export function RichTextStyleEditor({
                             color={backgroundValue.color}
                             opacity={100}
                             onColorChange={handleBackgroundColorChange}
-                            onOpacityChange={noOpOpacity}
                         />
                         <Group gap={8} grow>
                             <NumberInput
@@ -430,7 +417,6 @@ export function RichTextStyleEditor({
                                 color={outlineValue.color}
                                 opacity={100}
                                 onColorChange={handleOutlineColorChange}
-                                onOpacityChange={noOpOpacity}
                             />
                             <NumberInput
                                 label="Outline Width"
@@ -453,7 +439,6 @@ export function RichTextStyleEditor({
                                 color={shadowValue.color}
                                 opacity={100}
                                 onColorChange={handleShadowColorChange}
-                                onOpacityChange={noOpOpacity}
                             />
                             <NumberInput
                                 label="Shadow Blur"
@@ -502,14 +487,10 @@ export function RichTextStyleEditor({
                             min={16}
                             max={512}
                         />
-                        <Checkbox
+                        <CompactCheckbox
                             label="Depth Fade"
                             checked={advancedValue.depthFade}
                             onChange={handleDepthFadeChange}
-                            size="xs"
-                            styles={{
-                                label: {fontSize: "11px", paddingLeft: "4px"},
-                            }}
                         />
                     </ControlSubGroup>
                 </Stack>

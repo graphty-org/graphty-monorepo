@@ -2,10 +2,11 @@ import {ActionIcon, Box, ColorInput, Group, Slider, Stack, Text} from "@mantine/
 import {Minus, Plus} from "lucide-react";
 import React from "react";
 
-export interface ColorStop {
-    offset: number;
-    color: string;
-}
+import type {ColorStop} from "../../../types/style-layer";
+import {createColorStop} from "../../../utils/color-stops";
+
+// Re-export ColorStop for backwards compatibility
+export type {ColorStop} from "../../../types/style-layer";
 
 interface GradientEditorProps {
     stops: ColorStop[];
@@ -46,7 +47,7 @@ export function GradientEditor({
         }
 
         const newOffset = stops.length > 0 ? (stops[stops.length - 1].offset + 1) / 2 : 0.5;
-        const newStops = [... stops, {offset: newOffset, color: "#888888"}];
+        const newStops = [... stops, createColorStop(newOffset, "#888888")];
         newStops.sort((a, b) => a.offset - b.offset);
         onChange(newStops, direction);
     };
@@ -63,7 +64,7 @@ export function GradientEditor({
     return (
         <Stack gap="xs">
             <Group justify="space-between" align="center">
-                <Text size="xs" c="gray.4">
+                <Text size="xs" c="dimmed">
                     Color Stops
                 </Text>
                 <ActionIcon
@@ -79,7 +80,7 @@ export function GradientEditor({
             </Group>
 
             {stops.map((stop, index) => (
-                <Group key={index} gap="xs" align="flex-end">
+                <Group key={stop.id} gap="xs" align="flex-end">
                     <Box style={{flex: 1}}>
                         <ColorInput
                             size="compact"
@@ -120,7 +121,7 @@ export function GradientEditor({
 
             {showDirection && (
                 <Box>
-                    <Text size="xs" c="gray.4" mb={4}>
+                    <Text size="xs" c="dimmed" mb={4}>
                         Direction
                     </Text>
                     <Slider

@@ -1,6 +1,8 @@
 import {ActionIcon, Box, ColorPicker, ColorSwatch, Group, NumberInput, Popover, Stack, Text, TextInput} from "@mantine/core";
 import React, {useEffect, useState} from "react";
 
+import {opacityToAlphaHex, parseAlphaFromHexa} from "../../../utils/color-utils";
+
 export interface CompactColorInputProps {
     /** Hex color value (e.g., "#5B8FF9") */
     color: string;
@@ -8,12 +10,14 @@ export interface CompactColorInputProps {
     opacity: number;
     /** Called when color changes */
     onColorChange: (color: string) => void;
-    /** Called when opacity changes */
-    onOpacityChange: (opacity: number) => void;
+    /** Called when opacity changes (optional - when omitted, opacity control is hidden) */
+    onOpacityChange?: (opacity: number) => void;
     /** Called when both color and opacity change together (from color picker) */
     onColorAndOpacityChange?: (color: string, opacity: number) => void;
     /** Optional label displayed above the input */
     label?: string;
+    /** Control visibility of opacity input (defaults to true if onOpacityChange is provided) */
+    showOpacity?: boolean;
 }
 
 /**
@@ -27,6 +31,7 @@ export function CompactColorInput({
     onOpacityChange,
     onColorAndOpacityChange,
     label,
+    showOpacity = !!onOpacityChange,
 }: CompactColorInputProps): React.JSX.Element {
     const [colorPickerOpen, setColorPickerOpen] = useState(false);
 
@@ -53,7 +58,7 @@ export function CompactColorInput({
             // Has alpha channel
             const hex = hexaColor.slice(0, 7).toUpperCase();
             const alphaHex = hexaColor.slice(7, 9);
-            const newAlpha = Math.round((parseInt(alphaHex, 16) / 255) * 100);
+            const newAlpha = parseAlphaFromHexa(alphaHex);
 
             // Use combined callback if available to avoid race condition
             // (calling both onColorChange and onOpacityChange separately causes
@@ -73,7 +78,7 @@ export function CompactColorInput({
 
     // Combine current hex and opacity into HEXA format for ColorPicker
     const getHexaValue = (): string => {
-        const alphaHex = Math.round((opacity / 100) * 255).toString(16).padStart(2, "0");
+        const alphaHex = opacityToAlphaHex(opacity);
         return `${color}${alphaHex}`.toUpperCase();
     };
 
@@ -106,7 +111,7 @@ export function CompactColorInput({
         const opacityValue = typeof localOpacity === "string" ? parseFloat(localOpacity) : localOpacity;
         if (!isNaN(opacityValue)) {
             const clampedOpacity = Math.min(100, Math.max(0, opacityValue));
-            if (clampedOpacity !== opacity) {
+            if (clampedOpacity !== opacity && onOpacityChange) {
                 onOpacityChange(clampedOpacity);
             }
         } else {
@@ -130,7 +135,7 @@ export function CompactColorInput({
                         size={24}
                         radius={0}
                         style={{
-                            backgroundColor: "var(--mantine-color-dark-8)",
+                            backgroundColor: "var(--mantine-color-default)",
                             borderRadius: "4px 0 0 4px",
                         }}
                         onClick={() => {
@@ -143,7 +148,7 @@ export function CompactColorInput({
                             size={14}
                             radius={2}
                             style={{
-                                border: "1px solid rgba(255,255,255,0.1)",
+                                border: "1px solid var(--mantine-color-default-border)",
                             }}
                         />
                     </ActionIcon>
@@ -179,41 +184,45 @@ export function CompactColorInput({
                 w={72}
                 styles={{
                     input: {
-                        borderRadius: 0,
+                        borderRadius: showOpacity ? 0 : "0 4px 4px 0",
                         fontFamily: "monospace",
                         textTransform: "uppercase",
                     },
                 }}
             />
 
-            {/* Separator */}
-            <Box
-                style={{
-                    width: 1,
-                    height: 24,
-                    backgroundColor: "var(--mantine-color-dark-5)",
-                }}
-            />
+            {showOpacity && (
+                <>
+                    {/* Separator */}
+                    <Box
+                        style={{
+                            width: 1,
+                            height: 24,
+                            backgroundColor: "var(--mantine-color-default-border)",
+                        }}
+                    />
 
-            {/* Opacity input */}
-            <NumberInput
-                size="compact"
-                value={localOpacity}
-                onChange={handleLocalOpacityChange}
-                onBlur={handleOpacityBlur}
-                min={0}
-                max={100}
-                hideControls
-                suffix="%"
-                aria-label="Opacity"
-                w={54}
-                styles={{
-                    input: {
-                        borderRadius: "0 4px 4px 0",
-                        textAlign: "right",
-                    },
-                }}
-            />
+                    {/* Opacity input */}
+                    <NumberInput
+                        size="compact"
+                        value={localOpacity}
+                        onChange={handleLocalOpacityChange}
+                        onBlur={handleOpacityBlur}
+                        min={0}
+                        max={100}
+                        hideControls
+                        suffix="%"
+                        aria-label="Opacity"
+                        w={54}
+                        styles={{
+                            input: {
+                                borderRadius: "0 4px 4px 0",
+                                textAlign: "right",
+                            },
+                        }}
+                    />
+                </>
+            )}
         </Group>
     );
 
@@ -221,7 +230,7 @@ export function CompactColorInput({
     if (label) {
         return (
             <Stack gap={0}>
-                <Text size="xs" c="dark.2" mb={1} lh={1.2}>{label}</Text>
+                <Text size="xs" c="dimmed" mb={1} lh={1.2}>{label}</Text>
                 {colorInput}
             </Stack>
         );

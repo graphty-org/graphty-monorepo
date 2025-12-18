@@ -59,7 +59,8 @@ export const COLOR_MODE_OPTIONS = [
     {value: "radial", label: "Radial"},
 ] as const;
 
-export type ColorMode = (typeof COLOR_MODE_OPTIONS)[number]["value"];
+// Re-export ColorMode from canonical location for backwards compatibility
+export type {ColorMode} from "../types/style-layer";
 
 /**
  * Flatten shape options for simple select without groups.

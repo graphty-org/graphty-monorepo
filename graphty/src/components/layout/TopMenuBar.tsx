@@ -33,9 +33,8 @@ export function TopMenuBar({
                 justifyContent: "space-between",
                 paddingLeft: "16px",
                 paddingRight: "16px",
-                backgroundColor: "var(--mantine-color-dark-7)",
-                borderBottom: "1px solid var(--mantine-color-dark-5)",
-                color: "var(--mantine-color-gray-1)",
+                backgroundColor: "var(--mantine-color-body)",
+                borderBottom: "1px solid var(--mantine-color-default-border)",
                 ... style,
             }}
         >
@@ -92,7 +91,7 @@ export function TopMenuBar({
 
             {/* Center - Logo/Title */}
             <Box style={{flex: 1, display: "flex", justifyContent: "center"}}>
-                <Title order={3} c="dark.0">
+                <Title order={3}>
                     Graphty
                 </Title>
             </Box>

@@ -18,7 +18,7 @@ export function ControlGroup({label, actions, children}: ControlGroupProps): Rea
             <Divider color="gray.7" mt={8} mb={0} />
             {/* Header row with label and optional actions */}
             <Group justify="space-between" py={8}>
-                <Text size="xs" fw={500} c="white" lh={1.2}>
+                <Text size="xs" fw={500} lh={1.2}>
                     {label}
                 </Text>
                 {actions && <Group gap={4}>{actions}</Group>}

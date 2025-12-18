@@ -6,19 +6,25 @@
  * 3. Provide reset functionality (reset to undefined, which shows default)
  */
 
+// Re-export canonical defaults from utils for single source of truth
+export {DEFAULT_COLOR, DEFAULT_SHAPE} from "../utils/style-defaults";
+import {DEFAULT_COLOR, DEFAULT_SHAPE} from "../utils/style-defaults";
+
 /**
  * Node shape and size defaults.
+ * Uses DEFAULT_SHAPE.type from graphty-element for consistency.
  */
 export const NODE_DEFAULTS = {
-    shapeType: "sphere",
+    shapeType: DEFAULT_SHAPE.type,
     size: 1.0,
 } as const;
 
 /**
  * Node color defaults.
+ * Uses DEFAULT_COLOR.color from graphty-element for consistency.
  */
 export const NODE_COLOR_DEFAULTS = {
-    color: "#5B8FF9",
+    color: DEFAULT_COLOR.color,
     opacity: 100,
     colorMode: "solid" as const,
 } as const;

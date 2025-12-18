@@ -292,7 +292,7 @@ declare module "react" {
     }
 }
 
-export function Graphty({layers, layout2d = false, dataSource, dataSourceConfig, replaceExisting, layout = "d3", layoutConfig}: GraphtyProps): React.JSX.Element {
+export function Graphty({layers = [], layout2d = false, dataSource, dataSourceConfig, replaceExisting, layout = "d3", layoutConfig}: GraphtyProps): React.JSX.Element {
     const containerRef = useRef<HTMLDivElement>(null);
     const graphtyRef = useRef<GraphtyElementType>(null);
 

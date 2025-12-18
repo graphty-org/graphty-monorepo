@@ -213,4 +213,28 @@ describe("RichTextStyleEditor", () => {
 
         expect(screen.getByLabelText("Location")).toBeInTheDocument();
     });
+
+    it("uses label for data-testid", () => {
+        const {container} = render(
+            <RichTextStyleEditor
+                label="Node Label"
+                value={enabledStyle}
+                onChange={vi.fn()}
+            />,
+        );
+
+        expect(container.querySelector("[data-testid=\"rich-text-editor-Node Label\"]")).toBeInTheDocument();
+    });
+
+    it("uses different label for different data-testid", () => {
+        const {container} = render(
+            <RichTextStyleEditor
+                label="Edge Tooltip"
+                value={enabledStyle}
+                onChange={vi.fn()}
+            />,
+        );
+
+        expect(container.querySelector("[data-testid=\"rich-text-editor-Edge Tooltip\"]")).toBeInTheDocument();
+    });
 });

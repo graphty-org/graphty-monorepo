@@ -36,12 +36,12 @@ export function ControlSection({label, defaultOpen = true, children, hasConfigur
                     <ActionIcon
                         variant="subtle"
                         size="xs"
-                        c="gray.5"
+                        c="dimmed"
                         aria-label={opened ? `Collapse ${label}` : `Expand ${label}`}
                     >
                         {opened ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                     </ActionIcon>
-                    <Text size="xs" fw={500} c="white" lh={1.2}>
+                    <Text size="xs" fw={500} lh={1.2}>
                         {label}
                     </Text>
                     {/* Indicator dot for sections with configured values */}

@@ -143,8 +143,8 @@ describe("Sidebar Compact Integration", () => {
 
     describe("GradientEditor compact styles", () => {
         const defaultStops = [
-            {offset: 0, color: "#ff0000"},
-            {offset: 1, color: "#0000ff"},
+            {id: "stop-1", offset: 0, color: "#ff0000"},
+            {id: "stop-2", offset: 1, color: "#0000ff"},
         ];
 
         it("ActionIcon for add stop has compact size", () => {

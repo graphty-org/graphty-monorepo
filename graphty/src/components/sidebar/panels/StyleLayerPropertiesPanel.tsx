@@ -277,7 +277,7 @@ export function StyleLayerPropertiesPanel({
                 <Text
                     size="xs"
                     fw={500}
-                    c="dark.3"
+                    c="dimmed"
                     style={{fontSize: "10px"}}
                 >
                     Layer: {layer.name}
@@ -306,7 +306,7 @@ export function StyleLayerPropertiesPanel({
                         onBlur={handleSelectorBlur}
                         size="compact"
                         styles={{
-                            description: {fontSize: "9px", color: "var(--mantine-color-dark-3)", lineHeight: 1.2},
+                            description: {fontSize: "9px", color: "var(--mantine-color-dimmed)", lineHeight: 1.2},
                         }}
                     />
 
@@ -367,7 +367,7 @@ export function StyleLayerPropertiesPanel({
                     onBlur={handleEdgeSelectorBlur}
                     size="compact"
                     styles={{
-                        description: {fontSize: "9px", color: "var(--mantine-color-dark-3)", lineHeight: 1.2},
+                        description: {fontSize: "9px", color: "var(--mantine-color-dimmed)", lineHeight: 1.2},
                     }}
                 />
 

@@ -1,33 +1,17 @@
 import "../src/index.css";
 import "@mantine/core/styles.css";
 
-import {createTheme, MantineProvider} from "@mantine/core";
+import {MantineProvider} from "@mantine/core";
 import type {Preview} from "@storybook/react";
 import eruda from "eruda";
-import React from "react";
+import {createElement} from "react";
 
 import {initSentry} from "../src/lib/sentry";
+import {theme} from "../src/theme";
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
 
 // Initialize Sentry for error tracking in Storybook
 initSentry();
-
-const theme = createTheme({
-    colors: {
-        dark: [
-            "#d5d7da",
-            "#a3a8b1",
-            "#7a828e",
-            "#5f6873",
-            "#48525c",
-            "#374047",
-            "#2a3035",
-            "#1f2428",
-            "#161b22",
-            "#0d1117",
-        ],
-    },
-});
 
 // Initialize eruda for mobile debugging
 eruda.init();
@@ -56,17 +40,48 @@ const preview: Preview = {
                     // Then Graphty stories
                     "Graphty",
                     ["Default", "*"],
+                    // Compact Components
+                    "Compact",
+                    ["Overview", "Inputs", "Controls", "Buttons", "Display", "*"],
                 ],
                 includeNames: true,
             },
         },
+        // Disable the default backgrounds addon since we use Mantine's color scheme
+        backgrounds: {disable: true},
+        // Chromatic visual testing configuration
+        chromatic: {
+            // Capture both light and dark color schemes
+            modes: {
+                light: {colorScheme: "light"},
+                dark: {colorScheme: "dark"},
+            },
+        },
+    },
+    globalTypes: {
+        colorScheme: {
+            name: "Color Scheme",
+            description: "Mantine color scheme (light/dark)",
+            defaultValue: "dark",
+            toolbar: {
+                icon: "mirror",
+                items: [
+                    {value: "light", title: "Light"},
+                    {value: "dark", title: "Dark"},
+                ],
+                dynamicTitle: true,
+            },
+        },
     },
     decorators: [
-        (Story) => React.createElement(
-            MantineProvider,
-            {theme, defaultColorScheme: "dark"},
-            React.createElement(Story),
-        ),
+        (Story, context) => {
+            const colorScheme = (context.globals.colorScheme ?? "dark") as "light" | "dark";
+            return createElement(
+                MantineProvider,
+                {theme, forceColorScheme: colorScheme},
+                createElement(Story),
+            );
+        },
     ],
 };
 

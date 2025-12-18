@@ -70,7 +70,7 @@ export function StyleColorInput({
     return (
         <Stack gap={0}>
             {label && (
-                <Text size="xs" c="dark.2" mb={1} lh={1.2}>{label}</Text>
+                <Text size="xs" c="dimmed" mb={1} lh={1.2}>{label}</Text>
             )}
             <Group gap={4} wrap="nowrap">
                 <Group gap={0}>
@@ -87,7 +87,7 @@ export function StyleColorInput({
                                 size={24}
                                 radius={0}
                                 style={{
-                                    backgroundColor: "var(--mantine-color-dark-8)",
+                                    backgroundColor: "var(--mantine-color-default)",
                                     borderRadius: "4px 0 0 4px",
                                 }}
                                 onClick={() => {
@@ -100,7 +100,7 @@ export function StyleColorInput({
                                     size={14}
                                     radius={2}
                                     style={{
-                                        border: "1px solid rgba(255,255,255,0.1)",
+                                        border: "1px solid var(--mantine-color-default-border)",
                                     }}
                                 />
                             </ActionIcon>
@@ -140,7 +140,7 @@ export function StyleColorInput({
                                 textTransform: "uppercase",
                                 ... (isDefault ? {
                                     fontStyle: "italic",
-                                    color: "var(--mantine-color-dark-2)",
+                                    color: "var(--mantine-color-dimmed)",
                                 } : {}),
                             },
                         }}
@@ -151,7 +151,7 @@ export function StyleColorInput({
                     <ActionIcon
                         variant="subtle"
                         size="xs"
-                        c="dark.3"
+                        c="dimmed"
                         aria-label={`Reset ${label} to default`}
                         onClick={handleReset}
                     >

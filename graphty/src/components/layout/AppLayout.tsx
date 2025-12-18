@@ -258,7 +258,7 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                 style={{
                     gridArea: "canvas",
                     overflow: "hidden",
-                    backgroundColor: "var(--mantine-color-dark-8)",
+                    backgroundColor: "var(--mantine-color-body)",
                     width: "100%",
                     height: "100%",
                     position: "relative",

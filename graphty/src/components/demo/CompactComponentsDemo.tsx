@@ -45,6 +45,8 @@ import {
 } from "lucide-react";
 import React, {useState} from "react";
 
+import {opacityToAlphaHex, parseAlphaFromHexa} from "../../utils/color-utils";
+
 /**
  * Comprehensive demo of all Mantine components with compact size styling.
  * This page showcases the compact design system defined in compact-ui-design.md.
@@ -80,7 +82,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
             // Has alpha channel
             const hex = hexaColor.slice(0, 7);
             const alphaHex = hexaColor.slice(7, 9);
-            const alpha = Math.round((parseInt(alphaHex, 16) / 255) * 100);
+            const alpha = parseAlphaFromHexa(alphaHex);
             setFillColor(hex.toUpperCase());
             setFillOpacity(alpha);
         } else {
@@ -93,48 +95,48 @@ export function CompactComponentsDemo(): React.JSX.Element {
     // Combine current hex and opacity into HEXA format for ColorPicker
     const getHexaValue = (): string => {
         const opacityNum = typeof fillOpacity === "string" ? parseInt(fillOpacity, 10) : fillOpacity;
-        const alphaHex = Math.round((opacityNum / 100) * 255).toString(16).padStart(2, "0");
+        const alphaHex = opacityToAlphaHex(opacityNum);
         return `${fillColor}${alphaHex}`.toUpperCase();
     };
 
     return (
-        <Box style={{height: "100vh", overflow: "auto", backgroundColor: "var(--mantine-color-dark-7)"}}>
+        <Box style={{height: "100vh", overflow: "auto", backgroundColor: "var(--mantine-color-body)"}}>
             <Box p="md" style={{maxWidth: 800, margin: "0 auto"}}>
-                <Title order={1} mb="lg" c="white">
+                <Title order={1} mb="lg">
                     Compact Components Demo
                 </Title>
-                <Text c="dark.2" mb="xl">
+                <Text c="dimmed" mb="xl">
                     All components below use <code>size="compact"</code> (24px height, 11px font).
                     This demonstrates the Figma-style dense UI suitable for properties panels.
                 </Text>
 
                 {/* Comparison Section */}
                 <Section title="Size Comparison">
-                    <Text size="sm" c="dark.2" mb="md">
+                    <Text size="sm" c="dimmed" mb="md">
                         Compare compact size with standard Mantine sizes:
                     </Text>
                     <Stack gap="xs">
                         <Group gap="md" align="flex-end">
                             <Box w={100}>
-                                <Text size="xs" c="dark.3">xs (28px)</Text>
+                                <Text size="xs" c="dimmed">xs (28px)</Text>
                             </Box>
                             <TextInput size="xs" placeholder="Size xs" style={{flex: 1}} />
                         </Group>
                         <Group gap="md" align="flex-end">
                             <Box w={100}>
-                                <Text size="xs" c="dark.3">compact (24px)</Text>
+                                <Text size="xs" c="dimmed">compact (24px)</Text>
                             </Box>
                             <TextInput size="compact" placeholder="Size compact" style={{flex: 1}} />
                         </Group>
                         <Group gap="md" align="flex-end">
                             <Box w={100}>
-                                <Text size="xs" c="dark.3">sm (32px)</Text>
+                                <Text size="xs" c="dimmed">sm (32px)</Text>
                             </Box>
                             <TextInput size="sm" placeholder="Size sm" style={{flex: 1}} />
                         </Group>
                         <Group gap="md" align="flex-end">
                             <Box w={100}>
-                                <Text size="xs" c="dark.3">md (36px)</Text>
+                                <Text size="xs" c="dimmed">md (36px)</Text>
                             </Box>
                             <TextInput size="md" placeholder="Size md" style={{flex: 1}} />
                         </Group>
@@ -245,7 +247,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
 
                 {/* Figma-Style Input Components */}
                 <Section title="Figma-Style Components">
-                    <Text size="sm" c="dark.2" mb="md">
+                    <Text size="sm" c="dimmed" mb="md">
                         These patterns match Figma's properties panel design.
                     </Text>
 
@@ -255,7 +257,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                 <TextInput
                                     size="compact"
                                     value="400"
-                                    leftSection={<Text size="xs" c="dark.3" fw={500}>W</Text>}
+                                    leftSection={<Text size="xs" c="dimmed" fw={500}>W</Text>}
                                     leftSectionWidth={24}
                                     leftSectionPointerEvents="none"
                                     style={{flex: 1}}
@@ -264,13 +266,13 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                 <TextInput
                                     size="compact"
                                     value="300"
-                                    leftSection={<Text size="xs" c="dark.3" fw={500}>H</Text>}
+                                    leftSection={<Text size="xs" c="dimmed" fw={500}>H</Text>}
                                     leftSectionWidth={24}
                                     leftSectionPointerEvents="none"
                                     style={{flex: 1}}
                                     styles={{input: {paddingLeft: 28}}}
                                 />
-                                <ActionIcon size="compact" variant="subtle">
+                                <ActionIcon size="compact" variant="subtle" aria-label="Link dimensions">
                                     <Link2 size={14} />
                                 </ActionIcon>
                             </Group>
@@ -281,14 +283,14 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                 <TextInput
                                     size="compact"
                                     value="0"
-                                    rightSection={<RotateCw size={12} color="var(--mantine-color-dark-3)" />}
+                                    rightSection={<RotateCw size={12} color="var(--mantine-color-dimmed)" />}
                                     rightSectionWidth={24}
                                     style={{flex: 1}}
                                 />
                                 <TextInput
                                     size="compact"
                                     value="100%"
-                                    rightSection={<Move size={12} color="var(--mantine-color-dark-3)" />}
+                                    rightSection={<Move size={12} color="var(--mantine-color-dimmed)" />}
                                     rightSectionWidth={24}
                                     style={{flex: 1}}
                                 />
@@ -336,19 +338,20 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                             size={24}
                                             radius={0}
                                             style={{
-                                                backgroundColor: "var(--mantine-color-dark-8)",
+                                                backgroundColor: "var(--mantine-color-default)",
                                                 borderRadius: "4px 0 0 4px",
                                             }}
                                             onClick={() => {
                                                 setColorPickerOpen((o) => !o);
                                             }}
+                                            aria-label="Open color picker"
                                         >
                                             <ColorSwatch
                                                 color={fillColor}
                                                 size={14}
                                                 radius={2}
                                                 style={{
-                                                    border: "1px solid rgba(255,255,255,0.1)",
+                                                    border: "1px solid var(--mantine-color-default-border)",
                                                 }}
                                             />
                                         </ActionIcon>
@@ -394,7 +397,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                     style={{
                                         width: 1,
                                         height: 24,
-                                        backgroundColor: "var(--mantine-color-dark-5)",
+                                        backgroundColor: "var(--mantine-color-default-border)",
                                     }}
                                 />
                                 {/* Opacity input */}
@@ -422,10 +425,11 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                         onClick={() => {
                                             setFillVisible(!fillVisible);
                                         }}
+                                        aria-label={fillVisible ? "Hide fill" : "Show fill"}
                                     >
                                         {fillVisible ? <Eye size={14} /> : <EyeOff size={14} />}
                                     </ActionIcon>
-                                    <ActionIcon size="compact" variant="subtle" color="red">
+                                    <ActionIcon size="compact" variant="subtle" color="red" aria-label="Remove fill">
                                         <Minus size={14} />
                                     </ActionIcon>
                                 </Group>
@@ -438,7 +442,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                 <Box
                                     p={4}
                                     style={{
-                                        backgroundColor: "var(--mantine-color-blue-6)",
+                                        backgroundColor: "var(--mantine-primary-color-filled)",
                                         borderRadius: 4,
                                         marginLeft: -4,
                                         marginRight: -4,
@@ -464,7 +468,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                                     backgroundColor: "transparent",
                                                     border: "none",
                                                     fontFamily: "monospace",
-                                                    color: "white",
+                                                    color: "var(--mantine-primary-color-contrast)",
                                                     textTransform: "uppercase",
                                                     paddingLeft: 32,
                                                 },
@@ -474,7 +478,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                             style={{
                                                 width: 1,
                                                 height: 16,
-                                                backgroundColor: "rgba(255,255,255,0.2)",
+                                                backgroundColor: "var(--mantine-primary-color-light)",
                                             }}
                                         />
                                         <NumberInput
@@ -487,16 +491,16 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                                 input: {
                                                     backgroundColor: "transparent",
                                                     border: "none",
-                                                    color: "white",
+                                                    color: "var(--mantine-primary-color-contrast)",
                                                     textAlign: "right",
                                                 },
                                             }}
                                         />
                                         <Group gap={4} ml="auto">
-                                            <ActionIcon size="compact" variant="subtle" c="white">
+                                            <ActionIcon size="compact" variant="subtle" style={{color: "var(--mantine-primary-color-contrast)"}} aria-label="Toggle visibility">
                                                 <Eye size={14} />
                                             </ActionIcon>
-                                            <ActionIcon size="compact" variant="subtle" c="white">
+                                            <ActionIcon size="compact" variant="subtle" style={{color: "var(--mantine-primary-color-contrast)"}} aria-label="Remove fill">
                                                 <Minus size={14} />
                                             </ActionIcon>
                                         </Group>
@@ -520,7 +524,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                         leftSectionPointerEvents="none"
                                         styles={{
                                             input: {
-                                                backgroundColor: "var(--mantine-color-dark-8)",
+                                                backgroundColor: "var(--mantine-color-default)",
                                                 border: "none",
                                                 fontFamily: "monospace",
                                                 textTransform: "uppercase",
@@ -532,7 +536,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                         style={{
                                             width: 1,
                                             height: 16,
-                                            backgroundColor: "var(--mantine-color-dark-5)",
+                                            backgroundColor: "var(--mantine-color-default-border)",
                                         }}
                                     />
                                     <NumberInput
@@ -543,17 +547,17 @@ export function CompactComponentsDemo(): React.JSX.Element {
                                         w={56}
                                         styles={{
                                             input: {
-                                                backgroundColor: "var(--mantine-color-dark-8)",
+                                                backgroundColor: "var(--mantine-color-default)",
                                                 border: "none",
                                                 textAlign: "right",
                                             },
                                         }}
                                     />
                                     <Group gap={4} ml="auto">
-                                        <ActionIcon size="compact" variant="subtle">
+                                        <ActionIcon size="compact" variant="subtle" aria-label="Toggle visibility">
                                             <Eye size={14} />
                                         </ActionIcon>
-                                        <ActionIcon size="compact" variant="subtle">
+                                        <ActionIcon size="compact" variant="subtle" aria-label="Remove fill">
                                             <Minus size={14} />
                                         </ActionIcon>
                                     </Group>
@@ -563,23 +567,23 @@ export function CompactComponentsDemo(): React.JSX.Element {
 
                         <GridItem label="Compact ActionIcon toolbar" fullWidth>
                             <Group gap={4}>
-                                <ActionIcon size="compact" variant="filled">
+                                <ActionIcon size="compact" variant="filled" aria-label="Align left">
                                     <AlignLeft size={14} />
                                 </ActionIcon>
-                                <ActionIcon size="compact" variant="subtle">
+                                <ActionIcon size="compact" variant="subtle" aria-label="Text formatting">
                                     <Type size={14} />
                                 </ActionIcon>
-                                <ActionIcon size="compact" variant="subtle">
+                                <ActionIcon size="compact" variant="subtle" aria-label="Color palette">
                                     <Palette size={14} />
                                 </ActionIcon>
-                                <ActionIcon size="compact" variant="subtle">
+                                <ActionIcon size="compact" variant="subtle" aria-label="Hashtag">
                                     <Hash size={14} />
                                 </ActionIcon>
                                 <Divider orientation="vertical" />
-                                <ActionIcon size="compact" variant="subtle">
+                                <ActionIcon size="compact" variant="subtle" aria-label="Copy">
                                     <Copy size={14} />
                                 </ActionIcon>
-                                <ActionIcon size="compact" variant="subtle" color="red">
+                                <ActionIcon size="compact" variant="subtle" color="red" aria-label="Delete">
                                     <Trash size={14} />
                                 </ActionIcon>
                             </Group>
@@ -689,16 +693,16 @@ export function CompactComponentsDemo(): React.JSX.Element {
 
                         <GridItem label="ActionIcon variants">
                             <Group gap="xs">
-                                <ActionIcon size="compact" variant="filled">
+                                <ActionIcon size="compact" variant="filled" aria-label="Add item">
                                     <Plus size={14} />
                                 </ActionIcon>
-                                <ActionIcon size="compact" variant="light">
+                                <ActionIcon size="compact" variant="light" aria-label="Settings">
                                     <Settings size={14} />
                                 </ActionIcon>
-                                <ActionIcon size="compact" variant="subtle">
+                                <ActionIcon size="compact" variant="subtle" aria-label="Delete">
                                     <Trash size={14} />
                                 </ActionIcon>
-                                <ActionIcon size="compact" variant="outline">
+                                <ActionIcon size="compact" variant="outline" aria-label="Expand">
                                     <ChevronDown size={14} />
                                 </ActionIcon>
                             </Group>
@@ -706,16 +710,16 @@ export function CompactComponentsDemo(): React.JSX.Element {
 
                         <GridItem label="ActionIcon colors">
                             <Group gap="xs">
-                                <ActionIcon size="compact" color="blue">
+                                <ActionIcon size="compact" color="blue" aria-label="Add blue">
                                     <Plus size={14} />
                                 </ActionIcon>
-                                <ActionIcon size="compact" color="green">
+                                <ActionIcon size="compact" color="green" aria-label="Add green">
                                     <Plus size={14} />
                                 </ActionIcon>
-                                <ActionIcon size="compact" color="red">
+                                <ActionIcon size="compact" color="red" aria-label="Delete red">
                                     <Trash size={14} />
                                 </ActionIcon>
-                                <ActionIcon size="compact" color="gray">
+                                <ActionIcon size="compact" color="gray" aria-label="Settings gray">
                                     <Settings size={14} />
                                 </ActionIcon>
                             </Group>
@@ -768,17 +772,17 @@ export function CompactComponentsDemo(): React.JSX.Element {
                     <Box
                         p="sm"
                         style={{
-                            backgroundColor: "var(--mantine-color-dark-6)",
+                            backgroundColor: "var(--mantine-color-default-hover)",
                             borderRadius: "var(--mantine-radius-sm)",
                         }}
                     >
-                        <Text size="xs" fw={500} c="white" mb="sm">
+                        <Text size="xs" fw={500} mb="sm">
                             Node Properties
                         </Text>
 
                         <Stack gap={8}>
                             <Box>
-                                <Text size="xs" c="dark.2" mb={2}>Shape</Text>
+                                <Text size="xs" c="dimmed" mb={2}>Shape</Text>
                                 <Group gap={4} grow>
                                     <NativeSelect
                                         size="compact"
@@ -803,7 +807,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                             <Divider color="dark.5" />
 
                             <Box>
-                                <Text size="xs" c="dark.2" mb={2}>Color Mode</Text>
+                                <Text size="xs" c="dimmed" mb={2}>Color Mode</Text>
                                 <SegmentedControl
                                     size="compact"
                                     data={[
@@ -816,7 +820,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                             </Box>
 
                             <Box>
-                                <Text size="xs" c="dark.2" mb={2}>Color</Text>
+                                <Text size="xs" c="dimmed" mb={2}>Color</Text>
                                 <Group gap={8}>
                                     <ColorInput
                                         size="compact"
@@ -838,7 +842,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                             <Divider color="dark.5" />
 
                             <Box>
-                                <Text size="xs" c="dark.2" mb={2}>Visibility</Text>
+                                <Text size="xs" c="dimmed" mb={2}>Visibility</Text>
                                 <Group gap="md">
                                     <Checkbox size="compact" label="Visible" defaultChecked />
                                     <Checkbox size="compact" label="Selectable" defaultChecked />
@@ -846,7 +850,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
                             </Box>
 
                             <Box>
-                                <Text size="xs" c="dark.2" mb={2}>Opacity</Text>
+                                <Text size="xs" c="dimmed" mb={2}>Opacity</Text>
                                 <Slider
                                     size="compact"
                                     value={100}
@@ -871,13 +875,13 @@ export function CompactComponentsDemo(): React.JSX.Element {
                     <Box
                         p="sm"
                         style={{
-                            backgroundColor: "var(--mantine-color-dark-8)",
+                            backgroundColor: "var(--mantine-color-default)",
                             borderRadius: "var(--mantine-radius-sm)",
                             fontFamily: "monospace",
                             fontSize: "12px",
                         }}
                     >
-                        <Text c="dark.1" component="pre" style={{margin: 0}}>
+                        <Text c="dimmed" component="pre" style={{margin: 0}}>
                             {`/* Input Components */
 --input-size: 24px;
 --input-fz: 11px;
@@ -927,7 +931,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
 function Section({title, children}: {title: string, children: React.ReactNode}): React.JSX.Element {
     return (
         <Box mb="xl">
-            <Title order={3} size="h4" c="white" mb="md">
+            <Title order={3} size="h4" mb="md">
                 {title}
             </Title>
             {children}
@@ -960,7 +964,7 @@ function GridItem({
 }): React.JSX.Element {
     return (
         <Box style={fullWidth ? {gridColumn: "1 / -1"} : undefined}>
-            <Text size="xs" c="dark.2" mb={4}>
+            <Text size="xs" c="dimmed" mb={4}>
                 {label}
             </Text>
             {children}

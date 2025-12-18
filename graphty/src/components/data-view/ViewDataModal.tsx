@@ -77,6 +77,7 @@ export function ViewDataModal({
                         {value: "edges", label: "Edges"},
                     ]}
                     fullWidth
+                    aria-label="Select data type to view"
                     styles={{
                         root: {
                             backgroundColor: "var(--mantine-color-dark-6)",
@@ -87,11 +88,12 @@ export function ViewDataModal({
                 {/* Search Input */}
                 <TextInput
                     placeholder="Search..."
+                    aria-label="Search data"
                     value={searchText}
                     onChange={(e) => {
                         setSearchText(e.currentTarget.value);
                     }}
-                    leftSection={<Search size={14} />}
+                    leftSection={<Search size={14} aria-hidden="true" />}
                     styles={{
                         input: {
                             backgroundColor: "var(--mantine-color-dark-6)",

@@ -56,8 +56,10 @@ function formatValueForClipboard(value: unknown): string {
  * - Shift+Click: Copies the JMESPath (if provided)
  *
  * Shows a "Copied!" feedback tooltip for 1.5 seconds after copying.
+ *
+ * This component is wrapped with React.memo for performance optimization.
  */
-export function CopyButton({value, path, size = "sm"}: CopyButtonProps): React.JSX.Element {
+export const CopyButton = React.memo(function CopyButton({value, path, size = "sm"}: CopyButtonProps): React.JSX.Element {
     const [copied, setCopied] = useState(false);
 
     // Reset copied state after a delay
@@ -110,4 +112,4 @@ export function CopyButton({value, path, size = "sm"}: CopyButtonProps): React.J
             </ActionIcon>
         </Tooltip>
     );
-}
+});

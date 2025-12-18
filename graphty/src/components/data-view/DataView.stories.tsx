@@ -25,8 +25,16 @@ const dataGridMeta: Meta<typeof DataGrid> = {
 export default dataGridMeta;
 type DataGridStory = StoryObj<typeof dataGridMeta>;
 
+/** Flat object without nesting - displays simple key/value pairs */
+export const FlatObject: DataGridStory = {
+    args: {
+        data: {name: "Test", count: 42, active: true},
+        defaultExpandDepth: 1,
+    },
+};
+
 /** Default nested object view with expand/collapse */
-export const Default: DataGridStory = {
+export const NestedObject: DataGridStory = {
     args: {
         data: {user: {name: "John", profile: {age: 30, email: "john@example.com"}}},
         defaultExpandDepth: 2,
@@ -55,6 +63,34 @@ export const ArrayOfObjects: DataGridStory = {
             {id: 3, name: "Charlie", role: "User"},
         ],
         defaultExpandDepth: 1,
+    },
+};
+
+/** DataGrid with copy button enabled - click a cell to show the copy button */
+export const WithCopyButton: DataGridStory = {
+    args: {
+        data: {
+            id: "node-1",
+            label: "Example Node",
+            metadata: {
+                created: "2024-01-15",
+                tags: ["important", "active"],
+            },
+        },
+        defaultExpandDepth: 2,
+        showCopyButton: true,
+    },
+};
+
+/** Large dataset for performance testing */
+export const LargeDataset: DataGridStory = {
+    args: {
+        data: Array.from({length: 100}, (_, i) => ({
+            id: `item-${i}`,
+            name: `Item ${i}`,
+            value: Math.round(Math.random() * 1000),
+        })),
+        defaultExpandDepth: 0,
     },
 };
 

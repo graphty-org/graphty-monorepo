@@ -2,6 +2,7 @@ import {Box, ColorInput, Group, Stack, Text, TextInput} from "@mantine/core";
 import {Settings} from "lucide-react";
 import React, {useEffect, useState} from "react";
 
+import {DataAccordion} from "../data-view";
 import type {LayerItem} from "./LeftSidebar";
 
 interface RightSidebarProps {
@@ -9,9 +10,11 @@ interface RightSidebarProps {
     style?: React.CSSProperties;
     selectedLayer: LayerItem | null;
     onLayerUpdate?: (layerId: string, updates: Partial<LayerItem["styleLayer"]["node"]>) => void;
+    /** Data for the currently selected graph element (node or edge). Null when nothing is selected. */
+    selectedElementData?: Record<string, unknown> | null;
 }
 
-export function RightSidebar({className, style, selectedLayer, onLayerUpdate}: RightSidebarProps): React.JSX.Element {
+export function RightSidebar({className, style, selectedLayer, onLayerUpdate, selectedElementData}: RightSidebarProps): React.JSX.Element {
     const [selectorValue, setSelectorValue] = useState("");
 
     // Update local state when selected layer changes
@@ -122,6 +125,9 @@ export function RightSidebar({className, style, selectedLayer, onLayerUpdate}: R
                     </Box>
                 )}
             </Box>
+
+            {/* Data Accordion - shows selected element data */}
+            <DataAccordion data={selectedElementData ?? null} />
         </Box>
     );
 }

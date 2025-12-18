@@ -18,6 +18,9 @@ interface DataLoadedState {
     hasData: boolean;
 }
 
+// Placeholder for selected element data (will be populated when graph selection is implemented)
+type SelectedElementData = Record<string, unknown> | null;
+
 export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
     const [leftSidebarVisible, setLeftSidebarVisible] = useState(true);
     const [rightSidebarVisible, setRightSidebarVisible] = useState(true);
@@ -28,6 +31,8 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
     const [loadDataModalOpen, setLoadDataModalOpen] = useState(false);
     const [viewDataModalOpen, setViewDataModalOpen] = useState(false);
     const [dataLoadedState, setDataLoadedState] = useState<DataLoadedState>({hasData: false});
+    // Placeholder state for selected element data - will be connected to graph selection events in future
+    const [selectedElementData] = useState<SelectedElementData>(null);
     const layerCounter = useRef(1);
     const graphtyRef = useRef<GraphtyHandle>(null);
 
@@ -230,7 +235,11 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                             zIndex: 10,
                         }}
                     >
-                        <RightSidebar selectedLayer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
+                        <RightSidebar
+                            selectedLayer={selectedLayer}
+                            onLayerUpdate={handleLayerUpdate}
+                            selectedElementData={selectedElementData}
+                        />
                     </Box>
                 )}
 

@@ -1,6 +1,6 @@
 import {Box, Tooltip, useMantineColorScheme} from "@mantine/core";
 import JSONGrid, {type keyPathNode} from "@redheadphone/react-json-grid";
-import {useCallback, useEffect, useRef, useState} from "react";
+import React, {useCallback, useEffect, useRef, useState} from "react";
 
 import {CopyButton} from "./CopyButton";
 import {mantineJsonGridDarkTheme, mantineJsonGridLightTheme} from "./mantineTheme";
@@ -120,8 +120,10 @@ interface Selection {
  * When `showCopyButton` is true, selecting a cell will display a sticky copy button
  * that allows copying the value or JMESPath to the clipboard.
  * Users can also press Ctrl+C (Cmd+C on Mac) to copy the selected value.
+ *
+ * This component is wrapped with React.memo for performance optimization.
  */
-export function DataGrid({
+export const DataGrid = React.memo(function DataGrid({
     data,
     defaultExpandDepth = 0,
     searchText,
@@ -189,7 +191,13 @@ export function DataGrid({
     }, [showCopyButton, selection]);
 
     return (
-        <Box ref={containerRef} tabIndex={0} style={{outline: "none"}}>
+        <Box
+            ref={containerRef}
+            tabIndex={0}
+            role="grid"
+            aria-label="JSON data viewer"
+            style={{outline: "none"}}
+        >
             {/* Sticky copy button container - placed before JSONGrid for proper sticky behavior */}
             {showCopyButton && selection && (
                 <Box
@@ -237,4 +245,4 @@ export function DataGrid({
             />
         </Box>
     );
-}
+});

@@ -544,6 +544,7 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
         }
     }, [layout, layoutConfig]);
 
+    // Handle style layer changes
     useEffect(() => {
         if (graphtyRef.current) {
             // Create styleTemplate from layers

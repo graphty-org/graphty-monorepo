@@ -14,11 +14,19 @@ if (typeof Graphty === "undefined") {
     throw new Error("Graphty class failed to load");
 }
 
-import {createTheme, MantineProvider} from "@mantine/core";
+import {MantineProvider} from "@mantine/core";
 import React from "react";
 import ReactDOM from "react-dom/client";
 
 import {App} from "./App.tsx";
+import {initSentry} from "./lib/sentry";
+import {theme} from "./theme";
+
+// Re-export theme for tests and other modules
+export {theme} from "./theme";
+
+// Initialize Sentry before React render
+initSentry();
 
 // Initialize Eruda for development/testing (mobile console)
 if (import.meta.env.DEV) {
@@ -26,23 +34,6 @@ if (import.meta.env.DEV) {
         eruda.init();
     });
 }
-
-const theme = createTheme({
-    colors: {
-        dark: [
-            "#d5d7da",
-            "#a3a8b1",
-            "#7a828e",
-            "#5f6873",
-            "#48525c",
-            "#374047",
-            "#2a3035",
-            "#1f2428",
-            "#161b22",
-            "#0d1117",
-        ],
-    },
-});
 
 const rootElement = document.getElementById("root");
 if (!rootElement) {

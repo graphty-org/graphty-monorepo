@@ -85,11 +85,11 @@ function SortableLayerItem({layer, isSelected, onSelect, onNameChange}: Sortable
         }
     };
 
-    let backgroundColor = "var(--mantine-color-dark-6)";
+    let backgroundColor = "var(--mantine-color-default-hover)";
     if (isSelected) {
         backgroundColor = "var(--mantine-color-blue-9)";
     } else if (isDragging) {
-        backgroundColor = "var(--mantine-color-dark-5)";
+        backgroundColor = "var(--mantine-color-default)";
     }
 
     const style = {
@@ -98,7 +98,7 @@ function SortableLayerItem({layer, isSelected, onSelect, onNameChange}: Sortable
         padding: "4px 6px",
         backgroundColor,
         borderRadius: "4px",
-        border: `1px solid ${isSelected ? "var(--mantine-color-blue-7)" : "var(--mantine-color-dark-5)"}`,
+        border: `1px solid ${isSelected ? "var(--mantine-color-blue-7)" : "var(--mantine-color-default-border)"}`,
         cursor: isDragging ? "grabbing" : "pointer",
         userSelect: "none" as const,
         opacity: isDragging ? 0.5 : 1,
@@ -125,9 +125,8 @@ function SortableLayerItem({layer, isSelected, onSelect, onNameChange}: Sortable
                     size="sm"
                     styles={{
                         input: {
-                            backgroundColor: "var(--mantine-color-dark-7)",
+                            backgroundColor: "var(--mantine-color-body)",
                             border: "1px solid var(--mantine-color-blue-5)",
-                            color: "var(--mantine-color-gray-1)",
                             padding: "0 4px",
                             height: "24px",
                             minHeight: "24px",
@@ -136,7 +135,7 @@ function SortableLayerItem({layer, isSelected, onSelect, onNameChange}: Sortable
                 />
             ) : (
                 <Group gap="xs" justify="space-between">
-                    <Text size="sm" c="gray.1">
+                    <Text size="sm">
                         {layer.name}
                     </Text>
                     <Box
@@ -144,7 +143,7 @@ function SortableLayerItem({layer, isSelected, onSelect, onNameChange}: Sortable
                         {...listeners}
                         style={{cursor: "grab", display: "flex", alignItems: "center"}}
                     >
-                        <Text size="xs" c="gray.5">
+                        <Text size="xs" c="dimmed">
                             ⋮⋮
                         </Text>
                     </Box>
@@ -190,15 +189,14 @@ export function LeftSidebar({
             component="aside"
             className={className}
             style={{
-                backgroundColor: "var(--mantine-color-dark-7)",
-                borderRight: "1px solid var(--mantine-color-dark-5)",
+                backgroundColor: "var(--mantine-color-body)",
+                borderRight: "1px solid var(--mantine-color-default-border)",
                 display: "flex",
                 flexDirection: "column",
                 width: "280px",
                 minWidth: "280px",
                 height: "100%",
                 overflow: "hidden",
-                color: "var(--mantine-color-gray-1)",
                 ... style,
             }}
         >
@@ -206,7 +204,7 @@ export function LeftSidebar({
             <Box
                 style={{
                     padding: "16px",
-                    borderBottom: "1px solid var(--mantine-color-dark-5)",
+                    borderBottom: "1px solid var(--mantine-color-default-border)",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
@@ -214,7 +212,7 @@ export function LeftSidebar({
             >
                 <Group gap="xs">
                     <Layers size={16} />
-                    <Text size="sm" fw={500} c="gray.1">
+                    <Text size="sm" fw={500}>
                         Layers
                     </Text>
                 </Group>
@@ -249,7 +247,7 @@ export function LeftSidebar({
                     </DndContext>
                 ) : (
                     <Box style={{textAlign: "center", paddingTop: "32px", paddingBottom: "32px"}}>
-                        <Text size="sm" c="gray.5">
+                        <Text size="sm" c="dimmed">
                             Click the + button to add layers
                         </Text>
                     </Box>

@@ -1,13 +1,36 @@
 import {Box} from "@mantine/core";
-import React, {useCallback, useRef, useState} from "react";
+import React, {useCallback, useEffect, useRef, useState} from "react";
 
+import {useGraphInfo} from "../../hooks/useGraphInfo";
+import type {GraphTypeConfig} from "../../types/selection";
 import {ViewDataModal} from "../data-view";
+import {FeedbackModal} from "../FeedbackModal";
 import {Graphty, type GraphtyHandle} from "../Graphty";
 import {LoadDataModal, type LoadDataRequest} from "../LoadDataModal";
+import {RunLayoutsModal} from "../RunLayoutsModal";
 import {BottomToolbar, ViewMode} from "./BottomToolbar";
 import {LayerItem, LeftSidebar} from "./LeftSidebar";
 import {RightSidebar} from "./RightSidebar";
 import {TopMenuBar} from "./TopMenuBar";
+
+// Sample test data for development - a simple graph with a few nodes and edges
+const TEST_GRAPH_DATA = {
+    nodes: [
+        {id: "1", label: "Node 1", group: "A"},
+        {id: "2", label: "Node 2", group: "A"},
+        {id: "3", label: "Node 3", group: "B"},
+        {id: "4", label: "Node 4", group: "B"},
+        {id: "5", label: "Node 5", group: "C"},
+    ],
+    edges: [
+        {src: "1", dst: "2"},
+        {src: "1", dst: "3"},
+        {src: "2", dst: "4"},
+        {src: "3", dst: "4"},
+        {src: "4", dst: "5"},
+        {src: "2", dst: "5"},
+    ],
+};
 
 interface AppLayoutProps {
     className?: string;
@@ -30,11 +53,16 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
     const [viewMode, setViewMode] = useState<ViewMode>("3d");
     const [loadDataModalOpen, setLoadDataModalOpen] = useState(false);
     const [viewDataModalOpen, setViewDataModalOpen] = useState(false);
+    const [runLayoutsModalOpen, setRunLayoutsModalOpen] = useState(false);
+    const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [dataLoadedState, setDataLoadedState] = useState<DataLoadedState>({hasData: false});
+    const [currentLayout, setCurrentLayout] = useState<string>("d3");
+    const [currentLayoutConfig, setCurrentLayoutConfig] = useState<Record<string, unknown>>({});
     // Placeholder state for selected element data - will be connected to graph selection events in future
     const [selectedElementData] = useState<SelectedElementData>(null);
     const layerCounter = useRef(1);
     const graphtyRef = useRef<GraphtyHandle>(null);
+    const {graphInfo, updateStats, addDataSource, setGraphType} = useGraphInfo();
 
     const handleAddLayer = (): void => {
         const newLayer: LayerItem = {
@@ -87,6 +115,29 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
         setLayers(updatedLayers);
     };
 
+    const handleEdgeUpdate = (layerId: string, updates: Partial<LayerItem["styleLayer"]["edge"]>): void => {
+        const updatedLayers = layers.map((layer) => {
+            if (layer.id === layerId) {
+                return {
+                    ... layer,
+                    styleLayer: {
+                        ... layer.styleLayer,
+                        edge: {
+                            selector: "",
+                            style: {},
+                            ... layer.styleLayer.edge,
+                            ... updates,
+                        },
+                    },
+                };
+            }
+
+            return layer;
+        });
+
+        setLayers(updatedLayers);
+    };
+
     const selectedLayer = layers.find((layer) => layer.id === selectedLayerId) ?? null;
 
     const handleLoadData = useCallback(async(request: LoadDataRequest) => {
@@ -107,13 +158,18 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
             if (request.inputMethod === "url" && request.url) {
                 // Use loadFromUrl for auto-detection from URL content
                 await graphtyRef.current.loadFromUrl(request.url, format);
+                // Extract filename from URL for data source tracking
+                const fileName = request.url.split("/").pop() ?? "url-source";
+                addDataSource({name: fileName, type: format ?? "auto"});
             } else if (request.inputMethod === "file" && request.file) {
                 // Use loadFromFile for auto-detection from file content
                 await graphtyRef.current.loadFromFile(request.file, format);
+                addDataSource({name: request.file.name, type: format ?? "auto"});
             } else if (request.inputMethod === "paste" && request.data) {
                 // For pasted data, we need a format (auto-detection already happened in modal)
                 const pasteFormat = request.format === "auto" ? "json" : request.format;
                 graphtyRef.current.loadData(pasteFormat, {data: request.data});
+                addDataSource({name: "pasted-data", type: pasteFormat});
             }
 
             setDataLoadedState({hasData: true});
@@ -121,7 +177,7 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
             console.error("Failed to load data:", error);
             // Could add error state display here
         }
-    }, []);
+    }, [addDataSource]);
 
     const handleViewData = useCallback(() => {
         setViewDataModalOpen(true);
@@ -130,6 +186,51 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
     const getGraphData = useCallback(() => {
         return graphtyRef.current?.getData() ?? {nodes: [], edges: []};
     }, []);
+
+    const handleGraphTypeChange = useCallback((newGraphType: GraphTypeConfig) => {
+        setGraphType(newGraphType);
+    }, [setGraphType]);
+
+    const handleLayerDeselect = useCallback(() => {
+        setSelectedLayerId(null);
+    }, []);
+
+    const handleApplyLayout = useCallback((layoutType: string, config: Record<string, unknown>) => {
+        setCurrentLayout(layoutType);
+        setCurrentLayoutConfig(config);
+    }, []);
+
+    const handleSendFeedback = useCallback(() => {
+        setFeedbackModalOpen(true);
+    }, []);
+
+    // Handle global keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent): void => {
+            // Escape key deselects the current layer
+            if (event.key === "Escape" && selectedLayerId !== null) {
+                setSelectedLayerId(null);
+            }
+        };
+
+        document.addEventListener("keydown", handleKeyDown);
+        return () => {
+            document.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [selectedLayerId]);
+
+    // Load test data if ?test=true query parameter is present
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("test") === "true") {
+            // Use the imperative API to load test data
+            graphtyRef.current?.loadData("json", {data: JSON.stringify(TEST_GRAPH_DATA)});
+            // Update graph stats with test data counts
+            updateStats(TEST_GRAPH_DATA.nodes.length, TEST_GRAPH_DATA.edges.length);
+            addDataSource({name: "test-data.json", type: "json"});
+            setDataLoadedState({hasData: true});
+        }
+    }, [updateStats, addDataSource]);
 
     // Check if there's data available (based on whether we've loaded data)
     const {hasData} = dataLoadedState;
@@ -163,6 +264,10 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                 }}
                 onViewData={handleViewData}
                 hasData={hasData}
+                onRunLayouts={() => {
+                    setRunLayoutsModalOpen(true);
+                }}
+                onSendFeedback={handleSendFeedback}
             />
 
             {/* Load Data Modal */}
@@ -185,13 +290,33 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                 data={getGraphData()}
             />
 
+            {/* Run Layouts Modal */}
+            <RunLayoutsModal
+                opened={runLayoutsModalOpen}
+                onClose={() => {
+                    setRunLayoutsModalOpen(false);
+                }}
+                onApply={handleApplyLayout}
+                is2DMode={viewMode === "2d"}
+                currentLayout={currentLayout}
+                currentLayoutConfig={currentLayoutConfig}
+            />
+
+            {/* Feedback Modal */}
+            <FeedbackModal
+                opened={feedbackModalOpen}
+                onClose={() => {
+                    setFeedbackModalOpen(false);
+                }}
+            />
+
             {/* Main Canvas Area - Full Screen */}
             <Box
                 component="main"
                 style={{
                     gridArea: "canvas",
                     overflow: "hidden",
-                    backgroundColor: "var(--mantine-color-dark-8)",
+                    backgroundColor: "var(--mantine-color-body)",
                     width: "100%",
                     height: "100%",
                     position: "relative",
@@ -201,6 +326,8 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                     ref={graphtyRef}
                     layers={layers}
                     layout2d={viewMode === "2d"}
+                    layout={currentLayout}
+                    layoutConfig={currentLayoutConfig}
                 />
 
                 {/* Left Sidebar - Overlaid */}
@@ -237,8 +364,12 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                     >
                         <RightSidebar
                             selectedLayer={selectedLayer}
+                            graphInfo={graphInfo}
                             onLayerUpdate={handleLayerUpdate}
+                            onEdgeUpdate={handleEdgeUpdate}
                             selectedElementData={selectedElementData}
+                            onGraphTypeChange={handleGraphTypeChange}
+                            onLayerDeselect={handleLayerDeselect}
                         />
                     </Box>
                 )}

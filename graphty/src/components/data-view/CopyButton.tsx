@@ -7,8 +7,8 @@ export interface CopyButtonProps {
     value: unknown;
     /** Optional JMESPath string to copy when shift-clicking */
     path?: string;
-    /** Size of the button. Defaults to "sm" */
-    size?: "xs" | "sm" | "md" | "lg" | "xl";
+    /** Size of the button. Defaults to "compact" */
+    size?: "compact" | "xs" | "sm" | "md" | "lg" | "xl";
 }
 
 /**
@@ -59,7 +59,7 @@ function formatValueForClipboard(value: unknown): string {
  *
  * This component is wrapped with React.memo for performance optimization.
  */
-export const CopyButton = React.memo(function CopyButton({value, path, size = "sm"}: CopyButtonProps): React.JSX.Element {
+export const CopyButton = React.memo(function CopyButton({value, path, size = "compact"}: CopyButtonProps): React.JSX.Element {
     const [copied, setCopied] = useState(false);
 
     // Reset copied state after a delay
@@ -108,7 +108,7 @@ export const CopyButton = React.memo(function CopyButton({value, path, size = "s
                 onClick={handleClick}
                 aria-label={ariaLabel}
             >
-                {copied ? <Check size={14} /> : <Clipboard size={14} />}
+                {copied ? <Check size={12} /> : <Clipboard size={12} />}
             </ActionIcon>
         </Tooltip>
     );

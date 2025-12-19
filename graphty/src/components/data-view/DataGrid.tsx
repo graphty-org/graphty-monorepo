@@ -222,12 +222,12 @@ export const DataGrid = React.memo(function DataGrid({
                         <Box
                             style={{
                                 pointerEvents: "auto",
-                                backgroundColor: "var(--mantine-color-dark-7)",
-                                borderRadius: "4px",
-                                padding: "2px",
-                                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.3)",
-                                marginTop: 4,
-                                marginRight: 4,
+                                backgroundColor: "var(--mantine-color-body)",
+                                borderRadius: "2px",
+                                padding: "1px",
+                                boxShadow: "0 1px 2px rgba(0, 0, 0, 0.2)",
+                                marginTop: 2,
+                                marginRight: 2,
                             }}
                         >
                             <CopyButton value={selection.value} path={selection.jmesPath} />

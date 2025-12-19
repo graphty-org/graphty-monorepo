@@ -7,7 +7,6 @@ export {DataGrid} from "./DataGrid";
 export {
     mantineJsonGridDarkTheme,
     mantineJsonGridLightTheme,
-    mantineJsonGridTheme,
 } from "./mantineTheme";
 export {getValueAtPath, keyPathToJMESPath} from "./pathUtils";
 export type {ViewDataModalProps} from "./ViewDataModal";

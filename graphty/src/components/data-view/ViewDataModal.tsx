@@ -49,23 +49,22 @@ export function ViewDataModal({
             centered
             styles={{
                 header: {
-                    backgroundColor: "var(--mantine-color-dark-7)",
-                    borderBottom: "1px solid var(--mantine-color-dark-5)",
+                    backgroundColor: "var(--mantine-color-body)",
+                    borderBottom: "1px solid var(--mantine-color-default-border)",
                 },
                 body: {
-                    backgroundColor: "var(--mantine-color-dark-7)",
-                    padding: "20px",
+                    backgroundColor: "var(--mantine-color-body)",
+                    padding: "12px",
                 },
                 content: {
-                    backgroundColor: "var(--mantine-color-dark-7)",
+                    backgroundColor: "var(--mantine-color-body)",
                 },
                 title: {
-                    color: "var(--mantine-color-gray-1)",
                     fontWeight: 500,
                 },
             }}
         >
-            <Stack gap="md">
+            <Stack gap="xs">
                 {/* Tabs for Nodes/Edges */}
                 <SegmentedControl
                     value={activeTab}
@@ -77,10 +76,11 @@ export function ViewDataModal({
                         {value: "edges", label: "Edges"},
                     ]}
                     fullWidth
+                    size="xs"
                     aria-label="Select data type to view"
                     styles={{
                         root: {
-                            backgroundColor: "var(--mantine-color-dark-6)",
+                            backgroundColor: "var(--mantine-color-default)",
                         },
                     }}
                 />
@@ -89,15 +89,16 @@ export function ViewDataModal({
                 <TextInput
                     placeholder="Search..."
                     aria-label="Search data"
+                    size="xs"
                     value={searchText}
                     onChange={(e) => {
                         setSearchText(e.currentTarget.value);
                     }}
-                    leftSection={<Search size={14} aria-hidden="true" />}
+                    leftSection={<Search size={12} aria-hidden="true" />}
                     styles={{
                         input: {
-                            backgroundColor: "var(--mantine-color-dark-6)",
-                            borderColor: "var(--mantine-color-dark-5)",
+                            backgroundColor: "var(--mantine-color-default)",
+                            borderColor: "var(--mantine-color-default-border)",
                         },
                     }}
                 />
@@ -107,8 +108,8 @@ export function ViewDataModal({
                     style={{
                         maxHeight: "400px",
                         overflow: "auto",
-                        border: "1px solid var(--mantine-color-dark-5)",
-                        borderRadius: "4px",
+                        border: "1px solid var(--mantine-color-default-border)",
+                        borderRadius: "2px",
                     }}
                 >
                     {currentData.length > 0 ? (
@@ -119,7 +120,7 @@ export function ViewDataModal({
                             showCopyButton={showCopyButton}
                         />
                     ) : (
-                        <Text c="gray.5" ta="center" py="xl">
+                        <Text c="dimmed" ta="center" py="xl">
                             No {activeTab} to display
                         </Text>
                     )}
@@ -127,7 +128,7 @@ export function ViewDataModal({
 
                 {/* Footer with item counts */}
                 <Group justify="space-between">
-                    <Text size="sm" c="gray.5">
+                    <Text size="xs" c="dimmed">
                         {nodeCount} {nodeCount === 1 ? "node" : "nodes"} ·{" "}
                         {edgeCount} {edgeCount === 1 ? "edge" : "edges"}
                     </Text>

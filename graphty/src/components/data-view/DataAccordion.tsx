@@ -63,7 +63,7 @@ export const DataAccordion = React.memo(function DataAccordion({data, title = "D
     return (
         <Box
             style={{
-                borderTop: "1px solid var(--mantine-color-dark-5)",
+                borderTop: "1px solid var(--mantine-color-default-border)",
             }}
         >
             {/* Accordion Header */}
@@ -83,16 +83,16 @@ export const DataAccordion = React.memo(function DataAccordion({data, title = "D
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    padding: "12px 16px",
+                    padding: "8px 12px",
                     cursor: "pointer",
                     userSelect: "none",
-                    backgroundColor: "var(--mantine-color-dark-6)",
+                    backgroundColor: "var(--mantine-color-default-hover)",
                 }}
             >
-                <Group gap="xs">
-                    {isExpanded ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}
-                    <Database size={16} aria-hidden="true" />
-                    <Text size="sm" fw={500} c="gray.1">
+                <Group gap={4}>
+                    {isExpanded ? <ChevronDown size={12} aria-hidden="true" /> : <ChevronRight size={12} aria-hidden="true" />}
+                    <Database size={12} aria-hidden="true" />
+                    <Text size="xs" fw={500}>
                         {title}
                     </Text>
                 </Group>
@@ -103,11 +103,11 @@ export const DataAccordion = React.memo(function DataAccordion({data, title = "D
                         <ActionIcon
                             variant="subtle"
                             color={copied ? "green" : "gray"}
-                            size="sm"
+                            size="compact"
                             onClick={handleCopyAll}
                             aria-label="Copy all data"
                         >
-                            {copied ? <Check size={14} /> : <Clipboard size={14} />}
+                            {copied ? <Check size={12} /> : <Clipboard size={12} />}
                         </ActionIcon>
                     </Tooltip>
                 )}
@@ -117,8 +117,8 @@ export const DataAccordion = React.memo(function DataAccordion({data, title = "D
             <Collapse in={isExpanded}>
                 <Box
                     style={{
-                        padding: "12px 16px",
-                        maxHeight: "400px",
+                        padding: "8px 12px",
+                        maxHeight: "300px",
                         overflowY: "auto",
                     }}
                 >
@@ -132,13 +132,13 @@ export const DataAccordion = React.memo(function DataAccordion({data, title = "D
                         <Box
                             style={{
                                 textAlign: "center",
-                                padding: "24px 16px",
+                                padding: "16px 12px",
                             }}
                         >
-                            <Box style={{display: "flex", justifyContent: "center", marginBottom: "8px"}}>
-                                <Database size={24} style={{color: "var(--mantine-color-dark-3)"}} aria-hidden="true" />
+                            <Box style={{display: "flex", justifyContent: "center", marginBottom: "6px"}}>
+                                <Database size={18} style={{color: "var(--mantine-color-dimmed)"}} aria-hidden="true" />
                             </Box>
-                            <Text size="sm" c="gray.5">
+                            <Text size="xs" c="dimmed">
                                 No element selected
                             </Text>
                         </Box>

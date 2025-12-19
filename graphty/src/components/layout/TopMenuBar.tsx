@@ -1,5 +1,5 @@
 import {ActionIcon, Box, Group, Menu as MantineMenu, Title} from "@mantine/core";
-import {Database, Download, Menu, Settings, Share, Upload} from "lucide-react";
+import {Database, Download, Menu, MessageSquare, Settings, Share, Sparkles, Upload} from "lucide-react";
 import React from "react";
 
 interface TopMenuBarProps {
@@ -11,6 +11,8 @@ interface TopMenuBarProps {
     onLoadData?: () => void;
     onViewData?: () => void;
     hasData?: boolean;
+    onRunLayouts?: () => void;
+    onSendFeedback?: () => void;
 }
 
 export function TopMenuBar({
@@ -22,6 +24,8 @@ export function TopMenuBar({
     onLoadData,
     onViewData,
     hasData,
+    onRunLayouts,
+    onSendFeedback,
 }: TopMenuBarProps): React.JSX.Element {
     return (
         <Box
@@ -33,9 +37,8 @@ export function TopMenuBar({
                 justifyContent: "space-between",
                 paddingLeft: "16px",
                 paddingRight: "16px",
-                backgroundColor: "var(--mantine-color-dark-7)",
-                borderBottom: "1px solid var(--mantine-color-dark-5)",
-                color: "var(--mantine-color-gray-1)",
+                backgroundColor: "var(--mantine-color-body)",
+                borderBottom: "1px solid var(--mantine-color-default-border)",
                 ... style,
             }}
         >
@@ -64,6 +67,9 @@ export function TopMenuBar({
                         >
                             View Data...
                         </MantineMenu.Item>
+                        <MantineMenu.Item leftSection={<Sparkles size={14} />} onClick={onRunLayouts}>
+                            Run Layouts...
+                        </MantineMenu.Item>
                         <MantineMenu.Item leftSection={<Download size={14} />}>
                             Export
                         </MantineMenu.Item>
@@ -80,13 +86,23 @@ export function TopMenuBar({
                         <MantineMenu.Item onClick={onToggleToolbar}>
                             Toggle Toolbar
                         </MantineMenu.Item>
+
+                        <MantineMenu.Divider />
+
+                        <MantineMenu.Label>Help</MantineMenu.Label>
+                        <MantineMenu.Item
+                            leftSection={<MessageSquare size={14} />}
+                            onClick={onSendFeedback}
+                        >
+                            Send feedback...
+                        </MantineMenu.Item>
                     </MantineMenu.Dropdown>
                 </MantineMenu>
             </Group>
 
             {/* Center - Logo/Title */}
             <Box style={{flex: 1, display: "flex", justifyContent: "center"}}>
-                <Title order={3} c="dark.0">
+                <Title order={3}>
                     Graphty
                 </Title>
             </Box>

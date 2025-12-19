@@ -21,8 +21,8 @@ export function BottomToolbar({className, style, viewMode = "3d", onViewModeChan
             radius="md"
             shadow="lg"
             style={{
-                backgroundColor: "var(--mantine-color-dark-7)",
-                border: "1px solid var(--mantine-color-dark-5)",
+                backgroundColor: "var(--mantine-color-body)",
+                border: "1px solid var(--mantine-color-default-border)",
                 padding: "4px 8px",
                 maxWidth: "90vw",
                 ... style,
@@ -87,8 +87,8 @@ export function BottomToolbar({className, style, viewMode = "3d", onViewModeChan
                         </Menu.Target>
                         <Menu.Dropdown
                             style={{
-                                backgroundColor: "var(--mantine-color-dark-7)",
-                                border: "1px solid var(--mantine-color-dark-5)",
+                                backgroundColor: "var(--mantine-color-body)",
+                                border: "1px solid var(--mantine-color-default-border)",
                             }}
                         >
                             <Menu.Item

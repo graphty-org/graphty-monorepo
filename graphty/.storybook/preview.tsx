@@ -1,34 +1,22 @@
 import "../src/index.css";
 import "@mantine/core/styles.css";
 
-import {createTheme, MantineProvider} from "@mantine/core";
+import {MantineProvider} from "@mantine/core";
 import type {Preview, StoryContext} from "@storybook/react";
 import eruda from "eruda";
 import React from "react";
 
+import {initSentry} from "../src/lib/sentry";
+import {theme} from "../src/theme";
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
+
+// Initialize Sentry for error tracking in Storybook
+initSentry();
 
 // Initialize eruda for mobile debugging
 eruda.init();
 eruda.show("console");
 eruda.position({x: window.innerWidth - 60, y: 20});
-
-const theme = createTheme({
-    colors: {
-        dark: [
-            "#d5d7da",
-            "#a3a8b1",
-            "#7a828e",
-            "#5f6873",
-            "#48525c",
-            "#374047",
-            "#2a3035",
-            "#1f2428",
-            "#161b22",
-            "#0d1117",
-        ],
-    },
-});
 
 /**
  * Determines the Mantine color scheme based on Storybook globals.
@@ -102,8 +90,24 @@ const preview: Preview = {
                     // Then Graphty stories
                     "Graphty",
                     ["Default", "*"],
+                    // Compact Components
+                    "Compact",
+                    ["Overview", "Inputs", "Controls", "Buttons", "Display", "*"],
+                    // Data View Components
+                    "DataView",
+                    ["ViewDataModal", "DataAccordion", "DataGrid", "CopyButton", "*"],
                 ],
                 includeNames: true,
+            },
+        },
+        // Disable the default backgrounds addon since we use Mantine's color scheme
+        backgrounds: {disable: true},
+        // Chromatic visual testing configuration
+        chromatic: {
+            // Capture both light and dark color schemes
+            modes: {
+                light: {colorScheme: "light"},
+                dark: {colorScheme: "dark"},
             },
         },
     },

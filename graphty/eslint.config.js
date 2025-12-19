@@ -1,3 +1,4 @@
+import {defineConfig} from "@eslint/config-helpers";
 import eslint from "@eslint/js";
 import stylistic from "@stylistic/eslint-plugin";
 import reactPlugin from "eslint-plugin-react";
@@ -8,7 +9,7 @@ import storybookPlugin from "eslint-plugin-storybook";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
-export default tseslint.config(
+export default defineConfig(
     eslint.configs.recommended,
     tseslint.configs.strictTypeChecked,
     tseslint.configs.stylisticTypeChecked,
@@ -19,6 +20,7 @@ export default tseslint.config(
             "storybook-static",
             "coverage",
             "node_modules",
+            ".worktrees",
         ],
     },
     {

@@ -1,8 +1,9 @@
 import {Box, Group, NativeSelect, NumberInput, Stack} from "@mantine/core";
 import {ChevronDown} from "lucide-react";
-import React, {useEffect, useState} from "react";
+import React from "react";
 
 import {ARROW_TYPE_OPTIONS} from "../../../constants/style-options";
+import {useLocalValue} from "../../../hooks";
 import type {ArrowConfig, ArrowType} from "../../../types/style-layer";
 import {CompactColorInput} from "../controls/CompactColorInput";
 
@@ -17,13 +18,11 @@ interface EdgeArrowControlProps {
  * Shows size and color options only when type is not 'none'.
  */
 export function EdgeArrowControl({label, value, onChange}: EdgeArrowControlProps): React.JSX.Element {
-    // Local state for size to prevent focus loss during typing
-    const [localSize, setLocalSize] = useState<string | number>(value.size);
-
-    // Sync local state when prop changes (e.g., from external updates)
-    useEffect(() => {
-        setLocalSize(value.size);
-    }, [value.size]);
+    const {
+        localValue: localSize,
+        setLocalValue: setLocalSize,
+        commitValue: commitSize,
+    } = useLocalValue(value.size, value.size);
 
     const handleTypeChange = (event: React.ChangeEvent<HTMLSelectElement>): void => {
         onChange({
@@ -37,7 +36,7 @@ export function EdgeArrowControl({label, value, onChange}: EdgeArrowControlProps
     };
 
     const handleSizeBlur = (): void => {
-        const size = typeof localSize === "string" ? parseFloat(localSize) || value.size : localSize;
+        const size = commitSize();
         if (size !== value.size) {
             onChange({
                 ... value,

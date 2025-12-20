@@ -1,16 +1,14 @@
-import {Badge, Box, Checkbox, Group, Radio, Stack, Text} from "@mantine/core";
+import {Badge, Box, Group, Stack, Text} from "@mantine/core";
 import {FileText} from "lucide-react";
 import React from "react";
 
-import type {GraphInfo, GraphTypeConfig} from "../../../types/selection";
+import type {GraphInfo} from "../../../types/selection";
 import {ControlGroup} from "../controls/ControlGroup";
 import {StatRow} from "../controls/StatRow";
 
 interface GraphPropertiesPanelProps {
     /** Information about the current graph */
     graphInfo: GraphInfo;
-    /** Callback when graph type settings change */
-    onGraphTypeChange?: (graphType: GraphTypeConfig) => void;
 }
 
 /**
@@ -19,29 +17,7 @@ interface GraphPropertiesPanelProps {
  */
 export function GraphPropertiesPanel({
     graphInfo,
-    onGraphTypeChange,
 }: GraphPropertiesPanelProps): React.JSX.Element {
-    const handleDirectedChange = (value: string): void => {
-        onGraphTypeChange?.({
-            ... graphInfo.graphType,
-            directed: value === "directed",
-        });
-    };
-
-    const handleWeightedChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
-        onGraphTypeChange?.({
-            ... graphInfo.graphType,
-            weighted: event.target.checked,
-        });
-    };
-
-    const handleSelfLoopsChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
-        onGraphTypeChange?.({
-            ... graphInfo.graphType,
-            selfLoops: event.target.checked,
-        });
-    };
-
     const formatDensity = (density: number): string => {
         // Format to 4 decimal places, but remove trailing zeros
         return density.toFixed(4).replace(/\.?0+$/, "") || "0";
@@ -80,46 +56,6 @@ export function GraphPropertiesPanel({
                     <StatRow label="Nodes" value={graphInfo.nodeCount} />
                     <StatRow label="Edges" value={graphInfo.edgeCount} />
                     <StatRow label="Density" value={formatDensity(graphInfo.density)} />
-                </Stack>
-            </ControlGroup>
-
-            {/* Graph Type Section */}
-            <ControlGroup label="Graph Type">
-                <Stack gap={8} py={4}>
-                    {/* Directed/Undirected radio group */}
-                    <Radio.Group
-                        value={graphInfo.graphType.directed ? "directed" : "undirected"}
-                        onChange={handleDirectedChange}
-                    >
-                        <Group gap="md">
-                            <Radio
-                                value="directed"
-                                label="Directed"
-                                size="compact"
-                            />
-                            <Radio
-                                value="undirected"
-                                label="Undirected"
-                                size="compact"
-                            />
-                        </Group>
-                    </Radio.Group>
-
-                    {/* Weighted and Self-loops checkboxes */}
-                    <Group gap="md">
-                        <Checkbox
-                            label="Weighted"
-                            checked={graphInfo.graphType.weighted}
-                            onChange={handleWeightedChange}
-                            size="compact"
-                        />
-                        <Checkbox
-                            label="Self-loops"
-                            checked={graphInfo.graphType.selfLoops}
-                            onChange={handleSelfLoopsChange}
-                            size="compact"
-                        />
-                    </Group>
                 </Stack>
             </ControlGroup>
         </Stack>

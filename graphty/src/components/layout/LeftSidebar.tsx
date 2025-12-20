@@ -5,6 +5,8 @@ import {ActionIcon, Box, Group, Text, TextInput} from "@mantine/core";
 import {Layers, Plus} from "lucide-react";
 import React, {useEffect, useRef, useState} from "react";
 
+import {LEFT_SIDEBAR_WIDTH} from "../../constants/layout";
+
 interface LeftSidebarProps {
     className?: string;
     style?: React.CSSProperties;
@@ -193,8 +195,8 @@ export function LeftSidebar({
                 borderRight: "1px solid var(--mantine-color-default-border)",
                 display: "flex",
                 flexDirection: "column",
-                width: "280px",
-                minWidth: "280px",
+                width: `${LEFT_SIDEBAR_WIDTH}px`,
+                minWidth: `${LEFT_SIDEBAR_WIDTH}px`,
                 height: "100%",
                 overflow: "hidden",
                 ... style,

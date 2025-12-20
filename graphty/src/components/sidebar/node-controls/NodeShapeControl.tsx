@@ -1,13 +1,10 @@
 import {Box, Group, NativeSelect, NumberInput} from "@mantine/core";
 import {ChevronDown} from "lucide-react";
-import React, {useEffect, useState} from "react";
+import React from "react";
 
 import {NODE_SHAPE_OPTIONS} from "../../../constants/style-options";
-
-export interface ShapeConfig {
-    type: string;
-    size: number;
-}
+import {useLocalValue} from "../../../hooks";
+import type {ShapeConfig} from "../../../types/style-layer";
 
 interface NodeShapeControlProps {
     value: ShapeConfig;
@@ -19,13 +16,11 @@ interface NodeShapeControlProps {
  * Displays shapes in grouped categories (Basic, Platonic, Spherical, Other).
  */
 export function NodeShapeControl({value, onChange}: NodeShapeControlProps): React.JSX.Element {
-    // Local state for size to prevent focus loss during typing
-    const [localSize, setLocalSize] = useState<string | number>(value.size);
-
-    // Sync local state when prop changes (e.g., from external updates)
-    useEffect(() => {
-        setLocalSize(value.size);
-    }, [value.size]);
+    const {
+        localValue: localSize,
+        setLocalValue: setLocalSize,
+        commitValue: commitSize,
+    } = useLocalValue(value.size, value.size);
 
     const handleShapeChange = (event: React.ChangeEvent<HTMLSelectElement>): void => {
         onChange({
@@ -39,7 +34,7 @@ export function NodeShapeControl({value, onChange}: NodeShapeControlProps): Reac
     };
 
     const handleSizeBlur = (): void => {
-        const size = typeof localSize === "string" ? parseFloat(localSize) || value.size : localSize;
+        const size = commitSize();
         if (size !== value.size) {
             onChange({
                 ... value,

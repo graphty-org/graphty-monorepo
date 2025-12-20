@@ -12,7 +12,7 @@ export function ErrorFallback({resetError}: FallbackProps): React.JSX.Element {
                 alignItems: "center",
                 justifyContent: "center",
                 height: "100vh",
-                backgroundColor: "var(--mantine-color-dark-8)",
+                backgroundColor: "var(--mantine-color-body)",
             }}
         >
             <Stack align="center" gap="lg">

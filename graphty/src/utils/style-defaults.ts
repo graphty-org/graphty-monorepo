@@ -1,18 +1,23 @@
 /**
  * Default styles derived from graphty-element.
  *
- * These values are based on the defaultNodeStyle and defaultEdgeStyle
- * exported from graphty-element. They are hardcoded here because TypeScript
- * has trouble resolving the re-exports in bundler mode.
+ * These values are based on the defaultNodeStyle, defaultEdgeStyle, and
+ * defaultRichTextLabelStyle exported from graphty-element. They are hardcoded
+ * here because TypeScript has trouble resolving the re-exports in bundler mode.
  *
  * Source values from graphty-element:
  * - Node: shape=icosphere, size=1, color=#6366F1
  * - Edge: line type=solid, width=8, color=darkgrey (#A9A9A9)
  * - Arrow: type=normal, size=1, color=darkgrey (#A9A9A9), opacity=1
+ * - Label: font=Verdana, fontSize=48, textColor=#000000 (plain black text)
  *
  * Key differences from graphty-element:
  * - Opacity: graphty-element uses 0-1, UI uses 0-100
  * - Colors: converted to uppercase hex format
+ * - RichTextStyle: graphty-element uses flat structure, UI uses nested font object
+ *
+ * To keep in sync with graphty-element, see:
+ * - graphty-element/src/config/RichTextStyle.ts (defaultRichTextLabelStyle)
  */
 
 import type {ArrowConfig, EdgeLineConfig, GlowConfig, NodeEffectsConfig, OutlineConfig, RichTextStyle, ShapeConfig, SolidColorConfig, TextBackgroundStyle, TextOutlineStyle, TextShadowStyle} from "../types/style-layer";
@@ -108,47 +113,53 @@ export const DEFAULT_NODE_EFFECTS: NodeEffectsConfig = {
 
 /**
  * Default text outline style configuration.
+ * Source: defaultRichTextLabelStyle.textOutline = false
  */
 export const DEFAULT_TEXT_OUTLINE: TextOutlineStyle = {
     enabled: false,
     color: "#000000",
-    width: 1,
+    width: 2,
 };
 
 /**
  * Default text shadow style configuration.
+ * Source: defaultRichTextLabelStyle.textShadow = false
  */
 export const DEFAULT_TEXT_SHADOW: TextShadowStyle = {
     enabled: false,
     color: "#000000",
-    blur: 2,
-    offsetX: 1,
-    offsetY: 1,
+    blur: 4,
+    offsetX: 2,
+    offsetY: 2,
 };
 
 /**
  * Default text background style configuration.
+ * Source: defaultRichTextLabelStyle.backgroundPadding = 0
  */
 export const DEFAULT_TEXT_BACKGROUND: TextBackgroundStyle = {
     enabled: false,
     color: "#000000",
-    padding: 4,
-    borderRadius: 2,
+    padding: 0,
+    borderRadius: 0,
 };
 
 /**
  * Default rich text style configuration for labels and tooltips.
- * Note: fontSize 48 matches graphty-element default for visibility on 3D graphs.
+ * Source: defaultRichTextLabelStyle from graphty-element
+ * - font = "Verdana", fontSize = 48, fontWeight = "normal"
+ * - textColor = "#000000" (plain black text, no outline)
+ * Note: graphty-element uses flat structure, UI uses nested font object.
  */
 export const DEFAULT_RICH_TEXT_STYLE: RichTextStyle = {
     enabled: false,
     text: "",
     location: "static",
     font: {
-        family: "Arial",
+        family: "Verdana",
         size: 48,
         weight: 400,
-        color: "#FFFFFF",
+        color: "#000000",
     },
     background: undefined,
     position: {
@@ -158,5 +169,8 @@ export const DEFAULT_RICH_TEXT_STYLE: RichTextStyle = {
     },
     effects: undefined,
     animation: undefined,
-    advanced: undefined,
+    advanced: {
+        resolution: 128,
+        depthFade: false,
+    },
 };

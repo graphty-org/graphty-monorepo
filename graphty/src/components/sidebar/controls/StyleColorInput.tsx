@@ -2,6 +2,8 @@ import {ActionIcon, ColorPicker, ColorSwatch, Group, Popover, Stack, Text, TextI
 import {X} from "lucide-react";
 import React, {useEffect, useState} from "react";
 
+import {SWATCH_COLORS} from "../../../constants/colors";
+
 export interface StyleColorInputProps {
     /** Label for the input */
     label: string;
@@ -110,16 +112,7 @@ export function StyleColorInput({
                                 format="hex"
                                 value={displayValue}
                                 onChange={handleColorPickerChange}
-                                swatches={[
-                                    "#5B8FF9",
-                                    "#FF6B6B",
-                                    "#61D095",
-                                    "#F7B731",
-                                    "#9B59B6",
-                                    "#FFFFFF",
-                                    "#CCCCCC",
-                                    "#000000",
-                                ]}
+                                swatches={[... SWATCH_COLORS]}
                             />
                         </Popover.Dropdown>
                     </Popover>

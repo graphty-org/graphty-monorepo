@@ -3,6 +3,7 @@ import {useDebouncedValue} from "@mantine/hooks";
 import {Search} from "lucide-react";
 import {useState} from "react";
 
+import {standardModalStyles} from "../../utils/modal-styles";
 import {DataGrid} from "./DataGrid";
 
 export interface ViewDataModalProps {
@@ -47,22 +48,7 @@ export function ViewDataModal({
             title="View Data"
             size="xl"
             centered
-            styles={{
-                header: {
-                    backgroundColor: "var(--mantine-color-body)",
-                    borderBottom: "1px solid var(--mantine-color-default-border)",
-                },
-                body: {
-                    backgroundColor: "var(--mantine-color-body)",
-                    padding: "12px",
-                },
-                content: {
-                    backgroundColor: "var(--mantine-color-body)",
-                },
-                title: {
-                    fontWeight: 500,
-                },
-            }}
+            styles={standardModalStyles}
         >
             <Stack gap="xs">
                 {/* Tabs for Nodes/Edges */}

@@ -1,8 +1,9 @@
 import {Box, Group, NativeSelect, NumberInput, Stack} from "@mantine/core";
 import {ChevronDown} from "lucide-react";
-import React, {useEffect, useState} from "react";
+import React from "react";
 
 import {LINE_TYPE_OPTIONS} from "../../../constants/style-options";
+import {useLocalValue} from "../../../hooks";
 import type {EdgeLineConfig, EdgeLineType} from "../../../types/style-layer";
 import {CompactColorInput} from "../controls/CompactColorInput";
 
@@ -16,13 +17,11 @@ interface EdgeLineControlProps {
  * Includes line type, width, and color with opacity.
  */
 export function EdgeLineControl({value, onChange}: EdgeLineControlProps): React.JSX.Element {
-    // Local state for width to prevent focus loss during typing
-    const [localWidth, setLocalWidth] = useState<string | number>(value.width);
-
-    // Sync local state when prop changes (e.g., from external updates)
-    useEffect(() => {
-        setLocalWidth(value.width);
-    }, [value.width]);
+    const {
+        localValue: localWidth,
+        setLocalValue: setLocalWidth,
+        commitValue: commitWidth,
+    } = useLocalValue(value.width, value.width);
 
     const handleTypeChange = (event: React.ChangeEvent<HTMLSelectElement>): void => {
         onChange({
@@ -36,7 +35,7 @@ export function EdgeLineControl({value, onChange}: EdgeLineControlProps): React.
     };
 
     const handleWidthBlur = (): void => {
-        const width = typeof localWidth === "string" ? parseFloat(localWidth) || value.width : localWidth;
+        const width = commitWidth();
         if (width !== value.width) {
             onChange({
                 ... value,

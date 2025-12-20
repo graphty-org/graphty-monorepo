@@ -288,7 +288,7 @@ export function StyleLayerPropertiesPanel({
             <Box>
                 <Text
                     mb={4}
-                    style={{fontSize: "12px", fontWeight: 500, color: "#ffffff", lineHeight: 1.2}}
+                    style={{fontSize: "12px", fontWeight: 500, color: "var(--mantine-color-text)", lineHeight: 1.2}}
                 >
                     Node Properties
                 </Text>

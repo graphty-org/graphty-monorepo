@@ -14,6 +14,8 @@ import {
 import {AlertCircle, Clipboard, FileText, Link, Upload} from "lucide-react";
 import {useCallback, useState} from "react";
 
+import {standardModalStyles} from "../utils/modal-styles";
+
 type InputMethod = "file" | "url" | "paste";
 type FormatType = "auto" | "json" | "graphml" | "gexf" | "csv" | "gml" | "dot" | "pajek";
 
@@ -311,22 +313,7 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
             title="Load Data"
             size="lg"
             centered
-            styles={{
-                header: {
-                    backgroundColor: "var(--mantine-color-body)",
-                    borderBottom: "1px solid var(--mantine-color-default-border)",
-                },
-                body: {
-                    backgroundColor: "var(--mantine-color-body)",
-                    padding: "20px",
-                },
-                content: {
-                    backgroundColor: "var(--mantine-color-body)",
-                },
-                title: {
-                    fontWeight: 500,
-                },
-            }}
+            styles={standardModalStyles}
         >
             <Stack gap="lg">
                 {/* Input Method Tabs */}

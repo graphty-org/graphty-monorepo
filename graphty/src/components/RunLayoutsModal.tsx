@@ -4,6 +4,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 
 import {CATEGORY_LABELS, getLayoutMetadata, LAYOUT_METADATA, type LayoutMetadata} from "../data/layoutMetadata";
 import {getHiddenFields, getLayoutSchema} from "../data/layoutSchemas";
+import {standardModalStyles} from "../utils/modal-styles";
 import {getDefaultValues} from "../utils/zodSchemaParser";
 import {LayoutOptionsForm} from "./layout-options/LayoutOptionsForm";
 
@@ -113,10 +114,6 @@ export function RunLayoutsModal({
         setConfigValues(newValues);
     }, []);
 
-    const handleClose = useCallback(() => {
-        onClose();
-    }, [onClose]);
-
     const handleApply = useCallback(() => {
         // Merge schema defaults with user config values
         const finalConfig = {... schemaDefaults, ... configValues};
@@ -146,27 +143,11 @@ export function RunLayoutsModal({
     return (
         <Modal
             opened={opened}
-            onClose={handleClose}
+            onClose={onClose}
             title="Run Layout"
             size="md"
             centered
-            styles={{
-                header: {
-                    backgroundColor: "var(--mantine-color-dark-7)",
-                    borderBottom: "1px solid var(--mantine-color-dark-5)",
-                },
-                body: {
-                    backgroundColor: "var(--mantine-color-dark-7)",
-                    padding: "20px",
-                },
-                content: {
-                    backgroundColor: "var(--mantine-color-dark-7)",
-                },
-                title: {
-                    color: "var(--mantine-color-gray-1)",
-                    fontWeight: 500,
-                },
-            }}
+            styles={standardModalStyles}
         >
             <Stack gap="lg">
                 {/* Layout Selection Dropdown */}
@@ -180,7 +161,7 @@ export function RunLayoutsModal({
                     data={groupedLayoutOptions}
                     searchable
                     styles={{
-                        label: {color: "var(--mantine-color-gray-3)"},
+                        label: {color: "var(--mantine-color-dimmed)"},
                     }}
                 />
 
@@ -245,7 +226,7 @@ export function RunLayoutsModal({
 
                 {/* Action Buttons */}
                 <Group justify="flex-end" mt="md">
-                    <Button variant="subtle" color="gray" onClick={handleClose}>
+                    <Button variant="subtle" color="gray" onClick={onClose}>
                         Cancel
                     </Button>
                     <Button

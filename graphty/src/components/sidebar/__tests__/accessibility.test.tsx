@@ -66,16 +66,17 @@ describe("Sidebar Accessibility", () => {
             expect(collapseButtons.length).toBeGreaterThan(0);
         });
 
-        it("graph properties panel has proper labels", () => {
+        it("graph properties panel shows data sources and statistics", () => {
             render(<RightSidebar selectedLayer={null} graphInfo={mockGraphInfo} />);
 
-            // Radio buttons should have labels
-            expect(screen.getByRole("radio", {name: "Directed"})).toBeInTheDocument();
-            expect(screen.getByRole("radio", {name: "Undirected"})).toBeInTheDocument();
+            // Data sources should be labeled
+            expect(screen.getByText("Data Sources")).toBeInTheDocument();
 
-            // Checkboxes should have labels
-            expect(screen.getByRole("checkbox", {name: "Weighted"})).toBeInTheDocument();
-            expect(screen.getByRole("checkbox", {name: "Self-loops"})).toBeInTheDocument();
+            // Statistics should be labeled
+            expect(screen.getByText("Statistics")).toBeInTheDocument();
+            expect(screen.getByText("Nodes")).toBeInTheDocument();
+            expect(screen.getByText("Edges")).toBeInTheDocument();
+            expect(screen.getByText("Density")).toBeInTheDocument();
         });
     });
 

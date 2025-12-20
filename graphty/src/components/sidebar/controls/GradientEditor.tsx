@@ -2,6 +2,7 @@ import {ActionIcon, Box, ColorInput, Group, Slider, Stack, Text} from "@mantine/
 import {Minus, Plus} from "lucide-react";
 import React from "react";
 
+import {DEFAULT_GRADIENT_STOP_COLOR} from "../../../constants/colors";
 import type {ColorStop} from "../../../types/style-layer";
 import {createColorStop} from "../../../utils/color-stops";
 
@@ -47,7 +48,7 @@ export function GradientEditor({
         }
 
         const newOffset = stops.length > 0 ? (stops[stops.length - 1].offset + 1) / 2 : 0.5;
-        const newStops = [... stops, createColorStop(newOffset, "#888888")];
+        const newStops = [... stops, createColorStop(newOffset, DEFAULT_GRADIENT_STOP_COLOR)];
         newStops.sort((a, b) => a.offset - b.offset);
         onChange(newStops, direction);
     };

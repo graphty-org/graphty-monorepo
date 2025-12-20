@@ -38,6 +38,7 @@ export const NODE_SHAPE_OPTIONS: ShapeGroup[] = [
         group: "Spherical",
         items: [
             {value: "geodesic", label: "Geodesic"},
+            {value: "icosphere", label: "Icosphere"},
             {value: "disc", label: "Disc"},
         ],
     },

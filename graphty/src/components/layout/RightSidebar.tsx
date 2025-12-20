@@ -2,7 +2,8 @@ import {Box, Group, ScrollArea, Text} from "@mantine/core";
 import {Settings} from "lucide-react";
 import React, {useCallback} from "react";
 
-import type {GraphInfo, GraphTypeConfig} from "../../types/selection";
+import {RIGHT_SIDEBAR_WIDTH} from "../../constants/layout";
+import type {GraphInfo} from "../../types/selection";
 import {DataAccordion} from "../data-view";
 import {GraphPropertiesPanel} from "../sidebar/panels/GraphPropertiesPanel";
 import {StyleLayerPropertiesPanel} from "../sidebar/panels/StyleLayerPropertiesPanel";
@@ -15,7 +16,6 @@ interface RightSidebarProps {
     graphInfo?: GraphInfo;
     onLayerUpdate?: (layerId: string, updates: Partial<LayerItem["styleLayer"]["node"]>) => void;
     onEdgeUpdate?: (layerId: string, updates: Partial<LayerItem["styleLayer"]["edge"]>) => void;
-    onGraphTypeChange?: (graphType: GraphTypeConfig) => void;
     /** Called when the user presses Escape to deselect the current layer */
     onLayerDeselect?: () => void;
     /** Data for the currently selected graph element (node or edge). Null when nothing is selected. */
@@ -27,7 +27,6 @@ function renderPanelContent(
     graphInfo: GraphInfo | undefined,
     onLayerUpdate: RightSidebarProps["onLayerUpdate"],
     onEdgeUpdate: RightSidebarProps["onEdgeUpdate"],
-    onGraphTypeChange: RightSidebarProps["onGraphTypeChange"],
 ): React.JSX.Element {
     if (selectedLayer) {
         return (
@@ -43,7 +42,6 @@ function renderPanelContent(
         return (
             <GraphPropertiesPanel
                 graphInfo={graphInfo}
-                onGraphTypeChange={onGraphTypeChange}
             />
         );
     }
@@ -60,7 +58,7 @@ function renderPanelContent(
     );
 }
 
-export function RightSidebar({className, style, selectedLayer, graphInfo, onLayerUpdate, onEdgeUpdate, onGraphTypeChange, onLayerDeselect, selectedElementData}: RightSidebarProps): React.JSX.Element {
+export function RightSidebar({className, style, selectedLayer, graphInfo, onLayerUpdate, onEdgeUpdate, onLayerDeselect, selectedElementData}: RightSidebarProps): React.JSX.Element {
     const handleKeyDown = useCallback((event: React.KeyboardEvent): void => {
         if (event.key === "Escape" && selectedLayer && onLayerDeselect) {
             onLayerDeselect();
@@ -78,8 +76,8 @@ export function RightSidebar({className, style, selectedLayer, graphInfo, onLaye
                 borderLeft: "1px solid var(--mantine-color-default-border)",
                 display: "flex",
                 flexDirection: "column",
-                width: "260px",
-                minWidth: "260px",
+                width: `${RIGHT_SIDEBAR_WIDTH}px`,
+                minWidth: `${RIGHT_SIDEBAR_WIDTH}px`,
                 height: "100%",
                 overflow: "hidden",
                 outline: "none",
@@ -109,7 +107,7 @@ export function RightSidebar({className, style, selectedLayer, graphInfo, onLaye
             {/* Sidebar Content */}
             <ScrollArea style={{flex: 1}} scrollbarSize={8}>
                 <Box style={{padding: "16px"}}>
-                    {renderPanelContent(selectedLayer, graphInfo, onLayerUpdate, onEdgeUpdate, onGraphTypeChange)}
+                    {renderPanelContent(selectedLayer, graphInfo, onLayerUpdate, onEdgeUpdate)}
                 </Box>
             </ScrollArea>
 

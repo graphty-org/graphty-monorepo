@@ -1,6 +1,7 @@
 import {Box} from "@mantine/core";
 import {forwardRef, useEffect, useImperativeHandle, useRef} from "react";
 
+import {DEFAULT_GRAPH_NODE_COLOR} from "../constants/colors";
 import type {ArrowConfig, ColorConfig, EdgeLineConfig, EdgeStyle, NodeEffectsConfig, RichTextStyle, ShapeConfig} from "../types/style-layer";
 import type {LayerItem} from "./layout/LeftSidebar";
 
@@ -93,7 +94,7 @@ function convertColorConfig(colorConfig: ColorConfig): string | {colorType: stri
 
         default:
             // This should never happen, but TypeScript requires exhaustive handling
-            return "#5b8ff9";
+            return DEFAULT_GRAPH_NODE_COLOR;
     }
 }
 

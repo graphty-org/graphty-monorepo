@@ -26,6 +26,11 @@ export default defineConfig(({mode}) => {
         resolve: {
             alias: {
                 "@": resolve(__dirname, "./src"),
+                // Force resolution to worktree's node_modules to avoid conflicts with main graphty
+                "@graphty/graphty-element": resolve(__dirname, "./node_modules/@graphty/graphty-element/dist/graphty.js"),
+                // Stub out @mlc-ai/web-llm - it's an optional dependency of graphty-element
+                // that throws a helpful error when used without being installed
+                "@mlc-ai/web-llm": resolve(__dirname, "./src/stubs/web-llm-stub.ts"),
             },
         },
         server: {
@@ -41,9 +46,19 @@ export default defineConfig(({mode}) => {
         build: {
             outDir: "dist",
             sourcemap: true,
+            rollupOptions: {
+                // Externalize @mlc-ai/web-llm - it's an optional dependency of graphty-element
+                // that is dynamically loaded only when WebLLM provider is explicitly requested
+                external: ["@mlc-ai/web-llm"],
+            },
         },
         optimizeDeps: {
-            include: ["@babylonjs/core/Meshes/instancedMesh", "@graphty/graphty-element"],
+            include: ["@babylonjs/core/Meshes/instancedMesh"],
+            // Exclude from pre-bundling:
+            // - @graphty/graphty-element: We access exports dynamically (ApiKeyManager, etc.)
+            //   and Vite's tree-shaking removes them during pre-bundling
+            // - @mlc-ai/web-llm: Optional dependency loaded only when WebLLM is used
+            exclude: ["@graphty/graphty-element", "@mlc-ai/web-llm"],
         },
     };
 

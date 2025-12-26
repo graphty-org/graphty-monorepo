@@ -1,7 +1,11 @@
 import {Box} from "@mantine/core";
 import React, {useCallback, useEffect, useRef, useState} from "react";
 
+import {useAiKeyStorage} from "../../hooks/useAiKeyStorage";
+import {useAiManager} from "../../hooks/useAiManager";
 import {useGraphInfo} from "../../hooks/useGraphInfo";
+import type {ProviderType} from "../../types/ai";
+import {AiChatDialog, AiSettingsModal} from "../ai";
 import {ViewDataModal} from "../data-view";
 import {FeedbackModal} from "../FeedbackModal";
 import {Graphty, type GraphtyHandle} from "../Graphty";
@@ -101,6 +105,52 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
     const graphtyRef = useRef<GraphtyHandle>(null);
     const testDataLoadedRef = useRef(false);
     const {graphInfo, updateStats, addDataSource} = useGraphInfo();
+
+    // AI state
+    const [aiChatDialogOpen, setAiChatDialogOpen] = useState(false);
+    const [aiSettingsModalOpen, setAiSettingsModalOpen] = useState(false);
+    const [defaultProvider, setDefaultProvider] = useState<ProviderType | null>(null);
+
+    // AI Key Storage - wraps graphty-element's ApiKeyManager
+    const aiKeyStorage = useAiKeyStorage();
+
+    // AI Manager - wraps graphty-element's AiManager
+    const aiManager = useAiManager({
+        graph: graphtyRef.current?.graph,
+        defaultProvider: defaultProvider ?? undefined,
+        getKey: aiKeyStorage.getKey,
+    });
+
+    // Handle AI button click - opens settings if not configured, chat if configured
+    const handleAiButtonClick = useCallback(() => {
+        if (aiKeyStorage.hasAnyProvider) {
+            setAiChatDialogOpen(true);
+        } else {
+            setAiSettingsModalOpen(true);
+        }
+    }, [aiKeyStorage.hasAnyProvider]);
+
+    // Build available providers list for chat dialog
+    const getProviderLabel = (provider: ProviderType): string => {
+        switch (provider) {
+            case "openai": return "OpenAI";
+            case "anthropic": return "Anthropic";
+            case "google": return "Google";
+            case "webllm": return "WebLLM (Local)";
+            default: return provider;
+        }
+    };
+    const availableProviders = aiKeyStorage.configuredProviders.map((provider) => ({
+        value: provider,
+        label: getProviderLabel(provider),
+    }));
+
+    // Set default provider when first provider is configured
+    useEffect(() => {
+        if (!defaultProvider && aiKeyStorage.configuredProviders.length > 0) {
+            setDefaultProvider(aiKeyStorage.configuredProviders[0]);
+        }
+    }, [defaultProvider, aiKeyStorage.configuredProviders]);
 
     const handleAddLayer = (): void => {
         const newLayer: LayerItem = {
@@ -303,6 +353,9 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                     setRunLayoutsModalOpen(true);
                 }}
                 onSendFeedback={handleSendFeedback}
+                onOpenAiSettings={() => {
+                    setAiSettingsModalOpen(true);
+                }}
             />
 
             {/* Load Data Modal */}
@@ -343,6 +396,42 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                 onClose={() => {
                     setFeedbackModalOpen(false);
                 }}
+            />
+
+            {/* AI Settings Modal */}
+            <AiSettingsModal
+                opened={aiSettingsModalOpen}
+                onClose={() => {
+                    setAiSettingsModalOpen(false);
+                }}
+                getKey={aiKeyStorage.getKey}
+                setKey={aiKeyStorage.setKey}
+                removeKey={aiKeyStorage.removeKey}
+                hasKey={aiKeyStorage.hasKey}
+                configuredProviders={aiKeyStorage.configuredProviders}
+                defaultProvider={defaultProvider}
+                onDefaultProviderChange={setDefaultProvider}
+                isPersistenceEnabled={aiKeyStorage.isPersistenceEnabled}
+                onEnablePersistence={aiKeyStorage.enablePersistence}
+                onDisablePersistence={aiKeyStorage.disablePersistence}
+            />
+
+            {/* AI Chat Dialog */}
+            <AiChatDialog
+                opened={aiChatDialogOpen}
+                onClose={() => {
+                    setAiChatDialogOpen(false);
+                }}
+                onOpenSettings={() => {
+                    setAiSettingsModalOpen(true);
+                }}
+                status={aiManager.status}
+                isProcessing={aiManager.isProcessing}
+                onExecute={aiManager.execute}
+                onCancel={aiManager.cancel}
+                availableProviders={availableProviders}
+                currentProvider={aiManager.currentProvider}
+                onProviderChange={aiManager.setProvider}
             />
 
             {/* Main Canvas Area - Full Screen */}
@@ -419,7 +508,14 @@ export function AppLayout({className}: AppLayoutProps): React.JSX.Element {
                             zIndex: 20,
                         }}
                     >
-                        <BottomToolbar viewMode={viewMode} onViewModeChange={setViewMode} />
+                        <BottomToolbar
+                            viewMode={viewMode}
+                            onViewModeChange={setViewMode}
+                            aiIsConfigured={aiKeyStorage.hasAnyProvider}
+                            aiIsProcessing={aiManager.isProcessing}
+                            aiIsReady={aiKeyStorage.isReady}
+                            onAiButtonClick={handleAiButtonClick}
+                        />
                     </Box>
                 )}
             </Box>

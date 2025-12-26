@@ -381,15 +381,36 @@ function detectFormatFromContent(content: string): FormatType | null {
     return null;
 }
 
+/**
+ * Graph type representing the underlying graphty-element Graph instance.
+ * This is used for advanced integrations like AI control.
+ */
+export interface Graph {
+    dataManager: {
+        clear: () => void;
+        nodes: Map<string | number, GraphNode>;
+        edges: Map<string, GraphEdge>;
+    };
+    // Additional Graph methods accessible via the instance
+    [key: string]: unknown;
+}
+
 export interface GraphtyHandle {
+    /** Get node and edge data from the graph */
     getData: () => {
         nodes: Record<string, unknown>[];
         edges: Record<string, unknown>[];
     };
+    /** Load data from a URL */
     loadFromUrl: (url: string, format?: string) => Promise<void>;
+    /** Load data from a File object */
     loadFromFile: (file: File, format?: string) => Promise<void>;
+    /** Load data with a specific format and config */
     loadData: (format: string, config: Record<string, unknown>) => void;
+    /** Clear all data from the graph */
     clearData: () => void;
+    /** Access to the underlying Graph instance for advanced operations (e.g., AI integration) */
+    graph: Graph | null;
 }
 
 declare module "react" {
@@ -505,6 +526,9 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
         },
         clearData: () => {
             graphtyRef.current?.graph?.dataManager.clear();
+        },
+        get graph() {
+            return graphtyRef.current?.graph ?? null;
         },
     }), []);
 

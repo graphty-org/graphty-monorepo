@@ -13,6 +13,8 @@ interface TopMenuBarProps {
     hasData?: boolean;
     onRunLayouts?: () => void;
     onSendFeedback?: () => void;
+    // AI Settings menu item
+    onOpenAiSettings?: () => void;
 }
 
 export function TopMenuBar({
@@ -26,6 +28,7 @@ export function TopMenuBar({
     hasData,
     onRunLayouts,
     onSendFeedback,
+    onOpenAiSettings,
 }: TopMenuBarProps): React.JSX.Element {
     return (
         <Box
@@ -85,6 +88,16 @@ export function TopMenuBar({
                         </MantineMenu.Item>
                         <MantineMenu.Item onClick={onToggleToolbar}>
                             Toggle Toolbar
+                        </MantineMenu.Item>
+
+                        <MantineMenu.Divider />
+
+                        <MantineMenu.Label>AI</MantineMenu.Label>
+                        <MantineMenu.Item
+                            leftSection={<Sparkles size={14} />}
+                            onClick={onOpenAiSettings}
+                        >
+                            AI Settings...
                         </MantineMenu.Item>
 
                         <MantineMenu.Divider />

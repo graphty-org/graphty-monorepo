@@ -2,6 +2,8 @@ import {ActionIcon, Divider, Group, Menu, Paper, ScrollArea, Text} from "@mantin
 import {ArrowRight, Box, Hand, MousePointer, Plus, Square, Trash2, Video, ZoomIn} from "lucide-react";
 import React, {useState} from "react";
 
+import {AiActionButton} from "../ai";
+
 export type ViewMode = "2d" | "3d";
 
 interface BottomToolbarProps {
@@ -9,9 +11,23 @@ interface BottomToolbarProps {
     style?: React.CSSProperties;
     viewMode?: ViewMode;
     onViewModeChange?: (mode: ViewMode) => void;
+    // AI-related props
+    aiIsConfigured?: boolean;
+    aiIsProcessing?: boolean;
+    aiIsReady?: boolean;
+    onAiButtonClick?: () => void;
 }
 
-export function BottomToolbar({className, style, viewMode = "3d", onViewModeChange}: BottomToolbarProps): React.JSX.Element {
+export function BottomToolbar({
+    className,
+    style,
+    viewMode = "3d",
+    onViewModeChange,
+    aiIsConfigured = false,
+    aiIsProcessing = false,
+    aiIsReady = false,
+    onAiButtonClick,
+}: BottomToolbarProps): React.JSX.Element {
     const [selectedTool, setSelectedTool] = useState("pointer");
 
     return (
@@ -75,6 +91,16 @@ export function BottomToolbar({className, style, viewMode = "3d", onViewModeChan
                             <Trash2 size={18} />
                         </ActionIcon>
                     </Group>
+
+                    <Divider orientation="vertical" color="dark.5" />
+
+                    {/* AI Assistant */}
+                    <AiActionButton
+                        isConfigured={aiIsConfigured}
+                        isProcessing={aiIsProcessing}
+                        isReady={aiIsReady}
+                        onClick={() => onAiButtonClick?.()}
+                    />
 
                     <Divider orientation="vertical" color="dark.5" />
 

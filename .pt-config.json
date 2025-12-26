@@ -1,0 +1,35 @@
+{
+  "autoReview": true,
+  "gitPromptDir": ".git-prompts",
+  "handlebarsExtensions": [],
+  "version": "4.0.0",
+  "outputCapture": {
+    "enabled": false,
+    "directory": ".pt-output",
+    "maxSizeMB": 9999999,
+    "retentionDays": 30
+  },
+  "autoAnnotate": {
+    "enabled": false,
+    "triggers": [
+      "claude",
+      "ai",
+      "assistant"
+    ],
+    "analysisPrompt": "analyze-execution"
+  },
+  "promptDirs": [
+    "./.prompts",
+    "/home/apowers/Projects/pupt/prompts"
+  ],
+  "historyDir": "./.pthistory",
+  "defaultCmd": "claude",
+  "defaultCmdArgs": [
+    "--permission-mode",
+    "acceptEdits"
+  ],
+  "defaultCmdOptions": {
+    "Continue with last context?": "--continue"
+  },
+  "autoRun": true
+}

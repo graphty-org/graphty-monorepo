@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Nx cache
+.nx/
+
+# Build outputs (root level)
+dist/
+
+# Vite/Vitest timestamps
+vite.config.*.timestamp*
+vitest.config.*.timestamp*
+
+# Storybook
+storybook-static/
+
+# Temporary files
+tmp/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Coverage
+coverage/
+
+# Environment
+.env
+.env.local
+.env.*.local

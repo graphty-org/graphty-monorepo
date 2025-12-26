@@ -1,5 +1,3 @@
-// TODO: Replace with @graphty/graphty-element import when AI module is published
-// import type {ProviderType} from "@graphty/graphty-element";
 import {
     Alert,
     Button,
@@ -13,9 +11,9 @@ import {
     TextInput,
 } from "@mantine/core";
 import {AlertTriangle, CheckCircle, Download, Key, Loader2, Save, ShieldAlert, Trash2} from "lucide-react";
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useEffect, useRef, useState} from "react";
 
-import type {ProviderType} from "../../types/ai";
+import {getCreateProvider, type ProviderType} from "../../types/ai";
 import {standardModalStyles} from "../../utils/modal-styles";
 
 interface ProviderConfig {
@@ -134,42 +132,78 @@ export function AiSettingsModal({
         });
     }, []);
 
+    // Cache the createProvider function once loaded
+    const createProviderRef = useRef<Awaited<ReturnType<typeof getCreateProvider>> | null>(null);
+
     const handleTestConnection = useCallback(async(provider: ProviderType) => {
         const state = providerStates[provider];
-        if (!state?.key) {
+        if (!state?.key && provider !== "webllm") {
             return;
         }
 
         updateProviderState(provider, {testStatus: "testing", testMessage: "Testing connection..."});
 
-        // For now, just validate the key format
-        // In a real implementation, this would call the provider's validateApiKey method
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        try {
+            // Load createProvider if not already loaded
+            createProviderRef.current ??= await getCreateProvider();
 
-        const {key} = state;
-        let isValid = false;
+            const createProvider = createProviderRef.current;
 
-        switch (provider) {
-            case "openai":
-                isValid = key.startsWith("sk-") && key.length > 20;
-                break;
-            case "anthropic":
-                isValid = key.startsWith("sk-ant-") && key.length > 20;
-                break;
-            case "google":
-                isValid = key.length > 10;
-                break;
-            case "webllm":
-                isValid = true; // No key required
-                break;
-            default:
-                isValid = key.length > 0;
-        }
+            // Create a provider instance and validate
+            const providerInstance = createProvider({
+                provider,
+                apiKey: state?.key,
+            });
 
-        if (isValid) {
-            updateProviderState(provider, {testStatus: "success", testMessage: "Connection successful"});
-        } else {
-            updateProviderState(provider, {testStatus: "error", testMessage: "Invalid API key format"});
+            const isValid = await providerInstance.validateApiKey();
+
+            if (isValid) {
+                updateProviderState(provider, {testStatus: "success", testMessage: "Connection successful"});
+            } else {
+                updateProviderState(provider, {testStatus: "error", testMessage: "Invalid API key"});
+            }
+        } catch (err) {
+            // If the graphty-element AI module fails to load, fall back to format validation
+            console.warn("[AiSettingsModal] Provider validation failed, falling back to format check:", err);
+
+            const {key} = state ?? {key: ""};
+            let isValid = false;
+            let errorMessage = "Invalid API key format";
+
+            switch (provider) {
+                case "openai":
+                    isValid = key.startsWith("sk-") && key.length > 20;
+                    if (!isValid) {
+                        errorMessage = "OpenAI keys should start with 'sk-'";
+                    }
+
+                    break;
+                case "anthropic":
+                    isValid = key.startsWith("sk-ant-") && key.length > 20;
+                    if (!isValid) {
+                        errorMessage = "Anthropic keys should start with 'sk-ant-'";
+                    }
+
+                    break;
+                case "google":
+                    isValid = key.length > 10;
+                    if (!isValid) {
+                        errorMessage = "Google API key appears too short";
+                    }
+
+                    break;
+                case "webllm":
+                    isValid = true; // No key required
+                    break;
+                default:
+                    isValid = key.length > 0;
+            }
+
+            if (isValid) {
+                updateProviderState(provider, {testStatus: "success", testMessage: "Key format valid (could not verify with API)"});
+            } else {
+                updateProviderState(provider, {testStatus: "error", testMessage: errorMessage});
+            }
         }
     }, [providerStates, updateProviderState]);
 

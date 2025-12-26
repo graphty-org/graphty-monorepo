@@ -142,7 +142,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
                 error: err instanceof Error ? err : new Error(String(err)),
             };
         }
-    }, [isReady, currentProvider]);
+    }, []);
 
     const cancel = useCallback(() => {
         managerRef.current?.cancel();

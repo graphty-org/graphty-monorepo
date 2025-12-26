@@ -183,3 +183,31 @@ export async function getCreateAiManager(): Promise<typeof createAiManagerFn> {
     // @ts-expect-error TypeScript can't resolve bundler exports
     return mod.createAiManager;
 }
+
+/**
+ * Provider interface for validation.
+ */
+export interface AiProvider {
+    validateApiKey(): Promise<boolean>;
+}
+
+/**
+ * Provider configuration for createProvider.
+ */
+export interface ProviderConfig {
+    provider: ProviderType;
+    apiKey?: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used in typeof expression below
+declare function createProviderFn(config: ProviderConfig): AiProvider;
+
+/**
+ * Get the createProvider function lazily.
+ */
+export async function getCreateProvider(): Promise<typeof createProviderFn> {
+    const mod = await getGraphtyElement();
+
+    // @ts-expect-error TypeScript can't resolve bundler exports
+    return mod.createProvider;
+}

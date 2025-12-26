@@ -17,15 +17,15 @@ import React, {useCallback, useEffect, useRef, useState} from "react";
 
 import type {ExecutionResult} from "../../hooks/useAiManager";
 import type {AiStatus, ProviderType} from "../../types/ai";
-
-/** Chat message structure */
-interface ChatMessage {
-    id: string;
-    role: "user" | "assistant" | "system";
-    content: string;
-    timestamp: number;
-    status?: AiStatus;
-}
+import {
+    DIALOG_HEIGHT,
+    DIALOG_MIN_HEIGHT,
+    DIALOG_WIDTH,
+    getDefaultDialogPosition,
+    getSavedDialogPosition,
+    saveDialogPosition,
+} from "../../utils/ai-storage";
+import {AiMessageBubble, type ChatMessage} from "./AiMessageBubble";
 
 /** Available provider option */
 interface ProviderOption {
@@ -63,11 +63,6 @@ const QUICK_ACTIONS = [
     {label: "Find nodes", prompt: "Find nodes with degree > 3"},
 ];
 
-/** Dialog dimensions */
-const DIALOG_WIDTH = 400;
-const DIALOG_HEIGHT = 500;
-const DIALOG_MIN_HEIGHT = 300;
-
 export function AiChatDialog({
     opened,
     onClose,
@@ -94,23 +89,11 @@ export function AiChatDialog({
     // Initialize position to bottom-right
     useEffect(() => {
         if (opened && position.x === 0 && position.y === 0) {
-            const savedPosition = localStorage.getItem("ai-dialog-position");
+            const savedPosition = getSavedDialogPosition();
             if (savedPosition) {
-                try {
-                    const parsed = JSON.parse(savedPosition) as {x: number, y: number};
-                    setPosition(parsed);
-                } catch {
-                    // Use default
-                    setPosition({
-                        x: window.innerWidth - DIALOG_WIDTH - 20,
-                        y: window.innerHeight - DIALOG_HEIGHT - 20,
-                    });
-                }
+                setPosition(savedPosition);
             } else {
-                setPosition({
-                    x: window.innerWidth - DIALOG_WIDTH - 20,
-                    y: window.innerHeight - DIALOG_HEIGHT - 20,
-                });
+                setPosition(getDefaultDialogPosition());
             }
         }
     }, [opened, position.x, position.y]);
@@ -118,7 +101,7 @@ export function AiChatDialog({
     // Save position to localStorage
     useEffect(() => {
         if (position.x !== 0 || position.y !== 0) {
-            localStorage.setItem("ai-dialog-position", JSON.stringify(position));
+            saveDialogPosition(position);
         }
     }, [position]);
 
@@ -176,27 +159,36 @@ export function AiChatDialog({
         };
     }, [isDragging, dragOffset]);
 
-    const handleSubmit = useCallback(async() => {
-        const trimmedInput = inputValue.trim();
+    // Track the last user message for retry functionality
+    const lastUserMessageRef = useRef<string | null>(null);
+
+    const handleSubmit = useCallback(async(retryInput?: string) => {
+        const trimmedInput = retryInput ?? inputValue.trim();
         if (!trimmedInput || isProcessing) {
             return;
         }
 
-        // Add user message
-        const userMessage: ChatMessage = {
-            id: `user-${Date.now()}`,
-            role: "user",
-            content: trimmedInput,
-            timestamp: Date.now(),
-        };
-        setMessages((prev) => [... prev, userMessage]);
-        setInputValue("");
+        // Add user message (skip if retrying - the message is already there)
+        if (!retryInput) {
+            const userMessage: ChatMessage = {
+                id: `user-${Date.now()}`,
+                role: "user",
+                content: trimmedInput,
+                timestamp: Date.now(),
+            };
+            setMessages((prev) => [... prev, userMessage]);
+            setInputValue("");
+        }
+
+        // Store last user input for retry
+        lastUserMessageRef.current = trimmedInput;
 
         // Execute the command
         const result = await onExecute(trimmedInput);
 
         // Add assistant message
         // Priority: message (tool result) > text/llmText (LLM response) > fallback
+        const isError = !result.success;
         const assistantMessage: ChatMessage = {
             id: `assistant-${Date.now()}`,
             role: "assistant",
@@ -204,9 +196,33 @@ export function AiChatDialog({
                 result.message ?? result.text ?? result.llmText ?? "Command executed successfully." :
                 `Error: ${result.error?.message ?? result.message ?? "Unknown error"}`,
             timestamp: Date.now(),
+            isError,
         };
         setMessages((prev) => [... prev, assistantMessage]);
     }, [inputValue, isProcessing, onExecute]);
+
+    // Handle retry of a failed message
+    const handleRetry = useCallback((message: ChatMessage) => {
+        // Find the user message that preceded this error
+        const messageIndex = messages.findIndex((m) => m.id === message.id);
+        if (messageIndex > 0) {
+            // Look for the previous user message
+            for (let i = messageIndex - 1; i >= 0; i--) {
+                if (messages[i].role === "user") {
+                    // Remove the error message and retry
+                    setMessages((prev) => prev.filter((m) => m.id !== message.id));
+                    void handleSubmit(messages[i].content);
+                    return;
+                }
+            }
+        }
+
+        // Fallback: use the last stored user message
+        if (lastUserMessageRef.current) {
+            setMessages((prev) => prev.filter((m) => m.id !== message.id));
+            void handleSubmit(lastUserMessageRef.current);
+        }
+    }, [messages, handleSubmit]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -352,25 +368,11 @@ export function AiChatDialog({
                     )}
 
                     {messages.map((message) => (
-                        <Box
+                        <AiMessageBubble
                             key={message.id}
-                            style={{
-                                alignSelf: message.role === "user" ? "flex-end" : "flex-start",
-                                maxWidth: "85%",
-                            }}
-                        >
-                            <Paper
-                                p="xs"
-                                radius="md"
-                                style={{
-                                    backgroundColor: message.role === "user" ?
-                                        "var(--mantine-color-violet-light)" :
-                                        "var(--mantine-color-default)",
-                                }}
-                            >
-                                <Text size="sm">{message.content}</Text>
-                            </Paper>
-                        </Box>
+                            message={message}
+                            onRetry={message.isError ? handleRetry : undefined}
+                        />
                     ))}
 
                     {/* Processing indicator */}

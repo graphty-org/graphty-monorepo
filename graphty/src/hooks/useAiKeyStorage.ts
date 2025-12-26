@@ -1,15 +1,11 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 
 import {type ApiKeyManagerType, getApiKeyManager, type ProviderType} from "../types/ai";
-
-/** Storage key for the encryption secret in sessionStorage */
-const ENCRYPTION_KEY_STORAGE = "@graphty-ai-encryption-key";
-
-/** Default storage prefix for API keys */
-const DEFAULT_KEY_PREFIX = "@graphty-ai-keys";
-
-/** Default encryption password when user doesn't provide one */
-const DEFAULT_ENCRYPTION_PASSWORD = "graphty-default-key";
+import {
+    DEFAULT_ENCRYPTION_PASSWORD,
+    DEFAULT_KEY_PREFIX,
+    ENCRYPTION_KEY_STORAGE,
+} from "../utils/ai-storage";
 
 export interface UseAiKeyStorageOptions {
     /** Whether to enable persistence (default: false, session-only) */

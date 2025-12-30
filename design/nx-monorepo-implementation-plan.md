@@ -1460,51 +1460,110 @@ pip install git-filter-repo
 
 ### 3.2 Preserve Package Histories
 
+> **⚠️ CRITICAL: History Must Be Merged BEFORE Files Exist**
+>
+> If package files already exist in the monorepo before merging histories, git will treat
+> them as separate lineages. This means `git log`, `git blame`, and IDE history features
+> will only show monorepo commits unless you use `--follow`.
+>
+> **Correct approach:** Reset to clean state, merge histories from GitHub FIRST, so files
+> arrive via the merge with their full history attached.
+
 ```bash
+# First, ensure we're starting from a clean state
+# If files already exist, reset to origin/master first:
+git fetch origin
+git reset --hard origin/master
+
 # Create script to preserve git history
 cat > tools/preserve-git-history.sh << 'EOF'
 #!/bin/bash
 set -e
 
-PACKAGES=("algorithms" "layout" "graphty-element" "graphty" "gpu-3d-force-layout")
+echo "╔══════════════════════════════════════════════════════════════╗"
+echo "║         Preserving Git History for Monorepo                  ║"
+echo "╚══════════════════════════════════════════════════════════════╝"
 
-# Initialize monorepo git
-echo "Initializing monorepo git..."
-git init
-git commit --allow-empty -m "Initial monorepo commit"
+# Package configuration with their GitHub URLs
+declare -A PACKAGE_URLS
+PACKAGE_URLS["algorithms"]="https://github.com/graphty-org/algorithms.git"
+PACKAGE_URLS["layout"]="https://github.com/graphty-org/layout.git"
+PACKAGE_URLS["graphty-element"]="https://github.com/graphty-org/graphty-element.git"
+PACKAGE_URLS["graphty"]="https://github.com/graphty-org/graphty.git"
+
+PACKAGES=("algorithms" "layout" "graphty-element" "graphty")
+MONOREPO_DIR="$(pwd)"
+
+# Verify we're in the monorepo root
+if [ ! -f "nx.json" ]; then
+  echo "❌ Error: Must run from monorepo root (nx.json not found)"
+  exit 1
+fi
+
+# CRITICAL: Verify package directories DON'T exist yet
+# If they do, history will not be properly linked
+for pkg in "${PACKAGES[@]}"; do
+  if [ -d "$pkg" ] && [ "$(ls -A $pkg 2>/dev/null)" ]; then
+    echo "❌ Error: $pkg/ directory already has files!"
+    echo "   History must be merged BEFORE files exist."
+    echo "   Run: git reset --hard origin/master"
+    exit 1
+  fi
+done
 
 # Preserve history for each package
 for pkg in "${PACKAGES[@]}"; do
+    echo ""
+    echo "═══════════════════════════════════════════════════════════════"
     echo "Processing $pkg history..."
-    
-    # Clone package to temp location
-    git clone "$pkg/.git" "/tmp/$pkg-temp"
-    
-    # Rewrite history to move files into subdirectory
-    cd "/tmp/$pkg-temp"
-    git filter-repo --to-subdirectory-filter "$pkg" --force
-    
-    # Return to monorepo and merge history
-    cd -
-    git remote add "$pkg-temp" "/tmp/$pkg-temp"
-    git fetch "$pkg-temp"
-    
+    echo "═══════════════════════════════════════════════════════════════"
+
+    GITHUB_URL="${PACKAGE_URLS[$pkg]}"
+    TEMP_DIR="/tmp/$pkg-history-rewrite"
+
+    # Clean up any previous temp directory
+    rm -rf "$TEMP_DIR"
+
+    echo "   📋 Cloning $pkg from $GITHUB_URL..."
+    git clone "$GITHUB_URL" "$TEMP_DIR"
+
+    echo "   🔄 Rewriting history to move files into $pkg/ subdirectory..."
+    cd "$TEMP_DIR"
+    git-filter-repo --to-subdirectory-filter "$pkg" --force
+
     # Determine default branch
-    DEFAULT_BRANCH=$(cd "/tmp/$pkg-temp" && git symbolic-ref --short HEAD)
-    
-    # Merge with history
-    git merge --allow-unrelated-histories -m "feat: merge $pkg history into monorepo" "$pkg-temp/$DEFAULT_BRANCH"
+    DEFAULT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "master")
+    echo "   📌 Default branch: $DEFAULT_BRANCH"
+
+    # Return to monorepo
+    cd "$MONOREPO_DIR"
+
+    echo "   🔗 Adding temp repo as remote..."
+    git remote add "$pkg-temp" "$TEMP_DIR" 2>/dev/null || git remote set-url "$pkg-temp" "$TEMP_DIR"
+    git fetch "$pkg-temp"
+
+    echo "   🔀 Merging history with allow-unrelated-histories..."
+    git merge --allow-unrelated-histories --no-edit -m "feat: merge $pkg history into monorepo" "$pkg-temp/$DEFAULT_BRANCH"
+
+    echo "   🧹 Cleaning up remote..."
     git remote remove "$pkg-temp"
-    
-    # Clean up temp directory
-    rm -rf "/tmp/$pkg-temp"
+
+    echo "   🗑️  Removing temp directory..."
+    rm -rf "$TEMP_DIR"
+
+    echo "   ✅ $pkg history merged successfully!"
 done
 
-# Remove old .git directories from packages
-echo "Removing old .git directories..."
-find . -name ".git" -type d -not -path "./.git" -exec rm -rf {} + 2>/dev/null || true
-
-echo "✅ Git history preservation complete!"
+echo ""
+echo "╔══════════════════════════════════════════════════════════════╗"
+echo "║         ✅ Git history preservation complete!                ║"
+echo "╚══════════════════════════════════════════════════════════════╝"
+echo ""
+echo "Total commits in monorepo:"
+git log --oneline | wc -l
+echo ""
+echo "Verify with: git log --oneline -- algorithms/package.json"
+echo "(Should show full history WITHOUT needing --follow)"
 EOF
 
 chmod +x tools/preserve-git-history.sh
@@ -1590,7 +1649,38 @@ for pkg in "${PACKAGES[@]}"; do
   fi
 done
 
-# Check 5: No orphaned .git directories in packages
+# Check 5: CRITICAL - Verify history works WITHOUT --follow
+# This is the key test that history preservation was done correctly
+echo ""
+echo "🔗 Checking file history works WITHOUT --follow (CRITICAL)..."
+HISTORY_OK=true
+for pkg in algorithms layout graphty-element graphty; do
+  if [ -f "$pkg/package.json" ]; then
+    # Count commits WITHOUT --follow
+    COMMITS_NO_FOLLOW=$(git log --oneline -- "$pkg/package.json" 2>/dev/null | wc -l)
+    # Count commits WITH --follow
+    COMMITS_WITH_FOLLOW=$(git log --oneline --follow -- "$pkg/package.json" 2>/dev/null | wc -l)
+
+    if [ "$COMMITS_NO_FOLLOW" -gt 5 ]; then
+      echo "   ✅ $pkg: $COMMITS_NO_FOLLOW commits (history properly linked)"
+    elif [ "$COMMITS_WITH_FOLLOW" -gt "$COMMITS_NO_FOLLOW" ]; then
+      echo "   ❌ $pkg: Only $COMMITS_NO_FOLLOW commits without --follow ($COMMITS_WITH_FOLLOW with --follow)"
+      echo "      History not properly linked! Files existed before history merge."
+      HISTORY_OK=false
+      ((ERRORS++))
+    else
+      echo "   ⚠️  $pkg: Only $COMMITS_NO_FOLLOW commits found"
+      ((WARNINGS++))
+    fi
+  fi
+done
+
+if [ "$HISTORY_OK" = false ]; then
+  echo ""
+  echo "   💡 To fix: git reset --hard origin/master && ./tools/preserve-git-history.sh"
+fi
+
+# Check 6: No orphaned .git directories in packages
 echo ""
 echo "🧹 Checking for orphaned .git directories..."
 ORPHAN_GIT=$(find . -path "./.git" -prune -o -name ".git" -type d -print 2>/dev/null)

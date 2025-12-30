@@ -1,0 +1,81 @@
+{
+  "name": "graphty",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "graphty/src",
+  "projectType": "application",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": [
+        "{projectRoot}/dist"
+      ],
+      "options": {
+        "command": "npm run build",
+        "cwd": "graphty"
+      },
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm test",
+        "cwd": "graphty"
+      }
+    },
+    "test:ui": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest --ui",
+        "cwd": "graphty"
+      }
+    },
+    "test:coverage": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run --coverage",
+        "cwd": "graphty"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "eslint && tsc --noEmit",
+        "cwd": "graphty"
+      }
+    },
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run dev",
+        "cwd": "graphty"
+      }
+    },
+    "storybook": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run storybook",
+        "cwd": "graphty"
+      }
+    },
+    "build-storybook": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run build-storybook",
+        "cwd": "graphty"
+      }
+    },
+    "test:visual": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run test:visual",
+        "cwd": "graphty"
+      }
+    }
+  },
+  "release": {
+    "publish": false
+  }
+}

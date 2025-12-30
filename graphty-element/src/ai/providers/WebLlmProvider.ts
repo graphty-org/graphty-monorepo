@@ -286,7 +286,6 @@ export class WebLlmProvider implements LlmProvider {
             // Dynamically import @mlc-ai/web-llm
             let webllm;
             try {
-                // @ts-expect-error - @mlc-ai/web-llm is an optional peer dependency loaded dynamically at runtime
                 webllm = await import("@mlc-ai/web-llm");
             } catch {
                 throw new Error(

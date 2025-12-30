@@ -1,0 +1,74 @@
+{
+  "name": "algorithms",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "algorithms/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": [
+        "{projectRoot}/dist"
+      ],
+      "options": {
+        "command": "npm run build",
+        "cwd": "algorithms"
+      },
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run test:run",
+        "cwd": "algorithms"
+      }
+    },
+    "test:ui": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest --ui",
+        "cwd": "algorithms"
+      }
+    },
+    "test:coverage": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run --coverage",
+        "cwd": "algorithms"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "eslint && tsc --noEmit",
+        "cwd": "algorithms"
+      }
+    },
+    "semantic-release": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "build"
+      ],
+      "options": {
+        "command": "semantic-release",
+        "cwd": "algorithms"
+      }
+    },
+    "benchmark": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run benchmark",
+        "cwd": "algorithms"
+      }
+    },
+    "examples": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run examples:html",
+        "cwd": "algorithms"
+      }
+    }
+  }
+}

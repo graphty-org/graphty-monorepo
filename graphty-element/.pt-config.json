@@ -1,0 +1,30 @@
+{
+  "autoReview": true,
+  "gitPromptDir": ".git-prompts",
+  "handlebarsExtensions": [],
+  "version": "4.0.0",
+  "promptDirs": [
+    "./.prompts",
+    "node_modules/pupt/prompts"
+  ],
+  "historyDir": "./.pthistory",
+  "annotationDir": "./.pthistory",
+  "defaultCmd": "claude",
+  "defaultCmdArgs": [
+    "--permission-mode",
+    "acceptEdits"
+  ],
+  "defaultCmdOptions": {
+    "Continue with last context?": "--continue"
+  },
+  "autoRun": true,
+  "outputCapture": {
+    "enabled": true,
+    "directory": "./.pthistory",
+    "maxSizeMB": 300
+  },
+  "autoAnnotate": {
+    "enabled": false,
+    "analysisPrompt": "analyze-execution"
+  }
+}

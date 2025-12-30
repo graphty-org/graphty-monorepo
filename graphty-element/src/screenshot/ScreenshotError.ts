@@ -1,0 +1,71 @@
+export enum ScreenshotErrorCode {
+    // Engine/Configuration
+    ENGINE_NOT_CONFIGURED = "ENGINE_NOT_CONFIGURED",
+    PRESERVING_BUFFER_REQUIRED = "PRESERVING_BUFFER_REQUIRED",
+    SCREENSHOT_CAPTURE_FAILED = "SCREENSHOT_CAPTURE_FAILED",
+
+    // Dimensions
+    DIMENSION_TOO_LARGE = "DIMENSION_TOO_LARGE",
+    INVALID_DIMENSIONS = "INVALID_DIMENSIONS",
+    ASPECT_RATIO_MISMATCH = "ASPECT_RATIO_MISMATCH",
+    RESOLUTION_TOO_HIGH = "RESOLUTION_TOO_HIGH",
+
+    // Memory
+    OUT_OF_MEMORY = "OUT_OF_MEMORY",
+    CANVAS_ALLOCATION_FAILED = "CANVAS_ALLOCATION_FAILED",
+
+    // Format
+    UNSUPPORTED_FORMAT = "UNSUPPORTED_FORMAT",
+    WEBP_NOT_SUPPORTED = "WEBP_NOT_SUPPORTED",
+    TRANSPARENT_REQUIRES_PNG = "TRANSPARENT_REQUIRES_PNG",
+
+    // Clipboard
+    CLIPBOARD_NOT_SUPPORTED = "CLIPBOARD_NOT_SUPPORTED",
+    CLIPBOARD_PERMISSION_DENIED = "CLIPBOARD_PERMISSION_DENIED",
+    CLIPBOARD_NOT_SECURE_CONTEXT = "CLIPBOARD_NOT_SECURE_CONTEXT",
+    CLIPBOARD_WRITE_FAILED = "CLIPBOARD_WRITE_FAILED",
+    CLIPBOARD_FAILED = "CLIPBOARD_FAILED",
+
+    // Camera
+    CAMERA_PRESET_NOT_FOUND = "CAMERA_PRESET_NOT_FOUND",
+    CAMERA_PRESET_NOT_AVAILABLE_IN_2D = "CAMERA_PRESET_NOT_AVAILABLE_IN_2D",
+    CAMERA_PRESET_NOT_AVAILABLE_IN_3D = "CAMERA_PRESET_NOT_AVAILABLE_IN_3D",
+    CAMERA_STATE_INVALID = "CAMERA_STATE_INVALID",
+    CAMERA_TYPE_MISMATCH = "CAMERA_TYPE_MISMATCH",
+    CAMERA_TYPE_NOT_SUPPORTED = "CAMERA_TYPE_NOT_SUPPORTED",
+    CANNOT_OVERWRITE_BUILTIN_PRESET = "CANNOT_OVERWRITE_BUILTIN_PRESET",
+
+    // Timing
+    LAYOUT_SETTLE_TIMEOUT = "LAYOUT_SETTLE_TIMEOUT",
+    OPERATION_TIMEOUT = "OPERATION_TIMEOUT",
+
+    // Capture
+    CAPTURE_FAILED = "CAPTURE_FAILED",
+    RENDER_FAILED = "RENDER_FAILED",
+    VIDEO_CAPTURE_FAILED = "VIDEO_CAPTURE_FAILED",
+
+    // Presets
+    PRESET_NOT_FOUND = "PRESET_NOT_FOUND",
+}
+
+/**
+ * Custom error class for screenshot and video capture failures.
+ * Provides error codes and optional details for debugging.
+ */
+export class ScreenshotError extends Error {
+    /**
+     * Creates a new ScreenshotError
+     * @param message - Human-readable error message
+     * @param code - Error code for programmatic handling
+     * @param details - Optional additional error details
+     */
+    constructor(
+        message: string,
+        public code: ScreenshotErrorCode,
+        public details?: unknown,
+    ) {
+        super(message);
+        this.name = "ScreenshotError";
+        Object.setPrototypeOf(this, ScreenshotError.prototype);
+    }
+}

@@ -1,0 +1,62 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+.env
+TODO
+*~
+tmp/
+*storybook.log
+storybook-static/
+**/__screenshots__/
+coverage/
+
+# Generated TypeScript files in root (from tsconfig.build.json)
+/index.js
+/index.d.ts
+/index.d.ts.map
+
+# Auto-generated Chromatic test stories
+stories/auto-generated/
+
+# Chromatic debug files
+chromatic-diagnostics.json
+
+# Playwright test artifacts
+test/playwright/visual/screenshots-diff/
+test/playwright/visual/screenshots-actual/
+test/playwright/generated/*.visual.spec.ts
+playwright-report/
+test-results/
+
+
+# PUPT
+.pt-config.json.backup
+.pthistory
+.git-prompts
+
+# wtt worktrees
+.worktrees/
+
+# VitePress
+docs/.vitepress/cache
+docs/.vitepress/dist

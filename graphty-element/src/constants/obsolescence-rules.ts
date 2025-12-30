@@ -1,0 +1,72 @@
+import type {OperationCategory} from "../managers/OperationQueueManager";
+
+export interface ObsolescenceRule {
+    /**
+     * Categories that this operation obsoletes
+     */
+    obsoletes: OperationCategory[];
+
+    /**
+     * Whether to respect progress (don't cancel >90% complete)
+     */
+    respectProgress?: boolean;
+
+    /**
+     * Only obsolete queued operations, not running ones
+     */
+    skipRunning?: boolean;
+}
+
+/**
+ * Default obsolescence rules for operation categories
+ * These rules define which operations make others obsolete
+ */
+export const OBSOLESCENCE_RULES: Partial<Record<OperationCategory, ObsolescenceRule>> = {
+    // Data operations obsolete dependent calculations
+    "data-add": {
+        obsoletes: ["layout-update", "algorithm-run"],
+        respectProgress: true,
+    },
+
+    "data-remove": {
+        obsoletes: ["layout-update", "algorithm-run", "render-update"],
+        respectProgress: true,
+    },
+
+    "data-update": {
+        obsoletes: ["algorithm-run", "render-update"],
+        respectProgress: true,
+        skipRunning: false,
+    },
+
+    // Style changes obsolete renders
+    // Note: style-init does NOT obsolete layout-set to support stateless design
+    // where layout can be set before or after style template
+    "style-init": {
+        obsoletes: ["style-init", "style-apply", "render-update"],
+        respectProgress: false, // Style init is critical
+    },
+
+    "style-apply": {
+        obsoletes: ["render-update"],
+        respectProgress: true,
+    },
+
+    // Layout changes obsolete dependent operations
+    "layout-set": {
+        obsoletes: ["layout-set", "layout-update", "camera-update"],
+        respectProgress: false, // New layout engine is important
+    },
+
+    "layout-update": {
+        obsoletes: ["layout-update", "render-update"],
+        respectProgress: true,
+    },
+
+    // Camera changes obsolete renders and other camera operations
+    "camera-update": {
+        obsoletes: ["camera-update", "render-update"],
+        respectProgress: false, // New camera state should interrupt old animations
+        skipRunning: false, // Allow interrupting running camera animations
+    },
+};

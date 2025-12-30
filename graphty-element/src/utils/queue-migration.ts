@@ -1,0 +1,138 @@
+import type {OperationCategory, OperationContext} from "../managers/OperationQueueManager";
+
+export interface QueueableOptions {
+    /**
+     * Skip the operation queue and execute immediately (for backwards compatibility)
+     */
+    skipQueue?: boolean;
+
+    /**
+     * Custom description for the operation (for debugging/logging)
+     */
+    description?: string;
+
+    /**
+     * Categories that this operation should obsolete
+     */
+    obsoletes?: OperationCategory[];
+
+    /**
+     * Whether to respect progress when obsoleting (don't cancel >90% complete)
+     */
+    respectProgress?: boolean;
+}
+
+/**
+ * Algorithm-specific options (source, target, startNode, etc.)
+ * These are passed through to the algorithm's configure method.
+ */
+export interface AlgorithmSpecificOptions {
+    source?: string | number;
+    target?: string | number;
+    startNode?: string | number;
+    sink?: string | number;
+    [key: string]: unknown;
+}
+
+export interface RunAlgorithmOptions extends QueueableOptions {
+    /**
+     * Automatically apply suggested styles after running the algorithm
+     */
+    applySuggestedStyles?: boolean;
+
+    /**
+     * Algorithm-specific options (source, target, etc.)
+     * These are passed to the algorithm's configure method.
+     */
+    algorithmOptions?: AlgorithmSpecificOptions;
+}
+
+/**
+ * Helper to wrap a method with queue support while maintaining backwards compatibility
+ * @param queueOperation - Function to queue operations with category and execution logic
+ * @param category - The category of the operation being queued
+ * @param method - The method to be wrapped with queue support
+ * @param getDescription - Optional function to generate a description from method arguments
+ * @returns The wrapped method with queue support
+ */
+export function wrapWithQueue<T extends (... args: unknown[]) => unknown>(
+    queueOperation: (category: OperationCategory, execute: (context: OperationContext) => Promise<void> | void, metadata?: Record<string, unknown>) => string,
+    category: OperationCategory,
+    method: T,
+    getDescription?: (... args: Parameters<T>) => string,
+): T {
+    return (async(... args: Parameters<T>): Promise<ReturnType<T>> => {
+        // Check if last argument contains queue options
+        const lastArg = args[args.length - 1];
+        const hasQueueOptions = lastArg && typeof lastArg === "object" &&
+            ("skipQueue" in lastArg || "description" in lastArg || "obsoletes" in lastArg);
+
+        const options: QueueableOptions = hasQueueOptions ? (lastArg as QueueableOptions) : {};
+
+        if (options.skipQueue) {
+            // Execute directly without queuing
+            return method(... args) as ReturnType<T>;
+        }
+
+        // Default description if not provided
+        const description = options.description ?? (getDescription ? getDescription(... args) : undefined);
+
+        // Queue the operation
+        return new Promise((resolve, reject) => {
+            queueOperation(
+                category,
+                async(context) => {
+                    try {
+                        // Check for cancellation
+                        if (context.signal.aborted) {
+                            reject(new Error("Operation cancelled"));
+                            return;
+                        }
+
+                        const result = await method(... args);
+                        resolve(result as ReturnType<T>);
+                    } catch (error) {
+                        reject(error instanceof Error ? error : new Error(String(error)));
+                    }
+                },
+                {
+                    description,
+                    obsoletes: options.obsoletes,
+                    respectProgress: options.respectProgress,
+                },
+            );
+        });
+    }) as T;
+}
+
+/**
+ * Helper to create a batch operation context
+ */
+export class BatchOperationContext {
+    private operations: (() => Promise<void>)[] = [];
+
+    /**
+     * Add an operation to the batch
+     * @param operation - Async operation to add to the batch
+     */
+    add(operation: () => Promise<void>): void {
+        this.operations.push(operation);
+    }
+
+    /**
+     * Execute all batched operations sequentially
+     */
+    async execute(): Promise<void> {
+        for (const operation of this.operations) {
+            await operation();
+        }
+    }
+
+    /**
+     * Get the number of operations in the batch
+     * @returns The count of pending operations
+     */
+    get count(): number {
+        return this.operations.length;
+    }
+}

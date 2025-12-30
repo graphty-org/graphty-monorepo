@@ -1,0 +1,632 @@
+import jmespath from "jmespath";
+
+import type {AdHocData} from "../config";
+import {DataSource} from "../data/DataSource";
+import {Edge, EdgeMap} from "../Edge";
+import type {LayoutEngine} from "../layout/LayoutEngine";
+import {GraphtyLogger, type Logger} from "../logging/GraphtyLogger.js";
+import {MeshCache} from "../meshes/MeshCache";
+import {Node, NodeIdType} from "../Node";
+import type {Styles} from "../Styles";
+import type {EventManager} from "./EventManager";
+import type {GraphContext} from "./GraphContext";
+import type {Manager} from "./interfaces";
+
+// Type guards for layout engines with optional removal methods
+type LayoutEngineWithRemoveNode = LayoutEngine & {removeNode(node: Node): void};
+type LayoutEngineWithRemoveEdge = LayoutEngine & {removeEdge(edge: Edge): void};
+
+function hasRemoveNode(engine: LayoutEngine): engine is LayoutEngineWithRemoveNode {
+    return "removeNode" in engine;
+}
+
+function hasRemoveEdge(engine: LayoutEngine): engine is LayoutEngineWithRemoveEdge {
+    return "removeEdge" in engine;
+}
+
+/**
+ * Manages all data operations for nodes and edges
+ * Handles CRUD operations, caching, and data source loading
+ */
+export class DataManager implements Manager {
+    // Node and edge collections
+    nodes = new Map<string | number, Node>();
+    edges = new Map<string | number, Edge>();
+    nodeCache = new Map<NodeIdType, Node>();
+    edgeCache = new EdgeMap();
+    private logger: Logger = GraphtyLogger.getLogger(["graphty", "data"]);
+
+    // Graph-level algorithm results storage
+    graphResults?: AdHocData;
+
+    // Mesh cache for performance
+    meshCache: MeshCache;
+
+    // GraphContext for creating nodes and edges
+    private graphContext: GraphContext | null = null;
+
+    // State management flags
+    private shouldStartLayout = false;
+    private shouldZoomToFit = false;
+
+    // Buffer for edges added before their nodes exist
+    private bufferedEdges: {
+        edge: Record<string | number, unknown>;
+        srcIdPath?: string;
+        dstIdPath?: string;
+    }[] = [];
+
+    /**
+     * Creates an instance of DataManager
+     * @param eventManager - Event manager for emitting data events
+     * @param styles - Styles instance for applying styles to data
+     */
+    constructor(
+        private eventManager: EventManager,
+        private styles: Styles,
+    ) {
+        this.meshCache = new MeshCache();
+    }
+
+    /**
+     * Update the styles reference when styles change
+     * @param styles - New styles instance to use
+     */
+    updateStyles(styles: Styles): void {
+        this.styles = styles;
+        // Re-apply styles to all existing nodes and edges
+        this.applyStylesToExistingNodes();
+        this.applyStylesToExistingEdges();
+    }
+
+    /**
+     * Apply styles to all existing nodes
+     */
+    applyStylesToExistingNodes(): void {
+        for (const n of this.nodes.values()) {
+            // First, recalculate and apply the base style from the new template
+            // This handles static style values (color, shape, size, etc.)
+            const newStyleId = this.styles.getStyleForNode(n.data, n.algorithmResults);
+            n.updateStyle(newStyleId);
+
+            // Then run calculated values immediately since node data (including algorithmResults) is already populated
+            // This sets values in n.styleUpdates (same as changeManager.dataObjects.style)
+            n.changeManager.loadCalculatedValues(this.styles.getCalculatedStylesForNode(n.data), true);
+            // Call update() to merge calculated style updates with the base style
+            // update() checks styleUpdates and creates a new styleId that includes calculated values
+            n.update();
+        }
+    }
+
+    /**
+     * Apply styles to all existing edges
+     */
+    applyStylesToExistingEdges(): void {
+        for (const e of this.edges.values()) {
+            // Combine data and algorithmResults for selector matching and calculated style evaluation
+            const combinedData = {... e.data, algorithmResults: e.algorithmResults};
+
+            // First, recalculate and apply the base style from the new template
+            // This handles static style values (color, width, arrow types, etc.)
+            const newStyleId = this.styles.getStyleForEdge(combinedData);
+            e.updateStyle(newStyleId);
+
+            // Then run calculated values immediately since edge data (including algorithmResults) is already populated
+            // This sets values in e.styleUpdates (same as changeManager.dataObjects.style)
+            e.changeManager.loadCalculatedValues(this.styles.getCalculatedStylesForEdge(combinedData), true);
+            // Call update() to merge calculated style updates with the base style
+            // update() checks styleUpdates and creates a new styleId that includes calculated values
+            e.update();
+        }
+    }
+
+    /**
+     * Set the GraphContext for creating nodes and edges
+     * @param context - GraphContext instance to use for node/edge creation
+     */
+    setGraphContext(context: GraphContext): void {
+        this.graphContext = context;
+    }
+
+    /**
+     * Set the layout engine reference for adding nodes/edges
+     */
+    private layoutEngine?: LayoutEngine;
+
+    /**
+     * Set the layout engine reference for managing node and edge positions
+     * @param engine - Layout engine instance or undefined to clear
+     */
+    setLayoutEngine(engine: LayoutEngine | undefined): void {
+        this.layoutEngine = engine;
+    }
+
+    /**
+     * Initializes the data manager
+     * @returns Promise that resolves when initialization is complete
+     */
+    async init(): Promise<void> {
+        // DataManager doesn't need async initialization
+        return Promise.resolve();
+    }
+
+    /**
+     * Disposes of the data manager and cleans up all resources
+     */
+    dispose(): void {
+        // Clear all collections
+        this.nodes.clear();
+        this.edges.clear();
+        this.nodeCache.clear();
+        this.edgeCache.clear();
+
+        // Clear graph-level results
+        this.graphResults = undefined;
+
+        // Clear mesh cache
+        this.meshCache.clear();
+    }
+
+    // Node operations
+
+    /**
+     * Adds a single node to the graph
+     * @param node - Node data object
+     * @param idPath - JMESPath expression to extract node ID from data
+     */
+    addNode(node: AdHocData, idPath?: string): void {
+        this.addNodes([node], idPath);
+    }
+
+    /**
+     * Adds multiple nodes to the graph
+     * @param nodes - Array of node data objects
+     * @param idPath - JMESPath expression to extract node ID from data
+     */
+    addNodes(nodes: Record<string | number, unknown>[], idPath?: string): void {
+        this.logger.debug("Adding nodes", {count: nodes.length});
+
+        // create path to node ids
+        const query = idPath ?? this.styles.config.data.knownFields.nodeIdPath;
+
+        // create nodes
+        for (const node of nodes) {
+            const nodeId = jmespath.search(node, query) as NodeIdType;
+
+            if (this.nodeCache.get(nodeId)) {
+                continue;
+            }
+
+            const styleId = this.styles.getStyleForNode(node as AdHocData);
+            if (!this.graphContext) {
+                throw new Error("GraphContext not set. Call setGraphContext before adding nodes.");
+            }
+
+            const n = new Node(this.graphContext, nodeId, styleId, node as AdHocData, {
+                pinOnDrag: this.graphContext.getConfig().pinOnDrag,
+            });
+            this.nodeCache.set(nodeId, n);
+            this.nodes.set(nodeId, n);
+
+            // Add to layout engine if it exists
+            if (this.layoutEngine) {
+                this.layoutEngine.addNode(n);
+            }
+
+            // Emit node added event
+            this.eventManager.emitNodeEvent("node-add-before", {
+                nodeId,
+                metadata: node,
+            });
+        }
+
+        // Notify that nodes were added
+        if (nodes.length > 0) {
+            // Request layout start and zoom to fit
+            this.shouldStartLayout = true;
+            this.shouldZoomToFit = true;
+
+            // Process any buffered edges whose nodes now exist
+            this.processBufferedEdges();
+
+            // Emit event to notify graph that data has been added
+            this.eventManager.emitDataAdded("nodes", nodes.length, true, true);
+        }
+    }
+
+    /**
+     * Process buffered edges whose nodes now exist
+     * Called after nodes are added to retry edge creation
+     */
+    private processBufferedEdges(): void {
+        if (this.bufferedEdges.length === 0) {
+            return;
+        }
+
+        // Try to process all buffered edges
+        const stillBuffered: typeof this.bufferedEdges = [];
+
+        for (const {edge, srcIdPath, dstIdPath} of this.bufferedEdges) {
+            // get paths
+            const srcQuery = srcIdPath ?? this.styles.config.data.knownFields.edgeSrcIdPath;
+            const dstQuery = dstIdPath ?? this.styles.config.data.knownFields.edgeDstIdPath;
+
+            const srcNodeId = jmespath.search(edge, srcQuery) as NodeIdType;
+            const dstNodeId = jmespath.search(edge, dstQuery) as NodeIdType;
+
+            // Check if both nodes now exist
+            const srcNode = this.nodeCache.get(srcNodeId);
+            const dstNode = this.nodeCache.get(dstNodeId);
+
+            if (!srcNode || !dstNode) {
+                // Nodes still don't exist, keep in buffer
+                stillBuffered.push({edge, srcIdPath, dstIdPath});
+                continue;
+            }
+
+            // Check if edge already exists
+            if (this.edgeCache.get(srcNodeId, dstNodeId)) {
+                continue;
+            }
+
+            // Create the edge now that both nodes exist
+            const style = this.styles.getStyleForEdge(edge as AdHocData);
+            const opts = {};
+            if (!this.graphContext) {
+                throw new Error("GraphContext not set. Call setGraphContext before adding edges.");
+            }
+
+            const e = new Edge(this.graphContext, srcNodeId, dstNodeId, style, edge as AdHocData, opts);
+            this.edgeCache.set(srcNodeId, dstNodeId, e);
+            this.edges.set(e.id, e);
+
+            // Add to layout engine if it exists
+            if (this.layoutEngine) {
+                this.layoutEngine.addEdge(e);
+            }
+
+            // Emit edge added event
+            this.eventManager.emitEdgeEvent("edge-add-before", {
+                srcNodeId,
+                dstNodeId,
+                metadata: edge,
+            });
+        }
+
+        // Update buffer with edges that still couldn't be processed
+        this.bufferedEdges = stillBuffered;
+    }
+
+    /**
+     * Gets a node by its ID
+     * @param nodeId - Node identifier
+     * @returns Node instance or undefined if not found
+     */
+    getNode(nodeId: NodeIdType): Node | undefined {
+        return this.nodes.get(nodeId);
+    }
+
+    /**
+     * Removes a node from the graph
+     * @param nodeId - Node identifier to remove
+     * @returns True if the node was removed, false if not found
+     */
+    removeNode(nodeId: NodeIdType): boolean {
+        const node = this.nodes.get(nodeId);
+        if (!node) {
+            return false;
+        }
+
+        // Remove from collections
+        this.nodes.delete(nodeId);
+        this.nodeCache.delete(nodeId);
+
+        // Remove from layout engine
+        if (this.layoutEngine && hasRemoveNode(this.layoutEngine)) {
+            this.layoutEngine.removeNode(node);
+        }
+
+        // TODO: Remove connected edges
+
+        return true;
+    }
+
+    // Edge operations
+
+    /**
+     * Adds a single edge to the graph
+     * @param edge - Edge data object
+     * @param srcIdPath - JMESPath expression to extract source node ID from data
+     * @param dstIdPath - JMESPath expression to extract destination node ID from data
+     */
+    addEdge(edge: AdHocData, srcIdPath?: string, dstIdPath?: string): void {
+        this.addEdges([edge], srcIdPath, dstIdPath);
+    }
+
+    /**
+     * Adds multiple edges to the graph
+     * @param edges - Array of edge data objects
+     * @param srcIdPath - JMESPath expression to extract source node ID from data
+     * @param dstIdPath - JMESPath expression to extract destination node ID from data
+     */
+    addEdges(edges: Record<string | number, unknown>[], srcIdPath?: string, dstIdPath?: string): void {
+        this.logger.debug("Adding edges", {count: edges.length});
+
+        // get paths
+        const srcQuery = srcIdPath ?? this.styles.config.data.knownFields.edgeSrcIdPath;
+        const dstQuery = dstIdPath ?? this.styles.config.data.knownFields.edgeDstIdPath;
+
+        // create edges
+        for (const edge of edges) {
+            const srcNodeId = jmespath.search(edge, srcQuery) as NodeIdType;
+            const dstNodeId = jmespath.search(edge, dstQuery) as NodeIdType;
+
+            if (this.edgeCache.get(srcNodeId, dstNodeId)) {
+                continue;
+            }
+
+            // Check if both nodes exist before creating edge
+            const srcNode = this.nodeCache.get(srcNodeId);
+            const dstNode = this.nodeCache.get(dstNodeId);
+
+            if (!srcNode || !dstNode) {
+                // Buffer this edge to be processed later when nodes exist
+                this.bufferedEdges.push({edge, srcIdPath, dstIdPath});
+                continue;
+            }
+
+            const style = this.styles.getStyleForEdge(edge as AdHocData);
+            const opts = {};
+            if (!this.graphContext) {
+                throw new Error("GraphContext not set. Call setGraphContext before adding edges.");
+            }
+
+            const e = new Edge(this.graphContext, srcNodeId, dstNodeId, style, edge as AdHocData, opts);
+            this.edgeCache.set(srcNodeId, dstNodeId, e);
+            this.edges.set(e.id, e);
+
+            // Add to layout engine if it exists
+            if (this.layoutEngine) {
+                this.layoutEngine.addEdge(e);
+            }
+
+            // Emit edge added event
+            this.eventManager.emitEdgeEvent("edge-add-before", {
+                srcNodeId,
+                dstNodeId,
+                metadata: edge,
+            });
+        }
+
+        // Notify that edges were added
+        if (edges.length > 0) {
+            // Request layout start
+            this.shouldStartLayout = true;
+            // Emit event to notify graph that data has been added
+            this.eventManager.emitDataAdded("edges", edges.length, true, false);
+        }
+    }
+
+    /**
+     * Gets an edge by its ID
+     * @param edgeId - Edge identifier
+     * @returns Edge instance or undefined if not found
+     */
+    getEdge(edgeId: string | number): Edge | undefined {
+        return this.edges.get(edgeId);
+    }
+
+    /**
+     * Gets an edge between two nodes
+     * @param srcNodeId - Source node identifier
+     * @param dstNodeId - Destination node identifier
+     * @returns Edge instance or undefined if not found
+     */
+    getEdgeBetween(srcNodeId: NodeIdType, dstNodeId: NodeIdType): Edge | undefined {
+        return this.edgeCache.get(srcNodeId, dstNodeId);
+    }
+
+    /**
+     * Removes an edge from the graph
+     * @param edgeId - Edge identifier to remove
+     * @returns True if the edge was removed, false if not found
+     */
+    removeEdge(edgeId: string | number): boolean {
+        const edge = this.edges.get(edgeId);
+        if (!edge) {
+            return false;
+        }
+
+        // Remove from collections
+        this.edges.delete(edgeId);
+        this.edgeCache.delete(edge.srcNode.id, edge.dstNode.id);
+
+        // Remove from layout engine
+        if (this.layoutEngine && hasRemoveEdge(this.layoutEngine)) {
+            this.layoutEngine.removeEdge(edge);
+        }
+
+        return true;
+    }
+
+    // Data source operations
+
+    /**
+     * Loads data from a registered data source
+     * @param type - Data source type identifier
+     * @param opts - Options to pass to the data source
+     */
+    async addDataFromSource(type: string, opts: object = {}): Promise<void> {
+        this.logger.info("Loading data source", {type, options: opts});
+
+        const startTime = Date.now();
+        let nodesLoaded = 0;
+        let edgesLoaded = 0;
+        let chunksProcessed = 0;
+
+        try {
+            const source = DataSource.get(type, opts);
+            if (!source) {
+                throw new TypeError(`No data source named: ${type}`);
+            }
+
+            // Get file size for progress tracking (if available)
+            const fileSize = (opts as {size?: number}).size;
+
+            try {
+                for await (const chunk of source.getData()) {
+                    this.addNodes(chunk.nodes);
+                    this.addEdges(chunk.edges);
+
+                    nodesLoaded += chunk.nodes.length;
+                    edgesLoaded += chunk.edges.length;
+                    chunksProcessed++;
+
+                    // Emit progress event
+                    if (this.graphContext) {
+                        this.eventManager.emitDataLoadingProgress(
+                            type,
+                            chunksProcessed * 64 * 1024, // Approximate bytes (chunk size)
+                            fileSize,
+                            nodesLoaded,
+                            edgesLoaded,
+                            chunksProcessed,
+                        );
+                    }
+                }
+
+                // Emit error summary if there were errors
+                if (this.graphContext) {
+                    const errorAggregator = source.getErrorAggregator();
+                    if (errorAggregator.getErrorCount() > 0) {
+                        const summary = errorAggregator.getSummary();
+                        this.eventManager.emitDataLoadingErrorSummary(
+                            type,
+                            summary.totalErrors,
+                            summary.message,
+                            errorAggregator.getDetailedReport(),
+                            summary.primaryCategory,
+                            summary.suggestion,
+                        );
+                    }
+                }
+
+                // Emit completion event
+                const duration = Date.now() - startTime;
+                const errorCount = source.getErrorAggregator().getErrorCount();
+
+                this.logger.info("Data source loading complete", {
+                    nodesLoaded,
+                    edgesLoaded,
+                    duration,
+                    chunks: chunksProcessed,
+                    errors: errorCount,
+                });
+
+                if (this.graphContext) {
+                    this.eventManager.emitDataLoadingComplete(
+                        type,
+                        nodesLoaded,
+                        edgesLoaded,
+                        duration,
+                        errorCount,
+                        0, // warnings
+                        true,
+                    );
+                }
+
+                // Keep existing data-loaded event for backward compatibility
+                if (this.graphContext) {
+                    this.eventManager.emitGraphDataLoaded(this.graphContext, chunksProcessed, type);
+                }
+            } catch (error) {
+                // Log the error
+                this.logger.error(
+                    "Data source loading failed",
+                    error instanceof Error ? error : new Error(String(error)),
+                    {
+                        type,
+                        chunksProcessed,
+                        nodesLoaded,
+                        edgesLoaded,
+                    },
+                );
+
+                // Emit error event
+                if (this.graphContext) {
+                    this.eventManager.emitDataLoadingError(
+                        error instanceof Error ? error : new Error(String(error)),
+                        "parsing",
+                        type,
+                        {canContinue: false},
+                    );
+
+                    // Keep existing error event for backward compatibility
+                    this.eventManager.emitGraphError(
+                        this.graphContext,
+                        error instanceof Error ? error : new Error(String(error)),
+                        "data-loading",
+                        {chunksLoaded: chunksProcessed, dataSourceType: type},
+                    );
+                }
+
+                throw new Error(`Failed to load data from source '${type}' after ${chunksProcessed} chunks: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        } catch (error) {
+            // Re-throw if already a processed error
+            if (error instanceof Error && error.message.includes("Failed to load data")) {
+                throw error;
+            }
+
+            // Otherwise wrap and throw
+            throw new Error(`Error initializing data source '${type}': ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    // Utility methods
+
+    /**
+     * Clear all data
+     */
+    clear(): void {
+        // Remove all nodes and edges
+        this.nodes.clear();
+        this.edges.clear();
+        this.nodeCache.clear();
+        this.edgeCache.clear();
+
+        // Clear graph-level results
+        this.graphResults = undefined;
+
+        // Clear mesh cache
+        this.meshCache.clear();
+
+        // TODO: Notify layout engine to clear
+    }
+
+    /**
+     * Start label animations for all nodes
+     * Called when layout has settled
+     */
+    startLabelAnimations(): void {
+        for (const node of this.nodes.values()) {
+            node.label?.startAnimation();
+        }
+    }
+
+    /**
+     * Get statistics about the data
+     * @returns Object containing node count, edge count, and cached mesh count
+     */
+    getStats(): {
+        nodeCount: number;
+        edgeCount: number;
+        cachedMeshes: number;
+    } {
+        return {
+            nodeCount: this.nodes.size,
+            edgeCount: this.edges.size,
+            cachedMeshes: this.meshCache.size(),
+        };
+    }
+}

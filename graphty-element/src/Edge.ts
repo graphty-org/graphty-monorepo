@@ -1,0 +1,1149 @@
+import {
+    AbstractMesh,
+    Mesh,
+    Quaternion,
+    Ray,
+    Vector3,
+} from "@babylonjs/core";
+import * as jmespath from "jmespath";
+import _ from "lodash";
+
+import {CalculatedValue} from "./CalculatedValue";
+import {ChangeManager} from "./ChangeManager";
+import {type AdHocData, EdgeStyle, type EdgeStyleConfig} from "./config";
+import {EDGE_CONSTANTS} from "./constants/meshConstants";
+import type {Graph} from "./Graph";
+import type {GraphContext} from "./managers/GraphContext";
+import {EdgeMesh} from "./meshes/EdgeMesh";
+import {FilledArrowRenderer} from "./meshes/FilledArrowRenderer";
+import {PatternedLineMesh} from "./meshes/PatternedLineMesh";
+import {type AttachPosition, RichTextLabel, type RichTextLabelOptions} from "./meshes/RichTextLabel";
+import {Simple2DLineRenderer} from "./meshes/Simple2DLineRenderer";
+import {Node, NodeIdType} from "./Node";
+import {EdgeStyleId, Styles} from "./Styles";
+
+interface InterceptPoint {
+    srcPoint: Vector3 | null;
+    dstPoint: Vector3 | null;
+    newEndPoint: Vector3 | null;
+}
+
+interface EdgeLine {
+    srcPoint: Vector3 | null;
+    dstPoint: Vector3 | null;
+
+}
+
+interface EdgeOpts {
+    metadata?: object;
+}
+
+/**
+ * Represents a directed edge between two nodes in the graph visualization.
+ * Handles rendering of edge lines, arrow heads/tails, and labels with support for various styles.
+ */
+export class Edge {
+    parentGraph: Graph | GraphContext;
+    opts: EdgeOpts;
+    srcId: NodeIdType;
+    dstId: NodeIdType;
+    id: string;
+    dstNode: Node;
+    srcNode: Node;
+    data: AdHocData;
+    algorithmResults: AdHocData;
+    styleUpdates: AdHocData;
+    mesh: AbstractMesh | PatternedLineMesh; // PHASE 5: Support both solid lines and patterned lines
+    arrowMesh: AbstractMesh | null = null;
+    arrowTailMesh: AbstractMesh | null = null;
+    styleId: EdgeStyleId;
+    // XXX: performance impact when not needed?
+    ray: Ray;
+    label: RichTextLabel | null = null;
+    arrowHeadText: RichTextLabel | null = null;
+    arrowTailText: RichTextLabel | null = null;
+    private _arrowHeadTextOffset = 0.3;
+    private _arrowTailTextOffset = 0.3;
+    private _labelOffset = 0;
+    private _labelAttachPosition: AttachPosition = "center";
+    changeManager: ChangeManager;
+    private _loggedLineDirection = false; // Debug flag for logging lineDirection
+
+    // Dirty tracking: Cache last node positions to skip unnecessary updates
+    private _lastSrcPos: Vector3 | null = null;
+    private _lastDstPos: Vector3 | null = null;
+
+    /**
+     * Helper to check if we're using GraphContext
+     * @returns The GraphContext instance
+     */
+    private get context(): GraphContext {
+        // Check if parentGraph has GraphContext methods
+        if ("getStyles" in this.parentGraph) {
+            return this.parentGraph;
+        }
+
+        // Otherwise, it's a Graph instance which implements GraphContext
+        return this.parentGraph;
+    }
+
+    /**
+     * Creates a new Edge instance connecting two nodes.
+     * @param graph - The parent graph or graph context
+     * @param srcNodeId - The ID of the source node
+     * @param dstNodeId - The ID of the destination node
+     * @param styleId - The style ID to apply to this edge
+     * @param data - Custom data associated with the edge
+     * @param opts - Optional configuration options
+     */
+    constructor(graph: Graph | GraphContext, srcNodeId: NodeIdType, dstNodeId: NodeIdType, styleId: EdgeStyleId, data: AdHocData, opts: EdgeOpts = {}) {
+        this.parentGraph = graph;
+        this.srcId = srcNodeId;
+        this.dstId = dstNodeId;
+        this.id = `${srcNodeId}:${dstNodeId}`;
+        this.opts = opts;
+        this.changeManager = new ChangeManager();
+        this.data = this.changeManager.watch("data", data);
+        this.algorithmResults = this.changeManager.watch("algorithmResults", {} as unknown as AdHocData);
+        this.styleUpdates = this.changeManager.addData("style", {} as unknown as AdHocData, EdgeStyle);
+        this.changeManager.loadCalculatedValues(this.context.getStyleManager().getStyles().getCalculatedStylesForEdge(data), true);
+
+        // make sure both srcNode and dstNode already exist
+        const srcNode = this.context.getDataManager().nodeCache.get(srcNodeId);
+        if (!srcNode) {
+            throw new Error(`Attempting to create edge '${srcNodeId}->${dstNodeId}', Node '${srcNodeId}' hasn't been created yet.`);
+        }
+
+        const dstNode = this.context.getDataManager().nodeCache.get(dstNodeId);
+        if (!dstNode) {
+            throw new Error(`Attempting to create edge '${srcNodeId}->${dstNodeId}', Node '${dstNodeId}' hasn't been created yet.`);
+        }
+
+        this.srcNode = srcNode;
+        this.dstNode = dstNode;
+
+        // create ray for direction / intercept finding
+        // Ray constructor expects (origin, direction), not (origin, destination)
+        this.ray = new Ray(
+            this.srcNode.mesh.position,
+            this.dstNode.mesh.position.subtract(this.srcNode.mesh.position),
+        );
+
+        // copy edgeMeshConfig
+        this.styleId = styleId;
+
+        // create ngraph link
+        // TODO: Edge is added to layout engine by DataManager, not here
+
+        // create mesh
+        const style = Styles.getStyleForEdgeStyleId(this.styleId);
+
+        // create arrow mesh if needed
+        this.arrowMesh = EdgeMesh.createArrowHead(
+            this.context.getMeshCache(),
+            String(this.styleId),
+            {
+                type: style.arrowHead?.type ?? "none",
+                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                color: style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF",
+                size: style.arrowHead?.size,
+                opacity: style.arrowHead?.opacity,
+            },
+            this.context.getScene(),
+        );
+
+        // create arrow tail mesh if needed
+        this.arrowTailMesh = EdgeMesh.createArrowHead(
+            this.context.getMeshCache(),
+            `${String(this.styleId)}-tail`,
+            {
+                type: style.arrowTail?.type ?? "none",
+                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                color: style.arrowTail?.color ?? style.line?.color ?? "#FFFFFF",
+                size: style.arrowTail?.size,
+                opacity: style.arrowTail?.opacity,
+            },
+            this.context.getScene(),
+        );
+        // console.log("Edge constructor: arrowTailMesh assigned:", this.arrowTailMesh?.name, this.arrowTailMesh !== null);
+
+        // create edge line mesh
+        // Note: Edge.transformArrowCap() provides start/end positions already adjusted for node surfaces and arrows
+        this.mesh = EdgeMesh.create(
+            this.context.getMeshCache(),
+            {
+                styleId: String(this.styleId),
+                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                color: style.line?.color ?? "#FFFFFF",
+            },
+
+            style,
+            this.context.getScene(),
+        );
+
+        this.mesh.isPickable = false;
+        this.mesh.metadata = this.mesh.metadata ?? {};
+        this.mesh.metadata.parentEdge = this;
+
+        // Parent edge meshes to graph-root for XR gesture support (zoom, rotate, pan)
+        const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");
+        if (graphRoot) {
+            if (this.mesh instanceof PatternedLineMesh) {
+                // PatternedLineMesh is a wrapper with an array of meshes
+                for (const mesh of this.mesh.meshes) {
+                    mesh.parent = graphRoot;
+                }
+            } else {
+                this.mesh.parent = graphRoot;
+            }
+
+            if (this.arrowMesh) {
+                this.arrowMesh.parent = graphRoot;
+            }
+
+            if (this.arrowTailMesh) {
+                this.arrowTailMesh.parent = graphRoot;
+            }
+        }
+
+        // create label if configured
+        if (style.label?.enabled) {
+            const {label, offset, attachPosition} = this.createLabel(style);
+            this.label = label;
+            this._labelOffset = offset;
+            this._labelAttachPosition = attachPosition;
+        }
+
+        // create arrow head text if configured
+        if (style.arrowHead?.text) {
+            const {label, offset} = this.createArrowText(style.arrowHead.text, "arrowHead");
+            this.arrowHeadText = label;
+            this._arrowHeadTextOffset = offset;
+        }
+
+        // create arrow tail text if configured
+        if (style.arrowTail?.text) {
+            const {label, offset} = this.createArrowText(style.arrowTail.text, "arrowTail");
+            this.arrowTailText = label;
+            this._arrowTailTextOffset = offset;
+        }
+    }
+
+    /**
+     * Adds a calculated style value to this edge.
+     * @param cv - The calculated value to add
+     */
+    addCalculatedStyle(cv: CalculatedValue): void {
+        this.changeManager.addCalculatedValue(cv);
+    }
+
+    /**
+     * Updates the edge's visual representation based on current node positions and style changes.
+     * Performs dirty checking to skip updates when nodes haven't moved.
+     */
+    update(): void {
+        this.context.getStatsManager().startMeasurement("Edge.update");
+
+        // Process style updates from calculated values
+        const newStyleKeys = Object.keys(this.styleUpdates);
+        if (newStyleKeys.length > 0) {
+            let style = Styles.getStyleForEdgeStyleId(this.styleId);
+            // Convert styleUpdates Proxy to plain object for proper merging
+            // (styleUpdates is wrapped by on-change library's Proxy)
+            const plainStyleUpdates = _.cloneDeep(this.styleUpdates);
+            style = _.defaultsDeep(plainStyleUpdates, style);
+            const styleId = Styles.getEdgeIdForStyle(style);
+            this.updateStyle(styleId);
+            for (const key of newStyleKeys) {
+                // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+                delete this.styleUpdates[key];
+            }
+        }
+
+        const lnk = this.context.getLayoutManager().layoutEngine?.getEdgePosition(this);
+        if (!lnk) {
+            this.context.getStatsManager().endMeasurement("Edge.update");
+            return;
+        }
+
+        // Dirty tracking: Check if nodes have moved significantly
+        const srcPos = this.srcNode.mesh.position;
+        const dstPos = this.dstNode.mesh.position;
+
+        const srcMoved = !(this._lastSrcPos?.equalsWithEpsilon(srcPos, 0.001) ?? false);
+        const dstMoved = !(this._lastDstPos?.equalsWithEpsilon(dstPos, 0.001) ?? false);
+
+        // console.log("Edge.update dirty check:", {
+        //     srcMoved,
+        //     dstMoved,
+        //     _lastSrcPos: this._lastSrcPos ? {x: this._lastSrcPos.x, y: this._lastSrcPos.y, z: this._lastSrcPos.z} : null,
+        //     _lastDstPos: this._lastDstPos ? {x: this._lastDstPos.x, y: this._lastDstPos.y, z: this._lastDstPos.z} : null,
+        //     srcPos: {x: srcPos.x, y: srcPos.y, z: srcPos.z},
+        //     dstPos: {x: dstPos.x, y: dstPos.y, z: dstPos.z},
+        // });
+
+        if (!srcMoved && !dstMoved) {
+            // Nodes haven't moved, skip update
+            // console.log("Edge.update: Skipping update (nodes haven't moved)");
+            this.context.getStatsManager().endMeasurement("Edge.update");
+            return;
+        }
+
+        // Nodes have moved, perform update
+        // console.log("Edge.update: Performing update (nodes moved)");
+
+        const {srcPoint, dstPoint} = this.transformArrowCap();
+        const finalSrcPoint = srcPoint ?? new Vector3(lnk.src.x, lnk.src.y, lnk.src.z);
+        const finalDstPoint = dstPoint ?? new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z);
+
+        // PHASE 5: Bezier curves need geometry recreation (can't transform)
+        const style = Styles.getStyleForEdgeStyleId(this.styleId);
+        if (style.line?.bezier) {
+            // Dispose old mesh
+            if (this.mesh instanceof PatternedLineMesh) {
+                this.mesh.dispose();
+            } else if (!this.mesh.isDisposed()) {
+                this.mesh.dispose();
+            }
+
+            // Create new bezier mesh with current positions
+            this.mesh = EdgeMesh.create(
+                this.context.getMeshCache(),
+                {
+                    styleId: String(this.styleId),
+                    width: style.line.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                    color: style.line.color ?? "#FFFFFF",
+                },
+                style,
+                this.context.getScene(),
+                finalSrcPoint,
+                finalDstPoint,
+            );
+
+            this.mesh.isPickable = false;
+            this.mesh.metadata = this.mesh.metadata ?? {};
+            this.mesh.metadata.parentEdge = this;
+        } else {
+            // Non-bezier edges: Transform existing mesh
+            this.transformEdgeMesh(finalSrcPoint, finalDstPoint);
+        }
+
+        // Update label position if exists
+        if (this.label) {
+            const midPoint = new Vector3(
+                (lnk.src.x + lnk.dst.x) / 2,
+                (lnk.src.y + lnk.dst.y) / 2,
+                ((lnk.src.z ?? 0) + (lnk.dst.z ?? 0)) / 2,
+            );
+            this.label.attachTo(midPoint, this._labelAttachPosition, this._labelOffset);
+        }
+
+        // Update arrow head text position if exists
+        if (this.arrowHeadText && this.arrowMesh) {
+            this.arrowHeadText.attachTo(this.arrowMesh.position, "top", this._arrowHeadTextOffset);
+        }
+
+        // Update arrow tail text position if exists
+        if (this.arrowTailText && this.arrowTailMesh) {
+            this.arrowTailText.attachTo(this.arrowTailMesh.position, "top", this._arrowTailTextOffset);
+        }
+
+        // Cache positions for next frame
+        this._lastSrcPos = srcPos.clone();
+        this._lastDstPos = dstPos.clone();
+
+        this.context.getStatsManager().endMeasurement("Edge.update");
+    }
+
+    /**
+     * Updates the edge's style by changing its styleId and recreating visual elements.
+     * @param styleId - The new style ID to apply
+     */
+    updateStyle(styleId: EdgeStyleId): void {
+        // console.log("Edge.updateStyle called:", {oldStyleId: this.styleId, newStyleId: styleId, meshDisposed: this.mesh.isDisposed()});
+        // Only skip update if styleId is the same AND mesh is not disposed
+        // (mesh can be disposed when switching 2D/3D modes via meshCache.clear())
+        // PHASE 5: PatternedLineMesh doesn't have isDisposed(), check if it's AbstractMesh first
+        const meshDisposed = (this.mesh instanceof PatternedLineMesh) ?
+            false : // PatternedLineMesh is always "alive" (check individual meshes if needed)
+            this.mesh.isDisposed();
+
+        if (styleId === this.styleId && !meshDisposed) {
+            // console.log("Edge.updateStyle: skipping update (same style and mesh not disposed)");
+            return;
+        }
+
+        // console.log("Edge.updateStyle: proceeding with update");
+        this.styleId = styleId;
+
+        // Invalidate position cache to force edge redraw with new style
+        this._lastSrcPos = null;
+        this._lastDstPos = null;
+        // PHASE 5: Dispose pattern lines or solid lines appropriately
+        if (this.mesh instanceof PatternedLineMesh) {
+            this.mesh.dispose(); // PatternedLineMesh has its own dispose logic
+        } else if (!this.mesh.isDisposed()) {
+            this.mesh.dispose();
+        }
+
+        const style = Styles.getStyleForEdgeStyleId(styleId);
+
+        // recreate arrow mesh if needed
+        if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
+            this.arrowMesh.dispose();
+        }
+
+        this.arrowMesh = EdgeMesh.createArrowHead(
+            this.context.getMeshCache(),
+            String(styleId),
+            {
+                type: style.arrowHead?.type ?? "none",
+                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                color: style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF",
+                size: style.arrowHead?.size,
+                opacity: style.arrowHead?.opacity,
+            },
+            this.context.getScene(),
+        );
+
+        // recreate arrow tail mesh if needed
+        if (this.arrowTailMesh && !this.arrowTailMesh.isDisposed()) {
+            this.arrowTailMesh.dispose();
+        }
+
+        this.arrowTailMesh = EdgeMesh.createArrowHead(
+            this.context.getMeshCache(),
+            `${String(styleId)}-tail`,
+            {
+                type: style.arrowTail?.type ?? "none",
+                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                color: style.arrowTail?.color ?? style.line?.color ?? "#FFFFFF",
+                size: style.arrowTail?.size,
+                opacity: style.arrowTail?.opacity,
+            },
+            this.context.getScene(),
+        );
+
+        // recreate edge line mesh
+        // PHASE 5: For bezier curves, need to pass current positions
+        let srcPoint: Vector3 | undefined;
+        let dstPoint: Vector3 | undefined;
+        if (style.line?.bezier) {
+            const lnk = this.context.getLayoutManager().layoutEngine?.getEdgePosition(this);
+            if (lnk) {
+                const {srcPoint: arrowSrc, dstPoint: arrowDst} = this.transformArrowCap();
+                srcPoint = arrowSrc ?? new Vector3(lnk.src.x, lnk.src.y, lnk.src.z);
+                dstPoint = arrowDst ?? new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z);
+            }
+        }
+
+        this.mesh = EdgeMesh.create(
+            this.context.getMeshCache(),
+            {
+                styleId: String(styleId),
+                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                color: style.line?.color ?? "#FFFFFF",
+            },
+
+            style,
+            this.context.getScene(),
+            srcPoint,
+            dstPoint,
+        );
+
+        this.mesh.isPickable = false;
+        this.mesh.metadata = this.mesh.metadata ?? {};
+        this.mesh.metadata.parentEdge = this;
+
+        // Parent edge meshes to graph-root for XR gesture support (zoom, rotate, pan)
+        const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");
+        if (graphRoot) {
+            if (this.mesh instanceof PatternedLineMesh) {
+                // PatternedLineMesh is a wrapper with an array of meshes
+                for (const mesh of this.mesh.meshes) {
+                    mesh.parent = graphRoot;
+                }
+            } else {
+                this.mesh.parent = graphRoot;
+            }
+
+            if (this.arrowMesh) {
+                this.arrowMesh.parent = graphRoot;
+            }
+
+            if (this.arrowTailMesh) {
+                this.arrowTailMesh.parent = graphRoot;
+            }
+        }
+
+        // Update label if needed
+        if (style.label?.enabled) {
+            if (this.label) {
+                this.label.dispose();
+            }
+
+            const {label, offset, attachPosition} = this.createLabel(style);
+            this.label = label;
+            this._labelOffset = offset;
+            this._labelAttachPosition = attachPosition;
+        } else if (this.label) {
+            this.label.dispose();
+            this.label = null;
+        }
+
+        // Update arrow head text if needed
+        if (style.arrowHead?.text) {
+            if (this.arrowHeadText) {
+                this.arrowHeadText.dispose();
+            }
+
+            const {label, offset} = this.createArrowText(style.arrowHead.text, "arrowHead");
+            this.arrowHeadText = label;
+            this._arrowHeadTextOffset = offset;
+        } else if (this.arrowHeadText) {
+            this.arrowHeadText.dispose();
+            this.arrowHeadText = null;
+        }
+
+        // Update arrow tail text if needed
+        if (style.arrowTail?.text) {
+            if (this.arrowTailText) {
+                this.arrowTailText.dispose();
+            }
+
+            const {label, offset} = this.createArrowText(style.arrowTail.text, "arrowTail");
+            this.arrowTailText = label;
+            this._arrowTailTextOffset = offset;
+        } else if (this.arrowTailText) {
+            this.arrowTailText.dispose();
+            this.arrowTailText = null;
+        }
+    }
+
+    /**
+     * Updates ray directions for all edges in the graph to enable accurate mesh intersections.
+     * @param g - The graph or graph context containing the edges
+     */
+    static updateRays(g: Graph | GraphContext): void {
+        const context = "getStyles" in g ? g : g;
+
+        if (!context.needsRayUpdate()) {
+            return;
+        }
+
+        const {layoutEngine} = context.getLayoutManager();
+        if (!layoutEngine) {
+            return;
+        }
+
+        for (const e of layoutEngine.edges) {
+            const srcMesh = e.srcNode.mesh;
+            const dstMesh = e.dstNode.mesh;
+
+            const style = Styles.getStyleForEdgeStyleId(e.styleId);
+            if (style.arrowHead?.type === undefined || style.arrowHead.type === "none") {
+                // Performance: this could be optimized
+                continue;
+            }
+
+            // RayHelper.CreateAndShow(ray, e.parentGraph.scene, Color3.Red());
+
+            // Update ray origin and direction to match current mesh positions
+            // The ray starts at the source node and points toward the destination node
+            e.ray.origin = srcMesh.position;
+            e.ray.direction = dstMesh.position.subtract(srcMesh.position);
+        }
+
+        // this sucks for performance, but we have to do a full render pass
+        // to update rays and intersections
+        context.getScene().render();
+    }
+
+    /**
+     * Transforms the edge mesh to position it between source and destination points.
+     * Handles different mesh types (solid, patterned, 2D, bezier).
+     * @param srcPoint - The source point position
+     * @param dstPoint - The destination point position
+     */
+    transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void {
+        // PHASE 5: Check if mesh is PatternedLineMesh and route accordingly
+        if (this.mesh instanceof PatternedLineMesh) {
+            // Pattern lines: Update mesh positions in world space
+            this.mesh.update(srcPoint, dstPoint);
+        } else if (this.mesh.metadata?.is2DLine) {
+            // PHASE 2: 2D solid lines use Simple2DLineRenderer position updates
+            Simple2DLineRenderer.updatePositions(this.mesh as Mesh, srcPoint, dstPoint);
+        } else if (this.mesh.metadata?.isBezierCurve) {
+            // PHASE 5: Bezier curves have baked-in geometry, no transformation needed
+            // The curve geometry is already in world coordinates from createBezierLine()
+            // Transforming would move/rotate/scale the curve incorrectly
+        } else {
+            // Solid lines: Transform via position/rotation/scaling
+            EdgeMesh.transformMesh(this.mesh, srcPoint, dstPoint);
+        }
+    }
+
+    /**
+     * Calculates and applies transformations for arrow head and tail meshes.
+     * Adjusts edge line endpoints to create gaps for arrows.
+     * @returns Edge line positions adjusted for arrow placement
+     */
+    transformArrowCap(): EdgeLine {
+        if (this.arrowMesh) {
+            const {srcPoint, dstPoint, newEndPoint} = this.getInterceptPoints();
+
+            // If we can't find intercept points, fall back to approximate positions
+            if (!srcPoint || !dstPoint || !newEndPoint) {
+                const fallbackSrc = this.srcNode.mesh.position;
+                const fallbackDst = this.dstNode.mesh.position;
+
+                // Hide arrow if nodes are too close or at same position
+                if (fallbackSrc.equalsWithEpsilon(fallbackDst, 0.01)) {
+                    this.arrowMesh.setEnabled(false);
+                    return {
+                        srcPoint: fallbackSrc,
+                        dstPoint: fallbackDst,
+                    };
+                }
+
+                // Pure geometric positioning (same as main path, but using node centers/radii)
+                const direction = fallbackDst.subtract(fallbackSrc).normalize();
+
+                // DEBUG: Log node positions and calculated direction
+                // console.log(`Edge: src=(${fallbackSrc.x.toFixed(3)}, ${fallbackSrc.y.toFixed(3)}, ${fallbackSrc.z.toFixed(3)}), dst=(${fallbackDst.x.toFixed(3)}, ${fallbackDst.y.toFixed(3)}, ${fallbackDst.z.toFixed(3)}), dir=(${direction.x.toFixed(3)}, ${direction.y.toFixed(3)}, ${direction.z.toFixed(3)})`);
+
+                // Get arrow length (including size multiplier)
+                this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.styleAndGeometry");
+                const style = Styles.getStyleForEdgeStyleId(this.styleId);
+                const arrowSize = style.arrowHead?.size ?? 1.0;
+                const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
+
+                // Use actual bounding sphere radii
+                const dstNodeRadius = this.dstNode.mesh.getBoundingInfo().boundingSphere.radiusWorld;
+                const srcNodeRadius = this.srcNode.mesh.getBoundingInfo().boundingSphere.radiusWorld;
+                this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.styleAndGeometry");
+
+                // Calculate surface intersection points
+                this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.vectorMath");
+                const srcSurfacePoint = fallbackSrc.add(direction.scale(srcNodeRadius));
+                const dstSurfacePoint = fallbackDst.subtract(direction.scale(dstNodeRadius));
+
+                // Use common arrow geometry functions for positioning
+                const arrowType = style.arrowHead?.type;
+                const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal");
+
+                // PHASE 4: Override scaleFactor for 2D arrows
+                // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
+                // so their scaleFactor should be 1.0, not 0.25
+                if (this.arrowMesh.metadata?.is2D && geometry.scaleFactor !== undefined) {
+                    geometry.scaleFactor = 1.0;
+                }
+
+                this.arrowMesh.setEnabled(true);
+
+                // Calculate arrow position using common function
+                const arrowPosition = EdgeMesh.calculateArrowPosition(
+                    dstSurfacePoint,
+                    direction,
+                    arrowLength,
+                    geometry,
+                );
+
+                // Calculate line endpoint using common function
+                const lineEndPoint = EdgeMesh.calculateLineEndpoint(
+                    dstSurfacePoint,
+                    direction,
+                    arrowLength,
+                    geometry,
+                );
+                this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.vectorMath");
+
+                // Update arrow position directly (no thin instances)
+                this.arrowMesh.position = arrowPosition;
+
+                // PHASE 4: Handle 2D vs 3D arrow rotation
+                if (this.arrowMesh.metadata?.is2D) {
+                    // 2D: Simple Z-rotation to align with edge in XY plane
+                    const angle = Math.atan2(direction.y, direction.x);
+                    this.arrowMesh.rotation.z = angle;
+                } else {
+                    // 3D: Use billboarding or lookAt
+                    if (arrowType && ["normal", "inverted", "diamond", "box", "dot", "vee", "tee", "half-open", "crow", "open-normal", "open-diamond"].includes(arrowType)) {
+                        // Filled arrows use shader-based billboarding via lineDirection uniform
+                        FilledArrowRenderer.setLineDirection(this.arrowMesh as Mesh, direction);
+                    } else if (geometry.needsRotation) {
+                        // CustomLineRenderer arrows need lookAt (like edge lines) instead of manual rotation
+                        // Arrow geometry is along Z-axis, lookAt rotates it to point toward the edge direction
+                        const lookAtPoint = arrowPosition.add(direction);
+                        this.arrowMesh.lookAt(lookAtPoint);
+                    }
+                }
+
+                return {
+                    srcPoint: srcSurfacePoint,
+                    dstPoint: lineEndPoint,
+                };
+            }
+
+            this.arrowMesh.setEnabled(true);
+
+            // Use common arrow geometry functions for positioning
+            this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.mainPath");
+            const arrowStyle = Styles.getStyleForEdgeStyleId(this.styleId);
+            const arrowType = arrowStyle.arrowHead?.type;
+            const arrowSize = arrowStyle.arrowHead?.size ?? 1.0;
+            const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
+            const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal");
+
+            // PHASE 4: Override scaleFactor for 2D arrows
+            // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
+            // so their scaleFactor should be 1.0, not 0.25
+            if (this.arrowMesh.metadata?.is2D && geometry.scaleFactor !== undefined) {
+                geometry.scaleFactor = 1.0;
+            }
+
+            const direction = dstPoint.subtract(srcPoint).normalize();
+
+            // Calculate arrow position using common function
+            const arrowPosition = EdgeMesh.calculateArrowPosition(
+                dstPoint,
+                direction,
+                arrowLength,
+                geometry,
+            );
+            this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.mainPath");
+
+            // Update arrow position directly (no thin instances)
+            this.arrowMesh.position = arrowPosition;
+
+            // PHASE 4: Handle 2D vs 3D arrow rotation
+            if (this.arrowMesh.metadata?.is2D) {
+                // 2D: Use quaternion to properly compose rotations
+                // The arrow geometry is in XZ plane with tip at origin pointing along +X
+                // We need to: 1) rotate to XY plane (90° around X), 2) rotate to point at edge direction
+                //
+                // With Euler angles (YXZ order), setting rotation.x then rotation.z doesn't work because
+                // after the X rotation, the local Z axis points toward world -Y, so Z rotation
+                // spins the arrow in XZ plane instead of XY plane.
+                //
+                // Solution: Use quaternion composition with correct order
+                const angle = Math.atan2(direction.y, direction.x);
+
+                // Step 1: Rotation around X by 90° (brings arrow from XZ plane to XY plane)
+                const qX = Quaternion.RotationAxis(Vector3.Right(), Math.PI / 2);
+                // Step 2: Rotation around Z by angle (aligns arrow with edge direction in XY plane)
+                const qZ = Quaternion.RotationAxis(Vector3.Forward(), angle);
+
+                // Compose rotations: for "apply qX first, then qZ", use qZ * qX
+                this.arrowMesh.rotationQuaternion = qZ.multiply(qX);
+            } else {
+                // 3D: Use billboarding or lookAt
+                if (arrowType && ["normal", "inverted", "diamond", "box", "dot", "vee", "tee", "half-open", "crow", "open-normal", "open-diamond"].includes(arrowType)) {
+                    // Filled arrows use shader-based billboarding via lineDirection uniform
+                    FilledArrowRenderer.setLineDirection(this.arrowMesh as Mesh, direction);
+                } else if (geometry.needsRotation) {
+                    // CustomLineRenderer arrows need lookAt (like edge lines) instead of manual rotation
+                    // Arrow geometry is along Z-axis, lookAt rotates it to point toward the edge direction
+                    const lookAtPoint = arrowPosition.add(direction);
+                    this.arrowMesh.lookAt(lookAtPoint);
+                }
+            }
+
+            // Handle arrow tail if configured
+            let adjustedSrcPoint = srcPoint;
+            if (this.arrowTailMesh) {
+                const tailStyle = Styles.getStyleForEdgeStyleId(this.styleId);
+                const tailType = tailStyle.arrowTail?.type;
+
+                if (tailType && tailType !== "none") {
+                    this.arrowTailMesh.setEnabled(true);
+
+                    // Reverse direction for tail (points away from source toward destination)
+                    const tailDirection = dstPoint.subtract(srcPoint).normalize();
+
+                    // Get tail arrow dimensions and geometry
+                    const tailSize = tailStyle.arrowTail?.size ?? 1.0;
+                    const tailLength = EdgeMesh.calculateArrowLength() * tailSize;
+                    const tailGeometry = EdgeMesh.getArrowGeometry(tailType);
+
+                    // PHASE 4: Override scaleFactor for 2D tail arrows
+                    if (this.arrowTailMesh.metadata?.is2D && tailGeometry.scaleFactor !== undefined) {
+                        tailGeometry.scaleFactor = 1.0;
+                    }
+
+                    // Calculate tail position using common function
+                    // For tail, we negate the direction since it points away from source
+                    const tailPosition = EdgeMesh.calculateArrowPosition(
+                        srcPoint,
+                        tailDirection.scale(-1), // Reverse direction for tail
+                        tailLength,
+                        tailGeometry,
+                    );
+
+                    // Tail points in opposite direction (away from source)
+                    const reversedDirection = direction.scale(-1);
+
+                    // Update arrow tail position directly (no thin instances)
+                    this.arrowTailMesh.position = tailPosition;
+
+                    // PHASE 4: Handle 2D vs 3D arrow tail rotation
+                    if (this.arrowTailMesh.metadata?.is2D) {
+                        // 2D: Use quaternion to properly compose rotations (same as arrow head)
+                        const angle = Math.atan2(reversedDirection.y, reversedDirection.x);
+                        const qX = Quaternion.RotationAxis(Vector3.Right(), Math.PI / 2);
+                        const qZ = Quaternion.RotationAxis(Vector3.Forward(), angle);
+                        this.arrowTailMesh.rotationQuaternion = qZ.multiply(qX);
+                    } else {
+                        // 3D: Use billboarding or explicit rotation
+                        if (["normal", "inverted", "diamond", "box", "dot", "vee", "tee", "half-open", "crow", "open-normal", "open-diamond"].includes(tailType)) {
+                            // Filled arrows use shader-based billboarding via lineDirection uniform
+                            FilledArrowRenderer.setLineDirection(this.arrowTailMesh as Mesh, reversedDirection);
+                        } else if (tailGeometry.needsRotation) {
+                            // Other arrow types need explicit rotation
+                            // Triangle in XY plane with tip at origin, pointing in +X direction
+                            // Z rotation: horizontal angle in XY plane
+                            const angleZ = Math.atan2(reversedDirection.y, reversedDirection.x);
+
+                            // Y rotation: tilt forward/back to match edge depth
+                            const horizontalDist = Math.sqrt((reversedDirection.x * reversedDirection.x) + (reversedDirection.y * reversedDirection.y));
+                            const angleY = -Math.atan2(reversedDirection.z, horizontalDist);
+
+                            // Apply rotations
+                            this.arrowTailMesh.rotation.x = 0;
+                            this.arrowTailMesh.rotation.y = angleY;
+                            this.arrowTailMesh.rotation.z = angleZ;
+                        }
+                    }
+
+                    // Adjust line start point to create gap for tail arrow
+                    adjustedSrcPoint = EdgeMesh.calculateLineEndpoint(
+                        srcPoint,
+                        tailDirection.scale(-1), // Reverse direction for tail
+                        tailLength,
+                        tailGeometry,
+                    );
+                }
+            }
+
+            return {
+                srcPoint: adjustedSrcPoint,
+                dstPoint: newEndPoint, // Line ends before arrow to create gap for arrow to fill
+            };
+        }
+
+        return {
+            srcPoint: null,
+            dstPoint: null,
+        };
+    }
+
+    /**
+     * Calculates ray intersection points with source and destination node meshes.
+     * Used to position edges at node surfaces rather than centers.
+     * @returns Intersection points for source, destination, and adjusted endpoint
+     */
+    getInterceptPoints(): InterceptPoint {
+        const srcMesh = this.srcNode.mesh;
+        const dstMesh = this.dstNode.mesh;
+
+        // ray is updated in updateRays to ensure intersections
+        const dstHitInfo = this.ray.intersectsMeshes([dstMesh]);
+        const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
+
+        let srcPoint: Vector3 | null = null;
+        let dstPoint: Vector3 | null = null;
+        let newEndPoint: Vector3 | null = null;
+        if (dstHitInfo.length && srcHitInfo.length) {
+            const style = Styles.getStyleForEdgeStyleId(this.styleId);
+            const hasArrowHead = style.arrowHead?.type && style.arrowHead.type !== "none";
+
+            dstPoint = dstHitInfo[0].pickedPoint;
+            srcPoint = srcHitInfo[0].pickedPoint;
+            if (!srcPoint || !dstPoint) {
+                throw new TypeError("error picking points");
+            }
+
+            // Only adjust endpoint if we have an arrow head
+            if (hasArrowHead) {
+                const arrowSize = style.arrowHead?.size ?? 1.0;
+                const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
+                const arrowType = style.arrowHead?.type ?? "normal";
+                const geometry = EdgeMesh.getArrowGeometry(arrowType);
+
+                // PHASE 4: Override scaleFactor for 2D arrows in line endpoint calculation
+                if (this.arrowMesh?.metadata?.is2D && geometry.scaleFactor !== undefined) {
+                    geometry.scaleFactor = 1.0;
+                }
+
+                // Use common function to calculate line endpoint
+                // Direction points FROM source TO destination (forward direction)
+                const direction = dstPoint.subtract(srcPoint).normalize();
+                newEndPoint = EdgeMesh.calculateLineEndpoint(
+                    dstPoint,
+                    direction,
+                    arrowLength,
+                    geometry,
+                );
+            } else {
+                // No arrow head, edge goes all the way to the node surface
+                newEndPoint = dstPoint;
+            }
+        }
+
+        return {
+            srcPoint,
+            dstPoint,
+            newEndPoint,
+        };
+    }
+
+    private createLabel(styleConfig: EdgeStyleConfig): {label: RichTextLabel, offset: number, attachPosition: AttachPosition} {
+        const labelText = this.extractLabelText(styleConfig.label);
+        const labelOptions = this.createLabelOptions(labelText, styleConfig);
+        const offset = styleConfig.label?.attachOffset ?? 0;
+        const labelLocation = styleConfig.label?.location ?? "center";
+        const attachPosition = (labelLocation === "automatic" ? "center" : labelLocation) as AttachPosition;
+        return {label: new RichTextLabel(this.context.getScene(), labelOptions), offset, attachPosition};
+    }
+
+    private extractLabelText(labelConfig?: Record<string, unknown>): string {
+        if (!labelConfig) {
+            return this.id;
+        }
+
+        // Check if text is directly provided
+        if (labelConfig.text !== undefined && labelConfig.text !== null) {
+            // Only convert to string if it's a primitive type
+            if (typeof labelConfig.text === "string" || typeof labelConfig.text === "number" || typeof labelConfig.text === "boolean") {
+                return String(labelConfig.text);
+            }
+        } else if (labelConfig.textPath && typeof labelConfig.textPath === "string") {
+            try {
+                const result = jmespath.search(this.data, labelConfig.textPath);
+                if (result !== null && result !== undefined) {
+                    return String(result);
+                }
+            } catch {
+                // Ignore jmespath errors
+            }
+        }
+
+        return this.id;
+    }
+
+    private createLabelOptions(labelText: string, styleConfig: EdgeStyleConfig): RichTextLabelOptions {
+        const {label} = styleConfig;
+        if (!label) {
+            return {
+                text: labelText,
+                attachPosition: "center",
+                attachOffset: 0,
+            };
+        }
+
+        const labelLocation = label.location ?? "center";
+        const attachPosition = labelLocation === "automatic" ? "center" : labelLocation;
+
+        // Transform backgroundColor to string if it's an advanced color style
+        let backgroundColor: string | undefined = undefined;
+        if (label.backgroundColor) {
+            if (typeof label.backgroundColor === "string") {
+                ({backgroundColor} = label);
+            } else if (label.backgroundColor.colorType === "solid") {
+                ({value: backgroundColor} = label.backgroundColor);
+            } else if (label.backgroundColor.colorType === "gradient") {
+                // For gradients, use the first color as a fallback
+                [backgroundColor] = label.backgroundColor.colors;
+            }
+        }
+
+        // Filter out undefined values from backgroundGradientColors
+        let backgroundGradientColors: string[] | undefined = undefined;
+        if (label.backgroundGradientColors) {
+            backgroundGradientColors = label.backgroundGradientColors.filter((color): color is string => color !== undefined);
+            if (backgroundGradientColors.length === 0) {
+                backgroundGradientColors = undefined;
+            }
+        }
+
+        // Transform borders to ensure colors are strings
+        let borders: {width: number, color: string, spacing: number}[] | undefined = undefined;
+        if (label.borders && label.borders.length > 0) {
+            const validBorders = label.borders
+                .filter((border): border is typeof border & {color: string} => border.color !== undefined)
+                .map((border) => ({
+                    width: border.width,
+                    color: border.color,
+                    spacing: border.spacing,
+                }));
+            // Only set borders if we have valid borders, otherwise leave it undefined
+            // so the default empty array is used
+            if (validBorders.length > 0) {
+                borders = validBorders;
+            }
+        }
+
+        // Create label options by spreading the entire label object
+        const labelOptions: RichTextLabelOptions = {
+            ... label,
+            // Override with computed values
+            text: labelText,
+            attachPosition: attachPosition as AttachPosition,
+            attachOffset: label.attachOffset ?? 0,
+            backgroundColor,
+            backgroundGradientColors,
+            ... (borders !== undefined && {borders}),
+        };
+
+        // Handle special case for transparent background
+        if (labelOptions.backgroundColor === "transparent") {
+            labelOptions.backgroundColor = undefined;
+        }
+
+        // Remove properties that shouldn't be passed to RichTextLabel
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const {location, textPath, enabled, ... finalLabelOptions} = labelOptions as RichTextLabelOptions & {location?: string, textPath?: string, enabled?: boolean};
+
+        return finalLabelOptions;
+    }
+
+    private createArrowText(textConfig: Record<string, unknown>, source: "arrowHead" | "arrowTail"): {label: RichTextLabel, offset: number} {
+        // Extract text from config - either direct text or textPath
+        let labelText: string = source === "arrowHead" ? "→" : "←";
+
+        if (textConfig.text !== undefined && textConfig.text !== null) {
+            if (typeof textConfig.text === "string" || typeof textConfig.text === "number" || typeof textConfig.text === "boolean") {
+                labelText = String(textConfig.text);
+            }
+        } else if (textConfig.textPath && typeof textConfig.textPath === "string") {
+            try {
+                const result = jmespath.search(this.data, textConfig.textPath);
+                if (result !== null && result !== undefined) {
+                    labelText = String(result);
+                }
+            } catch {
+                // Ignore jmespath errors
+            }
+        }
+
+        // Extract offset from config
+        const offset = typeof textConfig.attachOffset === "number" ? textConfig.attachOffset : 0.3;
+
+        // Build label options from text config
+        const labelOptions: RichTextLabelOptions = {
+            text: labelText,
+            fontSize: typeof textConfig.fontSize === "number" ? textConfig.fontSize : 12,
+            textColor: typeof textConfig.textColor === "string" ? textConfig.textColor : "#FFFFFF",
+            backgroundColor: typeof textConfig.backgroundColor === "string" ? textConfig.backgroundColor : "#333333",
+            attachPosition: "top" as AttachPosition,
+            attachOffset: offset,
+        };
+
+        // Pass through additional styling options if provided
+        if (typeof textConfig.cornerRadius === "number") {
+            labelOptions.cornerRadius = textConfig.cornerRadius;
+        }
+
+        return {label: new RichTextLabel(this.context.getScene(), labelOptions), offset};
+    }
+}
+
+/**
+ * A specialized map data structure for storing edges using source and destination node IDs.
+ * Provides efficient lookup and management of edges in the graph.
+ */
+export class EdgeMap {
+    map = new Map<NodeIdType, Map<NodeIdType, Edge>>();
+
+    /**
+     * Checks if an edge exists between the specified source and destination nodes.
+     * @param srcId - The source node ID
+     * @param dstId - The destination node ID
+     * @returns True if the edge exists, false otherwise
+     */
+    has(srcId: NodeIdType, dstId: NodeIdType): boolean {
+        const dstMap = this.map.get(srcId);
+        if (!dstMap) {
+            return false;
+        }
+
+        return dstMap.has(dstId);
+    }
+
+    /**
+     * Adds an edge to the map. Throws an error if the edge already exists.
+     * @param srcId - The source node ID
+     * @param dstId - The destination node ID
+     * @param e - The edge instance to store
+     */
+    set(srcId: NodeIdType, dstId: NodeIdType, e: Edge): void {
+        let dstMap = this.map.get(srcId);
+        if (!dstMap) {
+            dstMap = new Map();
+            this.map.set(srcId, dstMap);
+        }
+
+        if (dstMap.has(dstId)) {
+            throw new Error("Attempting to create duplicate Edge");
+        }
+
+        dstMap.set(dstId, e);
+    }
+
+    /**
+     * Retrieves an edge from the map.
+     * @param srcId - The source node ID
+     * @param dstId - The destination node ID
+     * @returns The edge if found, undefined otherwise
+     */
+    get(srcId: NodeIdType, dstId: NodeIdType): Edge | undefined {
+        const dstMap = this.map.get(srcId);
+        if (!dstMap) {
+            return undefined;
+        }
+
+        return dstMap.get(dstId);
+    }
+
+    /**
+     * Gets the total number of edges stored in the map.
+     * @returns The total count of all edges
+     */
+    get size(): number {
+        let sz = 0;
+        for (const dstMap of this.map.values()) {
+            sz += dstMap.size;
+        }
+
+        return sz;
+    }
+
+    /**
+     * Removes an edge from the map.
+     * @param srcId - The source node ID
+     * @param dstId - The destination node ID
+     * @returns True if the edge was removed, false if it didn't exist
+     */
+    delete(srcId: NodeIdType, dstId: NodeIdType): boolean {
+        const dstMap = this.map.get(srcId);
+        if (!dstMap) {
+            return false;
+        }
+
+        const result = dstMap.delete(dstId);
+
+        // Clean up empty maps
+        if (dstMap.size === 0) {
+            this.map.delete(srcId);
+        }
+
+        return result;
+    }
+
+    /**
+     * Removes all edges from the map.
+     */
+    clear(): void {
+        this.map.clear();
+    }
+}

@@ -1,0 +1,21 @@
+node_modules
+docs
+.DS_Store
+npm-debug.log
+coverage
+.nyc_output
+*~
+docs.json
+log/*
+.ipynb_checkpoints/
+tmp
+.husky
+dist
+.env
+.env.local
+
+# Unified build - examples use dist/layout.js directly
+examples/layout.js
+
+# GitHub Pages build output
+gh-pages/

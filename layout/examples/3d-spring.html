@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Eruda Mobile Console -->
+  <script src="https://cdn.jsdelivr.net/npm/eruda@3/eruda.min.js"></script>
+  <script>
+    // Initialize Eruda console for mobile debugging
+    if (typeof eruda !== "undefined") {
+      eruda.init();
+      // Auto-show on mobile devices
+      if (/mobile|android|ios|iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase())) {
+        eruda.show();
+      }
+    }
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Spring Layout - @graphty/layout</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    #container {
+      width: 100vw;
+      height: 100vh;
+    }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 5px;
+    }
+    #controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 5px;
+      color: white;
+      max-width: 250px;
+    }
+    button {
+      display: block;
+      margin: 5px 0;
+      padding: 5px 10px;
+      cursor: pointer;
+      width: 100%;
+    }
+    label {
+      display: block;
+      margin: 8px 0;
+    }
+    select, input[type="range"] {
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="container"></div>
+  <div id="info">
+    <h2>3D Spring Layout</h2>
+    <p>Spring (Fruchterman-Reingold) algorithm in 3D</p>
+    <p>Drag to rotate • Scroll to zoom</p>
+  </div>
+  <div id="controls">
+    <label>
+      Graph Type:
+      <select id="graphType">
+        <option value="random">Random Graph</option>
+        <option value="scalefree">Scale-Free Graph</option>
+        <option value="complete">Complete Graph</option>
+        <option value="bipartite">Bipartite Graph</option>
+        <option value="grid">Grid Graph</option>
+      </select>
+    </label>
+    <label>
+      Node Count: <span id="nodeCountLabel">25</span>
+      <input type="range" id="nodeCount" min="10" max="50" value="25">
+    </label>
+    <button id="regenerate">Generate New Graph</button>
+    
+    <h4>Algorithm Parameters</h4>
+    <label>
+      Iterations: <span id="iterationsLabel">50</span>
+      <input type="range" id="iterations" min="10" max="200" value="50">
+    </label>
+    <label>
+      Spring Constant: <span id="springLabel">1</span>
+      <input type="range" id="springConstant" min="0.1" max="5" step="0.1" value="1">
+    </label>
+    <button id="rerun">Re-run Layout</button>
+  </div>
+
+  <!-- Import map for module resolution -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    console.log('=== 3D Spring Layout Starting ===');
+    
+    import * as THREE from 'https://unpkg.com/three@0.157.0/build/three.module.js';
+    import { OrbitControls } from 'https://unpkg.com/three@0.157.0/examples/jsm/controls/OrbitControls.js';
+    import { 
+      springLayout,
+      randomGraph,
+      scaleFreeGraph,
+      completeGraph,
+      bipartiteGraph,
+      gridGraph
+    } from '../dist/layout.js';
+    
+    console.log('Imports successful');
+    
+    // Three.js setup
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a0a);
+    scene.fog = new THREE.Fog(0x0a0a0a, 500, 1500);
+    
+    const camera = new THREE.PerspectiveCamera(
+      75, 
+      window.innerWidth / window.innerHeight, 
+      0.1, 
+      2000
+    );
+    camera.position.set(400, 300, 500);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.getElementById('container').appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    scene.add(ambientLight);
+    
+    const pointLight1 = new THREE.PointLight(0xff0044, 1, 500);
+    pointLight1.position.set(200, 200, 200);
+    scene.add(pointLight1);
+    
+    const pointLight2 = new THREE.PointLight(0x0044ff, 1, 500);
+    pointLight2.position.set(-200, -200, -200);
+    scene.add(pointLight2);
+
+    // Graph visualization
+    let nodeGroup = new THREE.Group();
+    let edgeGroup = new THREE.Group();
+    scene.add(nodeGroup);
+    scene.add(edgeGroup);
+    
+    let currentGraph = null;
+
+    // Create graph based on type
+    function createGraph(type, nodeCount) {
+      let graph;
+      switch (type) {
+        case 'random':
+          graph = randomGraph(nodeCount, 0.15, Date.now());
+          break;
+        case 'scalefree':
+          graph = scaleFreeGraph(nodeCount, 2, Date.now());
+          break;
+        case 'complete':
+          graph = completeGraph(Math.min(nodeCount, 10));
+          break;
+        case 'bipartite':
+          const n1 = Math.floor(nodeCount / 2);
+          const n2 = nodeCount - n1;
+          graph = bipartiteGraph(n1, n2, 0.3, Date.now());
+          break;
+        case 'grid':
+          const size = Math.floor(Math.sqrt(nodeCount));
+          graph = gridGraph(size, size);
+          break;
+        default:
+          graph = randomGraph(nodeCount, 0.15, Date.now());
+      }
+      return graph;
+    }
+
+    // Apply Spring layout
+    function applyLayout() {
+      if (!currentGraph) return;
+      
+      const iterations = parseInt(document.getElementById('iterations').value);
+      const springConstant = parseFloat(document.getElementById('springConstant').value);
+      
+      console.log('Applying spring layout with:', {
+        nodes: currentGraph.nodes().length,
+        edges: currentGraph.edges().length,
+        iterations,
+        springConstant,
+        dim: 3
+      });
+      
+      const positions = springLayout(
+        currentGraph, 
+        springConstant, 
+        null, 
+        null,
+        iterations, 
+        200,  // scale - match the visualization scale
+        [0, 0, 0], 
+        3  // 3D
+      );
+      
+      console.log('Layout complete. Sample positions:');
+      const nodes = currentGraph.nodes();
+      nodes.slice(0, 3).forEach(node => {
+        const pos = positions[node];
+        console.log(`Node ${node}: [${pos[0]}, ${pos[1]}, ${pos[2]}]`);
+      });
+      
+      visualizeGraph(currentGraph, positions);
+    }
+
+    // Visualize graph
+    function visualizeGraph(graph, positions) {
+      console.log('Visualizing graph...');
+      
+      // Clear previous visualization
+      nodeGroup.clear();
+      edgeGroup.clear();
+      
+      const nodes = graph.nodes();
+      const edges = graph.edges();
+      const nodeMeshes = {};
+      
+      console.log(`Creating ${nodes.length} nodes and ${edges.length} edges`);
+      
+      // Calculate node sizes based on degree
+      const degrees = {};
+      nodes.forEach(node => degrees[node] = 0);
+      edges.forEach(([u, v]) => {
+        degrees[u]++;
+        degrees[v]++;
+      });
+      
+      const maxDegree = Math.max(...Object.values(degrees), 1);
+      
+      // Create nodes
+      nodes.forEach((node, i) => {
+        const degree = degrees[node];
+        const size = 5 + (degree / maxDegree) * 15;
+        
+        const geometry = new THREE.SphereGeometry(size, 32, 16);
+        const color = new THREE.Color();
+        color.setHSL(i / nodes.length, 0.7, 0.5);
+        
+        const material = new THREE.MeshPhongMaterial({ 
+          color: color,
+          emissive: color,
+          emissiveIntensity: 0.3,
+          shininess: 100
+        });
+        
+        const mesh = new THREE.Mesh(geometry, material);
+        const pos = positions[node] || [0, 0, 0];
+        // No need to scale again since we scaled in the layout
+        mesh.position.set(pos[0], pos[1], pos[2]);
+        
+        nodeGroup.add(mesh);
+        nodeMeshes[node] = mesh;
+      });
+      
+      console.log(`Added ${nodeGroup.children.length} nodes to scene`);
+      
+      // Create edges
+      edges.forEach(([source, target]) => {
+        const sourcePos = positions[source] || [0, 0, 0];
+        const targetPos = positions[target] || [0, 0, 0];
+        
+        const points = [
+          new THREE.Vector3(sourcePos[0], sourcePos[1], sourcePos[2]),
+          new THREE.Vector3(targetPos[0], targetPos[1], targetPos[2])
+        ];
+        
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const material = new THREE.LineBasicMaterial({ 
+          color: 0x4466ff,
+          transparent: true,
+          opacity: 0.4
+        });
+        
+        const line = new THREE.Line(geometry, material);
+        edgeGroup.add(line);
+      });
+    }
+
+    // Controls
+    const nodeCountSlider = document.getElementById('nodeCount');
+    const iterationsSlider = document.getElementById('iterations');
+    const springConstantSlider = document.getElementById('springConstant');
+
+    nodeCountSlider.addEventListener('input', (e) => {
+      document.getElementById('nodeCountLabel').textContent = e.target.value;
+    });
+
+    iterationsSlider.addEventListener('input', (e) => {
+      document.getElementById('iterationsLabel').textContent = e.target.value;
+    });
+
+    springConstantSlider.addEventListener('input', (e) => {
+      document.getElementById('springLabel').textContent = e.target.value;
+    });
+
+    document.getElementById('regenerate').addEventListener('click', () => {
+      const type = document.getElementById('graphType').value;
+      const nodeCount = parseInt(nodeCountSlider.value);
+      currentGraph = createGraph(type, nodeCount);
+      applyLayout();
+    });
+
+    document.getElementById('rerun').addEventListener('click', () => {
+      applyLayout();
+    });
+
+    // Animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Initialize
+    console.log('Initializing...');
+    currentGraph = createGraph('random', 25);
+    console.log('Graph created:', currentGraph);
+    applyLayout();
+    console.log('Layout applied, starting animation...');
+    animate();
+  </script>
+</body>
+</html>

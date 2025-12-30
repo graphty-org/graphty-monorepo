@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Eruda Mobile Console -->
+  <script src="https://cdn.jsdelivr.net/npm/eruda@3/eruda.min.js"></script>
+  <script>
+    // Initialize Eruda console for mobile debugging
+    if (typeof eruda !== "undefined") {
+      eruda.init();
+      // Auto-show on mobile devices
+      if (/mobile|android|ios|iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase())) {
+        eruda.show();
+      }
+    }
+  </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shell Layout Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 250px 1fr 250px;
+            gap: 20px;
+        }
+        .graph-controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        .layout-controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        .visualization {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="range"], input[type="number"], select {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin: 5px 0;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #graph-svg {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .back-link {
+            margin-bottom: 20px;
+        }
+        .back-link a {
+            color: #2c5aa0;
+            text-decoration: none;
+        }
+        .back-link a:hover {
+            text-decoration: underline;
+        }
+        .shell-config {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="back-link">
+        <a href="index.html">← Back to Index</a>
+    </div>
+    
+    <h1>Shell Layout Test</h1>
+    
+    <div class="container">
+        <div class="graph-controls">
+            <h3>Graph Settings</h3>
+            
+            <div class="control-group">
+                <label for="num-nodes">Number of nodes:</label>
+                <input type="range" id="num-nodes" min="5" max="300" value="15">
+                <span id="num-nodes-value">15</span>
+            </div>
+            
+            <button onclick="newGraph()">New Graph</button>
+        </div>
+        
+        <div class="visualization">
+            <svg id="graph-svg" width="800" height="600"></svg>
+        </div>
+        
+        <div class="layout-controls">
+            <h3>Layout Parameters</h3>
+            
+            <div class="control-group">
+                <label for="shell-pattern">Shell pattern:</label>
+                <select id="shell-pattern">
+                    <option value="degree">By Degree (hubs in center)</option>
+                    <option value="k-core">By K-Core (density)</option>
+                    <option value="bfs">By Distance (BFS)</option>
+                    <option value="community">By Community</option>
+                    <option value="manual-center">Manual: Center + Ring</option>
+                    <option value="manual-triple">Manual: Three Rings</option>
+                </select>
+            </div>
+            
+            <button onclick="applyLayout()">Apply Layout</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { 
+            shellLayout, 
+            scaleFreeGraph,
+            randomGraph
+        } from "../dist/layout.js";
+        
+        let currentGraph = null;
+        
+        // Helper functions for shell layout grouping
+        function groupNodesByDegree(graph, numShells) {
+            const nodes = graph.nodes();
+            const edges = graph.edges();
+            
+            // Calculate degree for each node
+            const degrees = {};
+            nodes.forEach(n => degrees[n] = 0);
+            edges.forEach(([u, v]) => {
+                degrees[u]++;
+                degrees[v]++;
+            });
+            
+            // Sort nodes by degree
+            const sortedNodes = nodes.slice().sort((a, b) => degrees[b] - degrees[a]);
+            
+            // Divide into shells
+            const shells = [];
+            const nodesPerShell = Math.ceil(nodes.length / numShells);
+            
+            for (let i = 0; i < numShells; i++) {
+                const start = i * nodesPerShell;
+                const end = Math.min(start + nodesPerShell, sortedNodes.length);
+                const shell = sortedNodes.slice(start, end);
+                if (shell.length > 0) {
+                    shells.push(shell);
+                }
+            }
+            
+            return shells;
+        }
+        
+        function groupNodesByBFS(graph, startNode = null) {
+            const nodes = graph.nodes();
+            const edges = graph.edges();
+            
+            // Build adjacency list
+            const adj = {};
+            nodes.forEach(n => adj[n] = []);
+            edges.forEach(([u, v]) => {
+                adj[u].push(v);
+                adj[v].push(u);
+            });
+            
+            // Start from first node or specified node
+            const start = startNode || nodes[0];
+            const visited = new Set();
+            const shells = [];
+            let currentLevel = [start];
+            
+            while (currentLevel.length > 0) {
+                shells.push(currentLevel.slice());
+                currentLevel.forEach(n => visited.add(n));
+                
+                const nextLevel = [];
+                currentLevel.forEach(node => {
+                    adj[node].forEach(neighbor => {
+                        if (!visited.has(neighbor)) {
+                            visited.add(neighbor);
+                            nextLevel.push(neighbor);
+                        }
+                    });
+                });
+                
+                currentLevel = nextLevel;
+            }
+            
+            // Add any disconnected nodes as last shell
+            const unvisited = nodes.filter(n => !visited.has(n));
+            if (unvisited.length > 0) {
+                shells.push(unvisited);
+            }
+            
+            return shells;
+        }
+        
+        function generateGraph(numNodes) {
+            // Use scale-free graph for interesting shell patterns
+            if (numNodes < 50) {
+                return scaleFreeGraph(numNodes, 2, Date.now());
+            } else {
+                // For larger graphs, use random graph
+                return randomGraph(numNodes, 0.05, Date.now());
+            }
+        }
+        
+        function getShellConfiguration(pattern, graph) {
+            const numNodes = graph.nodes().length;
+            
+            switch(pattern) {
+                case 'degree':
+                    // Group by degree - hubs in center
+                    return groupNodesByDegree(graph, Math.min(4, Math.ceil(numNodes / 10)));
+                    
+                case 'k-core':
+                    // Simple k-core approximation: group by degree
+                    return groupNodesByDegree(graph, 3);
+                    
+                case 'bfs':
+                    // Group by distance from a node
+                    return groupNodesByBFS(graph);
+                    
+                case 'community':
+                    // Simple community detection: group by degree
+                    return groupNodesByDegree(graph, Math.min(5, Math.ceil(numNodes / 20)));
+                    
+                case 'manual-center':
+                    // Manual: center node + outer ring
+                    const nodes = graph.nodes();
+                    return [[nodes[0]], nodes.slice(1)];
+                    
+                case 'manual-triple':
+                    // Manual: three equal rings
+                    const third = Math.floor(numNodes / 3);
+                    const allNodes = graph.nodes();
+                    return [
+                        allNodes.slice(0, third),
+                        allNodes.slice(third, 2 * third),
+                        allNodes.slice(2 * third)
+                    ];
+                    
+                default:
+                    return groupNodesByDegree(graph, 3);
+            }
+        }
+        
+        function visualizeGraph(graph, positions) {
+            const svg = document.getElementById('graph-svg');
+            const svgRect = svg.getBoundingClientRect();
+            const width = svgRect.width;
+            const height = svgRect.height;
+            
+            svg.innerHTML = '';
+            
+            const margin = 50;
+            const scaleX = (width - 2 * margin);
+            const scaleY = (height - 2 * margin);
+            
+            const nodes = graph.nodes();
+            const posValues = nodes.map(n => positions[n]);
+            const minX = Math.min(...posValues.map(p => p[0]));
+            const maxX = Math.max(...posValues.map(p => p[0]));
+            const minY = Math.min(...posValues.map(p => p[1]));
+            const maxY = Math.max(...posValues.map(p => p[1]));
+            
+            const rangeX = maxX - minX || 1;
+            const rangeY = maxY - minY || 1;
+            
+            // Draw edges
+            const edges = graph.edges();
+            edges.forEach(([source, target]) => {
+                const sourcePos = positions[source];
+                const targetPos = positions[target];
+                
+                const x1 = margin + (sourcePos[0] - minX) / rangeX * scaleX;
+                const y1 = margin + (sourcePos[1] - minY) / rangeY * scaleY;
+                const x2 = margin + (targetPos[0] - minX) / rangeX * scaleX;
+                const y2 = margin + (targetPos[1] - minY) / rangeY * scaleY;
+                
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x1);
+                line.setAttribute('y1', y1);
+                line.setAttribute('x2', x2);
+                line.setAttribute('y2', y2);
+                line.setAttribute('stroke', '#999');
+                line.setAttribute('stroke-width', '2');
+                svg.appendChild(line);
+            });
+            
+            // Draw nodes
+            nodes.forEach(node => {
+                const pos = positions[node];
+                const x = margin + (pos[0] - minX) / rangeX * scaleX;
+                const y = margin + (pos[1] - minY) / rangeY * scaleY;
+                
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('r', '8');
+                circle.setAttribute('fill', '#673AB7');
+                circle.setAttribute('stroke', '#333');
+                circle.setAttribute('stroke-width', '2');
+                svg.appendChild(circle);
+                
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', x);
+                text.setAttribute('y', y + 4);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('font-size', '11');
+                text.setAttribute('fill', 'white');
+                text.textContent = node;
+                svg.appendChild(text);
+            });
+        }
+        
+        window.newGraph = function() {
+            const numNodes = parseInt(document.getElementById('num-nodes').value);
+            
+            currentGraph = generateGraph(numNodes);
+            
+            // Just visualize with random positions initially
+            const positions = {};
+            currentGraph.nodes().forEach(node => {
+                positions[node] = [
+                    (Math.random() - 0.5) * 1.5,
+                    (Math.random() - 0.5) * 1.5
+                ];
+            });
+            
+            visualizeGraph(currentGraph, positions);
+        };
+        
+        window.applyLayout = function() {
+            if(!currentGraph) return;
+            
+            const pattern = document.getElementById('shell-pattern').value;
+            
+            const shells = getShellConfiguration(pattern, currentGraph);
+            const positions = shellLayout(currentGraph, shells, 1, [0, 0], 2);
+            
+            visualizeGraph(currentGraph, positions);
+        };
+        
+        function setupControls() {
+            const controls = ['num-nodes'];
+            controls.forEach(id => {
+                const slider = document.getElementById(id);
+                const valueSpan = document.getElementById(id + '-value');
+                slider.oninput = function() {
+                    valueSpan.textContent = this.value;
+                };
+            });
+            
+            document.getElementById('shell-pattern').onchange = null;
+        }
+        
+        setupControls();
+        newGraph();
+    </script>
+</body>
+</html>

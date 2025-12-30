@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Eruda Mobile Console -->
+  <script src="https://cdn.jsdelivr.net/npm/eruda@3/eruda.min.js"></script>
+  <script>
+    // Initialize Eruda console for mobile debugging
+    if (typeof eruda !== "undefined") {
+      eruda.init();
+      // Auto-show on mobile devices
+      if (/mobile|android|ios|iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase())) {
+        eruda.show();
+      }
+    }
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Kamada-Kawai Layout - @graphty/layout</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    #container {
+      width: 100vw;
+      height: 100vh;
+    }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 5px;
+    }
+    #controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 5px;
+      color: white;
+    }
+    button {
+      display: block;
+      margin: 5px 0;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    label {
+      display: block;
+      margin: 5px 0;
+    }
+    #status {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      color: white;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="container"></div>
+  <div id="info">
+    <h2>3D Kamada-Kawai Layout</h2>
+    <p>Force-directed layout optimizing graph-theoretic distances</p>
+    <p>Drag to rotate • Scroll to zoom</p>
+  </div>
+  <div id="controls">
+    <label>
+      Graph Type:
+      <select id="graphType">
+        <option value="grid">Grid Graph</option>
+        <option value="complete">Complete Graph</option>
+        <option value="cycle">Cycle Graph</option>
+        <option value="star">Star Graph</option>
+        <option value="wheel">Wheel Graph</option>
+        <option value="bipartite">Bipartite Graph</option>
+        <option value="scalefree">Scale-Free Graph</option>
+      </select>
+    </label>
+    <label>
+      Graph Size: <span id="sizeLabel">16</span>
+      <input type="range" id="graphSize" min="4" max="30" value="16">
+    </label>
+    <label>
+      Layout Scale: <span id="scaleLabel">1</span>
+      <input type="range" id="scale" min="0.5" max="3" step="0.1" value="1">
+    </label>
+    <button id="regenerate">Regenerate Graph</button>
+    <button id="relayout">Re-run Layout</button>
+  </div>
+  <div id="status">
+    <div>Nodes: <span id="nodeCount">0</span></div>
+    <div>Edges: <span id="edgeCount">0</span></div>
+    <div>Stress: <span id="stressValue">-</span></div>
+  </div>
+
+  <!-- Import map for module resolution -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    console.log("loading module")
+    import * as THREE from 'https://unpkg.com/three@0.157.0/build/three.module.js';
+    import { OrbitControls } from 'https://unpkg.com/three@0.157.0/examples/jsm/controls/OrbitControls.js';
+    import { 
+      kamadaKawaiLayout,
+      completeGraph, 
+      cycleGraph, 
+      starGraph,
+      wheelGraph,
+      gridGraph,
+      bipartiteGraph,
+      scaleFreeGraph
+    } from '../dist/layout.js';
+
+    // Three.js setup
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a0a);
+    
+    const camera = new THREE.PerspectiveCamera(
+      75, 
+      window.innerWidth / window.innerHeight, 
+      0.1, 
+      2000
+    );
+    camera.position.set(400, 300, 500);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.getElementById('container').appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    directionalLight.position.set(1, 1, 1);
+    scene.add(directionalLight);
+
+    // Graph visualization
+    let nodeGroup = new THREE.Group();
+    let edgeGroup = new THREE.Group();
+    scene.add(nodeGroup);
+    scene.add(edgeGroup);
+
+    // Node animation
+    let nodeAnimations = [];
+    let edgeAnimations = [];
+    let currentGraph = null;
+    let nodeMeshesGlobal = {};
+
+    // Create graph based on type
+    function createGraph(type, size) {
+      switch (type) {
+        case 'complete':
+          return completeGraph(size);
+        case 'cycle':
+          return cycleGraph(size);
+        case 'star':
+          return starGraph(size);
+        case 'wheel':
+          return wheelGraph(size);
+        case 'grid':
+          const gridSize = Math.floor(Math.sqrt(size));
+          return gridGraph(gridSize, gridSize);
+        case 'bipartite':
+          const n1 = Math.floor(size / 2);
+          const n2 = size - n1;
+          return bipartiteGraph(n1, n2, 0.7, Date.now());
+        case 'scalefree':
+          return scaleFreeGraph(size, 2, Date.now());
+        default:
+          return completeGraph(size);
+      }
+    }
+
+    // Calculate layout stress (measure of quality)
+    function calculateStress(graph, positions) {
+      const nodes = graph.nodes();
+      let stress = 0;
+      let count = 0;
+      
+      // Calculate actual vs ideal distances
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const pos1 = positions[nodes[i]];
+          const pos2 = positions[nodes[j]];
+          
+          const actualDist = Math.sqrt(
+            Math.pow(pos1[0] - pos2[0], 2) +
+            Math.pow(pos1[1] - pos2[1], 2) +
+            Math.pow(pos1[2] - pos2[2], 2)
+          );
+          
+          // Ideal distance (graph distance) - simplified as 1 for connected nodes
+          const idealDist = areConnected(graph, nodes[i], nodes[j]) ? 1 : 2;
+          
+          stress += Math.pow(actualDist - idealDist * 100, 2);
+          count++;
+        }
+      }
+      
+      return Math.sqrt(stress / count);
+    }
+
+    function areConnected(graph, node1, node2) {
+      for (const [u, v] of graph.edges()) {
+        if ((u === node1 && v === node2) || (u === node2 && v === node1)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // Visualize graph in 3D
+    function visualizeGraph(graph, scale = 1, forceNewLayout = false) {
+      console.log('=== visualizeGraph called ===');
+      console.log('Scale:', scale);
+      console.log('Graph nodes:', graph.nodes().length);
+      console.log('Graph edges:', graph.edges().length);
+      console.log('Force new layout:', forceNewLayout);
+      
+      // Clear previous visualization
+      nodeGroup.clear();
+      edgeGroup.clear();
+      nodeAnimations = [];
+      edgeAnimations = [];
+      
+      // Get 3D Kamada-Kawai layout
+      const nodes = graph.nodes();
+      let positions;
+      
+      if (forceNewLayout) {
+        // Use more varied initial positions for re-layout
+        const initialPos = {};
+        const spread = 400; // Larger spread for more variation
+        nodes.forEach((node, i) => {
+          // Use different strategies for initial positions
+          const angle = (i / nodes.length) * Math.PI * 2;
+          const radius = Math.random() * spread;
+          initialPos[node] = [
+            Math.cos(angle) * radius + (Math.random() - 0.5) * 100,
+            Math.sin(angle) * radius + (Math.random() - 0.5) * 100,
+            (Math.random() - 0.5) * spread
+          ];
+        });
+        
+        console.log('Initial positions sample:', Object.entries(initialPos).slice(0, 3));
+        console.log('Calling kamadaKawaiLayout with random initial positions...');
+        positions = kamadaKawaiLayout(graph, initialPos, null, 'weight', scale * 200, [0, 0, 0], 3);
+        
+        // Add small random perturbation to final positions
+        console.log('Before perturbation:', positions[nodes[0]]);
+        Object.keys(positions).forEach(node => {
+          positions[node] = positions[node].map(coord => coord + (Math.random() - 0.5) * 20);
+        });
+        console.log('After perturbation:', positions[nodes[0]]);
+      } else {
+        // Use default layout (deterministic)
+        console.log('Calling kamadaKawaiLayout with default initial positions...');
+        positions = kamadaKawaiLayout(graph, null, null, 'weight', scale * 200, [0, 0, 0], 3);
+      }
+      
+      console.log('Layout complete. Positions sample:', Object.entries(positions).slice(0, 3));
+      
+      // Update stats
+      const edges = graph.edges();
+      document.getElementById('nodeCount').textContent = nodes.length;
+      document.getElementById('edgeCount').textContent = edges.length;
+      document.getElementById('stressValue').textContent = calculateStress(graph, positions).toFixed(2);
+      
+      // Create nodes with different colors based on degree
+      const nodeMeshes = {};
+      const degrees = {};
+      
+      // Calculate degrees
+      nodes.forEach(node => {
+        degrees[node] = 0;
+      });
+      edges.forEach(([u, v]) => {
+        degrees[u] = (degrees[u] || 0) + 1;
+        degrees[v] = (degrees[v] || 0) + 1;
+      });
+      
+      const maxDegree = Math.max(...Object.values(degrees));
+      
+      nodes.forEach((node, index) => {
+        const degree = degrees[node];
+        const size = 5 + (degree / maxDegree) * 10;
+        
+        const geometry = new THREE.SphereGeometry(size, 16, 16);
+        const color = new THREE.Color();
+        color.setHSL(0.6 - (degree / maxDegree) * 0.6, 0.8, 0.5);
+        
+        const material = new THREE.MeshPhongMaterial({ 
+          color: color,
+          emissive: color,
+          emissiveIntensity: 0.2
+        });
+        
+        const mesh = new THREE.Mesh(geometry, material);
+        const [x, y, z] = positions[node];
+        if (index < 3) {
+          console.log(`Node ${node} position:`, x, y, z);
+        }
+        mesh.position.set(x, y, z);
+        mesh.userData = { originalPosition: new THREE.Vector3(x, y, z) };
+        
+        if (index === 0) {
+          console.log('Mesh 0 position set to:', mesh.position.x, mesh.position.y, mesh.position.z);
+          console.log('Mesh 0 userData.originalPosition:', mesh.userData.originalPosition.x, mesh.userData.originalPosition.y, mesh.userData.originalPosition.z);
+        }
+        
+        nodeGroup.add(mesh);
+        nodeMeshes[node] = mesh;
+        nodeAnimations.push(mesh);
+      });
+      
+      // Store globally for edge updates
+      nodeMeshesGlobal = nodeMeshes;
+      
+      // Create edges with gradient based on node degrees
+      edges.forEach(([source, target]) => {
+        const geometry = new THREE.BufferGeometry();
+        const positionsArray = new Float32Array(6); // 2 points * 3 coordinates
+        geometry.setAttribute('position', new THREE.BufferAttribute(positionsArray, 3));
+        
+        // Color based on average degree
+        const avgDegree = (degrees[source] + degrees[target]) / 2;
+        const color = new THREE.Color();
+        color.setHSL(0.6 - (avgDegree / maxDegree) * 0.4, 0.5, 0.4);
+        
+        const material = new THREE.LineBasicMaterial({ 
+          color: color,
+          transparent: true,
+          opacity: 0.7
+        });
+        
+        const line = new THREE.Line(geometry, material);
+        line.userData = { source, target };
+        edgeGroup.add(line);
+        edgeAnimations.push(line);
+      });
+    }
+
+    // Initial graph
+    currentGraph = createGraph('grid', 16);
+    visualizeGraph(currentGraph);
+
+    // Controls
+    const graphTypeSelect = document.getElementById('graphType');
+    const graphSizeSlider = document.getElementById('graphSize');
+    const sizeLabel = document.getElementById('sizeLabel');
+    const scaleSlider = document.getElementById('scale');
+    const scaleLabel = document.getElementById('scaleLabel');
+    const regenerateBtn = document.getElementById('regenerate');
+    const relayoutBtn = document.getElementById('relayout');
+
+    graphSizeSlider.addEventListener('input', (e) => {
+      sizeLabel.textContent = e.target.value;
+    });
+
+    scaleSlider.addEventListener('input', (e) => {
+      scaleLabel.textContent = e.target.value;
+      visualizeGraph(currentGraph, parseFloat(e.target.value), false); // Keep same layout, just rescale
+    });
+
+    regenerateBtn.addEventListener('click', () => {
+      const type = graphTypeSelect.value;
+      const size = parseInt(graphSizeSlider.value);
+      const scale = parseFloat(scaleSlider.value);
+      
+      currentGraph = createGraph(type, size);
+      visualizeGraph(currentGraph, scale);
+    });
+
+    relayoutBtn.addEventListener('click', () => {
+      console.log('=== Re-layout button clicked ===');
+      const scale = parseFloat(scaleSlider.value);
+      console.log('Current scale:', scale);
+      visualizeGraph(currentGraph, scale, true); // Force new layout with random initial positions
+    });
+
+    graphTypeSelect.addEventListener('change', () => {
+      regenerateBtn.click();
+    });
+
+
+    // Animation
+    let time = 0;
+    let frameCount = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      
+      time += 0.01;
+      frameCount++;
+      
+      // Animation: subtle floating effect
+      nodeAnimations.forEach((mesh, index) => {
+        if (mesh.userData.originalPosition) {
+          const floatY = Math.sin(time + index * 0.5) * 2;
+          mesh.position.set(
+            mesh.userData.originalPosition.x,
+            mesh.userData.originalPosition.y + floatY,
+            mesh.userData.originalPosition.z
+          );
+        }
+      });
+      
+      // Update edge positions
+      edgeAnimations.forEach(line => {
+        const { source, target } = line.userData;
+        const sourceMesh = nodeMeshesGlobal[source];
+        const targetMesh = nodeMeshesGlobal[target];
+        
+        if (sourceMesh && targetMesh) {
+          const positions = line.geometry.attributes.position.array;
+          positions[0] = sourceMesh.position.x;
+          positions[1] = sourceMesh.position.y;
+          positions[2] = sourceMesh.position.z;
+          positions[3] = targetMesh.position.x;
+          positions[4] = targetMesh.position.y;
+          positions[5] = targetMesh.position.z;
+          line.geometry.attributes.position.needsUpdate = true;
+        }
+      });
+      
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+</html>

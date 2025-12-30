@@ -1,0 +1,46 @@
+/**
+ * @graphty/algorithms - Graph algorithms library for browser environments
+ *
+ * A comprehensive TypeScript library implementing fundamental graph algorithms
+ * optimized for browser environments and visualization applications.
+ */
+
+// Core exports
+export {Graph} from "./core/graph.js";
+
+// Type exports
+export type {
+    BellmanFordResult,
+    CentralityOptions,
+    CentralityResult,
+    CommunityResult,
+    ComponentResult,
+    DijkstraOptions,
+    Edge,
+    FloydWarshallResult,
+    GirvanNewmanOptions,
+    GraphConfig,
+    LouvainOptions,
+    MSTResult,
+    Node,
+    NodeId,
+    PageRankOptions,
+    ShortestPathResult,
+    TraversalOptions,
+    TraversalResult,
+} from "./types/index.js";
+
+// Algorithm exports
+export * from "./algorithms/index.js";
+
+// Research algorithms exports (Priority 4)
+export * from "./research/index.js";
+
+// Data structure exports
+export * from "./data-structures/index.js";
+
+// Optimized algorithm exports
+export * from "./optimized/index.js";
+
+// Note: Configuration exports have been removed.
+// The library now automatically optimizes based on graph size.

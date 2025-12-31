@@ -1,3 +1,4 @@
+#!/bin/sh
 # Compare against origin/master to detect changes since last push
 # This works for both:
 # - Direct commits on master (compares to what's already pushed)

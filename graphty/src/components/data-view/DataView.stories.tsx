@@ -1,13 +1,8 @@
 import type {Meta, StoryObj} from "@storybook/react";
 
 import {DataGrid} from "./DataGrid";
-import {ViewDataModal} from "./ViewDataModal";
 
-// =============================================================================
-// DataGrid Stories
-// =============================================================================
-
-const dataGridMeta: Meta<typeof DataGrid> = {
+const meta: Meta<typeof DataGrid> = {
     title: "Components/DataView/DataGrid",
     component: DataGrid,
     parameters: {
@@ -22,11 +17,11 @@ const dataGridMeta: Meta<typeof DataGrid> = {
     ],
 };
 
-export default dataGridMeta;
-type DataGridStory = StoryObj<typeof dataGridMeta>;
+export default meta;
+type Story = StoryObj<typeof meta>;
 
 /** Flat object without nesting - displays simple key/value pairs */
-export const FlatObject: DataGridStory = {
+export const FlatObject: Story = {
     args: {
         data: {name: "Test", count: 42, active: true},
         defaultExpandDepth: 1,
@@ -34,7 +29,7 @@ export const FlatObject: DataGridStory = {
 };
 
 /** Default nested object view with expand/collapse */
-export const NestedObject: DataGridStory = {
+export const NestedObject: Story = {
     args: {
         data: {user: {name: "John", profile: {age: 30, email: "john@example.com"}}},
         defaultExpandDepth: 2,
@@ -42,7 +37,7 @@ export const NestedObject: DataGridStory = {
 };
 
 /** Search and highlight functionality */
-export const WithSearch: DataGridStory = {
+export const WithSearch: Story = {
     args: {
         data: {
             name: "searchable",
@@ -55,7 +50,7 @@ export const WithSearch: DataGridStory = {
 };
 
 /** Array of objects rendering */
-export const ArrayOfObjects: DataGridStory = {
+export const ArrayOfObjects: Story = {
     args: {
         data: [
             {id: 1, name: "Alice", role: "Admin"},
@@ -67,7 +62,7 @@ export const ArrayOfObjects: DataGridStory = {
 };
 
 /** DataGrid with copy button enabled - click a cell to show the copy button */
-export const WithCopyButton: DataGridStory = {
+export const WithCopyButton: Story = {
     args: {
         data: {
             id: "node-1",
@@ -83,7 +78,7 @@ export const WithCopyButton: DataGridStory = {
 };
 
 /** Large dataset for performance testing */
-export const LargeDataset: DataGridStory = {
+export const LargeDataset: Story = {
     args: {
         data: Array.from({length: 100}, (_, i) => ({
             id: `item-${i}`,
@@ -91,90 +86,5 @@ export const LargeDataset: DataGridStory = {
             value: Math.round(Math.random() * 1000),
         })),
         defaultExpandDepth: 0,
-    },
-};
-
-// =============================================================================
-// ViewDataModal Stories
-// =============================================================================
-
-const viewDataModalMeta: Meta<typeof ViewDataModal> = {
-    title: "Components/DataView/ViewDataModal",
-    component: ViewDataModal,
-    parameters: {
-        layout: "fullscreen",
-    },
-    decorators: [
-        (Story) => (
-            <div style={{minHeight: "100vh", backgroundColor: "var(--mantine-color-dark-8)"}}>
-                <Story />
-            </div>
-        ),
-    ],
-    args: {
-        opened: true,
-    },
-    argTypes: {
-        onClose: {action: "onClose"},
-    },
-};
-
-type ViewDataModalStory = StoryObj<typeof viewDataModalMeta>;
-
-/** Full-featured modal with rich metadata */
-export const ModalDefault: ViewDataModalStory = {
-    ... viewDataModalMeta,
-    args: {
-        ... viewDataModalMeta.args,
-        data: {
-            nodes: [
-                {
-                    id: "person-1",
-                    label: "Alice Smith",
-                    type: "person",
-                    attributes: {
-                        age: 32,
-                        email: "alice@example.com",
-                        roles: ["admin", "developer"],
-                        settings: {
-                            notifications: true,
-                            theme: "dark",
-                        },
-                    },
-                },
-                {
-                    id: "person-2",
-                    label: "Bob Johnson",
-                    type: "person",
-                    attributes: {
-                        age: 28,
-                        email: "bob@example.com",
-                        roles: ["developer"],
-                        settings: {
-                            notifications: false,
-                            theme: "light",
-                        },
-                    },
-                },
-            ],
-            edges: [
-                {
-                    src: "person-1",
-                    dst: "person-2",
-                    type: "works_with",
-                    since: "2022-01-15",
-                    strength: 0.85,
-                },
-            ],
-        },
-    },
-};
-
-/** Empty state handling */
-export const ModalEmpty: ViewDataModalStory = {
-    ... viewDataModalMeta,
-    args: {
-        ... viewDataModalMeta.args,
-        data: {nodes: [], edges: []},
     },
 };

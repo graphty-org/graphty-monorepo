@@ -399,13 +399,12 @@ jobs:
       - name: Run Chromatic
         uses: chromaui/action@latest
         with:
-          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN_ELEMENT }}
           storybookBuildDir: ./graphty-element/storybook-static
           exitZeroOnChanges: true
           autoAcceptChanges: master
-          onlyChanged: true
-          externals: |
-            - 'public/**'
+          # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
+          # See: https://github.com/storybookjs/storybook/issues/27172
 
   # Chromatic visual regression testing (graphty app)
   chromatic-app:
@@ -439,13 +438,12 @@ jobs:
       - name: Run Chromatic
         uses: chromaui/action@latest
         with:
-          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN_APP }}
           storybookBuildDir: ./graphty/storybook-static
           exitZeroOnChanges: true
           autoAcceptChanges: master
-          onlyChanged: true
-          externals: |
-            - 'public/**'
+          # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
+          # See: https://github.com/storybookjs/storybook/issues/27172
 
   # Merge and publish coverage to Coveralls
   coverage:
@@ -466,14 +464,23 @@ jobs:
       - name: Merge coverage reports
         run: |
           mkdir -p coverage
-          # Find and concatenate all lcov.info files
-          find coverage-reports -name 'lcov.info' -exec cat {} + > coverage/lcov.info 2>/dev/null || true
-          if [ -f coverage/lcov.info ]; then
-            echo "Merged coverage from all shards:"
-            echo "  Lines: $(wc -l < coverage/lcov.info)"
-            echo "  Files found: $(find coverage-reports -name 'lcov.info' | wc -l)"
-          else
+          # Find all lcov.info files
+          LCOV_FILES=$(find coverage-reports -name 'lcov.info' 2>/dev/null | sort)
+          if [ -z "$LCOV_FILES" ]; then
             echo "No coverage files found"
+            exit 0
+          fi
+          echo "Found coverage files:"
+          echo "$LCOV_FILES"
+          # Use lcov-result-merger to properly merge lcov files
+          # Simple cat creates malformed output that Coveralls can't parse
+          npx lcov-result-merger 'coverage-reports/**/lcov.info' coverage/lcov.info
+          if [ -f coverage/lcov.info ] && [ -s coverage/lcov.info ]; then
+            echo "Merged coverage:"
+            echo "  Lines: $(wc -l < coverage/lcov.info)"
+            head -20 coverage/lcov.info
+          else
+            echo "Merge produced empty file"
             exit 0
           fi
 

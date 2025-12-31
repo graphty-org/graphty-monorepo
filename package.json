@@ -9,6 +9,7 @@
     "test": "pnpm exec nx run-many --target=test",
     "lint": "pnpm exec nx run-many --target=lint",
     "typecheck": "pnpm exec nx run-many --target=typecheck",
+    "prepush": "NX_DAEMON=false pnpm exec nx affected -t build lint test --base=origin/master --head=HEAD --parallel=3",
     "prepare": "husky"
   },
   "engines": {

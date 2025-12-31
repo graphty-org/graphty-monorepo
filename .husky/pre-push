@@ -1,25 +1,15 @@
 #!/bin/sh
-# Compare against origin/master to detect changes since last push
-# This works for both:
-# - Direct commits on master (compares to what's already pushed)
-# - Feature branches (compares to upstream master)
-# Build first to ensure type dependencies are available for linting
+# Pre-push validation is handled by CI (GitHub Actions)
 #
-# Timeout after 5 minutes to prevent indefinite hangs (e.g., from hung browser processes)
-# Normal runs complete in under 1 minute. If this times out, you can:
-# 1. Run `pnpm exec nx reset` to clear the daemon
-# 2. Check for hung chromium/playwright processes
-# 3. Push with --no-verify and let CI validate instead
-timeout 300 pnpm exec nx affected -t build lint test --base=origin/master --head=HEAD --parallel=3 || {
-    exit_code=$?
-    if [ $exit_code -eq 124 ]; then
-        echo ""
-        echo "⚠️  Pre-push hook timed out after 5 minutes."
-        echo "   This usually indicates a hung process. Try:"
-        echo "   1. Run: pnpm exec nx reset"
-        echo "   2. Kill any hung chromium processes: pkill -f chromium"
-        echo "   3. Retry your push"
-        echo ""
-    fi
-    exit $exit_code
-}
+# Why we removed local pre-push checks:
+# 1. nx affected has known issues in git hook contexts (GIT_DIR conflicts)
+# 2. NX daemon/plugin workers cause terminal hangs
+# 3. CI already runs comprehensive lint, build, and test on every push
+#
+# For manual pre-push validation, run: pnpm run prepush
+# To skip this hook entirely: git push --no-verify
+#
+# See: https://github.com/nrwl/nx/issues/733
+#      https://github.com/nrwl/nx/issues/29374
+
+exit 0

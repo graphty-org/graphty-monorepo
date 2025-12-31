@@ -64,23 +64,23 @@ jobs:
             nx-${{ runner.os }}-build-${{ hashFiles('pnpm-lock.yaml') }}-
             nx-${{ runner.os }}-build-
 
-      # PR: Lint and build only affected
-      - name: Lint affected (PR)
-        if: github.event_name == 'pull_request'
-        run: pnpm exec nx affected -t lint --parallel=3
-
+      # PR: Build then lint (build first for type dependencies)
       - name: Build affected (PR)
         if: github.event_name == 'pull_request'
         run: pnpm exec nx affected -t build --parallel=3
 
-      # Master: Lint and build all
-      - name: Lint all (master)
-        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-        run: pnpm exec nx run-many -t lint --parallel=3
+      - name: Lint affected (PR)
+        if: github.event_name == 'pull_request'
+        run: pnpm exec nx affected -t lint --parallel=3
 
+      # Master: Build then lint (build first for type dependencies)
       - name: Build all (master)
         if: github.ref == 'refs/heads/master' && github.event_name == 'push'
         run: pnpm exec nx run-many -t build --parallel=3
+
+      - name: Lint all (master)
+        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        run: pnpm exec nx run-many -t lint --parallel=3
 
       - name: Build Storybook
         run: pnpm exec nx run graphty-element:build-storybook

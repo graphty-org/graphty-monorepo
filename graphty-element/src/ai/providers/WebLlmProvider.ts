@@ -448,9 +448,8 @@ export class WebLlmProvider implements LlmProvider {
 
                 // Handle text content
                 if (delta.content) {
-                    const content = String(delta.content);
-                    accumulatedText += content;
-                    callbacks.onChunk(content);
+                    accumulatedText += delta.content;
+                    callbacks.onChunk(delta.content);
                 }
 
                 // Handle tool calls (snake_case from OpenAI API)
@@ -600,7 +599,7 @@ export class WebLlmProvider implements LlmProvider {
         const completionTokens = response.usage?.completion_tokens;
 
         return {
-            text: String(message.content ?? ""),
+            text: message.content ?? "",
             toolCalls,
             usage: response.usage ?
                 {

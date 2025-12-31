@@ -199,8 +199,9 @@ export function useAiKeyStorage(options: UseAiKeyStorageOptions = {}): UseAiKeyS
         refreshProviders();
     }, [storage, prefix, refreshProviders]);
 
-    const disablePersistence = useCallback((clearStorage = false) => {
-        keyManagerRef.current?.disablePersistence(clearStorage);
+    const disablePersistence = useCallback((clearStorage?: boolean) => {
+        const shouldClear = clearStorage ?? false;
+        keyManagerRef.current?.disablePersistence(shouldClear);
         sessionStorage.removeItem(ENCRYPTION_KEY_STORAGE);
         setIsPersistenceEnabled(false);
         refreshProviders();

@@ -221,7 +221,7 @@ export const sampleData: GraphCommand = {
                 }
 
                 result.edges = sampledEdges.map((edge) => ({
-                    id: String(edge.id),
+                    id: edge.id,
                     source: String(edge.srcId),
                     target: String(edge.dstId),
                     data: truncateObjectStrings(edge.data, MAX_STRING_LENGTH),

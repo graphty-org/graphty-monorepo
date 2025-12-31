@@ -265,7 +265,7 @@ async function setupShowcase(): Promise<void> {
                 // Reset button after a delay
                 setTimeout(() => {
                     if (ui.clearCacheBtn) {
-                        ui.clearCacheBtn.textContent = originalText ?? "🗑️";
+                        ui.clearCacheBtn.textContent = originalText;
                         ui.clearCacheBtn.disabled = false;
                     }
                 }, 2000);

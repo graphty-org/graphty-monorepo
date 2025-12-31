@@ -5,6 +5,7 @@ import simpleImportSort from "eslint-plugin-simple-import-sort";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- tseslint.config is deprecated but migration to defineConfig requires eslint.config.js updates
 export default tseslint.config(
     eslint.configs.recommended,
     tseslint.configs.strictTypeChecked,

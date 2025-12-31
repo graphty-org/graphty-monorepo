@@ -350,7 +350,7 @@ export function kTruss(
     for (const [u, neighbors] of adjacencySet) {
         for (const v of neighbors) {
             if (u < v) { // Avoid duplicates
-                const edge = `${String(u)},${String(v)}`;
+                const edge = `${u},${v}`;
                 edges.add(edge);
                 edgeTriangles.set(edge, 0);
             }
@@ -367,9 +367,9 @@ export function kTruss(
                     for (const w of uNeighbors) {
                         if (v < w && vNeighbors.has(w)) {
                             // Triangle found: u-v-w
-                            const edge1 = `${String(u)},${String(v)}`;
-                            const edge2 = `${String(u)},${String(w)}`;
-                            const edge3 = `${String(v)},${String(w)}`;
+                            const edge1 = `${u},${v}`;
+                            const edge2 = `${u},${w}`;
+                            const edge3 = `${v},${w}`;
 
                             const edge1Count = edgeTriangles.get(edge1);
                             const edge2Count = edgeTriangles.get(edge2);
@@ -428,8 +428,8 @@ export function kTruss(
             if (uNeighbors && vNeighbors) {
                 for (const w of uNeighbors) {
                     if (vNeighbors.has(w)) {
-                        const edge1 = u < w ? `${String(u)},${String(w)}` : `${String(w)},${String(u)}`;
-                        const edge2 = v < w ? `${String(v)},${String(w)}` : `${String(w)},${String(v)}`;
+                        const edge1 = u < w ? `${u},${w}` : `${w},${u}`;
+                        const edge2 = v < w ? `${v},${w}` : `${w},${v}`;
 
                         if (kTrussEdges.has(edge1)) {
                             const edge1Count = edgeTriangles.get(edge1);

@@ -8,11 +8,9 @@
  */
 
 // Configuration and optimization control
-export {
-    configureOptimizations,
-    getOptimizationConfig,
-    type GraphAlgorithmConfig,
-} from "./graph-adapter.js";
+// These deprecated functions are intentionally re-exported for backward compatibility
+// eslint-disable-next-line @typescript-eslint/no-deprecated
+export {configureOptimizations, getOptimizationConfig, type GraphAlgorithmConfig} from "./graph-adapter.js";
 
 // Note: The main BFS functions in algorithms/traversal/bfs.ts automatically
 // use these optimizations for large graphs (>10k nodes) when optimizations are enabled.

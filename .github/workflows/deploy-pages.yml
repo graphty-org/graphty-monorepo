@@ -46,17 +46,26 @@ jobs:
             nx-${{ runner.os }}-pages-${{ hashFiles('pnpm-lock.yaml') }}-
             nx-${{ runner.os }}-pages-
 
-      # Build all packages first (needed for docs)
+      # Build all packages (graphty needs Sentry env vars)
       - name: Build packages
-        run: pnpm exec nx run-many -t build --projects=algorithms,layout,graphty-element
+        run: pnpm exec nx run-many -t build --projects=algorithms,layout,graphty-element,graphty
+        env:
+          VITE_BASE_PATH: /
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
+          VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
       # Build graphty-element docs (VitePress)
       - name: Build graphty-element docs
         run: pnpm exec nx run graphty-element:docs:build
 
-      # Build graphty-element Storybook
+      # Build Storybooks
       - name: Build graphty-element Storybook
         run: pnpm exec nx run graphty-element:build-storybook
+
+      - name: Build graphty Storybook
+        run: pnpm exec nx run graphty:build-storybook
 
       # Build algorithms gh-pages
       - name: Build algorithms gh-pages
@@ -67,49 +76,58 @@ jobs:
         run: pnpm exec nx run layout:build:gh-pages
 
       # Assemble the unified GitHub Pages site
+      # URL Structure:
+      #   / = graphty app (React app - graphty.app)
+      #   /docs/ = graphty-element docs (VitePress)
+      #   /storybook/element/ = graphty-element Storybook
+      #   /storybook/app/ = graphty Storybook
+      #   /algorithms/ = algorithms gh-pages
+      #   /layout/ = layout gh-pages
       - name: Assemble GitHub Pages site
         run: |
           mkdir -p ./public
 
-          # graphty-element docs as the root
+          # graphty app as root (/)
+          if [ -d "./graphty/dist" ]; then
+            cp -r ./graphty/dist/* ./public/
+            echo "✅ Copied graphty app to /"
+          else
+            echo "⚠️ graphty dist not found"
+          fi
+
+          # graphty-element docs (/docs/)
           if [ -d "./graphty-element/docs/.vitepress/dist" ]; then
-            cp -r ./graphty-element/docs/.vitepress/dist/* ./public/
-            echo "✅ Copied graphty-element docs to /"
+            mkdir -p ./public/docs
+            cp -r ./graphty-element/docs/.vitepress/dist/* ./public/docs/
+            echo "✅ Copied graphty-element docs to /docs/"
           else
             echo "⚠️ graphty-element docs not found"
           fi
 
-          # graphty-element Storybook
+          # graphty-element Storybook (/storybook/element/)
           if [ -d "./graphty-element/storybook-static" ]; then
-            cp -r ./graphty-element/storybook-static ./public/storybook
-            echo "✅ Copied Storybook to /storybook/"
+            mkdir -p ./public/storybook/element
+            cp -r ./graphty-element/storybook-static/* ./public/storybook/element/
+            echo "✅ Copied graphty-element Storybook to /storybook/element/"
           else
-            echo "⚠️ Storybook not found"
+            echo "⚠️ graphty-element Storybook not found"
           fi
 
-          # algorithms gh-pages
-          if [ -d "./algorithms/gh-pages" ]; then
-            cp -r ./algorithms/gh-pages ./public/algorithms
-            echo "✅ Copied algorithms to /algorithms/"
+          # graphty Storybook (/storybook/app/)
+          if [ -d "./graphty/storybook-static" ]; then
+            mkdir -p ./public/storybook/app
+            cp -r ./graphty/storybook-static/* ./public/storybook/app/
+            echo "✅ Copied graphty Storybook to /storybook/app/"
           else
-            echo "⚠️ algorithms gh-pages not found"
+            echo "⚠️ graphty Storybook not found"
           fi
 
-          # layout gh-pages
-          if [ -d "./layout/gh-pages" ]; then
-            cp -r ./layout/gh-pages ./public/layout
-            echo "✅ Copied layout to /layout/"
-          else
-            echo "⚠️ layout gh-pages not found"
-          fi
-
-          # Create index links if root index doesn't exist
-          if [ ! -f "./public/index.html" ]; then
-            cat > ./public/index.html << 'INDEXEOF'
+          # Create storybook index page
+          cat > ./public/storybook/index.html << 'SBINDEXEOF'
           <!DOCTYPE html>
           <html>
           <head>
-            <title>Graphty Documentation</title>
+            <title>Graphty Storybooks</title>
             <style>
               body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 1rem; }
               h1 { color: #333; }
@@ -117,24 +135,46 @@ jobs:
               li { margin: 1rem 0; }
               a { color: #0066cc; text-decoration: none; font-size: 1.2rem; }
               a:hover { text-decoration: underline; }
+              .desc { color: #666; font-size: 0.9rem; margin-top: 0.25rem; }
             </style>
           </head>
           <body>
-            <h1>Graphty Documentation</h1>
+            <h1>Graphty Storybooks</h1>
             <ul>
-              <li><a href="/storybook/">Storybook - Component Documentation</a></li>
-              <li><a href="/algorithms/">Algorithms - Examples & API</a></li>
-              <li><a href="/layout/">Layout - Examples & API</a></li>
+              <li>
+                <a href="/storybook/element/">graphty-element</a>
+                <div class="desc">Web Component library for graph visualization</div>
+              </li>
+              <li>
+                <a href="/storybook/app/">graphty app</a>
+                <div class="desc">React application components</div>
+              </li>
             </ul>
+            <p><a href="/">← Back to graphty.app</a></p>
           </body>
           </html>
-          INDEXEOF
-            echo "✅ Created fallback index.html"
+          SBINDEXEOF
+          echo "✅ Created storybook index at /storybook/"
+
+          # algorithms gh-pages (/algorithms/)
+          if [ -d "./algorithms/gh-pages" ]; then
+            cp -r ./algorithms/gh-pages ./public/algorithms
+            echo "✅ Copied algorithms to /algorithms/"
+          else
+            echo "⚠️ algorithms gh-pages not found"
+          fi
+
+          # layout gh-pages (/layout/)
+          if [ -d "./layout/gh-pages" ]; then
+            cp -r ./layout/gh-pages ./public/layout
+            echo "✅ Copied layout to /layout/"
+          else
+            echo "⚠️ layout gh-pages not found"
           fi
 
           echo ""
           echo "📁 Site structure:"
-          find ./public -type f -name "*.html" | head -20
+          find ./public -type f -name "*.html" | head -30
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

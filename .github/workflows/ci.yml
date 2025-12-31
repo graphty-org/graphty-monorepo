@@ -74,16 +74,26 @@ jobs:
         run: pnpm exec nx affected -t lint --parallel=3
 
       # Master: Build then lint (build first for type dependencies)
+      # graphty build needs Sentry env vars for error tracking
       - name: Build all (master)
         if: github.ref == 'refs/heads/master' && github.event_name == 'push'
         run: pnpm exec nx run-many -t build --parallel=3
+        env:
+          VITE_BASE_PATH: /
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
+          VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
       - name: Lint all (master)
         if: github.ref == 'refs/heads/master' && github.event_name == 'push'
         run: pnpm exec nx run-many -t lint --parallel=3
 
-      - name: Build Storybook
+      - name: Build Storybook (graphty-element)
         run: pnpm exec nx run graphty-element:build-storybook
+
+      - name: Build Storybook (graphty)
+        run: pnpm exec nx run graphty:build-storybook
 
       - name: Upload algorithms build
         uses: actions/upload-artifact@v4
@@ -113,11 +123,18 @@ jobs:
           path: graphty-element/dist/
           retention-days: 1
 
-      - name: Upload Storybook build
+      - name: Upload Storybook build (graphty-element)
         uses: actions/upload-artifact@v4
         with:
-          name: build-storybook
+          name: build-storybook-element
           path: graphty-element/storybook-static/
+          retention-days: 1
+
+      - name: Upload Storybook build (graphty)
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-storybook-app
+          path: graphty/storybook-static/
           retention-days: 1
 
   # Sharded test jobs - run in parallel, collect coverage
@@ -155,11 +172,11 @@ jobs:
             test-command: pnpm exec nx run layout:test --ci --coverage
             needs-browser: false
             needs-storybook: false
-          # graphty - single shard
+          # graphty - single shard (uses Playwright for browser-based vitest)
           - shard: graphty
             package: graphty
             test-command: pnpm exec nx run graphty:test --ci --coverage
-            needs-browser: false
+            needs-browser: true
             needs-storybook: false
           # graphty-element default tests (Node.js, no browser)
           - shard: graphty-element-default
@@ -257,11 +274,11 @@ jobs:
           name: build-graphty-element
           path: graphty-element/dist/
 
-      - name: Download Storybook build
+      - name: Download Storybook build (graphty-element)
         if: matrix.needs-storybook
         uses: actions/download-artifact@v4
         with:
-          name: build-storybook
+          name: build-storybook-element
           path: graphty-element/storybook-static/
 
       - name: Cache Playwright browsers
@@ -349,9 +366,9 @@ jobs:
       - name: Merge test reports
         run: cd graphty-element && pnpm exec vitest --merge-reports || true
 
-  # Chromatic visual regression testing
-  chromatic:
-    name: Chromatic Visual Tests
+  # Chromatic visual regression testing (graphty-element)
+  chromatic-element:
+    name: Chromatic (graphty-element)
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -375,7 +392,7 @@ jobs:
       - name: Download Storybook build
         uses: actions/download-artifact@v4
         with:
-          name: build-storybook
+          name: build-storybook-element
           path: graphty-element/storybook-static/
 
       - name: Run Chromatic
@@ -383,6 +400,46 @@ jobs:
         with:
           projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
           storybookBuildDir: ./graphty-element/storybook-static
+          exitZeroOnChanges: true
+          autoAcceptChanges: master
+          onlyChanged: true
+          externals: |
+            - 'public/**'
+
+  # Chromatic visual regression testing (graphty app)
+  chromatic-app:
+    name: Chromatic (graphty)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          HUSKY: '0'
+
+      - name: Download Storybook build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-storybook-app
+          path: graphty/storybook-static/
+
+      - name: Run Chromatic
+        uses: chromaui/action@latest
+        with:
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          storybookBuildDir: ./graphty/storybook-static
           exitZeroOnChanges: true
           autoAcceptChanges: master
           onlyChanged: true
@@ -478,7 +535,7 @@ jobs:
   # Gate job - ensures all required checks pass before release/deploy
   all-checks:
     name: All Checks Pass
-    needs: [test, chromatic, merge-reports]
+    needs: [test, chromatic-element, chromatic-app, merge-reports]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -488,8 +545,12 @@ jobs:
             echo "Test job failed"
             exit 1
           fi
-          if [[ "${{ needs.chromatic.result }}" != "success" ]]; then
-            echo "Chromatic job failed"
+          if [[ "${{ needs.chromatic-element.result }}" != "success" ]]; then
+            echo "Chromatic (graphty-element) job failed"
+            exit 1
+          fi
+          if [[ "${{ needs.chromatic-app.result }}" != "success" ]]; then
+            echo "Chromatic (graphty) job failed"
             exit 1
           fi
           echo "All checks passed!"

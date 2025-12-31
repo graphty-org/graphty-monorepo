@@ -408,6 +408,7 @@ jobs:
           projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN_ELEMENT }}
           storybookBuildDir: ./graphty-element/storybook-static
           exitZeroOnChanges: true
+          exitOnceUploaded: true
           autoAcceptChanges: master
           # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
           # See: https://github.com/storybookjs/storybook/issues/27172
@@ -447,6 +448,7 @@ jobs:
           projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN_APP }}
           storybookBuildDir: ./graphty/storybook-static
           exitZeroOnChanges: true
+          exitOnceUploaded: true
           autoAcceptChanges: master
           # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
           # See: https://github.com/storybookjs/storybook/issues/27172

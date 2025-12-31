@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# Note: We use local Nx caching only (no Nx Cloud)
+# Cache is stored in .nx/cache and persisted via actions/cache
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Nx
+        uses: actions/cache@v4
+        with:
+          path: .nx/cache
+          key: nx-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            nx-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+            nx-${{ runner.os }}-
+
+      - name: Lint affected
+        run: pnpm exec nx affected -t lint --parallel=3
+
+      - name: Test affected
+        run: pnpm exec nx affected -t test --parallel=3 --ci
+
+      - name: Build affected
+        run: pnpm exec nx affected -t build --parallel=3
+
+      - name: Coverage
+        if: matrix.node-version == '20.x'
+        run: |
+          pnpm exec nx affected -t test:coverage --parallel=1
+          pnpm exec nx run-many -t test:coverage --parallel=1 --projects=algorithms,layout,graphty-element
+
+      - name: Upload coverage
+        if: matrix.node-version == '20.x'
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: ./coverage/**/lcov.info

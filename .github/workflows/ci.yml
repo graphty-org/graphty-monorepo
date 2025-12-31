@@ -96,6 +96,19 @@ jobs:
       - name: Build Storybook (graphty)
         run: pnpm exec nx run graphty:build-storybook
 
+      # Build documentation (only on master, for deploy-pages)
+      - name: Build graphty-element docs
+        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        run: pnpm exec nx run graphty-element:docs:build
+
+      - name: Build algorithms gh-pages
+        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        run: pnpm exec nx run algorithms:build:gh-pages
+
+      - name: Build layout gh-pages
+        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        run: pnpm exec nx run layout:build:gh-pages
+
       - name: Upload algorithms build
         uses: actions/upload-artifact@v4
         with:
@@ -136,6 +149,31 @@ jobs:
         with:
           name: build-storybook-app
           path: graphty/storybook-static/
+          retention-days: 1
+
+      # Upload documentation artifacts (only on master)
+      - name: Upload graphty-element docs
+        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-docs-element
+          path: graphty-element/docs/.vitepress/dist/
+          retention-days: 1
+
+      - name: Upload algorithms gh-pages
+        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-ghpages-algorithms
+          path: algorithms/gh-pages/
+          retention-days: 1
+
+      - name: Upload layout gh-pages
+        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-ghpages-layout
+          path: layout/gh-pages/
           retention-days: 1
 
   # Sharded test jobs - run in parallel, collect coverage
@@ -335,38 +373,6 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
-  # Merge blob reports from graphty-element shards
-  merge-reports:
-    name: Merge Test Reports
-    needs: test
-    if: needs.test.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.x
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        env:
-          HUSKY: '0'
-
-      - name: Download all blob reports
-        uses: actions/download-artifact@v4
-        with:
-          pattern: blob-report-*
-          path: graphty-element/.vitest-reports
-          merge-multiple: true
-
-      - name: Merge test reports
-        run: cd graphty-element && pnpm exec vitest --merge-reports || true
-
   # Chromatic visual regression testing (graphty-element)
   chromatic-element:
     name: Chromatic (graphty-element)
@@ -445,52 +451,6 @@ jobs:
           # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
           # See: https://github.com/storybookjs/storybook/issues/27172
 
-  # Merge and publish coverage to Coveralls
-  coverage:
-    name: Publish Coverage
-    needs: [test, merge-reports]
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push' && needs.test.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download all coverage reports
-        uses: actions/download-artifact@v4
-        with:
-          pattern: coverage-*
-          path: coverage-reports
-          merge-multiple: true
-
-      - name: Merge coverage reports
-        run: |
-          mkdir -p coverage
-          # Find all lcov.info files
-          LCOV_FILES=$(find coverage-reports -name 'lcov.info' 2>/dev/null | sort)
-          if [ -z "$LCOV_FILES" ]; then
-            echo "No coverage files found"
-            exit 0
-          fi
-          echo "Found coverage files:"
-          echo "$LCOV_FILES"
-          # Use lcov-result-merger to properly merge lcov files
-          # Simple cat creates malformed output that Coveralls can't parse
-          npx lcov-result-merger 'coverage-reports/**/lcov.info' coverage/lcov.info
-          if [ -f coverage/lcov.info ] && [ -s coverage/lcov.info ]; then
-            echo "Merged coverage:"
-            echo "  Lines: $(wc -l < coverage/lcov.info)"
-            head -20 coverage/lcov.info
-          else
-            echo "Merge produced empty file"
-            exit 0
-          fi
-
-      - name: Publish to Coveralls
-        if: hashFiles('coverage/lcov.info') != ''
-        uses: coverallsapp/github-action@v2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          file: coverage/lcov.info
-
   # Performance regression tests (algorithms only, master branch)
   performance:
     name: Performance Tests
@@ -543,7 +503,7 @@ jobs:
   # Gate job - ensures all required checks pass before release/deploy
   all-checks:
     name: All Checks Pass
-    needs: [test, chromatic-element, chromatic-app, merge-reports]
+    needs: [test, chromatic-element, chromatic-app]
     if: always()
     runs-on: ubuntu-latest
     steps:

@@ -1,0 +1,92 @@
+name: Coverage
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  # Merge blob reports from graphty-element shards
+  merge-reports:
+    name: Merge Test Reports
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          HUSKY: '0'
+
+      - name: Download all blob reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: blob-report-*
+          path: graphty-element/.vitest-reports
+          merge-multiple: true
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge test reports
+        run: cd graphty-element && pnpm exec vitest --merge-reports || true
+
+  # Merge and publish coverage to Coveralls
+  coverage:
+    name: Publish Coverage
+    needs: merge-reports
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          path: coverage-reports
+          merge-multiple: true
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge coverage reports
+        run: |
+          mkdir -p coverage
+          # Find all lcov.info files
+          LCOV_FILES=$(find coverage-reports -name 'lcov.info' 2>/dev/null | sort)
+          if [ -z "$LCOV_FILES" ]; then
+            echo "No coverage files found"
+            exit 0
+          fi
+          echo "Found coverage files:"
+          echo "$LCOV_FILES"
+          # Use lcov-result-merger to properly merge lcov files
+          # Simple cat creates malformed output that Coveralls can't parse
+          npx lcov-result-merger 'coverage-reports/**/lcov.info' coverage/lcov.info
+          if [ -f coverage/lcov.info ] && [ -s coverage/lcov.info ]; then
+            echo "Merged coverage:"
+            echo "  Lines: $(wc -l < coverage/lcov.info)"
+            head -20 coverage/lcov.info
+          else
+            echo "Merge produced empty file"
+            exit 0
+          fi
+
+      - name: Publish to Coveralls
+        if: hashFiles('coverage/lcov.info') != ''
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: coverage/lcov.info

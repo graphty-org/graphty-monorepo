@@ -5,12 +5,14 @@ on:
     workflows: ["CI"]
     types: [completed]
     branches: [master]
-  workflow_dispatch:
+  # Manual trigger not supported - artifacts only available from CI workflow
+  # To redeploy, re-run the CI workflow on master instead
 
 permissions:
   contents: read
   pages: write
   id-token: write
+  actions: read  # Required to download artifacts from other workflow runs
 
 concurrency:
   group: "pages"
@@ -18,63 +20,60 @@ concurrency:
 
 jobs:
   build:
-    name: Build Documentation
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    name: Assemble Site
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      # Download all artifacts from CI workflow
+      - name: Download graphty app build
+        uses: actions/download-artifact@v4
         with:
-          node-version: 22.x
-          cache: 'pnpm'
+          name: build-graphty
+          path: ./graphty/dist/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        env:
-          HUSKY: '0'
-
-      - name: Cache Nx
-        uses: actions/cache@v4
+      - name: Download graphty-element Storybook
+        uses: actions/download-artifact@v4
         with:
-          path: .nx/cache
-          key: nx-${{ runner.os }}-pages-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
-          restore-keys: |
-            nx-${{ runner.os }}-pages-${{ hashFiles('pnpm-lock.yaml') }}-
-            nx-${{ runner.os }}-pages-
+          name: build-storybook-element
+          path: ./graphty-element/storybook-static/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Build all packages (graphty needs Sentry env vars)
-      - name: Build packages
-        run: pnpm exec nx run-many -t build --projects=algorithms,layout,graphty-element,graphty --parallel=3
-        env:
-          NODE_OPTIONS: '--max-old-space-size=8192'
-          VITE_BASE_PATH: /
-          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
-          VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
-          VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      - name: Download graphty Storybook
+        uses: actions/download-artifact@v4
+        with:
+          name: build-storybook-app
+          path: ./graphty/storybook-static/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Build graphty-element docs (VitePress)
-      - name: Build graphty-element docs
-        run: pnpm exec nx run graphty-element:docs:build
+      - name: Download graphty-element docs
+        uses: actions/download-artifact@v4
+        with:
+          name: build-docs-element
+          path: ./graphty-element/docs/.vitepress/dist/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Build Storybooks
-      - name: Build graphty-element Storybook
-        run: pnpm exec nx run graphty-element:build-storybook
+      - name: Download algorithms gh-pages
+        uses: actions/download-artifact@v4
+        with:
+          name: build-ghpages-algorithms
+          path: ./algorithms/gh-pages/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build graphty Storybook
-        run: pnpm exec nx run graphty:build-storybook
-
-      # Build algorithms gh-pages
-      - name: Build algorithms gh-pages
-        run: pnpm exec nx run algorithms:build:gh-pages
-
-      # Build layout gh-pages
-      - name: Build layout gh-pages
-        run: pnpm exec nx run layout:build:gh-pages
+      - name: Download layout gh-pages
+        uses: actions/download-artifact@v4
+        with:
+          name: build-ghpages-layout
+          path: ./layout/gh-pages/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # Assemble the unified GitHub Pages site
       # URL Structure:

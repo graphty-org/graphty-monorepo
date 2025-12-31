@@ -57,7 +57,8 @@ jobs:
         with:
           pattern: coverage-*
           path: coverage-reports
-          merge-multiple: true
+          # Don't use merge-multiple - each artifact's lcov.info would overwrite others
+          # Instead, each artifact gets its own subdirectory
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 

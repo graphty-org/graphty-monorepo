@@ -37,6 +37,10 @@ const meta: Meta<typeof Graphty> = {
     parameters: {
         layout: "centered",
     },
+    args: {
+        // Provide default empty layers array to prevent "e is not iterable" error
+        layers: [],
+    },
     decorators: [
         (Story) => (
             <div style={{width: "800px", height: "600px"}}>

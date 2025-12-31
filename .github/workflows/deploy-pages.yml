@@ -1,0 +1,159 @@
+name: Deploy to GitHub Pages
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Documentation
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          HUSKY: '0'
+
+      - name: Cache Nx
+        uses: actions/cache@v4
+        with:
+          path: .nx/cache
+          key: nx-${{ runner.os }}-pages-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            nx-${{ runner.os }}-pages-${{ hashFiles('pnpm-lock.yaml') }}-
+            nx-${{ runner.os }}-pages-
+
+      # Build all packages first (needed for docs)
+      - name: Build packages
+        run: pnpm exec nx run-many -t build --projects=algorithms,layout,graphty-element
+
+      # Build graphty-element docs (VitePress)
+      - name: Build graphty-element docs
+        run: pnpm exec nx run graphty-element:docs:build
+
+      # Build graphty-element Storybook
+      - name: Build graphty-element Storybook
+        run: pnpm exec nx run graphty-element:build-storybook
+
+      # Build algorithms gh-pages
+      - name: Build algorithms gh-pages
+        run: pnpm exec nx run algorithms:build:gh-pages
+
+      # Build layout gh-pages
+      - name: Build layout gh-pages
+        run: pnpm exec nx run layout:build:gh-pages
+
+      # Assemble the unified GitHub Pages site
+      - name: Assemble GitHub Pages site
+        run: |
+          mkdir -p ./public
+
+          # graphty-element docs as the root
+          if [ -d "./graphty-element/docs/.vitepress/dist" ]; then
+            cp -r ./graphty-element/docs/.vitepress/dist/* ./public/
+            echo "✅ Copied graphty-element docs to /"
+          else
+            echo "⚠️ graphty-element docs not found"
+          fi
+
+          # graphty-element Storybook
+          if [ -d "./graphty-element/storybook-static" ]; then
+            cp -r ./graphty-element/storybook-static ./public/storybook
+            echo "✅ Copied Storybook to /storybook/"
+          else
+            echo "⚠️ Storybook not found"
+          fi
+
+          # algorithms gh-pages
+          if [ -d "./algorithms/gh-pages" ]; then
+            cp -r ./algorithms/gh-pages ./public/algorithms
+            echo "✅ Copied algorithms to /algorithms/"
+          else
+            echo "⚠️ algorithms gh-pages not found"
+          fi
+
+          # layout gh-pages
+          if [ -d "./layout/gh-pages" ]; then
+            cp -r ./layout/gh-pages ./public/layout
+            echo "✅ Copied layout to /layout/"
+          else
+            echo "⚠️ layout gh-pages not found"
+          fi
+
+          # Create index links if root index doesn't exist
+          if [ ! -f "./public/index.html" ]; then
+            cat > ./public/index.html << 'INDEXEOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Graphty Documentation</title>
+            <style>
+              body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 1rem; }
+              h1 { color: #333; }
+              ul { list-style: none; padding: 0; }
+              li { margin: 1rem 0; }
+              a { color: #0066cc; text-decoration: none; font-size: 1.2rem; }
+              a:hover { text-decoration: underline; }
+            </style>
+          </head>
+          <body>
+            <h1>Graphty Documentation</h1>
+            <ul>
+              <li><a href="/storybook/">Storybook - Component Documentation</a></li>
+              <li><a href="/algorithms/">Algorithms - Examples & API</a></li>
+              <li><a href="/layout/">Layout - Examples & API</a></li>
+            </ul>
+          </body>
+          </html>
+          INDEXEOF
+            echo "✅ Created fallback index.html"
+          fi
+
+          echo ""
+          echo "📁 Site structure:"
+          find ./public -type f -name "*.html" | head -20
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./public
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

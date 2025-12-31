@@ -83,6 +83,19 @@
         "command": "npm run chromatic",
         "cwd": "graphty-element"
       }
+    },
+    "docs:build": {
+      "executor": "nx:run-commands",
+      "outputs": [
+        "{projectRoot}/docs/.vitepress/dist"
+      ],
+      "options": {
+        "command": "npm run docs:build",
+        "cwd": "graphty-element"
+      },
+      "dependsOn": [
+        "build"
+      ]
     }
   }
 }

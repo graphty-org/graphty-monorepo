@@ -4,8 +4,11 @@ node_modules/
 # Nx cache
 .nx/
 
-# Build outputs (root level)
+# Build outputs
 dist/
+dist-ssr/
+build/
+*.tsbuildinfo
 
 # Vite/Vitest timestamps
 vite.config.*.timestamp*
@@ -13,32 +16,105 @@ vitest.config.*.timestamp*
 
 # Storybook
 storybook-static/
+*storybook.log
+build-storybook.log
 
 # Temporary files
 tmp/
+.tmp/
 
-# IDE
+# IDE/Editor files
 .idea/
 .vscode/
 *.swp
 *.swo
+*.sw?
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*~
 
-# OS files
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
 # Logs
+logs/
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
 # Coverage
 coverage/
+.nyc_output/
 
 # Environment
 .env
 .env.local
 .env.*.local
+*.local
 
-# pt
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Test artifacts
+.vitest/
+test-results/
+playwright-report/
+**/__screenshots__/
+
+# Playwright visual test artifacts
+**/playwright/visual/screenshots-diff/
+**/playwright/visual/screenshots-actual/
+**/playwright/generated/*.visual.spec.ts
+
+# Chromatic
+chromatic-diagnostics.json
+stories/auto-generated/
+
+# GitHub Pages build output
+gh-pages/
+
+# VitePress
+**/docs/.vitepress/cache/
+**/docs/.vitepress/dist/
+
+# Auto-generated API docs
+**/docs/api/generated/
+
+# Layout package specific
+layout/examples/layout.js
+layout/docs.json
+layout/log/*
+
+# Generated TypeScript files in package roots
+**/index.js
+**/index.d.ts
+**/index.d.ts.map
+
+# Jupyter
+.ipynb_checkpoints/
+
+# PUPT / pt
+.pt-config.json.backup
 .pthistory/
+.pthistory
+.git-prompts
+
+# wtt worktrees
+.worktrees/
+
+# Husky (managed by monorepo root)
+*/.husky/

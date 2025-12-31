@@ -62,6 +62,19 @@
         "command": "npm run examples",
         "cwd": "layout"
       }
+    },
+    "build:gh-pages": {
+      "executor": "nx:run-commands",
+      "outputs": [
+        "{projectRoot}/gh-pages"
+      ],
+      "options": {
+        "command": "npm run build:gh-pages",
+        "cwd": "layout"
+      },
+      "dependsOn": [
+        "build"
+      ]
     }
   }
 }

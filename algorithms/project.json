@@ -69,6 +69,19 @@
         "command": "npm run examples:html",
         "cwd": "algorithms"
       }
+    },
+    "build:gh-pages": {
+      "executor": "nx:run-commands",
+      "outputs": [
+        "{projectRoot}/gh-pages"
+      ],
+      "options": {
+        "command": "npm run build:gh-pages",
+        "cwd": "algorithms"
+      },
+      "dependsOn": [
+        "build"
+      ]
     }
   }
 }

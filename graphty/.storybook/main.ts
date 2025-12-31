@@ -10,6 +10,15 @@ const config: StorybookConfig = {
         name: "@storybook/react-vite",
         options: {},
     },
+    typescript: {
+        // Disable react-docgen entirely to avoid parsing graphty-element source files.
+        // graphty-element uses Lit decorators (@customElement) which are not compatible
+        // with react-docgen's Babel parser. Since we alias @graphty/graphty-element to
+        // source files for proper tree-shaking, react-docgen would try to parse those
+        // files and fail with "Decorators must be placed *after* the 'export' keyword".
+        // See: https://github.com/storybookjs/storybook/issues/26780
+        reactDocgen: false,
+    },
     core: {
         disableTelemetry: true,
     },

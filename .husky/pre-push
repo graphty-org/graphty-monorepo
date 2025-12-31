@@ -1,1 +1,6 @@
-pnpm exec nx affected -t lint test --parallel=3
+# Compare against origin/master to detect changes since last push
+# This works for both:
+# - Direct commits on master (compares to what's already pushed)
+# - Feature branches (compares to upstream master)
+# Build first to ensure type dependencies are available for linting
+pnpm exec nx affected -t build lint test --base=origin/master --head=HEAD --parallel=3

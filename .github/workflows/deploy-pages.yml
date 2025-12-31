@@ -48,8 +48,9 @@ jobs:
 
       # Build all packages (graphty needs Sentry env vars)
       - name: Build packages
-        run: pnpm exec nx run-many -t build --projects=algorithms,layout,graphty-element,graphty
+        run: pnpm exec nx run-many -t build --projects=algorithms,layout,graphty-element,graphty --parallel=3
         env:
+          NODE_OPTIONS: '--max-old-space-size=8192'
           VITE_BASE_PATH: /
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}

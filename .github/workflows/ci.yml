@@ -79,6 +79,7 @@ jobs:
         if: github.ref == 'refs/heads/master' && github.event_name == 'push'
         run: pnpm exec nx run-many -t build --parallel=3
         env:
+          NODE_OPTIONS: '--max-old-space-size=8192'
           VITE_BASE_PATH: /
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}

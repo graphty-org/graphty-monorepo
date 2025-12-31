@@ -26,8 +26,9 @@ export default defineConfig(({mode}) => {
         resolve: {
             alias: {
                 "@": resolve(__dirname, "./src"),
-                // Force resolution to worktree's node_modules to avoid conflicts with main graphty
-                "@graphty/graphty-element": resolve(__dirname, "./node_modules/@graphty/graphty-element/dist/graphty.js"),
+                // Resolve to source files for proper tree-shaking and to avoid bundling
+                // the entire Babylon.js library (graphty-element's dist externalizes it)
+                "@graphty/graphty-element": resolve(__dirname, "../graphty-element/index.ts"),
                 // Stub out @mlc-ai/web-llm - it's an optional dependency of graphty-element
                 // that throws a helpful error when used without being installed
                 "@mlc-ai/web-llm": resolve(__dirname, "./src/stubs/web-llm-stub.ts"),

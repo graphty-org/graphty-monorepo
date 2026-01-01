@@ -55,6 +55,11 @@ jobs:
         env:
           HUSKY: '0'
 
+      # Security audit - run early to catch vulnerabilities before building
+      # Only fail on critical and high severity vulnerabilities
+      - name: Security audit
+        run: pnpm audit --audit-level=high
+
       - name: Cache Nx
         uses: actions/cache@v4
         with:

@@ -41,11 +41,39 @@ jobs:
         env:
           HUSKY: '0'
 
-      - name: Verify package integrity
-        run: pnpm audit signatures
+      # Download build artifacts from CI workflow instead of rebuilding
+      # This ensures we release the exact same code that was tested
+      - name: Download algorithms build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-algorithms
+          path: algorithms/dist/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build packages
-        run: pnpm exec nx run-many -t build --all
+      - name: Download layout build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-layout
+          path: layout/dist/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download graphty build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-graphty
+          path: graphty/dist/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download graphty-element build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-graphty-element
+          path: graphty-element/dist/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure Git
         run: |

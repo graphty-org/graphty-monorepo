@@ -90,7 +90,7 @@ jobs:
             nx-${{ runner.os }}-
 
       - name: Version and Release
-        run: pnpm exec nx release
+        run: pnpm exec nx release --yes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # OIDC trusted publishing - npm will use the GitHub Actions OIDC token

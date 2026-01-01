@@ -1,8 +1,8 @@
-import {afterEach, assert, test} from "vitest";
+import { afterEach, assert, test } from "vitest";
 
-import type {CameraStateChangedEvent} from "../../../src/events.js";
-import {Graph} from "../../../src/Graph.js";
-import {cleanupTestGraph, createTestGraph} from "../../helpers/testSetup.js";
+import type { CameraStateChangedEvent } from "../../../src/events.js";
+import { Graph } from "../../../src/Graph.js";
+import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup.js";
 
 let graph: Graph;
 
@@ -10,7 +10,7 @@ afterEach(() => {
     cleanupTestGraph(graph);
 });
 
-test("getCameraState returns camera state with position and target", async() => {
+test("getCameraState returns camera state with position and target", async () => {
     graph = await createTestGraph();
 
     const state = graph.getCameraState();
@@ -23,12 +23,12 @@ test("getCameraState returns camera state with position and target", async() => 
     assert.ok(typeof state.position.z === "number");
 });
 
-test("setCameraState applies state correctly", async() => {
+test("setCameraState applies state correctly", async () => {
     graph = await createTestGraph();
 
     await graph.setCameraState({
-        position: {x: 20, y: 20, z: 20},
-        target: {x: 5, y: 5, z: 5},
+        position: { x: 20, y: 20, z: 20 },
+        target: { x: 5, y: 5, z: 5 },
     });
 
     const newState = graph.getCameraState();
@@ -44,30 +44,32 @@ test("setCameraState applies state correctly", async() => {
     assert.ok(Math.abs(newState.target.z - 5) < 5);
 });
 
-test("setCameraState with animation completes", async() => {
+test("setCameraState with animation completes", async () => {
     graph = await createTestGraph();
 
     const startState = graph.getCameraState();
     assert.ok(startState.position);
 
-    await graph.setCameraState({
-        position: {x: 10, y: 10, z: 10},
-        target: {x: 0, y: 0, z: 0},
-    }, {animate: true, duration: 500});
+    await graph.setCameraState(
+        {
+            position: { x: 10, y: 10, z: 10 },
+            target: { x: 0, y: 0, z: 0 },
+        },
+        { animate: true, duration: 500 },
+    );
 
     const endState = graph.getCameraState();
     assert.ok(endState.position);
 
     // State should have changed
-    const moved = (
+    const moved =
         Math.abs(endState.position.x - startState.position.x) > 0.1 ||
         Math.abs(endState.position.y - startState.position.y) > 0.1 ||
-        Math.abs(endState.position.z - startState.position.z) > 0.1
-    );
+        Math.abs(endState.position.z - startState.position.z) > 0.1;
     assert.ok(moved);
 });
 
-test("camera-state-changed event fires when state changes", async() => {
+test("camera-state-changed event fires when state changes", async () => {
     graph = await createTestGraph();
 
     let eventFired = false;
@@ -79,8 +81,8 @@ test("camera-state-changed event fires when state changes", async() => {
     });
 
     await graph.setCameraState({
-        position: {x: 20, y: 20, z: 20},
-        target: {x: 0, y: 0, z: 0},
+        position: { x: 20, y: 20, z: 20 },
+        target: { x: 0, y: 0, z: 0 },
     });
 
     assert.ok(eventFired);

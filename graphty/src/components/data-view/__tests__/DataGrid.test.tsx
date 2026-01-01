@@ -1,22 +1,22 @@
 import userEvent from "@testing-library/user-event";
-import {afterEach, beforeEach, describe, expect, it, type MockInstance, vi} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 
-import {render, screen, waitFor} from "../../../test/test-utils";
-import {DataGrid} from "../DataGrid";
+import { render, screen, waitFor } from "../../../test/test-utils";
+import { DataGrid } from "../DataGrid";
 
 describe("DataGrid", () => {
     it("renders JSON data in a grid format", () => {
-        render(<DataGrid data={{name: "test", value: 123}} />);
+        render(<DataGrid data={{ name: "test", value: 123 }} />);
         expect(screen.getByText("name")).toBeInTheDocument();
     });
 
     it("renders nested objects", () => {
-        render(<DataGrid data={{user: {profile: {name: "John"}}}} />);
+        render(<DataGrid data={{ user: { profile: { name: "John" } } }} />);
         expect(screen.getByText("user")).toBeInTheDocument();
     });
 
     it("renders arrays", () => {
-        render(<DataGrid data={[{id: 1}, {id: 2}]} />);
+        render(<DataGrid data={[{ id: 1 }, { id: 2 }]} />);
         // The library displays 1-based row indices
         expect(screen.getByText("id")).toBeInTheDocument();
         // Check that both rows are rendered
@@ -24,36 +24,29 @@ describe("DataGrid", () => {
         expect(screen.getAllByText("2").length).toBeGreaterThan(0);
     });
 
-    it("calls onSelect with keyPath when cell is clicked", async() => {
+    it("calls onSelect with keyPath when cell is clicked", async () => {
         const onSelect = vi.fn();
         const user = userEvent.setup();
-        render(<DataGrid data={{key: "value"}} onSelect={onSelect} />);
+        render(<DataGrid data={{ key: "value" }} onSelect={onSelect} />);
         await user.click(screen.getByText("value"));
         expect(onSelect).toHaveBeenCalled();
     });
 
     it("respects defaultExpandDepth prop", () => {
-        render(
-            <DataGrid
-                data={{level1: {level2: {level3: "deep"}}}}
-                defaultExpandDepth={1}
-            />,
-        );
+        render(<DataGrid data={{ level1: { level2: { level3: "deep" } } }} defaultExpandDepth={1} />);
         // level1 should be visible, but deeper content may be collapsed
         expect(screen.getByText("level1")).toBeInTheDocument();
     });
 
     it("highlights cells matching searchText", () => {
-        const {container} = render(
-            <DataGrid data={{name: "searchme"}} searchText="search" />,
-        );
+        const { container } = render(<DataGrid data={{ name: "searchme" }} searchText="search" />);
         // The library should apply highlight styling for search matches
         // We verify the searchText prop is passed through by checking the grid renders
         expect(container.querySelector("table")).toBeInTheDocument();
     });
 
     it("applies custom theme from mantineJsonGridTheme", () => {
-        const {container} = render(<DataGrid data={{test: "value"}} />);
+        const { container } = render(<DataGrid data={{ test: "value" }} />);
         // Verify the grid renders with our custom theme applied
         expect(container.querySelector("table")).toBeInTheDocument();
     });
@@ -69,9 +62,9 @@ describe("DataGrid", () => {
             vi.restoreAllMocks();
         });
 
-        it("shows copy button when showCopyButton is true and a cell is selected", async() => {
+        it("shows copy button when showCopyButton is true and a cell is selected", async () => {
             const user = userEvent.setup();
-            render(<DataGrid data={{name: "test"}} showCopyButton={true} />);
+            render(<DataGrid data={{ name: "test" }} showCopyButton={true} />);
 
             // Initially no copy button
             expect(screen.queryByLabelText("Copy value")).not.toBeInTheDocument();
@@ -85,9 +78,9 @@ describe("DataGrid", () => {
             });
         });
 
-        it("copy button has sticky positioning", async() => {
+        it("copy button has sticky positioning", async () => {
             const user = userEvent.setup();
-            const {container} = render(<DataGrid data={{name: "test"}} showCopyButton={true} />);
+            const { container } = render(<DataGrid data={{ name: "test" }} showCopyButton={true} />);
 
             // Click on a cell to select it
             await user.click(screen.getByText("test"));
@@ -102,9 +95,9 @@ describe("DataGrid", () => {
             expect(stickyContainer).toBeInTheDocument();
         });
 
-        it("copies value with Ctrl+C keyboard shortcut when cell is selected", async() => {
+        it("copies value with Ctrl+C keyboard shortcut when cell is selected", async () => {
             const user = userEvent.setup();
-            const {container} = render(<DataGrid data={{name: "test value"}} showCopyButton={true} />);
+            const { container } = render(<DataGrid data={{ name: "test value" }} showCopyButton={true} />);
 
             // Click on the cell to select it
             await user.click(screen.getByText("test value"));
@@ -127,9 +120,9 @@ describe("DataGrid", () => {
             });
         });
 
-        it("copies value with Cmd+C keyboard shortcut on Mac when cell is selected", async() => {
+        it("copies value with Cmd+C keyboard shortcut on Mac when cell is selected", async () => {
             const user = userEvent.setup();
-            const {container} = render(<DataGrid data={{count: 42}} showCopyButton={true} />);
+            const { container } = render(<DataGrid data={{ count: 42 }} showCopyButton={true} />);
 
             // Click on the cell to select it
             await user.click(screen.getByText("42"));
@@ -152,9 +145,9 @@ describe("DataGrid", () => {
             });
         });
 
-        it("does not trigger keyboard copy when no cell is selected", async() => {
+        it("does not trigger keyboard copy when no cell is selected", async () => {
             const user = userEvent.setup();
-            const {container} = render(<DataGrid data={{name: "test"}} showCopyButton={true} />);
+            const { container } = render(<DataGrid data={{ name: "test" }} showCopyButton={true} />);
 
             // Focus the container without selecting a cell
             const gridContainer = container.firstElementChild as HTMLElement;
@@ -167,9 +160,9 @@ describe("DataGrid", () => {
             expect(clipboardSpy).not.toHaveBeenCalled();
         });
 
-        it("shows feedback tooltip when keyboard shortcut is used", async() => {
+        it("shows feedback tooltip when keyboard shortcut is used", async () => {
             const user = userEvent.setup();
-            const {container} = render(<DataGrid data={{name: "test"}} showCopyButton={true} />);
+            const { container } = render(<DataGrid data={{ name: "test" }} showCopyButton={true} />);
 
             // Click on a cell to select it
             await user.click(screen.getByText("test"));

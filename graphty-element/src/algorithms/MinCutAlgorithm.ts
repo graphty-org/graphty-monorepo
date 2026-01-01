@@ -5,12 +5,12 @@
  * or the global minimum cut of a graph. Uses the max-flow min-cut theorem.
  */
 
-import {Graph as AlgorithmGraph, kargerMinCut, minSTCut, stoerWagner} from "@graphty/algorithms";
-import {z} from "zod/v4";
+import { Graph as AlgorithmGraph, kargerMinCut, minSTCut, stoerWagner } from "@graphty/algorithms";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig} from "../config";
-import {Algorithm} from "./Algorithm";
-import {type OptionsSchema} from "./types/OptionSchema";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import { Algorithm } from "./Algorithm";
+import { type OptionsSchema } from "./types/OptionSchema";
 
 /**
  * Zod-based options schema for Min Cut algorithm
@@ -129,14 +129,14 @@ export class MinCutAlgorithm extends Algorithm<MinCutOptions> {
     /**
      * Legacy options set via configure() for backward compatibility
      */
-    private legacyOptions: {source?: string, sink?: string, useGlobalMinCut?: boolean} | null = null;
+    private legacyOptions: { source?: string; sink?: string; useGlobalMinCut?: boolean } | null = null;
 
     static suggestedStyles = (): SuggestedStylesConfig => ({
         layers: [
             {
                 edge: {
                     selector: "",
-                    style: {enabled: true},
+                    style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.min-cut.inCut"],
                         output: "style.line.color",
@@ -150,7 +150,7 @@ export class MinCutAlgorithm extends Algorithm<MinCutOptions> {
             },
             {
                 edge: {
-                    selector: "algorithmResults.graphty.\"min-cut\".inCut == `false`",
+                    selector: 'algorithmResults.graphty."min-cut".inCut == `false`',
                     style: {
                         enabled: true,
                         line: {
@@ -166,7 +166,7 @@ export class MinCutAlgorithm extends Algorithm<MinCutOptions> {
             {
                 node: {
                     selector: "",
-                    style: {enabled: true},
+                    style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.min-cut.partition"],
                         output: "style.texture.color",
@@ -192,7 +192,7 @@ export class MinCutAlgorithm extends Algorithm<MinCutOptions> {
      * @returns This algorithm instance for chaining
      * @deprecated Use constructor options instead. This method is kept for backward compatibility.
      */
-    configure(options: {source?: string, sink?: string, useGlobalMinCut?: boolean}): this {
+    configure(options: { source?: string; sink?: string; useGlobalMinCut?: boolean }): this {
         this.legacyOptions = options;
         return this;
     }
@@ -214,7 +214,7 @@ export class MinCutAlgorithm extends Algorithm<MinCutOptions> {
         // Build weighted graph from edges - Map format for stoerWagner/kargerMinCut
         const weightedGraphMap = new Map<string, Map<string, number>>();
         // Also build AlgorithmGraph for minSTCut (which requires Graph type)
-        const weightedGraph = new AlgorithmGraph({directed: false});
+        const weightedGraph = new AlgorithmGraph({ directed: false });
 
         // Initialize nodes
         for (const node of nodes) {
@@ -254,12 +254,12 @@ export class MinCutAlgorithm extends Algorithm<MinCutOptions> {
         const useGlobalMinCut = this.legacyOptions?.useGlobalMinCut ?? this._schemaOptions.useGlobalMinCut;
         const sourceOption = this.legacyOptions?.source ?? this._schemaOptions.source;
         const sinkOption = this.legacyOptions?.sink ?? this._schemaOptions.sink;
-        const {useKarger, kargerIterations} = this._schemaOptions;
+        const { useKarger, kargerIterations } = this._schemaOptions;
 
         // Determine which algorithm to use
         let partition1: Set<string>;
         let partition2: Set<string>;
-        let cutEdges: {from: string, to: string, weight: number}[];
+        let cutEdges: { from: string; to: string; weight: number }[];
         let cutValue: number;
 
         if (useGlobalMinCut || (sourceOption === null && sinkOption === null)) {
@@ -267,19 +267,21 @@ export class MinCutAlgorithm extends Algorithm<MinCutOptions> {
             if (useKarger) {
                 // Use Karger's randomized algorithm (accepts Map)
                 const result = kargerMinCut(weightedGraphMap, kargerIterations);
-                ({partition1, partition2, cutEdges, cutValue} = result);
+                ({ partition1, partition2, cutEdges, cutValue } = result);
             } else {
                 // Use Stoer-Wagner for global minimum cut (accepts Map)
                 const result = stoerWagner(weightedGraphMap);
-                ({partition1, partition2, cutEdges, cutValue} = result);
+                ({ partition1, partition2, cutEdges, cutValue } = result);
             }
         } else {
             // Use min s-t cut via max flow (requires AlgorithmGraph)
-            const source = sourceOption !== null ? String(sourceOption) : String(Array.from(g.getDataManager().nodes.keys())[0]);
-            const sink = sinkOption !== null ? String(sinkOption) : String(Array.from(g.getDataManager().nodes.keys()).pop());
+            const source =
+                sourceOption !== null ? String(sourceOption) : String(Array.from(g.getDataManager().nodes.keys())[0]);
+            const sink =
+                sinkOption !== null ? String(sinkOption) : String(Array.from(g.getDataManager().nodes.keys()).pop());
 
             const result = minSTCut(weightedGraph, source, sink);
-            ({partition1, partition2, cutEdges, cutValue} = result);
+            ({ partition1, partition2, cutEdges, cutValue } = result);
         }
 
         // Create set of cut edge keys for fast lookup

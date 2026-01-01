@@ -1,9 +1,9 @@
-import {assert, beforeEach, describe, expect, it, vi} from "vitest";
+import { assert, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {Edge} from "../../src/Edge";
-import type {Graph} from "../../src/Graph";
-import {EventManager} from "../../src/managers/EventManager";
-import type {Node} from "../../src/Node";
+import type { Edge } from "../../src/Edge";
+import type { Graph } from "../../src/Graph";
+import { EventManager } from "../../src/managers/EventManager";
+import type { Node } from "../../src/Node";
 
 describe("EventManager", () => {
     let eventManager: EventManager;
@@ -13,7 +13,7 @@ describe("EventManager", () => {
     });
 
     describe("initialization", () => {
-        it("should initialize without errors", async() => {
+        it("should initialize without errors", async () => {
             await eventManager.init();
             assert.isNotNull(eventManager);
         });
@@ -88,7 +88,7 @@ describe("EventManager", () => {
 
             const mockGraph = {} as Graph;
             const error = new Error("Test error");
-            const details = {source: "other"};
+            const details = { source: "other" };
 
             eventManager.emitGraphError(mockGraph, error, "other", details);
 
@@ -154,7 +154,7 @@ describe("EventManager", () => {
         it("should emit custom graph events", () => {
             // Since we can't listen to custom events through the public API,
             // we'll test this functionality through the generic event mechanism
-            const detail = {customData: "other"};
+            const detail = { customData: "other" };
             eventManager.emitGraphEvent("custom-event", detail);
 
             // The test verifies the method doesn't throw
@@ -167,8 +167,8 @@ describe("EventManager", () => {
             const callback = vi.fn();
             const listenerId = eventManager.addListener("node-add-before", callback);
 
-            const mockNode = {id: "test-node"} as Node;
-            eventManager.emitNodeEvent("node-add-before", {node: mockNode});
+            const mockNode = { id: "test-node" } as Node;
+            eventManager.emitNodeEvent("node-add-before", { node: mockNode });
 
             assert.equal(callback.mock.calls.length, 1);
             const emittedEvent = callback.mock.calls[0][0];
@@ -182,8 +182,8 @@ describe("EventManager", () => {
             const callback = vi.fn();
             const listenerId = eventManager.addListener("node-update-after", callback);
 
-            const mockNode = {id: "test-node"} as Node;
-            eventManager.emitNodeEvent("node-update-after", {node: mockNode});
+            const mockNode = { id: "test-node" } as Node;
+            eventManager.emitNodeEvent("node-update-after", { node: mockNode });
 
             assert.equal(callback.mock.calls.length, 1);
             assert.equal(callback.mock.calls[0][0].type, "node-update-after");
@@ -197,8 +197,8 @@ describe("EventManager", () => {
             const callback = vi.fn();
             const listenerId = eventManager.addListener("edge-add-before", callback);
 
-            const mockEdge = {id: "test-edge"} as Edge;
-            eventManager.emitEdgeEvent("edge-add-before", {edge: mockEdge});
+            const mockEdge = { id: "test-edge" } as Edge;
+            eventManager.emitEdgeEvent("edge-add-before", { edge: mockEdge });
 
             assert.equal(callback.mock.calls.length, 1);
             const emittedEvent = callback.mock.calls[0][0];
@@ -212,8 +212,8 @@ describe("EventManager", () => {
             const callback = vi.fn();
             const listenerId = eventManager.addListener("edge-update-after", callback);
 
-            const mockEdge = {id: "test-edge"} as Edge;
-            eventManager.emitEdgeEvent("edge-update-after", {edge: mockEdge});
+            const mockEdge = { id: "test-edge" } as Edge;
+            eventManager.emitEdgeEvent("edge-update-after", { edge: mockEdge });
 
             assert.equal(callback.mock.calls.length, 1);
             assert.equal(callback.mock.calls[0][0].type, "edge-update-after");
@@ -247,8 +247,8 @@ describe("EventManager", () => {
             const id1 = eventManager.addListener("node-add-before", addCallback);
             const id2 = eventManager.addListener("node-update-after", updateCallback);
 
-            const mockNode = {id: "other"} as Node;
-            eventManager.emitNodeEvent("node-add-before", {node: mockNode});
+            const mockNode = { id: "other" } as Node;
+            eventManager.emitNodeEvent("node-add-before", { node: mockNode });
 
             assert.equal(addCallback.mock.calls.length, 1);
             assert.equal(updateCallback.mock.calls.length, 0);
@@ -272,7 +272,7 @@ describe("EventManager", () => {
     });
 
     describe("waitFor", () => {
-        it("should wait for specific event", async() => {
+        it("should wait for specific event", async () => {
             const promise = eventManager.waitFor("graph-settled", 1000);
 
             const mockGraph = {} as Graph;
@@ -284,7 +284,7 @@ describe("EventManager", () => {
             assert.equal(event.type, "graph-settled");
         });
 
-        it("should timeout when event doesn't occur", async() => {
+        it("should timeout when event doesn't occur", async () => {
             const promise = eventManager.waitFor("graph-settled", 100);
 
             await expect(promise).rejects.toThrow(/Timeout waiting for event/);
@@ -292,9 +292,9 @@ describe("EventManager", () => {
     });
 
     describe("error handling with retry", () => {
-        it("should retry failed operations", async() => {
+        it("should retry failed operations", async () => {
             let attempts = 0;
-            const operation = vi.fn().mockImplementation(async() => {
+            const operation = vi.fn().mockImplementation(async () => {
                 await new Promise((resolve) => setTimeout(resolve, 1));
                 attempts++;
                 if (attempts < 2) {
@@ -305,27 +305,20 @@ describe("EventManager", () => {
             });
 
             const mockGraph = {} as Graph;
-            const result = await eventManager.withRetry(
-                operation,
-                "other",
-                mockGraph,
-                {testDetail: "value"},
-            );
+            const result = await eventManager.withRetry(operation, "other", mockGraph, { testDetail: "value" });
 
             assert.equal(result, "success");
             assert.equal(operation.mock.calls.length, 2);
         });
 
-        it("should emit error events for each retry", async() => {
+        it("should emit error events for each retry", async () => {
             const errorCallback = vi.fn();
             const listenerId = eventManager.addListener("error", errorCallback);
 
             const operation = vi.fn().mockRejectedValue(new Error("Always fails"));
             const mockGraph = {} as Graph;
 
-            await expect(
-                eventManager.withRetry(operation, "other", mockGraph),
-            ).rejects.toThrow(/Always fails/);
+            await expect(eventManager.withRetry(operation, "other", mockGraph)).rejects.toThrow(/Always fails/);
 
             // Should emit error for each retry attempt (default 3)
             assert.equal(errorCallback.mock.calls.length, 3);
@@ -355,8 +348,8 @@ describe("EventManager", () => {
 
             // Try to emit events - callbacks should not fire
             eventManager.emitGraphSettled({} as Graph);
-            eventManager.emitNodeEvent("node-add-before", {node: {} as Node});
-            eventManager.emitEdgeEvent("edge-add-before", {edge: {} as Edge});
+            eventManager.emitNodeEvent("node-add-before", { node: {} as Node });
+            eventManager.emitEdgeEvent("edge-add-before", { edge: {} as Edge });
 
             assert.equal(callback1.mock.calls.length, 0);
             assert.equal(callback2.mock.calls.length, 0);

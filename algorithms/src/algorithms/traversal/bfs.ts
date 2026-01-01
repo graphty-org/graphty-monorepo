@@ -9,10 +9,4 @@
  */
 
 // Re-export unified implementations that automatically optimize for large graphs
-export {
-    breadthFirstSearch,
-    isBipartite,
-    shortestPathBFS,
-    singleSourceShortestPathBFS,
-} from "./bfs-unified.js";
-
+export { breadthFirstSearch, isBipartite, shortestPathBFS, singleSourceShortestPathBFS } from "./bfs-unified.js";

@@ -11,17 +11,14 @@ Graphty supports multiple data formats and loading methods. Data can be provided
 The simplest way to provide data via HTML attributes:
 
 ```html
-<graphty-element
-  node-data='[{"id": "a"}, {"id": "b"}]'
-  edge-data='[{"source": "a", "target": "b"}]'>
-</graphty-element>
+<graphty-element node-data='[{"id": "a"}, {"id": "b"}]' edge-data='[{"source": "a", "target": "b"}]'> </graphty-element>
 ```
 
 Or via JavaScript properties:
 
 ```typescript
-element.nodeData = [{ id: 'a' }, { id: 'b' }];
-element.edgeData = [{ source: 'a', target: 'b' }];
+element.nodeData = [{ id: "a" }, { id: "b" }];
+element.edgeData = [{ source: "a", target: "b" }];
 ```
 
 ## Loading from URL
@@ -29,20 +26,18 @@ element.edgeData = [{ source: 'a', target: 'b' }];
 Load graph data from a remote JSON file:
 
 ```typescript
-await graph.loadFromUrl('https://example.com/graph.json');
+await graph.loadFromUrl("https://example.com/graph.json");
 ```
 
 The JSON file should contain `nodes` and `edges` arrays:
 
 ```json
 {
-  "nodes": [
-    { "id": "node1", "label": "First" },
-    { "id": "node2", "label": "Second" }
-  ],
-  "edges": [
-    { "source": "node1", "target": "node2" }
-  ]
+    "nodes": [
+        { "id": "node1", "label": "First" },
+        { "id": "node2", "label": "Second" }
+    ],
+    "edges": [{ "source": "node1", "target": "node2" }]
 }
 ```
 
@@ -52,35 +47,33 @@ Load from a user-uploaded file:
 
 ```typescript
 const fileInput = document.querySelector('input[type="file"]');
-fileInput.addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  await graph.loadFromFile(file);
+fileInput.addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    await graph.loadFromFile(file);
 });
 ```
 
 ## Supported Formats
 
-| Format | Extension | Description |
-|--------|-----------|-------------|
-| JSON | `.json` | Native format with nodes/edges arrays |
-| GraphML | `.graphml` | XML-based graph format |
-| GEXF | `.gexf` | Gephi exchange format |
-| GML | `.gml` | Graph Modeling Language |
-| DOT | `.dot` | Graphviz format |
-| CSV | `.csv` | Comma-separated adjacency |
-| Pajek | `.net` | Pajek network format |
+| Format  | Extension  | Description                           |
+| ------- | ---------- | ------------------------------------- |
+| JSON    | `.json`    | Native format with nodes/edges arrays |
+| GraphML | `.graphml` | XML-based graph format                |
+| GEXF    | `.gexf`    | Gephi exchange format                 |
+| GML     | `.gml`     | Graph Modeling Language               |
+| DOT     | `.dot`     | Graphviz format                       |
+| CSV     | `.csv`     | Comma-separated adjacency             |
+| Pajek   | `.net`     | Pajek network format                  |
 
 ### JSON Format (Native)
 
 ```json
 {
-  "nodes": [
-    { "id": "a", "label": "Node A", "category": "type1" },
-    { "id": "b", "label": "Node B", "category": "type2" }
-  ],
-  "edges": [
-    { "source": "a", "target": "b", "weight": 1.5 }
-  ]
+    "nodes": [
+        { "id": "a", "label": "Node A", "category": "type1" },
+        { "id": "b", "label": "Node B", "category": "type2" }
+    ],
+    "edges": [{ "source": "a", "target": "b", "weight": 1.5 }]
 }
 ```
 
@@ -114,10 +107,10 @@ When your data uses different property names:
 
 ```typescript
 // Data uses 'nodeId', 'from', and 'to' instead of 'id', 'source', 'target'
-await graph.loadFromUrl('https://example.com/data.json', {
-  nodeIdPath: 'nodeId',
-  edgeSrcIdPath: 'from',
-  edgeDstIdPath: 'to'
+await graph.loadFromUrl("https://example.com/data.json", {
+    nodeIdPath: "nodeId",
+    edgeSrcIdPath: "from",
+    edgeDstIdPath: "to",
 });
 ```
 
@@ -125,13 +118,11 @@ Example data:
 
 ```json
 {
-  "nodes": [
-    { "nodeId": "a", "name": "First" },
-    { "nodeId": "b", "name": "Second" }
-  ],
-  "edges": [
-    { "from": "a", "to": "b" }
-  ]
+    "nodes": [
+        { "nodeId": "a", "name": "First" },
+        { "nodeId": "b", "name": "Second" }
+    ],
+    "edges": [{ "from": "a", "to": "b" }]
 }
 ```
 
@@ -141,14 +132,14 @@ Add data without replacing existing nodes:
 
 ```typescript
 // Initial load
-await graph.addNodes([{ id: 'a' }]);
+await graph.addNodes([{ id: "a" }]);
 await graph.addEdges([]);
 
 // Later, add more data
-await graph.addNodes([{ id: 'b' }, { id: 'c' }]);
+await graph.addNodes([{ id: "b" }, { id: "c" }]);
 await graph.addEdges([
-  { source: 'a', target: 'b' },
-  { source: 'b', target: 'c' }
+    { source: "a", target: "b" },
+    { source: "b", target: "c" },
 ]);
 ```
 
@@ -166,9 +157,13 @@ Graphty validates data using Zod schemas. Invalid data will throw descriptive er
 
 ```typescript
 try {
-  await graph.addNodes([{ /* missing id */ }]);
+    await graph.addNodes([
+        {
+            /* missing id */
+        },
+    ]);
 } catch (error) {
-  console.error('Invalid node data:', error.message);
+    console.error("Invalid node data:", error.message);
 }
 ```
 
@@ -178,13 +173,13 @@ Nodes require an `id` property. All other properties are optional:
 
 ```typescript
 interface NodeData {
-  id: string | number;      // Required, unique identifier
-  label?: string;           // Display label
-  category?: string;        // For styling/grouping
-  x?: number;               // Position (for fixed layout)
-  y?: number;
-  z?: number;
-  [key: string]: any;       // Any additional properties
+    id: string | number; // Required, unique identifier
+    label?: string; // Display label
+    category?: string; // For styling/grouping
+    x?: number; // Position (for fixed layout)
+    y?: number;
+    z?: number;
+    [key: string]: any; // Any additional properties
 }
 ```
 
@@ -194,12 +189,12 @@ Edges require `source` and `target` properties:
 
 ```typescript
 interface EdgeData {
-  source: string | number;  // Source node ID
-  target: string | number;  // Target node ID
-  id?: string;              // Optional unique identifier
-  weight?: number;          // Edge weight
-  label?: string;           // Display label
-  [key: string]: any;       // Any additional properties
+    source: string | number; // Source node ID
+    target: string | number; // Target node ID
+    id?: string; // Optional unique identifier
+    weight?: number; // Edge weight
+    label?: string; // Display label
+    [key: string]: any; // Any additional properties
 }
 ```
 
@@ -214,7 +209,7 @@ interface EdgeData {
 // Load in batches
 const BATCH_SIZE = 1000;
 for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
-  await graph.addNodes(nodes.slice(i, i + BATCH_SIZE));
+    await graph.addNodes(nodes.slice(i, i + BATCH_SIZE));
 }
 ```
 

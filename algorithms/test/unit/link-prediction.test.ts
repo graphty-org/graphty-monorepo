@@ -1,6 +1,6 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {Graph} from "../../src/core/graph.js";
+import { Graph } from "../../src/core/graph.js";
 import {
     adamicAdarForPairs,
     adamicAdarPrediction,
@@ -44,13 +44,13 @@ describe("Link Prediction Algorithms", () => {
             });
 
             it("should handle directed graphs", () => {
-                const graph = new Graph({directed: true});
+                const graph = new Graph({ directed: true });
                 graph.addEdge("a", "x");
                 graph.addEdge("a", "y");
                 graph.addEdge("x", "b");
                 graph.addEdge("y", "b");
 
-                const score = commonNeighborsScore(graph, "a", "b", {directed: true});
+                const score = commonNeighborsScore(graph, "a", "b", { directed: true });
 
                 expect(score).toBe(2); // a->x->b and a->y->b
             });
@@ -65,7 +65,7 @@ describe("Link Prediction Algorithms", () => {
             });
 
             it("should handle self-loops", () => {
-                const graph = new Graph({allowSelfLoops: true});
+                const graph = new Graph({ allowSelfLoops: true });
                 graph.addEdge("a", "a");
                 graph.addEdge("a", "x");
                 graph.addEdge("b", "x");
@@ -86,9 +86,8 @@ describe("Link Prediction Algorithms", () => {
                 const predictions = commonNeighborsPrediction(graph);
 
                 // Should find prediction for a-b (common neighbor x)
-                const abPrediction = predictions.find((p) =>
-                    (p.source === "a" && p.target === "b") ||
-                    (p.source === "b" && p.target === "a"),
+                const abPrediction = predictions.find(
+                    (p) => (p.source === "a" && p.target === "b") || (p.source === "b" && p.target === "a"),
                 );
                 expect(abPrediction).toBeTruthy();
                 expect(abPrediction!.score).toBe(1);
@@ -103,9 +102,8 @@ describe("Link Prediction Algorithms", () => {
                 const predictions = commonNeighborsPrediction(graph);
 
                 // Should not predict a-b since it already exists
-                const abPrediction = predictions.find((p) =>
-                    (p.source === "a" && p.target === "b") ||
-                    (p.source === "b" && p.target === "a"),
+                const abPrediction = predictions.find(
+                    (p) => (p.source === "a" && p.target === "b") || (p.source === "b" && p.target === "a"),
                 );
                 expect(abPrediction).toBeFalsy();
             });
@@ -116,11 +114,10 @@ describe("Link Prediction Algorithms", () => {
                 graph.addEdge("a", "x");
                 graph.addEdge("b", "x");
 
-                const predictions = commonNeighborsPrediction(graph, {includeExisting: true});
+                const predictions = commonNeighborsPrediction(graph, { includeExisting: true });
 
-                const abPrediction = predictions.find((p) =>
-                    (p.source === "a" && p.target === "b") ||
-                    (p.source === "b" && p.target === "a"),
+                const abPrediction = predictions.find(
+                    (p) => (p.source === "a" && p.target === "b") || (p.source === "b" && p.target === "a"),
                 );
                 expect(abPrediction).toBeTruthy();
             });
@@ -133,7 +130,7 @@ describe("Link Prediction Algorithms", () => {
                 graph.addEdge("c", "y");
                 graph.addEdge("d", "y");
 
-                const predictions = commonNeighborsPrediction(graph, {topK: 1});
+                const predictions = commonNeighborsPrediction(graph, { topK: 1 });
 
                 expect(predictions).toHaveLength(1);
             });
@@ -180,7 +177,7 @@ describe("Link Prediction Algorithms", () => {
                 graph.addEdge("c", "x");
                 graph.addEdge("d", "x");
 
-                const candidates = getTopCandidatesForNode(graph, "a", {topK: 2});
+                const candidates = getTopCandidatesForNode(graph, "a", { topK: 2 });
 
                 expect(candidates).toHaveLength(2);
             });
@@ -213,7 +210,7 @@ describe("Link Prediction Algorithms", () => {
                 expect(score).toBeGreaterThan(0);
                 // x has degree 4, y has degree 2
                 // Score = 1/log(4) + 1/log(2)
-                const expectedScore = (1 / Math.log(4)) + (1 / Math.log(2));
+                const expectedScore = 1 / Math.log(4) + 1 / Math.log(2);
                 expect(score).toBeCloseTo(expectedScore, 5);
             });
 
@@ -240,13 +237,13 @@ describe("Link Prediction Algorithms", () => {
             });
 
             it("should handle directed graphs", () => {
-                const graph = new Graph({directed: true});
+                const graph = new Graph({ directed: true });
                 graph.addEdge("a", "x");
                 graph.addEdge("x", "b");
                 graph.addEdge("a", "y");
                 graph.addEdge("y", "b");
 
-                const score = adamicAdarScore(graph, "a", "b", {directed: true});
+                const score = adamicAdarScore(graph, "a", "b", { directed: true });
 
                 expect(score).toBeGreaterThan(0);
             });
@@ -282,9 +279,8 @@ describe("Link Prediction Algorithms", () => {
 
                 const predictions = adamicAdarPrediction(graph);
 
-                const abPrediction = predictions.find((p) =>
-                    (p.source === "a" && p.target === "b") ||
-                    (p.source === "b" && p.target === "a"),
+                const abPrediction = predictions.find(
+                    (p) => (p.source === "a" && p.target === "b") || (p.source === "b" && p.target === "a"),
                 );
                 expect(abPrediction).toBeTruthy();
                 expect(abPrediction!.score).toBeGreaterThan(0);
@@ -388,10 +384,16 @@ describe("Link Prediction Algorithms", () => {
             graph.addEdge("c", "x");
 
             // Define test edges (edges that should be predicted)
-            const testEdges: Array<[string, string]> = [["a", "b"], ["c", "y"]];
+            const testEdges: Array<[string, string]> = [
+                ["a", "b"],
+                ["c", "y"],
+            ];
 
             // Define non-edges (edges that should not be predicted)
-            const nonEdges: Array<[string, string]> = [["a", "c"], ["b", "c"]];
+            const nonEdges: Array<[string, string]> = [
+                ["a", "c"],
+                ["b", "c"],
+            ];
 
             const evaluation = evaluateAdamicAdar(graph, testEdges, nonEdges);
 
@@ -411,7 +413,10 @@ describe("Link Prediction Algorithms", () => {
             graph.addEdge("b", "common");
 
             const testEdges: Array<[string, string]> = [["a", "b"]];
-            const nonEdges: Array<[string, string]> = [["a", "isolated"], ["b", "isolated"]];
+            const nonEdges: Array<[string, string]> = [
+                ["a", "isolated"],
+                ["b", "isolated"],
+            ];
 
             const evaluation = evaluateAdamicAdar(graph, testEdges, nonEdges);
 
@@ -430,7 +435,10 @@ describe("Link Prediction Algorithms", () => {
             graph.addEdge("b", "y");
 
             const testEdges: Array<[string, string]> = [["a", "b"]];
-            const nonEdges: Array<[string, string]> = [["a", "c"], ["b", "c"]];
+            const nonEdges: Array<[string, string]> = [
+                ["a", "c"],
+                ["b", "c"],
+            ];
 
             const evaluation = evaluateCommonNeighbors(graph, testEdges, nonEdges);
 
@@ -453,7 +461,10 @@ describe("Link Prediction Algorithms", () => {
             }
 
             const testEdges: Array<[string, string]> = [["a", "b"]];
-            const nonEdges: Array<[string, string]> = [["a", "node1"], ["b", "node2"]];
+            const nonEdges: Array<[string, string]> = [
+                ["a", "node1"],
+                ["b", "node2"],
+            ];
 
             const comparison = compareAdamicAdarWithCommonNeighbors(graph, testEdges, nonEdges);
 
@@ -494,12 +505,12 @@ describe("Link Prediction Algorithms", () => {
         });
 
         it("should handle directed graph option", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "x");
             graph.addEdge("x", "b");
 
             const pairs: Array<[string, string]> = [["a", "b"]];
-            const scores = adamicAdarForPairs(graph, pairs, {directed: true});
+            const scores = adamicAdarForPairs(graph, pairs, { directed: true });
 
             expect(scores[0].score).toBeGreaterThan(0);
         });
@@ -513,7 +524,10 @@ describe("Link Prediction Algorithms", () => {
             graph.addEdge("a", "y");
             graph.addEdge("b", "y");
 
-            const pairs: Array<[string, string]> = [["a", "b"], ["a", "c"]];
+            const pairs: Array<[string, string]> = [
+                ["a", "b"],
+                ["a", "c"],
+            ];
             const scores = commonNeighborsForPairs(graph, pairs);
 
             expect(scores).toHaveLength(2);
@@ -554,14 +568,16 @@ describe("Link Prediction Algorithms", () => {
             const cnPredictions = commonNeighborsPrediction(graph);
 
             // Should find predictions within each component
-            expect(cnPredictions.some((p) =>
-                (p.source === "a" && p.target === "b") ||
-                (p.source === "b" && p.target === "a"),
-            )).toBe(true);
-            expect(cnPredictions.some((p) =>
-                (p.source === "c" && p.target === "d") ||
-                (p.source === "d" && p.target === "c"),
-            )).toBe(true);
+            expect(
+                cnPredictions.some(
+                    (p) => (p.source === "a" && p.target === "b") || (p.source === "b" && p.target === "a"),
+                ),
+            ).toBe(true);
+            expect(
+                cnPredictions.some(
+                    (p) => (p.source === "c" && p.target === "d") || (p.source === "d" && p.target === "c"),
+                ),
+            ).toBe(true);
         });
 
         it("should handle complete graph", () => {
@@ -580,7 +596,7 @@ describe("Link Prediction Algorithms", () => {
             expect(cnPredictions).toHaveLength(0);
 
             // With includeExisting, should find all edges
-            const cnWithExisting = commonNeighborsPrediction(graph, {includeExisting: true});
+            const cnWithExisting = commonNeighborsPrediction(graph, { includeExisting: true });
             expect(cnWithExisting.length).toBeGreaterThan(0);
         });
     });
@@ -599,7 +615,7 @@ describe("Link Prediction Algorithms", () => {
             }
 
             const start = Date.now();
-            const cnPredictions = commonNeighborsPrediction(graph, {topK: 50});
+            const cnPredictions = commonNeighborsPrediction(graph, { topK: 50 });
             const duration = Date.now() - start;
 
             expect(duration).toBeLessThan(5000); // Should complete within 5 seconds

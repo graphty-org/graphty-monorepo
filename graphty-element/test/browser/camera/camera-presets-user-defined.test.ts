@@ -1,13 +1,13 @@
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test} from "vitest";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test } from "vitest";
 
-import {Graph} from "../../../src/Graph.js";
+import { Graph } from "../../../src/Graph.js";
 
 describe("Camera Presets - User Defined", () => {
     let graph: Graph;
     let container: HTMLElement;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Create a container element
         container = document.createElement("div");
         container.id = "test-container-user";
@@ -27,16 +27,16 @@ describe("Camera Presets - User Defined", () => {
         document.body.removeChild(container);
     });
 
-    test("saveCameraPreset stores current camera state", async() => {
-        await graph.setCameraPosition({x: 75, y: 75, z: 75});
-        await graph.setCameraTarget({x: 10, y: 10, z: 10});
+    test("saveCameraPreset stores current camera state", async () => {
+        await graph.setCameraPosition({ x: 75, y: 75, z: 75 });
+        await graph.setCameraTarget({ x: 10, y: 10, z: 10 });
 
         graph.saveCameraPreset("myView");
 
         const presets = graph.getCameraPresets();
         assert.ok(presets.myView);
 
-        const {myView} = presets;
+        const { myView } = presets;
         assert.ok(typeof myView === "object" && "position" in myView);
 
         if ("position" in myView && myView.position) {
@@ -52,15 +52,15 @@ describe("Camera Presets - User Defined", () => {
         }
     });
 
-    test("loadCameraPreset applies saved camera state", async() => {
-        await graph.setCameraPosition({x: 100, y: 100, z: 100});
+    test("loadCameraPreset applies saved camera state", async () => {
+        await graph.setCameraPosition({ x: 100, y: 100, z: 100 });
         graph.saveCameraPreset("customView");
 
         // Move camera somewhere else
-        await graph.setCameraPosition({x: 0, y: 0, z: 10});
+        await graph.setCameraPosition({ x: 0, y: 0, z: 10 });
 
         // Load preset
-        await graph.loadCameraPreset("customView", {animate: false});
+        await graph.loadCameraPreset("customView", { animate: false });
 
         const state = graph.getCameraState();
         assert.ok(state.position);
@@ -80,11 +80,11 @@ describe("Camera Presets - User Defined", () => {
         }
     });
 
-    test("exportCameraPresets returns JSON of user-defined presets", async() => {
-        await graph.setCameraPosition({x: 50, y: 50, z: 50});
+    test("exportCameraPresets returns JSON of user-defined presets", async () => {
+        await graph.setCameraPosition({ x: 50, y: 50, z: 50 });
         graph.saveCameraPreset("view1");
 
-        await graph.setCameraPosition({x: 100, y: 100, z: 100});
+        await graph.setCameraPosition({ x: 100, y: 100, z: 100 });
         graph.saveCameraPreset("view2");
 
         const exported = graph.exportCameraPresets();
@@ -110,13 +110,13 @@ describe("Camera Presets - User Defined", () => {
         const presetsJSON = {
             view1: {
                 type: "arcRotate" as const,
-                position: {x: 30, y: 30, z: 30},
-                target: {x: 0, y: 0, z: 0},
+                position: { x: 30, y: 30, z: 30 },
+                target: { x: 0, y: 0, z: 0 },
             },
             view2: {
                 type: "arcRotate" as const,
-                position: {x: 60, y: 60, z: 60},
-                target: {x: 0, y: 0, z: 0},
+                position: { x: 60, y: 60, z: 60 },
+                target: { x: 0, y: 0, z: 0 },
             },
         };
 
@@ -126,7 +126,7 @@ describe("Camera Presets - User Defined", () => {
         assert.ok(presets.view1);
         assert.ok(presets.view2);
 
-        const {view1} = presets;
+        const { view1 } = presets;
         assert.ok(typeof view1 === "object" && "position" in view1);
 
         if ("position" in view1 && view1.position) {
@@ -136,8 +136,8 @@ describe("Camera Presets - User Defined", () => {
         }
     });
 
-    test("getCameraPresets returns both built-in and user-defined presets", async() => {
-        await graph.setCameraPosition({x: 50, y: 50, z: 50});
+    test("getCameraPresets returns both built-in and user-defined presets", async () => {
+        await graph.setCameraPosition({ x: 50, y: 50, z: 50 });
         graph.saveCameraPreset("myCustomView");
 
         const presets = graph.getCameraPresets();
@@ -151,14 +151,11 @@ describe("Camera Presets - User Defined", () => {
 
         // User-defined presets should have full state
         assert.ok(presets.myCustomView);
-        const {myCustomView} = presets;
-        assert.ok(
-            typeof myCustomView === "object" &&
-        "position" in myCustomView,
-        );
+        const { myCustomView } = presets;
+        assert.ok(typeof myCustomView === "object" && "position" in myCustomView);
     });
 
-    test("loading unknown preset throws error", async() => {
+    test("loading unknown preset throws error", async () => {
         try {
             await graph.loadCameraPreset("nonExistentPreset");
             assert.fail("Should have thrown an error");

@@ -13,7 +13,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
 // Physics-based layouts that require seeds for deterministic results
 const PHYSICS_LAYOUTS = ["ngraph", "d3", "forceatlas2", "spring", "random"];
@@ -28,7 +28,7 @@ function getStoryFiles(): string[] {
     const storyFiles: string[] = [];
 
     function walkDir(dir: string): void {
-        const entries = fs.readdirSync(dir, {withFileTypes: true});
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
         for (const entry of entries) {
             const fullPath = path.join(dir, entry.name);
             if (entry.isDirectory()) {
@@ -130,7 +130,8 @@ function checkFileForDeterminismIssues(filePath: string): DeterminismIssue[] {
 
         // Check for seed in layoutConfig or aliased args
         // Storybook argTypes can map args like "randomSeed" or "ngraphSeed" to "graph.layoutOptions.seed"
-        const hasSeed = /layoutConfig:\s*\{[^}]*seed:\s*\d+/s.test(storyBlock) ||
+        const hasSeed =
+            /layoutConfig:\s*\{[^}]*seed:\s*\d+/s.test(storyBlock) ||
             /styleTemplate.*seed:\s*\d+/s.test(storyBlock) ||
             /layoutOptions:\s*\{[^}]*seed:\s*\d+/s.test(storyBlock) ||
             // Check for aliased seed args like ngraphSeed, randomSeed, springSeed, fa2Seed, d3Seed
@@ -152,7 +153,8 @@ function checkFileForDeterminismIssues(filePath: string): DeterminismIssue[] {
 
         // Check for preSteps in behavior.layout
         // templateCreator includes default preSteps, so stories using it are covered
-        const hasPreSteps = /preSteps:\s*\d+/.test(storyBlock) ||
+        const hasPreSteps =
+            /preSteps:\s*\d+/.test(storyBlock) ||
             /preSteps:\s*isChromatic/.test(storyBlock) ||
             /templateCreator\s*\(/.test(storyBlock);
 
@@ -190,22 +192,20 @@ describe("Story Determinism", () => {
 
         for (const file of storyFiles) {
             const issues = checkFileForDeterminismIssues(file);
-            allIssues.push(... issues);
+            allIssues.push(...issues);
         }
 
         // Filter to only errors for the assertion
         const errors = allIssues.filter((issue) => issue.severity === "error");
 
         if (errors.length > 0) {
-            const errorMessages = errors.map(
-                (issue) => `\n  ${issue.file}:${issue.line}\n    ${issue.issue}`,
-            );
+            const errorMessages = errors.map((issue) => `\n  ${issue.file}:${issue.line}\n    ${issue.issue}`);
             assert.fail(
                 `Found ${errors.length} determinism error(s) in stories:${errorMessages.join("")}\n\n` +
-                "To fix these issues:\n" +
-                "1. Replace Math.random() with a seeded RNG (e.g., seededRandom(42))\n" +
-                "2. Add 'seed: 42' to layoutConfig for physics-based layouts\n" +
-                "3. See stories/Layout.stories.ts for examples of correct patterns",
+                    "To fix these issues:\n" +
+                    "1. Replace Math.random() with a seeded RNG (e.g., seededRandom(42))\n" +
+                    "2. Add 'seed: 42' to layoutConfig for physics-based layouts\n" +
+                    "3. See stories/Layout.stories.ts for examples of correct patterns",
             );
         }
 

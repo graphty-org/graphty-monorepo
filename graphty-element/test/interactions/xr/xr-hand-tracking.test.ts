@@ -10,13 +10,13 @@
  * - Two-hand gestures work with hands
  */
 
-import {Quaternion, Vector3} from "@babylonjs/core";
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test, vi} from "vitest";
+import { Quaternion, Vector3 } from "@babylonjs/core";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import {PivotController} from "../../../src/cameras/PivotController";
-import type {Graph} from "../../../src/Graph";
-import {cleanupTestGraph, createTestGraph} from "../../helpers/testSetup";
+import { PivotController } from "../../../src/cameras/PivotController";
+import type { Graph } from "../../../src/Graph";
+import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
 
 /**
  * Mock hand joint positions for testing
@@ -54,10 +54,7 @@ function calculatePinchDistance(joints: MockHandJoints): number {
 /**
  * Determine if hand is pinching with hysteresis
  */
-function isPinchingWithHysteresis(
-    pinchDistance: number,
-    wasPinching: boolean,
-): boolean {
+function isPinchingWithHysteresis(pinchDistance: number, wasPinching: boolean): boolean {
     if (wasPinching) {
         // Already pinching - use looser threshold to release
         return pinchDistance < PINCH_RELEASE_THRESHOLD;
@@ -71,7 +68,7 @@ function isPinchingWithHysteresis(
  * Calculate pinch strength (0-1) based on distance
  */
 function calculatePinchStrength(pinchDistance: number): number {
-    return Math.max(0, 1 - (pinchDistance / PINCH_THRESHOLD));
+    return Math.max(0, 1 - pinchDistance / PINCH_THRESHOLD);
 }
 
 /**
@@ -81,7 +78,7 @@ class MockHandTrackingProcessor {
     private pivotController: PivotController;
 
     // Track previous pinch state for hysteresis
-    public wasPinching: Record<string, boolean> = {left: false, right: false};
+    public wasPinching: Record<string, boolean> = { left: false, right: false };
 
     // Current hand states
     public leftHand: MockTrackedHand | null = null;
@@ -100,19 +97,12 @@ class MockHandTrackingProcessor {
     /**
      * Create a hand with specified joint positions
      */
-    createHand(
-        handedness: "left" | "right",
-        wristPos: Vector3,
-        pinchDistance: number,
-    ): MockTrackedHand {
+    createHand(handedness: "left" | "right", wristPos: Vector3, pinchDistance: number): MockTrackedHand {
         // Position thumb and index based on pinch distance
         const thumbTip = wristPos.add(new Vector3(0, 0, -0.1));
         const indexTip = thumbTip.add(new Vector3(pinchDistance, 0, 0));
 
-        const isPinching = isPinchingWithHysteresis(
-            pinchDistance,
-            this.wasPinching[handedness],
-        );
+        const isPinching = isPinchingWithHysteresis(pinchDistance, this.wasPinching[handedness]);
 
         // Update hysteresis state
         this.wasPinching[handedness] = isPinching;
@@ -152,7 +142,7 @@ class MockHandTrackingProcessor {
 
         // Zoom from distance change
         const distanceDelta = currentDistance - this.previousDistance;
-        const zoomFactor = 1.0 + (distanceDelta * this.GESTURE_ZOOM_SENSITIVITY);
+        const zoomFactor = 1.0 + distanceDelta * this.GESTURE_ZOOM_SENSITIVITY;
         this.pivotController.zoom(2.0 - Math.max(0.9, Math.min(1.1, zoomFactor)));
 
         // Rotation from direction change
@@ -181,7 +171,7 @@ class MockHandTrackingProcessor {
      * Reset hysteresis state (for testing state transitions)
      */
     resetHysteresisState(): void {
-        this.wasPinching = {left: false, right: false};
+        this.wasPinching = { left: false, right: false };
     }
 }
 
@@ -195,10 +185,10 @@ function getPivotScale(pivot: PivotController): number {
 /**
  * Helper to get pivot rotation as Euler angles
  */
-function getPivotEuler(pivot: PivotController): {x: number, y: number, z: number} {
+function getPivotEuler(pivot: PivotController): { x: number; y: number; z: number } {
     const quat = pivot.pivot.rotationQuaternion ?? Quaternion.Identity();
     const euler = quat.toEulerAngles();
-    return {x: euler.x, y: euler.y, z: euler.z};
+    return { x: euler.x, y: euler.y, z: euler.z };
 }
 
 describe("XR Hand Tracking", () => {
@@ -206,7 +196,7 @@ describe("XR Hand Tracking", () => {
     let pivotController: PivotController;
     let processor: MockHandTrackingProcessor;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         graph = await createTestGraph();
         pivotController = new PivotController(graph.scene);
         processor = new MockHandTrackingProcessor(pivotController);
@@ -410,16 +400,8 @@ describe("XR Hand Tracking", () => {
             const steps = 5;
             for (let i = 1; i <= steps; i++) {
                 const offset = i * 0.05;
-                processor.leftHand = processor.createHand(
-                    "left",
-                    new Vector3(-0.2 - offset, 1.0, -0.5),
-                    0.02,
-                );
-                processor.rightHand = processor.createHand(
-                    "right",
-                    new Vector3(0.2 + offset, 1.0, -0.5),
-                    0.02,
-                );
+                processor.leftHand = processor.createHand("left", new Vector3(-0.2 - offset, 1.0, -0.5), 0.02);
+                processor.rightHand = processor.createHand("right", new Vector3(0.2 + offset, 1.0, -0.5), 0.02);
                 processor.processHandGestures();
             }
 
@@ -441,24 +423,16 @@ describe("XR Hand Tracking", () => {
                 const isPinching = i % 2 === 0;
                 const distance = isPinching ? 0.02 : 0.08;
 
-                processor.leftHand = processor.createHand(
-                    "left",
-                    new Vector3(-0.2, 1.0, -0.5),
-                    distance,
-                );
-                processor.rightHand = processor.createHand(
-                    "right",
-                    new Vector3(0.2, 1.0, -0.5),
-                    distance,
-                );
+                processor.leftHand = processor.createHand("left", new Vector3(-0.2, 1.0, -0.5), distance);
+                processor.rightHand = processor.createHand("right", new Vector3(0.2, 1.0, -0.5), distance);
 
                 processor.processHandGestures();
                 scales.push(getPivotScale(pivotController));
             }
 
             // Scale should not vary wildly
-            const maxScale = Math.max(... scales);
-            const minScale = Math.min(... scales);
+            const maxScale = Math.max(...scales);
+            const minScale = Math.min(...scales);
             const range = maxScale - minScale;
 
             // Range should be reasonable (not erratic)

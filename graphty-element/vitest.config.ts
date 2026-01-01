@@ -1,11 +1,10 @@
 import path from "node:path";
-import {fileURLToPath} from "node:url";
+import { fileURLToPath } from "node:url";
 
-import {storybookTest} from "@storybook/addon-vitest/vitest-plugin";
-import {defineConfig} from "vitest/config";
+import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+import { defineConfig } from "vitest/config";
 
-const dirname =
-  typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
+const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
     test: {
@@ -14,11 +13,7 @@ export default defineConfig({
                 test: {
                     name: "default",
                     setupFiles: ["./test/setup.ts"],
-                    include: [
-                        "test/**/*.test.ts",
-                        "test/unit/**/*.test.ts",
-                        "test/integration/**/*.test.ts",
-                    ],
+                    include: ["test/**/*.test.ts", "test/unit/**/*.test.ts", "test/integration/**/*.test.ts"],
                     exclude: [
                         // These tests require DOM APIs and should run in browser environment
                         "test/managers/DataManager.test.ts",
@@ -98,7 +93,7 @@ export default defineConfig({
                         enabled: true,
                         headless: true,
                         provider: "playwright",
-                        instances: [{browser: "chromium"}],
+                        instances: [{ browser: "chromium" }],
                         // Disable file parallelism to prevent route.fulfill errors
                         // when browser contexts are garbage collected during parallel execution
                         fileParallelism: false,
@@ -125,7 +120,7 @@ export default defineConfig({
                         enabled: true,
                         headless: true,
                         provider: "playwright",
-                        instances: [{browser: "chromium"}],
+                        instances: [{ browser: "chromium" }],
                         // Disable file parallelism to prevent race conditions and flaky tests
                         fileParallelism: false,
                     },
@@ -167,7 +162,7 @@ export default defineConfig({
                         enabled: true,
                         headless: true,
                         provider: "playwright",
-                        instances: [{browser: "chromium"}],
+                        instances: [{ browser: "chromium" }],
                         // Disable file parallelism to prevent route.fulfill errors
                         // when browser contexts are garbage collected during parallel execution
                         fileParallelism: false,

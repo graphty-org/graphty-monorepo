@@ -1,11 +1,7 @@
-import {useCallback, useEffect, useRef, useState} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import {type ApiKeyManagerType, getApiKeyManager, type ProviderType} from "../types/ai";
-import {
-    DEFAULT_ENCRYPTION_PASSWORD,
-    DEFAULT_KEY_PREFIX,
-    ENCRYPTION_KEY_STORAGE,
-} from "../utils/ai-storage";
+import { type ApiKeyManagerType, getApiKeyManager, type ProviderType } from "../types/ai";
+import { DEFAULT_ENCRYPTION_PASSWORD, DEFAULT_KEY_PREFIX, ENCRYPTION_KEY_STORAGE } from "../utils/ai-storage";
 
 export interface UseAiKeyStorageOptions {
     /** Whether to enable persistence (default: false, session-only) */
@@ -48,6 +44,8 @@ export interface UseAiKeyStorageResult {
 /**
  * React hook for managing AI provider API keys.
  * Wraps the ApiKeyManager from graphty-element with React state management.
+ * @param options - Configuration options for key storage
+ * @returns Methods and state for managing AI provider API keys
  */
 export function useAiKeyStorage(options: UseAiKeyStorageOptions = {}): UseAiKeyStorageResult {
     const {
@@ -157,15 +155,21 @@ export function useAiKeyStorage(options: UseAiKeyStorageOptions = {}): UseAiKeyS
         return keyManagerRef.current?.getKey(provider);
     }, []);
 
-    const setKey = useCallback((provider: ProviderType, key: string) => {
-        keyManagerRef.current?.setKey(provider, key);
-        refreshProviders();
-    }, [refreshProviders]);
+    const setKey = useCallback(
+        (provider: ProviderType, key: string) => {
+            keyManagerRef.current?.setKey(provider, key);
+            refreshProviders();
+        },
+        [refreshProviders],
+    );
 
-    const removeKey = useCallback((provider: ProviderType) => {
-        keyManagerRef.current?.removeKey(provider);
-        refreshProviders();
-    }, [refreshProviders]);
+    const removeKey = useCallback(
+        (provider: ProviderType) => {
+            keyManagerRef.current?.removeKey(provider);
+            refreshProviders();
+        },
+        [refreshProviders],
+    );
 
     const hasKey = useCallback((provider: ProviderType) => {
         return keyManagerRef.current?.hasKey(provider) ?? false;
@@ -176,36 +180,42 @@ export function useAiKeyStorage(options: UseAiKeyStorageOptions = {}): UseAiKeyS
         refreshProviders();
     }, [refreshProviders]);
 
-    const enablePersistence = useCallback((encryptionKey?: string) => {
-        // Use default password if none provided or empty
-        const trimmedKey = encryptionKey?.trim();
-        const effectiveKey = (trimmedKey && trimmedKey.length > 0) ? trimmedKey : DEFAULT_ENCRYPTION_PASSWORD;
-        const isUsingDefaultPassword = effectiveKey === DEFAULT_ENCRYPTION_PASSWORD;
+    const enablePersistence = useCallback(
+        (encryptionKey?: string) => {
+            // Use default password if none provided or empty
+            const trimmedKey = encryptionKey?.trim();
+            const effectiveKey = trimmedKey && trimmedKey.length > 0 ? trimmedKey : DEFAULT_ENCRYPTION_PASSWORD;
+            const isUsingDefaultPassword = effectiveKey === DEFAULT_ENCRYPTION_PASSWORD;
 
-        keyManagerRef.current?.enablePersistence({
-            encryptionKey: effectiveKey,
-            storage,
-            prefix,
-        });
+            keyManagerRef.current?.enablePersistence({
+                encryptionKey: effectiveKey,
+                storage,
+                prefix,
+            });
 
-        // Only store custom password in session; default password doesn't need storage
-        if (isUsingDefaultPassword) {
+            // Only store custom password in session; default password doesn't need storage
+            if (isUsingDefaultPassword) {
+                sessionStorage.removeItem(ENCRYPTION_KEY_STORAGE);
+            } else {
+                sessionStorage.setItem(ENCRYPTION_KEY_STORAGE, effectiveKey);
+            }
+
+            setIsPersistenceEnabled(true);
+            refreshProviders();
+        },
+        [storage, prefix, refreshProviders],
+    );
+
+    const disablePersistence = useCallback(
+        (clearStorage?: boolean) => {
+            const shouldClear = clearStorage ?? false;
+            keyManagerRef.current?.disablePersistence(shouldClear);
             sessionStorage.removeItem(ENCRYPTION_KEY_STORAGE);
-        } else {
-            sessionStorage.setItem(ENCRYPTION_KEY_STORAGE, effectiveKey);
-        }
-
-        setIsPersistenceEnabled(true);
-        refreshProviders();
-    }, [storage, prefix, refreshProviders]);
-
-    const disablePersistence = useCallback((clearStorage?: boolean) => {
-        const shouldClear = clearStorage ?? false;
-        keyManagerRef.current?.disablePersistence(shouldClear);
-        sessionStorage.removeItem(ENCRYPTION_KEY_STORAGE);
-        setIsPersistenceEnabled(false);
-        refreshProviders();
-    }, [refreshProviders]);
+            setIsPersistenceEnabled(false);
+            refreshProviders();
+        },
+        [refreshProviders],
+    );
 
     return {
         isReady,

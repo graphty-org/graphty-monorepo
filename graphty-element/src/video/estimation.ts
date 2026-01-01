@@ -1,4 +1,4 @@
-import type {AnimationOptions} from "./VideoCapture.js";
+import type { AnimationOptions } from "./VideoCapture.js";
 
 export interface CaptureEstimate {
     totalFrames: number;

@@ -1,9 +1,9 @@
-import {floydWarshall} from "@graphty/algorithms";
+import { floydWarshall } from "@graphty/algorithms";
 
-import type {SuggestedStylesConfig} from "../config";
-import type {Graph} from "../Graph";
-import {Algorithm} from "./Algorithm";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import type { SuggestedStylesConfig } from "../config";
+import type { Graph } from "../Graph";
+import { Algorithm } from "./Algorithm";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  *
@@ -17,7 +17,7 @@ export class FloydWarshallAlgorithm extends Algorithm {
             {
                 node: {
                     selector: "",
-                    style: {enabled: true},
+                    style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.floyd-warshall.eccentricityPct"],
                         output: "style.texture.color",
@@ -50,7 +50,7 @@ export class FloydWarshallAlgorithm extends Algorithm {
         }
 
         // Convert to @graphty/algorithms format
-        const graphData = toAlgorithmGraph(g as unknown as Graph, {directed: false});
+        const graphData = toAlgorithmGraph(g as unknown as Graph, { directed: false });
 
         // Run Floyd-Warshall algorithm
         const result = floydWarshall(graphData);
@@ -109,8 +109,7 @@ export class FloydWarshallAlgorithm extends Algorithm {
             this.addNodeResult(nodeId, "eccentricity", eccentricity);
 
             // Normalize eccentricity to percentage
-            const eccentricityPct =
-                diameter > 0 && isFinite(eccentricity) ? eccentricity / diameter : 0;
+            const eccentricityPct = diameter > 0 && isFinite(eccentricity) ? eccentricity / diameter : 0;
             this.addNodeResult(nodeId, "eccentricityPct", eccentricityPct);
 
             // Mark central nodes (eccentricity = radius)

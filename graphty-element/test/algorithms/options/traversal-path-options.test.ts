@@ -1,14 +1,14 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Testing legacy backward-compatible API */
-import {assert, describe, it} from "vitest";
+ 
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {BFSAlgorithm} from "../../../src/algorithms/BFSAlgorithm";
-import {DFSAlgorithm} from "../../../src/algorithms/DFSAlgorithm";
-import {DijkstraAlgorithm} from "../../../src/algorithms/DijkstraAlgorithm";
-import {MaxFlowAlgorithm} from "../../../src/algorithms/MaxFlowAlgorithm";
-import {MinCutAlgorithm} from "../../../src/algorithms/MinCutAlgorithm";
-import {OptionValidationError} from "../../../src/algorithms/types/OptionSchema";
-import {createMockGraph, getGraphResult, getNodeResult} from "../../helpers/mockGraph";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { BFSAlgorithm } from "../../../src/algorithms/BFSAlgorithm";
+import { DFSAlgorithm } from "../../../src/algorithms/DFSAlgorithm";
+import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
+import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
+import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
+import { OptionValidationError } from "../../../src/algorithms/types/OptionSchema";
+import { createMockGraph, getGraphResult, getNodeResult } from "../../helpers/mockGraph";
 
 describe("Traversal & Path Algorithm Options", () => {
     describe("BFSAlgorithm", () => {
@@ -27,12 +27,12 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("option defaults", () => {
-            it("uses first node as source when none provided", async() => {
+            it("uses first node as source when none provided", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B"},
-                        {srcId: "B", dstId: "C"},
+                        { srcId: "A", dstId: "B" },
+                        { srcId: "B", dstId: "C" },
                     ],
                 });
                 const algo = new BFSAlgorithm(graph);
@@ -45,27 +45,27 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("option validation", () => {
-            it("accepts valid string source", async() => {
+            it("accepts valid string source", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}],
-                    edges: [{srcId: "A", dstId: "B"}],
+                    nodes: [{ id: "A" }, { id: "B" }],
+                    edges: [{ srcId: "A", dstId: "B" }],
                 });
-                assert.doesNotThrow(() => new BFSAlgorithm(graph, {source: "B"}));
+                assert.doesNotThrow(() => new BFSAlgorithm(graph, { source: "B" }));
             });
 
-            it("accepts valid number source", async() => {
+            it("accepts valid number source", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: 1}, {id: 2}],
-                    edges: [{srcId: 1, dstId: 2}],
+                    nodes: [{ id: 1 }, { id: 2 }],
+                    edges: [{ srcId: 1, dstId: 2 }],
                 });
-                assert.doesNotThrow(() => new BFSAlgorithm(graph, {source: 2}));
+                assert.doesNotThrow(() => new BFSAlgorithm(graph, { source: 2 }));
             });
 
-            it("rejects invalid source type", async() => {
+            it("rejects invalid source type", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
-                    () => new BFSAlgorithm(graph, {source: {invalid: true}}),
+                    () => new BFSAlgorithm(graph, { source: { invalid: true } }),
                     OptionValidationError,
                     "must be a string or number",
                 );
@@ -73,16 +73,16 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("custom options in run()", () => {
-            it("uses custom source node", async() => {
+            it("uses custom source node", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B"},
-                        {srcId: "B", dstId: "C"},
+                        { srcId: "A", dstId: "B" },
+                        { srcId: "B", dstId: "C" },
                     ],
                 });
                 // Use B as source instead of A
-                const algo = new BFSAlgorithm(graph, {source: "B"});
+                const algo = new BFSAlgorithm(graph, { source: "B" });
                 await algo.run();
 
                 // Node B should be level 0 (it's the custom source)
@@ -96,17 +96,17 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("backward compatibility", () => {
-            it("configure() method still works", async() => {
+            it("configure() method still works", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B"},
-                        {srcId: "B", dstId: "C"},
+                        { srcId: "A", dstId: "B" },
+                        { srcId: "B", dstId: "C" },
                     ],
                 });
                 const algo = new BFSAlgorithm(graph);
 
-                algo.configure({source: "B"});
+                algo.configure({ source: "B" });
                 await algo.run();
 
                 // Node B should be level 0
@@ -141,12 +141,12 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("option defaults", () => {
-            it("uses first node as source when none provided", async() => {
+            it("uses first node as source when none provided", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B"},
-                        {srcId: "B", dstId: "C"},
+                        { srcId: "A", dstId: "B" },
+                        { srcId: "B", dstId: "C" },
                     ],
                 });
                 const algo = new DFSAlgorithm(graph);
@@ -159,27 +159,27 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("option validation", () => {
-            it("accepts valid string source", async() => {
+            it("accepts valid string source", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}],
-                    edges: [{srcId: "A", dstId: "B"}],
+                    nodes: [{ id: "A" }, { id: "B" }],
+                    edges: [{ srcId: "A", dstId: "B" }],
                 });
-                assert.doesNotThrow(() => new DFSAlgorithm(graph, {source: "B"}));
+                assert.doesNotThrow(() => new DFSAlgorithm(graph, { source: "B" }));
             });
 
-            it("accepts valid number source", async() => {
+            it("accepts valid number source", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: 1}, {id: 2}],
-                    edges: [{srcId: 1, dstId: 2}],
+                    nodes: [{ id: 1 }, { id: 2 }],
+                    edges: [{ srcId: 1, dstId: 2 }],
                 });
-                assert.doesNotThrow(() => new DFSAlgorithm(graph, {source: 2}));
+                assert.doesNotThrow(() => new DFSAlgorithm(graph, { source: 2 }));
             });
 
-            it("rejects invalid source type", async() => {
+            it("rejects invalid source type", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
-                    () => new DFSAlgorithm(graph, {source: {invalid: true}}),
+                    () => new DFSAlgorithm(graph, { source: { invalid: true } }),
                     OptionValidationError,
                     "must be a string or number",
                 );
@@ -187,16 +187,16 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("custom options in run()", () => {
-            it("uses custom source node", async() => {
+            it("uses custom source node", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B"},
-                        {srcId: "B", dstId: "C"},
+                        { srcId: "A", dstId: "B" },
+                        { srcId: "B", dstId: "C" },
                     ],
                 });
                 // Use B as source instead of A
-                const algo = new DFSAlgorithm(graph, {source: "B"});
+                const algo = new DFSAlgorithm(graph, { source: "B" });
                 await algo.run();
 
                 // Node B should be discovery time 0 (it's the custom source)
@@ -206,17 +206,17 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("backward compatibility", () => {
-            it("configure() method still works", async() => {
+            it("configure() method still works", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B"},
-                        {srcId: "B", dstId: "C"},
+                        { srcId: "A", dstId: "B" },
+                        { srcId: "B", dstId: "C" },
                     ],
                 });
                 const algo = new DFSAlgorithm(graph);
 
-                algo.configure({source: "B"});
+                algo.configure({ source: "B" });
                 await algo.run();
 
                 // Node B should be discovery time 0
@@ -259,12 +259,12 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("option defaults", () => {
-            it("uses first and last nodes when none provided", async() => {
+            it("uses first and last nodes when none provided", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B"},
-                        {srcId: "B", dstId: "C"},
+                        { srcId: "A", dstId: "B" },
+                        { srcId: "B", dstId: "C" },
                     ],
                 });
                 const algo = new DijkstraAlgorithm(graph);
@@ -281,37 +281,37 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("option validation", () => {
-            it("accepts valid string source and target", async() => {
+            it("accepts valid string source and target", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}],
-                    edges: [{srcId: "A", dstId: "B"}],
+                    nodes: [{ id: "A" }, { id: "B" }],
+                    edges: [{ srcId: "A", dstId: "B" }],
                 });
-                assert.doesNotThrow(() => new DijkstraAlgorithm(graph, {source: "A", target: "B"}));
+                assert.doesNotThrow(() => new DijkstraAlgorithm(graph, { source: "A", target: "B" }));
             });
 
-            it("accepts valid number source and target", async() => {
+            it("accepts valid number source and target", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: 1}, {id: 2}],
-                    edges: [{srcId: 1, dstId: 2}],
+                    nodes: [{ id: 1 }, { id: 2 }],
+                    edges: [{ srcId: 1, dstId: 2 }],
                 });
-                assert.doesNotThrow(() => new DijkstraAlgorithm(graph, {source: 1, target: 2}));
+                assert.doesNotThrow(() => new DijkstraAlgorithm(graph, { source: 1, target: 2 }));
             });
 
-            it("rejects invalid source type", async() => {
+            it("rejects invalid source type", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
-                    () => new DijkstraAlgorithm(graph, {source: {invalid: true}}),
+                    () => new DijkstraAlgorithm(graph, { source: { invalid: true } }),
                     OptionValidationError,
                     "must be a string or number",
                 );
             });
 
-            it("rejects invalid target type", async() => {
+            it("rejects invalid target type", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
-                    () => new DijkstraAlgorithm(graph, {target: {invalid: true}}),
+                    () => new DijkstraAlgorithm(graph, { target: { invalid: true } }),
                     OptionValidationError,
                     "must be a string or number",
                 );
@@ -319,17 +319,17 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("custom options in run()", () => {
-            it("uses custom source and target", async() => {
+            it("uses custom source and target", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}, {id: "D"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
                     edges: [
-                        {srcId: "A", dstId: "B"},
-                        {srcId: "B", dstId: "C"},
-                        {srcId: "C", dstId: "D"},
+                        { srcId: "A", dstId: "B" },
+                        { srcId: "B", dstId: "C" },
+                        { srcId: "C", dstId: "D" },
                     ],
                 });
                 // Use B as source and C as target
-                const algo = new DijkstraAlgorithm(graph, {source: "B", target: "C"});
+                const algo = new DijkstraAlgorithm(graph, { source: "B", target: "C" });
                 await algo.run();
 
                 // B should be in path
@@ -349,17 +349,17 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("backward compatibility", () => {
-            it("configure() method still works", async() => {
+            it("configure() method still works", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B"},
-                        {srcId: "B", dstId: "C"},
+                        { srcId: "A", dstId: "B" },
+                        { srcId: "B", dstId: "C" },
                     ],
                 });
                 const algo = new DijkstraAlgorithm(graph);
 
-                algo.configure({source: "B", target: "C"});
+                algo.configure({ source: "B", target: "C" });
                 await algo.run();
 
                 // B should be in path
@@ -403,12 +403,12 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("option defaults", () => {
-            it("uses first and last nodes when none provided", async() => {
+            it("uses first and last nodes when none provided", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B", value: 5},
-                        {srcId: "B", dstId: "C", value: 3},
+                        { srcId: "A", dstId: "B", value: 5 },
+                        { srcId: "B", dstId: "C", value: 3 },
                     ],
                 });
                 const algo = new MaxFlowAlgorithm(graph);
@@ -425,37 +425,37 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("option validation", () => {
-            it("accepts valid string source and sink", async() => {
+            it("accepts valid string source and sink", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}],
-                    edges: [{srcId: "A", dstId: "B"}],
+                    nodes: [{ id: "A" }, { id: "B" }],
+                    edges: [{ srcId: "A", dstId: "B" }],
                 });
-                assert.doesNotThrow(() => new MaxFlowAlgorithm(graph, {source: "A", sink: "B"}));
+                assert.doesNotThrow(() => new MaxFlowAlgorithm(graph, { source: "A", sink: "B" }));
             });
 
-            it("accepts valid number source and sink", async() => {
+            it("accepts valid number source and sink", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: 1}, {id: 2}],
-                    edges: [{srcId: 1, dstId: 2}],
+                    nodes: [{ id: 1 }, { id: 2 }],
+                    edges: [{ srcId: 1, dstId: 2 }],
                 });
-                assert.doesNotThrow(() => new MaxFlowAlgorithm(graph, {source: 1, sink: 2}));
+                assert.doesNotThrow(() => new MaxFlowAlgorithm(graph, { source: 1, sink: 2 }));
             });
 
-            it("rejects invalid source type", async() => {
+            it("rejects invalid source type", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
-                    () => new MaxFlowAlgorithm(graph, {source: {invalid: true}}),
+                    () => new MaxFlowAlgorithm(graph, { source: { invalid: true } }),
                     OptionValidationError,
                     "must be a string or number",
                 );
             });
 
-            it("rejects invalid sink type", async() => {
+            it("rejects invalid sink type", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
-                    () => new MaxFlowAlgorithm(graph, {sink: {invalid: true}}),
+                    () => new MaxFlowAlgorithm(graph, { sink: { invalid: true } }),
                     OptionValidationError,
                     "must be a string or number",
                 );
@@ -463,16 +463,16 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("custom options in run()", () => {
-            it("uses custom source and sink", async() => {
+            it("uses custom source and sink", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B", value: 5},
-                        {srcId: "B", dstId: "C", value: 3},
+                        { srcId: "A", dstId: "B", value: 5 },
+                        { srcId: "B", dstId: "C", value: 3 },
                     ],
                 });
                 // Use B as source and C as sink
-                const algo = new MaxFlowAlgorithm(graph, {source: "B", sink: "C"});
+                const algo = new MaxFlowAlgorithm(graph, { source: "B", sink: "C" });
                 await algo.run();
 
                 // B should be marked as source
@@ -490,17 +490,17 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("backward compatibility", () => {
-            it("configure() method still works", async() => {
+            it("configure() method still works", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B", value: 5},
-                        {srcId: "B", dstId: "C", value: 3},
+                        { srcId: "A", dstId: "B", value: 5 },
+                        { srcId: "B", dstId: "C", value: 3 },
                     ],
                 });
                 const algo = new MaxFlowAlgorithm(graph);
 
-                algo.configure({source: "B", sink: "C"});
+                algo.configure({ source: "B", sink: "C" });
                 await algo.run();
 
                 // B should be marked as source
@@ -551,13 +551,13 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("option defaults", () => {
-            it("uses global min cut when no source/sink provided", async() => {
+            it("uses global min cut when no source/sink provided", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}, {id: "D"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
                     edges: [
-                        {srcId: "A", dstId: "B", value: 5},
-                        {srcId: "B", dstId: "C", value: 1},
-                        {srcId: "C", dstId: "D", value: 5},
+                        { srcId: "A", dstId: "B", value: 5 },
+                        { srcId: "B", dstId: "C", value: 1 },
+                        { srcId: "C", dstId: "D", value: 5 },
                     ],
                 });
                 const algo = new MinCutAlgorithm(graph);
@@ -571,52 +571,52 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("option validation", () => {
-            it("accepts valid string source and sink", async() => {
+            it("accepts valid string source and sink", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}],
-                    edges: [{srcId: "A", dstId: "B"}],
+                    nodes: [{ id: "A" }, { id: "B" }],
+                    edges: [{ srcId: "A", dstId: "B" }],
                 });
-                assert.doesNotThrow(() => new MinCutAlgorithm(graph, {source: "A", sink: "B"}));
+                assert.doesNotThrow(() => new MinCutAlgorithm(graph, { source: "A", sink: "B" }));
             });
 
-            it("accepts valid number source and sink", async() => {
+            it("accepts valid number source and sink", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: 1}, {id: 2}],
-                    edges: [{srcId: 1, dstId: 2}],
+                    nodes: [{ id: 1 }, { id: 2 }],
+                    edges: [{ srcId: 1, dstId: 2 }],
                 });
-                assert.doesNotThrow(() => new MinCutAlgorithm(graph, {source: 1, sink: 2}));
+                assert.doesNotThrow(() => new MinCutAlgorithm(graph, { source: 1, sink: 2 }));
             });
 
-            it("accepts useGlobalMinCut boolean", async() => {
+            it("accepts useGlobalMinCut boolean", async () => {
                 const graph = await createMockGraph();
-                assert.doesNotThrow(() => new MinCutAlgorithm(graph, {useGlobalMinCut: true}));
+                assert.doesNotThrow(() => new MinCutAlgorithm(graph, { useGlobalMinCut: true }));
             });
 
-            it("rejects invalid source type", async() => {
+            it("rejects invalid source type", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
-                    () => new MinCutAlgorithm(graph, {source: {invalid: true}}),
+                    () => new MinCutAlgorithm(graph, { source: { invalid: true } }),
                     OptionValidationError,
                     "must be a string or number",
                 );
             });
 
-            it("rejects invalid sink type", async() => {
+            it("rejects invalid sink type", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
-                    () => new MinCutAlgorithm(graph, {sink: {invalid: true}}),
+                    () => new MinCutAlgorithm(graph, { sink: { invalid: true } }),
                     OptionValidationError,
                     "must be a string or number",
                 );
             });
 
-            it("rejects invalid useGlobalMinCut type", async() => {
+            it("rejects invalid useGlobalMinCut type", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
-                    () => new MinCutAlgorithm(graph, {useGlobalMinCut: "yes"}),
+                    () => new MinCutAlgorithm(graph, { useGlobalMinCut: "yes" }),
                     OptionValidationError,
                     "must be a boolean",
                 );
@@ -624,16 +624,16 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("custom options in run()", () => {
-            it("uses custom source and sink for s-t cut", async() => {
+            it("uses custom source and sink for s-t cut", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B", value: 5},
-                        {srcId: "B", dstId: "C", value: 3},
+                        { srcId: "A", dstId: "B", value: 5 },
+                        { srcId: "B", dstId: "C", value: 3 },
                     ],
                 });
                 // Use A as source and C as sink
-                const algo = new MinCutAlgorithm(graph, {source: "A", sink: "C"});
+                const algo = new MinCutAlgorithm(graph, { source: "A", sink: "C" });
                 await algo.run();
 
                 // Cut value should be computed
@@ -641,16 +641,16 @@ describe("Traversal & Path Algorithm Options", () => {
                 assert.isDefined(cutValue);
             });
 
-            it("uses global min cut when explicitly set", async() => {
+            it("uses global min cut when explicitly set", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}, {id: "D"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
                     edges: [
-                        {srcId: "A", dstId: "B", value: 5},
-                        {srcId: "B", dstId: "C", value: 1},
-                        {srcId: "C", dstId: "D", value: 5},
+                        { srcId: "A", dstId: "B", value: 5 },
+                        { srcId: "B", dstId: "C", value: 1 },
+                        { srcId: "C", dstId: "D", value: 5 },
                     ],
                 });
-                const algo = new MinCutAlgorithm(graph, {useGlobalMinCut: true});
+                const algo = new MinCutAlgorithm(graph, { useGlobalMinCut: true });
                 await algo.run();
 
                 // Cut value should be computed using Stoer-Wagner
@@ -660,17 +660,17 @@ describe("Traversal & Path Algorithm Options", () => {
         });
 
         describe("backward compatibility", () => {
-            it("configure() method still works", async() => {
+            it("configure() method still works", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B", value: 5},
-                        {srcId: "B", dstId: "C", value: 3},
+                        { srcId: "A", dstId: "B", value: 5 },
+                        { srcId: "B", dstId: "C", value: 3 },
                     ],
                 });
                 const algo = new MinCutAlgorithm(graph);
 
-                algo.configure({source: "A", sink: "C"});
+                algo.configure({ source: "A", sink: "C" });
                 await algo.run();
 
                 // Cut value should be computed

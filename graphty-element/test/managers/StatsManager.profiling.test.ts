@@ -1,8 +1,8 @@
-import type {EngineInstrumentation, SceneInstrumentation} from "@babylonjs/core";
-import {assert, beforeEach, describe, it, vi} from "vitest";
+import type { EngineInstrumentation, SceneInstrumentation } from "@babylonjs/core";
+import { assert, beforeEach, describe, it, vi } from "vitest";
 
-import type {EventManager} from "../../src/managers/EventManager";
-import {StatsManager} from "../../src/managers/StatsManager";
+import type { EventManager } from "../../src/managers/EventManager";
+import { StatsManager } from "../../src/managers/StatsManager";
 
 describe("StatsManager - Profiling", () => {
     let statsManager: StatsManager;
@@ -81,17 +81,17 @@ describe("StatsManager - Profiling", () => {
 
         it("should return function result", () => {
             statsManager.enableProfiling();
-            const obj = {value: 123};
+            const obj = { value: 123 };
             const result = statsManager.measure("test", () => obj);
             assert.equal(result, obj);
         });
     });
 
     describe("measureAsync() - asynchronous", () => {
-        it("should measure async execution time", async() => {
+        it("should measure async execution time", async () => {
             statsManager.enableProfiling();
 
-            const result = await statsManager.measureAsync("async-test", async() => {
+            const result = await statsManager.measureAsync("async-test", async () => {
                 await new Promise((resolve) => {
                     setTimeout(resolve, 10);
                 });
@@ -106,11 +106,11 @@ describe("StatsManager - Profiling", () => {
             assert.equal(snapshot.cpu[0].count, 1);
         });
 
-        it("should handle async exceptions", async() => {
+        it("should handle async exceptions", async () => {
             statsManager.enableProfiling();
 
             try {
-                await statsManager.measureAsync("async-test", async() => {
+                await statsManager.measureAsync("async-test", async () => {
                     await Promise.resolve();
                     throw new Error("async error");
                 });
@@ -278,7 +278,7 @@ describe("StatsManager - Profiling", () => {
             // Generate measurements with spread-out values: 2, 6, 10, 14, 18ms
             // Using larger gaps to avoid timing granularity issues
             for (let i = 1; i <= 5; i++) {
-                const targetMs = (i * 4) - 2; // 2, 6, 10, 14, 18
+                const targetMs = i * 4 - 2; // 2, 6, 10, 14, 18
                 statsManager.measure("test", () => {
                     const start = performance.now();
                     while (performance.now() - start < targetMs) {
@@ -911,9 +911,9 @@ describe("StatsManager - Profiling", () => {
             assert.isDefined(opA);
             assert.isDefined(opB);
 
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-unnecessary-type-assertion
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
             assert.equal(opA!.appearanceCount, 1);
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-unnecessary-type-assertion
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
             assert.equal(opB!.appearanceCount, 1);
         });
 
@@ -963,11 +963,11 @@ describe("StatsManager - Profiling", () => {
             const blockingOp = blockingReport.find((op) => op.label === "blocking-operation");
             assert.isDefined(blockingOp);
 
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-unnecessary-type-assertion
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
             assert.equal(blockingOp!.highBlockingFrames, 1);
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-unnecessary-type-assertion
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
             assert.equal(blockingOp!.highBlockingPercentage, 100); // 1/1 frames had high blocking
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-unnecessary-type-assertion
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
             assert.isAbove(blockingOp!.avgBlockingRatioWhenPresent, 1.0); // Blocking > 1x CPU time
         });
 
@@ -1017,9 +1017,9 @@ describe("StatsManager - Profiling", () => {
             const normalOp = blockingReport.find((op) => op.label === "normal-operation");
             assert.isDefined(normalOp);
 
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-unnecessary-type-assertion
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
             assert.equal(normalOp!.highBlockingFrames, 0); // Not high-blocking (threshold is 1.0x)
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-unnecessary-type-assertion
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
             assert.equal(normalOp!.highBlockingPercentage, 0);
         });
 
@@ -1240,17 +1240,17 @@ describe("StatsManager - Profiling", () => {
 
                 assert.equal(snapshot.length, 3);
 
-                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                 
                 const cacheHits = snapshot.find((c) => c.label === "cache.hits")!;
                 assert.equal(cacheHits.value, 10);
                 assert.equal(cacheHits.operations, 1); // incremented once (with amount 10)
 
-                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                 
                 const cacheMisses = snapshot.find((c) => c.label === "cache.misses")!;
                 assert.equal(cacheMisses.value, 2);
                 assert.equal(cacheMisses.operations, 1);
 
-                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                 
                 const poolSize = snapshot.find((c) => c.label === "pool.size")!;
                 assert.equal(poolSize.value, 50);
                 assert.equal(poolSize.operations, 1); // set once
@@ -1265,7 +1265,7 @@ describe("StatsManager - Profiling", () => {
                 statsManager.setCounter("test", 100);
 
                 const snapshot = statsManager.getCountersSnapshot();
-                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                 
                 const counter = snapshot.find((c) => c.label === "test")!;
 
                 assert.equal(counter.value, 100);
@@ -1333,7 +1333,7 @@ describe("StatsManager - Profiling", () => {
 
                 // Verify derived metrics are calculated
                 assert.isDefined(tableData);
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                 
                 const hitsRow = tableData.find((row: any) => row.Label === "cache.hits");
                 assert.equal(hitsRow.Value, 90);
 

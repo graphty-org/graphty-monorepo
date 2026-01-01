@@ -1,6 +1,6 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {getValueAtPath, keyPathToJMESPath} from "../pathUtils";
+import { getValueAtPath, keyPathToJMESPath } from "../pathUtils";
 
 describe("keyPathToJMESPath", () => {
     it("converts simple object key paths", () => {
@@ -42,11 +42,11 @@ describe("keyPathToJMESPath", () => {
     });
 
     it("handles keys with special characters by quoting them", () => {
-        expect(keyPathToJMESPath(["my-key", "value"])).toBe("\"my-key\".value");
+        expect(keyPathToJMESPath(["my-key", "value"])).toBe('"my-key".value');
     });
 
     it("handles keys that start with numbers but are not pure indices", () => {
-        expect(keyPathToJMESPath(["0abc", "value"])).toBe("\"0abc\".value");
+        expect(keyPathToJMESPath(["0abc", "value"])).toBe('"0abc".value');
     });
 
     it("handles array keyPathNode types (flattens them)", () => {
@@ -57,57 +57,57 @@ describe("keyPathToJMESPath", () => {
 
 describe("getValueAtPath", () => {
     it("gets value at simple key path", () => {
-        const data = {name: "test"};
+        const data = { name: "test" };
         expect(getValueAtPath(data, ["name"])).toBe("test");
     });
 
     it("gets value at nested key path", () => {
-        const data = {user: {profile: {name: "John"}}};
+        const data = { user: { profile: { name: "John" } } };
         expect(getValueAtPath(data, ["user", "profile", "name"])).toBe("John");
     });
 
     it("gets value at array index path", () => {
-        const data = [{id: 1}, {id: 2}];
+        const data = [{ id: 1 }, { id: 2 }];
         expect(getValueAtPath(data, [0, "id"])).toBe(1);
     });
 
     it("gets value at numeric string array index path", () => {
-        const data = [{id: 1}, {id: 2}];
+        const data = [{ id: 1 }, { id: 2 }];
         expect(getValueAtPath(data, ["1", "id"])).toBe(2);
     });
 
     it("gets value at mixed path", () => {
-        const data = {users: [{name: "Alice"}, {name: "Bob"}]};
+        const data = { users: [{ name: "Alice" }, { name: "Bob" }] };
         expect(getValueAtPath(data, ["users", 1, "name"])).toBe("Bob");
     });
 
     it("returns undefined for non-existent path", () => {
-        const data = {name: "test"};
+        const data = { name: "test" };
         expect(getValueAtPath(data, ["nonexistent"])).toBeUndefined();
     });
 
     it("returns undefined for path beyond data structure", () => {
-        const data = {name: "test"};
+        const data = { name: "test" };
         expect(getValueAtPath(data, ["name", "nested"])).toBeUndefined();
     });
 
     it("returns the root object for empty path", () => {
-        const data = {name: "test"};
-        expect(getValueAtPath(data, [])).toEqual({name: "test"});
+        const data = { name: "test" };
+        expect(getValueAtPath(data, [])).toEqual({ name: "test" });
     });
 
     it("handles array keyPathNode types (flattens them)", () => {
-        const data = {users: [{name: "Alice"}]};
+        const data = { users: [{ name: "Alice" }] };
         expect(getValueAtPath(data, [["users"], [0], "name"])).toBe("Alice");
     });
 
     it("gets entire nested object", () => {
-        const data = {user: {profile: {name: "John", age: 30}}};
-        expect(getValueAtPath(data, ["user", "profile"])).toEqual({name: "John", age: 30});
+        const data = { user: { profile: { name: "John", age: 30 } } };
+        expect(getValueAtPath(data, ["user", "profile"])).toEqual({ name: "John", age: 30 });
     });
 
     it("gets entire array", () => {
-        const data = {items: [1, 2, 3]};
+        const data = { items: [1, 2, 3] };
         expect(getValueAtPath(data, ["items"])).toEqual([1, 2, 3]);
     });
 });

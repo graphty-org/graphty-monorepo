@@ -11,13 +11,13 @@
  * - Patterns on very short edges
  */
 
-import {AbstractMesh, NullEngine, Scene, Vector3} from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { AbstractMesh, NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import type {EdgeStyleConfig} from "../../src/config";
-import {EdgeMesh} from "../../src/meshes/EdgeMesh";
-import {MeshCache} from "../../src/meshes/MeshCache";
-import {isDisposed} from "../helpers/testSetup";
+import type { EdgeStyleConfig } from "../../src/config";
+import { EdgeMesh } from "../../src/meshes/EdgeMesh";
+import { MeshCache } from "../../src/meshes/MeshCache";
+import { isDisposed } from "../helpers/testSetup";
 
 describe("Edge Case Handling", () => {
     let scene: Scene;
@@ -32,7 +32,7 @@ describe("Edge Case Handling", () => {
     describe("Very Short Edges", () => {
         test("creates solid line mesh for edge < 1 unit", () => {
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#FF0000"},
+                line: { width: 0.5, color: "#FF0000" },
                 enabled: true,
             };
 
@@ -40,7 +40,7 @@ describe("Edge Case Handling", () => {
             // The mesh is created with unit geometry and transformed later
             const mesh = EdgeMesh.create(
                 meshCache,
-                {styleId: "short-solid", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                { styleId: "short-solid", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
                 style,
                 scene,
             );
@@ -51,7 +51,7 @@ describe("Edge Case Handling", () => {
 
         test("creates bezier mesh for edge < 1 unit", () => {
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#FF0000", bezier: true},
+                line: { width: 0.5, color: "#FF0000", bezier: true },
                 enabled: true,
             };
 
@@ -60,7 +60,7 @@ describe("Edge Case Handling", () => {
 
             const mesh = EdgeMesh.create(
                 meshCache,
-                {styleId: "short-bezier", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                { styleId: "short-bezier", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
                 style,
                 scene,
                 srcPoint,
@@ -78,7 +78,10 @@ describe("Edge Case Handling", () => {
             const curvePoints = EdgeMesh.createBezierLine(src, dst);
 
             // Should have minimum number of points
-            assert.isTrue(curvePoints.length >= 6, `Should have at least 2 points (6 values), got ${curvePoints.length}`);
+            assert.isTrue(
+                curvePoints.length >= 6,
+                `Should have at least 2 points (6 values), got ${curvePoints.length}`,
+            );
 
             // First and last points should match input
             assert.closeTo(curvePoints[0], src.x, 0.01);
@@ -87,13 +90,13 @@ describe("Edge Case Handling", () => {
 
         test("patterned line handles edge < 1 unit", () => {
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#FF0000", type: "dash"},
+                line: { width: 0.5, color: "#FF0000", type: "dash" },
                 enabled: true,
             };
 
             const mesh = EdgeMesh.create(
                 meshCache,
-                {styleId: "short-patterned", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                { styleId: "short-patterned", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
                 style,
                 scene,
             );
@@ -105,13 +108,13 @@ describe("Edge Case Handling", () => {
     describe("Very Long Edges", () => {
         test("creates solid line mesh for edge > 100 units", () => {
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#00FF00"},
+                line: { width: 0.5, color: "#00FF00" },
                 enabled: true,
             };
 
             const mesh = EdgeMesh.create(
                 meshCache,
-                {styleId: "long-solid", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                { styleId: "long-solid", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
                 style,
                 scene,
             );
@@ -122,7 +125,7 @@ describe("Edge Case Handling", () => {
 
         test("creates bezier mesh for edge > 100 units", () => {
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#00FF00", bezier: true},
+                line: { width: 0.5, color: "#00FF00", bezier: true },
                 enabled: true,
             };
 
@@ -131,7 +134,7 @@ describe("Edge Case Handling", () => {
 
             const mesh = EdgeMesh.create(
                 meshCache,
-                {styleId: "long-bezier", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                { styleId: "long-bezier", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
                 style,
                 scene,
                 srcPoint,
@@ -150,21 +153,18 @@ describe("Edge Case Handling", () => {
 
             // Should have many points for a long edge
             const pointCount = curvePoints.length / 3;
-            assert.isTrue(
-                pointCount > 50,
-                `Long edge should have many points, got ${pointCount}`,
-            );
+            assert.isTrue(pointCount > 50, `Long edge should have many points, got ${pointCount}`);
         });
 
         test("patterned line handles edge > 100 units", () => {
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#00FF00", type: "diamond"},
+                line: { width: 0.5, color: "#00FF00", type: "diamond" },
                 enabled: true,
             };
 
             const mesh = EdgeMesh.create(
                 meshCache,
-                {styleId: "long-patterned", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                { styleId: "long-patterned", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
                 style,
                 scene,
             );
@@ -176,13 +176,13 @@ describe("Edge Case Handling", () => {
     describe("Opacity Edge Cases", () => {
         test("zero opacity renders invisible mesh", () => {
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#FF00FF", opacity: 0.0},
+                line: { width: 0.5, color: "#FF00FF", opacity: 0.0 },
                 enabled: true,
             };
 
             const mesh = EdgeMesh.create(
                 meshCache,
-                {styleId: "zero-opacity", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                { styleId: "zero-opacity", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
                 style,
                 scene,
             );
@@ -193,13 +193,13 @@ describe("Edge Case Handling", () => {
 
         test("full opacity (1.0) renders visible mesh", () => {
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#FF00FF", opacity: 1.0},
+                line: { width: 0.5, color: "#FF00FF", opacity: 1.0 },
                 enabled: true,
             };
 
             const mesh = EdgeMesh.create(
                 meshCache,
-                {styleId: "full-opacity", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                { styleId: "full-opacity", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
                 style,
                 scene,
             );
@@ -210,13 +210,13 @@ describe("Edge Case Handling", () => {
 
         test("partial opacity (0.5) is applied correctly", () => {
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#FF00FF", opacity: 0.5},
+                line: { width: 0.5, color: "#FF00FF", opacity: 0.5 },
                 enabled: true,
             };
 
             const mesh = EdgeMesh.create(
                 meshCache,
-                {styleId: "partial-opacity", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                { styleId: "partial-opacity", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
                 style,
                 scene,
             );
@@ -227,7 +227,7 @@ describe("Edge Case Handling", () => {
 
         test("bezier curve respects zero opacity", () => {
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#FF00FF", opacity: 0.0, bezier: true},
+                line: { width: 0.5, color: "#FF00FF", opacity: 0.0, bezier: true },
                 enabled: true,
             };
 
@@ -236,7 +236,11 @@ describe("Edge Case Handling", () => {
 
             const mesh = EdgeMesh.create(
                 meshCache,
-                {styleId: "bezier-zero-opacity", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                {
+                    styleId: "bezier-zero-opacity",
+                    width: style.line?.width ?? 0.25,
+                    color: style.line?.color ?? "#FFFFFF",
+                },
                 style,
                 scene,
                 srcPoint,
@@ -289,7 +293,10 @@ describe("Edge Case Handling", () => {
             const curvePoints = EdgeMesh.createBezierLine(point, point);
 
             // Should generate a circular loop
-            assert.isTrue(curvePoints.length > 30, `Self-loop should have many points for smooth circle, got ${curvePoints.length / 3}`);
+            assert.isTrue(
+                curvePoints.length > 30,
+                `Self-loop should have many points for smooth circle, got ${curvePoints.length / 3}`,
+            );
 
             // First and last points should be at same location (forming a loop)
             const firstX = curvePoints[0];
@@ -321,7 +328,10 @@ describe("Edge Case Handling", () => {
                 );
 
                 // arrowMesh cannot be null since arrowTypes don't include "none"
-                assert.isFalse(arrowMesh ? isDisposed(arrowMesh) : false, `${arrowType} arrow mesh should not be disposed`);
+                assert.isFalse(
+                    arrowMesh ? isDisposed(arrowMesh) : false,
+                    `${arrowType} arrow mesh should not be disposed`,
+                );
             });
         });
     });
@@ -368,12 +378,7 @@ describe("Edge Case Handling", () => {
             const arrowLength = 0.5;
             const geometry = EdgeMesh.getArrowGeometry("normal");
 
-            const position = EdgeMesh.calculateArrowPosition(
-                surfacePoint,
-                direction,
-                arrowLength,
-                geometry,
-            );
+            const position = EdgeMesh.calculateArrowPosition(surfacePoint, direction, arrowLength, geometry);
 
             // Tip-based arrow with offset=0: position at surface
             assert.closeTo(position.x, surfacePoint.x, 0.001);
@@ -387,15 +392,10 @@ describe("Edge Case Handling", () => {
             const arrowLength = 1.0;
             const geometry = EdgeMesh.getArrowGeometry("dot");
 
-            const position = EdgeMesh.calculateArrowPosition(
-                surfacePoint,
-                direction,
-                arrowLength,
-                geometry,
-            );
+            const position = EdgeMesh.calculateArrowPosition(surfacePoint, direction, arrowLength, geometry);
 
             // Center-based arrow: position center back by radius (half of length)
-            const expectedX = surfacePoint.x - (arrowLength / 2);
+            const expectedX = surfacePoint.x - arrowLength / 2;
             assert.closeTo(position.x, expectedX, 0.001);
         });
 
@@ -405,12 +405,7 @@ describe("Edge Case Handling", () => {
             const arrowLength = 0.5;
             const geometry = EdgeMesh.getArrowGeometry("normal");
 
-            const lineEndpoint = EdgeMesh.calculateLineEndpoint(
-                surfacePoint,
-                direction,
-                arrowLength,
-                geometry,
-            );
+            const lineEndpoint = EdgeMesh.calculateLineEndpoint(surfacePoint, direction, arrowLength, geometry);
 
             // Line should end at surface minus arrow length
             const expectedX = surfacePoint.x - arrowLength;
@@ -424,14 +419,18 @@ describe("Edge Case Handling", () => {
         patternTypes.forEach((pattern) => {
             test(`${pattern} pattern handles very short edge (< 1 unit)`, () => {
                 const style: EdgeStyleConfig = {
-                    line: {width: 0.5, color: "#FF0000", type: pattern},
+                    line: { width: 0.5, color: "#FF0000", type: pattern },
                     enabled: true,
                 };
 
                 // Pattern lines are created with placeholder positions
                 const mesh = EdgeMesh.create(
                     meshCache,
-                    {styleId: `short-${pattern}`, width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                    {
+                        styleId: `short-${pattern}`,
+                        width: style.line?.width ?? 0.25,
+                        color: style.line?.color ?? "#FFFFFF",
+                    },
                     style,
                     scene,
                 );
@@ -444,13 +443,13 @@ describe("Edge Case Handling", () => {
     describe("Mesh Transform Edge Cases", () => {
         test("transformMesh handles zero-length edge gracefully", () => {
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#FF0000"},
+                line: { width: 0.5, color: "#FF0000" },
                 enabled: true,
             };
 
             const mesh = EdgeMesh.create(
                 meshCache,
-                {styleId: "zero-length", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                { styleId: "zero-length", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
                 style,
                 scene,
             );
@@ -468,13 +467,13 @@ describe("Edge Case Handling", () => {
 
         test("transformMesh handles negative coordinates", () => {
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#FF0000"},
+                line: { width: 0.5, color: "#FF0000" },
                 enabled: true,
             };
 
             const mesh = EdgeMesh.create(
                 meshCache,
-                {styleId: "negative-coords", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                { styleId: "negative-coords", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
                 style,
                 scene,
             );
@@ -492,13 +491,13 @@ describe("Edge Case Handling", () => {
 
         test("transformMesh handles very large coordinates", () => {
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#FF0000"},
+                line: { width: 0.5, color: "#FF0000" },
                 enabled: true,
             };
 
             const mesh = EdgeMesh.create(
                 meshCache,
-                {styleId: "large-coords", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                { styleId: "large-coords", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
                 style,
                 scene,
             );

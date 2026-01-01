@@ -1,27 +1,29 @@
 # Feature Design: Run Layouts Modal
 
 ## Overview
+
 - **User Value**: Users can easily switch between different graph layout algorithms and configure their parameters through an intuitive UI, enabling them to find the best visualization for their data without writing code.
 - **Technical Value**: Provides a consistent interface for accessing all 16 layout algorithms with their full configuration options, while keeping graphty-element as the source of truth for layout state.
 
 ## Requirements
 
-| # | Requirement | Priority |
-|---|-------------|----------|
-| 1 | Add "Run Layouts..." menu item to hamburger menu | Must Have |
-| 2 | Modal dialog displays ALL layouts from graphty-element | Must Have |
-| 3 | Dimension radio constrains 3D option in 2D render mode | Must Have |
-| 4 | Each layout shows configurable options from zod schemas | Must Have |
-| 5 | Self-descriptive, user-friendly interface | Must Have |
-| 6 | graphty-element is the source of truth for layout/rendering state | Must Have |
-| 7 | Applying a layout updates graphty-element accordingly | Must Have |
-| 8 | Modal reads current layout and config from graphty-element on open | Must Have |
+| #   | Requirement                                                        | Priority  |
+| --- | ------------------------------------------------------------------ | --------- |
+| 1   | Add "Run Layouts..." menu item to hamburger menu                   | Must Have |
+| 2   | Modal dialog displays ALL layouts from graphty-element             | Must Have |
+| 3   | Dimension radio constrains 3D option in 2D render mode             | Must Have |
+| 4   | Each layout shows configurable options from zod schemas            | Must Have |
+| 5   | Self-descriptive, user-friendly interface                          | Must Have |
+| 6   | graphty-element is the source of truth for layout/rendering state  | Must Have |
+| 7   | Applying a layout updates graphty-element accordingly              | Must Have |
+| 8   | Modal reads current layout and config from graphty-element on open | Must Have |
 
 ## Proposed Solution
 
 ### User Interface/API
 
 **Menu Integration:**
+
 ```
 Hamburger Menu
 ├── File
@@ -33,6 +35,7 @@ Hamburger Menu
 ```
 
 **Modal Layout:**
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Run Layout                                              [X] │
@@ -62,6 +65,7 @@ Hamburger Menu
 ```
 
 **Dimension Radio Behavior:**
+
 - In **2D render mode**: 3D radio is disabled, only 2D can be selected
 - In **3D render mode**: Both options available (user can choose 2D layout in 3D space)
 - For layouts with `maxDimensions=2`: Radio group hidden (always 2D)
@@ -71,11 +75,13 @@ Hamburger Menu
 #### Components
 
 **New Files:**
+
 1. `src/components/RunLayoutsModal.tsx` - Main modal component
 2. `src/components/layout-options/LayoutOptionsForm.tsx` - Dynamic form generator
 3. `src/hooks/useLayoutMetadata.ts` - Hook to get layout metadata from graphty-element
 
 **Modified Files:**
+
 1. `src/components/layout/TopMenuBar.tsx` - Add "Run Layouts..." menu item
 2. `src/components/layout/AppLayout.tsx` - Add modal state management and layout state
 3. `src/components/Graphty.tsx` - Add layout and layoutConfig props
@@ -83,19 +89,21 @@ Hamburger Menu
 #### Data Model
 
 **Layout Metadata (from graphty-element):**
+
 ```typescript
 interface LayoutMetadata {
-  type: string;              // e.g., "d3", "circular"
-  label: string;             // e.g., "D3 Force", "Circular"
-  description: string;       // Brief description of the layout
-  maxDimensions: 2 | 3;      // Max supported dimensions
-  category: "force" | "geometric" | "hierarchical" | "special";
-  configSchema: ZodSchema;   // Zod schema for options
-  defaultConfig: object;     // Parsed defaults from schema
+    type: string; // e.g., "d3", "circular"
+    label: string; // e.g., "D3 Force", "Circular"
+    description: string; // Brief description of the layout
+    maxDimensions: 2 | 3; // Max supported dimensions
+    category: "force" | "geometric" | "hierarchical" | "special";
+    configSchema: ZodSchema; // Zod schema for options
+    defaultConfig: object; // Parsed defaults from schema
 }
 ```
 
 **Layout State Flow:**
+
 - graphty-element holds the source of truth for current layout
 - Modal reads current state from graphty-element on open
 - Modal writes new state to graphty-element on apply
@@ -103,28 +111,29 @@ interface LayoutMetadata {
 
 #### Available Layouts
 
-| Layout | Type | Max Dim | Category | User-Facing Options |
-|--------|------|---------|----------|---------------------|
-| D3 Force | `d3` | 3D | Force | alphaMin, alphaTarget, alphaDecay, velocityDecay |
-| NGraph | `ngraph` | 3D | Force | springLength, springCoefficient, gravity, theta, dragCoefficient, timeStep, seed |
-| ForceAtlas2 | `forceatlas2` | 3D | Force | maxIter, jitterTolerance, scalingRatio, gravity, strongGravity, linlog, seed |
-| Spring | `spring` | 3D | Force | k, iterations, scale, seed |
-| ARF | `arf` | 2D | Force | scaling, a, maxIter, seed |
-| Kamada-Kawai | `kamada-kawai` | 3D | Force | scale, weightProperty |
-| Circular | `circular` | 3D | Geometric | scale |
-| Spiral | `spiral` | 2D | Geometric | scale, resolution, equidistant |
-| Shell | `shell` | 2D | Geometric | scale |
-| Random | `random` | 3D | Geometric | seed |
-| Planar | `planar` | 2D | Geometric | scale, seed |
-| Spectral | `spectral` | 2D | Geometric | scale |
-| BFS | `bfs` | 2D | Hierarchical | start, align, scale |
-| Bipartite | `bipartite` | 2D | Hierarchical | nodes (required), align, scale, aspectRatio |
-| Multipartite | `multipartite` | 2D | Hierarchical | subsetKey (required), align, scale |
-| Fixed | `fixed` | 3D | Special | (uses node data positions) |
+| Layout       | Type           | Max Dim | Category     | User-Facing Options                                                              |
+| ------------ | -------------- | ------- | ------------ | -------------------------------------------------------------------------------- |
+| D3 Force     | `d3`           | 3D      | Force        | alphaMin, alphaTarget, alphaDecay, velocityDecay                                 |
+| NGraph       | `ngraph`       | 3D      | Force        | springLength, springCoefficient, gravity, theta, dragCoefficient, timeStep, seed |
+| ForceAtlas2  | `forceatlas2`  | 3D      | Force        | maxIter, jitterTolerance, scalingRatio, gravity, strongGravity, linlog, seed     |
+| Spring       | `spring`       | 3D      | Force        | k, iterations, scale, seed                                                       |
+| ARF          | `arf`          | 2D      | Force        | scaling, a, maxIter, seed                                                        |
+| Kamada-Kawai | `kamada-kawai` | 3D      | Force        | scale, weightProperty                                                            |
+| Circular     | `circular`     | 3D      | Geometric    | scale                                                                            |
+| Spiral       | `spiral`       | 2D      | Geometric    | scale, resolution, equidistant                                                   |
+| Shell        | `shell`        | 2D      | Geometric    | scale                                                                            |
+| Random       | `random`       | 3D      | Geometric    | seed                                                                             |
+| Planar       | `planar`       | 2D      | Geometric    | scale, seed                                                                      |
+| Spectral     | `spectral`     | 2D      | Geometric    | scale                                                                            |
+| BFS          | `bfs`          | 2D      | Hierarchical | start, align, scale                                                              |
+| Bipartite    | `bipartite`    | 2D      | Hierarchical | nodes (required), align, scale, aspectRatio                                      |
+| Multipartite | `multipartite` | 2D      | Hierarchical | subsetKey (required), align, scale                                               |
+| Fixed        | `fixed`        | 3D      | Special      | (uses node data positions)                                                       |
 
 **Note:** The `pos`, `center`, `scalingFactor`, `nodeMass`, `nodeSize`, `weightPath`, `dist`, `fixed`, `nlist` options are hidden from the UI as they require complex data structures or are advanced internal options.
 
 **Dimension Selection (`dim`):**
+
 - Shown as a radio button group: `[2D] [3D]`
 - When rendering mode is **2D**: 3D option is disabled/greyed out (cannot compute 3D layout in 2D render)
 - When rendering mode is **3D**: both 2D and 3D are available (can render a 2D layout in 3D space)
@@ -137,8 +146,8 @@ interface LayoutMetadata {
 2. **AppLayout → RunLayoutsModal**: Pass `opened`, `onClose`, `onApply`, `is2DMode`
 3. **AppLayout → Graphty**: Pass `layout`, `layoutConfig` props; receive current state via ref
 4. **Graphty ↔ graphty-element**: Bidirectional communication:
-   - **Write**: Set `layout` and `layoutConfig` properties on web component
-   - **Read**: Expose method to get current layout state from graphty-element (for modal initialization)
+    - **Write**: Set `layout` and `layoutConfig` properties on web component
+    - **Read**: Expose method to get current layout state from graphty-element (for modal initialization)
 
 #### Reading Current Layout State
 
@@ -147,15 +156,15 @@ When the modal opens, it must read the current layout state from graphty-element
 ```typescript
 // In Graphty component - expose method via ref
 interface GraphtyRef {
-  getCurrentLayout(): { type: string; config: Record<string, unknown> } | null;
-  setLayout(type: string, config: Record<string, unknown>): void;
+    getCurrentLayout(): { type: string; config: Record<string, unknown> } | null;
+    setLayout(type: string, config: Record<string, unknown>): void;
 }
 
 // graphty-element properties to read
 interface GraphtyElementType extends HTMLElement {
-  // ... existing properties ...
-  readonly currentLayout?: string;        // Current layout type
-  readonly currentLayoutConfig?: Record<string, unknown>;  // Current config
+    // ... existing properties ...
+    readonly currentLayout?: string; // Current layout type
+    readonly currentLayoutConfig?: Record<string, unknown>; // Current config
 }
 ```
 
@@ -164,34 +173,38 @@ interface GraphtyElementType extends HTMLElement {
 ### Implementation Approach
 
 #### Phase 1: Basic Modal Structure
+
 1. Add `onRunLayouts` prop to `TopMenuBar`
 2. Add "Run Layouts..." menu item with `Sparkles` icon
 3. Create `RunLayoutsModal` component with:
-   - Layout selection dropdown (hardcoded list initially)
-   - Basic apply/cancel buttons
+    - Layout selection dropdown (hardcoded list initially)
+    - Basic apply/cancel buttons
 4. Add modal state to `AppLayout`
 5. Wire up layout prop to `Graphty` component
 
 #### Phase 2: Layout Options Form
+
 1. Create layout metadata definitions with:
-   - Human-readable labels and descriptions
-   - Zod schemas (imported from graphty-element or redefined)
-   - Category classification
-   - maxDimensions info
+    - Human-readable labels and descriptions
+    - Zod schemas (imported from graphty-element or redefined)
+    - Category classification
+    - maxDimensions info
 2. Create `LayoutOptionsForm` component that:
-   - Introspects zod schema to generate form fields
-   - Supports number inputs (with min/max from schema)
-   - Supports boolean checkboxes
-   - Supports enum select dropdowns
-   - Shows default values from schema
+    - Introspects zod schema to generate form fields
+    - Supports number inputs (with min/max from schema)
+    - Supports boolean checkboxes
+    - Supports enum select dropdowns
+    - Shows default values from schema
 3. Add "Reset to Defaults" functionality
 
 #### Phase 3: 2D/3D Mode Integration
+
 1. Implement dimension radio button behavior based on `viewMode`
 2. Disable 3D option when in 2D render mode
 3. Default dimension selection based on current render mode
 
 #### Phase 4: Polish & UX
+
 1. Group layouts by category in dropdown
 2. Add brief descriptions for each layout
 3. Add loading state while layout computes
@@ -222,21 +235,25 @@ interface GraphtyElementType extends HTMLElement {
 ## Technical Considerations
 
 ### Performance
+
 - **Impact**: Some layouts (e.g., ForceAtlas2 with high iterations) can take time to compute
 - **Mitigation**:
-  - Consider adding loading indicator
-  - Layout computation happens in graphty-element (already handles this)
-  - Could add "Preview" functionality in future
+    - Consider adding loading indicator
+    - Layout computation happens in graphty-element (already handles this)
+    - Could add "Preview" functionality in future
 
 ### Security
+
 - No external data input; all values validated by zod schemas
 - Form inputs are typed and constrained
 
 ### Compatibility
+
 - **Backward compatibility**: No breaking changes to existing functionality
 - **graphty-element version**: Must use version that exports layout metadata (may need to add exports)
 
 ### Testing
+
 - Unit tests for `LayoutOptionsForm` component
 - Integration tests for modal open/close/apply flow
 - Visual regression tests for modal styling
@@ -276,23 +293,26 @@ This section intentionally left blank per project guidelines - no time estimates
 ## Appendix: Zod Schema Reference
 
 ### SimpleLayoutConfig (Base)
+
 ```typescript
 z.looseObject({
-  scalingFactor: z.number().default(100), // Hidden from UI
-})
+    scalingFactor: z.number().default(100), // Hidden from UI
+});
 ```
 
 ### D3LayoutConfig
+
 ```typescript
 z.strictObject({
-  alphaMin: z.number().positive().default(0.1),
-  alphaTarget: z.number().min(0).default(0),
-  alphaDecay: z.number().positive().default(0.0228),
-  velocityDecay: z.number().positive().default(0.4),
-})
+    alphaMin: z.number().positive().default(0.1),
+    alphaTarget: z.number().min(0).default(0),
+    alphaDecay: z.number().positive().default(0.0228),
+    velocityDecay: z.number().positive().default(0.4),
+});
 ```
 
 ### ForceAtlas2LayoutConfig
+
 ```typescript
 z.strictObject({
   ...SimpleLayoutConfig.shape,
@@ -314,16 +334,18 @@ z.strictObject({
 ```
 
 ### CircularLayoutConfig
+
 ```typescript
 z.strictObject({
-  ...SimpleLayoutConfig.shape,
-  scale: z.number().positive().default(1),
-  center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),  // Hidden
-  dim: z.number().default(2),                                             // Radio: 2D/3D
-})
+    ...SimpleLayoutConfig.shape,
+    scale: z.number().positive().default(1),
+    center: z.array(z.number()).min(2).max(3).or(z.null()).default(null), // Hidden
+    dim: z.number().default(2), // Radio: 2D/3D
+});
 ```
 
 ### SpringLayoutConfig
+
 ```typescript
 z.strictObject({
   ...SimpleLayoutConfig.shape,

@@ -1,5 +1,5 @@
-import type {Graph} from "../../core/graph.js";
-import type {CentralityOptions} from "../../types/index.js";
+import type { Graph } from "../../core/graph.js";
+import type { CentralityOptions } from "../../types/index.js";
 
 /**
  * HITS (Hyperlink-Induced Topic Search) algorithm implementation
@@ -25,18 +25,14 @@ export interface HITSOptions extends CentralityOptions {
 }
 
 /**
- * Calculate HITS hub and authority scores for all nodes in the graph
- * Uses iterative method with normalization
+ * Calculate HITS hub and authority scores for all nodes in the graph.
+ * Uses iterative method with normalization.
+ * @param graph - The graph to compute HITS scores on
+ * @param options - Configuration options for the computation
+ * @returns Object containing hub and authority scores for all nodes
  */
-export function hits(
-    graph: Graph,
-    options: HITSOptions = {},
-): HITSResult {
-    const {
-        maxIterations = 100,
-        tolerance = 1e-6,
-        normalized = true,
-    } = options;
+export function hits(graph: Graph, options: HITSOptions = {}): HITSResult {
+    const { maxIterations = 100, tolerance = 1e-6, normalized = true } = options;
 
     const hubs: Record<string, number> = {};
     const authorities: Record<string, number> = {};
@@ -45,7 +41,7 @@ export function hits(
     const nodeIds = nodes.map((node) => node.id);
 
     if (nodeIds.length === 0) {
-        return {hubs, authorities};
+        return { hubs, authorities };
     }
 
     // Initialize scores
@@ -185,17 +181,21 @@ export function hits(
         }
     }
 
-    return {hubs, authorities};
+    return { hubs, authorities };
 }
 
 /**
- * Calculate HITS scores for a specific node
+ * Calculate HITS scores for a specific node.
+ * @param graph - The graph to compute HITS scores on
+ * @param nodeId - The ID of the node to calculate scores for
+ * @param options - Configuration options for the computation
+ * @returns Object containing hub and authority scores for the specified node
  */
 export function nodeHITS(
     graph: Graph,
     nodeId: string | number,
     options: HITSOptions = {},
-): {hub: number, authority: number} {
+): { hub: number; authority: number } {
     if (!graph.hasNode(nodeId)) {
         throw new Error(`Node ${String(nodeId)} not found in graph`);
     }

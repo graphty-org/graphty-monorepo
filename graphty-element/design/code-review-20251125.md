@@ -28,8 +28,8 @@ The screen capture implementation is well-architected with excellent error handl
 
 ```typescript
 // Current exports - missing screenshot/video types
-export type {StyleSchema, StyleSchemaV1} from "./src/config";
-export {StyleTemplate} from "./src/config";
+export type { StyleSchema, StyleSchemaV1 } from "./src/config";
+export { StyleTemplate } from "./src/config";
 // ...
 ```
 
@@ -44,13 +44,9 @@ export type {
     CameraAnimationOptions,
     QualityEnhancementOptions,
 } from "./src/screenshot/types";
-export {ScreenshotError, ScreenshotErrorCode} from "./src/screenshot/ScreenshotError";
-export type {
-    AnimationOptions,
-    AnimationResult,
-    CameraWaypoint,
-} from "./src/video/VideoCapture";
-export {AnimationCancelledError} from "./src/video/MediaRecorderCapture";
+export { ScreenshotError, ScreenshotErrorCode } from "./src/screenshot/ScreenshotError";
+export type { AnimationOptions, AnimationResult, CameraWaypoint } from "./src/video/VideoCapture";
+export { AnimationCancelledError } from "./src/video/MediaRecorderCapture";
 ```
 
 ---
@@ -187,9 +183,7 @@ const handler = (): void => {
 - **Example**: `test/browser/screenshot/screenshot-error-codes.test.ts:16-17`
 
 ```typescript
-await expect(
-    graph.captureScreenshot({width: 20000, height: 20000}),
-).rejects.toThrow(ScreenshotError);
+await expect(graph.captureScreenshot({ width: 20000, height: 20000 })).rejects.toThrow(ScreenshotError);
 ```
 
 - **Fix**: Consistently use `assert.rejects()` pattern as shown elsewhere.
@@ -304,6 +298,7 @@ test("can capture video with 2D camera animation", async () => {
 The screenshot API is **complete and comprehensive** with the following capabilities:
 
 ### Screenshot Capture
+
 - Format support: PNG, JPEG, WebP
 - Resolution control: multiplier, explicit dimensions
 - Quality enhancement: supersampling, MSAA, FXAA
@@ -312,6 +307,7 @@ The screenshot API is **complete and comprehensive** with the following capabili
 - Built-in presets: print, thumbnail, web-share, documentation
 
 ### Camera Control
+
 - Get/set camera state (2D and 3D)
 - Position, target, zoom, pan controls
 - Camera animation with easing
@@ -319,6 +315,7 @@ The screenshot API is **complete and comprehensive** with the following capabili
 - User-defined preset save/load
 
 ### Video Capture
+
 - Stationary camera mode
 - Animated camera with waypoints
 - Multiple codec support (VP9, VP8, MP4)
@@ -328,6 +325,7 @@ The screenshot API is **complete and comprehensive** with the following capabili
 - Capture estimation
 
 ### Timing Control
+
 - Wait for layout settle
 - Wait for pending operations
 - Immediate capture option

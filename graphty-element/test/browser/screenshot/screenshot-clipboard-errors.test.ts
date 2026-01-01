@@ -1,7 +1,7 @@
-import {afterEach, assert, test} from "vitest";
+import { afterEach, assert, test } from "vitest";
 
-import type {Graph} from "../../../src/Graph.js";
-import {cleanupTestGraphWithData, createTestGraphWithData} from "./test-setup.js";
+import type { Graph } from "../../../src/Graph.js";
+import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
 
@@ -9,11 +9,11 @@ afterEach(() => {
     cleanupTestGraphWithData(graph);
 });
 
-test("screenshot returns valid clipboardStatus", async() => {
+test("screenshot returns valid clipboardStatus", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot({
-        destination: {clipboard: true},
+        destination: { clipboard: true },
     });
 
     // Clipboard status should be one of the valid values
@@ -24,11 +24,11 @@ test("screenshot returns valid clipboardStatus", async() => {
     );
 });
 
-test("screenshot provides clipboardError when clipboard fails", async() => {
+test("screenshot provides clipboardError when clipboard fails", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot({
-        destination: {clipboard: true},
+        destination: { clipboard: true },
     });
 
     // If clipboard failed, there should be an error
@@ -38,11 +38,11 @@ test("screenshot provides clipboardError when clipboard fails", async() => {
     }
 });
 
-test("screenshot still succeeds even if clipboard fails", async() => {
+test("screenshot still succeeds even if clipboard fails", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot({
-        destination: {clipboard: true},
+        destination: { clipboard: true },
     });
 
     // Screenshot should succeed even if clipboard fails
@@ -51,16 +51,16 @@ test("screenshot still succeeds even if clipboard fails", async() => {
     assert.ok(result.metadata, "Should have metadata");
 });
 
-test("clipboard status is 'not-supported' or 'success' based on browser capability", async() => {
+test("clipboard status is 'not-supported' or 'success' based on browser capability", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot({
-        destination: {clipboard: true},
+        destination: { clipboard: true },
     });
 
     // In most test environments, clipboard might not be supported
     // but in secure contexts it should work
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+     
     if (window.isSecureContext && navigator.clipboard) {
         // Clipboard API is available - status should be success or permission-denied
         assert.ok(
@@ -76,28 +76,28 @@ test("clipboard status is 'not-supported' or 'success' based on browser capabili
     }
 });
 
-test("clipboard operation does not throw error", async() => {
+test("clipboard operation does not throw error", async () => {
     graph = await createTestGraphWithData();
 
     // This should not throw even if clipboard is not supported
     const result = await graph.captureScreenshot({
-        destination: {clipboard: true},
+        destination: { clipboard: true },
     });
 
     assert.ok(result, "Should return result");
     assert.ok(result.blob, "Should have blob");
 });
 
-test("clipboard error has appropriate code", async() => {
+test("clipboard error has appropriate code", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot({
-        destination: {clipboard: true},
+        destination: { clipboard: true },
     });
 
     if (result.clipboardError) {
         // Error should have a code property if it's a ScreenshotError
-        const errorCode = (result.clipboardError as {code?: string}).code;
+        const errorCode = (result.clipboardError as { code?: string }).code;
 
         if (errorCode) {
             const validCodes = [
@@ -115,17 +115,17 @@ test("clipboard error has appropriate code", async() => {
     }
 });
 
-test("multiple screenshots can handle clipboard independently", async() => {
+test("multiple screenshots can handle clipboard independently", async () => {
     graph = await createTestGraphWithData();
 
     // First screenshot with clipboard
     const result1 = await graph.captureScreenshot({
-        destination: {clipboard: true},
+        destination: { clipboard: true },
     });
 
     // Second screenshot with clipboard
     const result2 = await graph.captureScreenshot({
-        destination: {clipboard: true},
+        destination: { clipboard: true },
     });
 
     // Both should have completed
@@ -140,11 +140,11 @@ test("multiple screenshots can handle clipboard independently", async() => {
     );
 });
 
-test("screenshot without clipboard destination has default clipboard status", async() => {
+test("screenshot without clipboard destination has default clipboard status", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot({
-        destination: {blob: true},
+        destination: { blob: true },
     });
 
     // When clipboard is not requested, status should still be set (to not-supported or success depending on defaults)

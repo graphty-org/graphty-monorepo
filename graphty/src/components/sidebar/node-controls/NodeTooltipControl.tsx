@@ -1,7 +1,7 @@
 import React from "react";
 
-import type {RichTextStyle} from "../../../types/style-layer";
-import {RichTextStyleEditor} from "../controls/RichTextStyleEditor";
+import type { RichTextStyle } from "../../../types/style-layer";
+import { RichTextStyleEditor } from "../controls/RichTextStyleEditor";
 
 interface NodeTooltipControlProps {
     value: RichTextStyle;
@@ -18,13 +18,11 @@ interface NodeTooltipControlProps {
  * - Node-specific positioning relative to node shape
  * - Dynamic content interpolation (e.g., showing node properties)
  * - Integration with node metadata for automatic tooltip content
+ * @param root0 - Component props
+ * @param root0.value - The current tooltip style configuration
+ * @param root0.onChange - Called when the tooltip style changes
+ * @returns The node tooltip control component
  */
-export function NodeTooltipControl({value, onChange}: NodeTooltipControlProps): React.JSX.Element {
-    return (
-        <RichTextStyleEditor
-            label="Node Tooltip"
-            value={value}
-            onChange={onChange}
-        />
-    );
+export function NodeTooltipControl({ value, onChange }: NodeTooltipControlProps): React.JSX.Element {
+    return <RichTextStyleEditor label="Node Tooltip" value={value} onChange={onChange} />;
 }

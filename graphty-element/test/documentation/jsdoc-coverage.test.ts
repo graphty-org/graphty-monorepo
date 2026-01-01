@@ -1,5 +1,5 @@
-import {readFileSync} from "fs";
-import {assert, describe, it} from "vitest";
+import { readFileSync } from "fs";
+import { assert, describe, it } from "vitest";
 
 describe("JSDoc Coverage", () => {
     describe("Graph.ts public methods", () => {
@@ -27,24 +27,13 @@ describe("JSDoc Coverage", () => {
                     `/\\*\\*[\\s\\S]*?@example[\\s\\S]*?\\*/\\s*(async\\s+)?${method}\\s*\\(`,
                     "m",
                 );
-                assert.match(
-                    content,
-                    regex,
-                    `${method} should have JSDoc with @example`,
-                );
+                assert.match(content, regex, `${method} should have JSDoc with @example`);
             });
 
             it(`${method} has @since tag`, () => {
                 // Look for @since tag in the JSDoc preceding the method
-                const regex = new RegExp(
-                    `/\\*\\*[\\s\\S]*?@since[\\s\\S]*?\\*/\\s*(async\\s+)?${method}\\s*\\(`,
-                    "m",
-                );
-                assert.match(
-                    content,
-                    regex,
-                    `${method} should have @since tag`,
-                );
+                const regex = new RegExp(`/\\*\\*[\\s\\S]*?@since[\\s\\S]*?\\*/\\s*(async\\s+)?${method}\\s*\\(`, "m");
+                assert.match(content, regex, `${method} should have @since tag`);
             });
         }
     });
@@ -61,23 +50,17 @@ describe("JSDoc Coverage", () => {
         });
 
         // Check specific properties have JSDoc
-        const properties = [
-            "nodeData",
-            "edgeData",
-            "layout",
-            "viewMode",
-            "styleTemplate",
-        ];
+        const properties = ["nodeData", "edgeData", "layout", "viewMode", "styleTemplate"];
 
         for (const prop of properties) {
             it(`${prop} property has JSDoc`, () => {
                 // Look for JSDoc block before property getter/setter or @property decorator
-                const hasJSDoc = content.includes("@property") && (
+                const hasJSDoc =
+                    content.includes("@property") &&
                     // Check for JSDoc preceding the getter
-                    new RegExp(`/\\*\\*[\\s\\S]*?\\*/\\s*(?:@property[^]*?)?get\\s+${prop}\\s*\\(`).test(content) ||
-                    // Or JSDoc in the format used in the file
-                    new RegExp("/\\*\\*[\\s\\S]*?\\*/\\s*@property").test(content)
-                );
+                    (new RegExp(`/\\*\\*[\\s\\S]*?\\*/\\s*(?:@property[^]*?)?get\\s+${prop}\\s*\\(`).test(content) ||
+                        // Or JSDoc in the format used in the file
+                        new RegExp("/\\*\\*[\\s\\S]*?\\*/\\s*@property").test(content));
                 assert.isTrue(
                     hasJSDoc || content.includes(`get ${prop}`),
                     `${prop} property should have JSDoc documentation`,
@@ -102,11 +85,7 @@ describe("JSDoc Coverage", () => {
             ];
 
             for (const exportName of expectedExports) {
-                assert.include(
-                    indexContent,
-                    exportName,
-                    `index.ts should export ${exportName}`,
-                );
+                assert.include(indexContent, exportName, `index.ts should export ${exportName}`);
             }
         });
     });

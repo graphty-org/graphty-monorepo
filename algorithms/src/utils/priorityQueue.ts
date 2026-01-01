@@ -5,13 +5,17 @@ export class MinPriorityQueue<T> {
     private heap: T[] = [];
     private compare: (a: T, b: T) => number;
 
+    /**
+     * Creates a new MinPriorityQueue instance.
+     * @param compareFunction - Custom comparison function. Returns negative if a has higher priority than b.
+     */
     constructor(compareFunction?: (a: T, b: T) => number) {
         this.compare = compareFunction ?? ((a: T, b: T) => this.defaultCompare(a, b));
     }
 
     private defaultCompare(a: T, b: T): number {
-        const aWithDistance = a as T & {distance?: number};
-        const bWithDistance = b as T & {distance?: number};
+        const aWithDistance = a as T & { distance?: number };
+        const bWithDistance = b as T & { distance?: number };
 
         if (aWithDistance.distance !== undefined && bWithDistance.distance !== undefined) {
             return aWithDistance.distance - bWithDistance.distance;
@@ -25,11 +29,11 @@ export class MinPriorityQueue<T> {
     }
 
     private leftChild(i: number): number {
-        return (2 * i) + 1;
+        return 2 * i + 1;
     }
 
     private rightChild(i: number): number {
-        return (2 * i) + 2;
+        return 2 * i + 2;
     }
 
     private swap(i: number, j: number): void {
@@ -63,13 +67,23 @@ export class MinPriorityQueue<T> {
 
             const leftItem = this.heap[left];
             const minItem = this.heap[minIndex];
-            if (left < this.heap.length && leftItem !== undefined && minItem !== undefined && this.compare(leftItem, minItem) < 0) {
+            if (
+                left < this.heap.length &&
+                leftItem !== undefined &&
+                minItem !== undefined &&
+                this.compare(leftItem, minItem) < 0
+            ) {
                 minIndex = left;
             }
 
             const rightItem = this.heap[right];
             const newMinItem = this.heap[minIndex];
-            if (right < this.heap.length && rightItem !== undefined && newMinItem !== undefined && this.compare(rightItem, newMinItem) < 0) {
+            if (
+                right < this.heap.length &&
+                rightItem !== undefined &&
+                newMinItem !== undefined &&
+                this.compare(rightItem, newMinItem) < 0
+            ) {
                 minIndex = right;
             }
 
@@ -82,11 +96,19 @@ export class MinPriorityQueue<T> {
         }
     }
 
+    /**
+     * Insert a value into the priority queue.
+     * @param value - The value to insert
+     */
     insert(value: T): void {
         this.heap.push(value);
         this.heapifyUp(this.heap.length - 1);
     }
 
+    /**
+     * Remove and return the minimum value from the priority queue.
+     * @returns The minimum value, or undefined if the queue is empty
+     */
     extractMin(): T | undefined {
         if (this.heap.length === 0) {
             return undefined;
@@ -106,14 +128,26 @@ export class MinPriorityQueue<T> {
         return min;
     }
 
+    /**
+     * View the minimum value without removing it.
+     * @returns The minimum value, or undefined if the queue is empty
+     */
     peek(): T | undefined {
         return this.heap[0];
     }
 
+    /**
+     * Check if the priority queue is empty.
+     * @returns True if the queue has no items, false otherwise
+     */
     isEmpty(): boolean {
         return this.heap.length === 0;
     }
 
+    /**
+     * Get the number of items in the priority queue.
+     * @returns The number of items currently in the queue
+     */
     size(): number {
         return this.heap.length;
     }

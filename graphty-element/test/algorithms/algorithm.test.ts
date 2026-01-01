@@ -1,15 +1,15 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {DegreeAlgorithm} from "../../src/algorithms/DegreeAlgorithm";
-import {createMockGraph, getGraphResult, getMockNode, getNodeResult} from "../helpers/mockGraph";
+import { DegreeAlgorithm } from "../../src/algorithms/DegreeAlgorithm";
+import { createMockGraph, getGraphResult, getMockNode, getNodeResult } from "../helpers/mockGraph";
 
 describe("DegreeAlgorithm", () => {
-    it("exists", async() => {
+    it("exists", async () => {
         new DegreeAlgorithm(await createMockGraph());
     });
 
-    it("calculates node degree", async() => {
-        const graph = await createMockGraph({dataPath: "./data4.json"});
+    it("calculates node degree", async () => {
+        const graph = await createMockGraph({ dataPath: "./data4.json" });
         const da = new DegreeAlgorithm(graph);
 
         await da.run();
@@ -35,13 +35,13 @@ describe("DegreeAlgorithm", () => {
         assert.deepStrictEqual(node.algorithmResults, expectedResult);
     });
 
-    it("correctly calculates in-degree for destination nodes", async() => {
+    it("correctly calculates in-degree for destination nodes", async () => {
         // Graph: A -> B, A -> C (A has outDegree=2, B/C have inDegree=1)
         const graph = await createMockGraph({
-            nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+            nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
             edges: [
-                {srcId: "A", dstId: "B"},
-                {srcId: "A", dstId: "C"},
+                { srcId: "A", dstId: "B" },
+                { srcId: "A", dstId: "C" },
             ],
         });
 
@@ -60,9 +60,9 @@ describe("DegreeAlgorithm", () => {
         assert.strictEqual(getNodeResult(graph, "C", "graphty", "degree", "outDegree"), 0, "C should have outDegree=0");
     });
 
-    it("handles empty graph without NaN", async() => {
+    it("handles empty graph without NaN", async () => {
         const graph = await createMockGraph({
-            nodes: [{id: "A"}],
+            nodes: [{ id: "A" }],
             edges: [],
         });
 
@@ -82,13 +82,13 @@ describe("DegreeAlgorithm", () => {
         assert.strictEqual(Number.isNaN(outDegreePct), false, "outDegreePct should not be NaN");
     });
 
-    it("stores graph-level results", async() => {
+    it("stores graph-level results", async () => {
         // Graph: A -> B, A -> C (maxOutDegree=2, maxInDegree=1, maxDegree=2)
         const graph = await createMockGraph({
-            nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+            nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
             edges: [
-                {srcId: "A", dstId: "B"},
-                {srcId: "A", dstId: "C"},
+                { srcId: "A", dstId: "B" },
+                { srcId: "A", dstId: "C" },
             ],
         });
 
@@ -101,9 +101,9 @@ describe("DegreeAlgorithm", () => {
         assert.strictEqual(getGraphResult(graph, "graphty", "degree", "maxDegree"), 2);
     });
 
-    it("handles graph with no edges for graph-level results", async() => {
+    it("handles graph with no edges for graph-level results", async () => {
         const graph = await createMockGraph({
-            nodes: [{id: "A"}, {id: "B"}],
+            nodes: [{ id: "A" }, { id: "B" }],
             edges: [],
         });
 

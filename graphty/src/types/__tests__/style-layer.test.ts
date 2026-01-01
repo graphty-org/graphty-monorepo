@@ -1,4 +1,4 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type {
     ColorConfig,
@@ -24,7 +24,10 @@ describe("style-layer types", () => {
     it("should allow creating GradientColorConfig with stops", () => {
         const config: GradientColorConfig = {
             mode: "gradient",
-            stops: [{id: "stop-1", offset: 0, color: "#ff0000"}, {id: "stop-2", offset: 100, color: "#00ff00"}],
+            stops: [
+                { id: "stop-1", offset: 0, color: "#ff0000" },
+                { id: "stop-2", offset: 100, color: "#00ff00" },
+            ],
             direction: 90,
             opacity: 100,
         };
@@ -36,7 +39,10 @@ describe("style-layer types", () => {
     it("should allow creating RadialColorConfig with stops", () => {
         const config: RadialColorConfig = {
             mode: "radial",
-            stops: [{id: "stop-1", offset: 0, color: "#ff0000"}, {id: "stop-2", offset: 100, color: "#00ff00"}],
+            stops: [
+                { id: "stop-1", offset: 0, color: "#ff0000" },
+                { id: "stop-2", offset: 100, color: "#00ff00" },
+            ],
             opacity: 100,
         };
         expect(config.mode).toBe("radial");
@@ -55,9 +61,9 @@ describe("style-layer types", () => {
     });
 
     it("should allow ColorConfig union type", () => {
-        const solid: ColorConfig = {mode: "solid", color: "#000", opacity: 100};
-        const gradient: ColorConfig = {mode: "gradient", stops: [], direction: 0, opacity: 100};
-        const radial: ColorConfig = {mode: "radial", stops: [], opacity: 100};
+        const solid: ColorConfig = { mode: "solid", color: "#000", opacity: 100 };
+        const gradient: ColorConfig = { mode: "gradient", stops: [], direction: 0, opacity: 100 };
+        const radial: ColorConfig = { mode: "radial", stops: [], opacity: 100 };
 
         expect(solid.mode).toBe("solid");
         expect(gradient.mode).toBe("gradient");

@@ -1,26 +1,20 @@
-import {
-    AbstractMesh,
-    Mesh,
-    Quaternion,
-    Ray,
-    Vector3,
-} from "@babylonjs/core";
+import { AbstractMesh, Mesh, Quaternion, Ray, Vector3 } from "@babylonjs/core";
 import * as jmespath from "jmespath";
 import _ from "lodash";
 
-import {CalculatedValue} from "./CalculatedValue";
-import {ChangeManager} from "./ChangeManager";
-import {type AdHocData, EdgeStyle, type EdgeStyleConfig} from "./config";
-import {EDGE_CONSTANTS} from "./constants/meshConstants";
-import type {Graph} from "./Graph";
-import type {GraphContext} from "./managers/GraphContext";
-import {EdgeMesh} from "./meshes/EdgeMesh";
-import {FilledArrowRenderer} from "./meshes/FilledArrowRenderer";
-import {PatternedLineMesh} from "./meshes/PatternedLineMesh";
-import {type AttachPosition, RichTextLabel, type RichTextLabelOptions} from "./meshes/RichTextLabel";
-import {Simple2DLineRenderer} from "./meshes/Simple2DLineRenderer";
-import {Node, NodeIdType} from "./Node";
-import {EdgeStyleId, Styles} from "./Styles";
+import { CalculatedValue } from "./CalculatedValue";
+import { ChangeManager } from "./ChangeManager";
+import { type AdHocData, EdgeStyle, type EdgeStyleConfig } from "./config";
+import { EDGE_CONSTANTS } from "./constants/meshConstants";
+import type { Graph } from "./Graph";
+import type { GraphContext } from "./managers/GraphContext";
+import { EdgeMesh } from "./meshes/EdgeMesh";
+import { FilledArrowRenderer } from "./meshes/FilledArrowRenderer";
+import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
+import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
+import { Simple2DLineRenderer } from "./meshes/Simple2DLineRenderer";
+import { Node, NodeIdType } from "./Node";
+import { EdgeStyleId, Styles } from "./Styles";
 
 interface InterceptPoint {
     srcPoint: Vector3 | null;
@@ -31,7 +25,6 @@ interface InterceptPoint {
 interface EdgeLine {
     srcPoint: Vector3 | null;
     dstPoint: Vector3 | null;
-
 }
 
 interface EdgeOpts {
@@ -96,7 +89,14 @@ export class Edge {
      * @param data - Custom data associated with the edge
      * @param opts - Optional configuration options
      */
-    constructor(graph: Graph | GraphContext, srcNodeId: NodeIdType, dstNodeId: NodeIdType, styleId: EdgeStyleId, data: AdHocData, opts: EdgeOpts = {}) {
+    constructor(
+        graph: Graph | GraphContext,
+        srcNodeId: NodeIdType,
+        dstNodeId: NodeIdType,
+        styleId: EdgeStyleId,
+        data: AdHocData,
+        opts: EdgeOpts = {},
+    ) {
         this.parentGraph = graph;
         this.srcId = srcNodeId;
         this.dstId = dstNodeId;
@@ -106,17 +106,24 @@ export class Edge {
         this.data = this.changeManager.watch("data", data);
         this.algorithmResults = this.changeManager.watch("algorithmResults", {} as unknown as AdHocData);
         this.styleUpdates = this.changeManager.addData("style", {} as unknown as AdHocData, EdgeStyle);
-        this.changeManager.loadCalculatedValues(this.context.getStyleManager().getStyles().getCalculatedStylesForEdge(data), true);
+        this.changeManager.loadCalculatedValues(
+            this.context.getStyleManager().getStyles().getCalculatedStylesForEdge(data),
+            true,
+        );
 
         // make sure both srcNode and dstNode already exist
         const srcNode = this.context.getDataManager().nodeCache.get(srcNodeId);
         if (!srcNode) {
-            throw new Error(`Attempting to create edge '${srcNodeId}->${dstNodeId}', Node '${srcNodeId}' hasn't been created yet.`);
+            throw new Error(
+                `Attempting to create edge '${srcNodeId}->${dstNodeId}', Node '${srcNodeId}' hasn't been created yet.`,
+            );
         }
 
         const dstNode = this.context.getDataManager().nodeCache.get(dstNodeId);
         if (!dstNode) {
-            throw new Error(`Attempting to create edge '${srcNodeId}->${dstNodeId}', Node '${dstNodeId}' hasn't been created yet.`);
+            throw new Error(
+                `Attempting to create edge '${srcNodeId}->${dstNodeId}', Node '${dstNodeId}' hasn't been created yet.`,
+            );
         }
 
         this.srcNode = srcNode;
@@ -124,10 +131,7 @@ export class Edge {
 
         // create ray for direction / intercept finding
         // Ray constructor expects (origin, direction), not (origin, destination)
-        this.ray = new Ray(
-            this.srcNode.mesh.position,
-            this.dstNode.mesh.position.subtract(this.srcNode.mesh.position),
-        );
+        this.ray = new Ray(this.srcNode.mesh.position, this.dstNode.mesh.position.subtract(this.srcNode.mesh.position));
 
         // copy edgeMeshConfig
         this.styleId = styleId;
@@ -208,7 +212,7 @@ export class Edge {
 
         // create label if configured
         if (style.label?.enabled) {
-            const {label, offset, attachPosition} = this.createLabel(style);
+            const { label, offset, attachPosition } = this.createLabel(style);
             this.label = label;
             this._labelOffset = offset;
             this._labelAttachPosition = attachPosition;
@@ -216,14 +220,14 @@ export class Edge {
 
         // create arrow head text if configured
         if (style.arrowHead?.text) {
-            const {label, offset} = this.createArrowText(style.arrowHead.text, "arrowHead");
+            const { label, offset } = this.createArrowText(style.arrowHead.text, "arrowHead");
             this.arrowHeadText = label;
             this._arrowHeadTextOffset = offset;
         }
 
         // create arrow tail text if configured
         if (style.arrowTail?.text) {
-            const {label, offset} = this.createArrowText(style.arrowTail.text, "arrowTail");
+            const { label, offset } = this.createArrowText(style.arrowTail.text, "arrowTail");
             this.arrowTailText = label;
             this._arrowTailTextOffset = offset;
         }
@@ -292,7 +296,7 @@ export class Edge {
         // Nodes have moved, perform update
         // console.log("Edge.update: Performing update (nodes moved)");
 
-        const {srcPoint, dstPoint} = this.transformArrowCap();
+        const { srcPoint, dstPoint } = this.transformArrowCap();
         const finalSrcPoint = srcPoint ?? new Vector3(lnk.src.x, lnk.src.y, lnk.src.z);
         const finalDstPoint = dstPoint ?? new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z);
 
@@ -364,9 +368,10 @@ export class Edge {
         // Only skip update if styleId is the same AND mesh is not disposed
         // (mesh can be disposed when switching 2D/3D modes via meshCache.clear())
         // PHASE 5: PatternedLineMesh doesn't have isDisposed(), check if it's AbstractMesh first
-        const meshDisposed = (this.mesh instanceof PatternedLineMesh) ?
-            false : // PatternedLineMesh is always "alive" (check individual meshes if needed)
-            this.mesh.isDisposed();
+        const meshDisposed =
+            this.mesh instanceof PatternedLineMesh
+                ? false // PatternedLineMesh is always "alive" (check individual meshes if needed)
+                : this.mesh.isDisposed();
 
         if (styleId === this.styleId && !meshDisposed) {
             // console.log("Edge.updateStyle: skipping update (same style and mesh not disposed)");
@@ -431,7 +436,7 @@ export class Edge {
         if (style.line?.bezier) {
             const lnk = this.context.getLayoutManager().layoutEngine?.getEdgePosition(this);
             if (lnk) {
-                const {srcPoint: arrowSrc, dstPoint: arrowDst} = this.transformArrowCap();
+                const { srcPoint: arrowSrc, dstPoint: arrowDst } = this.transformArrowCap();
                 srcPoint = arrowSrc ?? new Vector3(lnk.src.x, lnk.src.y, lnk.src.z);
                 dstPoint = arrowDst ?? new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z);
             }
@@ -482,7 +487,7 @@ export class Edge {
                 this.label.dispose();
             }
 
-            const {label, offset, attachPosition} = this.createLabel(style);
+            const { label, offset, attachPosition } = this.createLabel(style);
             this.label = label;
             this._labelOffset = offset;
             this._labelAttachPosition = attachPosition;
@@ -497,7 +502,7 @@ export class Edge {
                 this.arrowHeadText.dispose();
             }
 
-            const {label, offset} = this.createArrowText(style.arrowHead.text, "arrowHead");
+            const { label, offset } = this.createArrowText(style.arrowHead.text, "arrowHead");
             this.arrowHeadText = label;
             this._arrowHeadTextOffset = offset;
         } else if (this.arrowHeadText) {
@@ -511,7 +516,7 @@ export class Edge {
                 this.arrowTailText.dispose();
             }
 
-            const {label, offset} = this.createArrowText(style.arrowTail.text, "arrowTail");
+            const { label, offset } = this.createArrowText(style.arrowTail.text, "arrowTail");
             this.arrowTailText = label;
             this._arrowTailTextOffset = offset;
         } else if (this.arrowTailText) {
@@ -531,7 +536,7 @@ export class Edge {
             return;
         }
 
-        const {layoutEngine} = context.getLayoutManager();
+        const { layoutEngine } = context.getLayoutManager();
         if (!layoutEngine) {
             return;
         }
@@ -590,7 +595,7 @@ export class Edge {
      */
     transformArrowCap(): EdgeLine {
         if (this.arrowMesh) {
-            const {srcPoint, dstPoint, newEndPoint} = this.getInterceptPoints();
+            const { srcPoint, dstPoint, newEndPoint } = this.getInterceptPoints();
 
             // If we can't find intercept points, fall back to approximate positions
             if (!srcPoint || !dstPoint || !newEndPoint) {
@@ -650,12 +655,7 @@ export class Edge {
                 );
 
                 // Calculate line endpoint using common function
-                const lineEndPoint = EdgeMesh.calculateLineEndpoint(
-                    dstSurfacePoint,
-                    direction,
-                    arrowLength,
-                    geometry,
-                );
+                const lineEndPoint = EdgeMesh.calculateLineEndpoint(dstSurfacePoint, direction, arrowLength, geometry);
                 this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.vectorMath");
 
                 // Update arrow position directly (no thin instances)
@@ -668,7 +668,22 @@ export class Edge {
                     this.arrowMesh.rotation.z = angle;
                 } else {
                     // 3D: Use billboarding or lookAt
-                    if (arrowType && ["normal", "inverted", "diamond", "box", "dot", "vee", "tee", "half-open", "crow", "open-normal", "open-diamond"].includes(arrowType)) {
+                    if (
+                        arrowType &&
+                        [
+                            "normal",
+                            "inverted",
+                            "diamond",
+                            "box",
+                            "dot",
+                            "vee",
+                            "tee",
+                            "half-open",
+                            "crow",
+                            "open-normal",
+                            "open-diamond",
+                        ].includes(arrowType)
+                    ) {
                         // Filled arrows use shader-based billboarding via lineDirection uniform
                         FilledArrowRenderer.setLineDirection(this.arrowMesh as Mesh, direction);
                     } else if (geometry.needsRotation) {
@@ -705,12 +720,7 @@ export class Edge {
             const direction = dstPoint.subtract(srcPoint).normalize();
 
             // Calculate arrow position using common function
-            const arrowPosition = EdgeMesh.calculateArrowPosition(
-                dstPoint,
-                direction,
-                arrowLength,
-                geometry,
-            );
+            const arrowPosition = EdgeMesh.calculateArrowPosition(dstPoint, direction, arrowLength, geometry);
             this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.mainPath");
 
             // Update arrow position directly (no thin instances)
@@ -738,7 +748,22 @@ export class Edge {
                 this.arrowMesh.rotationQuaternion = qZ.multiply(qX);
             } else {
                 // 3D: Use billboarding or lookAt
-                if (arrowType && ["normal", "inverted", "diamond", "box", "dot", "vee", "tee", "half-open", "crow", "open-normal", "open-diamond"].includes(arrowType)) {
+                if (
+                    arrowType &&
+                    [
+                        "normal",
+                        "inverted",
+                        "diamond",
+                        "box",
+                        "dot",
+                        "vee",
+                        "tee",
+                        "half-open",
+                        "crow",
+                        "open-normal",
+                        "open-diamond",
+                    ].includes(arrowType)
+                ) {
                     // Filled arrows use shader-based billboarding via lineDirection uniform
                     FilledArrowRenderer.setLineDirection(this.arrowMesh as Mesh, direction);
                 } else if (geometry.needsRotation) {
@@ -795,7 +820,21 @@ export class Edge {
                         this.arrowTailMesh.rotationQuaternion = qZ.multiply(qX);
                     } else {
                         // 3D: Use billboarding or explicit rotation
-                        if (["normal", "inverted", "diamond", "box", "dot", "vee", "tee", "half-open", "crow", "open-normal", "open-diamond"].includes(tailType)) {
+                        if (
+                            [
+                                "normal",
+                                "inverted",
+                                "diamond",
+                                "box",
+                                "dot",
+                                "vee",
+                                "tee",
+                                "half-open",
+                                "crow",
+                                "open-normal",
+                                "open-diamond",
+                            ].includes(tailType)
+                        ) {
                             // Filled arrows use shader-based billboarding via lineDirection uniform
                             FilledArrowRenderer.setLineDirection(this.arrowTailMesh as Mesh, reversedDirection);
                         } else if (tailGeometry.needsRotation) {
@@ -805,7 +844,9 @@ export class Edge {
                             const angleZ = Math.atan2(reversedDirection.y, reversedDirection.x);
 
                             // Y rotation: tilt forward/back to match edge depth
-                            const horizontalDist = Math.sqrt((reversedDirection.x * reversedDirection.x) + (reversedDirection.y * reversedDirection.y));
+                            const horizontalDist = Math.sqrt(
+                                reversedDirection.x * reversedDirection.x + reversedDirection.y * reversedDirection.y,
+                            );
                             const angleY = -Math.atan2(reversedDirection.z, horizontalDist);
 
                             // Apply rotations
@@ -878,12 +919,7 @@ export class Edge {
                 // Use common function to calculate line endpoint
                 // Direction points FROM source TO destination (forward direction)
                 const direction = dstPoint.subtract(srcPoint).normalize();
-                newEndPoint = EdgeMesh.calculateLineEndpoint(
-                    dstPoint,
-                    direction,
-                    arrowLength,
-                    geometry,
-                );
+                newEndPoint = EdgeMesh.calculateLineEndpoint(dstPoint, direction, arrowLength, geometry);
             } else {
                 // No arrow head, edge goes all the way to the node surface
                 newEndPoint = dstPoint;
@@ -897,13 +933,17 @@ export class Edge {
         };
     }
 
-    private createLabel(styleConfig: EdgeStyleConfig): {label: RichTextLabel, offset: number, attachPosition: AttachPosition} {
+    private createLabel(styleConfig: EdgeStyleConfig): {
+        label: RichTextLabel;
+        offset: number;
+        attachPosition: AttachPosition;
+    } {
         const labelText = this.extractLabelText(styleConfig.label);
         const labelOptions = this.createLabelOptions(labelText, styleConfig);
         const offset = styleConfig.label?.attachOffset ?? 0;
         const labelLocation = styleConfig.label?.location ?? "center";
         const attachPosition = (labelLocation === "automatic" ? "center" : labelLocation) as AttachPosition;
-        return {label: new RichTextLabel(this.context.getScene(), labelOptions), offset, attachPosition};
+        return { label: new RichTextLabel(this.context.getScene(), labelOptions), offset, attachPosition };
     }
 
     private extractLabelText(labelConfig?: Record<string, unknown>): string {
@@ -914,7 +954,11 @@ export class Edge {
         // Check if text is directly provided
         if (labelConfig.text !== undefined && labelConfig.text !== null) {
             // Only convert to string if it's a primitive type
-            if (typeof labelConfig.text === "string" || typeof labelConfig.text === "number" || typeof labelConfig.text === "boolean") {
+            if (
+                typeof labelConfig.text === "string" ||
+                typeof labelConfig.text === "number" ||
+                typeof labelConfig.text === "boolean"
+            ) {
                 return String(labelConfig.text);
             }
         } else if (labelConfig.textPath && typeof labelConfig.textPath === "string") {
@@ -932,7 +976,7 @@ export class Edge {
     }
 
     private createLabelOptions(labelText: string, styleConfig: EdgeStyleConfig): RichTextLabelOptions {
-        const {label} = styleConfig;
+        const { label } = styleConfig;
         if (!label) {
             return {
                 text: labelText,
@@ -948,9 +992,9 @@ export class Edge {
         let backgroundColor: string | undefined = undefined;
         if (label.backgroundColor) {
             if (typeof label.backgroundColor === "string") {
-                ({backgroundColor} = label);
+                ({ backgroundColor } = label);
             } else if (label.backgroundColor.colorType === "solid") {
-                ({value: backgroundColor} = label.backgroundColor);
+                ({ value: backgroundColor } = label.backgroundColor);
             } else if (label.backgroundColor.colorType === "gradient") {
                 // For gradients, use the first color as a fallback
                 [backgroundColor] = label.backgroundColor.colors;
@@ -960,17 +1004,19 @@ export class Edge {
         // Filter out undefined values from backgroundGradientColors
         let backgroundGradientColors: string[] | undefined = undefined;
         if (label.backgroundGradientColors) {
-            backgroundGradientColors = label.backgroundGradientColors.filter((color): color is string => color !== undefined);
+            backgroundGradientColors = label.backgroundGradientColors.filter(
+                (color): color is string => color !== undefined,
+            );
             if (backgroundGradientColors.length === 0) {
                 backgroundGradientColors = undefined;
             }
         }
 
         // Transform borders to ensure colors are strings
-        let borders: {width: number, color: string, spacing: number}[] | undefined = undefined;
+        let borders: { width: number; color: string; spacing: number }[] | undefined = undefined;
         if (label.borders && label.borders.length > 0) {
             const validBorders = label.borders
-                .filter((border): border is typeof border & {color: string} => border.color !== undefined)
+                .filter((border): border is typeof border & { color: string } => border.color !== undefined)
                 .map((border) => ({
                     width: border.width,
                     color: border.color,
@@ -985,14 +1031,14 @@ export class Edge {
 
         // Create label options by spreading the entire label object
         const labelOptions: RichTextLabelOptions = {
-            ... label,
+            ...label,
             // Override with computed values
             text: labelText,
             attachPosition: attachPosition as AttachPosition,
             attachOffset: label.attachOffset ?? 0,
             backgroundColor,
             backgroundGradientColors,
-            ... (borders !== undefined && {borders}),
+            ...(borders !== undefined && { borders }),
         };
 
         // Handle special case for transparent background
@@ -1002,17 +1048,28 @@ export class Edge {
 
         // Remove properties that shouldn't be passed to RichTextLabel
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const {location, textPath, enabled, ... finalLabelOptions} = labelOptions as RichTextLabelOptions & {location?: string, textPath?: string, enabled?: boolean};
+        const { location, textPath, enabled, ...finalLabelOptions } = labelOptions as RichTextLabelOptions & {
+            location?: string;
+            textPath?: string;
+            enabled?: boolean;
+        };
 
         return finalLabelOptions;
     }
 
-    private createArrowText(textConfig: Record<string, unknown>, source: "arrowHead" | "arrowTail"): {label: RichTextLabel, offset: number} {
+    private createArrowText(
+        textConfig: Record<string, unknown>,
+        source: "arrowHead" | "arrowTail",
+    ): { label: RichTextLabel; offset: number } {
         // Extract text from config - either direct text or textPath
         let labelText: string = source === "arrowHead" ? "→" : "←";
 
         if (textConfig.text !== undefined && textConfig.text !== null) {
-            if (typeof textConfig.text === "string" || typeof textConfig.text === "number" || typeof textConfig.text === "boolean") {
+            if (
+                typeof textConfig.text === "string" ||
+                typeof textConfig.text === "number" ||
+                typeof textConfig.text === "boolean"
+            ) {
                 labelText = String(textConfig.text);
             }
         } else if (textConfig.textPath && typeof textConfig.textPath === "string") {
@@ -1044,7 +1101,7 @@ export class Edge {
             labelOptions.cornerRadius = textConfig.cornerRadius;
         }
 
-        return {label: new RichTextLabel(this.context.getScene(), labelOptions), offset};
+        return { label: new RichTextLabel(this.context.getScene(), labelOptions), offset };
     }
 }
 

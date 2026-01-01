@@ -1,14 +1,16 @@
 import Color from "colorjs.io";
-import {z} from "zod/v4";
+import { z } from "zod/v4";
 // import * as z4 from "zod/v4/core";
 
-export type DeepPartial<T> = T extends object ? {
-    [P in keyof T]?: DeepPartial<T[P]>;
-} : T;
+export type DeepPartial<T> = T extends object
+    ? {
+          [P in keyof T]?: DeepPartial<T[P]>;
+      }
+    : T;
 
 export type PartiallyOptional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
-export type Brand<T, B extends string> = T & {readonly __brand: B};
+export type Brand<T, B extends string> = T & { readonly __brand: B };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AdHocData<KeyType extends string | number = string> = Brand<Record<KeyType, any>, "AdHocData">;
@@ -20,7 +22,7 @@ export type AdHocData<KeyType extends string | number = string> = Brand<Record<K
  */
 export function colorToHex(s: string): string | undefined {
     const color = new Color(s);
-    let hex = color.to("srgb").toString({format: "hex"}).toUpperCase();
+    let hex = color.to("srgb").toString({ format: "hex" }).toUpperCase();
     if (hex.length === 4) {
         // XXX: BabylonJS only likes the long format of hex strings
         hex = `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
@@ -50,11 +52,7 @@ export const AdvancedColorStyle = z.discriminatedUnion("colorType", [
 ]);
 // const ColorScheme = z.array(ColorStyle);
 
-export const TextType = z.enum([
-    "plain",
-    "markdown",
-    "html",
-]);
+export const TextType = z.enum(["plain", "markdown", "html"]);
 
 export const TextLocation = z.enum([
     "top",
@@ -78,4 +76,3 @@ export const HttpUrl = z.url({
 export const EmbeddedBase64Image = z.string().startsWith("data:image/png;base64,");
 
 export const ImageData = HttpUrl.or(EmbeddedBase64Image);
-

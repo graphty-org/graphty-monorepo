@@ -1,8 +1,8 @@
 import assert from "node:assert";
 
-import {describe, it} from "vitest";
+import { describe, it } from "vitest";
 
-import {StyleHelpers} from "../../src/config";
+import { StyleHelpers } from "../../src/config";
 
 describe("StyleHelpers.label.percentage", () => {
     it("converts 0.75 to '75%' with 0 decimals", () => {
@@ -144,7 +144,7 @@ describe("StyleHelpers.label.substitute", () => {
     });
 
     it("handles multiple occurrences", () => {
-        const result = StyleHelpers.label.substitute("{x} + {x} = {y}", {x: 2, y: 4});
+        const result = StyleHelpers.label.substitute("{x} + {x} = {y}", { x: 2, y: 4 });
         assert.strictEqual(result, "2 + 2 = 4");
     });
 });

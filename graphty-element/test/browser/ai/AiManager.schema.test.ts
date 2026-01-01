@@ -3,12 +3,12 @@
  * @module test/ai/AiManager.schema.test
  */
 
-import type {Observable} from "@babylonjs/core";
-import {afterEach, assert, beforeEach, describe, it, vi} from "vitest";
+import type { Observable } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
-import {AiManager} from "../../../src/ai/AiManager";
-import type {Graph} from "../../../src/Graph";
-import type {DataManager, EventManager} from "../../../src/managers";
+import { AiManager } from "../../../src/ai/AiManager";
+import type { Graph } from "../../../src/Graph";
+import type { DataManager, EventManager } from "../../../src/managers";
 
 /** Type for event listener callback */
 type EventCallback = (event: unknown) => void;
@@ -18,8 +18,8 @@ type EventCallback = (event: unknown) => void;
  */
 interface MockGraphResult {
     graph: Graph;
-    mockNodes: Map<string, {id: string, data: Record<string, unknown>}>;
-    mockEdges: Map<string, {id: string, srcId: string, dstId: string, data: Record<string, unknown>}>;
+    mockNodes: Map<string, { id: string; data: Record<string, unknown> }>;
+    mockEdges: Map<string, { id: string; srcId: string; dstId: string; data: Record<string, unknown> }>;
     eventListeners: Map<string, EventCallback[]>;
     addNode: (id: string, data: Record<string, unknown>) => void;
     addEdge: (id: string, srcId: string, dstId: string, data: Record<string, unknown>) => void;
@@ -31,8 +31,8 @@ interface MockGraphResult {
  * This graph supports adding nodes/edges and emitting events.
  */
 function createMockGraphWithEvents(): MockGraphResult {
-    const mockNodes = new Map<string, {id: string, data: Record<string, unknown>}>();
-    const mockEdges = new Map<string, {id: string, srcId: string, dstId: string, data: Record<string, unknown>}>();
+    const mockNodes = new Map<string, { id: string; data: Record<string, unknown> }>();
+    const mockEdges = new Map<string, { id: string; srcId: string; dstId: string; data: Record<string, unknown> }>();
     const eventListeners = new Map<string, EventCallback[]>();
 
     // Add initial nodes for schema extraction
@@ -92,23 +92,23 @@ function createMockGraphWithEvents(): MockGraphResult {
         eventManager: mockEventManager,
         is2D: () => false,
         getLayoutManager: () => ({
-            layoutEngine: {type: "ngraph"},
+            layoutEngine: { type: "ngraph" },
         }),
     } as unknown as Graph;
 
     const addNode = (id: string, data: Record<string, unknown>): void => {
-        mockNodes.set(id, {id, data});
+        mockNodes.set(id, { id, data });
     };
 
     const addEdge = (id: string, srcId: string, dstId: string, data: Record<string, unknown>): void => {
-        mockEdges.set(id, {id, srcId, dstId, data});
+        mockEdges.set(id, { id, srcId, dstId, data });
     };
 
     const emitDataAdded = (type: "nodes" | "edges", count: number): void => {
         const listeners = eventListeners.get("data-added") ?? [];
 
         for (const listener of listeners) {
-            listener({type: "data-added", dataType: type, count});
+            listener({ type: "data-added", dataType: type, count });
         }
     };
 
@@ -138,7 +138,7 @@ describe("AiManager schema lifecycle", () => {
 
     describe("initialization", () => {
         it("extracts schema on initialization", () => {
-            const {graph} = createMockGraphWithEvents();
+            const { graph } = createMockGraphWithEvents();
 
             aiManager.init(graph, {
                 provider: "mock",
@@ -171,7 +171,7 @@ describe("AiManager schema lifecycle", () => {
                 getDataManager: () => mockDataManager,
                 eventManager: mockEventManager,
                 is2D: () => false,
-                getLayoutManager: () => ({layoutEngine: {type: "ngraph"}}),
+                getLayoutManager: () => ({ layoutEngine: { type: "ngraph" } }),
             } as unknown as Graph;
 
             aiManager.init(emptyGraph, {
@@ -189,8 +189,8 @@ describe("AiManager schema lifecycle", () => {
     });
 
     describe("data change updates", () => {
-        it("updates schema when nodes added", async() => {
-            const {graph, addNode, emitDataAdded} = createMockGraphWithEvents();
+        it("updates schema when nodes added", async () => {
+            const { graph, addNode, emitDataAdded } = createMockGraphWithEvents();
 
             aiManager.init(graph, {
                 provider: "mock",
@@ -204,8 +204,8 @@ describe("AiManager schema lifecycle", () => {
             const initialNodeCount = initialSchema.nodeCount;
 
             // Add new nodes
-            addNode("new-node-1", {type: "new-type", size: 42});
-            addNode("new-node-2", {type: "new-type", size: 43});
+            addNode("new-node-1", { type: "new-type", size: 42 });
+            addNode("new-node-2", { type: "new-type", size: 43 });
 
             // Emit data-added event
             emitDataAdded("nodes", 2);
@@ -218,8 +218,8 @@ describe("AiManager schema lifecycle", () => {
             assert.strictEqual(newSchema.nodeCount, initialNodeCount + 2, "Should reflect new node count");
         });
 
-        it("updates schema when edges added", async() => {
-            const {graph, addEdge, emitDataAdded} = createMockGraphWithEvents();
+        it("updates schema when edges added", async () => {
+            const { graph, addEdge, emitDataAdded } = createMockGraphWithEvents();
 
             aiManager.init(graph, {
                 provider: "mock",
@@ -233,7 +233,7 @@ describe("AiManager schema lifecycle", () => {
             const initialEdgeCount = initialSchema.edgeCount;
 
             // Add new edges
-            addEdge("new-edge-1", "node-0", "node-1", {weight: 50});
+            addEdge("new-edge-1", "node-0", "node-1", { weight: 50 });
 
             // Emit data-added event
             emitDataAdded("edges", 1);
@@ -246,8 +246,8 @@ describe("AiManager schema lifecycle", () => {
             assert.strictEqual(newSchema.edgeCount, initialEdgeCount + 1, "Should reflect new edge count");
         });
 
-        it("debounces rapid schema updates", async() => {
-            const {graph, emitDataAdded} = createMockGraphWithEvents();
+        it("debounces rapid schema updates", async () => {
+            const { graph, emitDataAdded } = createMockGraphWithEvents();
 
             aiManager.init(graph, {
                 provider: "mock",
@@ -285,7 +285,7 @@ describe("AiManager schema lifecycle", () => {
 
     describe("system prompt integration", () => {
         it("includes schema in generated system prompt", () => {
-            const {graph} = createMockGraphWithEvents();
+            const { graph } = createMockGraphWithEvents();
 
             aiManager.init(graph, {
                 provider: "mock",
@@ -308,7 +308,7 @@ describe("AiManager schema lifecycle", () => {
 
     describe("dispose cleanup", () => {
         it("cleans up event listeners on dispose", () => {
-            const {graph, eventListeners} = createMockGraphWithEvents();
+            const { graph, eventListeners } = createMockGraphWithEvents();
 
             aiManager.init(graph, {
                 provider: "mock",

@@ -9,11 +9,11 @@ import {
     StandardMaterial,
     Vector3,
 } from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import {EDGE_CONSTANTS} from "../src/constants/meshConstants";
-import {EdgeMesh} from "../src/meshes/EdgeMesh";
-import {MeshCache} from "../src/meshes/MeshCache";
+import { EDGE_CONSTANTS } from "../src/constants/meshConstants";
+import { EdgeMesh } from "../src/meshes/EdgeMesh";
+import { MeshCache } from "../src/meshes/MeshCache";
 
 describe("EdgeMesh", () => {
     let scene: Scene;
@@ -32,7 +32,7 @@ describe("EdgeMesh", () => {
                 width: 0.5,
                 color: "#FF0000",
             };
-            const style = {line: {width: 0.5, color: "#FF0000"}, enabled: true};
+            const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
 
             const mesh = EdgeMesh.create(meshCache, options, style, scene) as AbstractMesh;
 
@@ -74,7 +74,7 @@ describe("EdgeMesh", () => {
                 width: EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 color: EDGE_CONSTANTS.DEFAULT_LINE_COLOR,
             };
-            const style = {line: {}, enabled: true};
+            const style = { line: {}, enabled: true };
 
             const mesh = EdgeMesh.create(meshCache, options, style, scene);
 
@@ -87,7 +87,7 @@ describe("EdgeMesh", () => {
                 width: EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 color: "#FF0000",
             };
-            const style = {line: {color: "#FF0000"}, enabled: true};
+            const style = { line: { color: "#FF0000" }, enabled: true };
 
             const mesh = EdgeMesh.create(meshCache, options, style, scene);
 
@@ -113,7 +113,7 @@ describe("EdgeMesh", () => {
             const material = mesh.material as StandardMaterial;
 
             // uScale is a property of RawTexture but not in the type definitions
-            const texture = material.emissiveTexture as RawTexture & {uScale: number};
+            const texture = material.emissiveTexture as RawTexture & { uScale: number };
             assert.equal(texture.uScale, EDGE_CONSTANTS.MOVING_TEXTURE_U_SCALE);
         });
     });
@@ -123,7 +123,7 @@ describe("EdgeMesh", () => {
             const arrowMesh = EdgeMesh.createArrowHead(
                 meshCache,
                 "test-arrow",
-                {type: "normal", width: 0.5, color: "#FF0000"},
+                { type: "normal", width: 0.5, color: "#FF0000" },
                 scene,
             );
 
@@ -135,7 +135,7 @@ describe("EdgeMesh", () => {
             const arrowMesh = EdgeMesh.createArrowHead(
                 meshCache,
                 "test-no-arrow",
-                {type: "none", width: 0.5, color: "#FF0000"},
+                { type: "none", width: 0.5, color: "#FF0000" },
                 scene,
             );
 
@@ -146,7 +146,7 @@ describe("EdgeMesh", () => {
             const arrowMesh = EdgeMesh.createArrowHead(
                 meshCache,
                 "test-no-type",
-                {width: 0.5, color: "#FF0000"},
+                { width: 0.5, color: "#FF0000" },
                 scene,
             );
 
@@ -154,7 +154,7 @@ describe("EdgeMesh", () => {
         });
 
         test("uses cache for arrow heads", () => {
-            const options = {type: "normal" as const, width: 0.5, color: "#FF0000"};
+            const options = { type: "normal" as const, width: 0.5, color: "#FF0000" };
 
             const arrow1 = EdgeMesh.createArrowHead(meshCache, "cached-arrow", options, scene);
             const arrow2 = EdgeMesh.createArrowHead(meshCache, "cached-arrow", options, scene);
@@ -168,7 +168,7 @@ describe("EdgeMesh", () => {
         });
 
         test("creates different arrow for different styleId", () => {
-            const options = {type: "normal" as const, width: 0.5, color: "#FF0000"};
+            const options = { type: "normal" as const, width: 0.5, color: "#FF0000" };
 
             const arrow1 = EdgeMesh.createArrowHead(meshCache, "arrow1", options, scene);
             const arrow2 = EdgeMesh.createArrowHead(meshCache, "arrow2", options, scene);
@@ -189,8 +189,8 @@ describe("EdgeMesh", () => {
         test("transformMesh positions and orients correctly", () => {
             const mesh = EdgeMesh.create(
                 meshCache,
-                {styleId: "test-transform", width: 0.25, color: "#FF0000"},
-                {line: {width: 0.25, color: "#FF0000"}, enabled: true},
+                { styleId: "test-transform", width: 0.25, color: "#FF0000" },
+                { line: { width: 0.25, color: "#FF0000" }, enabled: true },
                 scene,
             ) as AbstractMesh;
 
@@ -208,8 +208,8 @@ describe("EdgeMesh", () => {
         test("transformMesh handles negative coordinates", () => {
             const mesh = EdgeMesh.create(
                 meshCache,
-                {styleId: "test-negative", width: 0.25, color: "#FF0000"},
-                {line: {width: 0.25, color: "#FF0000"}, enabled: true},
+                { styleId: "test-negative", width: 0.25, color: "#FF0000" },
+                { line: { width: 0.25, color: "#FF0000" }, enabled: true },
                 scene,
             ) as AbstractMesh;
 
@@ -227,8 +227,8 @@ describe("EdgeMesh", () => {
 
     describe("Caching", () => {
         test("returns cached mesh for same styleId", () => {
-            const options = {styleId: "cached-edge", width: 0.25, color: "#FF0000"};
-            const style = {line: {width: 0.25, color: "#FF0000"}, enabled: true};
+            const options = { styleId: "cached-edge", width: 0.25, color: "#FF0000" };
+            const style = { line: { width: 0.25, color: "#FF0000" }, enabled: true };
 
             const mesh1 = EdgeMesh.create(meshCache, options, style, scene);
             const mesh2 = EdgeMesh.create(meshCache, options, style, scene);
@@ -240,31 +240,21 @@ describe("EdgeMesh", () => {
         });
 
         test("creates new mesh for different styleId", () => {
-            const style = {line: {width: 0.25, color: "#FF0000"}, enabled: true};
+            const style = { line: { width: 0.25, color: "#FF0000" }, enabled: true };
 
-            const mesh1 = EdgeMesh.create(
-                meshCache,
-                {styleId: "edge1", width: 0.25, color: "#FF0000"},
-                style,
-                scene,
-            );
-            const mesh2 = EdgeMesh.create(
-                meshCache,
-                {styleId: "edge2", width: 0.25, color: "#FF0000"},
-                style,
-                scene,
-            );
+            const mesh1 = EdgeMesh.create(meshCache, { styleId: "edge1", width: 0.25, color: "#FF0000" }, style, scene);
+            const mesh2 = EdgeMesh.create(meshCache, { styleId: "edge2", width: 0.25, color: "#FF0000" }, style, scene);
 
             assert.notStrictEqual(mesh1, mesh2);
         });
 
         test("animated and static lines have different cache keys", () => {
-            const options = {styleId: "same-edge", width: 0.25, color: "#FF0000"};
+            const options = { styleId: "same-edge", width: 0.25, color: "#FF0000" };
 
             const staticMesh = EdgeMesh.create(
                 meshCache,
                 options,
-                {line: {width: 0.25, color: "#FF0000"}, enabled: true},
+                { line: { width: 0.25, color: "#FF0000" }, enabled: true },
                 scene,
             ) as AbstractMesh;
 
@@ -274,7 +264,7 @@ describe("EdgeMesh", () => {
             const animatedMesh = EdgeMesh.create(
                 meshCache,
                 options,
-                {line: {width: 0.25, color: "#FF0000", animationSpeed: 0.1}, enabled: true},
+                { line: { width: 0.25, color: "#FF0000", animationSpeed: 0.1 }, enabled: true },
                 scene,
             ) as AbstractMesh;
 
@@ -290,15 +280,12 @@ describe("EdgeMesh", () => {
 
             EdgeMesh.create(
                 meshCache,
-                {styleId: "test-observer", width: 0.25, color: "#FF0000"},
-                {line: {width: 0.25, color: "#FF0000", animationSpeed: 0.1}, enabled: true},
+                { styleId: "test-observer", width: 0.25, color: "#FF0000" },
+                { line: { width: 0.25, color: "#FF0000", animationSpeed: 0.1 }, enabled: true },
                 scene,
             );
 
-            assert.equal(
-                scene.onBeforeRenderObservable.observers.length,
-                initialObserverCount + 1,
-            );
+            assert.equal(scene.onBeforeRenderObservable.observers.length, initialObserverCount + 1);
         });
     });
 
@@ -428,7 +415,7 @@ describe("EdgeMesh", () => {
                 color: "#FF0000",
             };
             const style = {
-                line: {width: 0.5, color: "#FF0000", opacity: 0.5},
+                line: { width: 0.5, color: "#FF0000", opacity: 0.5 },
                 enabled: true,
             };
 
@@ -445,7 +432,7 @@ describe("EdgeMesh", () => {
                 color: "#FF0000",
             };
             const style = {
-                line: {width: 0.5, color: "#FF0000"},
+                line: { width: 0.5, color: "#FF0000" },
                 enabled: true,
             };
 
@@ -462,7 +449,7 @@ describe("EdgeMesh", () => {
                 color: "#FF0000",
             };
             const style = {
-                line: {width: 0.5, color: "#FF0000", opacity: 0},
+                line: { width: 0.5, color: "#FF0000", opacity: 0 },
                 enabled: true,
             };
 
@@ -479,7 +466,7 @@ describe("EdgeMesh", () => {
                 color: "#FF0000",
             };
             const style = {
-                line: {width: 0.5, color: "#FF0000", animationSpeed: 0.1, opacity: 0.7},
+                line: { width: 0.5, color: "#FF0000", animationSpeed: 0.1, opacity: 0.7 },
                 enabled: true,
             };
 
@@ -546,7 +533,7 @@ describe("EdgeMesh", () => {
             const position = EdgeMesh.calculateArrowPosition(surfacePoint, direction, arrowLength, geometry);
 
             // Dot arrow: center positioned back by radius (half of length)
-            const expectedX = surfacePoint.x - (arrowLength / 2);
+            const expectedX = surfacePoint.x - arrowLength / 2;
             assert.closeTo(position.x, expectedX, 0.001);
         });
 
@@ -569,7 +556,7 @@ describe("EdgeMesh", () => {
             const camera = new ArcRotateCamera("camera", 0, 0, 10, Vector3.Zero(), scene);
             camera.mode = Camera.ORTHOGRAPHIC_CAMERA;
             scene.activeCamera = camera;
-            scene.metadata = {twoD: true};
+            scene.metadata = { twoD: true };
 
             // @ts-expect-error - is2DMode is private but we need to test it
             assert.strictEqual(EdgeMesh.is2DMode(scene), true);
@@ -579,7 +566,7 @@ describe("EdgeMesh", () => {
             const camera = new ArcRotateCamera("camera", 0, 0, 10, Vector3.Zero(), scene);
             camera.mode = Camera.PERSPECTIVE_CAMERA;
             scene.activeCamera = camera;
-            scene.metadata = {twoD: true};
+            scene.metadata = { twoD: true };
 
             // @ts-expect-error - is2DMode is private but we need to test it
             assert.strictEqual(EdgeMesh.is2DMode(scene), false);
@@ -589,7 +576,7 @@ describe("EdgeMesh", () => {
             const camera = new ArcRotateCamera("camera", 0, 0, 10, Vector3.Zero(), scene);
             camera.mode = Camera.ORTHOGRAPHIC_CAMERA;
             scene.activeCamera = camera;
-            scene.metadata = {twoD: false};
+            scene.metadata = { twoD: false };
 
             // @ts-expect-error - is2DMode is private but we need to test it
             assert.strictEqual(EdgeMesh.is2DMode(scene), false);
@@ -607,7 +594,7 @@ describe("EdgeMesh", () => {
 
         test("is2DMode returns false when no camera exists", () => {
             scene.activeCamera = null;
-            scene.metadata = {twoD: true};
+            scene.metadata = { twoD: true };
 
             // @ts-expect-error - is2DMode is private but we need to test it
             assert.strictEqual(EdgeMesh.is2DMode(scene), false);

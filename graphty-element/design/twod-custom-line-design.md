@@ -11,7 +11,7 @@ Line widths in 2D orthographic camera mode appear approximately 10x wider than i
 
 ### User Impact
 
-All 2D stories (Layout/2D/*) show edges that are visually too thick, degrading the visual quality and user experience of 2D graph layouts.
+All 2D stories (Layout/2D/\*) show edges that are visually too thick, degrading the visual quality and user experience of 2D graph layouts.
 
 ---
 
@@ -20,18 +20,21 @@ All 2D stories (Layout/2D/*) show edges that are visually too thick, degrading t
 ### The Math
 
 **Shader Logic (CustomLineRenderer.ts:130-138):**
+
 ```glsl
 vec2 offset = perpendicular * width * 0.5 * side;
 offset /= resolution;  // Convert to NDC (-1 to +1)
 ```
 
 **Perspective Camera (3D):**
+
 - Input: `width = 4.5 * 20 = 90` (pixels)
 - NDC offset: `45 / 1920 = 0.0234 NDC units`
 - GPU perspective divide automatically scales based on depth
 - Result: ~23 pixels on screen ✓
 
 **Orthographic Camera (2D):**
+
 - Input: `width = 4.5 * 20 = 90` (same value)
 - NDC offset: `45 / 1920 = 0.0234 NDC units`
 - Ortho frustum: `[-5, 5]` (10 world units)
@@ -62,15 +65,16 @@ offset *= orthoScale;  // NEW: Camera-aware compensation
 ```
 
 **CPU-side logic:**
+
 ```typescript
 // In resolution callback:
-const orthoScale = camera.mode === Camera.ORTHOGRAPHIC_CAMERA
-    ? (camera.orthoRight - camera.orthoLeft) / renderWidth
-    : 1.0;
+const orthoScale =
+    camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? (camera.orthoRight - camera.orthoLeft) / renderWidth : 1.0;
 material.setFloat("orthoScale", orthoScale);
 ```
 
 #### Pros
+
 ✅ **Simple**: Single uniform, single multiply operation
 ✅ **No branching**: Optimal GPU performance (no divergence)
 ✅ **Automatic**: Works for any ortho frustum size
@@ -79,6 +83,7 @@ material.setFloat("orthoScale", orthoScale);
 ✅ **Clean code**: No conditional logic in shader
 
 #### Cons
+
 ⚠️ Requires CPU-side camera mode detection
 ⚠️ Uniform must update when ortho frustum changes (zoom)
 ⚠️ Slightly more CPU work to calculate scale factor
@@ -101,6 +106,7 @@ offset *= mix(1.0, orthoCompensation, isOrthographic);  // Branchless
 ```
 
 **Or with explicit branching:**
+
 ```glsl
 uniform float isOrthographic;
 uniform vec2 orthoFrustum;  // (left, right)
@@ -112,12 +118,14 @@ if (isOrthographic > 0.5) {
 ```
 
 #### Pros
+
 ✅ **Explicit**: Clear separation of 2D vs 3D logic
 ✅ **Flexible**: Can optimize each path independently later
 ✅ **Debuggable**: Easier to trace which path is taken
 ✅ **Extensible**: Can add mode-specific features
 
 #### Cons
+
 ⚠️ **More complex**: Multiple uniforms to manage
 ⚠️ **Branching**: Potential GPU divergence (if using `if`)
 ⚠️ **More state**: Two+ uniforms instead of one
@@ -133,24 +141,24 @@ if (isOrthographic > 0.5) {
 1. **Mathematical Equivalence**: The branchless Option 5 (`mix(1.0, scale, flag)`) is functionally identical to Option 3 (`* scale`) when scale=1.0 for perspective mode
 
 2. **Performance**: Single multiply is fastest possible solution:
-   - No branching (no GPU divergence)
-   - No `mix()` overhead
-   - Minimal instruction count
+    - No branching (no GPU divergence)
+    - No `mix()` overhead
+    - Minimal instruction count
 
 3. **Simplicity**: Less code = fewer bugs:
-   - One uniform instead of two
-   - No conditional logic
-   - Easier to understand and maintain
+    - One uniform instead of two
+    - No conditional logic
+    - Easier to understand and maintain
 
 4. **Proven Pattern**: This is the standard approach in graphics engines:
-   - Unity's shader variants use similar patterns
-   - Three.js handles ortho scaling this way
-   - Industry-tested solution
+    - Unity's shader variants use similar patterns
+    - Three.js handles ortho scaling this way
+    - Industry-tested solution
 
 5. **Future-Proof**: If we need mode-specific optimizations later, we can:
-   - Create separate shader variants
-   - Use the existing renderer plugin architecture
-   - But this is unlikely to be needed
+    - Create separate shader variants
+    - Use the existing renderer plugin architecture
+    - But this is unlikely to be needed
 
 ---
 
@@ -159,11 +167,13 @@ if (isOrthographic > 0.5) {
 ### Step 1: Update Shader (CustomLineRenderer.ts)
 
 **Add uniform declaration:**
+
 ```glsl
 uniform float orthoScale;  // Camera-aware scaling factor
 ```
 
 **Modify vertex shader offset calculation:**
+
 ```glsl
 // Calculate offset in screen space (EXISTING)
 vec2 offset = perpendicular * width * 0.5 * side;
@@ -177,6 +187,7 @@ gl_Position.xy += offset;
 ```
 
 **Update shader registration:**
+
 ```typescript
 {
     attributes: [...],
@@ -192,6 +203,7 @@ gl_Position.xy += offset;
 ### Step 2: Calculate and Set Uniform (CustomLineRenderer.ts)
 
 **Modify resolution callback:**
+
 ```typescript
 scene.onBeforeRenderObservable.add(() => {
     const renderWidth = engine.getRenderWidth();
@@ -200,7 +212,7 @@ scene.onBeforeRenderObservable.add(() => {
 
     // Calculate orthoScale based on camera mode
     const camera = scene.activeCamera;
-    let orthoScale = 1.0;  // Default for perspective
+    let orthoScale = 1.0; // Default for perspective
 
     if (camera && camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
         const orthoCamera = camera as FreeCamera;
@@ -213,7 +225,7 @@ scene.onBeforeRenderObservable.add(() => {
     for (const material of this.activeMaterials) {
         try {
             material.setVector2("resolution", resolution);
-            material.setFloat("orthoScale", orthoScale);  // NEW
+            material.setFloat("orthoScale", orthoScale); // NEW
         } catch {
             this.activeMaterials.delete(material);
         }
@@ -224,6 +236,7 @@ scene.onBeforeRenderObservable.add(() => {
 ### Step 3: Set Default Value (CustomLineRenderer.ts)
 
 **In create() and createFromGeometry():**
+
 ```typescript
 // Set orthoScale default (will be overwritten by callback)
 shaderMaterial.setFloat("orthoScale", 1.0);
@@ -232,6 +245,7 @@ shaderMaterial.setFloat("orthoScale", 1.0);
 ### Step 4: Test Coverage
 
 **Add unit test (test/unit/CustomLineRenderer.test.ts):**
+
 ```typescript
 test("orthoScale calculation - perspective camera", () => {
     // Camera.PERSPECTIVE_CAMERA should give orthoScale = 1.0
@@ -247,11 +261,12 @@ test("orthoScale calculation - orthographic camera", () => {
 ```
 
 **Add visual regression test:**
+
 ```typescript
 // Compare 2D vs 3D line thickness
 test("2D lines match 3D line thickness", async () => {
-    const graph2D = await renderGraph({twoD: true});
-    const graph3D = await renderGraph({twoD: false});
+    const graph2D = await renderGraph({ twoD: true });
+    const graph3D = await renderGraph({ twoD: false });
 
     const lineWidth2D = measureLineWidth(graph2D);
     const lineWidth3D = measureLineWidth(graph3D);
@@ -266,17 +281,20 @@ test("2D lines match 3D line thickness", async () => {
 ## Risk Analysis
 
 ### Risk 1: Uniform Not Updated During Zoom
+
 **Severity:** HIGH
 **Probability:** MEDIUM
 
 **Description:** In 2D mode, zooming changes ortho frustum size. If `orthoScale` isn't updated, lines will appear to change width.
 
 **Mitigation:**
+
 - Update in `onBeforeRenderObservable` callback (runs every frame)
 - This already updates `resolution` which also changes during resize
 - Zoom operations trigger scene render, so callback will fire
 
 **Detection:**
+
 - Manual testing: Zoom in 2D story, verify line width stays constant
 - Automated: Snapshot test at different zoom levels
 
@@ -285,17 +303,20 @@ test("2D lines match 3D line thickness", async () => {
 ---
 
 ### Risk 2: Camera Mode Switching
+
 **Severity:** MEDIUM
 **Probability:** LOW
 
 **Description:** User might switch between 2D and 3D modes. Scale factor must update correctly.
 
 **Mitigation:**
+
 - Callback checks `scene.activeCamera.mode` every frame
 - No caching of camera mode
 - Automatic detection, no manual state management needed
 
 **Detection:**
+
 - Test story that switches between twoD: true/false
 - Verify smooth transition without visual glitches
 
@@ -304,18 +325,21 @@ test("2D lines match 3D line thickness", async () => {
 ---
 
 ### Risk 3: Performance Impact
+
 **Severity:** LOW
 **Probability:** LOW
 
 **Description:** Adding uniform calculation and update might impact performance.
 
 **Analysis:**
+
 - Cost per frame: 1 camera mode check, 1 subtraction, 1 division
 - Amortized across all edges (shared callback)
 - Single float uniform set per material
 - One multiply per vertex in shader (minimal GPU cost)
 
 **Mitigation:**
+
 - Measure baseline vs modified performance
 - Profile with 1000+ edges
 - Optimize if needed (cache orthoScale when frustum unchanged)
@@ -327,6 +351,7 @@ test("2D lines match 3D line thickness", async () => {
 ---
 
 ### Risk 4: Interaction with Patterned Lines
+
 **Severity:** MEDIUM
 **Probability:** MEDIUM
 
@@ -334,16 +359,19 @@ test("2D lines match 3D line thickness", async () => {
 
 **Investigation Needed:**
 Looking at EdgeMesh.ts:220, patterned lines use:
+
 ```typescript
-options.width / 40  // Convert back from scaled width
+options.width / 40; // Convert back from scaled width
 ```
 
 This suggests they might use world-space sizing or different scaling. Need to:
+
 1. Review PatternedLineRenderer implementation
 2. Test 2D patterned lines visually
 3. Apply same fix if needed
 
 **Mitigation:**
+
 - Test all line patterns in 2D mode
 - Document expected behavior for each type
 - Apply consistent scaling approach across all renderers
@@ -353,12 +381,14 @@ This suggests they might use world-space sizing or different scaling. Need to:
 ---
 
 ### Risk 5: Interaction with Arrows
+
 **Severity:** NONE (RESOLVED)
 **Probability:** NONE
 
 **Description:** Originally thought outline arrows used CustomLineRenderer, but investigation revealed all arrows use FilledArrowRenderer (world-space sizing).
 
 **Resolution:**
+
 - ✅ Dead code cleanup: Removed unused CustomLineRenderer arrow methods
 - ✅ All arrows use FilledArrowRenderer: No 2D camera bug
 - ✅ Simplified scope: Fix only affects solid lines
@@ -370,18 +400,21 @@ This suggests they might use world-space sizing or different scaling. Need to:
 ---
 
 ### Risk 6: Numerical Precision at Extreme Zoom
+
 **Severity:** LOW
 **Probability:** LOW
 
 **Description:** At very large or small ortho frustum sizes, float precision might cause artifacts.
 
 **Analysis:**
+
 - Typical ortho range: 0.1 to 100 world units
 - Float32 precision: ~7 decimal digits
 - Scale factor range: 0.00005 to 0.5
 - Well within float precision
 
 **Mitigation:**
+
 - Clamp ortho frustum size to reasonable bounds
 - Test at extreme zoom levels (min/max)
 - Monitor for visual artifacts
@@ -391,18 +424,21 @@ This suggests they might use world-space sizing or different scaling. Need to:
 ---
 
 ### Risk 7: Backwards Compatibility
+
 **Severity:** LOW
 **Probability:** VERY LOW
 
 **Description:** Changing shader might break existing functionality.
 
 **Mitigation:**
+
 - Default orthoScale = 1.0 (no change for perspective)
 - Existing 3D stories continue to work unchanged
 - Only affects orthographic mode (which currently has the bug)
 - No breaking API changes
 
 **Detection:**
+
 - Run full test suite
 - Visual regression tests for all existing stories
 - No story configs need to change
@@ -414,6 +450,7 @@ This suggests they might use world-space sizing or different scaling. Need to:
 ## Testing Strategy
 
 ### Unit Tests
+
 ```typescript
 ✓ orthoScale calculation - perspective mode (should return 1.0)
 ✓ orthoScale calculation - orthographic mode (should return correct ratio)
@@ -422,6 +459,7 @@ This suggests they might use world-space sizing or different scaling. Need to:
 ```
 
 ### Visual Regression Tests
+
 ```typescript
 ✓ 2D line width matches 3D line width (pixel measurement)
 ✓ Line width constant during zoom in 2D mode
@@ -431,6 +469,7 @@ This suggests they might use world-space sizing or different scaling. Need to:
 ```
 
 ### Integration Tests
+
 ```typescript
 ✓ Camera mode switch (2D → 3D → 2D)
 ✓ Multiple graphs with different camera modes simultaneously
@@ -439,7 +478,8 @@ This suggests they might use world-space sizing or different scaling. Need to:
 ```
 
 ### Manual Testing Checklist
-- [ ] View all Layout/2D/* stories, verify line thickness looks correct
+
+- [ ] View all Layout/2D/\* stories, verify line thickness looks correct
 - [ ] Zoom in/out in 2D stories, lines stay consistent width
 - [ ] Compare 2D vs 3D line thickness side-by-side
 - [ ] Test all arrow types in 2D mode
@@ -454,6 +494,7 @@ This suggests they might use world-space sizing or different scaling. Need to:
 ### Overall Confidence: 95%
 
 **High Confidence Factors (90% base):**
+
 - ✅ Problem is well-understood (NDC-to-world-space scaling)
 - ✅ Solution is mathematically proven
 - ✅ Similar patterns used in other engines (Unity, Three.js)
@@ -463,11 +504,13 @@ This suggests they might use world-space sizing or different scaling. Need to:
 - ✅ Testable with visual regression and unit tests
 
 **Uncertainty Factors (+5% from investigation):**
+
 - ⚠️ PatternedLineRenderer behavior needs verification
 - ⚠️ Arrow interactions need testing
 - ⚠️ Real-world usage patterns might reveal edge cases
 
 **Risk Mitigation (+5% buffer from thorough testing):**
+
 - Comprehensive test coverage planned
 - Incremental rollout possible (test with single story first)
 - Easy to revert if issues found (single commit)
@@ -488,6 +531,7 @@ This suggests they might use world-space sizing or different scaling. Need to:
 ### What Could Go Wrong?
 
 The 5% risk accounts for:
+
 - Unknown interactions with other systems
 - Edge cases in camera state management
 - Subtle rendering issues on specific hardware/drivers
@@ -502,18 +546,21 @@ These are low-probability, easily detectable, and reversible issues.
 ### Q1: Does PatternedLineRenderer have the same issue?
 
 **Investigation needed:**
+
 - Review PatternedLineRenderer.ts and PatternedLineMesh.ts implementation
 - Determine if they use screen-space or world-space sizing
 - Check if they already compensate for orthographic cameras
 
 **Code hint from EdgeMesh.ts:220:**
+
 ```typescript
-options.width / 40  // Convert back from scaled width
+options.width / 40; // Convert back from scaled width
 ```
 
 This suggests different scaling approach. Need to understand why `/40` vs the `/20` used for solid lines.
 
 **Action items:**
+
 1. Read PatternedLineRenderer source code
 2. Test patterned lines in 2D stories visually
 3. Determine if fix is needed
@@ -526,11 +573,13 @@ This suggests different scaling approach. Need to understand why `/40` vs the `/
 **Alternative approach:** In 2D mode, treat line width as world units instead of pixels.
 
 **Pros:**
+
 - Lines scale naturally with zoom (thinner when zoomed out)
 - Consistent with some 2D graphics libraries
 - May be more intuitive for certain use cases
 
 **Cons:**
+
 - Different behavior than 3D mode
 - Likely not desired UX (users expect consistent pixel width)
 - Harder to reason about ("what width value should I use?")
@@ -538,6 +587,7 @@ This suggests different scaling approach. Need to understand why `/40` vs the `/
 **Decision:** Keep pixel-based sizing in both modes for consistency.
 
 **Rationale:**
+
 - Users think in pixels ("I want a 2px line")
 - Consistency between 2D and 3D is valuable
 - Zoom behavior: lines stay visible at all zoom levels
@@ -548,6 +598,7 @@ This suggests different scaling approach. Need to understand why `/40` vs the `/
 ### Q3: Should we optimize for 2D separately?
 
 **Potential optimizations:**
+
 - Simpler shader without perspective calculations
 - Instanced rendering (all at same Z depth)
 - Batch rendering (no depth sorting needed)
@@ -556,6 +607,7 @@ This suggests different scaling approach. Need to understand why `/40` vs the `/
 **Decision:** Not in this PR. Optimize only if performance issues arise.
 
 **Rationale:**
+
 - Premature optimization is risky
 - Current implementation is fast enough
 - Optimization would increase code complexity
@@ -567,22 +619,26 @@ This suggests different scaling approach. Need to understand why `/40` vs the `/
 ## Implementation Plan
 
 ### Phase 1: Core Implementation (1-2 hours)
+
 1. Update CustomLineRenderer shader (add uniform, modify offset calc)
 2. Update resolution callback (add orthoScale calculation)
 3. Set default orthoScale in mesh creation methods
 
 ### Phase 2: Testing (2-3 hours)
+
 1. Write unit tests for orthoScale calculation
 2. Add visual regression test comparing 2D vs 3D
 3. Manual testing: Verify all Layout/2D stories look correct
 4. Test zoom/pan behavior in 2D mode
 
 ### Phase 3: Investigation (1-2 hours)
+
 1. Review PatternedLineRenderer implementation
 2. Test all patterned line types in 2D stories
 3. Document findings and apply fix if needed
 
 ### Phase 4: Polish (1 hour)
+
 1. Test all arrow types in 2D mode
 2. Update documentation if needed
 3. Add code comments explaining orthoScale
@@ -594,22 +650,26 @@ This suggests different scaling approach. Need to understand why `/40` vs the `/
 ## Success Criteria
 
 ✅ **Functional:**
+
 - Line widths in 2D stories match 3D stories visually
 - Lines maintain consistent pixel width during zoom in 2D mode
 - All arrow types render correctly in 2D mode
 - No regression in 3D rendering
 
 ✅ **Performance:**
+
 - No measurable performance degradation (< 1ms per frame)
 - Frame rate unchanged for typical graphs (100-1000 edges)
 
 ✅ **Quality:**
+
 - All existing tests pass
 - New tests added and passing
 - Code review approved
 - Documentation updated
 
 ✅ **User Experience:**
+
 - 2D stories look visually correct without manual width adjustment
 - Consistent behavior across all layout types
 - No reported issues after deployment
@@ -619,9 +679,11 @@ This suggests different scaling approach. Need to understand why `/40` vs the `/
 ## Alternatives Considered
 
 ### Alternative A: Separate 2D/3D Renderers
+
 Create CustomLineRenderer2D and CustomLineRenderer3D with optimized shaders for each mode.
 
 **Rejected because:**
+
 - Code duplication and maintenance burden
 - The difference is one multiplication
 - No significant performance benefit
@@ -630,7 +692,9 @@ Create CustomLineRenderer2D and CustomLineRenderer3D with optimized shaders for 
 ---
 
 ### Alternative B: Shader Compilation Variants
+
 Use shader defines to compile separate versions:
+
 ```glsl
 #ifdef ORTHOGRAPHIC_MODE
     // 2D-specific code
@@ -640,6 +704,7 @@ Use shader defines to compile separate versions:
 ```
 
 **Rejected because:**
+
 - Adds complexity to shader system
 - BabylonJS shader variant management is complex
 - Minimal performance benefit (one multiply is cheap)
@@ -648,9 +713,11 @@ Use shader defines to compile separate versions:
 ---
 
 ### Alternative C: Post-Process Scaling
+
 Apply scaling correction in post-processing or as a scene transform.
 
 **Rejected because:**
+
 - Would affect all geometry, not just lines
 - Complicated to implement correctly
 - Performance overhead
@@ -661,6 +728,7 @@ Apply scaling correction in post-processing or as a scene transform.
 ## Conclusion
 
 Option 3 (Unified Camera-Aware Scaling) is the clear winner:
+
 - Simple, elegant, and performant
 - Industry-standard approach
 - Low risk, high confidence

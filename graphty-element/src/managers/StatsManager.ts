@@ -7,8 +7,8 @@ import {
     type WebGPUEngine,
 } from "@babylonjs/core";
 
-import type {EventManager} from "./EventManager";
-import type {Manager} from "./interfaces";
+import type { EventManager } from "./EventManager";
+import type { Manager } from "./interfaces";
 
 /**
  * Internal measurement statistics for profiling
@@ -94,7 +94,7 @@ export interface LayoutSessionMetrics {
  */
 interface FrameProfile {
     frameNumber: number;
-    operations: {label: string, duration: number}[];
+    operations: { label: string; duration: number }[];
     totalCpuTime: number;
     interFrameTime: number;
     blockingTime: number;
@@ -176,7 +176,7 @@ export class StatsManager implements Manager {
     // Profiling fields
     private enabled = false;
     private measurements = new Map<string, MeasurementStats>();
-    private activeStack: {label: string, startTime: number}[] = [];
+    private activeStack: { label: string; startTime: number }[] = [];
     private counters = new Map<string, CounterStats>();
 
     // Layout session tracking
@@ -186,7 +186,7 @@ export class StatsManager implements Manager {
     // Frame-level blocking detection
     private frameProfilingEnabled = false;
     private frameProfiles: FrameProfile[] = [];
-    private currentFrameOperations: {label: string, duration: number}[] = [];
+    private currentFrameOperations: { label: string; duration: number }[] = [];
     private currentFrameNumber = 0;
     private longTaskObserver: PerformanceObserver | null = null;
 
@@ -194,9 +194,7 @@ export class StatsManager implements Manager {
      * Creates a new stats manager for performance tracking
      * @param eventManager - Event manager for emitting stats events
      */
-    constructor(
-        private eventManager: EventManager,
-    ) {}
+    constructor(private eventManager: EventManager) {}
 
     /**
      * Initialize the stats manager
@@ -368,7 +366,7 @@ export class StatsManager implements Manager {
 
         function statsSection(name: string): void {
             statsStr += `\n${name}\n`;
-            // eslint-disable-next-line @typescript-eslint/prefer-for-of
+             
             for (let i = 0; i < name.length; i++) {
                 statsStr += "-";
             }
@@ -444,9 +442,10 @@ export class StatsManager implements Manager {
         }
 
         return {
-            fps: this.sceneInstrumentation.frameTimeCounter.average > 0 ?
-                1000 / this.sceneInstrumentation.frameTimeCounter.average :
-                0,
+            fps:
+                this.sceneInstrumentation.frameTimeCounter.average > 0
+                    ? 1000 / this.sceneInstrumentation.frameTimeCounter.average
+                    : 0,
             frameTime: this.sceneInstrumentation.frameTimeCounter.lastSecAverage,
             renderTime: this.sceneInstrumentation.renderTimeCounter.lastSecAverage,
             gpuTime: this.babylonInstrumentation.gpuFrameTimeCounter.lastSecAverage * 0.000001,
@@ -492,7 +491,7 @@ export class StatsManager implements Manager {
                         );
                     }
                 });
-                this.longTaskObserver.observe({type: "longtask", buffered: true});
+                this.longTaskObserver.observe({ type: "longtask", buffered: true });
             } catch {
                 // Long Task API not supported in this browser
             }
@@ -542,7 +541,7 @@ export class StatsManager implements Manager {
 
         const profile: FrameProfile = {
             frameNumber: this.currentFrameNumber,
-            operations: [... this.currentFrameOperations],
+            operations: [...this.currentFrameOperations],
             totalCpuTime,
             interFrameTime,
             blockingTime,
@@ -567,7 +566,7 @@ export class StatsManager implements Manager {
      * @param profile - Frame profile data with blocking information
      */
     private reportHighBlockingFrame(profile: FrameProfile): void {
-        const topOps = [... profile.operations].sort((a, b) => b.duration - a.duration).slice(0, 5);
+        const topOps = [...profile.operations].sort((a, b) => b.duration - a.duration).slice(0, 5);
 
         // eslint-disable-next-line no-console
         console.log(`⚠️ High Blocking Frame #${profile.frameNumber}:`);
@@ -653,8 +652,7 @@ export class StatsManager implements Manager {
                 highBlockingFrames: stats.highBlockingFrames,
                 highBlockingPercentage: (stats.highBlockingFrames / stats.appearanceCount) * 100,
                 avgBlockingRatioWhenPresent:
-                    stats.blockingRatiosWhenPresent.reduce((a, b) => a + b, 0) /
-                    stats.blockingRatiosWhenPresent.length,
+                    stats.blockingRatiosWhenPresent.reduce((a, b) => a + b, 0) / stats.blockingRatiosWhenPresent.length,
             }))
             .sort((a, b) => b.highBlockingPercentage - a.highBlockingPercentage);
     }
@@ -679,7 +677,7 @@ export class StatsManager implements Manager {
 
             // Also track for frame-level blocking detection
             if (this.frameProfilingEnabled) {
-                this.currentFrameOperations.push({label, duration});
+                this.currentFrameOperations.push({ label, duration });
             }
         }
     }
@@ -704,7 +702,7 @@ export class StatsManager implements Manager {
 
             // Also track for frame-level blocking detection
             if (this.frameProfilingEnabled) {
-                this.currentFrameOperations.push({label, duration});
+                this.currentFrameOperations.push({ label, duration });
             }
         }
     }
@@ -718,7 +716,7 @@ export class StatsManager implements Manager {
             return;
         }
 
-        this.activeStack.push({label, startTime: performance.now()});
+        this.activeStack.push({ label, startTime: performance.now() });
     }
 
     /**
@@ -741,7 +739,7 @@ export class StatsManager implements Manager {
 
         // Also track for frame-level blocking detection
         if (this.frameProfilingEnabled) {
-            this.currentFrameOperations.push({label, duration});
+            this.currentFrameOperations.push({ label, duration });
         }
     }
 
@@ -806,16 +804,14 @@ export class StatsManager implements Manager {
      */
     private getPercentile(durations: number[], percentile: number, filled: boolean, currentIndex: number): number {
         // Only use filled portion of ring buffer
-        const validDurations = filled ?
-            durations :
-            durations.slice(0, currentIndex);
+        const validDurations = filled ? durations : durations.slice(0, currentIndex);
 
         if (validDurations.length === 0) {
             return 0;
         }
 
         // Copy and sort to avoid mutating original array
-        const sorted = [... validDurations].sort((a, b) => a - b);
+        const sorted = [...validDurations].sort((a, b) => a - b);
 
         // Calculate index (percentile as fraction * length)
         const index = Math.ceil((percentile / 100) * sorted.length) - 1;
@@ -856,36 +852,44 @@ export class StatsManager implements Manager {
             cpu: cpuMeasurements,
 
             // GPU metrics (EngineInstrumentation)
-            gpu: this.babylonInstrumentation ? {
-                // GPU frame time is in nanoseconds, convert to milliseconds
-                gpuFrameTime: {
-                    current: this.babylonInstrumentation.gpuFrameTimeCounter.current * 0.000001,
-                    avg: this.babylonInstrumentation.gpuFrameTimeCounter.average * 0.000001,
-                    min: this.babylonInstrumentation.gpuFrameTimeCounter.min * 0.000001,
-                    max: this.babylonInstrumentation.gpuFrameTimeCounter.max * 0.000001,
-                    total: this.babylonInstrumentation.gpuFrameTimeCounter.total * 0.000001,
-                    lastSecAvg: this.babylonInstrumentation.gpuFrameTimeCounter.lastSecAverage * 0.000001,
-                },
-                // Shader compilation is already in milliseconds
-                shaderCompilation: toPerfCounterSnapshot(
-                    this.babylonInstrumentation.shaderCompilationTimeCounter,
-                ),
-            } : undefined,
+            gpu: this.babylonInstrumentation
+                ? {
+                      // GPU frame time is in nanoseconds, convert to milliseconds
+                      gpuFrameTime: {
+                          current: this.babylonInstrumentation.gpuFrameTimeCounter.current * 0.000001,
+                          avg: this.babylonInstrumentation.gpuFrameTimeCounter.average * 0.000001,
+                          min: this.babylonInstrumentation.gpuFrameTimeCounter.min * 0.000001,
+                          max: this.babylonInstrumentation.gpuFrameTimeCounter.max * 0.000001,
+                          total: this.babylonInstrumentation.gpuFrameTimeCounter.total * 0.000001,
+                          lastSecAvg: this.babylonInstrumentation.gpuFrameTimeCounter.lastSecAverage * 0.000001,
+                      },
+                      // Shader compilation is already in milliseconds
+                      shaderCompilation: toPerfCounterSnapshot(
+                          this.babylonInstrumentation.shaderCompilationTimeCounter,
+                      ),
+                  }
+                : undefined,
 
             // Scene metrics (SceneInstrumentation)
-            scene: this.sceneInstrumentation ? {
-                frameTime: toPerfCounterSnapshot(this.sceneInstrumentation.frameTimeCounter),
-                renderTime: toPerfCounterSnapshot(this.sceneInstrumentation.renderTimeCounter),
-                interFrameTime: toPerfCounterSnapshot(this.sceneInstrumentation.interFrameTimeCounter),
-                cameraRenderTime: toPerfCounterSnapshot(this.sceneInstrumentation.cameraRenderTimeCounter),
-                activeMeshesEvaluation: toPerfCounterSnapshot(this.sceneInstrumentation.activeMeshesEvaluationTimeCounter),
-                renderTargetsRenderTime: toPerfCounterSnapshot(this.sceneInstrumentation.renderTargetsRenderTimeCounter),
-                // Draw calls includes count property in addition to timing
-                drawCalls: {
-                    ... toPerfCounterSnapshot(this.sceneInstrumentation.drawCallsCounter),
-                    count: this.sceneInstrumentation.drawCallsCounter.count,
-                },
-            } : undefined,
+            scene: this.sceneInstrumentation
+                ? {
+                      frameTime: toPerfCounterSnapshot(this.sceneInstrumentation.frameTimeCounter),
+                      renderTime: toPerfCounterSnapshot(this.sceneInstrumentation.renderTimeCounter),
+                      interFrameTime: toPerfCounterSnapshot(this.sceneInstrumentation.interFrameTimeCounter),
+                      cameraRenderTime: toPerfCounterSnapshot(this.sceneInstrumentation.cameraRenderTimeCounter),
+                      activeMeshesEvaluation: toPerfCounterSnapshot(
+                          this.sceneInstrumentation.activeMeshesEvaluationTimeCounter,
+                      ),
+                      renderTargetsRenderTime: toPerfCounterSnapshot(
+                          this.sceneInstrumentation.renderTargetsRenderTimeCounter,
+                      ),
+                      // Draw calls includes count property in addition to timing
+                      drawCalls: {
+                          ...toPerfCounterSnapshot(this.sceneInstrumentation.drawCallsCounter),
+                          count: this.sceneInstrumentation.drawCallsCounter.count,
+                      },
+                  }
+                : undefined,
 
             // Layout session metrics (if session has completed)
             layoutSession: this.getLayoutSessionMetrics(),
@@ -986,8 +990,8 @@ export class StatsManager implements Manager {
             // eslint-disable-next-line no-console
             console.table(
                 snapshot.cpu.map((m) => ({
-                    "Label": m.label,
-                    "Calls": m.count,
+                    Label: m.label,
+                    Calls: m.count,
                     "Total (ms)": m.total.toFixed(2),
                     "Avg (ms)": m.avg.toFixed(2),
                     "Min (ms)": m.min === Infinity ? 0 : m.min.toFixed(2),
@@ -1002,9 +1006,7 @@ export class StatsManager implements Manager {
             console.log("CPU Metrics:");
             snapshot.cpu.forEach((m) => {
                 // eslint-disable-next-line no-console
-                console.log(
-                    `  ${m.label}: ${m.count} calls, ${m.total.toFixed(2)}ms total, ${m.avg.toFixed(2)}ms avg`,
-                );
+                console.log(`  ${m.label}: ${m.count} calls, ${m.total.toFixed(2)}ms total, ${m.avg.toFixed(2)}ms avg`);
             });
 
             // eslint-disable-next-line no-console
@@ -1154,7 +1156,9 @@ export class StatsManager implements Manager {
             // eslint-disable-next-line no-console
             console.log(`├─ GPU Rendering: ${ls.totalGpuTime.toFixed(2)}ms (${ls.percentages.gpu.toFixed(1)}%)`);
             // eslint-disable-next-line no-console
-            console.log(`└─ Blocking/Overhead: ${ls.blockingOverhead.toFixed(2)}ms (${ls.percentages.blocking.toFixed(1)}%)`);
+            console.log(
+                `└─ Blocking/Overhead: ${ls.blockingOverhead.toFixed(2)}ms (${ls.percentages.blocking.toFixed(1)}%)`,
+            );
             // eslint-disable-next-line no-console
             console.log("");
             // eslint-disable-next-line no-console
@@ -1199,14 +1203,14 @@ export class StatsManager implements Manager {
                 // eslint-disable-next-line no-console
                 console.table(
                     topBlockingOps.map((op) => ({
-                        "Operation": op.label,
+                        Operation: op.label,
                         "Total CPU (ms)": op.totalCpuTime.toFixed(2),
-                        "Appearances": op.appearanceCount,
+                        Appearances: op.appearanceCount,
                         "High-Blocking Frames": op.highBlockingFrames,
                         "High-Blocking %": `${op.highBlockingPercentage.toFixed(1)}%`,
-                        "Avg Blocking Ratio": Number.isNaN(op.avgBlockingRatioWhenPresent) ?
-                            "N/A" :
-                            `${op.avgBlockingRatioWhenPresent.toFixed(2)}x`,
+                        "Avg Blocking Ratio": Number.isNaN(op.avgBlockingRatioWhenPresent)
+                            ? "N/A"
+                            : `${op.avgBlockingRatioWhenPresent.toFixed(2)}x`,
                     })),
                 );
 
@@ -1218,9 +1222,9 @@ export class StatsManager implements Manager {
                     console.log(
                         `  ${i + 1}. ${op.label}: ${op.highBlockingPercentage.toFixed(1)}% high-blocking frames (${op.highBlockingFrames}/${op.appearanceCount})`,
                     );
-                    const ratioStr = Number.isNaN(op.avgBlockingRatioWhenPresent) ?
-                        "N/A" :
-                        `${op.avgBlockingRatioWhenPresent.toFixed(2)}x`;
+                    const ratioStr = Number.isNaN(op.avgBlockingRatioWhenPresent)
+                        ? "N/A"
+                        : `${op.avgBlockingRatioWhenPresent.toFixed(2)}x`;
                     // eslint-disable-next-line no-console
                     console.log(`     Avg blocking ratio: ${ratioStr}`);
                 });

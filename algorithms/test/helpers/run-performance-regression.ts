@@ -5,7 +5,7 @@
  * CLI entry point for running performance regression tests
  */
 
-import {PerformanceRegressionTest} from "./performance-regression.js";
+import { PerformanceRegressionTest } from "./performance-regression.js";
 
 // Run performance regression tests
 const test = new PerformanceRegressionTest();

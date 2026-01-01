@@ -1,8 +1,8 @@
-import {z} from "zod/v4";
+import { z } from "zod/v4";
 
-import {EDGE_CONSTANTS} from "../constants/meshConstants";
-import {ColorStyle} from "./common";
-import {RichTextStyle} from "./RichTextStyle";
+import { EDGE_CONSTANTS } from "../constants/meshConstants";
+import { ColorStyle } from "./common";
+import { RichTextStyle } from "./RichTextStyle";
 
 const ArrowType = z.enum([
     // https://graphviz.org/docs/attr-types/arrowType/
@@ -57,8 +57,8 @@ export const EdgeStyle = z.strictObject({
     arrowHead: ArrowStyle.optional(),
     arrowTail: ArrowStyle.optional(),
     line: LineStyle.optional(),
-    label: RichTextStyle.prefault({location: "top"}).optional(),
-    tooltip: RichTextStyle.prefault({location: "bottom"}).optional(),
+    label: RichTextStyle.prefault({ location: "top" }).optional(),
+    tooltip: RichTextStyle.prefault({ location: "bottom" }).optional(),
     // effects: glow // https://playground.babylonjs.com/#H1LRZ3#35
     enabled: z.boolean().default(true).optional(),
 });

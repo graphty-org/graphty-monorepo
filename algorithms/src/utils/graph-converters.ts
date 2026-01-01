@@ -1,9 +1,11 @@
-import {Graph} from "../core/graph.js";
-import type {NodeId} from "../types/index.js";
+import { Graph } from "../core/graph.js";
+import type { NodeId } from "../types/index.js";
 
 /**
  * Convert Graph class to Map representation
  * Used by community detection and flow algorithms
+ * @param graph - The Graph instance to convert
+ * @returns A nested Map where outer keys are source nodes and inner maps contain target nodes with edge weights
  */
 export function graphToMap(graph: Graph): Map<string, Map<string, number>> {
     const map = new Map<string, Map<string, number>>();
@@ -38,12 +40,12 @@ export function graphToMap(graph: Graph): Map<string, Map<string, number>> {
 
 /**
  * Convert Map representation to Graph class
+ * @param map - The nested Map representation of the graph
+ * @param isDirected - Whether the resulting graph should be directed (defaults to true)
+ * @returns A new Graph instance with nodes and edges from the map
  */
-export function mapToGraph(
-    map: Map<string, Map<string, number>>,
-    isDirected = true,
-): Graph {
-    const graph = new Graph({directed: isDirected});
+export function mapToGraph(map: Map<string, Map<string, number>>, isDirected = true): Graph {
+    const graph = new Graph({ directed: isDirected });
 
     // Add all nodes first
     for (const node of map.keys()) {
@@ -78,6 +80,11 @@ export class GraphAdapter {
     private map: Map<string, Map<string, number>>;
     public readonly isDirected: boolean;
 
+    /**
+     * Creates a new GraphAdapter instance wrapping a Map representation.
+     * @param map - The nested Map representation of the graph
+     * @param isDirected - Whether the graph should be treated as directed (defaults to true)
+     */
     constructor(map: Map<string, Map<string, number>>, isDirected = true) {
         this.map = map;
         this.isDirected = isDirected;
@@ -85,13 +92,15 @@ export class GraphAdapter {
 
     /**
      * Get all nodes
+     * @returns Array of node objects with their ids
      */
-    nodes(): {id: NodeId}[] {
-        return Array.from(this.map.keys()).map((id) => ({id}));
+    nodes(): { id: NodeId }[] {
+        return Array.from(this.map.keys()).map((id) => ({ id }));
     }
 
     /**
      * Get node count
+     * @returns The total number of nodes in the graph
      */
     get nodeCount(): number {
         return this.map.size;
@@ -99,6 +108,8 @@ export class GraphAdapter {
 
     /**
      * Check if node exists
+     * @param nodeId - The id of the node to check
+     * @returns True if the node exists, false otherwise
      */
     hasNode(nodeId: NodeId): boolean {
         return this.map.has(String(nodeId));
@@ -106,6 +117,8 @@ export class GraphAdapter {
 
     /**
      * Get neighbors of a node
+     * @param nodeId - The id of the node to get neighbors for
+     * @returns Array of neighbor node ids
      */
     neighbors(nodeId: NodeId): NodeId[] {
         const neighbors = this.map.get(String(nodeId));
@@ -118,8 +131,11 @@ export class GraphAdapter {
 
     /**
      * Get edge between two nodes
+     * @param source - The source node id
+     * @param target - The target node id
+     * @returns The edge object with source, target and weight, or null if no edge exists
      */
-    getEdge(source: NodeId, target: NodeId): {source: NodeId, target: NodeId, weight?: number} | null {
+    getEdge(source: NodeId, target: NodeId): { source: NodeId; target: NodeId; weight?: number } | null {
         const sourceNeighbors = this.map.get(String(source));
         if (!sourceNeighbors) {
             return null;
@@ -130,11 +146,14 @@ export class GraphAdapter {
             return null;
         }
 
-        return {source, target, weight};
+        return { source, target, weight };
     }
 
     /**
      * Check if edge exists
+     * @param source - The source node id
+     * @param target - The target node id
+     * @returns True if an edge exists between source and target, false otherwise
      */
     hasEdge(source: NodeId, target: NodeId): boolean {
         const sourceNeighbors = this.map.get(String(source));
@@ -147,9 +166,10 @@ export class GraphAdapter {
 
     /**
      * Get all edges
+     * @returns Array of edge objects with source, target and optional weight
      */
-    edges(): {source: NodeId, target: NodeId, weight?: number}[] {
-        const edges: {source: NodeId, target: NodeId, weight?: number}[] = [];
+    edges(): { source: NodeId; target: NodeId; weight?: number }[] {
+        const edges: { source: NodeId; target: NodeId; weight?: number }[] = [];
         const processedEdges = new Set<string>();
 
         for (const [source, neighbors] of this.map) {
@@ -161,7 +181,7 @@ export class GraphAdapter {
                     continue;
                 }
 
-                edges.push({source, target, weight});
+                edges.push({ source, target, weight });
                 processedEdges.add(edgeKey);
             }
         }
@@ -171,6 +191,7 @@ export class GraphAdapter {
 
     /**
      * Get edge count
+     * @returns The total number of edges in the graph
      */
     get edgeCount(): number {
         if (this.isDirected) {
@@ -199,6 +220,8 @@ export class GraphAdapter {
 
     /**
      * Get node degree
+     * @param nodeId - The id of the node to get degree for
+     * @returns The number of edges connected to the node
      */
     degree(nodeId: NodeId): number {
         const neighbors = this.map.get(String(nodeId));
@@ -207,6 +230,8 @@ export class GraphAdapter {
 
     /**
      * Get in-degree (for directed graphs)
+     * @param nodeId - The id of the node to get in-degree for
+     * @returns The number of incoming edges to the node
      */
     inDegree(nodeId: NodeId): number {
         if (!this.isDirected) {
@@ -227,6 +252,8 @@ export class GraphAdapter {
 
     /**
      * Get out-degree (for directed graphs)
+     * @param nodeId - The id of the node to get out-degree for
+     * @returns The number of outgoing edges from the node
      */
     outDegree(nodeId: NodeId): number {
         return this.degree(nodeId);
@@ -234,6 +261,7 @@ export class GraphAdapter {
 
     /**
      * Get underlying map representation
+     * @returns The internal Map representation of the graph
      */
     getMap(): Map<string, Map<string, number>> {
         return this.map;

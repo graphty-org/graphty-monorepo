@@ -8,9 +8,9 @@
  * "From Louvain to Leiden: guaranteeing well-connected communities"
  */
 
-import type {Graph} from "../../core/graph.js";
-import {graphToMap} from "../../utils/graph-converters.js";
-import {SeededRandom, shuffle} from "../../utils/math-utilities.js";
+import type { Graph } from "../../core/graph.js";
+import { graphToMap } from "../../utils/graph-converters.js";
+import { SeededRandom, shuffle } from "../../utils/math-utilities.js";
 
 export interface LeidenOptions {
     resolution?: number;
@@ -28,17 +28,12 @@ export interface LeidenResult {
 /**
  * Internal implementation of Leiden algorithm for community detection
  * Improves upon Louvain by ensuring well-connected communities
+ * @param inputGraph - Map representation of the graph (node to neighbors with weights)
+ * @param options - Algorithm configuration options
+ * @returns Community assignments, modularity score, and iteration count
  */
-function leidenImpl(
-    inputGraph: Map<string, Map<string, number>>,
-    options: LeidenOptions = {},
-): LeidenResult {
-    const {
-        resolution = 1.0,
-        randomSeed = 42,
-        maxIterations = 100,
-        threshold = 1e-7,
-    } = options;
+function leidenImpl(inputGraph: Map<string, Map<string, number>>, options: LeidenOptions = {}): LeidenResult {
+    const { resolution = 1.0, randomSeed = 42, maxIterations = 100, threshold = 1e-7 } = options;
 
     // Handle empty graph
     if (inputGraph.size === 0) {
@@ -85,7 +80,7 @@ function leidenImpl(
         let improved = false;
 
         // Phase 1: Local moving of nodes (fast)
-        const nodeOrder = [... nodes];
+        const nodeOrder = [...nodes];
         shuffle(nodeOrder, random);
 
         for (const node of nodeOrder) {
@@ -106,7 +101,13 @@ function leidenImpl(
                 }
 
                 const gain = calculateModularityGain(
-                    node, community, currentGraph, communities, degrees, totalWeight, resolution,
+                    node,
+                    community,
+                    currentGraph,
+                    communities,
+                    degrees,
+                    totalWeight,
+                    resolution,
                 );
 
                 if (gain > bestGain) {
@@ -128,9 +129,7 @@ function leidenImpl(
         createAggregateNetwork(currentGraph, communities);
 
         // Refine partition using aggregate network
-        const subsetPartition = refinePartition(
-            currentGraph, communities,
-        );
+        const subsetPartition = refinePartition(currentGraph, communities);
 
         // Apply refined partition
         for (const [node, newCommunity] of subsetPartition) {
@@ -158,7 +157,7 @@ function leidenImpl(
         } // No aggregation possible
 
         // Continue with aggregated network
-        const {graph: aggregatedGraph} = aggregated;
+        const { graph: aggregatedGraph } = aggregated;
         currentGraph = aggregatedGraph;
         communities.clear();
         let communityId = 0;
@@ -195,6 +194,12 @@ function leidenImpl(
 
 /**
  * Calculate modularity of a partition
+ * @param graph - Map representation of the graph
+ * @param communities - Map of node IDs to community IDs
+ * @param degrees - Map of node IDs to their weighted degrees
+ * @param totalWeight - Total weight of all edges in the graph
+ * @param resolution - Resolution parameter for modularity calculation
+ * @returns The modularity score of the partition
  */
 function calculateModularity(
     graph: Map<string, Map<string, number>>,
@@ -236,11 +241,11 @@ function calculateModularity(
     }
 
     // Normalize and apply resolution
-    modularity /= (2 * totalWeight);
+    modularity /= 2 * totalWeight;
 
     // Subtract expected edges
     for (const weight of communityWeights.values()) {
-        modularity -= resolution * ((weight / (2 * totalWeight)) ** 2);
+        modularity -= resolution * (weight / (2 * totalWeight)) ** 2;
     }
 
     return modularity;
@@ -248,6 +253,10 @@ function calculateModularity(
 
 /**
  * Get communities of neighbors
+ * @param node - The node ID to get neighbor communities for
+ * @param graph - Map representation of the graph
+ * @param communities - Map of node IDs to community IDs
+ * @returns Map of community IDs to total edge weight connecting to that community
  */
 function getNeighborCommunities(
     node: string,
@@ -271,6 +280,14 @@ function getNeighborCommunities(
 
 /**
  * Calculate modularity gain from moving a node to a community
+ * @param node - The node ID to move
+ * @param targetCommunity - The target community ID
+ * @param graph - Map representation of the graph
+ * @param communities - Map of node IDs to community IDs
+ * @param degrees - Map of node IDs to their weighted degrees
+ * @param totalWeight - Total weight of all edges in the graph
+ * @param resolution - Resolution parameter for modularity calculation
+ * @returns The modularity gain from moving the node to the target community
  */
 function calculateModularityGain(
     node: string,
@@ -327,22 +344,26 @@ function calculateModularityGain(
 
     // Modularity gain calculation
     const m2 = 2 * totalWeight;
-    const gain = ((weightToTarget - weightToCurrent) / totalWeight) -
-    (resolution * nodeDegree * (targetDegree - currentDegree) / (m2 * m2));
+    const gain =
+        (weightToTarget - weightToCurrent) / totalWeight -
+        (resolution * nodeDegree * (targetDegree - currentDegree)) / (m2 * m2);
 
     return gain;
 }
 
 /**
  * Create aggregate network where each community becomes a super-node
+ * @param graph - Map representation of the graph
+ * @param communities - Map of node IDs to community IDs
+ * @returns Object with aggregate graph and node-to-community mapping
  */
 function createAggregateNetwork(
     graph: Map<string, Map<string, number>>,
     communities: Map<string, number>,
 ): {
-        aggregateGraph: Map<number, Map<number, number>>;
-        nodeMapping: Map<string, number>;
-    } {
+    aggregateGraph: Map<number, Map<number, number>>;
+    nodeMapping: Map<string, number>;
+} {
     const aggregateGraph = new Map<number, Map<number, number>>();
     const nodeMapping = new Map<string, number>();
 
@@ -375,12 +396,15 @@ function createAggregateNetwork(
         }
     }
 
-    return {aggregateGraph, nodeMapping};
+    return { aggregateGraph, nodeMapping };
 }
 
 /**
  * Refine partition (Leiden-specific improvement)
  * Ensures well-connected communities by considering subsets
+ * @param originalGraph - Map representation of the original graph
+ * @param communities - Map of node IDs to community IDs
+ * @returns Refined community assignments with well-connected communities
  */
 function refinePartition(
     originalGraph: Map<string, Map<string, number>>,
@@ -448,6 +472,8 @@ function refinePartition(
 
 /**
  * Find connected components in undirected graph
+ * @param graph - Map representation of the graph (node to set of neighbors)
+ * @returns Array of connected components (each is a set of node IDs)
  */
 function findConnectedComponents(graph: Map<string, Set<string>>): Set<string>[] {
     const visited = new Set<string>();
@@ -486,14 +512,17 @@ function findConnectedComponents(graph: Map<string, Set<string>>): Set<string>[]
 
 /**
  * Aggregate communities into super-nodes
+ * @param graph - Map representation of the graph
+ * @param communities - Map of node IDs to community IDs
+ * @returns Object with aggregated graph and node-to-supernode mapping
  */
 function aggregateCommunities(
     graph: Map<string, Map<string, number>>,
     communities: Map<string, number>,
 ): {
-        graph: Map<string, Map<string, number>>;
-        mapping: Map<string, string>;
-    } {
+    graph: Map<string, Map<string, number>>;
+    mapping: Map<string, string>;
+} {
     const aggregated = new Map<string, Map<string, number>>();
     const mapping = new Map<string, string>();
 
@@ -546,13 +575,12 @@ function aggregateCommunities(
         }
     }
 
-    return {graph: aggregated, mapping};
+    return { graph: aggregated, mapping };
 }
 
 /**
  * Leiden algorithm for community detection
  * Improves upon Louvain by ensuring well-connected communities
- *
  * @param graph - Undirected weighted graph - accepts Graph class or Map representation
  * @param options - Algorithm options
  * @returns Community assignments and modularity
@@ -560,12 +588,8 @@ function aggregateCommunities(
  * Time Complexity: O(m) per iteration, typically O(m log m) total
  * Space Complexity: O(n + m)
  */
-export function leiden(
-    graph: Graph,
-    options: LeidenOptions = {},
-): LeidenResult {
+export function leiden(graph: Graph, options: LeidenOptions = {}): LeidenResult {
     // Convert Graph to Map representation
     const graphMap = graphToMap(graph);
     return leidenImpl(graphMap, options);
 }
-

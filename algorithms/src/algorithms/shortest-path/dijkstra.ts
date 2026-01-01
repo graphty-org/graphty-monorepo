@@ -1,8 +1,8 @@
-import type {Graph} from "../../core/graph.js";
-import {PriorityQueue} from "../../data-structures/priority-queue.js";
-import type {DijkstraOptions, NodeId, ShortestPathResult} from "../../types/index.js";
-import {reconstructPath} from "../../utils/graph-utilities.js";
-import {BidirectionalDijkstra} from "./bidirectional-dijkstra.js";
+import type { Graph } from "../../core/graph.js";
+import { PriorityQueue } from "../../data-structures/priority-queue.js";
+import type { DijkstraOptions, NodeId, ShortestPathResult } from "../../types/index.js";
+import { reconstructPath } from "../../utils/graph-utilities.js";
+import { BidirectionalDijkstra } from "./bidirectional-dijkstra.js";
 
 /**
  * Dijkstra's algorithm implementation for single-source shortest paths
@@ -13,12 +13,12 @@ import {BidirectionalDijkstra} from "./bidirectional-dijkstra.js";
 
 /**
  * Find shortest paths from source to all reachable nodes using Dijkstra's algorithm
+ * @param graph - The graph to search
+ * @param source - The starting node for the search
+ * @param options - Algorithm options including optional target for early termination
+ * @returns A map of node IDs to their shortest path results
  */
-export function dijkstra(
-    graph: Graph,
-    source: NodeId,
-    options: DijkstraOptions = {},
-): Map<NodeId, ShortestPathResult> {
+export function dijkstra(graph: Graph, source: NodeId, options: DijkstraOptions = {}): Map<NodeId, ShortestPathResult> {
     if (!graph.hasNode(source)) {
         throw new Error(`Source node ${String(source)} not found in graph`);
     }
@@ -119,6 +119,11 @@ export function dijkstra(
  *
  * Uses bidirectional search by default for improved performance on point-to-point queries.
  * Automatically falls back to standard Dijkstra for very small graphs or when explicitly disabled.
+ * @param graph - The graph to search
+ * @param source - The starting node for the path
+ * @param target - The destination node for the path
+ * @param options - Algorithm options including bidirectional search toggle
+ * @returns The shortest path result or null if no path exists
  */
 export function dijkstraPath(
     graph: Graph,
@@ -153,18 +158,18 @@ export function dijkstraPath(
     }
 
     // Fallback to standard dijkstra
-    const results = dijkstra(graph, source, {target});
+    const results = dijkstra(graph, source, { target });
     return results.get(target) ?? null;
 }
 
 /**
  * Single-source shortest paths with early termination optimization
+ * @param graph - The graph to search
+ * @param source - The starting node for the search
+ * @param cutoff - Optional maximum distance to search
+ * @returns A map of node IDs to their distances from the source
  */
-export function singleSourceShortestPath(
-    graph: Graph,
-    source: NodeId,
-    cutoff?: number,
-): Map<NodeId, number> {
+export function singleSourceShortestPath(graph: Graph, source: NodeId, cutoff?: number): Map<NodeId, number> {
     if (!graph.hasNode(source)) {
         throw new Error(`Source node ${String(source)} not found in graph`);
     }
@@ -244,6 +249,8 @@ export function singleSourceShortestPath(
 /**
  * All-pairs shortest paths using repeated Dijkstra
  * Note: For dense graphs, consider Floyd-Warshall algorithm instead
+ * @param graph - The graph to compute all-pairs shortest paths for
+ * @returns A nested map of source to target to distance
  */
 export function allPairsShortestPath(graph: Graph): Map<NodeId, Map<NodeId, number>> {
     const results = new Map<NodeId, Map<NodeId, number>>();
@@ -255,4 +262,3 @@ export function allPairsShortestPath(graph: Graph): Map<NodeId, Map<NodeId, numb
 
     return results;
 }
-

@@ -11,31 +11,32 @@
 ### Core Functionality
 
 1. **User Feedback Menu Item**
-   - Add a "Send feedback..." menu item under the hamburger menu (alongside existing options like "Load Data...")
-   - When clicked, display a modal dialog styled consistently with existing modals (e.g., LoadDataModal)
-   - The modal should allow users to enter feedback and submit it to Sentry.io
+    - Add a "Send feedback..." menu item under the hamburger menu (alongside existing options like "Load Data...")
+    - When clicked, display a modal dialog styled consistently with existing modals (e.g., LoadDataModal)
+    - The modal should allow users to enter feedback and submit it to Sentry.io
 
 2. **Error Tracking**
-   - Automatically capture and report JavaScript errors to Sentry.io
-   - Include relevant context (user actions, application state, browser info)
-   - Provide source-mapped stack traces for easier debugging
+    - Automatically capture and report JavaScript errors to Sentry.io
+    - Include relevant context (user actions, application state, browser info)
+    - Provide source-mapped stack traces for easier debugging
 
 3. **Additional Sentry Features (Recommended)**
-   - **Performance Monitoring**: Track page load times, API call durations, and interaction responsiveness
-   - **Logs Integration**: Correlate console logs with errors for better debugging context
-   - **Error Boundaries**: React-specific error boundary integration for graceful error handling
-   - **Screenshot Capture**: Optional screenshot attachment with user feedback
+    - **Performance Monitoring**: Track page load times, API call durations, and interaction responsiveness
+    - **Logs Integration**: Correlate console logs with errors for better debugging context
+    - **Error Boundaries**: React-specific error boundary integration for graceful error handling
+    - **Screenshot Capture**: Optional screenshot attachment with user feedback
 
 4. **Privacy-First Approach**
-   - Session Replay is **disabled by default** to protect user privacy
-   - No automatic PII collection
-   - Screenshots are opt-in per feedback submission
+    - Session Replay is **disabled by default** to protect user privacy
+    - No automatic PII collection
+    - Screenshots are opt-in per feedback submission
 
 ## Proposed Solution
 
 ### User Interface/API
 
 #### Hamburger Menu Addition
+
 ```
 ┌─────────────────────────────────┐
 │ File                            │
@@ -50,6 +51,7 @@
 ```
 
 #### Feedback Modal
+
 ```
 ┌─────────────────────────────────────────────────┐
 │ Send Feedback                              [×]  │
@@ -88,6 +90,7 @@
 ```
 
 **Form Fields:**
+
 - **Name**: Optional text input for user's name
 - **Email**: Optional text input for contact email
 - **Message**: Required textarea for feedback description
@@ -95,7 +98,9 @@
 - **Attachments**: Optional multi-file upload for additional screenshots, logs, or other files
 
 #### Automatic Error Logging
+
 When JavaScript errors occur (thrown errors, unhandled promise rejections), they are automatically captured and sent to Sentry with:
+
 - Full stack trace (source-mapped for readability)
 - Browser and device information
 - User's current URL and navigation path
@@ -104,6 +109,7 @@ When JavaScript errors occur (thrown errors, unhandled promise rejections), they
 ### Technical Architecture
 
 #### File Structure
+
 ```
 src/
 ├── lib/
@@ -118,6 +124,7 @@ src/
 #### Components
 
 **1. Sentry Initialization (`src/lib/sentry.ts`)**
+
 ```typescript
 import * as Sentry from "@sentry/react";
 
@@ -168,8 +175,8 @@ export async function captureUserFeedback(feedback: {
     name?: string;
     email?: string;
     message: string;
-    screenshot?: Uint8Array;        // Auto-captured screenshot
-    attachments?: File[];           // User-uploaded files
+    screenshot?: Uint8Array; // Auto-captured screenshot
+    attachments?: File[]; // User-uploaded files
 }): Promise<void> {
     // Convert user files to Sentry attachment format
     const attachments: FeedbackAttachment[] = [];
@@ -201,17 +208,18 @@ export async function captureUserFeedback(feedback: {
             name: feedback.name,
             email: feedback.email,
         },
-        { attachments }
+        { attachments },
     );
 }
 ```
 
 **2. Feedback Modal (`src/components/FeedbackModal.tsx`)**
+
 ```typescript
 interface FeedbackModalProps {
     opened: boolean;
     onClose: () => void;
-    screenshot?: Uint8Array;  // Captured before modal opened
+    screenshot?: Uint8Array; // Captured before modal opened
 }
 
 // Modal with:
@@ -227,6 +235,7 @@ interface FeedbackModalProps {
 ```
 
 **3. Error Boundary (`src/components/ErrorBoundary.tsx`)**
+
 ```typescript
 // React error boundary that:
 // - Catches render errors
@@ -236,6 +245,7 @@ interface FeedbackModalProps {
 ```
 
 #### Data Flow
+
 ```
 User clicks "Send feedback..."
          ↓
@@ -252,37 +262,37 @@ User clicks "Send feedback..."
 
 #### Integration Points
 
-| Component | Integration Type | Description |
-|-----------|-----------------|-------------|
-| `main.tsx` | Initialization | Call `initSentry()` before React render |
-| `TopMenuBar.tsx` | Menu item | Add "Send feedback..." option with callback |
-| `AppLayout.tsx` | Modal state | Manage `feedbackModalOpen` state |
-| `App.tsx` | Error boundary | Wrap app in Sentry error boundary |
-| `FeedbackModal.tsx` | New component | Custom feedback form modal |
+| Component           | Integration Type | Description                                 |
+| ------------------- | ---------------- | ------------------------------------------- |
+| `main.tsx`          | Initialization   | Call `initSentry()` before React render     |
+| `TopMenuBar.tsx`    | Menu item        | Add "Send feedback..." option with callback |
+| `AppLayout.tsx`     | Modal state      | Manage `feedbackModalOpen` state            |
+| `App.tsx`           | Error boundary   | Wrap app in Sentry error boundary           |
+| `FeedbackModal.tsx` | New component    | Custom feedback form modal                  |
 
 ### Implementation Approach
 
 1. **Phase 1: Core Sentry Setup**
-   - Install `@sentry/react` package
-   - Create `src/lib/sentry.ts` with initialization logic
-   - Add environment variables for DSN configuration
-   - Initialize Sentry in `main.tsx` (before React render)
+    - Install `@sentry/react` package
+    - Create `src/lib/sentry.ts` with initialization logic
+    - Add environment variables for DSN configuration
+    - Initialize Sentry in `main.tsx` (before React render)
 
 2. **Phase 2: Error Tracking**
-   - Add Sentry error boundary wrapper around `<App />`
-   - Configure source map uploads in Vite build
-   - Test error capture with intentional throw
+    - Add Sentry error boundary wrapper around `<App />`
+    - Configure source map uploads in Vite build
+    - Test error capture with intentional throw
 
 3. **Phase 3: User Feedback Modal**
-   - Create `FeedbackModal.tsx` following LoadDataModal patterns
-   - Add menu item to TopMenuBar with "Send feedback..." option
-   - Add modal state management in AppLayout
-   - Implement feedback submission via Sentry API
+    - Create `FeedbackModal.tsx` following LoadDataModal patterns
+    - Add menu item to TopMenuBar with "Send feedback..." option
+    - Add modal state management in AppLayout
+    - Implement feedback submission via Sentry API
 
 4. **Phase 4: Enhanced Features (Optional)**
-   - Enable Session Replay for error reproduction
-   - Add performance monitoring for key interactions
-   - Configure crash-report modal for error context collection
+    - Enable Session Replay for error reproduction
+    - Add performance monitoring for key interactions
+    - Configure crash-report modal for error context collection
 
 ## Acceptance Criteria
 
@@ -305,69 +315,75 @@ User clicks "Send feedback..."
 ## Technical Considerations
 
 ### Performance
+
 - **Impact**: Minimal. Sentry SDK is ~30KB gzipped and loads asynchronously
 - **Mitigation**:
-  - Lazy load feedback modal
-  - Use sampling for performance traces (10% in prod, 100% in dev for testing)
-  - Session replay disabled (0% sampling)
-  - Configure `ignoreErrors` to filter noise
+    - Lazy load feedback modal
+    - Use sampling for performance traces (10% in prod, 100% in dev for testing)
+    - Session replay disabled (0% sampling)
+    - Configure `ignoreErrors` to filter noise
 - **Attachment Quota**: All Sentry plans include 1GB of attachments (~2500 screenshots). Consider adding a max file size limit (e.g., 5MB per file) in the UI.
 
 ### Security
+
 - **DSN Exposure**: The DSN is public (client-side) but only allows event submission, not read access
 - **PII Handling**:
-  - Name and email are optional and user-provided
-  - Session replay can mask sensitive content if needed
-  - Configure `beforeSend` to scrub sensitive data if necessary
+    - Name and email are optional and user-provided
+    - Session replay can mask sensitive content if needed
+    - Configure `beforeSend` to scrub sensitive data if necessary
 - **Rate Limiting**: Sentry has built-in rate limiting to prevent abuse
 
 ### Compatibility
+
 - **Browser Support**: Requires Shadow DOM and Dialog element (modern browsers)
 - **React Version**: @sentry/react supports React 16.8+, we're on React 19
 - **Backward Compatibility**: No breaking changes to existing functionality
 - **Graceful Degradation**: If Sentry fails to load, app continues to work normally
 
 ### Testing
+
 - **Unit Tests**:
-  - Mock Sentry SDK in tests
-  - Test FeedbackModal form validation and submission
-  - Test error boundary render fallback
+    - Mock Sentry SDK in tests
+    - Test FeedbackModal form validation and submission
+    - Test error boundary render fallback
 - **Integration Tests**:
-  - Verify menu item triggers modal
-  - Verify modal submission calls Sentry API
+    - Verify menu item triggers modal
+    - Verify modal submission calls Sentry API
 - **Manual Testing**:
-  - Verify events appear in Sentry dashboard (both dev and prod projects)
-  - Test error capture with intentional errors
-  - Verify feedback submissions include screenshot when checked
-  - Test that errors in dev go to dev project, prod to prod project
+    - Verify events appear in Sentry dashboard (both dev and prod projects)
+    - Test error capture with intentional errors
+    - Verify feedback submissions include screenshot when checked
+    - Test that errors in dev go to dev project, prod to prod project
 
 ### Configuration
 
 **Environment Variables:**
 
-| Variable | Local Dev | GitHub Actions | Purpose |
-|----------|-----------|----------------|---------|
-| `VITE_SENTRY_DSN` | `.env.development` | Secret | Sentry project DSN |
-| `VITE_SENTRY_ORG` | Not needed | Secret | Org slug for source maps |
-| `VITE_SENTRY_PROJECT` | Not needed | Secret | Project name for source maps |
-| `SENTRY_AUTH_TOKEN` | Not needed | Secret | Auth for source map upload |
+| Variable              | Local Dev          | GitHub Actions | Purpose                      |
+| --------------------- | ------------------ | -------------- | ---------------------------- |
+| `VITE_SENTRY_DSN`     | `.env.development` | Secret         | Sentry project DSN           |
+| `VITE_SENTRY_ORG`     | Not needed         | Secret         | Org slug for source maps     |
+| `VITE_SENTRY_PROJECT` | Not needed         | Secret         | Project name for source maps |
+| `SENTRY_AUTH_TOKEN`   | Not needed         | Secret         | Auth for source map upload   |
 
 **Vite Source Map Upload (vite.config.ts):**
+
 ```typescript
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 
 export default defineConfig({
-  build: {
-    sourcemap: true, // Required for Sentry
-  },
-  plugins: [
-    // Only upload source maps in CI (when auth token is present)
-    process.env.SENTRY_AUTH_TOKEN && sentryVitePlugin({
-      org: process.env.VITE_SENTRY_ORG,
-      project: process.env.VITE_SENTRY_PROJECT,
-      authToken: process.env.SENTRY_AUTH_TOKEN,
-    }),
-  ].filter(Boolean),
+    build: {
+        sourcemap: true, // Required for Sentry
+    },
+    plugins: [
+        // Only upload source maps in CI (when auth token is present)
+        process.env.SENTRY_AUTH_TOKEN &&
+            sentryVitePlugin({
+                org: process.env.VITE_SENTRY_ORG,
+                project: process.env.VITE_SENTRY_PROJECT,
+                authToken: process.env.SENTRY_AUTH_TOKEN,
+            }),
+    ].filter(Boolean),
 });
 ```
 
@@ -411,6 +427,7 @@ export default defineConfig({
 **For Local Development:**
 
 Create `.env.development` (this file is gitignored):
+
 ```bash
 VITE_SENTRY_DSN=https://your-dev-dsn@xxx.ingest.sentry.io/xxx
 ```
@@ -421,21 +438,22 @@ Since GitHub Pages serves static files, environment variables must be injected a
 
 1. Go to your GitHub repository → **Settings** → **Secrets and variables** → **Actions**
 2. Click **New repository secret** and add:
-   - `VITE_SENTRY_DSN` = `https://your-prod-dsn@xxx.ingest.sentry.io/xxx`
-   - `VITE_SENTRY_ORG` = `your-sentry-org-slug`
-   - `VITE_SENTRY_PROJECT` = `graphty-prod`
-   - `SENTRY_AUTH_TOKEN` = (from Step 4)
+    - `VITE_SENTRY_DSN` = `https://your-prod-dsn@xxx.ingest.sentry.io/xxx`
+    - `VITE_SENTRY_ORG` = `your-sentry-org-slug`
+    - `VITE_SENTRY_PROJECT` = `graphty-prod`
+    - `SENTRY_AUTH_TOKEN` = (from Step 4)
 
 3. Update `.github/workflows/deploy.yml` build step:
+
 ```yaml
 - name: Build
   run: npm run build
   env:
-    VITE_BASE_PATH: /
-    VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
-    VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
-    VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
-    SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      VITE_BASE_PATH: /
+      VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+      VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
+      VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 ```
 
 > **How it works**: Vite replaces `import.meta.env.VITE_*` with the actual values during build, so they're embedded in the JavaScript bundle.
@@ -457,28 +475,28 @@ Source maps allow Sentry to show readable stack traces instead of minified code.
 
 1. Go to **Alerts** → **Create Alert**
 2. Set up alerts for:
-   - **Issue Alerts**: Notify when new errors occur
-   - **Metric Alerts**: Notify when error rate exceeds threshold
+    - **Issue Alerts**: Notify when new errors occur
+    - **Metric Alerts**: Notify when error rate exceeds threshold
 3. Configure notification channels (email, Slack, etc.)
 
 ### Project Settings Recommendations
 
 **For Production Project (`graphty-prod`):**
 
-| Setting | Recommended Value | Location |
-|---------|------------------|----------|
-| Rate Limiting | 100 events/minute | Settings → Client Keys → Rate Limiting |
-| Data Scrubbing | Enable | Settings → Security & Privacy |
-| Issue Grouping | Default | Settings → Issue Grouping |
-| Inbound Filters | Filter localhost | Settings → Inbound Filters |
+| Setting         | Recommended Value | Location                               |
+| --------------- | ----------------- | -------------------------------------- |
+| Rate Limiting   | 100 events/minute | Settings → Client Keys → Rate Limiting |
+| Data Scrubbing  | Enable            | Settings → Security & Privacy          |
+| Issue Grouping  | Default           | Settings → Issue Grouping              |
+| Inbound Filters | Filter localhost  | Settings → Inbound Filters             |
 
 **For Development Project (`graphty-dev`):**
 
-| Setting | Recommended Value | Location |
-|---------|------------------|----------|
-| Rate Limiting | 1000 events/minute | Settings → Client Keys → Rate Limiting |
-| Data Scrubbing | Enable | Settings → Security & Privacy |
-| Inbound Filters | Allow localhost | Settings → Inbound Filters |
+| Setting         | Recommended Value  | Location                               |
+| --------------- | ------------------ | -------------------------------------- |
+| Rate Limiting   | 1000 events/minute | Settings → Client Keys → Rate Limiting |
+| Data Scrubbing  | Enable             | Settings → Security & Privacy          |
+| Inbound Filters | Allow localhost    | Settings → Inbound Filters             |
 
 ## Future Enhancements
 
@@ -493,18 +511,20 @@ Source maps allow Sentry to show readable stack traces instead of minified code.
 ## Dependencies
 
 **New Package:**
+
 ```json
 {
-  "dependencies": {
-    "@sentry/react": "^8.x"
-  },
-  "devDependencies": {
-    "@sentry/vite-plugin": "^2.x"
-  }
+    "dependencies": {
+        "@sentry/react": "^8.x"
+    },
+    "devDependencies": {
+        "@sentry/vite-plugin": "^2.x"
+    }
 }
 ```
 
 **Package Size Impact:**
+
 - `@sentry/react`: ~30KB gzipped (runtime)
 - `@sentry/vite-plugin`: Build-time only, no runtime impact
 

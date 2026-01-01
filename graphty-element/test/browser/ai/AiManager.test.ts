@@ -3,20 +3,20 @@
  * @module test/ai/AiManager.test
  */
 
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import {AiManager} from "../../../src/ai/AiManager";
-import type {Graph} from "../../../src/Graph";
-import {createMockGraphContext} from "../../helpers/mock-graph-context";
+import { AiManager } from "../../../src/ai/AiManager";
+import type { Graph } from "../../../src/Graph";
+import { createMockGraphContext } from "../../helpers/mock-graph-context";
 
 describe("AiManager", () => {
     let manager: AiManager;
     let mockGraph: Graph;
 
     beforeEach(() => {
-        mockGraph = createMockGraphContext({nodeCount: 10, edgeCount: 15});
+        mockGraph = createMockGraphContext({ nodeCount: 10, edgeCount: 15 });
         manager = new AiManager();
-        manager.init(mockGraph, {provider: "mock"});
+        manager.init(mockGraph, { provider: "mock" });
     });
 
     afterEach(() => {
@@ -40,19 +40,19 @@ describe("AiManager", () => {
             const anotherManager = new AiManager();
             // Note: In real usage, you'd need API keys for non-mock providers
             // For this test, we just verify the manager accepts the provider type
-            anotherManager.init(mockGraph, {provider: "mock"});
+            anotherManager.init(mockGraph, { provider: "mock" });
             assert.strictEqual(anotherManager.getStatus().state, "ready");
             anotherManager.dispose();
         });
     });
 
     describe("execute", () => {
-        it("executes commands through context", async() => {
+        it("executes commands through context", async () => {
             const result = await manager.execute("How many nodes?");
             assert.strictEqual(result.success, true);
         });
 
-        it("returns error for disposed manager", async() => {
+        it("returns error for disposed manager", async () => {
             manager.dispose();
             const result = await manager.execute("test");
             assert.strictEqual(result.success, false);
@@ -90,7 +90,7 @@ describe("AiManager", () => {
             assert.strictEqual(status.canCancel, false);
         });
 
-        it("allows subscribing to status changes", async() => {
+        it("allows subscribing to status changes", async () => {
             const states: string[] = [];
             const unsubscribe = manager.onStatusChange((status) => {
                 states.push(status.state);

@@ -37,10 +37,7 @@ const state: RemoteLoggingState = {
 };
 
 // Patterns to throttle (prevents log flooding)
-const THROTTLE_PATTERNS = [
-    /Max number of touches/,
-    /Max touches exceeded/,
-];
+const THROTTLE_PATTERNS = [/Max number of touches/, /Max touches exceeded/];
 const THROTTLE_MS = 5000;
 
 function shouldThrottle(message: string): boolean {
@@ -69,26 +66,28 @@ function flushLogs(): void {
 
     fetch(state.serverUrl, {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({sessionId: state.sessionId, logs: logsToSend}),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: state.sessionId, logs: logsToSend }),
     }).catch(() => {
         // Put logs back on failure
-        state.logBuffer.unshift(... logsToSend);
+        state.logBuffer.unshift(...logsToSend);
     });
 }
 
 function formatArgs(args: unknown[]): string {
-    return args.map((arg) => {
-        if (typeof arg === "object" && arg !== null) {
-            try {
-                return JSON.stringify(arg, null, 2);
-            } catch {
-                return "[Circular or non-serializable object]";
+    return args
+        .map((arg) => {
+            if (typeof arg === "object" && arg !== null) {
+                try {
+                    return JSON.stringify(arg, null, 2);
+                } catch {
+                    return "[Circular or non-serializable object]";
+                }
             }
-        }
 
-        return String(arg);
-    }).join(" ");
+            return String(arg);
+        })
+        .join(" ");
 }
 
 function queueLog(level: string, args: unknown[]): void {
@@ -141,20 +140,20 @@ export function enableRemoteLogging(serverUrl: string, sessionPrefix = "graphty"
     };
 
     // Override console methods
-    console.log = (... args: unknown[]) => {
-        state.originalConsole?.log(... args);
+    console.log = (...args: unknown[]) => {
+        state.originalConsole?.log(...args);
         queueLog("LOG", args);
     };
-    console.warn = (... args: unknown[]) => {
-        state.originalConsole?.warn(... args);
+    console.warn = (...args: unknown[]) => {
+        state.originalConsole?.warn(...args);
         queueLog("WARN", args);
     };
-    console.error = (... args: unknown[]) => {
-        state.originalConsole?.error(... args);
+    console.error = (...args: unknown[]) => {
+        state.originalConsole?.error(...args);
         queueLog("ERROR", args);
     };
-    console.info = (... args: unknown[]) => {
-        state.originalConsole?.info(... args);
+    console.info = (...args: unknown[]) => {
+        state.originalConsole?.info(...args);
         queueLog("INFO", args);
     };
 

@@ -1,12 +1,12 @@
-import {beforeEach, describe, expect, it} from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import {floydWarshall, floydWarshallPath, Graph, transitiveClosure} from "../../src/index.js";
+import { floydWarshall, floydWarshallPath, Graph, transitiveClosure } from "../../src/index.js";
 
 describe("Floyd-Warshall Algorithm", () => {
     let graph: Graph;
 
     beforeEach(() => {
-        graph = new Graph({directed: false});
+        graph = new Graph({ directed: false });
     });
 
     describe("floydWarshall", () => {
@@ -33,7 +33,7 @@ describe("Floyd-Warshall Algorithm", () => {
         });
 
         it("should handle directed graph", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("A");
             directedGraph.addNode("B");
             directedGraph.addNode("C");
@@ -52,7 +52,7 @@ describe("Floyd-Warshall Algorithm", () => {
         });
 
         it("should detect negative cycle", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("A");
             directedGraph.addNode("B");
             directedGraph.addNode("C");
@@ -67,7 +67,7 @@ describe("Floyd-Warshall Algorithm", () => {
         });
 
         it("should handle negative weights without cycle", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("A");
             directedGraph.addNode("B");
             directedGraph.addNode("C");
@@ -230,7 +230,7 @@ describe("Floyd-Warshall Algorithm", () => {
 
     describe("transitiveClosure", () => {
         it("should compute transitive closure for simple graph", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("A");
             directedGraph.addNode("B");
             directedGraph.addNode("C");
@@ -246,7 +246,7 @@ describe("Floyd-Warshall Algorithm", () => {
         });
 
         it("should handle disconnected components", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("A");
             directedGraph.addNode("B");
             directedGraph.addNode("C");
@@ -264,7 +264,7 @@ describe("Floyd-Warshall Algorithm", () => {
         });
 
         it("should handle cycles", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("A");
             directedGraph.addNode("B");
             directedGraph.addNode("C");
@@ -298,7 +298,7 @@ describe("Floyd-Warshall Algorithm", () => {
 
     describe("edge cases", () => {
         it("should handle graph with self-loops and negative weights", () => {
-            const directedGraph = new Graph({directed: true, allowSelfLoops: true});
+            const directedGraph = new Graph({ directed: true, allowSelfLoops: true });
             directedGraph.addNode("A");
             directedGraph.addNode("B");
 
@@ -311,7 +311,7 @@ describe("Floyd-Warshall Algorithm", () => {
         });
 
         it("should handle complex path reconstruction edge case", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
 
             // Create a graph where path reconstruction might fail
             directedGraph.addNode("A");
@@ -335,7 +335,7 @@ describe("Floyd-Warshall Algorithm", () => {
 
         it("should handle path reconstruction with missing predecessors", () => {
             // This tests an edge case in the path reconstruction logic
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addNode("A");
             graph.addNode("B");
             graph.addNode("C");
@@ -350,7 +350,7 @@ describe("Floyd-Warshall Algorithm", () => {
 
         it("should handle extremely long path reconstruction protection", () => {
             // Create a graph that could cause infinite loop in path reconstruction
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a long chain
             for (let i = 0; i < 10; i++) {
@@ -367,7 +367,7 @@ describe("Floyd-Warshall Algorithm", () => {
         });
 
         it("should handle graph with all nodes unreachable from each other", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Add nodes with no edges
             graph.addNode("A");
@@ -404,7 +404,7 @@ describe("Floyd-Warshall Algorithm", () => {
         });
 
         it("should handle path reconstruction with cyclic predecessors", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
 
             // Create a small cycle
             directedGraph.addNode("A");
@@ -459,7 +459,7 @@ describe("Floyd-Warshall Algorithm", () => {
         });
 
         it("should handle graph with zero-weight edges", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addNode("A");
             graph.addNode("B");
@@ -475,7 +475,7 @@ describe("Floyd-Warshall Algorithm", () => {
         });
 
         it("should handle large negative weights without cycle", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addNode("A");
             graph.addNode("B");
@@ -491,7 +491,7 @@ describe("Floyd-Warshall Algorithm", () => {
         });
 
         it("should handle mixed positive and negative weights", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addNode("A");
             graph.addNode("B");
@@ -557,7 +557,7 @@ describe("Floyd-Warshall Algorithm", () => {
         });
 
         it("should handle transitive closure with infinity distances", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create disconnected components
             graph.addNode("A");
@@ -589,7 +589,7 @@ describe("Floyd-Warshall Algorithm", () => {
         });
 
         it("should handle complex negative cycle detection", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a more complex negative cycle
             graph.addNode("A");
@@ -638,7 +638,7 @@ describe("Floyd-Warshall Algorithm", () => {
 
         it("should hit defensive branches in edge processing", () => {
             // Test to ensure sourceDistances && sourcePredecessors checks are covered
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addNode("P");
             graph.addNode("Q");
             graph.addEdge("P", "Q", 3);
@@ -777,7 +777,7 @@ describe("Floyd-Warshall Algorithm", () => {
         });
 
         it("should test undirected graph branch coverage", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             graph.addNode("u1");
             graph.addNode("u2");
@@ -817,7 +817,7 @@ describe("Floyd-Warshall Algorithm", () => {
 
         it("should handle infinite loop protection in path reconstruction - exceed nodeCount", () => {
             // This test specifically targets the path.length > graph.nodeCount check
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a small graph
             graph.addNode("A");
@@ -827,12 +827,36 @@ describe("Floyd-Warshall Algorithm", () => {
             // Mock the floydWarshall result to create a cyclic predecessor chain
             const mockResult = {
                 distances: new Map([
-                    ["A", new Map([["A", 0], ["B", 1]])],
-                    ["B", new Map([["A", Infinity], ["B", 0]])],
+                    [
+                        "A",
+                        new Map([
+                            ["A", 0],
+                            ["B", 1],
+                        ]),
+                    ],
+                    [
+                        "B",
+                        new Map([
+                            ["A", Infinity],
+                            ["B", 0],
+                        ]),
+                    ],
                 ]),
                 predecessors: new Map([
-                    ["A", new Map<NodeId, NodeId | null>([["A", null], ["B", "A"]])],
-                    ["B", new Map<NodeId, NodeId | null>([["A", null], ["B", null]])],
+                    [
+                        "A",
+                        new Map<NodeId, NodeId | null>([
+                            ["A", null],
+                            ["B", "A"],
+                        ]),
+                    ],
+                    [
+                        "B",
+                        new Map<NodeId, NodeId | null>([
+                            ["A", null],
+                            ["B", null],
+                        ]),
+                    ],
                 ]),
                 hasNegativeCycle: false,
             };
@@ -855,7 +879,7 @@ describe("Floyd-Warshall Algorithm", () => {
 
         it("should handle path reconstruction failure - current not equal to source", () => {
             // This test targets the final return null when current !== source
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create nodes but no complete path
             graph.addNode("X");

@@ -1,9 +1,9 @@
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {CSVDataSource} from "../../src/data/CSVDataSource.js";
+import { CSVDataSource } from "../../src/data/CSVDataSource.js";
 
 describe("CSVDataSource paired files", () => {
-    test("throws clear error when nodeURL missing", async() => {
+    test("throws clear error when nodeURL missing", async () => {
         const source = new CSVDataSource({
             edgeURL: "http://example.com/edges.csv",
             // nodeURL is missing
@@ -18,16 +18,13 @@ describe("CSVDataSource paired files", () => {
             }
         } catch (error) {
             errorThrown = true;
-            assert.include(
-                (error as Error).message,
-                "parsePairedFiles requires both node and edge sources",
-            );
+            assert.include((error as Error).message, "parsePairedFiles requires both node and edge sources");
         }
 
         assert.isTrue(errorThrown, "Should have thrown validation error");
     });
 
-    test("throws clear error when edgeURL missing", async() => {
+    test("throws clear error when edgeURL missing", async () => {
         const source = new CSVDataSource({
             nodeURL: "http://example.com/nodes.csv",
             // edgeURL is missing
@@ -42,17 +39,14 @@ describe("CSVDataSource paired files", () => {
             }
         } catch (error) {
             errorThrown = true;
-            assert.include(
-                (error as Error).message,
-                "parsePairedFiles requires both node and edge sources",
-            );
+            assert.include((error as Error).message, "parsePairedFiles requires both node and edge sources");
         }
 
         assert.isTrue(errorThrown, "Should have thrown validation error");
     });
 
-    test("throws clear error when nodeFile missing but edgeFile provided", async() => {
-        const blob = new Blob(["source,target\nn1,n2"], {type: "text/csv"});
+    test("throws clear error when nodeFile missing but edgeFile provided", async () => {
+        const blob = new Blob(["source,target\nn1,n2"], { type: "text/csv" });
         const file = new File([blob], "edges.csv");
 
         const source = new CSVDataSource({
@@ -69,20 +63,17 @@ describe("CSVDataSource paired files", () => {
             }
         } catch (error) {
             errorThrown = true;
-            assert.include(
-                (error as Error).message,
-                "parsePairedFiles requires both node and edge sources",
-            );
+            assert.include((error as Error).message, "parsePairedFiles requires both node and edge sources");
         }
 
         assert.isTrue(errorThrown, "Should have thrown validation error");
     });
 
-    test("processes paired files successfully when both provided", async() => {
-        const nodeBlob = new Blob(["id,label\nn1,Node 1\nn2,Node 2"], {type: "text/csv"});
+    test("processes paired files successfully when both provided", async () => {
+        const nodeBlob = new Blob(["id,label\nn1,Node 1\nn2,Node 2"], { type: "text/csv" });
         const nodeFile = new File([nodeBlob], "nodes.csv");
 
-        const edgeBlob = new Blob(["source,target\nn1,n2"], {type: "text/csv"});
+        const edgeBlob = new Blob(["source,target\nn1,n2"], { type: "text/csv" });
         const edgeFile = new File([edgeBlob], "edges.csv");
 
         const source = new CSVDataSource({

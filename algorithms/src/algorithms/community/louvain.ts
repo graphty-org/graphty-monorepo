@@ -1,12 +1,7 @@
-import {Graph} from "../../core/graph.js";
-import type {CommunityResult, LouvainOptions, NodeId} from "../../types/index.js";
-import {louvainOptimized} from "./louvain-optimized.js";
-import {
-    calculateModularity,
-    getNeighborCommunities,
-    getNodeDegree,
-    getTotalEdgeWeight,
-} from "./modularity-utils.js";
+import { Graph } from "../../core/graph.js";
+import type { CommunityResult, LouvainOptions, NodeId } from "../../types/index.js";
+import { louvainOptimized } from "./louvain-optimized.js";
+import { calculateModularity, getNeighborCommunities, getNodeDegree, getTotalEdgeWeight } from "./modularity-utils.js";
 
 /**
  * Louvain community detection algorithm
@@ -16,17 +11,13 @@ import {
  *
  * References:
  * - Blondel, V. D., Guillaume, J. L., Lambiotte, R., & Lefebvre, E. (2008).
- *   Fast unfolding of communities in large networks.
- *   Journal of statistical mechanics: theory and experiment, 2008(10), P10008.
- *
+ * Fast unfolding of communities in large networks.
+ * Journal of statistical mechanics: theory and experiment, 2008(10), P10008.
  * @param graph - The input graph
  * @param options - Algorithm options
  * @returns Community detection result with communities, modularity, and iterations
  */
-export function louvain(
-    graph: Graph,
-    options: LouvainOptions = {},
-): CommunityResult {
+export function louvain(graph: Graph, options: LouvainOptions = {}): CommunityResult {
     const resolution = options.resolution ?? 1.0;
     const maxIterations = options.maxIterations ?? 100;
     const tolerance = options.tolerance ?? 1e-6;
@@ -62,7 +53,7 @@ export function louvain(
             const newModularity = calculateModularity(graph, communities, resolution);
 
             // Check for convergence
-            if ((newModularity - modularity) < tolerance) {
+            if (newModularity - modularity < tolerance) {
                 break;
             }
 
@@ -80,6 +71,8 @@ export function louvain(
 
 /**
  * Initialize communities: each node in its own community
+ * @param graph - The input graph
+ * @returns Map of node IDs to their initial community IDs
  */
 function initializeCommunities(graph: Graph): Map<NodeId, number> {
     const communities = new Map<NodeId, number>();
@@ -96,12 +89,12 @@ function initializeCommunities(graph: Graph): Map<NodeId, number> {
  * Phase 1 of Louvain algorithm: Local optimization
  * For each node, try moving to neighboring communities and keep the move
  * that provides the best modularity gain.
+ * @param graph - The input graph
+ * @param communities - Map of node IDs to community IDs
+ * @param resolution - Resolution parameter for modularity calculation
+ * @returns True if any improvement was made, false otherwise
  */
-function louvainPhase1(
-    graph: Graph,
-    communities: Map<NodeId, number>,
-    resolution: number,
-): boolean {
+function louvainPhase1(graph: Graph, communities: Map<NodeId, number>, resolution: number): boolean {
     let globalImprovement = false;
     let localImprovement = true;
 
@@ -118,7 +111,11 @@ function louvainPhase1(
 
             // Calculate current modularity contribution
             const currentModularity = nodeModularityContribution(
-                graph, nodeId, currentCommunity, communities, resolution,
+                graph,
+                nodeId,
+                currentCommunity,
+                communities,
+                resolution,
             );
 
             let bestCommunity = currentCommunity;
@@ -133,7 +130,11 @@ function louvainPhase1(
                 }
 
                 const newModularity = nodeModularityContribution(
-                    graph, nodeId, neighborCommunity, communities, resolution,
+                    graph,
+                    nodeId,
+                    neighborCommunity,
+                    communities,
+                    resolution,
                 );
 
                 if (newModularity > bestModularity) {
@@ -156,6 +157,12 @@ function louvainPhase1(
 
 /**
  * Calculate modularity contribution of a node to a specific community
+ * @param graph - The input graph
+ * @param nodeId - The node ID to evaluate
+ * @param community - The community to measure contribution to
+ * @param communities - Map of all node IDs to community IDs
+ * @param resolution - Resolution parameter for modularity calculation
+ * @returns The modularity contribution of the node to the specified community
  */
 function nodeModularityContribution(
     graph: Graph,
@@ -192,13 +199,16 @@ function nodeModularityContribution(
     }
 
     // Modularity formula: Q = (1/2m) * Σ[A_ij - (k_i * k_j)/(2m)] * δ(c_i, c_j)
-    const modularityIncrease = (internalLinks - ((resolution * nodeDegree * communityDegree) / (2 * totalEdgeWeight))) / totalEdgeWeight;
+    const modularityIncrease =
+        (internalLinks - (resolution * nodeDegree * communityDegree) / (2 * totalEdgeWeight)) / totalEdgeWeight;
 
     return modularityIncrease;
 }
 
 /**
  * Extract final community structure
+ * @param communities - Map of node IDs to community IDs
+ * @returns Array of communities (each is an array of node IDs)
  */
 function extractCommunities(communities: Map<NodeId, number>): NodeId[][] {
     const communityMap = new Map<number, NodeId[]>();

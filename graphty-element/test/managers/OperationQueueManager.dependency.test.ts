@@ -1,20 +1,20 @@
-import {assert, beforeEach, describe, it} from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 
-import {EventManager} from "../../src/managers/EventManager";
-import {OperationQueueManager} from "../../src/managers/OperationQueueManager";
+import { EventManager } from "../../src/managers/EventManager";
+import { OperationQueueManager } from "../../src/managers/OperationQueueManager";
 
 describe("Dependency Ordering", () => {
     let eventManager: EventManager;
     let queueManager: OperationQueueManager;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         eventManager = new EventManager();
         await eventManager.init();
         queueManager = new OperationQueueManager(eventManager);
         await queueManager.init();
     });
 
-    it("should order style-init before data-add due to dependencies", async() => {
+    it("should order style-init before data-add due to dependencies", async () => {
         const executionOrder: string[] = [];
 
         // Queue in wrong order - data-add depends on style-init
@@ -39,7 +39,7 @@ describe("Dependency Ordering", () => {
         assert.deepEqual(executionOrder, ["style-init", "data-add"]);
     });
 
-    it("should allow layout-set and data-add in any order (stateless design)", async() => {
+    it("should allow layout-set and data-add in any order (stateless design)", async () => {
         const executionOrder: string[] = [];
 
         // Queue layout-set before data - this is now valid in stateless design
@@ -65,7 +65,7 @@ describe("Dependency Ordering", () => {
         assert.deepEqual(executionOrder, ["layout-set", "data-add"]);
     });
 
-    it("should handle operations with no dependencies", async() => {
+    it("should handle operations with no dependencies", async () => {
         const executionOrder: string[] = [];
 
         // Queue operations that aren't in the dependency graph
@@ -92,7 +92,7 @@ describe("Dependency Ordering", () => {
         assert.equal(executionOrder.length, 2);
     });
 
-    it("should sort multiple operation categories correctly", async() => {
+    it("should sort multiple operation categories correctly", async () => {
         const executionOrder: string[] = [];
 
         // Queue operations in reverse dependency order
@@ -132,7 +132,7 @@ describe("Dependency Ordering", () => {
         assert.equal(executionOrder.length, 3);
     });
 
-    it("should handle multiple operations of the same category", async() => {
+    it("should handle multiple operations of the same category", async () => {
         const executionOrder: string[] = [];
 
         // Queue multiple data-add operations
@@ -168,7 +168,7 @@ describe("Dependency Ordering", () => {
         assert.deepEqual(executionOrder.slice(0, 3), ["data-add-1", "data-add-2", "data-add-3"]);
     });
 
-    it("should maintain order within same category", async() => {
+    it("should maintain order within same category", async () => {
         const executionOrder: string[] = [];
 
         // Queue multiple operations of same category
@@ -191,7 +191,7 @@ describe("Dependency Ordering", () => {
         assert.deepEqual(executionOrder, ["data-1", "data-2", "data-3", "data-4", "data-5"]);
     });
 
-    it("should handle complex dependency chains", async() => {
+    it("should handle complex dependency chains", async () => {
         const executionOrder: string[] = [];
 
         // Create a complex chain with operations that have dependencies but no obsolescence
@@ -244,26 +244,34 @@ describe("Dependency Ordering", () => {
     // Phase 1 Tests - These will FAIL initially
     it("should have layout-update → layout-set dependency", () => {
         // This test will FAIL initially
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const deps = (OperationQueueManager as any).CATEGORY_DEPENDENCIES;
-        const hasLayoutUpdateToLayoutSet = deps.some((dep: [string, string]) =>
-            dep[0] === "layout-update" && dep[1] === "layout-set",
+        const hasLayoutUpdateToLayoutSet = deps.some(
+            (dep: [string, string]) => dep[0] === "layout-update" && dep[1] === "layout-set",
         );
         assert.isTrue(hasLayoutUpdateToLayoutSet, "Missing layout-update → layout-set dependency");
     });
 
-    it("should execute layout-set before layout-update", async() => {
+    it("should execute layout-set before layout-update", async () => {
         const executionOrder: string[] = [];
 
         // Queue layout-set first
-        queueManager.queueOperation("layout-set", () => {
-            executionOrder.push("layout-set");
-        }, {description: "Set layout"});
+        queueManager.queueOperation(
+            "layout-set",
+            () => {
+                executionOrder.push("layout-set");
+            },
+            { description: "Set layout" },
+        );
 
         // Then queue layout-update - it should wait for layout-set due to dependency
-        queueManager.queueOperation("layout-update", () => {
-            executionOrder.push("layout-update");
-        }, {description: "Update layout"});
+        queueManager.queueOperation(
+            "layout-update",
+            () => {
+                executionOrder.push("layout-update");
+            },
+            { description: "Update layout" },
+        );
 
         // Wait a microtask for batching
         await new Promise((resolve) => {
@@ -278,20 +286,32 @@ describe("Dependency Ordering", () => {
         assert.deepEqual(executionOrder, ["layout-set", "layout-update"]);
     });
 
-    it("should obsolete previous layout-update operations", async() => {
+    it("should obsolete previous layout-update operations", async () => {
         const executionOrder: string[] = [];
 
-        queueManager.queueOperation("layout-update", () => {
-            executionOrder.push("layout-update-1");
-        }, {description: "Update 1"});
+        queueManager.queueOperation(
+            "layout-update",
+            () => {
+                executionOrder.push("layout-update-1");
+            },
+            { description: "Update 1" },
+        );
 
-        queueManager.queueOperation("layout-update", () => {
-            executionOrder.push("layout-update-2");
-        }, {description: "Update 2"});
+        queueManager.queueOperation(
+            "layout-update",
+            () => {
+                executionOrder.push("layout-update-2");
+            },
+            { description: "Update 2" },
+        );
 
-        queueManager.queueOperation("layout-update", () => {
-            executionOrder.push("layout-update-3");
-        }, {description: "Update 3"});
+        queueManager.queueOperation(
+            "layout-update",
+            () => {
+                executionOrder.push("layout-update-3");
+            },
+            { description: "Update 3" },
+        );
 
         // Wait a microtask for batching
         await new Promise((resolve) => {
@@ -306,4 +326,3 @@ describe("Dependency Ordering", () => {
         assert.deepEqual(executionOrder, ["layout-update-3"]);
     });
 });
-

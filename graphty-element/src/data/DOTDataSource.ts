@@ -1,5 +1,5 @@
-import type {AdHocData} from "../config/common.js";
-import {BaseDataSourceConfig, DataSource, DataSourceChunk} from "./DataSource.js";
+import type { AdHocData } from "../config/common.js";
+import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 
 // DOT has no additional config currently, so just use the base config
 export type DOTDataSourceConfig = BaseDataSourceConfig;
@@ -42,20 +42,20 @@ export class DOTDataSource extends DataSource {
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-    // Get DOT content
+        // Get DOT content
         const dotContent = await this.getContent();
 
         // Parse DOT
-        const {nodes, edges} = this.parseDOT(dotContent);
+        const { nodes, edges } = this.parseDOT(dotContent);
 
         // Use shared chunking helper
         yield* this.chunkData(nodes, edges);
     }
 
-    private parseDOT(content: string): {nodes: AdHocData[], edges: AdHocData[]} {
+    private parseDOT(content: string): { nodes: AdHocData[]; edges: AdHocData[] } {
         // Handle empty content gracefully
         if (content.trim() === "") {
-            return {nodes: [], edges: []};
+            return { nodes: [], edges: [] };
         }
 
         // Remove comments
@@ -76,30 +76,30 @@ export class DOTDataSource extends DataSource {
                 throw new Error(`Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`);
             }
 
-            return {nodes: [], edges: []};
+            return { nodes: [], edges: [] };
         }
 
         // Handle empty token list
         if (tokens.length === 0) {
-            return {nodes: [], edges: []};
+            return { nodes: [], edges: [] };
         }
 
         // Parse structure with error recovery
-        const {nodes: parsedNodes, edges: parsedEdges} = this.parseTokens(tokens);
+        const { nodes: parsedNodes, edges: parsedEdges } = this.parseTokens(tokens);
 
         // Convert to AdHocData
         const nodes = parsedNodes.map((node) => ({
             id: node.id,
-            ... node.attributes,
+            ...node.attributes,
         })) as unknown as AdHocData[];
 
         const edges = parsedEdges.map((edge) => ({
             src: edge.src,
             dst: edge.dst,
-            ... edge.attributes,
+            ...edge.attributes,
         })) as unknown as AdHocData[];
 
-        return {nodes, edges};
+        return { nodes, edges };
     }
 
     private tokenize(content: string): string[] {
@@ -140,18 +140,23 @@ export class DOTDataSource extends DataSource {
             }
 
             // Handle quoted strings
-            if (char === "\"" && (i === 0 || content[i - 1] !== "\\")) {
+            if (char === '"' && (i === 0 || content[i - 1] !== "\\")) {
                 if (inString) {
                     // End of quoted string - check if followed by port syntax (:port or :port:compass)
                     // If so, include the port as part of this token
                     if (i + 1 < content.length && content[i + 1] === ":") {
                         // Continue collecting the port suffix
                         let portEnd = i + 2;
-                        while (portEnd < content.length &&
-                               !/[\s{}[\];,=]/.test(content[portEnd]) &&
-                               content[portEnd] !== "\"" &&
-                               !(content[portEnd] === "-" && portEnd + 1 < content.length &&
-                                 (content[portEnd + 1] === ">" || content[portEnd + 1] === "-"))) {
+                        while (
+                            portEnd < content.length &&
+                            !/[\s{}[\];,=]/.test(content[portEnd]) &&
+                            content[portEnd] !== '"' &&
+                            !(
+                                content[portEnd] === "-" &&
+                                portEnd + 1 < content.length &&
+                                (content[portEnd + 1] === ">" || content[portEnd + 1] === "-")
+                            )
+                        ) {
                             portEnd++;
                         }
 
@@ -178,7 +183,7 @@ export class DOTDataSource extends DataSource {
                 // Handle escape sequences
                 if (char === "\\" && i + 1 < content.length) {
                     const next = content[i + 1];
-                    if (next === "\"" || next === "\\") {
+                    if (next === '"' || next === "\\") {
                         current += next;
                         i++;
                         continue;
@@ -237,13 +242,13 @@ export class DOTDataSource extends DataSource {
         return tokens;
     }
 
-    private parseTokens(tokens: string[]): {nodes: DOTNode[], edges: DOTEdge[]} {
+    private parseTokens(tokens: string[]): { nodes: DOTNode[]; edges: DOTEdge[] } {
         const nodes = new Map<string, DOTNode>();
         const edges: DOTEdge[] = [];
         let i = 0;
 
         // Skip graph type and optional name
-        while (i < tokens.length && !(/^(strict|graph|digraph)$/i.exec(tokens[i]))) {
+        while (i < tokens.length && !/^(strict|graph|digraph)$/i.exec(tokens[i])) {
             i++;
         }
 
@@ -285,9 +290,11 @@ export class DOTDataSource extends DataSource {
                 if (token === "{") {
                     // Look ahead to see if there's an edge operator after the closing brace
                     const closingIndex = this.findMatchingBrace(tokens, i);
-                    if (closingIndex !== -1 &&
+                    if (
+                        closingIndex !== -1 &&
                         closingIndex + 1 < tokens.length &&
-                        (tokens[closingIndex + 1] === "->" || tokens[closingIndex + 1] === "--")) {
+                        (tokens[closingIndex + 1] === "->" || tokens[closingIndex + 1] === "--")
+                    ) {
                         // This is an edge statement starting with an anonymous subgraph
                         const firstNodes = this.collectSubgraphNodes(tokens, i);
                         const chainNodes = this.collectEdgeChainNodesFromGroups(
@@ -306,14 +313,14 @@ export class DOTDataSource extends DataSource {
                                 for (const dst of dstNodes) {
                                     // Ensure nodes exist
                                     if (!nodes.has(src)) {
-                                        nodes.set(src, {id: src, attributes: {}});
+                                        nodes.set(src, { id: src, attributes: {} });
                                     }
 
                                     if (!nodes.has(dst)) {
-                                        nodes.set(dst, {id: dst, attributes: {}});
+                                        nodes.set(dst, { id: dst, attributes: {} });
                                     }
 
-                                    edges.push({src, dst, attributes: chainNodes.attributes});
+                                    edges.push({ src, dst, attributes: chainNodes.attributes });
                                 }
                             }
                         }
@@ -389,14 +396,14 @@ export class DOTDataSource extends DataSource {
                             for (const dst of dstNodes) {
                                 // Ensure nodes exist
                                 if (!nodes.has(src)) {
-                                    nodes.set(src, {id: src, attributes: {}});
+                                    nodes.set(src, { id: src, attributes: {} });
                                 }
 
                                 if (!nodes.has(dst)) {
-                                    nodes.set(dst, {id: dst, attributes: {}});
+                                    nodes.set(dst, { id: dst, attributes: {} });
                                 }
 
-                                edges.push({src, dst, attributes: chainNodes.attributes});
+                                edges.push({ src, dst, attributes: chainNodes.attributes });
                             }
                         }
                     }
@@ -417,7 +424,7 @@ export class DOTDataSource extends DataSource {
                     if (tokens[i] === "[") {
                         i++;
                         const attrs = this.parseAttributes(tokens, i);
-                        ({attributes, index: i} = attrs);
+                        ({ attributes, index: i } = attrs);
                     }
 
                     // Add or update node
@@ -427,7 +434,7 @@ export class DOTDataSource extends DataSource {
                             Object.assign(existingNode.attributes, attributes);
                         }
                     } else {
-                        nodes.set(nodeId, {id: nodeId, attributes});
+                        nodes.set(nodeId, { id: nodeId, attributes });
                     }
 
                     // Skip semicolon if present
@@ -536,7 +543,7 @@ export class DOTDataSource extends DataSource {
         firstToken: string,
         tokens: string[],
         operatorIndex: number,
-    ): {nodes: string[][], attributes: Record<string, string | number>, endIndex: number} {
+    ): { nodes: string[][]; attributes: Record<string, string | number>; endIndex: number } {
         // Start with the first token as a single-node group
         const firstGroup = [this.unquoteId(firstToken)];
         return this.collectEdgeChainNodesFromGroups([firstGroup], tokens, operatorIndex);
@@ -554,8 +561,8 @@ export class DOTDataSource extends DataSource {
         initialGroups: string[][],
         tokens: string[],
         operatorIndex: number,
-    ): {nodes: string[][], attributes: Record<string, string | number>, endIndex: number} {
-        const nodeGroups: string[][] = [... initialGroups];
+    ): { nodes: string[][]; attributes: Record<string, string | number>; endIndex: number } {
+        const nodeGroups: string[][] = [...initialGroups];
         let i = operatorIndex;
 
         // Parse the edge chain: -> node1 -> node2 -> ...
@@ -584,7 +591,7 @@ export class DOTDataSource extends DataSource {
             i = attrs.index;
         }
 
-        return {nodes: nodeGroups, attributes, endIndex: i};
+        return { nodes: nodeGroups, attributes, endIndex: i };
     }
 
     /**
@@ -594,15 +601,12 @@ export class DOTDataSource extends DataSource {
      * @param startIndex - Index of the opening brace
      * @returns Object containing node IDs and end index
      */
-    private collectSubgraphNodes(
-        tokens: string[],
-        startIndex: number,
-    ): {nodes: string[], endIndex: number} {
+    private collectSubgraphNodes(tokens: string[], startIndex: number): { nodes: string[]; endIndex: number } {
         const nodes: string[] = [];
         let i = startIndex;
 
         if (tokens[i] !== "{") {
-            return {nodes, endIndex: i};
+            return { nodes, endIndex: i };
         }
 
         i++; // Skip '{'
@@ -624,8 +628,7 @@ export class DOTDataSource extends DataSource {
             }
 
             // Skip structural tokens and keywords
-            if (token === ";" || token === "," ||
-                /^(subgraph|node|edge|graph)$/i.test(token)) {
+            if (token === ";" || token === "," || /^(subgraph|node|edge|graph)$/i.test(token)) {
                 i++;
                 continue;
             }
@@ -661,13 +664,13 @@ export class DOTDataSource extends DataSource {
             i++;
         }
 
-        return {nodes, endIndex: i};
+        return { nodes, endIndex: i };
     }
 
     private parseAttributes(
         tokens: string[],
         startIndex: number,
-    ): {attributes: Record<string, string | number>, index: number} {
+    ): { attributes: Record<string, string | number>; index: number } {
         const attributes: Record<string, string | number> = {};
         let i = startIndex;
 
@@ -705,13 +708,13 @@ export class DOTDataSource extends DataSource {
             i++; // Skip ']'
         }
 
-        return {attributes, index: i};
+        return { attributes, index: i };
     }
 
     private unquoteId(id: string): string {
         // Remove quotes if present
         let result = id;
-        if (result.startsWith("\"") && result.endsWith("\"")) {
+        if (result.startsWith('"') && result.endsWith('"')) {
             result = result.slice(1, -1);
         }
 
@@ -726,8 +729,8 @@ export class DOTDataSource extends DataSource {
     }
 
     private parseValue(value: string): string | number {
-    // Remove quotes if present
-        if (value.startsWith("\"") && value.endsWith("\"")) {
+        // Remove quotes if present
+        if (value.startsWith('"') && value.endsWith('"')) {
             return value.slice(1, -1);
         }
 

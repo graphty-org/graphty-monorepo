@@ -1,7 +1,7 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {KruskalAlgorithm} from "../../../src/algorithms/KruskalAlgorithm";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { KruskalAlgorithm } from "../../../src/algorithms/KruskalAlgorithm";
 
 describe("KruskalAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -103,7 +103,7 @@ describe("KruskalAlgorithm", () => {
             assert.ok(mstEdgeLayer.edge);
 
             // First layer uses calculatedStyle with input referencing algorithmResults
-            const {calculatedStyle} = mstEdgeLayer.edge;
+            const { calculatedStyle } = mstEdgeLayer.edge;
             assert.ok(calculatedStyle);
 
             const input = calculatedStyle.inputs[0];
@@ -121,7 +121,7 @@ describe("KruskalAlgorithm", () => {
             const nonMstEdgeLayer = styles.layers[1];
             assert.ok(nonMstEdgeLayer.edge);
 
-            const {selector} = nonMstEdgeLayer.edge;
+            const { selector } = nonMstEdgeLayer.edge;
             assert.ok(selector);
 
             // Should reference algorithmResults.graphty.kruskal.inMST
@@ -176,7 +176,7 @@ describe("KruskalAlgorithm", () => {
             assert.ok(nonMstEdgeLayer.edge.style);
 
             // Should have reduced opacity
-            const {style} = nonMstEdgeLayer.edge;
+            const { style } = nonMstEdgeLayer.edge;
             const hasReducedOpacity = typeof style.line?.opacity === "number" && style.line.opacity < 1;
 
             assert.ok(hasReducedOpacity, "Non-MST edges should have reduced opacity");

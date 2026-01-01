@@ -1,6 +1,6 @@
-import {assert, beforeEach, describe, test, vi} from "vitest";
+import { assert, beforeEach, describe, test, vi } from "vitest";
 
-import {type ContentArea, type PointerOptions, PointerRenderer} from "../src/meshes/PointerRenderer";
+import { type ContentArea, type PointerOptions, PointerRenderer } from "../src/meshes/PointerRenderer";
 
 describe("PointerRenderer", () => {
     let renderer: PointerRenderer;
@@ -54,7 +54,7 @@ describe("PointerRenderer", () => {
 
         test("creates top pointer correctly", () => {
             const topPointerOptions: PointerOptions = {
-                ... defaultPointerOptions,
+                ...defaultPointerOptions,
                 direction: "top",
             };
 
@@ -67,7 +67,7 @@ describe("PointerRenderer", () => {
 
         test("creates left pointer correctly", () => {
             const leftPointerOptions: PointerOptions = {
-                ... defaultPointerOptions,
+                ...defaultPointerOptions,
                 direction: "left",
             };
 
@@ -80,7 +80,7 @@ describe("PointerRenderer", () => {
 
         test("creates right pointer correctly", () => {
             const rightPointerOptions: PointerOptions = {
-                ... defaultPointerOptions,
+                ...defaultPointerOptions,
                 direction: "right",
             };
 
@@ -93,7 +93,7 @@ describe("PointerRenderer", () => {
 
         test("defaults to bottom pointer for unknown direction", () => {
             const autoPointerOptions: PointerOptions = {
-                ... defaultPointerOptions,
+                ...defaultPointerOptions,
                 direction: "auto",
             };
 
@@ -106,7 +106,7 @@ describe("PointerRenderer", () => {
 
         test("applies pointer offset correctly", () => {
             const offsetPointerOptions: PointerOptions = {
-                ... defaultPointerOptions,
+                ...defaultPointerOptions,
                 offset: 20, // Shift pointer 20 pixels to the right
             };
 
@@ -118,7 +118,7 @@ describe("PointerRenderer", () => {
 
         test("creates curved pointer when curved option is true", () => {
             const curvedPointerOptions: PointerOptions = {
-                ... defaultPointerOptions,
+                ...defaultPointerOptions,
                 curved: true,
             };
 
@@ -130,7 +130,7 @@ describe("PointerRenderer", () => {
 
         test("creates straight pointer when curved option is false", () => {
             const straightPointerOptions: PointerOptions = {
-                ... defaultPointerOptions,
+                ...defaultPointerOptions,
                 curved: false,
             };
 
@@ -143,7 +143,7 @@ describe("PointerRenderer", () => {
 
         test("handles different pointer sizes", () => {
             const largePointerOptions: PointerOptions = {
-                ... defaultPointerOptions,
+                ...defaultPointerOptions,
                 width: 40,
                 height: 20,
             };
@@ -157,7 +157,7 @@ describe("PointerRenderer", () => {
 
         test("respects content boundaries with large pointer", () => {
             const largePointerOptions: PointerOptions = {
-                ... defaultPointerOptions,
+                ...defaultPointerOptions,
                 width: 200, // Wider than content
                 offset: -80, // Far left offset
             };
@@ -199,7 +199,7 @@ describe("PointerRenderer", () => {
             for (const direction of directions) {
                 canvasCommands = []; // Reset for each test
                 const options: PointerOptions = {
-                    ... defaultPointerOptions,
+                    ...defaultPointerOptions,
                     direction,
                 };
 
@@ -211,7 +211,7 @@ describe("PointerRenderer", () => {
 
         test("handles curved CCW pointer", () => {
             const curvedOptions: PointerOptions = {
-                ... defaultPointerOptions,
+                ...defaultPointerOptions,
                 curved: true,
                 direction: "top",
             };
@@ -226,7 +226,7 @@ describe("PointerRenderer", () => {
 
     describe("Edge Cases and Error Handling", () => {
         test("handles zero radius", () => {
-            const contentArea: ContentArea = {x: 0, y: 0, width: 50, height: 50};
+            const contentArea: ContentArea = { x: 0, y: 0, width: 50, height: 50 };
             const options: PointerOptions = {
                 width: 10,
                 height: 5,
@@ -242,7 +242,7 @@ describe("PointerRenderer", () => {
         });
 
         test("handles very small content area", () => {
-            const smallContentArea: ContentArea = {x: 0, y: 0, width: 5, height: 5};
+            const smallContentArea: ContentArea = { x: 0, y: 0, width: 5, height: 5 };
             const options: PointerOptions = {
                 width: 10,
                 height: 5,
@@ -258,7 +258,7 @@ describe("PointerRenderer", () => {
         });
 
         test("handles negative offset", () => {
-            const contentArea: ContentArea = {x: 10, y: 10, width: 100, height: 50};
+            const contentArea: ContentArea = { x: 10, y: 10, width: 100, height: 50 };
             const options: PointerOptions = {
                 width: 20,
                 height: 10,
@@ -274,7 +274,7 @@ describe("PointerRenderer", () => {
         });
 
         test("handles zero pointer dimensions", () => {
-            const contentArea: ContentArea = {x: 10, y: 10, width: 100, height: 50};
+            const contentArea: ContentArea = { x: 10, y: 10, width: 100, height: 50 };
             const options: PointerOptions = {
                 width: 0,
                 height: 0,
@@ -292,7 +292,7 @@ describe("PointerRenderer", () => {
 
     describe("Canvas Context Integration", () => {
         test("calls correct canvas methods", () => {
-            const contentArea: ContentArea = {x: 0, y: 0, width: 50, height: 30};
+            const contentArea: ContentArea = { x: 0, y: 0, width: 50, height: 30 };
             const options: PointerOptions = {
                 width: 10,
                 height: 5,
@@ -310,7 +310,7 @@ describe("PointerRenderer", () => {
         });
 
         test("does not call invalid canvas methods", () => {
-            const contentArea: ContentArea = {x: 0, y: 0, width: 50, height: 30};
+            const contentArea: ContentArea = { x: 0, y: 0, width: 50, height: 30 };
             const options: PointerOptions = {
                 width: 10,
                 height: 5,
@@ -331,7 +331,7 @@ describe("PointerRenderer", () => {
 
     describe("Pointer Position Calculations", () => {
         test("calculates center position correctly for bottom pointer", () => {
-            const contentArea: ContentArea = {x: 50, y: 50, width: 100, height: 60};
+            const contentArea: ContentArea = { x: 50, y: 50, width: 100, height: 60 };
             const options: PointerOptions = {
                 width: 20,
                 height: 10,
@@ -347,7 +347,7 @@ describe("PointerRenderer", () => {
         });
 
         test("calculates center position correctly for top pointer", () => {
-            const contentArea: ContentArea = {x: 30, y: 40, width: 80, height: 50};
+            const contentArea: ContentArea = { x: 30, y: 40, width: 80, height: 50 };
             const options: PointerOptions = {
                 width: 16,
                 height: 8,

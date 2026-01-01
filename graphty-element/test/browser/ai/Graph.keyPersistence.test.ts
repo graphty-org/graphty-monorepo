@@ -3,11 +3,11 @@
  * @module test/ai/Graph.keyPersistence.test
  */
 
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import {ApiKeyManager} from "../../../src/ai/keys";
-import type {Graph} from "../../../src/Graph";
-import {cleanupE2EGraph, createE2EGraph} from "../../helpers/e2e-graph-setup";
+import { ApiKeyManager } from "../../../src/ai/keys";
+import type { Graph } from "../../../src/Graph";
+import { cleanupE2EGraph, createE2EGraph } from "../../helpers/e2e-graph-setup";
 
 describe("Graph AI key management", () => {
     let graph: Graph;
@@ -29,9 +29,9 @@ describe("Graph AI key management", () => {
     });
 
     describe("getApiKeyManager", () => {
-        it("should return null for getApiKeyManager before AI enabled", async() => {
-            ({graph} = await createE2EGraph({
-                nodes: [{id: "1", label: "Test"}],
+        it("should return null for getApiKeyManager before AI enabled", async () => {
+            ({ graph } = await createE2EGraph({
+                nodes: [{ id: "1", label: "Test" }],
                 edges: [],
                 enableAi: false,
             }));
@@ -40,9 +40,9 @@ describe("Graph AI key management", () => {
             assert.strictEqual(keyManager, null);
         });
 
-        it("should return ApiKeyManager after AI enabled", async() => {
-            ({graph} = await createE2EGraph({
-                nodes: [{id: "1", label: "Test"}],
+        it("should return ApiKeyManager after AI enabled", async () => {
+            ({ graph } = await createE2EGraph({
+                nodes: [{ id: "1", label: "Test" }],
                 edges: [],
                 enableAi: true,
             }));
@@ -52,9 +52,9 @@ describe("Graph AI key management", () => {
             assert.ok(keyManager instanceof ApiKeyManager);
         });
 
-        it("should allow accessing persistence config after AI enabled with persistence", async() => {
-            ({graph} = await createE2EGraph({
-                nodes: [{id: "1", label: "Test"}],
+        it("should allow accessing persistence config after AI enabled with persistence", async () => {
+            ({ graph } = await createE2EGraph({
+                nodes: [{ id: "1", label: "Test" }],
                 edges: [],
                 enableAi: false,
             }));
@@ -74,9 +74,9 @@ describe("Graph AI key management", () => {
             assert.strictEqual(keyManager.isPersistenceEnabled(), true);
         });
 
-        it("should allow checking configured providers after AI enabled", async() => {
-            ({graph} = await createE2EGraph({
-                nodes: [{id: "1", label: "Test"}],
+        it("should allow checking configured providers after AI enabled", async () => {
+            ({ graph } = await createE2EGraph({
+                nodes: [{ id: "1", label: "Test" }],
                 edges: [],
                 enableAi: false,
             }));
@@ -99,17 +99,17 @@ describe("Graph AI key management", () => {
     });
 
     describe("static createApiKeyManager", () => {
-        it("should create standalone ApiKeyManager via static method", async() => {
+        it("should create standalone ApiKeyManager via static method", async () => {
             // Import Graph dynamically to access static method
-            const {Graph} = await import("../../../src/Graph");
+            const { Graph } = await import("../../../src/Graph");
 
             const keyManager = Graph.createApiKeyManager();
             assert.ok(keyManager instanceof ApiKeyManager);
             assert.strictEqual(keyManager.isPersistenceEnabled(), false);
         });
 
-        it("should allow configuring persistence on standalone manager", async() => {
-            const {Graph} = await import("../../../src/Graph");
+        it("should allow configuring persistence on standalone manager", async () => {
+            const { Graph } = await import("../../../src/Graph");
 
             const keyManager = Graph.createApiKeyManager();
             keyManager.enablePersistence({
@@ -121,8 +121,8 @@ describe("Graph AI key management", () => {
             assert.strictEqual(keyManager.isPersistenceEnabled(), true);
         });
 
-        it("should allow setting keys on standalone manager before AI enabled", async() => {
-            const {Graph} = await import("../../../src/Graph");
+        it("should allow setting keys on standalone manager before AI enabled", async () => {
+            const { Graph } = await import("../../../src/Graph");
 
             const keyManager = Graph.createApiKeyManager();
             keyManager.enablePersistence({
@@ -141,10 +141,10 @@ describe("Graph AI key management", () => {
     });
 
     describe("key persistence integration", () => {
-        it("should persist keys across Graph instances", async() => {
+        it("should persist keys across Graph instances", async () => {
             // First graph - save key
             const result1 = await createE2EGraph({
-                nodes: [{id: "1", label: "Test"}],
+                nodes: [{ id: "1", label: "Test" }],
                 edges: [],
                 enableAi: false,
             });
@@ -165,7 +165,7 @@ describe("Graph AI key management", () => {
 
             // Second graph - key should be available
             const result2 = await createE2EGraph({
-                nodes: [{id: "1", label: "Test"}],
+                nodes: [{ id: "1", label: "Test" }],
                 edges: [],
                 enableAi: false,
             });

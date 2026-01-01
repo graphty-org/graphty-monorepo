@@ -9,11 +9,11 @@
  * from a starting node, which can be optionally configured.
  */
 
-import {primMST} from "@graphty/algorithms";
+import { primMST } from "@graphty/algorithms";
 
-import {SuggestedStylesConfig} from "../config";
-import {Algorithm} from "./Algorithm";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import { SuggestedStylesConfig } from "../config";
+import { Algorithm } from "./Algorithm";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 interface PrimOptions {
     /** Optional starting node for the algorithm */
@@ -36,7 +36,7 @@ export class PrimAlgorithm extends Algorithm {
             {
                 edge: {
                     selector: "",
-                    style: {enabled: true},
+                    style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.prim.inMST"],
                         output: "style.line.color",
@@ -93,7 +93,7 @@ export class PrimAlgorithm extends Algorithm {
 
         // Convert to @graphty/algorithms format and run Prim's algorithm
         // Note: Prim's algorithm requires a truly undirected graph (not a directed graph with reverse edges)
-        const graphData = toAlgorithmGraph(g, {directed: false, addReverseEdges: false});
+        const graphData = toAlgorithmGraph(g, { directed: false, addReverseEdges: false });
         const mstResult = primMST(graphData, this.options?.startNode);
 
         // Create set of MST edge keys for fast lookup

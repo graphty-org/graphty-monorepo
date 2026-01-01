@@ -23,7 +23,7 @@ export interface PropertySummary {
     /** For string properties, the detected format (uuid, email, uri, datetime, etc.) */
     format?: string;
     /** For number properties, the observed min/max range */
-    range?: {min: number, max: number};
+    range?: { min: number; max: number };
     /** For array properties, the type of items in the array */
     itemType?: string;
 }

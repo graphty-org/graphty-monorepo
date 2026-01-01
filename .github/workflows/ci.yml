@@ -1,527 +1,527 @@
 name: CI
 
 on:
-  push:
-    branches: [master]
-  pull_request:
+    push:
+        branches: [master]
+    pull_request:
 
 # Note: We use local Nx caching only (no Nx Cloud)
 # Cache is stored in .nx/cache and persisted via actions/cache
 
 jobs:
-  # Lint PR titles with commitlint
-  lint-pr:
-    name: Lint PR Title
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.x
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        env:
-          HUSKY: '0'
-
-      - name: Lint PR title
-        run: echo "${{ github.event.pull_request.title }}" | pnpm exec commitlint
-
-  # Build job - runs once, shares artifacts with test shards
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.x
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        env:
-          HUSKY: '0'
-
-      # Security audit - run early to catch vulnerabilities before building
-      # Only fail on critical and high severity vulnerabilities
-      - name: Security audit
-        run: pnpm audit --audit-level=high
-
-      - name: Cache Nx
-        uses: actions/cache@v4
-        with:
-          path: .nx/cache
-          key: nx-${{ runner.os }}-build-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
-          restore-keys: |
-            nx-${{ runner.os }}-build-${{ hashFiles('pnpm-lock.yaml') }}-
-            nx-${{ runner.os }}-build-
-
-      # PR: Build then lint (build first for type dependencies)
-      - name: Build affected (PR)
+    # Lint PR titles with commitlint
+    lint-pr:
+        name: Lint PR Title
         if: github.event_name == 'pull_request'
-        run: pnpm exec nx affected -t build --parallel=3
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
 
-      - name: Lint affected (PR)
-        if: github.event_name == 'pull_request'
-        run: pnpm exec nx affected -t lint --parallel=3
+            - uses: pnpm/action-setup@v4
 
-      # Master: Build then lint (build first for type dependencies)
-      # graphty build needs Sentry env vars for error tracking
-      - name: Build all (master)
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Lint PR title
+              run: echo "${{ github.event.pull_request.title }}" | pnpm exec commitlint
+
+    # Build job - runs once, shares artifacts with test shards
+    build:
+        name: Build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # Security audit - run early to catch vulnerabilities before building
+            # Only fail on critical and high severity vulnerabilities
+            - name: Security audit
+              run: pnpm audit --audit-level=high
+
+            - name: Cache Nx
+              uses: actions/cache@v4
+              with:
+                  path: .nx/cache
+                  key: nx-${{ runner.os }}-build-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+                  restore-keys: |
+                      nx-${{ runner.os }}-build-${{ hashFiles('pnpm-lock.yaml') }}-
+                      nx-${{ runner.os }}-build-
+
+            # PR: Build then lint (build first for type dependencies)
+            - name: Build affected (PR)
+              if: github.event_name == 'pull_request'
+              run: pnpm exec nx affected -t build --parallel=3
+
+            - name: Lint affected (PR)
+              if: github.event_name == 'pull_request'
+              run: pnpm exec nx affected -t lint --parallel=3
+
+            # Master: Build then lint (build first for type dependencies)
+            # graphty build needs Sentry env vars for error tracking
+            - name: Build all (master)
+              if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+              run: pnpm exec nx run-many -t build --parallel=3
+              env:
+                  NODE_OPTIONS: "--max-old-space-size=8192"
+                  VITE_BASE_PATH: /
+                  VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+                  VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
+                  VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+                  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+            - name: Lint all (master)
+              if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+              run: pnpm exec nx run-many -t lint --parallel=3
+
+            - name: Build Storybook (graphty-element)
+              run: pnpm exec nx run graphty-element:build-storybook
+
+            - name: Build Storybook (graphty)
+              run: pnpm exec nx run graphty:build-storybook
+
+            # Build documentation (only on master, for deploy-pages)
+            - name: Build graphty-element docs
+              if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+              run: pnpm exec nx run graphty-element:docs:build
+
+            - name: Build algorithms gh-pages
+              if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+              run: pnpm exec nx run algorithms:build:gh-pages
+
+            - name: Build layout gh-pages
+              if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+              run: pnpm exec nx run layout:build:gh-pages
+
+            - name: Upload algorithms build
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-algorithms
+                  path: algorithms/dist/
+                  retention-days: 1
+
+            - name: Upload layout build
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-layout
+                  path: layout/dist/
+                  retention-days: 1
+
+            - name: Upload graphty build
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-graphty
+                  path: graphty/dist/
+                  retention-days: 1
+
+            - name: Upload graphty-element build
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-graphty-element
+                  path: graphty-element/dist/
+                  retention-days: 1
+
+            - name: Upload Storybook build (graphty-element)
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-storybook-element
+                  path: graphty-element/storybook-static/
+                  retention-days: 1
+
+            - name: Upload Storybook build (graphty)
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-storybook-app
+                  path: graphty/storybook-static/
+                  retention-days: 1
+
+            # Upload documentation artifacts (only on master)
+            - name: Upload graphty-element docs
+              if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-docs-element
+                  path: graphty-element/docs/.vitepress/dist/
+                  retention-days: 1
+
+            - name: Upload algorithms gh-pages
+              if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-ghpages-algorithms
+                  path: algorithms/gh-pages/
+                  retention-days: 1
+
+            - name: Upload layout gh-pages
+              if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-ghpages-layout
+                  path: layout/gh-pages/
+                  retention-days: 1
+
+    # Sharded test jobs - run in parallel, collect coverage
+    test:
+        name: Test (${{ matrix.shard }})
+        needs: build
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                shard:
+                    - algorithms
+                    - layout
+                    - graphty
+                    - graphty-element-default
+                    - graphty-element-browser-1
+                    - graphty-element-browser-2
+                    - graphty-element-browser-3
+                    - graphty-element-browser-4
+                    - graphty-element-browser-5
+                    - graphty-element-storybook-1
+                    - graphty-element-storybook-2
+                    - graphty-element-storybook-3
+                    - graphty-element-storybook-4
+                include:
+                    # algorithms - single shard
+                    - shard: algorithms
+                      package: algorithms
+                      test-command: pnpm exec nx run algorithms:test --ci --coverage
+                      needs-browser: false
+                      needs-storybook: false
+                    # layout - single shard
+                    - shard: layout
+                      package: layout
+                      test-command: pnpm exec nx run layout:test --ci --coverage
+                      needs-browser: false
+                      needs-storybook: false
+                    # graphty - single shard (uses Playwright for browser-based vitest)
+                    - shard: graphty
+                      package: graphty
+                      test-command: pnpm exec nx run graphty:test --ci --coverage
+                      needs-browser: true
+                      needs-storybook: false
+                    # graphty-element default tests (Node.js, no browser)
+                    - shard: graphty-element-default
+                      package: graphty-element
+                      test-command: cd graphty-element && pnpm exec vitest run --project=default --reporter=blob --coverage
+                      needs-browser: false
+                      needs-storybook: false
+                    # graphty-element browser tests (5 shards)
+                    - shard: graphty-element-browser-1
+                      package: graphty-element
+                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=1/5 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: false
+                    - shard: graphty-element-browser-2
+                      package: graphty-element
+                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=2/5 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: false
+                    - shard: graphty-element-browser-3
+                      package: graphty-element
+                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=3/5 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: false
+                    - shard: graphty-element-browser-4
+                      package: graphty-element
+                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=4/5 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: false
+                    - shard: graphty-element-browser-5
+                      package: graphty-element
+                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=5/5 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: false
+                    # graphty-element storybook tests (4 shards)
+                    - shard: graphty-element-storybook-1
+                      package: graphty-element
+                      test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=1/4 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: true
+                    - shard: graphty-element-storybook-2
+                      package: graphty-element
+                      test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=2/4 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: true
+                    - shard: graphty-element-storybook-3
+                      package: graphty-element
+                      test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=3/4 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: true
+                    - shard: graphty-element-storybook-4
+                      package: graphty-element
+                      test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=4/4 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: true
+
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Download algorithms build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-algorithms
+                  path: algorithms/dist/
+
+            - name: Download layout build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-layout
+                  path: layout/dist/
+
+            - name: Download graphty build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-graphty
+                  path: graphty/dist/
+
+            - name: Download graphty-element build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-graphty-element
+                  path: graphty-element/dist/
+
+            - name: Download Storybook build (graphty-element)
+              if: matrix.needs-storybook
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-element
+                  path: graphty-element/storybook-static/
+
+            - name: Cache Playwright browsers
+              if: matrix.needs-browser
+              uses: actions/cache@v4
+              id: playwright-cache
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+            - name: Install Playwright browsers
+              if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit != 'true'
+              run: pnpm exec playwright install chromium --with-deps
+
+            - name: Install Playwright deps (if cached)
+              if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit == 'true'
+              run: pnpm exec playwright install-deps chromium
+
+            - name: Start Storybook server
+              if: matrix.needs-storybook
+              run: |
+                  pnpm exec http-server graphty-element/storybook-static -p 9026 &
+                  sleep 3
+
+            - name: Run tests
+              run: ${{ matrix.test-command }}
+
+            - name: Upload blob report
+              if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: blob-report-${{ matrix.shard }}
+                  path: graphty-element/.vitest-reports/*
+                  include-hidden-files: true
+                  retention-days: 1
+                  if-no-files-found: ignore
+
+            - name: Upload coverage (graphty-element)
+              if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-${{ matrix.shard }}
+                  path: graphty-element/coverage/lcov.info
+                  retention-days: 1
+                  if-no-files-found: ignore
+
+            - name: Upload coverage (algorithms/layout/graphty)
+              if: ${{ !cancelled() && (matrix.shard == 'algorithms' || matrix.shard == 'layout' || matrix.shard == 'graphty') }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-${{ matrix.shard }}
+                  path: ${{ matrix.package }}/coverage/lcov.info
+                  retention-days: 1
+                  if-no-files-found: ignore
+
+    # Chromatic visual regression testing (graphty-element)
+    chromatic-element:
+        name: Chromatic (graphty-element)
+        needs: build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Download Storybook build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-element
+                  path: graphty-element/storybook-static/
+
+            - name: Run Chromatic
+              uses: chromaui/action@latest
+              with:
+                  projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN_ELEMENT }}
+                  storybookBuildDir: ./graphty-element/storybook-static
+                  exitZeroOnChanges: true
+                  # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
+                  # See: https://github.com/storybookjs/storybook/issues/27172
+
+    # Chromatic visual regression testing (graphty app)
+    chromatic-app:
+        name: Chromatic (graphty)
+        needs: build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Download Storybook build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-app
+                  path: graphty/storybook-static/
+
+            - name: Run Chromatic
+              uses: chromaui/action@latest
+              with:
+                  projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN_APP }}
+                  storybookBuildDir: ./graphty/storybook-static
+                  exitZeroOnChanges: true
+                  # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
+                  # See: https://github.com/storybookjs/storybook/issues/27172
+
+    # Performance regression tests (algorithms only, master branch)
+    performance:
+        name: Performance Tests
+        needs: test
         if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-        run: pnpm exec nx run-many -t build --parallel=3
-        env:
-          NODE_OPTIONS: '--max-old-space-size=8192'
-          VITE_BASE_PATH: /
-          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
-          VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
-          VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
 
-      - name: Lint all (master)
-        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-        run: pnpm exec nx run-many -t lint --parallel=3
+            - uses: pnpm/action-setup@v4
 
-      - name: Build Storybook (graphty-element)
-        run: pnpm exec nx run graphty-element:build-storybook
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
 
-      - name: Build Storybook (graphty)
-        run: pnpm exec nx run graphty:build-storybook
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
 
-      # Build documentation (only on master, for deploy-pages)
-      - name: Build graphty-element docs
-        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-        run: pnpm exec nx run graphty-element:docs:build
+            - name: Download algorithms build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-algorithms
+                  path: algorithms/dist/
 
-      - name: Build algorithms gh-pages
-        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-        run: pnpm exec nx run algorithms:build:gh-pages
+            - name: Download performance baseline
+              uses: actions/download-artifact@v4
+              with:
+                  name: performance-baseline
+                  path: algorithms/test/
+              continue-on-error: true
 
-      - name: Build layout gh-pages
-        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-        run: pnpm exec nx run layout:build:gh-pages
+            - name: Run performance regression tests
+              run: pnpm exec nx run algorithms:benchmark
+              env:
+                  CI: "true"
+                  NODE_OPTIONS: "--max-old-space-size=8192 --expose-gc"
 
-      - name: Upload algorithms build
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-algorithms
-          path: algorithms/dist/
-          retention-days: 1
+            - name: Upload performance baseline
+              uses: actions/upload-artifact@v4
+              with:
+                  name: performance-baseline
+                  path: algorithms/test/performance-baseline.json
+                  retention-days: 90
+                  if-no-files-found: ignore
 
-      - name: Upload layout build
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-layout
-          path: layout/dist/
-          retention-days: 1
-
-      - name: Upload graphty build
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-graphty
-          path: graphty/dist/
-          retention-days: 1
-
-      - name: Upload graphty-element build
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-graphty-element
-          path: graphty-element/dist/
-          retention-days: 1
-
-      - name: Upload Storybook build (graphty-element)
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-storybook-element
-          path: graphty-element/storybook-static/
-          retention-days: 1
-
-      - name: Upload Storybook build (graphty)
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-storybook-app
-          path: graphty/storybook-static/
-          retention-days: 1
-
-      # Upload documentation artifacts (only on master)
-      - name: Upload graphty-element docs
-        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-docs-element
-          path: graphty-element/docs/.vitepress/dist/
-          retention-days: 1
-
-      - name: Upload algorithms gh-pages
-        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-ghpages-algorithms
-          path: algorithms/gh-pages/
-          retention-days: 1
-
-      - name: Upload layout gh-pages
-        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-ghpages-layout
-          path: layout/gh-pages/
-          retention-days: 1
-
-  # Sharded test jobs - run in parallel, collect coverage
-  test:
-    name: Test (${{ matrix.shard }})
-    needs: build
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard:
-          - algorithms
-          - layout
-          - graphty
-          - graphty-element-default
-          - graphty-element-browser-1
-          - graphty-element-browser-2
-          - graphty-element-browser-3
-          - graphty-element-browser-4
-          - graphty-element-browser-5
-          - graphty-element-storybook-1
-          - graphty-element-storybook-2
-          - graphty-element-storybook-3
-          - graphty-element-storybook-4
-        include:
-          # algorithms - single shard
-          - shard: algorithms
-            package: algorithms
-            test-command: pnpm exec nx run algorithms:test --ci --coverage
-            needs-browser: false
-            needs-storybook: false
-          # layout - single shard
-          - shard: layout
-            package: layout
-            test-command: pnpm exec nx run layout:test --ci --coverage
-            needs-browser: false
-            needs-storybook: false
-          # graphty - single shard (uses Playwright for browser-based vitest)
-          - shard: graphty
-            package: graphty
-            test-command: pnpm exec nx run graphty:test --ci --coverage
-            needs-browser: true
-            needs-storybook: false
-          # graphty-element default tests (Node.js, no browser)
-          - shard: graphty-element-default
-            package: graphty-element
-            test-command: cd graphty-element && pnpm exec vitest run --project=default --reporter=blob --coverage
-            needs-browser: false
-            needs-storybook: false
-          # graphty-element browser tests (5 shards)
-          - shard: graphty-element-browser-1
-            package: graphty-element
-            test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=1/5 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: false
-          - shard: graphty-element-browser-2
-            package: graphty-element
-            test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=2/5 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: false
-          - shard: graphty-element-browser-3
-            package: graphty-element
-            test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=3/5 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: false
-          - shard: graphty-element-browser-4
-            package: graphty-element
-            test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=4/5 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: false
-          - shard: graphty-element-browser-5
-            package: graphty-element
-            test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=5/5 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: false
-          # graphty-element storybook tests (4 shards)
-          - shard: graphty-element-storybook-1
-            package: graphty-element
-            test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=1/4 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: true
-          - shard: graphty-element-storybook-2
-            package: graphty-element
-            test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=2/4 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: true
-          - shard: graphty-element-storybook-3
-            package: graphty-element
-            test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=3/4 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: true
-          - shard: graphty-element-storybook-4
-            package: graphty-element
-            test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=4/4 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: true
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.x
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        env:
-          HUSKY: '0'
-
-      - name: Download algorithms build
-        uses: actions/download-artifact@v4
-        with:
-          name: build-algorithms
-          path: algorithms/dist/
-
-      - name: Download layout build
-        uses: actions/download-artifact@v4
-        with:
-          name: build-layout
-          path: layout/dist/
-
-      - name: Download graphty build
-        uses: actions/download-artifact@v4
-        with:
-          name: build-graphty
-          path: graphty/dist/
-
-      - name: Download graphty-element build
-        uses: actions/download-artifact@v4
-        with:
-          name: build-graphty-element
-          path: graphty-element/dist/
-
-      - name: Download Storybook build (graphty-element)
-        if: matrix.needs-storybook
-        uses: actions/download-artifact@v4
-        with:
-          name: build-storybook-element
-          path: graphty-element/storybook-static/
-
-      - name: Cache Playwright browsers
-        if: matrix.needs-browser
-        uses: actions/cache@v4
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - name: Install Playwright browsers
-        if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install chromium --with-deps
-
-      - name: Install Playwright deps (if cached)
-        if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
-
-      - name: Start Storybook server
-        if: matrix.needs-storybook
-        run: |
-          pnpm exec http-server graphty-element/storybook-static -p 9026 &
-          sleep 3
-
-      - name: Run tests
-        run: ${{ matrix.test-command }}
-
-      - name: Upload blob report
-        if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: blob-report-${{ matrix.shard }}
-          path: graphty-element/.vitest-reports/*
-          include-hidden-files: true
-          retention-days: 1
-          if-no-files-found: ignore
-
-      - name: Upload coverage (graphty-element)
-        if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.shard }}
-          path: graphty-element/coverage/lcov.info
-          retention-days: 1
-          if-no-files-found: ignore
-
-      - name: Upload coverage (algorithms/layout/graphty)
-        if: ${{ !cancelled() && (matrix.shard == 'algorithms' || matrix.shard == 'layout' || matrix.shard == 'graphty') }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.shard }}
-          path: ${{ matrix.package }}/coverage/lcov.info
-          retention-days: 1
-          if-no-files-found: ignore
-
-  # Chromatic visual regression testing (graphty-element)
-  chromatic-element:
-    name: Chromatic (graphty-element)
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.x
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        env:
-          HUSKY: '0'
-
-      - name: Download Storybook build
-        uses: actions/download-artifact@v4
-        with:
-          name: build-storybook-element
-          path: graphty-element/storybook-static/
-
-      - name: Run Chromatic
-        uses: chromaui/action@latest
-        with:
-          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN_ELEMENT }}
-          storybookBuildDir: ./graphty-element/storybook-static
-          exitZeroOnChanges: true
-          # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
-          # See: https://github.com/storybookjs/storybook/issues/27172
-
-  # Chromatic visual regression testing (graphty app)
-  chromatic-app:
-    name: Chromatic (graphty)
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.x
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        env:
-          HUSKY: '0'
-
-      - name: Download Storybook build
-        uses: actions/download-artifact@v4
-        with:
-          name: build-storybook-app
-          path: graphty/storybook-static/
-
-      - name: Run Chromatic
-        uses: chromaui/action@latest
-        with:
-          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN_APP }}
-          storybookBuildDir: ./graphty/storybook-static
-          exitZeroOnChanges: true
-          # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
-          # See: https://github.com/storybookjs/storybook/issues/27172
-
-  # Performance regression tests (algorithms only, master branch)
-  performance:
-    name: Performance Tests
-    needs: test
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.x
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        env:
-          HUSKY: '0'
-
-      - name: Download algorithms build
-        uses: actions/download-artifact@v4
-        with:
-          name: build-algorithms
-          path: algorithms/dist/
-
-      - name: Download performance baseline
-        uses: actions/download-artifact@v4
-        with:
-          name: performance-baseline
-          path: algorithms/test/
-        continue-on-error: true
-
-      - name: Run performance regression tests
-        run: pnpm exec nx run algorithms:benchmark
-        env:
-          CI: 'true'
-          NODE_OPTIONS: '--max-old-space-size=8192 --expose-gc'
-
-      - name: Upload performance baseline
-        uses: actions/upload-artifact@v4
-        with:
-          name: performance-baseline
-          path: algorithms/test/performance-baseline.json
-          retention-days: 90
-          if-no-files-found: ignore
-
-  # Gate job - ensures all required checks pass before release/deploy
-  all-checks:
-    name: All Checks Pass
-    needs: [test, chromatic-element, chromatic-app]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check all jobs passed
-        run: |
-          if [[ "${{ needs.test.result }}" != "success" ]]; then
-            echo "Test job failed"
-            exit 1
-          fi
-          if [[ "${{ needs.chromatic-element.result }}" != "success" ]]; then
-            echo "Chromatic (graphty-element) job failed"
-            exit 1
-          fi
-          if [[ "${{ needs.chromatic-app.result }}" != "success" ]]; then
-            echo "Chromatic (graphty) job failed"
-            exit 1
-          fi
-          echo "All checks passed!"
+    # Gate job - ensures all required checks pass before release/deploy
+    all-checks:
+        name: All Checks Pass
+        needs: [test, chromatic-element, chromatic-app]
+        if: always()
+        runs-on: ubuntu-latest
+        steps:
+            - name: Check all jobs passed
+              run: |
+                  if [[ "${{ needs.test.result }}" != "success" ]]; then
+                    echo "Test job failed"
+                    exit 1
+                  fi
+                  if [[ "${{ needs.chromatic-element.result }}" != "success" ]]; then
+                    echo "Chromatic (graphty-element) job failed"
+                    exit 1
+                  fi
+                  if [[ "${{ needs.chromatic-app.result }}" != "success" ]]; then
+                    echo "Chromatic (graphty) job failed"
+                    exit 1
+                  fi
+                  echo "All checks passed!"

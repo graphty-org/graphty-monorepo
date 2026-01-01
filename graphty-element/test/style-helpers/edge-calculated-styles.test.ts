@@ -1,8 +1,8 @@
-import {assert, beforeEach, describe, it} from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 
-import {CalculatedValue} from "../../src/CalculatedValue";
-import {type AdHocData, EdgeStyle, StyleTemplate} from "../../src/config";
-import {Styles} from "../../src/Styles";
+import { CalculatedValue } from "../../src/CalculatedValue";
+import { type AdHocData, EdgeStyle, StyleTemplate } from "../../src/config";
+import { Styles } from "../../src/Styles";
 
 describe("Edge Calculated Styles", () => {
     let styles: Styles;
@@ -33,7 +33,7 @@ describe("Edge Calculated Styles", () => {
     });
 
     it("getCalculatedStylesForEdge returns calculated values from edge layers", () => {
-        const edgeData = {value: 5} as unknown as AdHocData;
+        const edgeData = { value: 5 } as unknown as AdHocData;
         const cvs = styles.getCalculatedStylesForEdge(edgeData);
 
         assert.equal(cvs.length, 1);
@@ -73,7 +73,7 @@ describe("Edge Calculated Styles", () => {
         });
         const multiStyles = new Styles(config);
 
-        const edgeData = {value: 5, weight: 10} as unknown as AdHocData;
+        const edgeData = { value: 5, weight: 10 } as unknown as AdHocData;
         const cvs = multiStyles.getCalculatedStylesForEdge(edgeData);
 
         assert.equal(cvs.length, 2);
@@ -104,18 +104,18 @@ describe("Edge Calculated Styles", () => {
         const selectiveStyles = new Styles(config);
 
         // Edge with value > 5 should get the calculated style
-        const edgeData1 = {value: 10} as unknown as AdHocData;
+        const edgeData1 = { value: 10 } as unknown as AdHocData;
         const cvs1 = selectiveStyles.getCalculatedStylesForEdge(edgeData1);
         assert.equal(cvs1.length, 1);
 
         // Edge with value <= 5 should NOT get the calculated style
-        const edgeData2 = {value: 3} as unknown as AdHocData;
+        const edgeData2 = { value: 3 } as unknown as AdHocData;
         const cvs2 = selectiveStyles.getCalculatedStylesForEdge(edgeData2);
         assert.equal(cvs2.length, 0);
     });
 
     it("getCalculatedStylesForEdge handles empty selector (matches all)", () => {
-        const edgeData = {value: 5} as unknown as AdHocData;
+        const edgeData = { value: 5 } as unknown as AdHocData;
         const cvs = styles.getCalculatedStylesForEdge(edgeData);
 
         // Empty selector should match
@@ -131,7 +131,7 @@ describe("Edge Calculated Styles", () => {
                     edge: {
                         selector: "",
                         style: EdgeStyle.parse({
-                            line: {width: 2, color: "#FF0000"},
+                            line: { width: 2, color: "#FF0000" },
                         }),
                     },
                 },
@@ -139,7 +139,7 @@ describe("Edge Calculated Styles", () => {
         });
         const staticStyles = new Styles(config);
 
-        const edgeData = {value: 5} as unknown as AdHocData;
+        const edgeData = { value: 5 } as unknown as AdHocData;
         const cvs = staticStyles.getCalculatedStylesForEdge(edgeData);
 
         assert.equal(cvs.length, 0);
@@ -165,7 +165,7 @@ describe("Edge Calculated Styles", () => {
         });
         const nodeOnlyStyles = new Styles(config);
 
-        const edgeData = {value: 5} as unknown as AdHocData;
+        const edgeData = { value: 5 } as unknown as AdHocData;
         const cvs = nodeOnlyStyles.getCalculatedStylesForEdge(edgeData);
 
         assert.equal(cvs.length, 0);
@@ -191,7 +191,7 @@ describe("Edge Calculated Styles", () => {
         });
         const edgeStyles = new Styles(config);
 
-        const edgeData = {value: 5} as unknown as AdHocData;
+        const edgeData = { value: 5 } as unknown as AdHocData;
         const cvs = edgeStyles.getCalculatedStylesForEdge(edgeData);
 
         // Verify the calculated value can run with EdgeStyle schema
@@ -232,7 +232,7 @@ describe("Edge Calculated Styles", () => {
         });
         const helperStyles = new Styles(config);
 
-        const edgeData = {value: 5} as unknown as AdHocData;
+        const edgeData = { value: 5 } as unknown as AdHocData;
         const cvs = helperStyles.getCalculatedStylesForEdge(edgeData);
 
         // Run the calculated value
@@ -245,7 +245,7 @@ describe("Edge Calculated Styles", () => {
         // Should have set a color from the viridis palette
         assert.property(result.style as Record<string, unknown>, "line");
         assert.property((result.style as Record<string, unknown>).line as Record<string, unknown>, "color");
-        const {color} = ((result.style as Record<string, unknown>).line as Record<string, unknown>);
+        const { color } = (result.style as Record<string, unknown>).line as Record<string, unknown>;
         assert.typeOf(color, "string");
         assert.match(color as string, /^#[0-9A-F]{6}$/i);
     });
@@ -270,7 +270,7 @@ describe("Edge Calculated Styles", () => {
         });
         const multiInputStyles = new Styles(config);
 
-        const edgeData = {source: "Alice", target: "Bob"} as unknown as AdHocData;
+        const edgeData = { source: "Alice", target: "Bob" } as unknown as AdHocData;
         const cvs = multiInputStyles.getCalculatedStylesForEdge(edgeData);
 
         // Run the calculated value
@@ -308,13 +308,13 @@ describe("Edge Calculated Styles", () => {
         });
         const algoStyles = new Styles(config);
 
-        const edgeData = {src: "A", dst: "B"} as unknown as AdHocData;
+        const edgeData = { src: "A", dst: "B" } as unknown as AdHocData;
         const cvs = algoStyles.getCalculatedStylesForEdge(edgeData);
 
         // Run the calculated value with algorithm results
         const result = {} as unknown as AdHocData;
         (result as Record<string, unknown>).style = {};
-        (result as Record<string, unknown>).algorithmResults = {betweenness: 0.5};
+        (result as Record<string, unknown>).algorithmResults = { betweenness: 0.5 };
 
         cvs[0].run(result);
 

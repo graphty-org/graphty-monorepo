@@ -1,6 +1,6 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import type {GraphContextConfig} from "../../src/managers/GraphContext";
+import type { GraphContextConfig } from "../../src/managers/GraphContext";
 
 describe("GraphContext - profiling config", () => {
     it("should accept enableDetailedProfiling option", () => {

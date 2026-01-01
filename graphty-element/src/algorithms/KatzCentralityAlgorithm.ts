@@ -1,10 +1,10 @@
-import {katzCentrality} from "@graphty/algorithms";
-import {z} from "zod/v4";
+import { katzCentrality } from "@graphty/algorithms";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig} from "../config";
-import {Algorithm} from "./Algorithm";
-import type {OptionsSchema} from "./types/OptionSchema";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import { Algorithm } from "./Algorithm";
+import type { OptionsSchema } from "./types/OptionSchema";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for Katz Centrality algorithm
@@ -157,9 +157,9 @@ export class KatzCentralityAlgorithm extends Algorithm<KatzCentralityOptions> {
             label: "Direction Mode",
             description: "Direction mode for directed graphs",
             options: [
-                {value: "total", label: "Total (both directions)"},
-                {value: "in", label: "In-degree (incoming edges)"},
-                {value: "out", label: "Out-degree (outgoing edges)"},
+                { value: "total", label: "Total (both directions)" },
+                { value: "in", label: "In-degree (incoming edges)" },
+                { value: "out", label: "Out-degree (outgoing edges)" },
             ],
             advanced: true,
         },
@@ -210,7 +210,7 @@ export class KatzCentralityAlgorithm extends Algorithm<KatzCentralityOptions> {
         }
 
         // Get options from schema
-        const {alpha, beta, maxIterations, tolerance, normalized, mode, endpoints} = this.schemaOptions;
+        const { alpha, beta, maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
 
         // Convert to @graphty/algorithms format and run
         const graphData = toAlgorithmGraph(g);

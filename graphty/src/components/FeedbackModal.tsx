@@ -1,8 +1,8 @@
-import {Alert, Button, FileInput, Group, Modal, Stack, Textarea, TextInput} from "@mantine/core";
-import {AlertTriangle, CheckCircle, Paperclip, Send} from "lucide-react";
-import {useState} from "react";
+import { Alert, Button, FileInput, Group, Modal, Stack, Textarea, TextInput } from "@mantine/core";
+import { AlertTriangle, CheckCircle, Paperclip, Send } from "lucide-react";
+import { useState } from "react";
 
-import {type AttachmentData, captureUserFeedback, type FeedbackResult} from "../lib/sentry";
+import { type AttachmentData, captureUserFeedback, type FeedbackResult } from "../lib/sentry";
 
 interface FeedbackModalProps {
     opened: boolean;
@@ -11,6 +11,8 @@ interface FeedbackModalProps {
 
 /**
  * Convert a File to AttachmentData for Sentry.
+ * @param file - The file to convert
+ * @returns The attachment data for Sentry
  */
 async function fileToAttachment(file: File): Promise<AttachmentData> {
     const arrayBuffer = await file.arrayBuffer();
@@ -21,7 +23,14 @@ async function fileToAttachment(file: File): Promise<AttachmentData> {
     };
 }
 
-export function FeedbackModal({opened, onClose}: FeedbackModalProps): React.JSX.Element {
+/**
+ * Modal for submitting user feedback with optional attachments.
+ * @param root0 - Component props
+ * @param root0.opened - Whether the modal is open
+ * @param root0.onClose - Close the modal
+ * @returns The feedback modal component
+ */
+export function FeedbackModal({ opened, onClose }: FeedbackModalProps): React.JSX.Element {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [message, setMessage] = useState("");
@@ -93,20 +102,12 @@ export function FeedbackModal({opened, onClose}: FeedbackModalProps): React.JSX.
             >
                 <Stack gap="md">
                     {result && !result.success && (
-                        <Alert
-                            color="red"
-                            icon={<AlertTriangle size={16} />}
-                            title="Error"
-                        >
+                        <Alert color="red" icon={<AlertTriangle size={16} />} title="Error">
                             {result.message}
                         </Alert>
                     )}
                     {result?.success && (
-                        <Alert
-                            color="green"
-                            icon={<CheckCircle size={16} />}
-                            title="Success"
-                        >
+                        <Alert color="green" icon={<CheckCircle size={16} />} title="Success">
                             {result.message}
                         </Alert>
                     )}

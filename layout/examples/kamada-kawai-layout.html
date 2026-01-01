@@ -1,425 +1,428 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <!-- Eruda Mobile Console -->
-  <script src="https://cdn.jsdelivr.net/npm/eruda@3/eruda.min.js"></script>
-  <script>
-    // Initialize Eruda console for mobile debugging
-    if (typeof eruda !== "undefined") {
-      eruda.init();
-      // Auto-show on mobile devices
-      if (/mobile|android|ios|iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase())) {
-        eruda.show();
-      }
-    }
-  </script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kamada-Kawai Layout Test</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: 250px 1fr 250px;
-            gap: 20px;
-        }
-        .graph-controls {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            height: fit-content;
-        }
-        .layout-controls {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            height: fit-content;
-        }
-        .visualization {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            padding: 20px;
-        }
-        .control-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #333;
-        }
-        input[type="range"], input[type="number"], select {
-            width: 100%;
-            padding: 5px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        button {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            width: 100%;
-            margin: 5px 0;
-        }
-        button:hover {
-            background: #45a049;
-        }
-        #graph-svg {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        .back-link {
-            margin-bottom: 20px;
-        }
-        .back-link a {
-            color: #2c5aa0;
-            text-decoration: none;
-        }
-        .back-link a:hover {
-            text-decoration: underline;
-        }
-        .info-box {
-            background: #f0f7ff;
-            border: 1px solid #c0d7f0;
-            border-radius: 4px;
-            padding: 10px;
-            margin-top: 15px;
-            font-size: 0.85em;
-        }
-        .loading {
-            text-align: center;
-            color: #666;
-            font-style: italic;
-        }
-    </style>
-</head>
-<body>
-    <div class="back-link">
-        <a href="index.html">← Back to Index</a>
-    </div>
-    
-    <h1>Kamada-Kawai Layout Test</h1>
-    
-    <div class="container">
-        <div class="graph-controls">
-            <h3>Graph Settings</h3>
-            
-            <div class="control-group">
-                <label for="num-nodes">Number of nodes:</label>
-                <input type="range" id="num-nodes" min="4" max="25" value="15">
-                <span id="num-nodes-value">15</span>
-            </div>
-            
-            <div class="control-group">
-                <label for="graph-type">Graph type:</label>
-                <select id="graph-type">
-                    <option value="path">Path</option>
-                    <option value="cycle">Cycle</option>
-                    <option value="grid">Grid</option>
-                    <option value="random">Random</option>
-                    <option value="complete">Complete</option>
-                </select>
-            </div>
-            
-            <button onclick="newGraph()">New Graph</button>
+    <head>
+        <!-- Eruda Mobile Console -->
+        <script src="https://cdn.jsdelivr.net/npm/eruda@3/eruda.min.js"></script>
+        <script>
+            // Initialize Eruda console for mobile debugging
+            if (typeof eruda !== "undefined") {
+                eruda.init();
+                // Auto-show on mobile devices
+                if (/mobile|android|ios|iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase())) {
+                    eruda.show();
+                }
+            }
+        </script>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Kamada-Kawai Layout Test</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+                background-color: #f5f5f5;
+            }
+            .container {
+                max-width: 1400px;
+                margin: 0 auto;
+                display: grid;
+                grid-template-columns: 250px 1fr 250px;
+                gap: 20px;
+            }
+            .graph-controls {
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                height: fit-content;
+            }
+            .layout-controls {
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                height: fit-content;
+            }
+            .visualization {
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                padding: 20px;
+            }
+            .control-group {
+                margin-bottom: 15px;
+            }
+            label {
+                display: block;
+                margin-bottom: 5px;
+                font-weight: bold;
+                color: #333;
+            }
+            input[type="range"],
+            input[type="number"],
+            select {
+                width: 100%;
+                padding: 5px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            button {
+                background: #4caf50;
+                color: white;
+                border: none;
+                padding: 10px 15px;
+                border-radius: 4px;
+                cursor: pointer;
+                width: 100%;
+                margin: 5px 0;
+            }
+            button:hover {
+                background: #45a049;
+            }
+            #graph-svg {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            .back-link {
+                margin-bottom: 20px;
+            }
+            .back-link a {
+                color: #2c5aa0;
+                text-decoration: none;
+            }
+            .back-link a:hover {
+                text-decoration: underline;
+            }
+            .info-box {
+                background: #f0f7ff;
+                border: 1px solid #c0d7f0;
+                border-radius: 4px;
+                padding: 10px;
+                margin-top: 15px;
+                font-size: 0.85em;
+            }
+            .loading {
+                text-align: center;
+                color: #666;
+                font-style: italic;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="back-link">
+            <a href="index.html">← Back to Index</a>
         </div>
-        
-        <div class="visualization">
-            <svg id="graph-svg" width="800" height="600"></svg>
-        </div>
-        
-        <div class="layout-controls">
-            <h3>Layout Parameters</h3>
-            
-            <div class="control-group">
-                <label for="center-x">Center X:</label>
-                <input type="range" id="center-x" min="-2" max="2" step="0.1" value="0">
-                <span id="center-x-value">0.0</span>
-            </div>
-            
-            <div class="control-group">
-                <label for="center-y">Center Y:</label>
-                <input type="range" id="center-y" min="-2" max="2" step="0.1" value="0">
-                <span id="center-y-value">0.0</span>
-            </div>
-            
-            <button onclick="applyLayout()">Apply Layout</button>
-            <div id="loading" class="loading" style="display: none;">Computing layout...</div>
-            
-            <div class="info-box">
-                <strong>Info:</strong> Kamada-Kawai layout places nodes to minimize the difference 
-                between graph-theoretic distance and geometric distance between nodes. This helps 
-                preserve the "shape" of the graph.
-            </div>
-        </div>
-    </div>
 
-    <script type="module">
-        import { kamadaKawaiLayout } from "../dist/layout.js";
-        
-        let currentGraph = null;
-        let distances = null;
-        let initialPositions = null;
-        
-        function generateGraph(type, numNodes) {
-            const nodes = Array.from({length: numNodes}, (_, i) => i);
-            const edges = [];
-            
-            switch(type) {
-                case 'path':
-                    // Simple path graph
-                    for(let i = 0; i < numNodes - 1; i++) {
-                        edges.push([i, i + 1]);
-                    }
-                    break;
-                case 'cycle':
-                    // Cycle graph
-                    for(let i = 0; i < numNodes; i++) {
-                        edges.push([i, (i + 1) % numNodes]);
-                    }
-                    break;
-                case 'grid':
-                    // Simple grid
-                    const gridSize = Math.ceil(Math.sqrt(numNodes));
-                    for(let i = 0; i < numNodes; i++) {
-                        const row = Math.floor(i / gridSize);
-                        const col = i % gridSize;
-                        
-                        // Connect right
-                        if(col < gridSize - 1 && i + 1 < numNodes) {
+        <h1>Kamada-Kawai Layout Test</h1>
+
+        <div class="container">
+            <div class="graph-controls">
+                <h3>Graph Settings</h3>
+
+                <div class="control-group">
+                    <label for="num-nodes">Number of nodes:</label>
+                    <input type="range" id="num-nodes" min="4" max="25" value="15" />
+                    <span id="num-nodes-value">15</span>
+                </div>
+
+                <div class="control-group">
+                    <label for="graph-type">Graph type:</label>
+                    <select id="graph-type">
+                        <option value="path">Path</option>
+                        <option value="cycle">Cycle</option>
+                        <option value="grid">Grid</option>
+                        <option value="random">Random</option>
+                        <option value="complete">Complete</option>
+                    </select>
+                </div>
+
+                <button onclick="newGraph()">New Graph</button>
+            </div>
+
+            <div class="visualization">
+                <svg id="graph-svg" width="800" height="600"></svg>
+            </div>
+
+            <div class="layout-controls">
+                <h3>Layout Parameters</h3>
+
+                <div class="control-group">
+                    <label for="center-x">Center X:</label>
+                    <input type="range" id="center-x" min="-2" max="2" step="0.1" value="0" />
+                    <span id="center-x-value">0.0</span>
+                </div>
+
+                <div class="control-group">
+                    <label for="center-y">Center Y:</label>
+                    <input type="range" id="center-y" min="-2" max="2" step="0.1" value="0" />
+                    <span id="center-y-value">0.0</span>
+                </div>
+
+                <button onclick="applyLayout()">Apply Layout</button>
+                <div id="loading" class="loading" style="display: none">Computing layout...</div>
+
+                <div class="info-box">
+                    <strong>Info:</strong> Kamada-Kawai layout places nodes to minimize the difference between
+                    graph-theoretic distance and geometric distance between nodes. This helps preserve the "shape" of
+                    the graph.
+                </div>
+            </div>
+        </div>
+
+        <script type="module">
+            import { kamadaKawaiLayout } from "../dist/layout.js";
+
+            let currentGraph = null;
+            let distances = null;
+            let initialPositions = null;
+
+            function generateGraph(type, numNodes) {
+                const nodes = Array.from({ length: numNodes }, (_, i) => i);
+                const edges = [];
+
+                switch (type) {
+                    case "path":
+                        // Simple path graph
+                        for (let i = 0; i < numNodes - 1; i++) {
                             edges.push([i, i + 1]);
                         }
-                        
-                        // Connect down
-                        if(row < gridSize - 1 && i + gridSize < numNodes) {
-                            edges.push([i, i + gridSize]);
+                        break;
+                    case "cycle":
+                        // Cycle graph
+                        for (let i = 0; i < numNodes; i++) {
+                            edges.push([i, (i + 1) % numNodes]);
                         }
-                    }
-                    break;
-                case 'complete':
-                    // Complete graph - every node connected to every other node
-                    for(let i = 0; i < numNodes; i++) {
-                        for(let j = i + 1; j < numNodes; j++) {
-                            edges.push([i, j]);
+                        break;
+                    case "grid":
+                        // Simple grid
+                        const gridSize = Math.ceil(Math.sqrt(numNodes));
+                        for (let i = 0; i < numNodes; i++) {
+                            const row = Math.floor(i / gridSize);
+                            const col = i % gridSize;
+
+                            // Connect right
+                            if (col < gridSize - 1 && i + 1 < numNodes) {
+                                edges.push([i, i + 1]);
+                            }
+
+                            // Connect down
+                            if (row < gridSize - 1 && i + gridSize < numNodes) {
+                                edges.push([i, i + gridSize]);
+                            }
                         }
-                    }
-                    break;
-                case 'random':
-                default:
-                    // Random connected graph
-                    // First ensure connectivity with a spanning tree
-                    for(let i = 1; i < numNodes; i++) {
-                        const j = Math.floor(Math.random() * i);
-                        edges.push([j, i]);
-                    }
-                    
-                    // Add some random edges
-                    const extraEdges = Math.floor(numNodes * 0.5);
-                    for(let i = 0; i < extraEdges; i++) {
-                        const a = Math.floor(Math.random() * numNodes);
-                        const b = Math.floor(Math.random() * numNodes);
-                        if(a !== b && !edges.some(e => (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a))) {
-                            edges.push([a, b]);
+                        break;
+                    case "complete":
+                        // Complete graph - every node connected to every other node
+                        for (let i = 0; i < numNodes; i++) {
+                            for (let j = i + 1; j < numNodes; j++) {
+                                edges.push([i, j]);
+                            }
                         }
-                    }
-                    break;
-            }
-            
-            return { 
-                nodes: () => nodes, 
-                edges: () => edges,
-                // For computing all-pairs shortest path (optional)
-                neighbors: function(node) {
-                    return edges
-                        .filter(([s, t]) => s === node || t === node)
-                        .map(([s, t]) => s === node ? t : s);
+                        break;
+                    case "random":
+                    default:
+                        // Random connected graph
+                        // First ensure connectivity with a spanning tree
+                        for (let i = 1; i < numNodes; i++) {
+                            const j = Math.floor(Math.random() * i);
+                            edges.push([j, i]);
+                        }
+
+                        // Add some random edges
+                        const extraEdges = Math.floor(numNodes * 0.5);
+                        for (let i = 0; i < extraEdges; i++) {
+                            const a = Math.floor(Math.random() * numNodes);
+                            const b = Math.floor(Math.random() * numNodes);
+                            if (
+                                a !== b &&
+                                !edges.some((e) => (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a))
+                            ) {
+                                edges.push([a, b]);
+                            }
+                        }
+                        break;
                 }
-            };
-        }
-        
-        function visualizeGraph(graph, positions) {
-            const svg = document.getElementById('graph-svg');
-            const svgRect = svg.getBoundingClientRect();
-            const width = svgRect.width;
-            const height = svgRect.height;
-            
-            svg.innerHTML = '';
-            
-            const margin = 50;
-            const scaleX = (width - 2 * margin);
-            const scaleY = (height - 2 * margin);
-            
-            const nodes = graph.nodes();
-            const posValues = nodes.map(n => positions[n]);
-            const minX = Math.min(...posValues.map(p => p[0]));
-            const maxX = Math.max(...posValues.map(p => p[0]));
-            const minY = Math.min(...posValues.map(p => p[1]));
-            const maxY = Math.max(...posValues.map(p => p[1]));
-            
-            const rangeX = maxX - minX || 1;
-            const rangeY = maxY - minY || 1;
-            
-            // Draw edges
-            const edges = graph.edges();
-            edges.forEach(([source, target]) => {
-                const sourcePos = positions[source];
-                const targetPos = positions[target];
-                
-                const x1 = margin + (sourcePos[0] - minX) / rangeX * scaleX;
-                const y1 = margin + (sourcePos[1] - minY) / rangeY * scaleY;
-                const x2 = margin + (targetPos[0] - minX) / rangeX * scaleX;
-                const y2 = margin + (targetPos[1] - minY) / rangeY * scaleY;
-                
-                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.setAttribute('x1', x1);
-                line.setAttribute('y1', y1);
-                line.setAttribute('x2', x2);
-                line.setAttribute('y2', y2);
-                line.setAttribute('stroke', '#999');
-                line.setAttribute('stroke-width', '2');
-                svg.appendChild(line);
-            });
-            
-            // Draw nodes
-            nodes.forEach(node => {
-                const pos = positions[node];
-                const x = margin + (pos[0] - minX) / rangeX * scaleX;
-                const y = margin + (pos[1] - minY) / rangeY * scaleY;
-                
-                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                circle.setAttribute('cx', x);
-                circle.setAttribute('cy', y);
-                circle.setAttribute('r', '8');
-                circle.setAttribute('fill', '#673AB7');
-                circle.setAttribute('stroke', '#333');
-                circle.setAttribute('stroke-width', '2');
-                svg.appendChild(circle);
-                
-                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                text.setAttribute('x', x);
-                text.setAttribute('y', y + 4);
-                text.setAttribute('text-anchor', 'middle');
-                text.setAttribute('font-size', '11');
-                text.setAttribute('fill', 'white');
-                text.textContent = node;
-                svg.appendChild(text);
-            });
-        }
-        
-        // Compute a distance dictionary for the Kamada-Kawai algorithm
-        function computeDistances(graph) {
-            const nodes = graph.nodes();
-            const dist = {};
-            
-            // Initialize with direct connections
-            nodes.forEach(source => {
-                dist[source] = {};
-                dist[source][source] = 0;
-                
-                nodes.forEach(target => {
-                    if (source !== target) {
-                        dist[source][target] = Infinity;
-                    }
+
+                return {
+                    nodes: () => nodes,
+                    edges: () => edges,
+                    // For computing all-pairs shortest path (optional)
+                    neighbors: function (node) {
+                        return edges.filter(([s, t]) => s === node || t === node).map(([s, t]) => (s === node ? t : s));
+                    },
+                };
+            }
+
+            function visualizeGraph(graph, positions) {
+                const svg = document.getElementById("graph-svg");
+                const svgRect = svg.getBoundingClientRect();
+                const width = svgRect.width;
+                const height = svgRect.height;
+
+                svg.innerHTML = "";
+
+                const margin = 50;
+                const scaleX = width - 2 * margin;
+                const scaleY = height - 2 * margin;
+
+                const nodes = graph.nodes();
+                const posValues = nodes.map((n) => positions[n]);
+                const minX = Math.min(...posValues.map((p) => p[0]));
+                const maxX = Math.max(...posValues.map((p) => p[0]));
+                const minY = Math.min(...posValues.map((p) => p[1]));
+                const maxY = Math.max(...posValues.map((p) => p[1]));
+
+                const rangeX = maxX - minX || 1;
+                const rangeY = maxY - minY || 1;
+
+                // Draw edges
+                const edges = graph.edges();
+                edges.forEach(([source, target]) => {
+                    const sourcePos = positions[source];
+                    const targetPos = positions[target];
+
+                    const x1 = margin + ((sourcePos[0] - minX) / rangeX) * scaleX;
+                    const y1 = margin + ((sourcePos[1] - minY) / rangeY) * scaleY;
+                    const x2 = margin + ((targetPos[0] - minX) / rangeX) * scaleX;
+                    const y2 = margin + ((targetPos[1] - minY) / rangeY) * scaleY;
+
+                    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    line.setAttribute("x1", x1);
+                    line.setAttribute("y1", y1);
+                    line.setAttribute("x2", x2);
+                    line.setAttribute("y2", y2);
+                    line.setAttribute("stroke", "#999");
+                    line.setAttribute("stroke-width", "2");
+                    svg.appendChild(line);
                 });
-            });
-            
-            // Add edges
-            graph.edges().forEach(([source, target]) => {
-                dist[source][target] = 1;
-                dist[target][source] = 1;
-            });
-            
-            // Floyd-Warshall algorithm for all pairs shortest paths
-            nodes.forEach(k => {
-                nodes.forEach(i => {
-                    nodes.forEach(j => {
-                        if (dist[i][k] + dist[k][j] < dist[i][j]) {
-                            dist[i][j] = dist[i][k] + dist[k][j];
+
+                // Draw nodes
+                nodes.forEach((node) => {
+                    const pos = positions[node];
+                    const x = margin + ((pos[0] - minX) / rangeX) * scaleX;
+                    const y = margin + ((pos[1] - minY) / rangeY) * scaleY;
+
+                    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    circle.setAttribute("cx", x);
+                    circle.setAttribute("cy", y);
+                    circle.setAttribute("r", "8");
+                    circle.setAttribute("fill", "#673AB7");
+                    circle.setAttribute("stroke", "#333");
+                    circle.setAttribute("stroke-width", "2");
+                    svg.appendChild(circle);
+
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", x);
+                    text.setAttribute("y", y + 4);
+                    text.setAttribute("text-anchor", "middle");
+                    text.setAttribute("font-size", "11");
+                    text.setAttribute("fill", "white");
+                    text.textContent = node;
+                    svg.appendChild(text);
+                });
+            }
+
+            // Compute a distance dictionary for the Kamada-Kawai algorithm
+            function computeDistances(graph) {
+                const nodes = graph.nodes();
+                const dist = {};
+
+                // Initialize with direct connections
+                nodes.forEach((source) => {
+                    dist[source] = {};
+                    dist[source][source] = 0;
+
+                    nodes.forEach((target) => {
+                        if (source !== target) {
+                            dist[source][target] = Infinity;
                         }
                     });
                 });
-            });
-            
-            return dist;
-        }
-        
-        window.newGraph = function() {
-            const numNodes = parseInt(document.getElementById('num-nodes').value);
-            const graphType = document.getElementById('graph-type').value;
-            
-            currentGraph = generateGraph(graphType, numNodes);
-            
-            // Compute all-pairs shortest paths for distance dictionary
-            distances = computeDistances(currentGraph);
-            
-            // Get initial circular layout as starting positions
-            initialPositions = {};
-            const angleStep = 2 * Math.PI / numNodes;
-            currentGraph.nodes().forEach((node, i) => {
-                const angle = i * angleStep;
-                initialPositions[node] = [Math.cos(angle), Math.sin(angle)];
-            });
-            
-            // Just visualize with initial positions
-            visualizeGraph(currentGraph, initialPositions);
-        };
-        
-        window.applyLayout = async function() {
-            if(!currentGraph) return;
-            
-            const centerX = parseFloat(document.getElementById('center-x').value);
-            const centerY = parseFloat(document.getElementById('center-y').value);
-            
-            const loadingDiv = document.getElementById('loading');
-            loadingDiv.style.display = 'block';
-            
-            try {
-                // Run Kamada-Kawai layout
-                const positions = await kamadaKawaiLayout(
-                    currentGraph, 
-                    distances, 
-                    initialPositions, 
-                    null, 
-                    1, 
-                    [centerX, centerY], 
-                    2
-                );
-                
-                visualizeGraph(currentGraph, positions);
-            } catch (error) {
-                console.error('Error in Kamada-Kawai layout:', error);
-            } finally {
-                loadingDiv.style.display = 'none';
+
+                // Add edges
+                graph.edges().forEach(([source, target]) => {
+                    dist[source][target] = 1;
+                    dist[target][source] = 1;
+                });
+
+                // Floyd-Warshall algorithm for all pairs shortest paths
+                nodes.forEach((k) => {
+                    nodes.forEach((i) => {
+                        nodes.forEach((j) => {
+                            if (dist[i][k] + dist[k][j] < dist[i][j]) {
+                                dist[i][j] = dist[i][k] + dist[k][j];
+                            }
+                        });
+                    });
+                });
+
+                return dist;
             }
-        };
-        
-        function setupControls() {
-            const controls = ['num-nodes', 'center-x', 'center-y'];
-            controls.forEach(id => {
-                const slider = document.getElementById(id);
-                const valueSpan = document.getElementById(id + '-value');
-                slider.oninput = function() {
-                    valueSpan.textContent = this.value;
-                };
-            });
-        }
-        
-        setupControls();
-        newGraph();
-    </script>
-</body>
+
+            window.newGraph = function () {
+                const numNodes = parseInt(document.getElementById("num-nodes").value);
+                const graphType = document.getElementById("graph-type").value;
+
+                currentGraph = generateGraph(graphType, numNodes);
+
+                // Compute all-pairs shortest paths for distance dictionary
+                distances = computeDistances(currentGraph);
+
+                // Get initial circular layout as starting positions
+                initialPositions = {};
+                const angleStep = (2 * Math.PI) / numNodes;
+                currentGraph.nodes().forEach((node, i) => {
+                    const angle = i * angleStep;
+                    initialPositions[node] = [Math.cos(angle), Math.sin(angle)];
+                });
+
+                // Just visualize with initial positions
+                visualizeGraph(currentGraph, initialPositions);
+            };
+
+            window.applyLayout = async function () {
+                if (!currentGraph) return;
+
+                const centerX = parseFloat(document.getElementById("center-x").value);
+                const centerY = parseFloat(document.getElementById("center-y").value);
+
+                const loadingDiv = document.getElementById("loading");
+                loadingDiv.style.display = "block";
+
+                try {
+                    // Run Kamada-Kawai layout
+                    const positions = await kamadaKawaiLayout(
+                        currentGraph,
+                        distances,
+                        initialPositions,
+                        null,
+                        1,
+                        [centerX, centerY],
+                        2,
+                    );
+
+                    visualizeGraph(currentGraph, positions);
+                } catch (error) {
+                    console.error("Error in Kamada-Kawai layout:", error);
+                } finally {
+                    loadingDiv.style.display = "none";
+                }
+            };
+
+            function setupControls() {
+                const controls = ["num-nodes", "center-x", "center-y"];
+                controls.forEach((id) => {
+                    const slider = document.getElementById(id);
+                    const valueSpan = document.getElementById(id + "-value");
+                    slider.oninput = function () {
+                        valueSpan.textContent = this.value;
+                    };
+                });
+            }
+
+            setupControls();
+            newGraph();
+        </script>
+    </body>
 </html>

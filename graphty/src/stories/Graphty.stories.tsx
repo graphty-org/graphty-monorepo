@@ -1,6 +1,6 @@
-import type {Meta, StoryObj} from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 
-import {Graphty} from "../components/Graphty";
+import { Graphty } from "../components/Graphty";
 
 // Mock the graphty-element module for Storybook
 if (typeof window !== "undefined" && !window.customElements.get("graphty-element")) {
@@ -43,7 +43,7 @@ const meta: Meta<typeof Graphty> = {
     },
     decorators: [
         (Story) => (
-            <div style={{width: "800px", height: "600px"}}>
+            <div style={{ width: "800px", height: "600px" }}>
                 <Story />
             </div>
         ),
@@ -58,7 +58,7 @@ export const Default: Story = {};
 export const Small: Story = {
     decorators: [
         (Story) => (
-            <div style={{width: "400px", height: "300px"}}>
+            <div style={{ width: "400px", height: "300px" }}>
                 <Story />
             </div>
         ),
@@ -68,7 +68,7 @@ export const Small: Story = {
 export const Large: Story = {
     decorators: [
         (Story) => (
-            <div style={{width: "1200px", height: "800px"}}>
+            <div style={{ width: "1200px", height: "800px" }}>
                 <Story />
             </div>
         ),

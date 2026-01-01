@@ -1,7 +1,7 @@
-import {Autocomplete, Badge, MantineSize, PasswordInput, Pill, Radio, Select, Textarea} from "@mantine/core";
-import {describe, expect, it} from "vitest";
+import { Autocomplete, Badge, MantineSize, PasswordInput, Pill, Radio, Select, Textarea } from "@mantine/core";
+import { describe, expect, it } from "vitest";
 
-import {render, screen} from "../../../test/test-utils";
+import { render, screen } from "../../../test/test-utils";
 
 /**
  * Regression tests for compact size styling on Phase 3 Mantine components.
@@ -36,12 +36,7 @@ describe("Compact Phase 3 Style Regression", () => {
 
         it("Select has correct compact font size", () => {
             render(
-                <Select
-                    label="Test select"
-                    aria-label="Test select"
-                    data={["Option 1", "Option 2"]}
-                    size="compact"
-                />,
+                <Select label="Test select" aria-label="Test select" data={["Option 1", "Option 2"]} size="compact" />,
             );
 
             const input = screen.getByRole("textbox");
@@ -53,13 +48,7 @@ describe("Compact Phase 3 Style Regression", () => {
 
     describe("PasswordInput compact styles", () => {
         it("PasswordInput has correct compact height", () => {
-            render(
-                <PasswordInput
-                    label="Test password"
-                    aria-label="Test password"
-                    size="compact"
-                />,
-            );
+            render(<PasswordInput label="Test password" aria-label="Test password" size="compact" />);
 
             const input = screen.getByLabelText("Test password");
             const computed = window.getComputedStyle(input);
@@ -69,13 +58,7 @@ describe("Compact Phase 3 Style Regression", () => {
         });
 
         it("PasswordInput has correct compact font size", () => {
-            render(
-                <PasswordInput
-                    label="Test password"
-                    aria-label="Test password"
-                    size="compact"
-                />,
-            );
+            render(<PasswordInput label="Test password" aria-label="Test password" size="compact" />);
 
             const input = screen.getByLabelText("Test password");
             const computed = window.getComputedStyle(input);
@@ -86,13 +69,7 @@ describe("Compact Phase 3 Style Regression", () => {
 
     describe("Textarea compact styles", () => {
         it("Textarea has correct compact font size", () => {
-            render(
-                <Textarea
-                    label="Test textarea"
-                    aria-label="Test textarea"
-                    size="compact"
-                />,
-            );
+            render(<Textarea label="Test textarea" aria-label="Test textarea" size="compact" />);
 
             const textarea = screen.getByRole("textbox");
             const computed = window.getComputedStyle(textarea);
@@ -105,13 +82,7 @@ describe("Compact Phase 3 Style Regression", () => {
 
     describe("Autocomplete compact styles", () => {
         it("Autocomplete has correct compact height", () => {
-            render(
-                <Autocomplete
-                    label="Test autocomplete"
-                    data={["Option 1", "Option 2"]}
-                    size="compact"
-                />,
-            );
+            render(<Autocomplete label="Test autocomplete" data={["Option 1", "Option 2"]} size="compact" />);
 
             // Autocomplete renders an input with role="combobox" (unlike what error said)
             // Use the Mantine class to find it
@@ -125,13 +96,7 @@ describe("Compact Phase 3 Style Regression", () => {
         });
 
         it("Autocomplete has correct compact font size", () => {
-            render(
-                <Autocomplete
-                    label="Test autocomplete"
-                    data={["Option 1", "Option 2"]}
-                    size="compact"
-                />,
-            );
+            render(<Autocomplete label="Test autocomplete" data={["Option 1", "Option 2"]} size="compact" />);
 
             const input = document.querySelector(".mantine-Autocomplete-input");
             expect(input).not.toBeNull();
@@ -145,13 +110,7 @@ describe("Compact Phase 3 Style Regression", () => {
 
     describe("Radio compact styles", () => {
         it("Radio has correct compact size", () => {
-            render(
-                <Radio
-                    label="Test radio"
-                    aria-label="Test radio"
-                    size="compact"
-                />,
-            );
+            render(<Radio label="Test radio" aria-label="Test radio" size="compact" />);
 
             const radio = screen.getByRole("radio");
             const computed = window.getComputedStyle(radio);
@@ -222,20 +181,9 @@ describe("Compact Phase 3 Style Regression", () => {
         it("All compact input-based components have same height", () => {
             render(
                 <>
-                    <Select
-                        label="Select"
-                        data={["Option"]}
-                        size="compact"
-                    />
-                    <PasswordInput
-                        label="Password"
-                        size="compact"
-                    />
-                    <Autocomplete
-                        label="Autocomplete"
-                        data={["Option"]}
-                        size="compact"
-                    />
+                    <Select label="Select" data={["Option"]} size="compact" />
+                    <PasswordInput label="Password" size="compact" />
+                    <Autocomplete label="Autocomplete" data={["Option"]} size="compact" />
                 </>,
             );
 

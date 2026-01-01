@@ -11,19 +11,19 @@ Changesets automatically generates and maintains CHANGELOG.md files for each pac
 When you create changesets during development:
 
 ```markdown
-<!-- .changeset/brave-lions-jump.md -->
----
-"@graphty/algorithms": minor
----
+## <!-- .changeset/brave-lions-jump.md -->
+
+## "@graphty/algorithms": minor
 
 Added new PageRank algorithm with customizable damping factor
 ```
 
 ```markdown
-<!-- .changeset/silly-pandas-dance.md -->
----
+## <!-- .changeset/silly-pandas-dance.md -->
+
 "@graphty/algorithms": patch
 "@graphty/layout": patch
+
 ---
 
 Fixed edge weight calculations in shortest path algorithms
@@ -32,6 +32,7 @@ Fixed edge weight calculations in shortest path algorithms
 ### 2. Running `changeset version`
 
 This command:
+
 1. Reads all changeset files
 2. Groups them by package
 3. Determines the highest version bump needed
@@ -58,7 +59,7 @@ This command:
 ### Minor Changes
 
 - Added Bellman-Ford algorithm for negative edge weights
-- Implemented A* pathfinding with heuristic support
+- Implemented A\* pathfinding with heuristic support
 
 ### Patch Changes
 
@@ -88,7 +89,7 @@ The default changelog generator (`@changesets/cli/changelog`) produces:
 
 - Bug fix description
 - Updated dependencies
-  - @graphty/types@1.0.2
+    - @graphty/types@1.0.2
 ```
 
 ### With Commit Links (GitHub)
@@ -98,7 +99,7 @@ Using `@changesets/changelog-github`:
 ```json
 // .changeset/config.json
 {
-  "changelog": ["@changesets/changelog-github", { "repo": "graphty-org/graphty" }]
+    "changelog": ["@changesets/changelog-github", { "repo": "graphty-org/graphty" }]
 }
 ```
 
@@ -130,12 +131,12 @@ npm install -D @changesets/changelog-git
 
 ```json
 {
-  "changelog": [
-    "@changesets/changelog-github",
-    {
-      "repo": "graphty-org/graphty"
-    }
-  ]
+    "changelog": [
+        "@changesets/changelog-github",
+        {
+            "repo": "graphty-org/graphty"
+        }
+    ]
 }
 ```
 
@@ -146,30 +147,28 @@ Create your own:
 ```javascript
 // .changeset/changelog-custom.js
 const getReleaseLine = async (changeset, type, options) => {
-  const [firstLine, ...futureLines] = changeset.summary
-    .split("\n")
-    .map(l => l.trimRight());
+    const [firstLine, ...futureLines] = changeset.summary.split("\n").map((l) => l.trimRight());
 
-  let returnVal = `- ${changeset.commit ? `${changeset.commit}: ` : ""}${firstLine}`;
+    let returnVal = `- ${changeset.commit ? `${changeset.commit}: ` : ""}${firstLine}`;
 
-  if (futureLines.length > 0) {
-    returnVal += `\n${futureLines.map(l => `  ${l}`).join("\n")}`;
-  }
+    if (futureLines.length > 0) {
+        returnVal += `\n${futureLines.map((l) => `  ${l}`).join("\n")}`;
+    }
 
-  return returnVal;
+    return returnVal;
 };
 
 module.exports = {
-  getReleaseLine,
-  getDependencyReleaseLine: async (changesets, dependenciesUpdated) => {
-    if (dependenciesUpdated.length === 0) return "";
-    
-    const updatedDependenciesList = dependenciesUpdated
-      .map(dep => `  - ${dep.name}@${dep.newVersion}`)
-      .join("\n");
+    getReleaseLine,
+    getDependencyReleaseLine: async (changesets, dependenciesUpdated) => {
+        if (dependenciesUpdated.length === 0) return "";
 
-    return `- Updated dependencies\n${updatedDependenciesList}`;
-  }
+        const updatedDependenciesList = dependenciesUpdated
+            .map((dep) => `  - ${dep.name}@${dep.newVersion}`)
+            .join("\n");
+
+        return `- Updated dependencies\n${updatedDependenciesList}`;
+    },
 };
 ```
 
@@ -178,6 +177,7 @@ module.exports = {
 When you have changes across multiple packages:
 
 ### Changeset File
+
 ```markdown
 ---
 "@graphty/algorithms": minor
@@ -195,6 +195,7 @@ Implemented new clustering algorithms suite
 ### Generated Changelogs
 
 **packages/algorithms/CHANGELOG.md:**
+
 ```markdown
 # @graphty/algorithms
 
@@ -203,12 +204,13 @@ Implemented new clustering algorithms suite
 ### Minor Changes
 
 - Implemented new clustering algorithms suite
-  - **algorithms**: Added k-means and hierarchical clustering
-  - **layout**: New cluster-based layout using the clustering algorithms
-  - **graphty-element**: Fixed cluster visualization rendering bug
+    - **algorithms**: Added k-means and hierarchical clustering
+    - **layout**: New cluster-based layout using the clustering algorithms
+    - **graphty-element**: Fixed cluster visualization rendering bug
 ```
 
 **packages/layout/CHANGELOG.md:**
+
 ```markdown
 # @graphty/layout
 
@@ -217,17 +219,18 @@ Implemented new clustering algorithms suite
 ### Minor Changes
 
 - Implemented new clustering algorithms suite
-  - **algorithms**: Added k-means and hierarchical clustering
-  - **layout**: New cluster-based layout using the clustering algorithms
-  - **graphty-element**: Fixed cluster visualization rendering bug
+    - **algorithms**: Added k-means and hierarchical clustering
+    - **layout**: New cluster-based layout using the clustering algorithms
+    - **graphty-element**: Fixed cluster visualization rendering bug
 
 ### Patch Changes
 
 - Updated dependencies
-  - @graphty/algorithms@1.3.0
+    - @graphty/algorithms@1.3.0
 ```
 
 **packages/graphty-element/CHANGELOG.md:**
+
 ```markdown
 # @graphty/graphty-element
 
@@ -236,12 +239,12 @@ Implemented new clustering algorithms suite
 ### Patch Changes
 
 - Implemented new clustering algorithms suite
-  - **algorithms**: Added k-means and hierarchical clustering
-  - **layout**: New cluster-based layout using the clustering algorithms
-  - **graphty-element**: Fixed cluster visualization rendering bug
+    - **algorithms**: Added k-means and hierarchical clustering
+    - **layout**: New cluster-based layout using the clustering algorithms
+    - **graphty-element**: Fixed cluster visualization rendering bug
 - Updated dependencies
-  - @graphty/algorithms@1.3.0
-  - @graphty/layout@1.3.0
+    - @graphty/algorithms@1.3.0
+    - @graphty/layout@1.3.0
 ```
 
 ## Dependency Updates
@@ -250,7 +253,7 @@ When `updateInternalDependencies` is configured:
 
 ```json
 {
-  "updateInternalDependencies": "patch"
+    "updateInternalDependencies": "patch"
 }
 ```
 
@@ -262,7 +265,7 @@ Dependent packages automatically get entries:
 ### Patch Changes
 
 - Updated dependencies
-  - @graphty/algorithms@1.3.0
+    - @graphty/algorithms@1.3.0
 ```
 
 ## Managing Existing Changelogs
@@ -270,6 +273,7 @@ Dependent packages automatically get entries:
 ### First Time Setup
 
 If you already have CHANGELOG.md files:
+
 1. Changesets will append to existing content
 2. It preserves your existing format
 3. Adds new entries at the top
@@ -285,17 +289,15 @@ If you already have CHANGELOG.md files:
 ### 1. Write User-Focused Summaries
 
 ```markdown
-❌ Bad:
----
-"@graphty/algorithms": patch
----
+## ❌ Bad:
+
+## "@graphty/algorithms": patch
 
 Fixed bug in dijkstra.ts line 45
 
-✅ Good:
----
-"@graphty/algorithms": patch  
----
+## ✅ Good:
+
+## "@graphty/algorithms": patch
 
 Fixed Dijkstra's algorithm incorrectly handling disconnected nodes
 ```
@@ -329,6 +331,7 @@ Instead of multiple changesets, use one comprehensive one:
 Added graph partitioning feature set
 
 **New Features:**
+
 - Kernighan-Lin algorithm for balanced graph partitioning
 - Spectral partitioning using eigenvalue decomposition
 - Layout algorithm that respects partition boundaries
@@ -345,12 +348,13 @@ The Changesets GitHub Action creates a PR with changelog preview:
 - name: Create Release Pull Request
   uses: changesets/action@v1
   with:
-    title: "Version Packages"
-    commit: "Version Packages"
-    version: npm run version
+      title: "Version Packages"
+      commit: "Version Packages"
+      version: npm run version
 ```
 
 This creates a PR showing:
+
 - All version bumps
 - Generated changelog entries
 - Dependency updates
@@ -364,18 +368,19 @@ For better organization, you can create sections:
 ```javascript
 // Custom changelog generator
 const getReleaseLine = async (changeset, type) => {
-  const lines = changeset.summary.split('\n');
-  const category = lines[0].match(/^\[(.*?)\]/) ? lines[0].match(/^\[(.*?)\]/)[1] : null;
-  
-  if (category) {
-    return `- **${category}**: ${lines[0].replace(/^\[.*?\]\s*/, '')}`;
-  }
-  
-  return `- ${lines[0]}`;
+    const lines = changeset.summary.split("\n");
+    const category = lines[0].match(/^\[(.*?)\]/) ? lines[0].match(/^\[(.*?)\]/)[1] : null;
+
+    if (category) {
+        return `- **${category}**: ${lines[0].replace(/^\[.*?\]\s*/, "")}`;
+    }
+
+    return `- ${lines[0]}`;
 };
 ```
 
 Then write changesets like:
+
 ```markdown
 ---
 "@graphty/algorithms": minor
@@ -385,6 +390,7 @@ Then write changesets like:
 ```
 
 Results in:
+
 ```markdown
 ### Minor Changes
 
@@ -394,6 +400,7 @@ Results in:
 ## Summary
 
 Changesets handles changelog generation by:
+
 1. **Collecting** all changeset files
 2. **Grouping** by package and version type
 3. **Formatting** according to your chosen generator

@@ -1,8 +1,8 @@
-import {afterEach, assert, beforeEach, describe, type MockInstance, test, vi} from "vitest";
+import { afterEach, assert, beforeEach, describe, type MockInstance, test, vi } from "vitest";
 
-import {GraphtyLogger} from "../../../src/logging/GraphtyLogger.js";
-import {configureLogging, getLoggingConfig, resetLoggingConfig} from "../../../src/logging/LoggerConfig.js";
-import {LogLevel, type Sink} from "../../../src/logging/types.js";
+import { GraphtyLogger } from "../../../src/logging/GraphtyLogger.js";
+import { configureLogging, getLoggingConfig, resetLoggingConfig } from "../../../src/logging/LoggerConfig.js";
+import { LogLevel, type Sink } from "../../../src/logging/types.js";
 
 // Empty mock function to satisfy linter
 function noop(): void {
@@ -35,12 +35,12 @@ describe("Programmatic API", () => {
     });
 
     describe("GraphtyLogger.configure()", () => {
-        test("should configure logging via GraphtyLogger.configure()", async() => {
+        test("should configure logging via GraphtyLogger.configure()", async () => {
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             assert.strictEqual(GraphtyLogger.isEnabled(), true);
@@ -51,24 +51,24 @@ describe("Programmatic API", () => {
             assert.deepStrictEqual(config.modules, "*");
         });
 
-        test("should configure with specific modules", async() => {
+        test("should configure with specific modules", async () => {
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.INFO,
                 modules: ["layout", "xr"],
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const config = getLoggingConfig();
             assert.deepStrictEqual(config.modules, ["layout", "xr"]);
         });
 
-        test("should configure with remote log URL", async() => {
+        test("should configure with remote log URL", async () => {
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
                 remoteLogUrl: "https://localhost:9080",
             });
 
@@ -78,7 +78,7 @@ describe("Programmatic API", () => {
             assert.isNotNull(remoteSink, "Remote sink should be registered");
         });
 
-        test("should configure with custom sinks", async() => {
+        test("should configure with custom sinks", async () => {
             const customSink: Sink = {
                 name: "test-sink",
                 write: vi.fn(),
@@ -88,7 +88,7 @@ describe("Programmatic API", () => {
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
                 sinks: [customSink],
             });
 
@@ -99,12 +99,12 @@ describe("Programmatic API", () => {
     });
 
     describe("getLogger for custom category", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
         });
 
@@ -118,10 +118,7 @@ describe("Programmatic API", () => {
             const logger = GraphtyLogger.getLogger(["graphty", "custom", "module"]);
             logger.info("test message");
 
-            const allCalls = [
-                ... consoleDebugSpy.mock.calls,
-                ... consoleInfoSpy.mock.calls,
-            ];
+            const allCalls = [...consoleDebugSpy.mock.calls, ...consoleInfoSpy.mock.calls];
 
             const hasCategory = allCalls.some((call) =>
                 call.some((arg: unknown) => typeof arg === "string" && arg.includes("custom.module")),
@@ -133,10 +130,7 @@ describe("Programmatic API", () => {
             const logger = GraphtyLogger.getLogger(["graphty", "a", "b", "c", "d"]);
             logger.info("nested test");
 
-            const allCalls = [
-                ... consoleDebugSpy.mock.calls,
-                ... consoleInfoSpy.mock.calls,
-            ];
+            const allCalls = [...consoleDebugSpy.mock.calls, ...consoleInfoSpy.mock.calls];
 
             const hasCategory = allCalls.some((call) =>
                 call.some((arg: unknown) => typeof arg === "string" && arg.includes("a.b.c.d")),
@@ -146,13 +140,13 @@ describe("Programmatic API", () => {
     });
 
     describe("dynamically enable/disable modules", () => {
-        test("should dynamically enable modules", async() => {
+        test("should dynamically enable modules", async () => {
             // Start with only layout enabled
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: ["layout"],
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const xrLogger = GraphtyLogger.getLogger(["graphty", "xr"]);
@@ -164,7 +158,7 @@ describe("Programmatic API", () => {
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: ["layout", "xr"],
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             xrLogger.info("this should log");
@@ -172,13 +166,13 @@ describe("Programmatic API", () => {
             assert.isTrue(totalCalls > 0, "Expected XR logger to log after enabling module");
         });
 
-        test("should dynamically disable modules", async() => {
+        test("should dynamically disable modules", async () => {
             // Start with all modules enabled
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const layoutLogger = GraphtyLogger.getLogger(["graphty", "layout"]);
@@ -191,7 +185,7 @@ describe("Programmatic API", () => {
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: ["xr"], // layout is no longer enabled
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             vi.clearAllMocks();
@@ -199,13 +193,13 @@ describe("Programmatic API", () => {
             assert.strictEqual(consoleInfoSpy.mock.calls.length, 0, "Layout should not log after being disabled");
         });
 
-        test("should enable all modules with '*'", async() => {
+        test("should enable all modules with '*'", async () => {
             // Start with specific modules
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: ["layout"],
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             // Enable all modules
@@ -213,7 +207,7 @@ describe("Programmatic API", () => {
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const xrLogger = GraphtyLogger.getLogger(["graphty", "xr"]);
@@ -224,12 +218,12 @@ describe("Programmatic API", () => {
     });
 
     describe("change log level at runtime", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.INFO,
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
         });
 
@@ -245,7 +239,7 @@ describe("Programmatic API", () => {
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             // Now DEBUG should log
@@ -267,7 +261,7 @@ describe("Programmatic API", () => {
                 enabled: true,
                 level: LogLevel.WARN,
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             // INFO should no longer log
@@ -287,7 +281,7 @@ describe("Programmatic API", () => {
                 enabled: true,
                 level: LogLevel.TRACE,
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             logger.trace("trace message");
@@ -307,7 +301,7 @@ describe("Programmatic API", () => {
                 enabled: true,
                 level: LogLevel.SILENT,
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             logger.error("error message");
@@ -327,12 +321,12 @@ describe("Programmatic API", () => {
     });
 
     describe("register custom sinks", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
         });
 
@@ -359,7 +353,7 @@ describe("Programmatic API", () => {
             GraphtyLogger.addSink(customSink);
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
-            logger.info("test message", {key: "value"});
+            logger.info("test message", { key: "value" });
 
             assert.isTrue(writeFn.mock.calls.length > 0, "Custom sink should receive log record");
 
@@ -367,7 +361,7 @@ describe("Programmatic API", () => {
             assert.strictEqual(record.message, "test message");
             assert.deepStrictEqual(record.category, ["graphty", "test"]);
             assert.strictEqual(record.level, LogLevel.INFO);
-            assert.deepStrictEqual(record.data, {key: "value"});
+            assert.deepStrictEqual(record.data, { key: "value" });
         });
 
         test("should remove sink by name", () => {
@@ -399,8 +393,8 @@ describe("Programmatic API", () => {
             const writeFn1 = vi.fn();
             const writeFn2 = vi.fn();
 
-            GraphtyLogger.addSink({name: "sink1", write: writeFn1});
-            GraphtyLogger.addSink({name: "sink2", write: writeFn2});
+            GraphtyLogger.addSink({ name: "sink1", write: writeFn1 });
+            GraphtyLogger.addSink({ name: "sink2", write: writeFn2 });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
             logger.info("multi-sink test");
@@ -411,12 +405,12 @@ describe("Programmatic API", () => {
     });
 
     describe("getLoggingConfig()", () => {
-        test("should return current configuration", async() => {
+        test("should return current configuration", async () => {
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.WARN,
                 modules: ["test", "layout"],
-                format: {timestamp: false, module: true, colors: true},
+                format: { timestamp: false, module: true, colors: true },
             });
 
             const config = getLoggingConfig();

@@ -1,5 +1,5 @@
-import {createHash} from "crypto";
-import {chromium} from "playwright";
+import { createHash } from "crypto";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 
@@ -13,7 +13,7 @@ async function testStoryConsistency(page, storyId) {
 
         // Navigate to story
         await page.goto(`${STORYBOOK_URL}/iframe.html?id=${storyId}&viewMode=story`);
-        await page.waitForSelector("graphty-element", {timeout: 15000});
+        await page.waitForSelector("graphty-element", { timeout: 15000 });
 
         // Wait for Storybook play function to complete (if any)
         await page.waitForTimeout(8000);
@@ -38,17 +38,14 @@ async function testStoryConsistency(page, storyId) {
         console.log(`    Hash differences: ${hashes.map((h) => h.substring(0, 8)).join(", ")}`);
     }
 
-    return {storyId, consistent: allIdentical, hashes};
+    return { storyId, consistent: allIdentical, hashes };
 }
 
 async function main() {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
-    const stories = [
-        "layout-3d--ngraph",
-        "layout-3d--d-3",
-    ];
+    const stories = ["layout-3d--ngraph", "layout-3d--d-3"];
 
     const results = [];
 

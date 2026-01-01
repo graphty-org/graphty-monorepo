@@ -4,9 +4,9 @@
  * @module ai/keys/ApiKeyManager
  */
 
-import {EncryptStorage} from "encrypt-storage";
+import { EncryptStorage } from "encrypt-storage";
 
-import type {ProviderType} from "../providers";
+import type { ProviderType } from "../providers";
 
 /**
  * Configuration options for enabling persistence.
@@ -51,7 +51,7 @@ export class ApiKeyManager {
         }
 
         this.persistenceConfig = {
-            ... config,
+            ...config,
             prefix: config.prefix ?? DEFAULT_STORAGE_PREFIX,
         };
 

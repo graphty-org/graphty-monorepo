@@ -1,4 +1,4 @@
-import type {RichTextStyle, TextSegment} from "./RichTextLabel.ts";
+import type { RichTextStyle, TextSegment } from "./RichTextLabel.ts";
 
 /**
  * Parses rich text markup into styled text segments
@@ -35,9 +35,7 @@ export class RichTextParser {
         const segments: TextSegment[] = [];
         let currentPos = 0;
 
-        const styleStack: RichTextStyle[] = [
-            Object.assign({}, this.defaultStyle),
-        ];
+        const styleStack: RichTextStyle[] = [Object.assign({}, this.defaultStyle)];
 
         const tagRegex = /<(\/?)(bold|italic|color|size|font|bg)(?:='([^']*)')?>/g;
         let match;
@@ -118,7 +116,7 @@ export class RichTextParser {
             textOutline: boolean;
             textOutlineWidth: number;
         },
-    ): {maxWidth: number, totalHeight: number} {
+    ): { maxWidth: number; totalHeight: number } {
         let maxWidth = 0;
         let totalHeight = 0;
 
@@ -127,7 +125,7 @@ export class RichTextParser {
             let maxLineHeight = 0;
 
             for (const segment of lineSegments) {
-                const {style} = segment;
+                const { style } = segment;
 
                 ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
                 const metrics = ctx.measureText(segment.text);
@@ -145,6 +143,6 @@ export class RichTextParser {
             totalHeight += maxLineHeight * options.lineHeight;
         }
 
-        return {maxWidth, totalHeight};
+        return { maxWidth, totalHeight };
     }
 }

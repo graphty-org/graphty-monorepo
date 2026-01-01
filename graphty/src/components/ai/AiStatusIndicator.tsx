@@ -1,7 +1,7 @@
-import {Badge, Group, Loader, Text, Tooltip} from "@mantine/core";
-import {AlertCircle, CheckCircle, Circle, Cpu, Sparkles, Zap} from "lucide-react";
+import { Badge, Group, Loader, Text, Tooltip } from "@mantine/core";
+import { AlertCircle, CheckCircle, Circle, Cpu, Sparkles, Zap } from "lucide-react";
 
-import type {AiStage, AiStatus} from "../../types/ai";
+import type { AiStage, AiStatus } from "../../types/ai";
 
 interface AiStatusIndicatorProps {
     /** Current AI status */
@@ -42,6 +42,14 @@ const STAGE_LABELS: Record<AiStage, string> = {
     error: "Error",
 };
 
+/**
+ * Displays the current AI processing status with an icon and optional text.
+ * @param root0 - Component props
+ * @param root0.status - Current AI status
+ * @param root0.size - Size variant for the indicator
+ * @param root0.showText - Whether to show detailed status text
+ * @returns The AI status indicator component
+ */
 export function AiStatusIndicator({
     status,
     size = "md",
@@ -67,8 +75,8 @@ export function AiStatusIndicator({
         detailText = status.error.message;
     }
 
-    const sizeMap = {sm: "xs", md: "sm", lg: "md"} as const;
-    const iconSizeMap = {sm: 12, md: 14, lg: 16} as const;
+    const sizeMap = { sm: "xs", md: "sm", lg: "md" } as const;
+    const iconSizeMap = { sm: 12, md: 14, lg: 16 } as const;
     const badgeSize = sizeMap[size];
     const iconSize = iconSizeMap[size];
 
@@ -79,13 +87,7 @@ export function AiStatusIndicator({
                     color={color}
                     variant="light"
                     size={badgeSize}
-                    leftSection={
-                        stage === "processing" ? (
-                            <Loader size={iconSize} />
-                        ) : (
-                            <Cpu size={iconSize} />
-                        )
-                    }
+                    leftSection={stage === "processing" ? <Loader size={iconSize} /> : <Cpu size={iconSize} />}
                 >
                     {label}
                 </Badge>
@@ -95,12 +97,7 @@ export function AiStatusIndicator({
 
     return (
         <Group gap="xs">
-            <Badge
-                color={color}
-                variant="light"
-                size={badgeSize}
-                leftSection={icon}
-            >
+            <Badge color={color} variant="light" size={badgeSize} leftSection={icon}>
                 {label}
             </Badge>
             {detailText !== label && (

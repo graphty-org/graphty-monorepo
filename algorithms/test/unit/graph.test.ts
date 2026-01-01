@@ -1,6 +1,6 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {Graph} from "../../src/core/graph.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Graph", () => {
     describe("constructor", () => {
@@ -13,7 +13,7 @@ describe("Graph", () => {
         });
 
         it("should create a directed graph when specified", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             expect(graph.isDirected).toBe(true);
         });
@@ -40,7 +40,7 @@ describe("Graph", () => {
 
         it("should add node with data", () => {
             const graph = new Graph();
-            const data = {label: "Node A", color: "red"};
+            const data = { label: "Node A", color: "red" };
 
             graph.addNode("a", data);
 
@@ -79,7 +79,7 @@ describe("Graph", () => {
         });
 
         it("should create unidirectional edges for directed graphs", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
 
@@ -89,7 +89,7 @@ describe("Graph", () => {
 
         it("should add edge with weight and data", () => {
             const graph = new Graph();
-            const data = {type: "road", speed: 60};
+            const data = { type: "road", speed: 60 };
 
             graph.addEdge("a", "b", 5, data);
 
@@ -139,7 +139,7 @@ describe("Graph", () => {
         });
 
         it("should remove an edge from directed graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
 
@@ -171,7 +171,7 @@ describe("Graph", () => {
         });
 
         it("should calculate in-degree and out-degree for directed graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
             graph.addEdge("c", "a");
@@ -308,7 +308,7 @@ describe("Graph", () => {
         });
 
         it("should handle inNeighbors for directed graph", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addEdge("A", "B");
             directedGraph.addEdge("C", "B");
 
@@ -318,7 +318,7 @@ describe("Graph", () => {
         });
 
         it("should handle inNeighbors for non-existent node", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             const inNeighbors = Array.from(directedGraph.inNeighbors("X"));
             expect(inNeighbors).toHaveLength(0);
         });
@@ -337,7 +337,7 @@ describe("Graph", () => {
         });
 
         it("should handle removing edges from directed graph", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addEdge("A", "B");
             directedGraph.addEdge("B", "C");
             directedGraph.addEdge("C", "A");
@@ -361,7 +361,7 @@ describe("Graph", () => {
         });
 
         it("should correctly count edges in directed graph", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addEdge("A", "B");
             directedGraph.addEdge("B", "A");
             directedGraph.addEdge("B", "C");

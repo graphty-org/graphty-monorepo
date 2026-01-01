@@ -1,13 +1,13 @@
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {Graph} from "../../src/Graph";
+import { Graph } from "../../src/Graph";
 
 describe("Graph Batch Integration - Deferred Promises", () => {
     let container: HTMLElement;
     let graph: Graph;
     let executionOrder: string[];
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         container = document.createElement("div");
         container.style.width = "800px";
         container.style.height = "600px";
@@ -31,15 +31,15 @@ describe("Graph Batch Integration - Deferred Promises", () => {
     });
 
     describe("Basic Batching with Await", () => {
-        it("should enter and exit batch mode correctly", async() => {
+        it("should enter and exit batch mode correctly", async () => {
             // Test the batch mode mechanism itself
             expect(graph.operationQueue.isInBatchMode()).toBe(false);
 
             let insideBatch = false;
-            await graph.batchOperations(async() => {
+            await graph.batchOperations(async () => {
                 insideBatch = graph.operationQueue.isInBatchMode();
                 // Queue some operations (they may or may not execute properly)
-                await graph.addNodes([{id: "1", label: "Node 1"}], "id");
+                await graph.addNodes([{ id: "1", label: "Node 1" }], "id");
             });
 
             // Should have been in batch mode inside the callback
@@ -48,11 +48,11 @@ describe("Graph Batch Integration - Deferred Promises", () => {
             expect(graph.operationQueue.isInBatchMode()).toBe(false);
         });
 
-        it("should execute operations in dependency order despite call order", async() => {
-            await graph.batchOperations(async() => {
+        it("should execute operations in dependency order despite call order", async () => {
+            await graph.batchOperations(async () => {
                 // Call in wrong order intentionally
                 await graph.setLayout("ngraph");
-                await graph.addNodes([{id: "1"}]);
+                await graph.addNodes([{ id: "1" }]);
                 await graph.setStyleTemplate({
                     graphtyTemplate: true,
                     majorVersion: "1",
@@ -90,17 +90,19 @@ describe("Graph Batch Integration - Deferred Promises", () => {
                             pinOnDrag: false,
                         },
                     },
-                    layers: [{
-                        node: {
-                            selector: "*",
-                            style: {
-                                texture: {
-                                    color: "blue",
+                    layers: [
+                        {
+                            node: {
+                                selector: "*",
+                                style: {
+                                    texture: {
+                                        color: "blue",
+                                    },
+                                    enabled: true,
                                 },
-                                enabled: true,
                             },
                         },
-                    }],
+                    ],
                 });
             });
 
@@ -120,57 +122,57 @@ describe("Graph Batch Integration - Deferred Promises", () => {
     });
 
     describe("Sequential Batches", () => {
-        it("should handle multiple sequential batches correctly", async() => {
+        it("should handle multiple sequential batches correctly", async () => {
             // First batch
-            await graph.batchOperations(async() => {
-                await graph.addNodes([{id: "1"}]);
+            await graph.batchOperations(async () => {
+                await graph.addNodes([{ id: "1" }]);
             });
 
             expect(graph.getNodeCount()).toBe(1);
 
             // Second batch
-            await graph.batchOperations(async() => {
-                await graph.addNodes([{id: "2"}]);
+            await graph.batchOperations(async () => {
+                await graph.addNodes([{ id: "2" }]);
             });
 
             expect(graph.getNodeCount()).toBe(2);
 
             // Third batch
-            await graph.batchOperations(async() => {
-                await graph.addEdges([{source: "1", target: "2"}], "source", "target");
+            await graph.batchOperations(async () => {
+                await graph.addEdges([{ source: "1", target: "2" }], "source", "target");
             });
 
             expect(graph.getEdgeCount()).toBe(1);
         });
 
-        it.skip("should isolate batches from each other", async() => {
+        it.skip("should isolate batches from each other", async () => {
             const batch1Order: string[] = [];
             const batch2Order: string[] = [];
 
             // Remove global listener and add specific ones
             // Note: Graph doesn't have off method, using a different approach
 
-            await graph.batchOperations(async() => {
+            await graph.batchOperations(async () => {
                 graph.on("operation-start", (event) => {
                     const category = (event as Record<string, unknown>).category as string;
                     if (category) {
                         batch1Order.push(category);
                     }
                 });
-                await graph.addNodes([{id: "1"}]);
+                await graph.addNodes([{ id: "1" }]);
                 await graph.setLayout("random");
             });
 
             // Note: Can't remove listener, will need different approach for isolation
 
-            await graph.batchOperations(async() => {
+            await graph.batchOperations(async () => {
                 graph.on("operation-start", (event) => {
                     const category = (event as Record<string, unknown>).category as string;
                     if (category) {
                         batch2Order.push(category);
                     }
                 });
-                await graph.addNodes([{id: "2"}]);
+                await graph.addNodes([{ id: "2" }]);
                 await graph.setLayout("circular");
             });
 
@@ -183,15 +185,17 @@ describe("Graph Batch Integration - Deferred Promises", () => {
     });
 
     describe("Error Handling", () => {
-        it("should handle errors in batch operations gracefully", async() => {
-            const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => { /* Ignore */ });
+        it("should handle errors in batch operations gracefully", async () => {
+            const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {
+                /* Ignore */
+            });
 
             try {
-                await graph.batchOperations(async() => {
-                    await graph.addNodes([{id: "1"}]);
+                await graph.batchOperations(async () => {
+                    await graph.addNodes([{ id: "1" }]);
                     // This might cause an error if the edge references don't exist yet
-                    await graph.addEdges([{source: "999", target: "888"}], "source", "target");
-                    await graph.addNodes([{id: "2"}]);
+                    await graph.addEdges([{ source: "999", target: "888" }], "source", "target");
+                    await graph.addNodes([{ id: "2" }]);
                 });
             } catch {
                 // Error is expected
@@ -203,13 +207,13 @@ describe("Graph Batch Integration - Deferred Promises", () => {
             consoleSpy.mockRestore();
         });
 
-        it("should maintain atomicity within reasonable limits", async() => {
+        it("should maintain atomicity within reasonable limits", async () => {
             const initialNodeCount = graph.getNodeCount();
 
-            await graph.batchOperations(async() => {
-                await graph.addNodes([{id: "1"}]);
-                await graph.addNodes([{id: "2"}]);
-                await graph.addNodes([{id: "3"}]);
+            await graph.batchOperations(async () => {
+                await graph.addNodes([{ id: "1" }]);
+                await graph.addNodes([{ id: "2" }]);
+                await graph.addNodes([{ id: "3" }]);
             });
 
             // All three nodes should be added
@@ -218,16 +222,16 @@ describe("Graph Batch Integration - Deferred Promises", () => {
     });
 
     describe("Complex Operations", () => {
-        it("should handle mixed synchronous and asynchronous operations", async() => {
-            await graph.batchOperations(async() => {
+        it("should handle mixed synchronous and asynchronous operations", async () => {
+            await graph.batchOperations(async () => {
                 // Sync operation
-                await graph.addNodes([{id: "1"}]);
+                await graph.addNodes([{ id: "1" }]);
 
                 // Async operation with await
-                await graph.addNodes([{id: "2"}]);
+                await graph.addNodes([{ id: "2" }]);
 
                 // Another sync operation
-                await graph.addNodes([{id: "3"}]);
+                await graph.addNodes([{ id: "3" }]);
 
                 // Final async operation
                 await graph.setLayout("random");
@@ -237,17 +241,17 @@ describe("Graph Batch Integration - Deferred Promises", () => {
             expect(graph.getNodeCount()).toBe(3);
         });
 
-        it("should work with conditional logic inside batch", async() => {
+        it("should work with conditional logic inside batch", async () => {
             // Test condition is always true for this test case
             const shouldAddEdge = true;
 
-            await graph.batchOperations(async() => {
-                await graph.addNodes([{id: "1"}]);
-                await graph.addNodes([{id: "2"}]);
+            await graph.batchOperations(async () => {
+                await graph.addNodes([{ id: "1" }]);
+                await graph.addNodes([{ id: "2" }]);
 
-                // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+                 
                 if (shouldAddEdge) {
-                    await graph.addEdges([{source: "1", target: "2"}], "source", "target");
+                    await graph.addEdges([{ source: "1", target: "2" }], "source", "target");
                 }
 
                 await graph.setLayout("circular");
@@ -257,20 +261,26 @@ describe("Graph Batch Integration - Deferred Promises", () => {
             expect(graph.getEdgeCount()).toBe(1);
         });
 
-        it("should handle loops inside batch operations", async() => {
+        it("should handle loops inside batch operations", async () => {
             const nodeIds = ["1", "2", "3", "4", "5"];
 
-            await graph.batchOperations(async() => {
+            await graph.batchOperations(async () => {
                 for (const id of nodeIds) {
-                    await graph.addNodes([{id, label: `Node ${id}`}]);
+                    await graph.addNodes([{ id, label: `Node ${id}` }]);
                 }
 
                 // Add edges in a chain
                 for (let i = 0; i < nodeIds.length - 1; i++) {
-                    await graph.addEdges([{
-                        source: nodeIds[i],
-                        target: nodeIds[i + 1],
-                    }], "source", "target");
+                    await graph.addEdges(
+                        [
+                            {
+                                source: nodeIds[i],
+                                target: nodeIds[i + 1],
+                            },
+                        ],
+                        "source",
+                        "target",
+                    );
                 }
             });
 
@@ -280,41 +290,41 @@ describe("Graph Batch Integration - Deferred Promises", () => {
     });
 
     describe("Backwards Compatibility", () => {
-        it("should maintain backwards compatibility with skipQueue option", async() => {
-            await graph.batchOperations(async() => {
+        it("should maintain backwards compatibility with skipQueue option", async () => {
+            await graph.batchOperations(async () => {
                 // With skipQueue, operations should execute immediately
-                await graph.addNodes([{id: "1"}], undefined, {skipQueue: true});
-                await graph.addNodes([{id: "2"}], undefined, {skipQueue: false});
+                await graph.addNodes([{ id: "1" }], undefined, { skipQueue: true });
+                await graph.addNodes([{ id: "2" }], undefined, { skipQueue: false });
             });
 
             expect(graph.getNodeCount()).toBeGreaterThanOrEqual(1);
         });
 
-        it("should work with operations called outside batchOperations", async() => {
+        it("should work with operations called outside batchOperations", async () => {
             // Normal operation
-            await graph.addNodes([{id: "1"}]);
+            await graph.addNodes([{ id: "1" }]);
 
             // Batch operation
-            await graph.batchOperations(async() => {
-                await graph.addNodes([{id: "2"}]);
-                await graph.addNodes([{id: "3"}]);
+            await graph.batchOperations(async () => {
+                await graph.addNodes([{ id: "2" }]);
+                await graph.addNodes([{ id: "3" }]);
             });
 
             // Another normal operation
-            await graph.addNodes([{id: "4"}]);
+            await graph.addNodes([{ id: "4" }]);
 
             expect(graph.getNodeCount()).toBe(4);
         });
     });
 
     describe("Performance", () => {
-        it("should handle large batches efficiently", async() => {
+        it("should handle large batches efficiently", async () => {
             const startTime = Date.now();
             const nodeCount = 100;
 
-            await graph.batchOperations(async() => {
+            await graph.batchOperations(async () => {
                 for (let i = 0; i < nodeCount; i++) {
-                    await graph.addNodes([{id: `node-${i}`, label: `Node ${i}`}]);
+                    await graph.addNodes([{ id: `node-${i}`, label: `Node ${i}` }]);
                 }
             });
 
@@ -326,7 +336,7 @@ describe("Graph Batch Integration - Deferred Promises", () => {
             expect(duration).toBeLessThan(2000);
         });
 
-        it("should benefit from operation coalescing in batches", async() => {
+        it("should benefit from operation coalescing in batches", async () => {
             let layoutUpdateCount = 0;
 
             graph.on("operation-complete", (event) => {
@@ -336,13 +346,13 @@ describe("Graph Batch Integration - Deferred Promises", () => {
                 }
             });
 
-            await graph.batchOperations(async() => {
+            await graph.batchOperations(async () => {
                 // Multiple data operations that might trigger layout updates
-                await graph.addNodes([{id: "1"}]);
-                await graph.addNodes([{id: "2"}]);
-                await graph.addNodes([{id: "3"}]);
-                await graph.addNodes([{id: "4"}]);
-                await graph.addNodes([{id: "5"}]);
+                await graph.addNodes([{ id: "1" }]);
+                await graph.addNodes([{ id: "2" }]);
+                await graph.addNodes([{ id: "3" }]);
+                await graph.addNodes([{ id: "4" }]);
+                await graph.addNodes([{ id: "5" }]);
             });
 
             // Layout updates should be coalesced (if implemented)

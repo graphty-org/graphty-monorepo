@@ -1,11 +1,8 @@
-import type {StorybookConfig} from "@storybook/react-vite";
+import type { StorybookConfig } from "@storybook/react-vite";
 
 const config: StorybookConfig = {
     stories: ["../src/**/*.mdx", "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"],
-    addons: [
-        "@storybook/addon-docs",
-        "@chromatic-com/storybook",
-    ],
+    addons: ["@storybook/addon-docs", "@chromatic-com/storybook"],
     framework: {
         name: "@storybook/react-vite",
         options: {},
@@ -22,7 +19,7 @@ const config: StorybookConfig = {
     core: {
         disableTelemetry: true,
     },
-    async viteFinal(config, {configType}) {
+    async viteFinal(config, { configType }) {
         const fs = await import("fs");
         const path = await import("path");
         const os = await import("os");
@@ -51,7 +48,7 @@ const config: StorybookConfig = {
             };
         }
 
-        const {mergeConfig} = await import("vite");
+        const { mergeConfig } = await import("vite");
 
         if (configType === "DEVELOPMENT") {
             // Your development configuration goes here

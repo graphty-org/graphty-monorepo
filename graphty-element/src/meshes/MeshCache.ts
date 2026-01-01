@@ -2,9 +2,9 @@
 // See: https://github.com/graphty-org/graphty-element/issues/54
 import "@babylonjs/core/Meshes/instancedMesh";
 
-import {InstancedMesh, Mesh} from "@babylonjs/core";
+import { InstancedMesh, Mesh } from "@babylonjs/core";
 
-import type {NodeStyleId} from "../Styles";
+import type { NodeStyleId } from "../Styles";
 
 type MeshCreatorFn = () => Mesh;
 

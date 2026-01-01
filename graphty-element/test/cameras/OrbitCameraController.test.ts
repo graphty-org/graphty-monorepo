@@ -1,8 +1,8 @@
-import {NullEngine, Scene, Vector3} from "@babylonjs/core";
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test, vi} from "vitest";
+import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import {OrbitCameraController, type OrbitConfig} from "../../src/cameras/OrbitCameraController";
+import { OrbitCameraController, type OrbitConfig } from "../../src/cameras/OrbitCameraController";
 
 /**
  * Mock canvas element for NullEngine testing.
@@ -21,7 +21,7 @@ function createMockCanvas(): Element {
         setAttribute: () => {
             // Mock for NullEngine testing
         },
-        getBoundingClientRect: () => ({top: 0, left: 0, width: 800, height: 600}),
+        getBoundingClientRect: () => ({ top: 0, left: 0, width: 800, height: 600 }),
         focus: () => {
             // Mock for NullEngine testing
         },

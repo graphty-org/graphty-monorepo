@@ -1,8 +1,8 @@
-import {NullEngine, type Quaternion, Scene, Vector3} from "@babylonjs/core";
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test} from "vitest";
+import { NullEngine, type Quaternion, Scene, Vector3 } from "@babylonjs/core";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test } from "vitest";
 
-import {PivotController} from "../../src/cameras/PivotController";
+import { PivotController } from "../../src/cameras/PivotController";
 
 /**
  * Helper to safely get rotationQuaternion for testing.

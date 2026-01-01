@@ -1,4 +1,4 @@
-import type {NodeId} from "../types/index.js";
+import type { NodeId } from "../types/index.js";
 
 /**
  * Union-Find (Disjoint Set) data structure with path compression and union by rank
@@ -11,6 +11,10 @@ export class UnionFind {
     private rank: Map<NodeId, number>;
     private componentCount: number;
 
+    /**
+     * Creates a new UnionFind data structure with the given elements.
+     * @param elements - Array of elements to initialize the data structure with
+     */
     constructor(elements: NodeId[]) {
         this.parent = new Map();
         this.rank = new Map();
@@ -25,6 +29,8 @@ export class UnionFind {
 
     /**
      * Find the root of the set containing the element with path compression
+     * @param element - The element to find the root for
+     * @returns The root element of the set containing the given element
      */
     find(element: NodeId): NodeId {
         const parent = this.parent.get(element);
@@ -48,6 +54,8 @@ export class UnionFind {
 
     /**
      * Union two sets using union by rank
+     * @param elementA - The first element whose set should be merged
+     * @param elementB - The second element whose set should be merged
      */
     union(elementA: NodeId, elementB: NodeId): void {
         const rootA = this.find(elementA);
@@ -80,6 +88,9 @@ export class UnionFind {
 
     /**
      * Check if two elements are in the same connected component
+     * @param elementA - The first element to check
+     * @param elementB - The second element to check
+     * @returns True if both elements are in the same component, false otherwise
      */
     connected(elementA: NodeId, elementB: NodeId): boolean {
         try {
@@ -91,6 +102,7 @@ export class UnionFind {
 
     /**
      * Get the number of connected components
+     * @returns The current count of disjoint components
      */
     getComponentCount(): number {
         return this.componentCount;
@@ -98,6 +110,8 @@ export class UnionFind {
 
     /**
      * Get all elements that belong to the same component as the given element
+     * @param element - The element whose component should be retrieved
+     * @returns Array of all elements in the same component
      */
     getComponent(element: NodeId): NodeId[] {
         const root = this.find(element);
@@ -114,6 +128,7 @@ export class UnionFind {
 
     /**
      * Get all connected components as separate arrays
+     * @returns Array of arrays, where each inner array contains elements of one component
      */
     getAllComponents(): NodeId[][] {
         const componentMap = new Map<NodeId, NodeId[]>();
@@ -136,6 +151,8 @@ export class UnionFind {
 
     /**
      * Get the size of the component containing the given element
+     * @param element - The element whose component size should be retrieved
+     * @returns The number of elements in the component containing the given element
      */
     getComponentSize(element: NodeId): number {
         return this.getComponent(element).length;
@@ -143,6 +160,7 @@ export class UnionFind {
 
     /**
      * Add a new element to the data structure
+     * @param element - The element to add as a new singleton set
      */
     addElement(element: NodeId): void {
         if (this.parent.has(element)) {
@@ -156,6 +174,8 @@ export class UnionFind {
 
     /**
      * Check if an element exists in the data structure
+     * @param element - The element to check for
+     * @returns True if the element exists, false otherwise
      */
     hasElement(element: NodeId): boolean {
         return this.parent.has(element);
@@ -163,6 +183,7 @@ export class UnionFind {
 
     /**
      * Get the total number of elements
+     * @returns The total count of all elements in the data structure
      */
     size(): number {
         return this.parent.size;

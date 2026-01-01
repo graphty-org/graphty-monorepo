@@ -1,12 +1,12 @@
-import {beforeEach, describe, expect, it} from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import {Graph, kruskalMST, minimumSpanningTree} from "../../src/index.js";
+import { Graph, kruskalMST, minimumSpanningTree } from "../../src/index.js";
 
 describe("Kruskal's Algorithm", () => {
     let graph: Graph;
 
     beforeEach(() => {
-        graph = new Graph({directed: false});
+        graph = new Graph({ directed: false });
     });
 
     describe("kruskalMST", () => {
@@ -71,7 +71,7 @@ describe("Kruskal's Algorithm", () => {
         });
 
         it("should throw error for directed graph", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("A");
             directedGraph.addNode("B");
             directedGraph.addEdge("A", "B", 1);
@@ -285,7 +285,7 @@ describe("Kruskal's Algorithm", () => {
             // Empty graph has 0 nodes, so the condition mstEdges.length !== graph.nodeCount - 1
             // becomes 0 !== 0 - 1, which is 0 !== -1, which is true, so it throws
             // This is the expected behavior - an empty graph can't have an MST
-            const emptyGraph = new Graph({directed: false});
+            const emptyGraph = new Graph({ directed: false });
 
             expect(() => kruskalMST(emptyGraph)).toThrow("Graph is not connected");
         });

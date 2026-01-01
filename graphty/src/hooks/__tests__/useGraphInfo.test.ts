@@ -1,11 +1,11 @@
-import {act, renderHook} from "@testing-library/react";
-import {describe, expect, it} from "vitest";
+import { act, renderHook } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
-import {useGraphInfo} from "../useGraphInfo";
+import { useGraphInfo } from "../useGraphInfo";
 
 describe("useGraphInfo", () => {
     it("returns default graph info initially", () => {
-        const {result} = renderHook(() => useGraphInfo());
+        const { result } = renderHook(() => useGraphInfo());
 
         expect(result.current.graphInfo).toEqual({
             nodeCount: 0,
@@ -21,17 +21,19 @@ describe("useGraphInfo", () => {
     });
 
     it("accepts initial info overrides", () => {
-        const {result} = renderHook(() => useGraphInfo({
-            nodeCount: 10,
-            edgeCount: 15,
-        }));
+        const { result } = renderHook(() =>
+            useGraphInfo({
+                nodeCount: 10,
+                edgeCount: 15,
+            }),
+        );
 
         expect(result.current.graphInfo.nodeCount).toBe(10);
         expect(result.current.graphInfo.edgeCount).toBe(15);
     });
 
     it("updates stats and calculates density for directed graph", () => {
-        const {result} = renderHook(() => useGraphInfo());
+        const { result } = renderHook(() => useGraphInfo());
 
         act(() => {
             result.current.updateStats(5, 10);
@@ -44,9 +46,11 @@ describe("useGraphInfo", () => {
     });
 
     it("calculates density correctly for undirected graph", () => {
-        const {result} = renderHook(() => useGraphInfo({
-            graphType: {directed: false, weighted: false, selfLoops: false},
-        }));
+        const { result } = renderHook(() =>
+            useGraphInfo({
+                graphType: { directed: false, weighted: false, selfLoops: false },
+            }),
+        );
 
         act(() => {
             result.current.updateStats(5, 10);
@@ -57,7 +61,7 @@ describe("useGraphInfo", () => {
     });
 
     it("handles zero nodes when calculating density", () => {
-        const {result} = renderHook(() => useGraphInfo());
+        const { result } = renderHook(() => useGraphInfo());
 
         act(() => {
             result.current.updateStats(0, 0);
@@ -67,7 +71,7 @@ describe("useGraphInfo", () => {
     });
 
     it("handles single node when calculating density", () => {
-        const {result} = renderHook(() => useGraphInfo());
+        const { result } = renderHook(() => useGraphInfo());
 
         act(() => {
             result.current.updateStats(1, 0);
@@ -77,10 +81,10 @@ describe("useGraphInfo", () => {
     });
 
     it("adds data sources", () => {
-        const {result} = renderHook(() => useGraphInfo());
+        const { result } = renderHook(() => useGraphInfo());
 
         act(() => {
-            result.current.addDataSource({name: "test.json", type: "json"});
+            result.current.addDataSource({ name: "test.json", type: "json" });
         });
 
         expect(result.current.graphInfo.dataSources).toHaveLength(1);
@@ -91,22 +95,22 @@ describe("useGraphInfo", () => {
     });
 
     it("adds multiple data sources", () => {
-        const {result} = renderHook(() => useGraphInfo());
+        const { result } = renderHook(() => useGraphInfo());
 
         act(() => {
-            result.current.addDataSource({name: "nodes.csv", type: "csv"});
-            result.current.addDataSource({name: "edges.csv", type: "csv"});
+            result.current.addDataSource({ name: "nodes.csv", type: "csv" });
+            result.current.addDataSource({ name: "edges.csv", type: "csv" });
         });
 
         expect(result.current.graphInfo.dataSources).toHaveLength(2);
     });
 
     it("clears data sources", () => {
-        const {result} = renderHook(() => useGraphInfo());
+        const { result } = renderHook(() => useGraphInfo());
 
         act(() => {
-            result.current.addDataSource({name: "test.json", type: "json"});
-            result.current.addDataSource({name: "test2.json", type: "json"});
+            result.current.addDataSource({ name: "test.json", type: "json" });
+            result.current.addDataSource({ name: "test2.json", type: "json" });
         });
 
         expect(result.current.graphInfo.dataSources).toHaveLength(2);
@@ -119,7 +123,7 @@ describe("useGraphInfo", () => {
     });
 
     it("sets graph type and recalculates density", () => {
-        const {result} = renderHook(() => useGraphInfo());
+        const { result } = renderHook(() => useGraphInfo());
 
         // First set some stats
         act(() => {

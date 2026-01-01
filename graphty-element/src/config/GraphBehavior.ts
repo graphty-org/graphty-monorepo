@@ -1,11 +1,13 @@
-import {z} from "zod/v4";
+import { z } from "zod/v4";
 
-import type {Graph} from "../Graph";
-import type {Node as GraphNode} from "../Node";
+import type { Graph } from "../Graph";
+import type { Node as GraphNode } from "../Node";
 
-export const NodeBehaviorOpts = z.strictObject({
-    pinOnDrag: z.boolean().default(true),
-}).prefault({});
+export const NodeBehaviorOpts = z
+    .strictObject({
+        pinOnDrag: z.boolean().default(true),
+    })
+    .prefault({});
 
 export const GraphLayoutOpts = z.strictObject({
     type: z.string().default("ngraph"),

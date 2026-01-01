@@ -1,5 +1,5 @@
-import {Graph} from "../../core/graph.js";
-import type {NodeId} from "../../types/index.js";
+import { Graph } from "../../core/graph.js";
+import type { NodeId } from "../../types/index.js";
 
 export interface FloydWarshallResult {
     distances: Map<NodeId, Map<NodeId, number>>;
@@ -7,6 +7,11 @@ export interface FloydWarshallResult {
     hasNegativeCycle: boolean;
 }
 
+/**
+ * Computes all-pairs shortest paths using the Floyd-Warshall algorithm
+ * @param graph - The graph to compute shortest paths for
+ * @returns The distances, predecessors, and negative cycle detection result
+ */
 export function floydWarshall(graph: Graph): FloydWarshallResult {
     const nodes = Array.from(graph.nodes()).map((n) => n.id);
     const distances = new Map<NodeId, Map<NodeId, number>>();
@@ -105,11 +110,18 @@ export function floydWarshall(graph: Graph): FloydWarshallResult {
     };
 }
 
+/**
+ * Finds the shortest path between two nodes using Floyd-Warshall
+ * @param graph - The graph to search
+ * @param source - The starting node for the path
+ * @param target - The destination node for the path
+ * @returns The path and distance or null if no path exists
+ */
 export function floydWarshallPath(
     graph: Graph,
     source: NodeId,
     target: NodeId,
-): {path: NodeId[], distance: number} | null {
+): { path: NodeId[]; distance: number } | null {
     const result = floydWarshall(graph);
 
     if (!graph.hasNode(source) || !graph.hasNode(target)) {
@@ -146,12 +158,17 @@ export function floydWarshallPath(
 
     if (current === source) {
         path.unshift(source);
-        return {path, distance};
+        return { path, distance };
     }
 
     return null;
 }
 
+/**
+ * Computes the transitive closure of a graph using Floyd-Warshall
+ * @param graph - The graph to compute transitive closure for
+ * @returns A map of each node to the set of nodes reachable from it
+ */
 export function transitiveClosure(graph: Graph): Map<NodeId, Set<NodeId>> {
     const result = floydWarshall(graph);
     const closure = new Map<NodeId, Set<NodeId>>();

@@ -5,19 +5,12 @@
  * including graph setup, camera state retrieval, and node manipulation.
  */
 
-import {Matrix, Vector3} from "@babylonjs/core";
+import { Matrix, Vector3 } from "@babylonjs/core";
 
-import type {AdHocData} from "../../../src/config";
-import {Graph} from "../../../src/Graph";
-import {cleanupTestGraph, createTestGraph} from "../../helpers/testSetup";
-import type {
-    CameraState,
-    DragDelta,
-    NodeData,
-    ScreenPosition,
-    TestGraphOptions,
-    Vector3D,
-} from "../types";
+import type { AdHocData } from "../../../src/config";
+import { Graph } from "../../../src/Graph";
+import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
+import type { CameraState, DragDelta, NodeData, ScreenPosition, TestGraphOptions, Vector3D } from "../types";
 
 /**
  * Wait for a graph to be fully initialized and ready for interaction.
@@ -26,10 +19,7 @@ import type {
  * @param graph - The graph instance to wait for
  * @param timeout - Maximum time to wait in milliseconds (default: 5000)
  */
-export async function waitForGraphReady(
-    graph: Graph,
-    timeout = 5000,
-): Promise<void> {
+export async function waitForGraphReady(graph: Graph, timeout = 5000): Promise<void> {
     const startTime = Date.now();
 
     while (Date.now() - startTime < timeout) {
@@ -59,17 +49,14 @@ export async function waitForGraphReady(
  * @param nodeId - The ID of the node to find
  * @returns Screen coordinates or null if node not found
  */
-export function getNodeScreenPosition(
-    graph: Graph,
-    nodeId: string | number,
-): ScreenPosition | null {
+export function getNodeScreenPosition(graph: Graph, nodeId: string | number): ScreenPosition | null {
     const node = graph.getNode(String(nodeId));
     if (!node) {
         return null;
     }
 
-    const {scene, engine} = graph;
-    const {activeCamera: camera} = scene;
+    const { scene, engine } = graph;
+    const { activeCamera: camera } = scene;
 
     if (!camera) {
         return null;
@@ -84,7 +71,7 @@ export function getNodeScreenPosition(
     // Use mesh.absolutePosition to account for parent transformations (like graph-root)
     const worldPos = node.mesh.absolutePosition;
 
-    const {viewport} = camera;
+    const { viewport } = camera;
     // Vector3.Project(vector, world, transform, viewport)
     // - world: object's world matrix (Identity for points already in world space)
     // - transform: view * projection matrix
@@ -116,7 +103,7 @@ export function getCameraState(graph: Graph): CameraState {
         throw new Error("No active camera controller");
     }
 
-    const {camera} = controller;
+    const { camera } = controller;
     const position = {
         x: camera.position.x,
         y: camera.position.y,
@@ -165,16 +152,10 @@ export function getCameraState(graph: Graph): CameraState {
  * @returns The initialized graph instance
  */
 export async function setupTestGraph(options: TestGraphOptions = {}): Promise<Graph> {
-    const {
-        mode = "3d",
-        pinOnDrag = true,
-        layout = "ngraph",
-        nodes = [],
-        edges = [],
-    } = options;
+    const { mode = "3d", pinOnDrag = true, layout = "ngraph", nodes = [], edges = [] } = options;
 
     // Use real WebGL engine for interaction tests - NullEngine doesn't support picking
-    const graph = await createTestGraph({useRealEngine: true});
+    const graph = await createTestGraph({ useRealEngine: true });
 
     // Configure the graph with a style template
     await graph.setStyleTemplate({
@@ -183,7 +164,7 @@ export async function setupTestGraph(options: TestGraphOptions = {}): Promise<Gr
         graph: {
             twoD: mode === "2d",
             viewMode: mode,
-            background: {backgroundType: "color", color: "#2D2D2D"},
+            background: { backgroundType: "color", color: "#2D2D2D" },
             addDefaultStyle: true,
             startingCameraDistance: 30,
             layout,
@@ -237,18 +218,14 @@ export async function setupTestGraph(options: TestGraphOptions = {}): Promise<Gr
  * @param nodeId - The ID of the node to drag
  * @param delta - The delta to move the node by (in screen pixels)
  */
-export async function dragNode(
-    graph: Graph,
-    nodeId: string | number,
-    delta: DragDelta,
-): Promise<void> {
+export async function dragNode(graph: Graph, nodeId: string | number, delta: DragDelta): Promise<void> {
     const screenPos = getNodeScreenPosition(graph, nodeId);
     if (!screenPos) {
         throw new Error(`Node ${nodeId} not found`);
     }
 
-    const {scene} = graph;
-    const {PointerEventTypes} = await import("@babylonjs/core");
+    const { scene } = graph;
+    const { PointerEventTypes } = await import("@babylonjs/core");
 
     // Simulate pointer down on the node
     scene.onPointerObservable.notifyObservers({
@@ -271,8 +248,8 @@ export async function dragNode(
         scene.onPointerObservable.notifyObservers({
             type: PointerEventTypes.POINTERMOVE,
             event: {
-                clientX: screenPos.x + (delta.dx * progress),
-                clientY: screenPos.y + (delta.dy * progress),
+                clientX: screenPos.x + delta.dx * progress,
+                clientY: screenPos.y + delta.dy * progress,
                 buttons: 1,
                 button: 0,
             } as PointerEvent,
@@ -327,14 +304,14 @@ export function getSceneScale(graph: Graph): number {
 export function getSceneRotation(graph: Graph): Vector3D {
     const controller = graph.camera.getActiveController();
     if (!controller) {
-        return {x: 0, y: 0, z: 0};
+        return { x: 0, y: 0, z: 0 };
     }
 
     // For 2D mode, rotation is stored on the parent TransformNode
     if (graph.getViewMode() === "2d") {
         // Access the parent property which holds the rotation
         const twoDController = controller as unknown as {
-            parent?: {rotation?: {x?: number, y?: number, z?: number}};
+            parent?: { rotation?: { x?: number; y?: number; z?: number } };
         };
         const parentRotation = twoDController.parent?.rotation;
         return {
@@ -345,8 +322,8 @@ export function getSceneRotation(graph: Graph): Vector3D {
     }
 
     // For 3D mode, rotation is defined by alpha/beta angles
-    const {camera} = controller;
-    const arcCamera = camera as {alpha?: number, beta?: number};
+    const { camera } = controller;
+    const arcCamera = camera as { alpha?: number; beta?: number };
     return {
         x: arcCamera.beta ?? 0,
         y: arcCamera.alpha ?? 0,
@@ -363,7 +340,7 @@ export function getSceneRotation(graph: Graph): Vector3D {
 export function getCameraPosition(graph: Graph): Vector3D {
     const controller = graph.camera.getActiveController();
     if (!controller) {
-        return {x: 0, y: 0, z: 0};
+        return { x: 0, y: 0, z: 0 };
     }
 
     const pos = controller.camera.position;
@@ -389,18 +366,18 @@ export function teardownTestGraph(graph: Graph): void {
  * Note: FixedLayout reads position from node.data.position
  */
 export const DEFAULT_TEST_NODES: NodeData[] = [
-    {id: "node1", position: {x: 0, y: 0, z: 0}},
-    {id: "node2", position: {x: 5, y: 0, z: 0}},
-    {id: "node3", position: {x: 2.5, y: 4, z: 0}},
+    { id: "node1", position: { x: 0, y: 0, z: 0 } },
+    { id: "node2", position: { x: 5, y: 0, z: 0 } },
+    { id: "node3", position: { x: 2.5, y: 4, z: 0 } },
 ];
 
 /**
  * Default test edges connecting the default test nodes.
  */
 export const DEFAULT_TEST_EDGES = [
-    {src: "node1", dst: "node2"},
-    {src: "node2", dst: "node3"},
-    {src: "node3", dst: "node1"},
+    { src: "node1", dst: "node2" },
+    { src: "node2", dst: "node3" },
+    { src: "node3", dst: "node1" },
 ];
 
 /**
@@ -409,12 +386,9 @@ export const DEFAULT_TEST_EDGES = [
  * @param graph - The graph instance
  * @param position - Screen position to click at
  */
-export async function clickAtPosition(
-    graph: Graph,
-    position: ScreenPosition,
-): Promise<void> {
-    const {scene} = graph;
-    const {PointerEventTypes} = await import("@babylonjs/core");
+export async function clickAtPosition(graph: Graph, position: ScreenPosition): Promise<void> {
+    const { scene } = graph;
+    const { PointerEventTypes } = await import("@babylonjs/core");
 
     // Set pointer position on scene - this is what scene.pick() uses
     scene.pointerX = position.x;
@@ -457,10 +431,7 @@ export async function clickAtPosition(
  * @param nodeId - The ID of the node to click
  * @returns True if the click was performed, false if node not found
  */
-export async function clickOnNode(
-    graph: Graph,
-    nodeId: string | number,
-): Promise<boolean> {
+export async function clickOnNode(graph: Graph, nodeId: string | number): Promise<boolean> {
     const node = graph.getNode(String(nodeId));
     if (!node) {
         return false;
@@ -496,7 +467,7 @@ export async function clickOnNode(
  */
 export async function clickOnBackground(graph: Graph): Promise<void> {
     // Click at the corner of the canvas where there's unlikely to be a node
-    const {engine} = graph;
+    const { engine } = graph;
     const width = engine.getRenderWidth();
     const height = engine.getRenderHeight();
 

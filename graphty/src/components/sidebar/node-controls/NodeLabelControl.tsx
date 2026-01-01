@@ -1,7 +1,7 @@
 import React from "react";
 
-import type {RichTextStyle} from "../../../types/style-layer";
-import {RichTextStyleEditor} from "../controls/RichTextStyleEditor";
+import type { RichTextStyle } from "../../../types/style-layer";
+import { RichTextStyleEditor } from "../controls/RichTextStyleEditor";
 
 interface NodeLabelControlProps {
     value: RichTextStyle;
@@ -18,13 +18,11 @@ interface NodeLabelControlProps {
  * - Node-specific validation (e.g., max text length)
  * - Node-specific font presets optimized for 3D node rendering
  * - Integration with node selection state
+ * @param root0 - Component props
+ * @param root0.value - The current label style configuration
+ * @param root0.onChange - Called when the label style changes
+ * @returns The node label control component
  */
-export function NodeLabelControl({value, onChange}: NodeLabelControlProps): React.JSX.Element {
-    return (
-        <RichTextStyleEditor
-            label="Node Label"
-            value={value}
-            onChange={onChange}
-        />
-    );
+export function NodeLabelControl({ value, onChange }: NodeLabelControlProps): React.JSX.Element {
+    return <RichTextStyleEditor label="Node Label" value={value} onChange={onChange} />;
 }

@@ -7,18 +7,18 @@
  * The corpus tests use a 90% threshold to account for minor parsing differences
  * that may occur due to parser limitations with advanced features.
  */
-import {readFileSync} from "node:fs";
-import {join} from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {CSVDataSource} from "../../../src/data/CSVDataSource.js";
-import {DOTDataSource} from "../../../src/data/DOTDataSource.js";
-import {GEXFDataSource} from "../../../src/data/GEXFDataSource.js";
-import {GMLDataSource} from "../../../src/data/GMLDataSource.js";
-import {GraphMLDataSource} from "../../../src/data/GraphMLDataSource.js";
-import {JsonDataSource} from "../../../src/data/JsonDataSource.js";
-import {PajekDataSource} from "../../../src/data/PajekDataSource.js";
+import { CSVDataSource } from "../../../src/data/CSVDataSource.js";
+import { DOTDataSource } from "../../../src/data/DOTDataSource.js";
+import { GEXFDataSource } from "../../../src/data/GEXFDataSource.js";
+import { GMLDataSource } from "../../../src/data/GMLDataSource.js";
+import { GraphMLDataSource } from "../../../src/data/GraphMLDataSource.js";
+import { JsonDataSource } from "../../../src/data/JsonDataSource.js";
+import { PajekDataSource } from "../../../src/data/PajekDataSource.js";
 
 // Manifest file structure
 interface CorpusFile {
@@ -37,7 +37,16 @@ interface Manifest {
 }
 
 // Map format names to DataSource classes
-const formatToDataSource: Record<string, typeof DOTDataSource | typeof GraphMLDataSource | typeof GMLDataSource | typeof GEXFDataSource | typeof CSVDataSource | typeof PajekDataSource | typeof JsonDataSource> = {
+const formatToDataSource: Record<
+    string,
+    | typeof DOTDataSource
+    | typeof GraphMLDataSource
+    | typeof GMLDataSource
+    | typeof GEXFDataSource
+    | typeof CSVDataSource
+    | typeof PajekDataSource
+    | typeof JsonDataSource
+> = {
     dot: DOTDataSource,
     graphml: GraphMLDataSource,
     gml: GMLDataSource,
@@ -49,25 +58,32 @@ const formatToDataSource: Record<string, typeof DOTDataSource | typeof GraphMLDa
 
 // JSON variant configurations for proper JMESPath extraction
 interface JsonVariantConfig {
-    node: {path: string};
-    edge: {path: string};
+    node: { path: string };
+    edge: { path: string };
 }
 
 const jsonVariantConfigs: Record<string, JsonVariantConfig> = {
-    "d3-format.json": {node: {path: "nodes"}, edge: {path: "links"}},
-    "cytoscape-format.json": {node: {path: "elements.nodes[*].data"}, edge: {path: "elements.edges[*].data"}},
-    "sigma-format.json": {node: {path: "nodes"}, edge: {path: "edges"}},
-    "visjs-format.json": {node: {path: "nodes"}, edge: {path: "edges"}},
-    "networkx-format.json": {node: {path: "nodes"}, edge: {path: "links"}},
-    "karate-d3.json": {node: {path: "nodes"}, edge: {path: "links"}},
-    "miserables.json": {node: {path: "nodes"}, edge: {path: "links"}},
+    "d3-format.json": { node: { path: "nodes" }, edge: { path: "links" } },
+    "cytoscape-format.json": { node: { path: "elements.nodes[*].data" }, edge: { path: "elements.edges[*].data" } },
+    "sigma-format.json": { node: { path: "nodes" }, edge: { path: "edges" } },
+    "visjs-format.json": { node: { path: "nodes" }, edge: { path: "edges" } },
+    "networkx-format.json": { node: { path: "nodes" }, edge: { path: "links" } },
+    "karate-d3.json": { node: { path: "nodes" }, edge: { path: "links" } },
+    "miserables.json": { node: { path: "nodes" }, edge: { path: "links" } },
 };
 
 // DataSource type union
-type AnyDataSource = DOTDataSource | GraphMLDataSource | GMLDataSource | GEXFDataSource | CSVDataSource | PajekDataSource | JsonDataSource;
+type AnyDataSource =
+    | DOTDataSource
+    | GraphMLDataSource
+    | GMLDataSource
+    | GEXFDataSource
+    | CSVDataSource
+    | PajekDataSource
+    | JsonDataSource;
 
 // Helper function to collect all chunks from a data source
-async function collectChunks(dataSource: AnyDataSource): Promise<{totalNodes: number, totalEdges: number}> {
+async function collectChunks(dataSource: AnyDataSource): Promise<{ totalNodes: number; totalEdges: number }> {
     let totalNodes = 0;
     let totalEdges = 0;
 
@@ -76,7 +92,7 @@ async function collectChunks(dataSource: AnyDataSource): Promise<{totalNodes: nu
         totalEdges += chunk.edges.length;
     }
 
-    return {totalNodes, totalEdges};
+    return { totalNodes, totalEdges };
 }
 
 // Load manifest for a given format
@@ -104,7 +120,7 @@ describe("Corpus Tests", () => {
             }
 
             for (const file of manifest.files) {
-                test(`parses ${file.path}`, async() => {
+                test(`parses ${file.path}`, async () => {
                     // Load file content
                     const filePath = join(__dirname, format, file.path);
                     const content = readFileSync(filePath, "utf-8");
@@ -115,12 +131,12 @@ describe("Corpus Tests", () => {
 
                     // Create data source instance with format-specific config
                     const jsonConfig = format === "json" ? jsonVariantConfigs[file.path] : undefined;
-                    const dataSource: AnyDataSource = jsonConfig ?
-                        new DataSourceClass({data: content, ... jsonConfig}) :
-                        new DataSourceClass({data: content});
+                    const dataSource: AnyDataSource = jsonConfig
+                        ? new DataSourceClass({ data: content, ...jsonConfig })
+                        : new DataSourceClass({ data: content });
 
                     // Collect all chunks
-                    const {totalNodes, totalEdges} = await collectChunks(dataSource);
+                    const { totalNodes, totalEdges } = await collectChunks(dataSource);
 
                     // Verify expected counts with 90% threshold
                     // This accounts for minor parsing differences due to advanced features

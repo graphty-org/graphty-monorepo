@@ -60,11 +60,7 @@ export interface OperationMetadata {
     /**
      * Function to determine if an operation should be obsoleted
      */
-    shouldObsolete?: (operation: {
-        category: string;
-        id: string;
-        metadata?: OperationMetadata;
-    }) => boolean;
+    shouldObsolete?: (operation: { category: string; id: string; metadata?: OperationMetadata }) => boolean;
 
     /**
      * Skip obsoleting running operations (only obsolete queued)
@@ -155,4 +151,3 @@ export interface QueueStatistics {
      */
     averageDuration?: number;
 }
-

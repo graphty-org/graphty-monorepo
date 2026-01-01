@@ -1,9 +1,9 @@
-import {set as deepSet} from "lodash";
-import {assert, describe, expect, it} from "vitest";
+import { set as deepSet } from "lodash";
+import { assert, describe, expect, it } from "vitest";
 
-import {CalculatedValue} from "../src/CalculatedValue";
-import {ChangeManager} from "../src/ChangeManager";
-import {AdHocData, NodeStyle} from "../src/config";
+import { CalculatedValue } from "../src/CalculatedValue";
+import { ChangeManager } from "../src/ChangeManager";
+import { AdHocData, NodeStyle } from "../src/config";
 
 describe("ChangeManager", () => {
     it("exists", () => {
@@ -11,7 +11,7 @@ describe("ChangeManager", () => {
     });
 
     it("sets a value without crashing", () => {
-        let obj = {beer: "yum"} as unknown as AdHocData;
+        let obj = { beer: "yum" } as unknown as AdHocData;
         const path = "foo.bar.thing";
 
         const cm = new ChangeManager();
@@ -33,7 +33,7 @@ describe("ChangeManager", () => {
         deepSet(algObj, inputPath, 5);
 
         // validate test results
-        const expectedStyle = {shape: {size: 10}} as unknown as AdHocData;
+        const expectedStyle = { shape: { size: 10 } } as unknown as AdHocData;
         assert.deepStrictEqual(styleObj, expectedStyle);
     });
 
@@ -50,7 +50,7 @@ describe("ChangeManager", () => {
         deepSet(algObj, inputPath, 5);
 
         // validate test results
-        const expectedStyle = {shape: {size: 10}} as unknown as AdHocData;
+        const expectedStyle = { shape: { size: 10 } } as unknown as AdHocData;
         assert.deepStrictEqual(styleObj, expectedStyle);
     });
 
@@ -76,13 +76,13 @@ describe("ChangeManager", () => {
         const cm = new ChangeManager();
         const algObj = cm.watch("algorithmResults", {} as unknown as AdHocData);
         const styleObj = cm.addData("style", {} as unknown as AdHocData, NodeStyle);
-        cm.addCalculatedValue(new CalculatedValue([`algorithmResults.${inputPath}`], outputPath, "\"lightblue\""));
+        cm.addCalculatedValue(new CalculatedValue([`algorithmResults.${inputPath}`], outputPath, '"lightblue"'));
 
         // run test
         deepSet(algObj, inputPath, 5);
 
         // validate test results
-        const expectedStyle = {texture: {color: "#ADD8E6"}} as unknown as AdHocData;
+        const expectedStyle = { texture: { color: "#ADD8E6" } } as unknown as AdHocData;
         assert.deepStrictEqual(styleObj, expectedStyle);
     });
 
@@ -95,7 +95,9 @@ describe("ChangeManager", () => {
         const styleObj = cm.addData("style", {} as unknown as AdHocData);
 
         // Add two calculated values watching the same input
-        cm.addCalculatedValue(new CalculatedValue([`data.${inputPath}`], "style.line.color", "arguments[0] > 5 ? \"#00FF00\" : \"#FF0000\""));
+        cm.addCalculatedValue(
+            new CalculatedValue([`data.${inputPath}`], "style.line.color", 'arguments[0] > 5 ? "#00FF00" : "#FF0000"'),
+        );
         cm.addCalculatedValue(new CalculatedValue([`data.${inputPath}`], "style.line.width", "arguments[0] * 2"));
 
         // Set the value - both CVs should run
@@ -112,12 +114,10 @@ describe("ChangeManager", () => {
 
     it("loads calculated values with runImmediately=false", () => {
         const cm = new ChangeManager();
-        const dataObj = cm.watch("data", {value: 10} as unknown as AdHocData);
+        const dataObj = cm.watch("data", { value: 10 } as unknown as AdHocData);
         const styleObj = cm.addData("style", {} as unknown as AdHocData);
 
-        const cvs = [
-            new CalculatedValue(["data.value"], "style.result", "arguments[0] * 3"),
-        ];
+        const cvs = [new CalculatedValue(["data.value"], "style.result", "arguments[0] * 3")];
 
         // Load without running immediately
         cm.loadCalculatedValues(cvs, false);
@@ -129,28 +129,26 @@ describe("ChangeManager", () => {
         deepSet(dataObj, "value", 15);
 
         // Now it should have run
-        assert.deepStrictEqual(styleObj, {result: 45} as unknown as AdHocData);
+        assert.deepStrictEqual(styleObj, { result: 45 } as unknown as AdHocData);
     });
 
     it("loads calculated values with runImmediately=true", () => {
         const cm = new ChangeManager();
-        cm.watch("data", {value: 10} as unknown as AdHocData);
+        cm.watch("data", { value: 10 } as unknown as AdHocData);
         const styleObj = cm.addData("style", {} as unknown as AdHocData);
 
-        const cvs = [
-            new CalculatedValue(["data.value"], "style.result", "arguments[0] * 3"),
-        ];
+        const cvs = [new CalculatedValue(["data.value"], "style.result", "arguments[0] * 3")];
 
         // Load and run immediately
         cm.loadCalculatedValues(cvs, true);
 
         // Style should have result immediately
-        assert.deepStrictEqual(styleObj, {result: 30} as unknown as AdHocData);
+        assert.deepStrictEqual(styleObj, { result: 30 } as unknown as AdHocData);
     });
 
     it("runAllCalculatedValues executes all CVs", () => {
         const cm = new ChangeManager();
-        cm.watch("data", {a: 5, b: 10} as unknown as AdHocData);
+        cm.watch("data", { a: 5, b: 10 } as unknown as AdHocData);
         const styleObj = cm.addData("style", {} as unknown as AdHocData);
 
         cm.addCalculatedValue(new CalculatedValue(["data.a"], "style.resultA", "arguments[0] + 100"));
@@ -175,9 +173,7 @@ describe("ChangeManager", () => {
         cm.addCalculatedValue(new CalculatedValue(["data.old"], "style.result", "arguments[0]"));
 
         // Load new CVs - should clear old ones
-        const newCvs = [
-            new CalculatedValue(["data.new"], "style.result", "arguments[0] * 2"),
-        ];
+        const newCvs = [new CalculatedValue(["data.new"], "style.result", "arguments[0] * 2")];
         cm.loadCalculatedValues(newCvs, false);
 
         // Old path should no longer trigger
@@ -186,7 +182,7 @@ describe("ChangeManager", () => {
 
         // New path should trigger
         deepSet(dataObj, "new", 10);
-        assert.deepStrictEqual(styleObj, {result: 20} as unknown as AdHocData);
+        assert.deepStrictEqual(styleObj, { result: 20 } as unknown as AdHocData);
     });
 
     // TODO: converts color

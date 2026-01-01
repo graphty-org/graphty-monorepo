@@ -13,16 +13,16 @@ import {
     StandardMaterial,
     Vector3,
 } from "@babylonjs/core";
-import {CreateGreasedLine} from "@babylonjs/core/Meshes/Builders/greasedLineBuilder";
+import { CreateGreasedLine } from "@babylonjs/core/Meshes/Builders/greasedLineBuilder";
 
-import type {EdgeStyleConfig} from "../config";
-import {EDGE_CONSTANTS} from "../constants/meshConstants";
-import {CustomLineRenderer} from "./CustomLineRenderer";
-import {FilledArrowRenderer} from "./FilledArrowRenderer";
-import type {MeshCache} from "./MeshCache";
-import {PatternedLineMesh} from "./PatternedLineMesh";
-import {PatternedLineRenderer} from "./PatternedLineRenderer";
-import {Simple2DLineRenderer} from "./Simple2DLineRenderer";
+import type { EdgeStyleConfig } from "../config";
+import { EDGE_CONSTANTS } from "../constants/meshConstants";
+import { CustomLineRenderer } from "./CustomLineRenderer";
+import { FilledArrowRenderer } from "./FilledArrowRenderer";
+import type { MeshCache } from "./MeshCache";
+import { PatternedLineMesh } from "./PatternedLineMesh";
+import { PatternedLineRenderer } from "./PatternedLineRenderer";
+import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
 export interface EdgeMeshOptions {
     styleId: string;
@@ -284,7 +284,7 @@ void main() {
 
             // Mark as bezier curve so it's not transformed by transformEdgeMesh()
             // Bezier curves have their geometry baked in world coordinates
-            mesh.metadata = {isBezierCurve: true};
+            mesh.metadata = { isBezierCurve: true };
 
             return mesh;
         }
@@ -365,7 +365,21 @@ void main() {
 
         // Arrow type routing:
         // All arrows use FilledArrowRenderer (unified implementation)
-        const FILLED_ARROWS = ["normal", "inverted", "diamond", "box", "dot", "vee", "tee", "half-open", "crow", "open-normal", "open-diamond", "open-dot", "sphere-dot"];
+        const FILLED_ARROWS = [
+            "normal",
+            "inverted",
+            "diamond",
+            "box",
+            "dot",
+            "vee",
+            "tee",
+            "half-open",
+            "crow",
+            "open-normal",
+            "open-diamond",
+            "open-dot",
+            "sphere-dot",
+        ];
 
         // PERFORMANCE FIX: Create individual meshes for all arrow types
         // Thin instances were causing 1,147ms bottleneck (35x slower than direct position updates)
@@ -502,23 +516,15 @@ void main() {
         options: EdgeMeshOptions,
         style: EdgeStyleConfig,
         scene: Scene,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Parameter kept for compatibility during Phase 0 refactor
+         
         _cache: MeshCache,
     ): Mesh {
         // Use custom line renderer if flag is enabled
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Feature flag for toggling renderer implementation
+         
         if (this.USE_CUSTOM_RENDERER) {
             const points = [
-                new Vector3(
-                    this.UNIT_VECTOR_POINTS[0],
-                    this.UNIT_VECTOR_POINTS[1],
-                    this.UNIT_VECTOR_POINTS[2],
-                ),
-                new Vector3(
-                    this.UNIT_VECTOR_POINTS[3],
-                    this.UNIT_VECTOR_POINTS[4],
-                    this.UNIT_VECTOR_POINTS[5],
-                ),
+                new Vector3(this.UNIT_VECTOR_POINTS[0], this.UNIT_VECTOR_POINTS[1], this.UNIT_VECTOR_POINTS[2]),
+                new Vector3(this.UNIT_VECTOR_POINTS[3], this.UNIT_VECTOR_POINTS[4], this.UNIT_VECTOR_POINTS[5]),
             ];
 
             // CustomLineRenderer only handles solid lines
@@ -563,11 +569,7 @@ void main() {
         return mesh as Mesh;
     }
 
-    private static createAnimatedLine(
-        options: EdgeMeshOptions,
-        style: EdgeStyleConfig,
-        scene: Scene,
-    ): Mesh {
+    private static createAnimatedLine(options: EdgeMeshOptions, style: EdgeStyleConfig, scene: Scene): Mesh {
         const baseColor = Color3.FromHexString(EDGE_CONSTANTS.MOVING_LINE_BASE_COLOR);
         const movingColor = Color3.FromHexString(options.color);
 
@@ -595,11 +597,7 @@ void main() {
         return mesh as Mesh;
     }
 
-    private static createAnimatedTexture(
-        baseColor: Color3,
-        movingColor: Color3,
-        scene: Scene,
-    ): RawTexture {
+    private static createAnimatedTexture(baseColor: Color3, movingColor: Color3, scene: Scene): RawTexture {
         const r1 = Math.floor(baseColor.r * 255);
         const g1 = Math.floor(baseColor.g * 255);
         const b1 = Math.floor(baseColor.b * 255);
@@ -630,7 +628,7 @@ void main() {
         mesh: GreasedLineBaseMesh,
         texture: RawTexture,
         scene: Scene,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+         
         _animationSpeed?: number,
     ): void {
         const material = mesh.material as StandardMaterial;
@@ -647,14 +645,14 @@ void main() {
     private static createCircleTextureData(size: number): Uint8Array {
         const data = new Uint8Array(size * size * 4);
         const center = size / 2;
-        const radius = (size / 2) - 1; // Leave 1 pixel margin for anti-aliasing
+        const radius = size / 2 - 1; // Leave 1 pixel margin for anti-aliasing
 
         for (let y = 0; y < size; y++) {
             for (let x = 0; x < size; x++) {
-                const dx = (x - center) + 0.5;
-                const dy = (y - center) + 0.5;
-                const distance = Math.sqrt((dx * dx) + (dy * dy));
-                const index = ((y * size) + x) * 4;
+                const dx = x - center + 0.5;
+                const dy = y - center + 0.5;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const index = (y * size + x) * 4;
 
                 // Anti-aliased edge: smooth transition over 1.5 pixels
                 let alpha = 255;
@@ -662,7 +660,7 @@ void main() {
                     const edgeDistance = distance - radius;
                     if (edgeDistance < 1.5) {
                         // Smooth falloff for anti-aliasing
-                        alpha = Math.max(0, Math.min(255, 255 * (1.5 - edgeDistance) / 1.5));
+                        alpha = Math.max(0, Math.min(255, (255 * (1.5 - edgeDistance)) / 1.5));
                     } else {
                         alpha = 0;
                     }
@@ -816,17 +814,9 @@ void main() {
      * @param srcPoint - The source point (start of edge)
      * @param dstPoint - The destination point (end of edge)
      */
-    static transformMesh(
-        mesh: AbstractMesh,
-        srcPoint: Vector3,
-        dstPoint: Vector3,
-    ): void {
+    static transformMesh(mesh: AbstractMesh, srcPoint: Vector3, dstPoint: Vector3): void {
         const delta = dstPoint.subtract(srcPoint);
-        const midPoint = new Vector3(
-            srcPoint.x + (delta.x / 2),
-            srcPoint.y + (delta.y / 2),
-            srcPoint.z + (delta.z / 2),
-        );
+        const midPoint = new Vector3(srcPoint.x + delta.x / 2, srcPoint.y + delta.y / 2, srcPoint.z + delta.z / 2);
         const length = delta.length();
 
         mesh.position = midPoint;
@@ -841,11 +831,7 @@ void main() {
      * @param controlPoints - Optional custom control points (default: auto-calculated)
      * @returns Flat array of coordinates [x1, y1, z1, x2, y2, z2, ...]
      */
-    static createBezierLine(
-        srcPoint: Vector3,
-        dstPoint: Vector3,
-        controlPoints?: Vector3[],
-    ): number[] {
+    static createBezierLine(srcPoint: Vector3, dstPoint: Vector3, controlPoints?: Vector3[]): number[] {
         // Handle self-loops (source === destination)
         if (srcPoint.equalsWithEpsilon(dstPoint, 0.01)) {
             return this.createSelfLoopCurve(srcPoint);
@@ -856,10 +842,7 @@ void main() {
 
         // Determine point density based on curve length
         const estimatedLength = Vector3.Distance(srcPoint, dstPoint) * 1.5; // Curve is ~1.5x longer
-        const numPoints = Math.max(
-            10,
-            Math.ceil(estimatedLength * EDGE_CONSTANTS.BEZIER_POINT_DENSITY),
-        );
+        const numPoints = Math.max(10, Math.ceil(estimatedLength * EDGE_CONSTANTS.BEZIER_POINT_DENSITY));
 
         const points: number[] = [];
 
@@ -916,20 +899,15 @@ void main() {
      * @param p3 - End point
      * @returns Interpolated point on the bezier curve
      */
-    private static cubicBezier(
-        t: number,
-        p0: Vector3,
-        p1: Vector3,
-        p2: Vector3,
-        p3: Vector3,
-    ): Vector3 {
+    private static cubicBezier(t: number, p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3): Vector3 {
         const u = 1 - t;
         const tt = t * t;
         const uu = u * u;
         const uuu = uu * u;
         const ttt = tt * t;
 
-        return p0.scale(uuu)
+        return p0
+            .scale(uuu)
             .add(p1.scale(3 * uu * t))
             .add(p2.scale(3 * u * tt))
             .add(p3.scale(ttt));
@@ -947,9 +925,9 @@ void main() {
 
         for (let i = 0; i <= segments; i++) {
             const angle = (i / segments) * Math.PI * 2;
-            const x = center.x + (Math.cos(angle) * radius);
-            const y = center.y + (Math.sin(angle) * radius);
-            const {z} = center;
+            const x = center.x + Math.cos(angle) * radius;
+            const y = center.y + Math.sin(angle) * radius;
+            const { z } = center;
             points.push(x, y, z);
         }
 

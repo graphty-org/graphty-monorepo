@@ -1,7 +1,7 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {DijkstraAlgorithm} from "../../../src/algorithms/DijkstraAlgorithm";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
 
 describe("DijkstraAlgorithm", () => {
     describe("Algorithm Registration", () => {

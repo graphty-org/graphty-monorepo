@@ -1,80 +1,70 @@
 {
-  "name": "layout",
-  "$schema": "../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "layout/src",
-  "projectType": "library",
-  "tags": [],
-  "targets": {
-    "build": {
-      "executor": "nx:run-commands",
-      "outputs": [
-        "{projectRoot}/dist"
-      ],
-      "options": {
-        "command": "npm run build:all",
-        "cwd": "layout"
-      },
-      "dependsOn": [
-        "^build"
-      ]
-    },
-    "test": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "npm run test:run",
-        "cwd": "layout"
-      }
-    },
-    "test:ui": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "vitest --ui",
-        "cwd": "layout"
-      }
-    },
-    "test:coverage": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "vitest run --coverage",
-        "cwd": "layout"
-      }
-    },
-    "lint": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "eslint && tsc --noEmit",
-        "cwd": "layout"
-      }
-    },
-    "semantic-release": {
-      "executor": "nx:run-commands",
-      "dependsOn": [
-        "build"
-      ],
-      "options": {
-        "command": "semantic-release",
-        "cwd": "layout"
-      }
-    },
-    "examples": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "npm run examples",
-        "cwd": "layout"
-      }
-    },
-    "build:gh-pages": {
-      "executor": "nx:run-commands",
-      "outputs": [
-        "{projectRoot}/gh-pages"
-      ],
-      "options": {
-        "command": "npm run build:gh-pages",
-        "cwd": "layout"
-      },
-      "dependsOn": [
-        "build"
-      ]
+    "name": "layout",
+    "$schema": "../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "layout/src",
+    "projectType": "library",
+    "tags": [],
+    "targets": {
+        "build": {
+            "executor": "nx:run-commands",
+            "outputs": ["{projectRoot}/dist"],
+            "options": {
+                "command": "npm run build:all",
+                "cwd": "layout"
+            },
+            "dependsOn": ["^build"]
+        },
+        "test": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "npm run test:run",
+                "cwd": "layout"
+            }
+        },
+        "test:ui": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "vitest --ui",
+                "cwd": "layout"
+            }
+        },
+        "test:coverage": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "vitest run --coverage",
+                "cwd": "layout"
+            }
+        },
+        "lint": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "eslint && tsc --noEmit",
+                "cwd": "layout"
+            }
+        },
+        "semantic-release": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "semantic-release",
+                "cwd": "layout"
+            }
+        },
+        "examples": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "npm run examples",
+                "cwd": "layout"
+            }
+        },
+        "build:gh-pages": {
+            "executor": "nx:run-commands",
+            "outputs": ["{projectRoot}/gh-pages"],
+            "options": {
+                "command": "npm run build:gh-pages",
+                "cwd": "layout"
+            },
+            "dependsOn": ["build"]
+        }
     }
-  }
 }

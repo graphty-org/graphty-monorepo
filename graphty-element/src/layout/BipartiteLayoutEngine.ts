@@ -1,8 +1,8 @@
-import {bipartiteLayout, Edge as LayoutEdge, Node as LayoutNode} from "@graphty/layout";
-import {z} from "zod/v4";
+import { bipartiteLayout, Edge as LayoutEdge, Node as LayoutNode } from "@graphty/layout";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema} from "../config";
-import {SimpleLayoutConfig, SimpleLayoutEngine} from "./LayoutEngine";
+import { defineOptions, type OptionsSchema } from "../config";
+import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for Bipartite Layout
@@ -31,7 +31,10 @@ export const bipartiteLayoutOptionsSchema = defineOptions({
         },
     },
     aspectRatio: {
-        schema: z.number().positive().default(4 / 3),
+        schema: z
+            .number()
+            .positive()
+            .default(4 / 3),
         meta: {
             label: "Aspect Ratio",
             description: "Width to height ratio",
@@ -41,12 +44,15 @@ export const bipartiteLayoutOptionsSchema = defineOptions({
 });
 
 export const BipartiteLayoutConfig = z.strictObject({
-    ... SimpleLayoutConfig.shape,
+    ...SimpleLayoutConfig.shape,
     nodes: z.array(z.number().or(z.string())),
     align: z.enum(["vertical", "horizontal"]).default("vertical"),
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
-    aspectRatio: z.number().positive().default(4 / 3),
+    aspectRatio: z
+        .number()
+        .positive()
+        .default(4 / 3),
 });
 export type BipartiteLayoutConfigType = z.infer<typeof BipartiteLayoutConfig>;
 export type BipartiteLayoutOpts = Partial<BipartiteLayoutConfigType>;
@@ -94,7 +100,7 @@ export class BipartiteLayout extends SimpleLayoutEngine {
         const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
 
         this.positions = bipartiteLayout(
-            {nodes, edges},
+            { nodes, edges },
             this.config.nodes,
             this.config.align,
             this.config.scale,

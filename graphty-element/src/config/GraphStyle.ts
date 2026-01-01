@@ -1,7 +1,7 @@
-import {z} from "zod/v4";
+import { z } from "zod/v4";
 
-import {ColorStyle, ImageData} from "./common";
-import {DEFAULT_VIEW_MODE} from "./ViewMode";
+import { ColorStyle, ImageData } from "./common";
+import { DEFAULT_VIEW_MODE } from "./ViewMode";
 
 const GraphBackgroundColor = z.strictObject({
     backgroundType: z.literal("color"),
@@ -13,10 +13,7 @@ const GraphBackgroundSkybox = z.strictObject({
     data: ImageData,
 });
 
-const GraphBackground = z.discriminatedUnion("backgroundType", [
-    GraphBackgroundColor,
-    GraphBackgroundSkybox,
-]);
+const GraphBackground = z.discriminatedUnion("backgroundType", [GraphBackgroundColor, GraphBackgroundSkybox]);
 
 const GraphEffects = z.strictObject({
     // https://doc.babylonjs.com/features/featuresDeepDive/postProcesses/motionBlurPostProcess/
@@ -34,7 +31,7 @@ const ViewModeSchema = z.enum(["2d", "3d", "ar", "vr"]);
 
 export const GraphStyle = z.strictObject({
     addDefaultStyle: z.boolean().default(true),
-    background: GraphBackground.prefault({backgroundType: "color", color: "whitesmoke"}),
+    background: GraphBackground.prefault({ backgroundType: "color", color: "whitesmoke" }),
     effects: GraphEffects.optional(),
     startingCameraDistance: z.number().default(30), // TODO: replace with "zoomToFit: z.boolean()"
     layout: z.string().optional(), // No default - let Graph constructor set the default

@@ -16,17 +16,17 @@ Style Helpers transform algorithm results into visual properties. They provide:
 
 For continuous data like centrality scores or normalized values:
 
-| Palette | Colors | Use Case | Colorblind Safe |
-|---------|--------|----------|-----------------|
-| `viridis` (default) | Purple → Teal → Yellow | General continuous data | ✅ Yes |
-| `plasma` | Purple → Pink → Yellow | High contrast needed | ✅ Yes |
-| `inferno` | Black → Red → Yellow | Emphasis on extremes | ✅ Yes |
-| `blues` | Light → Dark Blue | Professional, subtle | ✅ Yes |
-| `greens` | Light → Dark Green | Growth, positive metrics | ✅ Yes |
-| `oranges` | Light → Dark Orange | Activity, heat | ✅ Yes |
+| Palette             | Colors                 | Use Case                 | Colorblind Safe |
+| ------------------- | ---------------------- | ------------------------ | --------------- |
+| `viridis` (default) | Purple → Teal → Yellow | General continuous data  | ✅ Yes          |
+| `plasma`            | Purple → Pink → Yellow | High contrast needed     | ✅ Yes          |
+| `inferno`           | Black → Red → Yellow   | Emphasis on extremes     | ✅ Yes          |
+| `blues`             | Light → Dark Blue      | Professional, subtle     | ✅ Yes          |
+| `greens`            | Light → Dark Green     | Growth, positive metrics | ✅ Yes          |
+| `oranges`           | Light → Dark Orange    | Activity, heat           | ✅ Yes          |
 
 ```typescript
-import { StyleHelpers } from '@graphty/graphty-element';
+import { StyleHelpers } from "@graphty/graphty-element";
 
 // Map 0-1 value to color
 const color = StyleHelpers.color.sequential.viridis(0.7);
@@ -37,13 +37,13 @@ const blueColor = StyleHelpers.color.sequential.blues(0.5);
 
 For distinct categories like communities or types:
 
-| Palette | Colors | Use Case | Colorblind Safe |
-|---------|--------|----------|-----------------|
-| `okabeIto` (default) | 8 colors | Universal safe choice | ✅ Yes |
-| `paulTolVibrant` | 7 colors | High saturation | ✅ Yes |
-| `paulTolMuted` | 9 colors | Softer aesthetic | ✅ Yes |
-| `ibmCarbon` | 5 colors | Enterprise design | ✅ Yes |
-| `pastel` | 8 colors | Lighter appearance | ✅ Yes |
+| Palette              | Colors   | Use Case              | Colorblind Safe |
+| -------------------- | -------- | --------------------- | --------------- |
+| `okabeIto` (default) | 8 colors | Universal safe choice | ✅ Yes          |
+| `paulTolVibrant`     | 7 colors | High saturation       | ✅ Yes          |
+| `paulTolMuted`       | 9 colors | Softer aesthetic      | ✅ Yes          |
+| `ibmCarbon`          | 5 colors | Enterprise design     | ✅ Yes          |
+| `pastel`             | 8 colors | Lighter appearance    | ✅ Yes          |
 
 ```typescript
 // Map category index to color
@@ -55,11 +55,11 @@ const vibrantColor = StyleHelpers.color.categorical.paulTolVibrant(0);
 
 For data with a meaningful center point:
 
-| Palette | Colors | Use Case | Colorblind Safe |
-|---------|--------|----------|-----------------|
-| `purpleGreen` (default) | Purple ← White → Green | General diverging | ✅ Yes |
-| `blueOrange` | Blue ← White → Orange | Alternative | ✅ Yes |
-| `redBlue` | Red ← White → Blue | Temperature only | ⚠️ No |
+| Palette                 | Colors                 | Use Case          | Colorblind Safe |
+| ----------------------- | ---------------------- | ----------------- | --------------- |
+| `purpleGreen` (default) | Purple ← White → Green | General diverging | ✅ Yes          |
+| `blueOrange`            | Blue ← White → Orange  | Alternative       | ✅ Yes          |
+| `redBlue`               | Red ← White → Blue     | Temperature only  | ⚠️ No           |
 
 ```typescript
 // Map -1 to +1 value to color
@@ -71,11 +71,11 @@ const negative = StyleHelpers.color.diverging.purpleGreen(-0.8);
 
 For binary states like selected/unselected:
 
-| Palette | Colors | Use Case | Colorblind Safe |
-|---------|--------|----------|-----------------|
-| `blueHighlight` (default) | Blue vs Gray | Selection, highlight | ✅ Yes |
-| `greenSuccess` | Green vs Gray | Success states | ✅ Yes |
-| `orangeWarning` | Orange vs Gray | Warning states | ✅ Yes |
+| Palette                   | Colors         | Use Case             | Colorblind Safe |
+| ------------------------- | -------------- | -------------------- | --------------- |
+| `blueHighlight` (default) | Blue vs Gray   | Selection, highlight | ✅ Yes          |
+| `greenSuccess`            | Green vs Gray  | Success states       | ✅ Yes          |
+| `orangeWarning`           | Orange vs Gray | Warning states       | ✅ Yes          |
 
 ```typescript
 // Map boolean to color
@@ -137,10 +137,10 @@ Format values for labels:
 const label = StyleHelpers.label.percentage(0.847); // "84.7%"
 
 // Format with rank
-const rankLabel = StyleHelpers.label.rankLabel(node, 'degree'); // "#3"
+const rankLabel = StyleHelpers.label.rankLabel(node, "degree"); // "#3"
 
 // Top N only (returns label only for top N nodes)
-const topLabel = StyleHelpers.label.topN(node, 'pagerank', 10);
+const topLabel = StyleHelpers.label.topN(node, "pagerank", 10);
 ```
 
 ## Edge Width Helpers
@@ -181,27 +181,21 @@ Complete example combining algorithms with style helpers:
 
 ```typescript
 // Run algorithm
-await graph.runAlgorithm('graphty', 'degree');
+await graph.runAlgorithm("graphty", "degree");
 
 // Find max degree for normalization
-const maxDegree = Math.max(
-  ...graph.getNodes().map(n => n.algorithmResults['graphty:degree'] || 0)
-);
+const maxDegree = Math.max(...graph.getNodes().map((n) => n.algorithmResults["graphty:degree"] || 0));
 
 // Apply style helper
 graph.styleManager.addLayer({
-  selector: '*',
-  styles: {
-    node: {
-      color: (node) => StyleHelpers.color.sequential.viridis(
-        (node.algorithmResults['graphty:degree'] || 0) / maxDegree
-      ),
-      size: (node) => StyleHelpers.size.log(
-        node.algorithmResults['graphty:degree'] || 0,
-        { min: 0.5, max: 2.5 }
-      )
-    }
-  }
+    selector: "*",
+    styles: {
+        node: {
+            color: (node) =>
+                StyleHelpers.color.sequential.viridis((node.algorithmResults["graphty:degree"] || 0) / maxDegree),
+            size: (node) => StyleHelpers.size.log(node.algorithmResults["graphty:degree"] || 0, { min: 0.5, max: 2.5 }),
+        },
+    },
 });
 ```
 
@@ -223,11 +217,11 @@ graph.styleManager.addLayer({
 ## Accessibility Features
 
 ```typescript
-import { colorblindSimulation } from '@graphty/graphty-element';
+import { colorblindSimulation } from "@graphty/graphty-element";
 
 // Simulate how colors appear to colorblind users
-const deuteranopia = colorblindSimulation.simulateDeuteranopia('#ff0000');
-const protanopia = colorblindSimulation.simulateProtanopia('#ff0000');
+const deuteranopia = colorblindSimulation.simulateDeuteranopia("#ff0000");
+const protanopia = colorblindSimulation.simulateProtanopia("#ff0000");
 
 // Check if a palette is safe
 const isSafe = colorblindSimulation.isPaletteSafe(myColors);

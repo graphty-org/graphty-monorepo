@@ -11,6 +11,10 @@ let graphtyElementModule: typeof import("@graphty/graphty-element") | null = nul
 let loadPromise: Promise<typeof import("@graphty/graphty-element")> | null = null;
 let loadError: Error | null = null;
 
+/**
+ * Lazily load the graphty-element module.
+ * @returns The graphty-element module
+ */
 async function getGraphtyElement(): Promise<typeof import("@graphty/graphty-element")> {
     // If we already had an error, throw it again
     if (loadError) {
@@ -55,13 +59,7 @@ export interface PersistenceConfig {
 }
 
 /** AI status stages */
-export type AiStage =
-    | "idle"
-    | "processing"
-    | "executingTool"
-    | "streaming"
-    | "complete"
-    | "error";
+export type AiStage = "idle" | "processing" | "executingTool" | "streaming" | "complete" | "error";
 
 /** Tool call status types */
 export type ToolCallStatusType = "pending" | "executing" | "success" | "error";
@@ -129,14 +127,41 @@ export interface ExecutionResult {
  * ApiKeyManager class interface - matches graphty-element's ApiKeyManager
  */
 declare class ApiKeyManagerClass {
+    /**
+     *
+     */
     enablePersistence(config: PersistenceConfig): void;
+    /**
+     *
+     */
     disablePersistence(clearStorage?: boolean): void;
+    /**
+     *
+     */
     isPersistenceEnabled(): boolean;
+    /**
+     *
+     */
     setKey(provider: ProviderType, key: string): void;
+    /**
+     *
+     */
     getKey(provider: ProviderType): string | undefined;
+    /**
+     *
+     */
     hasKey(provider: ProviderType): boolean;
+    /**
+     *
+     */
     removeKey(provider: ProviderType): void;
+    /**
+     *
+     */
     getConfiguredProviders(): ProviderType[];
+    /**
+     *
+     */
     clear(): void;
 }
 
@@ -144,10 +169,25 @@ declare class ApiKeyManagerClass {
  * AiManager class interface - matches graphty-element's AiManager
  */
 declare class AiManagerClass {
+    /**
+     *
+     */
     init(graph: unknown, config: AiManagerConfig): void;
+    /**
+     *
+     */
     onStatusChange(callback: StatusChangeCallback): () => void;
+    /**
+     *
+     */
     execute(input: string): Promise<ExecutionResult>;
+    /**
+     *
+     */
     cancel(): void;
+    /**
+     *
+     */
     dispose(): void;
 }
 
@@ -155,33 +195,35 @@ declare class AiManagerClass {
 declare function createAiManagerFn(): AiManagerClass;
 
 // Export types for the classes
-export type {ApiKeyManagerClass as ApiKeyManagerType};
-export type {AiManagerClass as AiManagerType};
+export type { ApiKeyManagerClass as ApiKeyManagerType };
+export type { AiManagerClass as AiManagerType };
 
 /**
  * Get the graphty-element module lazily.
  * This delays loading until first access, avoiding module import issues on Safari.
  */
-export {getGraphtyElement};
+export { getGraphtyElement };
 
 /**
  * Get the ApiKeyManager class lazily.
+ * @returns The ApiKeyManager class
  */
 export async function getApiKeyManager(): Promise<typeof ApiKeyManagerClass> {
     const mod = await getGraphtyElement();
 
-    // @ts-expect-error TypeScript can't resolve bundler exports
-    return mod.ApiKeyManager;
+    // TypeScript can't resolve bundler exports, use type assertion
+    return (mod as unknown as { ApiKeyManager: typeof ApiKeyManagerClass }).ApiKeyManager;
 }
 
 /**
  * Get the createAiManager function lazily.
+ * @returns The createAiManager function
  */
 export async function getCreateAiManager(): Promise<typeof createAiManagerFn> {
     const mod = await getGraphtyElement();
 
-    // @ts-expect-error TypeScript can't resolve bundler exports
-    return mod.createAiManager;
+    // TypeScript can't resolve bundler exports, use type assertion
+    return (mod as unknown as { createAiManager: typeof createAiManagerFn }).createAiManager;
 }
 
 /**
@@ -204,10 +246,11 @@ declare function createProviderFn(config: ProviderConfig): AiProvider;
 
 /**
  * Get the createProvider function lazily.
+ * @returns The createProvider function
  */
 export async function getCreateProvider(): Promise<typeof createProviderFn> {
     const mod = await getGraphtyElement();
 
-    // @ts-expect-error TypeScript can't resolve bundler exports
-    return mod.createProvider;
+    // TypeScript can't resolve bundler exports, use type assertion
+    return (mod as unknown as { createProvider: typeof createProviderFn }).createProvider;
 }

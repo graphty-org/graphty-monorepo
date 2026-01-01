@@ -1,11 +1,11 @@
-import {type NodeId, pageRank} from "@graphty/algorithms";
-import {z} from "zod/v4";
+import { type NodeId, pageRank } from "@graphty/algorithms";
+import { z } from "zod/v4";
 
-import {defineOptions, type InferOptions, parseOptions, type SuggestedStylesConfig} from "../config";
-import {Graph} from "../Graph";
-import {Algorithm} from "./Algorithm";
-import type {OptionsSchema} from "./types/OptionSchema";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import { defineOptions, type InferOptions, parseOptions, type SuggestedStylesConfig } from "../config";
+import { Graph } from "../Graph";
+import { Algorithm } from "./Algorithm";
+import type { OptionsSchema } from "./types/OptionSchema";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for PageRank algorithm (NEW unified system)
@@ -196,13 +196,13 @@ export class PageRankAlgorithm extends Algorithm<PageRankOptions> {
         }
 
         // Get options from NEW Zod-based schema (validated at construction)
-        const {dampingFactor, maxIterations, tolerance, weight, useDelta} = this.zodOptions;
+        const { dampingFactor, maxIterations, tolerance, weight, useDelta } = this.zodOptions;
         // Map types are programmatic-only (not in schema) - accessed from legacy options
-        const initialRanks = (this._schemaOptions).initialRanks ?? undefined;
-        const personalization = (this._schemaOptions).personalization ?? undefined;
+        const initialRanks = this._schemaOptions.initialRanks ?? undefined;
+        const personalization = this._schemaOptions.personalization ?? undefined;
 
         // Convert to @graphty/algorithms format - PageRank requires directed graph
-        const graphData = toAlgorithmGraph(g, {directed: true, addReverseEdges: false});
+        const graphData = toAlgorithmGraph(g, { directed: true, addReverseEdges: false });
 
         // Run PageRank algorithm with all options
         const result = pageRank(graphData, {

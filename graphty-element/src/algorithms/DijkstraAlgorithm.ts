@@ -1,10 +1,10 @@
-import {dijkstra, dijkstraPath} from "@graphty/algorithms";
-import {z} from "zod/v4";
+import { dijkstra, dijkstraPath } from "@graphty/algorithms";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig} from "../config";
-import {Algorithm} from "./Algorithm";
-import {type OptionsSchema} from "./types/OptionSchema";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import { Algorithm } from "./Algorithm";
+import { type OptionsSchema } from "./types/OptionSchema";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for Dijkstra algorithm
@@ -88,14 +88,14 @@ export class DijkstraAlgorithm extends Algorithm<DijkstraOptions> {
     /**
      * Legacy options set via configure() for backward compatibility
      */
-    private legacyOptions: {source: number | string, target?: number | string} | null = null;
+    private legacyOptions: { source: number | string; target?: number | string } | null = null;
 
     static suggestedStyles = (): SuggestedStylesConfig => ({
         layers: [
             {
                 edge: {
                     selector: "",
-                    style: {enabled: true},
+                    style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.dijkstra.isInPath"],
                         output: "style.line.color",
@@ -110,7 +110,7 @@ export class DijkstraAlgorithm extends Algorithm<DijkstraOptions> {
             {
                 node: {
                     selector: "",
-                    style: {enabled: true},
+                    style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.dijkstra.isInPath"],
                         output: "style.texture.color",
@@ -135,7 +135,7 @@ export class DijkstraAlgorithm extends Algorithm<DijkstraOptions> {
      * @returns This algorithm instance for chaining
      * @deprecated Use constructor options instead. This method is kept for backward compatibility.
      */
-    configure(options: {source: number | string, target?: number | string}): this {
+    configure(options: { source: number | string; target?: number | string }): this {
         this.legacyOptions = options;
         return this;
     }
@@ -158,13 +158,13 @@ export class DijkstraAlgorithm extends Algorithm<DijkstraOptions> {
         // Legacy configure() takes precedence for backward compatibility
         const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodes[0];
         const target = this.legacyOptions?.target ?? this._schemaOptions.target ?? nodes[nodes.length - 1];
-        const {bidirectional} = this._schemaOptions;
+        const { bidirectional } = this._schemaOptions;
 
         // Convert to @graphty/algorithms format (undirected for path finding)
         const graphData = toAlgorithmGraph(g);
 
         // Run Dijkstra to get path from source to target
-        const pathResult = dijkstraPath(graphData, source, target, {bidirectional});
+        const pathResult = dijkstraPath(graphData, source, target, { bidirectional });
         const path = pathResult?.path ?? [];
 
         // Run Dijkstra once from source to get all distances

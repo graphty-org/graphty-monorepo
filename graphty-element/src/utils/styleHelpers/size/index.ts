@@ -18,7 +18,7 @@
 export function linear(value: number, minSize = 1, maxSize = 5): number {
     // Clamp value to [0, 1]
     const clampedValue = Math.max(0, Math.min(1, value));
-    return minSize + (clampedValue * (maxSize - minSize));
+    return minSize + clampedValue * (maxSize - minSize);
 }
 
 /**
@@ -33,13 +33,7 @@ export function linear(value: number, minSize = 1, maxSize = 5): number {
  * @example
  * linearClipped(0.95, 1, 5, 0.1, 0.9) // Clips 0.95 to 0.9, then scales
  */
-export function linearClipped(
-    value: number,
-    minSize = 1,
-    maxSize = 5,
-    clipMin = 0,
-    clipMax = 1,
-): number {
+export function linearClipped(value: number, minSize = 1, maxSize = 5, clipMin = 0, clipMax = 1): number {
     const clippedValue = Math.max(clipMin, Math.min(clipMax, value));
     return linear(clippedValue, minSize, maxSize);
 }
@@ -76,7 +70,7 @@ export function log(value: number, minSize = 1, maxSize = 5, base = 10): number 
     // Normalize to [0,1]
     const normalized = (logValue - logMin) / (logMax - logMin);
 
-    return minSize + (normalized * (maxSize - minSize));
+    return minSize + normalized * (maxSize - minSize);
 }
 
 /**
@@ -89,12 +83,7 @@ export function log(value: number, minSize = 1, maxSize = 5, base = 10): number 
  * @example
  * logSafe(0, 1, 5) // Returns minSize safely
  */
-export function logSafe(
-    value: number,
-    minSize = 1,
-    maxSize = 5,
-    epsilon = 0.0001,
-): number {
+export function logSafe(value: number, minSize = 1, maxSize = 5, epsilon = 0.0001): number {
     const safeValue = Math.max(epsilon, Math.min(1, value));
     return log(safeValue, minSize, maxSize);
 }
@@ -113,7 +102,7 @@ export function logSafe(
 export function exp(value: number, minSize = 1, maxSize = 5, exponent = 2): number {
     const clampedValue = Math.max(0, Math.min(1, value));
     const scaledValue = clampedValue ** exponent;
-    return minSize + (scaledValue * (maxSize - minSize));
+    return minSize + scaledValue * (maxSize - minSize);
 }
 
 /**

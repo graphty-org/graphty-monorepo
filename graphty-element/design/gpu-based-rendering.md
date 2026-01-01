@@ -13,6 +13,7 @@ This document proposes moving edge and arrow rendering computations from CPU to 
 **CRITICAL UPDATE (2025-11-11)**: iOS Safari 26 shipped with WebGPU support, making WebGPU available on 98%+ of devices. This fundamentally changes the recommendation from "WebGL 2.0 vertex shader" to "WebGPU compute shader" as the primary implementation.
 
 **Key Benefits**:
+
 - **182-6,035x faster** than current thin instance approach (depending on scale)
 - **Scales with node count**, not edge count (50,000 edges with 10,000 nodes = minimal overhead)
 - **GPU parallel execution**: All arrows computed simultaneously in compute shader
@@ -20,6 +21,7 @@ This document proposes moving edge and arrow rendering computations from CPU to 
 - **Simpler than WebGL 2.0**: No 64KB uniform limit, no texture buffer workarounds
 
 **Expected Performance (WebGPU Compute Pipeline)**:
+
 - 252 edges: 25ms total for 129 frames (vs 4,563ms current = **182x faster**)
 - 5,000 edges: 40ms total for 129 frames (vs 90,536ms current = **2,263x faster**)
 - 10,000 edges: 55ms total for 129 frames (vs 181,072ms current = **3,292x faster**)
@@ -28,6 +30,7 @@ This document proposes moving edge and arrow rendering computations from CPU to 
 **Implementation Effort**: 1-2 weeks for production-ready WebGPU implementation
 
 **Trade-offs**:
+
 - Requires WebGPU (98%+ browser support including iOS Safari 26)
 - Compute shader development (new paradigm for web developers)
 - More complex shader code (harder to debug than CPU)
@@ -35,6 +38,7 @@ This document proposes moving edge and arrow rendering computations from CPU to 
 - One-time architectural investment
 
 **Arbitrary Shape Support**: ✅ **TRUE RAY INTERSECTION** for all node shapes using Möller-Trumbore algorithm
+
 - Analytical formulas for sphere, box, cylinder (5-30 ALU ops)
 - Triangle intersection for custom meshes (< 1,000 triangles: ~200-1,000 ops)
 - BVH acceleration for very complex meshes (10,000+ triangles)
@@ -49,6 +53,7 @@ This document proposes moving edge and arrow rendering computations from CPU to 
 ### Current CPU Bottlenecks (iPad, 252 edges, 129 frames)
 
 **From profiling data**:
+
 ```
 Edge.updateArrow.setMatrix: 3,933ms (thin instance buffer writes)
   - thinInstanceSetMatrixAt(): 0.12ms per call
@@ -62,6 +67,7 @@ Total CPU bottleneck: 4,563ms (76% of total settlement time)
 ```
 
 **Per-Frame Breakdown** (252 edges):
+
 ```
 CPU operations per arrow:
 1. Ray-sphere intersection (src): 0.019ms
@@ -79,12 +85,14 @@ Over 129 frames: 42.8ms × 129 = 5,521ms
 ### Why Current Approaches Don't Scale
 
 **Thin Instances** (current):
+
 - ❌ CPU overhead: 0.12ms per arrow per frame
 - ❌ Scales linearly with edges × frames
 - ❌ Mobile CPUs struggle with Float32Array writes
 - ✅ Minimal draw calls (3-10 total)
 
 **Individual Meshes** (baseline):
+
 - ✅ Fast updates: 0.0001ms per arrow (property assignment)
 - ❌ Draw call overhead: 1 per arrow
 - ❌ GPU bottleneck at 5,000-10,000 edges on mobile
@@ -153,8 +161,8 @@ Each arrow stores which nodes it connects:
 
 ```typescript
 interface ArrowData {
-    srcNodeIndex: number;  // Index into nodePositions array
-    dstNodeIndex: number;  // Index into nodePositions array
+    srcNodeIndex: number; // Index into nodePositions array
+    dstNodeIndex: number; // Index into nodePositions array
 }
 
 // Store as vertex attributes (per-arrow data)
@@ -297,6 +305,7 @@ void main() {
 ```
 
 **Key Features**:
+
 - ✅ **Analytical intersection**: No iteration, exact solution
 - ✅ **Parallel execution**: All arrows computed simultaneously by GPU
 - ✅ **No CPU overhead**: No per-arrow CPU work
@@ -367,10 +376,12 @@ void main() {
 #### Problem: Uniform Array Size Limits
 
 **WebGL 1.0**:
+
 - Max uniforms: ~256 vec3s (768 floats)
 - **Node limit: ~256 nodes**
 
 **WebGL 2.0**:
+
 - Max uniform buffer: 64KB
 - **Node limit: ~5,461 nodes** (12 bytes per node)
 
@@ -390,13 +401,7 @@ class GPUArrowRenderer {
         const textureSize = this.textureWidth * this.textureWidth;
         const data = new Float32Array(textureSize * 4);
 
-        this.nodeDataTexture = new DataTexture(
-            data,
-            this.textureWidth,
-            this.textureWidth,
-            RGBAFormat,
-            FloatType
-        );
+        this.nodeDataTexture = new DataTexture(data, this.textureWidth, this.textureWidth, RGBAFormat, FloatType);
         this.nodeDataTexture.needsUpdate = true;
     }
 
@@ -416,6 +421,7 @@ class GPUArrowRenderer {
 ```
 
 **Shader reads from texture**:
+
 ```glsl
 uniform sampler2D nodeDataTexture;
 uniform float textureWidth;
@@ -438,6 +444,7 @@ void main() {
 ```
 
 **Capacity**:
+
 - 1024×1024 texture = 1,048,576 nodes (overkill!)
 - Realistically: 4096×1 = 4,096 nodes is more than sufficient
 
@@ -457,11 +464,13 @@ With iOS Safari 26 shipping WebGPU support, we now have near-universal WebGPU av
 #### 1. Storage Buffers (No 64KB Limit!)
 
 **WebGL 2.0 Problem**:
+
 - Uniform buffers limited to 64KB
 - Can only store ~1,000 node positions in uniforms
 - Must use texture buffers for larger graphs (complex workaround)
 
 **WebGPU Solution**:
+
 ```rust
 // Storage buffer - can be up to 2GB!
 @group(0) @binding(0) var<storage, read> nodePositions: array<vec4<f32>>;
@@ -472,6 +481,7 @@ With iOS Safari 26 shipping WebGPU support, we now have near-universal WebGPU av
 ```
 
 **Impact**:
+
 - ✅ No texture buffer complexity
 - ✅ Can handle 50,000+ edges easily
 - ✅ Simpler shader code
@@ -486,6 +496,7 @@ With iOS Safari 26 shipping WebGPU support, we now have near-universal WebGPU av
 **Two-Stage Pipeline**:
 
 **Stage 1: Compute Shader** (runs once per frame)
+
 ```rust
 @compute @workgroup_size(256)
 fn computeArrowPositions(
@@ -521,6 +532,7 @@ fn computeArrowPositions(
 ```
 
 **Stage 2: Vertex Shader** (simplified - just reads pre-computed data)
+
 ```rust
 @vertex
 fn vertexMain(
@@ -547,6 +559,7 @@ fn vertexMain(
 ```
 
 **Why This is Faster**:
+
 - Compute shader runs 256 arrows in parallel per workgroup
 - Vertex shader becomes trivial (just matrix multiplication + billboarding)
 - Better GPU utilization
@@ -554,14 +567,15 @@ fn vertexMain(
 
 #### 3. Performance Comparison: WebGPU vs WebGL 2.0
 
-| Approach | 252 edges | 5,000 edges | 10,000 edges | 50,000 edges |
-|----------|-----------|-------------|--------------|--------------|
-| **CPU (current)** | 4,563ms | 90,536ms | 181,072ms | 905,360ms |
-| **WebGL 2.0 Vertex** | 65ms | 104ms | 150ms | 400ms |
-| **WebGPU Vertex** | 45ms | 75ms | 110ms | 300ms |
-| **WebGPU Compute** | **25ms** | **40ms** | **55ms** | **150ms** |
+| Approach             | 252 edges | 5,000 edges | 10,000 edges | 50,000 edges |
+| -------------------- | --------- | ----------- | ------------ | ------------ |
+| **CPU (current)**    | 4,563ms   | 90,536ms    | 181,072ms    | 905,360ms    |
+| **WebGL 2.0 Vertex** | 65ms      | 104ms       | 150ms        | 400ms        |
+| **WebGPU Vertex**    | 45ms      | 75ms        | 110ms        | 300ms        |
+| **WebGPU Compute**   | **25ms**  | **40ms**    | **55ms**     | **150ms**    |
 
 **Why WebGPU Compute is Fastest**:
+
 - Better parallelization (256 threads per workgroup)
 - Lower overhead (no vertex shader invocation per vertex)
 - Explicit control over memory access patterns
@@ -570,11 +584,13 @@ fn vertexMain(
 #### 4. Simplified Implementation
 
 **WebGL 2.0 Approach** (from earlier sections):
+
 - Need uniform buffer OR texture buffer strategy
 - Complex texture coordinate calculation for > 1,000 nodes
 - Shader code branches based on data source
 
 **WebGPU Approach**:
+
 - Single storage buffer approach works for any scale
 - No branching, no complex lookups
 - Cleaner shader code
@@ -584,33 +600,39 @@ fn vertexMain(
 With WebGPU now widely available, we can implement a three-tier strategy:
 
 **Tier 1: WebGPU Compute Pipeline** (98%+ devices, best performance)
+
 ```typescript
 if (engine.getCaps().supportWebGPU) {
     return new WebGPUComputeArrowRenderer(graph);
 }
 ```
+
 - Compute shader pre-calculates arrow positions
 - Vertex shader does minimal work
 - Scales to 50,000+ edges
 - **Best choice for new implementation**
 
 **Tier 2: WebGL 2.0 Vertex Pipeline** (legacy fallback)
+
 ```typescript
 else if (engine.getCaps().supportWebGL2) {
     return new WebGL2VertexArrowRenderer(graph);
 }
 ```
+
 - Vertex shader does all calculations
 - Limited to ~5,000 edges (uniform buffer size)
 - Or use texture buffer for unlimited nodes
 - Fallback for older Safari, Firefox ESR
 
 **Tier 3: CPU Individual Meshes** (ancient devices)
+
 ```typescript
 else {
     return new CPUArrowRenderer(graph); // Current baseline approach
 }
 ```
+
 - Direct mesh position updates
 - Works everywhere but doesn't scale
 - Only needed for very old devices (< 2% of users)
@@ -620,17 +642,20 @@ else {
 Given iOS Safari 26's WebGPU support, I recommend:
 
 **Phase 1: WebGPU Compute Implementation** (1 week)
+
 - Implement compute shader arrow calculation
 - Use storage buffers for node data
 - Target 50,000 edge scalability
 - Simpler than WebGL 2.0 texture buffer approach
 
 **Phase 2: WebGL 2.0 Fallback** (3-5 days)
+
 - Implement vertex shader approach
 - Use uniform buffers for < 1,000 nodes
 - Limit to 5,000 edges (acceptable for 2% fallback)
 
 **Phase 3: Automatic Selection** (2 days)
+
 - Detect WebGPU support
 - Fall back to WebGL 2.0 if needed
 - Keep CPU approach as last resort
@@ -695,12 +720,12 @@ renderPass.drawIndirect(indirectBuffer, 0);
 
 With WebGPU compute pipeline:
 
-| Graph Size | Edges | Nodes | Frames | Current (CPU) | WebGPU Compute | Speedup |
-|------------|-------|-------|--------|---------------|----------------|---------|
-| Small | 252 | 252 | 129 | 4,563ms | **25ms** | **182x** |
-| Medium | 5,000 | 1,000 | 129 | 90,536ms | **40ms** | **2,263x** |
-| Large | 10,000 | 2,000 | 129 | 181,072ms | **55ms** | **3,292x** |
-| Huge | 50,000 | 10,000 | 129 | 905,360ms | **150ms** | **6,035x** |
+| Graph Size | Edges  | Nodes  | Frames | Current (CPU) | WebGPU Compute | Speedup    |
+| ---------- | ------ | ------ | ------ | ------------- | -------------- | ---------- |
+| Small      | 252    | 252    | 129    | 4,563ms       | **25ms**       | **182x**   |
+| Medium     | 5,000  | 1,000  | 129    | 90,536ms      | **40ms**       | **2,263x** |
+| Large      | 10,000 | 2,000  | 129    | 181,072ms     | **55ms**       | **3,292x** |
+| Huge       | 50,000 | 10,000 | 129    | 905,360ms     | **150ms**      | **6,035x** |
 
 **Even better than original WebGL 2.0 estimates!**
 
@@ -729,8 +754,8 @@ With WebGPU compute pipeline:
 
 ```typescript
 // Current: BabylonJS WebGL engine (unchanged)
-const canvas = document.getElementById('renderCanvas');
-const engine = new BABYLON.Engine(canvas, true);  // WebGL
+const canvas = document.getElementById("renderCanvas");
+const engine = new BABYLON.Engine(canvas, true); // WebGL
 const scene = new BABYLON.Scene(engine);
 
 // New: Separate WebGPU device for arrow compute
@@ -744,7 +769,7 @@ if (device) {
     // Each frame: Extract node positions → Compute → Update
     scene.onBeforeRenderObservable.add(() => {
         // 1. Extract node positions from BabylonJS meshes (CPU)
-        const positions = nodes.map(node => ({
+        const positions = nodes.map((node) => ({
             id: node.id,
             pos: node.mesh.position,
             radius: node.getRadius(),
@@ -769,18 +794,21 @@ if (device) {
 ```
 
 **Pros**:
+
 - ✅ Minimal changes to existing BabylonJS setup
 - ✅ Incremental adoption (can implement gradually)
 - ✅ Proven pattern (WebGPU compute + other rendering)
 - ✅ Fallback is straightforward (keep current code)
 
 **Cons**:
+
 - ❌ **Data transfer overhead**: Node positions copied CPU → GPU, results copied GPU → CPU
 - ❌ **Async complexity**: Must await compute results before updating
 - ❌ **Memory duplication**: Node data exists in both WebGL and WebGPU
 - ❌ **Two graphics contexts**: More resource usage
 
 **Performance impact**:
+
 ```
 Data transfer per frame:
   - Upload: 252 nodes × 16 bytes = 4KB (positions + radii)
@@ -843,7 +871,7 @@ if (webGPUSupported) {
 ```typescript
 // BabylonJS WebGPU engine exposes native device
 class WebGPUEngine {
-    public _device: GPUDevice;        // Native WebGPU device
+    public _device: GPUDevice; // Native WebGPU device
     public _context: GPUCanvasContext; // Native canvas context
     // ... BabylonJS wrapper methods
 }
@@ -882,6 +910,7 @@ Frame N:
 ```
 
 **Pros**:
+
 - ✅ **Zero data transfer**: Everything stays on GPU
 - ✅ **Unified architecture**: One graphics API (WebGPU)
 - ✅ **Better performance**: No CPU ↔ GPU copies, no async waits
@@ -890,19 +919,20 @@ Frame N:
 - ✅ **Mature implementation**: BabylonJS WebGPU shipped 2.5 years ago
 
 **Cons**:
+
 - ⚠️ **Migration effort**: Must test all features with WebGPU engine
 - ⚠️ **BabylonJS WebGPU maturity**: Most features work, but some edge cases may differ
 - ⚠️ **Debugging**: Slightly different error messages/tooling
 
 **Performance comparison**:
 
-| Metric | Hybrid (WebGL + WebGPU) | Native WebGPU |
-|--------|-------------------------|---------------|
-| Node position update | Copy to GPU (0.3ms) | Already on GPU (0ms) |
-| Compute dispatch | 0.1ms | 0.1ms |
-| Result readback | Copy to CPU (0.5ms) | Stay on GPU (0ms) |
-| Thin instance update | CPU write (0.2ms) | GPU buffer (0ms) |
-| **Total overhead** | **~1.1ms** | **~0.1ms** |
+| Metric               | Hybrid (WebGL + WebGPU) | Native WebGPU        |
+| -------------------- | ----------------------- | -------------------- |
+| Node position update | Copy to GPU (0.3ms)     | Already on GPU (0ms) |
+| Compute dispatch     | 0.1ms                   | 0.1ms                |
+| Result readback      | Copy to CPU (0.5ms)     | Stay on GPU (0ms)    |
+| Thin instance update | CPU write (0.2ms)       | GPU buffer (0ms)     |
+| **Total overhead**   | **~1.1ms**              | **~0.1ms**           |
 
 **WebGPU engine saves ~1ms per frame!**
 
@@ -911,6 +941,7 @@ Frame N:
 #### Recommended Migration Path
 
 **Phase 1: Test BabylonJS WebGPU Compatibility** (1-2 days)
+
 ```typescript
 // Feature detection and testing
 const testWebGPU = async () => {
@@ -921,7 +952,7 @@ const testWebGPU = async () => {
     }
 
     // Create test engine
-    const testCanvas = document.createElement('canvas');
+    const testCanvas = document.createElement("canvas");
     const engine = new BABYLON.WebGPUEngine(testCanvas);
     await engine.initAsync();
 
@@ -935,7 +966,7 @@ const testWebGPU = async () => {
     const testLine = BABYLON.MeshBuilder.CreateGreasedLine(
         "testLine",
         { points: [new BABYLON.Vector3(0, 0, 0), new BABYLON.Vector3(1, 1, 1)] },
-        scene
+        scene,
     );
 
     // Render one frame
@@ -948,6 +979,7 @@ const testWebGPU = async () => {
 ```
 
 **Phase 2: Add WebGPU Engine Option** (2-3 days)
+
 ```typescript
 class Graph {
     private async createEngine(canvas: HTMLCanvasElement) {
@@ -975,6 +1007,7 @@ class Graph {
 ```
 
 **Phase 3: Implement Compute Pipeline** (1 week)
+
 ```typescript
 class Graph {
     private arrowCompute?: WebGPUArrowCompute;
@@ -1001,25 +1034,23 @@ class Graph {
             this.arrowCompute.dispatch();
         } else {
             // CPU fallback: Current implementation
-            this.edges.forEach(edge => edge.update());
+            this.edges.forEach((edge) => edge.update());
         }
     }
 }
 ```
 
 **Phase 4: Gradual Rollout** (ongoing)
+
 ```typescript
 // Config option for A/B testing
 interface GraphConfig {
-    preferWebGPU?: boolean;  // Default: true
-    forceWebGL?: boolean;    // For debugging
+    preferWebGPU?: boolean; // Default: true
+    forceWebGL?: boolean; // For debugging
 }
 
 // Feature flag rollout
-const useWebGPU =
-    config.preferWebGPU !== false &&
-    !config.forceWebGL &&
-    await BABYLON.WebGPUEngine.IsSupportedAsync;
+const useWebGPU = config.preferWebGPU !== false && !config.forceWebGL && (await BABYLON.WebGPUEngine.IsSupportedAsync);
 ```
 
 ---
@@ -1027,6 +1058,7 @@ const useWebGPU =
 #### Integration Best Practices
 
 **1. Engine Type Detection**
+
 ```typescript
 function isWebGPUEngine(engine: BABYLON.Engine): engine is BABYLON.WebGPUEngine {
     return engine instanceof BABYLON.WebGPUEngine;
@@ -1040,6 +1072,7 @@ if (isWebGPUEngine(this.engine)) {
 ```
 
 **2. Shared Buffer Management**
+
 ```typescript
 // WebGPU buffers can be accessed by both BabylonJS and custom compute
 class NodePositionBuffer {
@@ -1063,6 +1096,7 @@ class NodePositionBuffer {
 ```
 
 **3. Synchronization**
+
 ```typescript
 // Ensure compute finishes before rendering
 scene.onBeforeRenderObservable.add(() => {
@@ -1088,23 +1122,24 @@ scene.onBeforeRenderObservable.add(() => {
 
 ```typescript
 class Graph {
-    private renderingMode: 'webgpu-compute' | 'webgl-thin-instance' | 'webgl-individual';
+    private renderingMode: "webgpu-compute" | "webgl-thin-instance" | "webgl-individual";
 
     private async determineRenderingMode(): Promise<void> {
         // Try WebGPU first
         const webGPUSupported = await BABYLON.WebGPUEngine.IsSupportedAsync;
         if (webGPUSupported && this.config.preferWebGPU !== false) {
-            this.renderingMode = 'webgpu-compute';
+            this.renderingMode = "webgpu-compute";
             return;
         }
 
         // Fallback to WebGL thin instances (current implementation)
-        this.renderingMode = 'webgl-thin-instance';
+        this.renderingMode = "webgl-thin-instance";
     }
 }
 ```
 
 **Fallback chain**:
+
 1. **WebGPU compute** (98% of devices, best performance)
 2. **WebGL thin instances** (2% old devices, current performance)
 3. **WebGL individual meshes** (ancient devices, if needed)
@@ -1116,6 +1151,7 @@ class Graph {
 **Recommended Approach**: **Native WebGPU (BabylonJS WebGPU Engine)**
 
 **Why**:
+
 - ✅ Zero data transfer overhead (everything on GPU)
 - ✅ 1ms faster per frame than hybrid approach
 - ✅ Unified architecture (one graphics API)
@@ -1159,41 +1195,41 @@ class WebGPUBufferManager {
 BabylonJS provides a thin wrapper around WebGPU compute shaders (v5.0+):
 
 ```typescript
-import { ComputeShader } from '@babylonjs/core/Compute/computeShader';
-import { StorageBuffer } from '@babylonjs/core/Buffers/storageBuffer';
-import { Constants } from '@babylonjs/core/Engines/constants';
+import { ComputeShader } from "@babylonjs/core/Compute/computeShader";
+import { StorageBuffer } from "@babylonjs/core/Buffers/storageBuffer";
+import { Constants } from "@babylonjs/core/Engines/constants";
 
 // 1. Check WebGPU support
 if (!engine.getCaps().supportComputeShaders) {
-    console.error('Compute shaders not supported');
+    console.error("Compute shaders not supported");
     return;
 }
 
 // 2. Create storage buffers
 const nodePositionBuffer = new StorageBuffer(
     engine,
-    nodeCount * 16,  // vec4<f32> per node (x, y, z, radius)
+    nodeCount * 16, // vec4<f32> per node (x, y, z, radius)
     Constants.BUFFER_CREATIONFLAG_READWRITE,
-    'nodePositions'
+    "nodePositions",
 );
 
 const edgeDataBuffer = new StorageBuffer(
     engine,
-    edgeCount * 16,  // 2 × uint32 (source, target) + padding
+    edgeCount * 16, // 2 × uint32 (source, target) + padding
     Constants.BUFFER_CREATIONFLAG_READWRITE,
-    'edgeData'
+    "edgeData",
 );
 
 const arrowResultBuffer = new StorageBuffer(
     engine,
-    edgeCount * 32,  // vec4 position + vec4 direction per arrow
+    edgeCount * 32, // vec4 position + vec4 direction per arrow
     Constants.BUFFER_CREATIONFLAG_READWRITE,
-    'arrowResults'
+    "arrowResults",
 );
 
 // 3. Create compute shader with WGSL code
 const arrowCompute = new ComputeShader(
-    'arrowPositionCompute',
+    "arrowPositionCompute",
     engine,
     { computeSource: wgslShaderCode },
     {
@@ -1202,18 +1238,18 @@ const arrowCompute = new ComputeShader(
             edgeData: { group: 0, binding: 1 },
             arrowResults: { group: 0, binding: 2 },
             nodeGeometry: { group: 0, binding: 3 },
-        }
-    }
+        },
+    },
 );
 
 // 4. Bind storage buffers to compute shader
-arrowCompute.setStorageBuffer('nodePositions', nodePositionBuffer);
-arrowCompute.setStorageBuffer('edgeData', edgeDataBuffer);
-arrowCompute.setStorageBuffer('arrowResults', arrowResultBuffer);
+arrowCompute.setStorageBuffer("nodePositions", nodePositionBuffer);
+arrowCompute.setStorageBuffer("edgeData", edgeDataBuffer);
+arrowCompute.setStorageBuffer("arrowResults", arrowResultBuffer);
 
 // 5. Dispatch compute work
-arrowCompute.dispatchWhenReady();  // First time (waits for compilation)
-arrowCompute.dispatch();            // Subsequent calls (immediate)
+arrowCompute.dispatchWhenReady(); // First time (waits for compilation)
+arrowCompute.dispatch(); // Subsequent calls (immediate)
 
 // 6. Read results back (if needed on CPU)
 const results = await arrowResultBuffer.read();
@@ -1255,6 +1291,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 ```
 
 **Important notes**:
+
 - **Manual binding mapping required**: Browsers don't support WGSL reflection yet, so you must specify `bindingsMapping` manually
 - **Workgroup size**: 256 is optimal for most GPUs (64-1024 range)
 - **Storage buffer alignment**: All data must be 4-byte aligned
@@ -1266,8 +1303,8 @@ To support arbitrary node shapes, we need to access mesh triangle data:
 ```typescript
 // Extract vertex and index data from BabylonJS mesh
 function extractMeshTriangles(mesh: BABYLON.Mesh): {
-    vertices: Float32Array,
-    indices: Uint32Array
+    vertices: Float32Array;
+    indices: Uint32Array;
 } {
     // Get vertex positions (Float32Array)
     const positions = mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
@@ -1281,19 +1318,17 @@ function extractMeshTriangles(mesh: BABYLON.Mesh): {
 
     return {
         vertices: new Float32Array(positions),
-        indices: indices instanceof Uint32Array
-            ? indices
-            : new Uint32Array(indices)
+        indices: indices instanceof Uint32Array ? indices : new Uint32Array(indices),
     };
 }
 
 // Build triangle buffer for GPU
 function buildTriangleBuffer(meshes: BABYLON.Mesh[]): {
-    triangleData: Float32Array,
-    meshMetadata: { offset: number, count: number }[]
+    triangleData: Float32Array;
+    meshMetadata: { offset: number; count: number }[];
 } {
     const allTriangles: number[] = [];
-    const metadata: { offset: number, count: number }[] = [];
+    const metadata: { offset: number; count: number }[] = [];
 
     for (const mesh of meshes) {
         const { vertices, indices } = extractMeshTriangles(mesh);
@@ -1306,28 +1341,22 @@ function buildTriangleBuffer(meshes: BABYLON.Mesh[]): {
             const i2 = indices[i + 2] * 3;
 
             // Vertex 0
-            allTriangles.push(
-                vertices[i0], vertices[i0 + 1], vertices[i0 + 2]
-            );
+            allTriangles.push(vertices[i0], vertices[i0 + 1], vertices[i0 + 2]);
             // Vertex 1
-            allTriangles.push(
-                vertices[i1], vertices[i1 + 1], vertices[i1 + 2]
-            );
+            allTriangles.push(vertices[i1], vertices[i1 + 1], vertices[i1 + 2]);
             // Vertex 2
-            allTriangles.push(
-                vertices[i2], vertices[i2 + 1], vertices[i2 + 2]
-            );
+            allTriangles.push(vertices[i2], vertices[i2 + 1], vertices[i2 + 2]);
         }
 
         metadata.push({
             offset: triangleOffset,
-            count: indices.length / 3
+            count: indices.length / 3,
         });
     }
 
     return {
         triangleData: new Float32Array(allTriangles),
-        meshMetadata: metadata
+        meshMetadata: metadata,
     };
 }
 
@@ -1338,13 +1367,14 @@ const triangleBuffer = new StorageBuffer(
     engine,
     triangleData.byteLength,
     Constants.BUFFER_CREATIONFLAG_READWRITE,
-    'nodeTriangles'
+    "nodeTriangles",
 );
 
 triangleBuffer.update(triangleData);
 ```
 
 **Memory requirements** (for 10,000 nodes):
+
 - Sphere (analytical): 0 bytes (use formula)
 - Box (analytical): 0 bytes (use formula)
 - IcoSphere (320 triangles): 320 × 9 × 4 = 11.5KB per mesh
@@ -1356,28 +1386,28 @@ triangleBuffer.update(triangleData);
 **Critical optimization**: Keep arrow transformation matrices on GPU, never copy to CPU!
 
 ```typescript
-import { VertexBuffer, Buffer } from '@babylonjs/core/Buffers/buffer';
+import { VertexBuffer, Buffer } from "@babylonjs/core/Buffers/buffer";
 
 // Create storage buffer with VERTEX flag for thin instances
 const matrixStorageBuffer = new StorageBuffer(
     engine,
-    arrowCount * 64,  // 16 floats per 4×4 matrix = 64 bytes
+    arrowCount * 64, // 16 floats per 4×4 matrix = 64 bytes
     Constants.BUFFER_CREATIONFLAG_READWRITE | Constants.BUFFER_CREATIONFLAG_VERTEX,
-    'arrowMatrices'
+    "arrowMatrices",
 );
 
 // Arrow compute shader writes directly to this buffer
-arrowCompute.setStorageBuffer('outputMatrices', matrixStorageBuffer);
+arrowCompute.setStorageBuffer("outputMatrices", matrixStorageBuffer);
 arrowCompute.dispatch();
 
 // Create vertex buffers from storage buffer (zero-copy!)
 const nativeBuffer = matrixStorageBuffer.getBuffer();
 
 // Thin instances require 4 vertex buffers (one per matrix row)
-const vb0 = new VertexBuffer(engine, nativeBuffer, 'world0', 4, false, false, 16, undefined, true, 0);
-const vb1 = new VertexBuffer(engine, nativeBuffer, 'world1', 4, false, false, 16, undefined, true, 16);
-const vb2 = new VertexBuffer(engine, nativeBuffer, 'world2', 4, false, false, 16, undefined, true, 32);
-const vb3 = new VertexBuffer(engine, nativeBuffer, 'world3', 4, false, false, 16, undefined, true, 48);
+const vb0 = new VertexBuffer(engine, nativeBuffer, "world0", 4, false, false, 16, undefined, true, 0);
+const vb1 = new VertexBuffer(engine, nativeBuffer, "world1", 4, false, false, 16, undefined, true, 16);
+const vb2 = new VertexBuffer(engine, nativeBuffer, "world2", 4, false, false, 16, undefined, true, 32);
+const vb3 = new VertexBuffer(engine, nativeBuffer, "world3", 4, false, false, 16, undefined, true, 48);
 
 // Set on arrow mesh
 arrowMesh.setVerticesBuffer(vb0);
@@ -1415,19 +1445,19 @@ class ArrowRenderer {
             this.engine,
             this.nodeCount * 16,
             Constants.BUFFER_CREATIONFLAG_READWRITE,
-            'nodePositions'
+            "nodePositions",
         );
 
         this.matrixBuffer = new StorageBuffer(
             this.engine,
             this.arrowCount * 64,
             Constants.BUFFER_CREATIONFLAG_READWRITE | Constants.BUFFER_CREATIONFLAG_VERTEX,
-            'arrowMatrices'
+            "arrowMatrices",
         );
 
         // Create compute shader
         this.arrowCompute = new BABYLON.ComputeShader(
-            'arrowCompute',
+            "arrowCompute",
             this.engine,
             { computeSource: this.getWGSLCode() },
             {
@@ -1435,26 +1465,30 @@ class ArrowRenderer {
                     nodePositions: { group: 0, binding: 0 },
                     edgeData: { group: 0, binding: 1 },
                     outputMatrices: { group: 0, binding: 2 },
-                }
-            }
+                },
+            },
         );
 
-        this.arrowCompute.setStorageBuffer('nodePositions', this.nodePositionBuffer);
-        this.arrowCompute.setStorageBuffer('outputMatrices', this.matrixBuffer);
+        this.arrowCompute.setStorageBuffer("nodePositions", this.nodePositionBuffer);
+        this.arrowCompute.setStorageBuffer("outputMatrices", this.matrixBuffer);
 
         // Setup arrow mesh with thin instances
-        this.arrowMesh = BABYLON.MeshBuilder.CreateCylinder('arrow', {
-            height: 1.0,
-            diameterTop: 0,
-            diameterBottom: 0.1,
-        }, this.scene);
+        this.arrowMesh = BABYLON.MeshBuilder.CreateCylinder(
+            "arrow",
+            {
+                height: 1.0,
+                diameterTop: 0,
+                diameterBottom: 0.1,
+            },
+            this.scene,
+        );
 
         // Attach storage buffer as thin instance matrices
         const nativeBuffer = this.matrixBuffer.getBuffer();
-        const vb0 = new VertexBuffer(this.engine, nativeBuffer, 'world0', 4, false, false, 16, undefined, true, 0);
-        const vb1 = new VertexBuffer(this.engine, nativeBuffer, 'world1', 4, false, false, 16, undefined, true, 16);
-        const vb2 = new VertexBuffer(this.engine, nativeBuffer, 'world2', 4, false, false, 16, undefined, true, 32);
-        const vb3 = new VertexBuffer(this.engine, nativeBuffer, 'world3', 4, false, false, 16, undefined, true, 48);
+        const vb0 = new VertexBuffer(this.engine, nativeBuffer, "world0", 4, false, false, 16, undefined, true, 0);
+        const vb1 = new VertexBuffer(this.engine, nativeBuffer, "world1", 4, false, false, 16, undefined, true, 16);
+        const vb2 = new VertexBuffer(this.engine, nativeBuffer, "world2", 4, false, false, 16, undefined, true, 32);
+        const vb3 = new VertexBuffer(this.engine, nativeBuffer, "world3", 4, false, false, 16, undefined, true, 48);
 
         this.arrowMesh.setVerticesBuffer(vb0);
         this.arrowMesh.setVerticesBuffer(vb1);
@@ -1463,7 +1497,7 @@ class ArrowRenderer {
         this.arrowMesh.thinInstanceCount = this.arrowCount;
     }
 
-    updateNodePositions(nodes: { position: Vector3, radius: number }[]) {
+    updateNodePositions(nodes: { position: Vector3; radius: number }[]) {
         // Upload node data to GPU
         const data = new Float32Array(nodes.length * 4);
         for (let i = 0; i < nodes.length; i++) {
@@ -1495,27 +1529,30 @@ class ArrowRenderer {
 #### Buffer Update Strategies
 
 **Static buffers** (best performance for unchanging data):
+
 ```typescript
 const buffer = new StorageBuffer(
     engine,
     size,
-    Constants.BUFFER_CREATIONFLAG_READWRITE | Constants.BUFFER_CREATIONFLAG_VERTEX
+    Constants.BUFFER_CREATIONFLAG_READWRITE | Constants.BUFFER_CREATIONFLAG_VERTEX,
 );
 // Set once, never update
 buffer.update(data);
 ```
 
 **Dynamic buffers** (for frequently changing data):
+
 ```typescript
 // Node positions change every frame (physics, animation)
 this.scene.onBeforeRenderObservable.add(() => {
     const positions = this.extractNodePositions();
-    this.nodePositionBuffer.update(positions);  // Efficient GPU upload
+    this.nodePositionBuffer.update(positions); // Efficient GPU upload
     this.arrowCompute.dispatch();
 });
 ```
 
 **Partial updates** (when only some data changes):
+
 ```typescript
 // Update specific byte range (not yet in BabylonJS API, use native WebGPU)
 const device = (engine as BABYLON.WebGPUEngine)._device;
@@ -1523,16 +1560,17 @@ const gpuBuffer = this.nodePositionBuffer.getBuffer().underlyingResource as GPUB
 
 device.queue.writeBuffer(
     gpuBuffer,
-    byteOffset,      // Start at specific offset
-    data,            // Updated data
-    0,               // Source offset
-    data.byteLength  // Number of bytes
+    byteOffset, // Start at specific offset
+    data, // Updated data
+    0, // Source offset
+    data.byteLength, // Number of bytes
 );
 ```
 
 #### Memory Management Best Practices
 
 1. **Dispose buffers when done**:
+
 ```typescript
 this.nodePositionBuffer.dispose();
 this.matrixBuffer.dispose();
@@ -1540,6 +1578,7 @@ this.arrowCompute.dispose();
 ```
 
 2. **Buffer pooling for dynamic graphs**:
+
 ```typescript
 class BufferPool {
     private buffers: Map<number, StorageBuffer> = new Map();
@@ -1560,68 +1599,74 @@ class BufferPool {
 ```
 
 3. **Monitor GPU memory usage**:
+
 ```typescript
 // BabylonJS WebGPU engine tracks buffer allocations
-console.log('Active buffers:', engine._storageBuffers.length);
+console.log("Active buffers:", engine._storageBuffers.length);
 ```
 
 #### Debugging GPU Buffers
 
 **Read buffer contents** (for debugging):
+
 ```typescript
 // Read entire buffer
 const data = await storageBuffer.read();
-console.log('Buffer contents:', new Float32Array(data.buffer));
+console.log("Buffer contents:", new Float32Array(data.buffer));
 
 // Read specific range
 const partialData = await storageBuffer.read(
-    byteOffset,     // Start offset
-    byteLength,     // Number of bytes
-    targetBuffer,   // Optional pre-allocated buffer
-    true            // noDelay: flush immediately
+    byteOffset, // Start offset
+    byteLength, // Number of bytes
+    targetBuffer, // Optional pre-allocated buffer
+    true, // noDelay: flush immediately
 );
 ```
 
 **GPU error reporting**:
+
 ```typescript
 const device = (engine as BABYLON.WebGPUEngine)._device;
 
-device.addEventListener('uncapturederror', (event) => {
-    console.error('WebGPU error:', event.error);
+device.addEventListener("uncapturederror", (event) => {
+    console.error("WebGPU error:", event.error);
 });
 
 // BabylonJS also logs to console automatically
 ```
 
 **Performance profiling**:
+
 ```typescript
 // Enable GPU timing (requires 'timestamp-query' feature)
 const engine = new BABYLON.WebGPUEngine(canvas, {
     enableGPUDebugMarkers: true,
     deviceDescriptor: {
-        requiredFeatures: ['timestamp-query']
-    }
+        requiredFeatures: ["timestamp-query"],
+    },
 });
 
 engine.enableGPUTimingMeasurements = true;
 
 // Check compute shader timing
-console.log('Compute time:', arrowCompute.gpuTimeInFrame?.current);
+console.log("Compute time:", arrowCompute.gpuTimeInFrame?.current);
 ```
 
 #### Common Pitfalls and Solutions
 
 **Problem**: Buffer data not updating
+
 ```typescript
 // ❌ Wrong: Modifying array doesn't upload to GPU
 const positions = new Float32Array(100);
-positions[0] = 5.0;  // Local change only
+positions[0] = 5.0; // Local change only
 
 // ✅ Correct: Call update() to upload
 nodeBuffer.update(positions);
 ```
 
 **Problem**: Alignment errors
+
 ```typescript
 // ❌ Wrong: Not 4-byte aligned
 struct NodeData {
@@ -1646,19 +1691,20 @@ struct EdgeData {
 ```
 
 **Problem**: Thin instances not rendering
+
 ```typescript
 // ❌ Wrong: Missing VERTEX flag
 const buffer = new StorageBuffer(
     engine,
     size,
-    Constants.BUFFER_CREATIONFLAG_READWRITE  // Missing VERTEX flag!
+    Constants.BUFFER_CREATIONFLAG_READWRITE, // Missing VERTEX flag!
 );
 
 // ✅ Correct: Include VERTEX flag
 const buffer = new StorageBuffer(
     engine,
     size,
-    Constants.BUFFER_CREATIONFLAG_READWRITE | Constants.BUFFER_CREATIONFLAG_VERTEX
+    Constants.BUFFER_CREATIONFLAG_READWRITE | Constants.BUFFER_CREATIONFLAG_VERTEX,
 );
 ```
 
@@ -1673,6 +1719,7 @@ const buffer = new StorageBuffer(
 7. **Dispose buffers**: Prevent GPU memory leaks
 
 **Documentation references**:
+
 - [BabylonJS Compute Shaders](https://doc.babylonjs.com/features/featuresDeepDive/materials/shaders/computeShader)
 - [Forum: GPU Buffer Management](https://forum.babylonjs.com/t/how-to-keep-buffers-on-the-gpu-when-using-compute-shaders-for-instancing-or-vertex-data-generation/45951)
 - [Forum: Data Transfer from Compute to Renderer](https://forum.babylonjs.com/t/data-transfer-from-compute-shader-to-renderer/45576)
@@ -1692,6 +1739,7 @@ WebGPU in headless Chrome has a **fundamental limitation that blocks canvas rend
 > — [GitHub: headless-chrome-nvidia-t4-gpu-support](https://github.com/jasonmayes/headless-chrome-nvidia-t4-gpu-support)
 
 **Required flags for WebGPU compute in headless Chrome**:
+
 ```bash
 --headless=new
 --use-angle=vulkan
@@ -1701,6 +1749,7 @@ WebGPU in headless Chrome has a **fundamental limitation that blocks canvas rend
 ```
 
 **The `--disable-vulkan-surface` flag**:
+
 - ✅ Enables WebGPU compute shaders (no canvas)
 - ❌ **Disables canvas rendering** (uses bit blit instead of swapchain)
 - ❌ **Breaks 3D rendering** (BabylonJS needs canvas for visual output)
@@ -1710,20 +1759,20 @@ WebGPU in headless Chrome has a **fundamental limitation that blocks canvas rend
 #### What Still Works
 
 1. **WebGPU compute-only** (non-visual):
-   - Compute shader execution
-   - Buffer operations
-   - Data processing
-   - Unit tests of compute logic
+    - Compute shader execution
+    - Buffer operations
+    - Data processing
+    - Unit tests of compute logic
 
 2. **Headed browser testing**:
-   - Full WebGPU support with canvas
-   - Visual verification possible
-   - Requires display server (X11, Wayland)
+    - Full WebGPU support with canvas
+    - Visual verification possible
+    - Requires display server (X11, Wayland)
 
 3. **WebGL fallback in headless**:
-   - WebGL 1.0/2.0 work fine in headless
-   - Current visual tests use WebGL
-   - Can continue testing with WebGL
+    - WebGL 1.0/2.0 work fine in headless
+    - Current visual tests use WebGL
+    - Can continue testing with WebGL
 
 #### Solutions and Workarounds
 
@@ -1737,25 +1786,28 @@ export default defineConfig({
     test: {
         browser: {
             enabled: true,
-            headless: false,  // ⚠️ Headed mode for WebGPU!
+            headless: false, // ⚠️ Headed mode for WebGPU!
             provider: "playwright",
-            instances: [{
-                browser: "chromium",
-                launch: {
-                    args: [
-                        '--enable-unsafe-webgpu',
-                        '--use-angle=vulkan',
-                        '--enable-features=Vulkan',
-                        // NO --disable-vulkan-surface!
-                    ]
-                }
-            }],
+            instances: [
+                {
+                    browser: "chromium",
+                    launch: {
+                        args: [
+                            "--enable-unsafe-webgpu",
+                            "--use-angle=vulkan",
+                            "--enable-features=Vulkan",
+                            // NO --disable-vulkan-surface!
+                        ],
+                    },
+                },
+            ],
         },
     },
 });
 ```
 
 **Setup Xvfb for headed tests on headless server**:
+
 ```bash
 # Install Xvfb
 apt-get install -y xvfb
@@ -1765,12 +1817,14 @@ xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" npm test
 ```
 
 **Pros**:
+
 - ✅ Full WebGPU support with canvas rendering
 - ✅ Visual tests work correctly
 - ✅ True rendering verification
 - ✅ No code changes needed
 
 **Cons**:
+
 - ❌ Requires Xvfb setup
 - ❌ Slightly slower than headless
 - ❌ More complex CI configuration
@@ -1782,27 +1836,29 @@ Use different engines for different test environments:
 ```typescript
 // Detect testing environment
 const isHeadless = process.env.CI || !process.env.DISPLAY;
-const engineType = isHeadless ? 'webgl2' : 'webgpu';
+const engineType = isHeadless ? "webgl2" : "webgpu";
 
 // Use WebGL for headless visual tests
 if (isHeadless) {
     // Run visual tests with WebGL (works in headless)
-    await runVisualTests('webgl2');
+    await runVisualTests("webgl2");
 } else {
     // Run visual tests with WebGPU (headed mode)
-    await runVisualTests('webgpu');
+    await runVisualTests("webgpu");
 }
 
 // Compute-only tests can use WebGPU in headless
-await runComputeTests('webgpu');  // No canvas needed
+await runComputeTests("webgpu"); // No canvas needed
 ```
 
 **Pros**:
+
 - ✅ Works in current headless CI environment
 - ✅ No infrastructure changes
 - ✅ Can still test WebGPU compute logic
 
 **Cons**:
+
 - ❌ Can't visually verify WebGPU rendering in CI
 - ❌ Different rendering engines in dev vs CI
 - ❌ Potential for WebGPU-specific visual bugs to slip through
@@ -1812,33 +1868,37 @@ await runComputeTests('webgpu');  // No canvas needed
 Use cloud CI with GPU support:
 
 **Services that support GPU**:
+
 - GitHub Actions: GPU runners (expensive, limited availability)
 - Google Cloud Platform: GPU instances with Chrome
 - AWS EC2: GPU instances (G4/G5 series)
 - Browserless.io: GPU-accelerated cloud browsers
 
 **Example GCP setup**:
+
 ```yaml
 # .github/workflows/webgpu-tests.yml
 jobs:
-  webgpu-visual-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: google-github-actions/setup-gcloud@v1
-      - name: Run tests on GPU instance
-        run: |
-          gcloud compute instances create test-vm \
-            --accelerator=type=nvidia-tesla-t4,count=1 \
-            --machine-type=n1-standard-4
-          # Run tests...
+    webgpu-visual-tests:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: google-github-actions/setup-gcloud@v1
+            - name: Run tests on GPU instance
+              run: |
+                  gcloud compute instances create test-vm \
+                    --accelerator=type=nvidia-tesla-t4,count=1 \
+                    --machine-type=n1-standard-4
+                  # Run tests...
 ```
 
 **Pros**:
+
 - ✅ True WebGPU testing in CI
 - ✅ Matches production environment
 - ✅ Future-proof
 
 **Cons**:
+
 - ❌ Expensive (~$0.35-0.95/hour for GPU instances)
 - ❌ Complex setup
 - ❌ Slower test execution (spin up time)
@@ -1856,20 +1916,20 @@ export default defineConfig({
             use: {
                 ...devices["Desktop Chrome"],
                 launchOptions: {
-                    args: ["--use-angle=default", "--ignore-gpu-blacklist"]
-                }
-            }
+                    args: ["--use-angle=default", "--ignore-gpu-blacklist"],
+                },
+            },
         },
         {
-            name: "webgpu",  // ⚠️ Likely runs in headed mode
+            name: "webgpu", // ⚠️ Likely runs in headed mode
             use: {
                 ...devices["Desktop Chrome"],
                 launchOptions: {
-                    args: ["--enable-unsafe-webgpu", "--use-angle=default"]
-                }
-            }
-        }
-    ]
+                    args: ["--enable-unsafe-webgpu", "--use-angle=default"],
+                },
+            },
+        },
+    ],
 });
 ```
 
@@ -1878,6 +1938,7 @@ export default defineConfig({
 #### Recommended Implementation Strategy
 
 **Phase 1: WebGL Visual Testing + WebGPU Compute Testing** (Current, 0 changes)
+
 ```typescript
 // Visual tests: Use WebGL in headless CI
 test('arrow rendering (WebGL)', async () => {
@@ -1901,6 +1962,7 @@ test('arrow compute shader', async () => {
 ```
 
 **Phase 2: Add Xvfb for WebGPU Visual Tests** (1-2 days)
+
 ```bash
 # CI workflow
 - name: Setup Xvfb
@@ -1922,6 +1984,7 @@ test('arrow compute shader', async () => {
 4. **CI compute tests**: Use WebGPU compute (verify logic, no canvas)
 
 **Why arrows look the same in WebGL vs WebGPU**:
+
 - Arrow positioning is computed (WebGPU compute shader)
 - Arrow rendering is standard mesh rendering (WebGL/WebGPU identical)
 - Visual output is pixel-identical for thin instances
@@ -1929,13 +1992,13 @@ test('arrow compute shader', async () => {
 
 #### Testing Strategy Summary
 
-| Test Type | Engine | Headless | Purpose |
-|-----------|--------|----------|---------|
-| **Visual regression** | WebGL | ✅ Yes | Verify arrow appearance |
-| **Compute logic** | WebGPU | ✅ Yes | Verify ray intersection math |
-| **Integration** | WebGL | ✅ Yes | End-to-end functionality |
-| **Performance** | WebGPU | ❌ No (Xvfb) | Benchmark GPU compute |
-| **Development** | WebGPU | ❌ No | Local testing |
+| Test Type             | Engine | Headless     | Purpose                      |
+| --------------------- | ------ | ------------ | ---------------------------- |
+| **Visual regression** | WebGL  | ✅ Yes       | Verify arrow appearance      |
+| **Compute logic**     | WebGPU | ✅ Yes       | Verify ray intersection math |
+| **Integration**       | WebGL  | ✅ Yes       | End-to-end functionality     |
+| **Performance**       | WebGPU | ❌ No (Xvfb) | Benchmark GPU compute        |
+| **Development**       | WebGPU | ❌ No        | Local testing                |
 
 **Key insight**: We can **implement and verify WebGPU arrow rendering** using a hybrid testing strategy that works in headless CI!
 
@@ -1976,6 +2039,7 @@ test('arrow compute shader', async () => {
 #### Current Approach (Thin Instances)
 
 **Per arrow per frame**:
+
 ```
 Matrix (4×4): 16 floats = 64 bytes
 lineDirection (vec3): 3 floats = 12 bytes
@@ -1988,6 +2052,7 @@ Total per arrow: 76 bytes
 #### GPU-Side Approach
 
 **Per frame** (all arrows):
+
 ```
 Node positions (252 nodes):
   252 × 3 floats = 756 floats = 3,024 bytes per frame
@@ -2002,6 +2067,7 @@ Reduction: 2.4 MB → 390 KB = 85% less memory traffic!
 #### Current Approach (252 edges, 129 frames)
 
 **Per arrow per frame**:
+
 ```
 Ray-sphere intersection (×2): 0.038ms
 Arrow position calculation: 0.010ms
@@ -2017,6 +2083,7 @@ Total: 129 × 42.8ms = 5,521ms
 #### GPU-Side Approach (252 edges, 129 frames)
 
 **Per frame**:
+
 ```
 Pack node positions: 0.3ms
 Upload to GPU: 0.2ms
@@ -2066,16 +2133,17 @@ Difference: +0.05ms per frame (negligible!)
 
 ### Performance vs Edge Count
 
-| Edges | Nodes (est.) | Current CPU (ms/frame) | GPU-Side CPU (ms/frame) | Speedup | GPU Time (ms/frame) |
-|-------|--------------|----------------------|------------------------|---------|-------------------|
-| 252 | 252 | 42.8 ❌ | 0.5 ✅ | 85x | 0.08 |
-| 1,000 | 500 | 170.0 ❌ | 0.7 ✅ | 242x | 0.10 |
-| 5,000 | 1,000 | 850.0 ❌ | 1.0 ✅ | 850x | 0.15 |
-| 10,000 | 2,000 | 1,700.0 ❌ | 1.5 ✅ | 1,133x | 0.20 |
-| 50,000 | 5,000 | 8,500.0 ❌ | 3.0 ✅ | 2,833x | 0.40 |
-| 100,000 | 10,000 | 17,000.0 ❌ | 5.0 ✅ | 3,400x | 0.60 |
+| Edges   | Nodes (est.) | Current CPU (ms/frame) | GPU-Side CPU (ms/frame) | Speedup | GPU Time (ms/frame) |
+| ------- | ------------ | ---------------------- | ----------------------- | ------- | ------------------- |
+| 252     | 252          | 42.8 ❌                | 0.5 ✅                  | 85x     | 0.08                |
+| 1,000   | 500          | 170.0 ❌               | 0.7 ✅                  | 242x    | 0.10                |
+| 5,000   | 1,000        | 850.0 ❌               | 1.0 ✅                  | 850x    | 0.15                |
+| 10,000  | 2,000        | 1,700.0 ❌             | 1.5 ✅                  | 1,133x  | 0.20                |
+| 50,000  | 5,000        | 8,500.0 ❌             | 3.0 ✅                  | 2,833x  | 0.40                |
+| 100,000 | 10,000       | 17,000.0 ❌            | 5.0 ✅                  | 3,400x  | 0.60                |
 
 **Key observations**:
+
 1. **CPU cost scales with NODE count**, not edge count
 2. **GPU time barely increases** (parallel execution)
 3. **Speedup increases with scale** (amortized upload cost)
@@ -2083,14 +2151,14 @@ Difference: +0.05ms per frame (negligible!)
 
 ### Memory Traffic vs Edge Count
 
-| Edges | Current Upload (KB/frame) | GPU-Side Upload (KB/frame) | Reduction |
-|-------|--------------------------|---------------------------|-----------|
-| 252 | 19 | 3 | 85% |
-| 1,000 | 75 | 6 | 92% |
-| 5,000 | 375 | 12 | 97% |
-| 10,000 | 750 | 24 | 97% |
-| 50,000 | 3,750 | 60 | 98% |
-| 100,000 | 7,500 | 120 | 98% |
+| Edges   | Current Upload (KB/frame) | GPU-Side Upload (KB/frame) | Reduction |
+| ------- | ------------------------- | -------------------------- | --------- |
+| 252     | 19                        | 3                          | 85%       |
+| 1,000   | 75                        | 6                          | 92%       |
+| 5,000   | 375                       | 12                         | 97%       |
+| 10,000  | 750                       | 24                         | 97%       |
+| 50,000  | 3,750                     | 60                         | 98%       |
+| 100,000 | 7,500                     | 120                        | 98%       |
 
 **Bandwidth savings increase with scale!**
 
@@ -2101,6 +2169,7 @@ Difference: +0.05ms per frame (negligible!)
 ### Analytical Solutions (Fast)
 
 #### Sphere (Exact)
+
 ```glsl
 float raySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 center, float radius) {
     vec3 oc = rayOrigin - center;
@@ -2110,9 +2179,11 @@ float raySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 center, float radius)
     return (discriminant < 0.0) ? -1.0 : -b - sqrt(discriminant);
 }
 ```
+
 **Cost**: 5 ALU operations (negligible)
 
 #### Box (Exact AABB)
+
 ```glsl
 float rayBoxIntersect(vec3 rayOrigin, vec3 rayDir, vec3 boxMin, vec3 boxMax) {
     vec3 invDir = 1.0 / rayDir;
@@ -2125,9 +2196,11 @@ float rayBoxIntersect(vec3 rayOrigin, vec3 rayDir, vec3 boxMin, vec3 boxMax) {
     return (tNear > tFar || tFar < 0.0) ? -1.0 : tNear;
 }
 ```
+
 **Cost**: ~15 ALU operations (still fast)
 
 #### Cylinder (Analytical)
+
 ```glsl
 float rayCylinderIntersect(vec3 rayOrigin, vec3 rayDir, vec3 axis, float radius, float height) {
     // More complex but still analytical
@@ -2147,6 +2220,7 @@ Custom node meshes (imported 3D models, complex shapes) cannot be represented by
 #### Solution: GPU Triangle Intersection with Möller-Trumbore
 
 **Key Insight**: We don't need full scene ray tracing. We know EXACTLY which mesh to test (source/destination node), so we can:
+
 1. Upload triangle data for each custom-shaped node
 2. Test ray against node's triangles in compute shader
 3. Use bounding sphere for early rejection
@@ -2222,21 +2296,21 @@ fn intersectTriangle(
 
 ```typescript
 interface NodeGeometryData {
-    type: 'sphere' | 'box' | 'cylinder' | 'triangleMesh';
+    type: "sphere" | "box" | "cylinder" | "triangleMesh";
 
     // For common shapes: reference shared geometry
-    shapeId?: string;  // "sphere-1.0", "box-2x2x2", etc.
+    shapeId?: string; // "sphere-1.0", "box-2x2x2", etc.
 
     // For custom meshes: store triangle data
-    triangleOffset?: number;  // Offset in global triangle buffer
+    triangleOffset?: number; // Offset in global triangle buffer
     triangleCount?: number;
-    boundingSphere?: { center: Vector3, radius: number };
+    boundingSphere?: { center: Vector3; radius: number };
 }
 
 // Global triangle buffer (shared across all custom meshes)
 interface TriangleBuffer {
-    vertices: Float32Array;  // All vertices: [x,y,z, x,y,z, ...]
-    indices: Uint32Array;    // Triangle indices: [v0,v1,v2, v0,v1,v2, ...]
+    vertices: Float32Array; // All vertices: [x,y,z, x,y,z, ...]
+    indices: Uint32Array; // Triangle indices: [v0,v1,v2, v0,v1,v2, ...]
 }
 
 // Upload to GPU
@@ -2252,6 +2326,7 @@ const triangleIndexBuffer = device.createBuffer({
 ```
 
 **Memory optimization**: Most nodes share geometry!
+
 - 9,000 spheres → Reference same "sphere-1.0" geometry
 - 500 boxes → Reference same "box-1x1x1" geometry
 - 500 custom meshes → Store unique triangle data
@@ -2369,19 +2444,20 @@ fn computeArrowPositions(
 
 Tested all 25 node shapes currently supported by graphty-element:
 
-| Shape Category | Examples | Triangle Count |
-|----------------|----------|----------------|
-| **Analytical** (use formulas, not triangles) | Sphere, Box, Cylinder, Cone | 12-4,624* |
-| **Simple polyhedra** | Tetrahedron, Octahedron, Pyramids | 4-20 |
-| **Medium polyhedra** | Dodecahedron, Prisms, Cupola | 20-46 |
-| **Moderate complexity** | IcoSphere, Torus, Capsule | 320-578 |
-| **High complexity** | **Torus Knot** (128 segments) | **8,192** |
+| Shape Category                               | Examples                          | Triangle Count |
+| -------------------------------------------- | --------------------------------- | -------------- |
+| **Analytical** (use formulas, not triangles) | Sphere, Box, Cylinder, Cone       | 12-4,624\*     |
+| **Simple polyhedra**                         | Tetrahedron, Octahedron, Pyramids | 4-20           |
+| **Medium polyhedra**                         | Dodecahedron, Prisms, Cupola      | 20-46          |
+| **Moderate complexity**                      | IcoSphere, Torus, Capsule         | 320-578        |
+| **High complexity**                          | **Torus Knot** (128 segments)     | **8,192**      |
 
 \* Sphere has 4,624 triangles in BabylonJS but uses analytical ray-sphere intersection (5 ALU ops) instead of triangle tests
 
 **Most Complex Current Mesh**: Torus Knot with **8,192 triangles**
 
 **Bounding Sphere Early Rejection**:
+
 - 90%+ of rays rejected by bounding sphere (5 ALU ops)
 - Only rays that actually hit the sphere proceed to triangle tests
 
@@ -2408,6 +2484,7 @@ Simple Polyhedra (< 50 triangles):
 ```
 
 **Scalability with Current Meshes**:
+
 - Analytical shapes (sphere, box, cylinder): **5-30 ops** (use formulas)
 - Simple polyhedra (< 50 triangles): **~65 ops** (very fast)
 - Medium complexity (320 triangles): **~485 ops** (fast)
@@ -2415,6 +2492,7 @@ Simple Polyhedra (< 50 triangles):
 - **GPU parallelism**: All 252 arrows computed simultaneously!
 
 **Frame Time Impact** (Real-World Scenario):
+
 ```
 Scenario: 252 edges, mix of node shapes
   - 200 spheres → Analytical (5 ops each)
@@ -2435,11 +2513,13 @@ GPU approach (parallel):
 ```
 
 **Key Insight**: Even the most complex current mesh (torus knot with 8,192 triangles) performs excellently on GPU due to:
+
 1. Bounding sphere early rejection (90%+ rays skip triangle tests)
 2. Massive GPU parallelism (256 threads)
 3. Early exits in triangle loops (don't test all 8,192 triangles)
 
 **Worst case** (all nodes are torus knots):
+
 - 252 edges × 2 = 504 ray tests
 - 504 × 12,000 ops = 6,048,000 ops
 - GPU parallel: ~0.24ms per frame
@@ -2452,11 +2532,13 @@ GPU approach (parallel):
 **When BVH becomes valuable**: If users import custom 3D models with 10,000+ triangles, implement **Bounding Volume Hierarchy**:
 
 **Concept**: Organize triangles in a tree structure
+
 - Root: Bounding box of entire mesh
 - Children: Subdivide space recursively
 - Leaves: Individual triangles
 
 **Traversal in Compute Shader**:
+
 ```wgsl
 struct BVHNode {
     bbox_min: vec3f,
@@ -2504,11 +2586,13 @@ fn intersectBVH(rayOrigin: vec3f, rayDir: vec3f, nodeIdx: u32) -> f32 {
 ```
 
 **BVH Performance**:
+
 - 10,000-triangle mesh without BVH: ~5,000 triangle tests
 - 10,000-triangle mesh with BVH: ~20 triangle tests (log₂(10000) ≈ 13 node visits)
 - **250x reduction** in triangle tests!
 
 **Implementation Timeline**:
+
 - Phase 1-2: Direct triangle intersection (handles all current meshes perfectly!)
 - Phase 3 (optional): Add BVH support if users import very complex custom 3D models (10,000+ triangles)
 
@@ -2533,7 +2617,7 @@ fn intersectBVH(rayOrigin: vec3f, rayDir: vec3f, nodeIdx: u32) -> f32 {
 
 ```typescript
 interface NodeShapeData {
-    type: 'sphere' | 'box' | 'cylinder' | 'custom';
+    type: "sphere" | "box" | "cylinder" | "custom";
 
     // Sphere
     radius?: number;
@@ -2551,14 +2635,15 @@ interface NodeShapeData {
 }
 
 // Upload to GPU as additional uniforms/texture
-const nodeShapeTypes = new Float32Array(nodeCount);  // 0=sphere, 1=box, 2=cylinder, 3=custom
-const nodeShapeParams = new Float32Array(nodeCount * 8);  // Up to 8 params per node
+const nodeShapeTypes = new Float32Array(nodeCount); // 0=sphere, 1=box, 2=cylinder, 3=custom
+const nodeShapeParams = new Float32Array(nodeCount * 8); // Up to 8 params per node
 
 shaderMaterial.setArray("nodeShapeTypes", nodeShapeTypes);
 shaderMaterial.setArray("nodeShapeParams", nodeShapeParams);
 ```
 
 **Shader branches by shape type**:
+
 ```glsl
 void main() {
     int shapeType = int(nodeShapeTypes[int(dstNodeIndex)]);
@@ -2599,6 +2684,7 @@ With iOS Safari 26 shipping WebGPU support, the implementation plan has been upd
 **Goal**: Validate WebGPU compute shader approach with minimal implementation
 
 **Scope**:
+
 - Spherical nodes only
 - Storage buffer approach (unlimited nodes!)
 - Single arrow type (normal triangle)
@@ -2606,6 +2692,7 @@ With iOS Safari 26 shipping WebGPU support, the implementation plan has been upd
 - WebGPU compute + vertex shader pipeline
 
 **Deliverables**:
+
 1. `WebGPUArrowRenderer` class with compute shader
 2. Working compute pipeline that calculates arrow positions
 3. Validation script comparing GPU vs CPU results
@@ -2613,12 +2700,14 @@ With iOS Safari 26 shipping WebGPU support, the implementation plan has been upd
 5. Visual test confirming correctness
 
 **Success Criteria**:
+
 - Visual output matches CPU version exactly
 - Performance improvement > 100x measured on iPad
 - No visual artifacts or gaps
 - Handles 5,000 edges smoothly (< 50ms per frame)
 
 **Code Example**:
+
 ```typescript
 // src/meshes/WebGPUArrowRenderer.ts
 export class WebGPUArrowRenderer {
@@ -2630,7 +2719,7 @@ export class WebGPUArrowRenderer {
     private nodePositionsBuffer: GPUBuffer;
     private nodeRadiiBuffer: GPUBuffer;
     private edgeIndexBuffer: GPUBuffer;
-    private arrowResultsBuffer: GPUBuffer;  // Output from compute
+    private arrowResultsBuffer: GPUBuffer; // Output from compute
 
     constructor(device: GPUDevice, maxNodes: number, maxEdges: number) {
         this.device = device;
@@ -2681,6 +2770,7 @@ export class WebGPUArrowRenderer {
 ```
 
 **Integration with BabylonJS**:
+
 ```typescript
 // Detect WebGPU support
 const webGPUSupported = await BABYLON.WebGPUEngine.IsSupportedAsync;
@@ -2705,6 +2795,7 @@ if (webGPUSupported) {
 **Goal**: Full-featured, production-ready WebGPU implementation
 
 **Scope**:
+
 - All node shapes (sphere, box, cylinder, custom with bounding sphere)
 - All arrow types
 - Line rendering also GPU-side (separate compute shader)
@@ -2712,6 +2803,7 @@ if (webGPUSupported) {
 - Comprehensive testing on iOS, Android, desktop
 
 **Deliverables**:
+
 1. Complete `WebGPUArrowRenderer` with all features
 2. `WebGPULineRenderer` for lines
 3. Shape type detection (use bounding sphere for non-spherical)
@@ -2722,6 +2814,7 @@ if (webGPUSupported) {
 8. Cross-platform testing (iOS Safari 26, Chrome, Edge)
 
 **New Files**:
+
 ```
 src/meshes/WebGPUArrowRenderer.ts     - Main implementation
 src/meshes/WebGPULineRenderer.ts      - Line rendering
@@ -2735,6 +2828,7 @@ test/integration/webgpu-fallback.test.ts - Fallback behavior
 ```
 
 **Modified Files**:
+
 ```
 src/Edge.ts                           - Use WebGPU renderer when available
 src/Graph.ts                          - Update node positions, dispatch compute
@@ -2748,6 +2842,7 @@ src/config.ts                         - Add useWebGPURendering config option
 **Goal**: Leverage WebGPU-specific features for maximum performance
 
 **Scope**:
+
 - Persistent compute caching (skip compute when layout settled)
 - Async compute pipeline (overlap with rendering)
 - GPU-side frustum culling with indirect draw
@@ -2758,6 +2853,7 @@ src/config.ts                         - Add useWebGPURendering config option
 **Features**:
 
 #### 1. Persistent Compute Caching
+
 ```typescript
 class WebGPUArrowRenderer {
     private layoutSettled = false;
@@ -2797,6 +2893,7 @@ class WebGPUArrowRenderer {
 **Benefit**: After layout settles, **zero CPU and GPU compute cost** per frame!
 
 #### 2. Async Compute Pipeline
+
 ```typescript
 class WebGPUArrowRenderer {
     private computeEncoder: GPUCommandEncoder | null = null;
@@ -2828,6 +2925,7 @@ class WebGPUArrowRenderer {
 **Benefit**: Overlap compute with rendering, hide compute latency
 
 #### 3. GPU-Side Frustum Culling with Indirect Draw
+
 ```rust
 // WGSL Compute Shader
 @group(0) @binding(0) var<storage, read> nodePositions: array<vec4<f32>>;
@@ -2870,6 +2968,7 @@ renderPass.drawIndirect(indirectDrawBuffer, 0);
 **Benefit**: Only draw visible arrows, GPU-side culling, no CPU involvement
 
 #### 4. Compute-Based LOD
+
 ```rust
 @compute @workgroup_size(256)
 fn computeArrowsWithLOD(
@@ -2904,6 +3003,7 @@ fn computeArrowsWithLOD(
 **Benefit**: GPU-computed LOD, no CPU distance calculations
 
 #### 5. Performance Monitoring
+
 ```typescript
 class WebGPUArrowRenderer {
     private computeTimer: GPUQuerySet;
@@ -2915,7 +3015,7 @@ class WebGPUArrowRenderer {
         const renderTime = await this.readTimestamp(this.renderTimer);
 
         return {
-            computeTimeMs: computeTime / 1_000_000,  // ns to ms
+            computeTimeMs: computeTime / 1_000_000, // ns to ms
             renderTimeMs: renderTime / 1_000_000,
             totalTimeMs: (computeTime + renderTime) / 1_000_000,
         };
@@ -2929,27 +3029,28 @@ class WebGPUArrowRenderer {
 
 ### Feature Comparison (Updated for WebGPU)
 
-| Feature | Individual Meshes | Thin Instances | WebGL 2.0 Vertex | WebGPU Compute |
-|---------|------------------|----------------|------------------|----------------|
-| Update cost (252 edges) | 0.025ms/frame | 30.5ms/frame | 0.5ms/frame | **0.2ms/frame** |
-| Update cost (5000 edges) | 0.5ms/frame | 600ms/frame | 1.0ms/frame | **0.3ms/frame** |
-| Update cost (50000 edges) | 5ms/frame | 6000ms/frame | 3ms/frame | **1.2ms/frame** |
-| Draw calls (252 edges) | 252 | 3 | 3 | 1 (indirect) |
-| Memory upload/frame | None | 19KB | 3KB | 3KB |
-| Node limit | Unlimited | Unlimited | 1,000-5,000 | **100,000+** |
-| Tangent billboarding | CPU (12.6ms/frame) | Shader (free) | Shader (free) | Shader (free) |
-| Ray intersections | CPU (5ms/frame) | CPU (5ms/frame) | Shader (free) | **Compute (free)** |
-| Scales to 50,000+ edges | No (GPU limited) | No (CPU limited) | Partially | **Yes ✅** |
-| After layout settles | Still updates | Still updates | Still updates | **Zero cost** |
-| Frustum culling | CPU | CPU | Shader | **GPU+Indirect** |
-| Code complexity | Simple | Medium | Complex | **Most Complex** |
-| Debug difficulty | Easy | Medium | Hard | **Hardest** |
-| Browser support | 100% | 100% | 95% | **98%** |
-| Implementation effort | 1-2 days | Done | 2-3 weeks | **1-2 weeks** |
+| Feature                   | Individual Meshes  | Thin Instances   | WebGL 2.0 Vertex | WebGPU Compute     |
+| ------------------------- | ------------------ | ---------------- | ---------------- | ------------------ |
+| Update cost (252 edges)   | 0.025ms/frame      | 30.5ms/frame     | 0.5ms/frame      | **0.2ms/frame**    |
+| Update cost (5000 edges)  | 0.5ms/frame        | 600ms/frame      | 1.0ms/frame      | **0.3ms/frame**    |
+| Update cost (50000 edges) | 5ms/frame          | 6000ms/frame     | 3ms/frame        | **1.2ms/frame**    |
+| Draw calls (252 edges)    | 252                | 3                | 3                | 1 (indirect)       |
+| Memory upload/frame       | None               | 19KB             | 3KB              | 3KB                |
+| Node limit                | Unlimited          | Unlimited        | 1,000-5,000      | **100,000+**       |
+| Tangent billboarding      | CPU (12.6ms/frame) | Shader (free)    | Shader (free)    | Shader (free)      |
+| Ray intersections         | CPU (5ms/frame)    | CPU (5ms/frame)  | Shader (free)    | **Compute (free)** |
+| Scales to 50,000+ edges   | No (GPU limited)   | No (CPU limited) | Partially        | **Yes ✅**         |
+| After layout settles      | Still updates      | Still updates    | Still updates    | **Zero cost**      |
+| Frustum culling           | CPU                | CPU              | Shader           | **GPU+Indirect**   |
+| Code complexity           | Simple             | Medium           | Complex          | **Most Complex**   |
+| Debug difficulty          | Easy               | Medium           | Hard             | **Hardest**        |
+| Browser support           | 100%               | 100%             | 95%              | **98%**            |
+| Implementation effort     | 1-2 days           | Done             | 2-3 weeks        | **1-2 weeks**      |
 
 ### When To Use Each
 
 **Individual Meshes**:
+
 - ✅ Small graphs (< 500 edges)
 - ✅ Simple use cases
 - ✅ Quick implementation
@@ -2957,6 +3058,7 @@ class WebGPUArrowRenderer {
 - ❌ Doesn't scale to 5,000+ edges
 
 **Thin Instances** (Current):
+
 - ✅ Complex shader features (custom attributes)
 - ✅ Minimal draw calls
 - ❌ Poor CPU performance (especially mobile)
@@ -2964,6 +3066,7 @@ class WebGPUArrowRenderer {
 - ⚠️ Only viable with heavy dirty tracking
 
 **WebGL 2.0 Vertex Shader**:
+
 - ✅ Better performance than thin instances
 - ✅ Scales to 10,000 edges
 - ✅ Lower memory bandwidth
@@ -2972,6 +3075,7 @@ class WebGPUArrowRenderer {
 - ⚠️ 95% browser support
 
 **WebGPU Compute Shader** (Recommended):
+
 - ✅ **Best performance at ALL scales** (6,000x faster at 50K edges)
 - ✅ **Best scalability** (50,000+ edges easily)
 - ✅ **Lowest memory bandwidth** (same as WebGL)
@@ -2994,6 +3098,7 @@ class WebGPUArrowRenderer {
 **Solutions**:
 
 1. **Dual-Mode Validation**:
+
 ```typescript
 class GPUArrowRenderer {
     validateResults(edges: Edge[]) {
@@ -3015,6 +3120,7 @@ class GPUArrowRenderer {
 ```
 
 2. **Debug Visualization**:
+
 ```glsl
 // Output intermediate values as colors for debugging
 #ifdef DEBUG_MODE
@@ -3025,11 +3131,13 @@ class GPUArrowRenderer {
 ```
 
 3. **Incremental Development**:
+
 - Start with fixed test case (2 nodes, 1 arrow)
 - Add complexity gradually
 - Validate each step
 
 4. **Reference Implementation**:
+
 - Keep CPU version as reference
 - Generate test cases with known outputs
 - Automated validation in tests
@@ -3057,7 +3165,7 @@ class Renderer {
         } else if (webglVersion >= 2.0 && nodeCount > 5000) {
             // Use GPU-side with texture buffers
             this.gpuRenderer = new GPUArrowRenderer(scene, nodeCount, {
-                useTextureBuffers: true
+                useTextureBuffers: true,
             });
         } else {
             // Fall back to thin instances
@@ -3067,11 +3175,11 @@ class Renderer {
     }
 
     private detectWebGLVersion(): number {
-        const canvas = document.createElement('canvas');
-        const gl2 = canvas.getContext('webgl2');
+        const canvas = document.createElement("canvas");
+        const gl2 = canvas.getContext("webgl2");
         if (gl2) return 2.0;
 
-        const gl1 = canvas.getContext('webgl');
+        const gl1 = canvas.getContext("webgl");
         if (gl1) return 1.0;
 
         return 0;
@@ -3080,11 +3188,13 @@ class Renderer {
 ```
 
 **Support Matrix**:
+
 - WebGL 2.0 + < 5,000 nodes: Uniform arrays ✅
 - WebGL 2.0 + > 5,000 nodes: Texture buffers ✅
 - WebGL 1.0: Thin instances (current approach) ⚠️
 
 **Browser Support** (WebGL 2.0):
+
 - Chrome/Edge: 95%+
 - Firefox: 95%+
 - Safari: 90%+
@@ -3101,15 +3211,18 @@ class Renderer {
 **Solutions**:
 
 1. **Bounding Sphere Approximation** (Fast):
+
 ```glsl
 // For complex shapes, use bounding sphere
 float boundingRadius = nodeBoundingRadii[int(dstNodeIndex)];
 float t = raySphereIntersect(srcPos, rayDir, dstPos, boundingRadius);
 ```
+
 **Accuracy**: Within 1-2 units for most shapes
 **Visual impact**: Minimal (arrows slightly longer/shorter)
 
 2. **Shape-Specific Solutions** (Medium):
+
 ```glsl
 // Support common shapes with analytical solutions
 if (shapeType == SHAPE_SPHERE) {
@@ -3124,6 +3237,7 @@ if (shapeType == SHAPE_SPHERE) {
 ```
 
 3. **Pre-Computed Intersection Tables** (Advanced):
+
 ```typescript
 // Pre-compute intersections for custom meshes at multiple angles
 class CustomMeshIntersectionCache {
@@ -3142,6 +3256,7 @@ class CustomMeshIntersectionCache {
 ```
 
 **Shader looks up in table**:
+
 ```glsl
 // Convert ray direction to angle
 float angle = atan(rayDir.z, rayDir.x);
@@ -3198,7 +3313,7 @@ class NodeIndexManager {
 
     updatePositions(nodes: Node[], buffer: Float32Array): void {
         // Update buffer at stable indices
-        nodes.forEach(node => {
+        nodes.forEach((node) => {
             const index = this.nodeToIndex.get(node)!;
             const pos = node.mesh.position;
             buffer[index * 3] = pos.x;
@@ -3314,9 +3429,9 @@ const graph = new Graph({
         enableCulling: true,
         lod: {
             nearDistance: 50,
-            farDistance: 200
-        }
-    }
+            farDistance: 200,
+        },
+    },
 });
 ```
 
@@ -3336,14 +3451,14 @@ class Renderer {
             // Very large: GPU-side with texture buffers
             return new GPUArrowRenderer({
                 useTextureBuffers: true,
-                enableCulling: true
+                enableCulling: true,
             });
         }
 
         if (nodeCount > 1000 || edgeCount > 5000) {
             // Large: GPU-side with uniform arrays
             return new GPUArrowRenderer({
-                maxNodes: nodeCount
+                maxNodes: nodeCount,
             });
         }
 
@@ -3523,13 +3638,13 @@ class Graph {
 
 ### Performance Targets
 
-| Metric | Current | Target | Improvement |
-|--------|---------|--------|-------------|
-| 252 edges, 129 frames | 5,521ms | < 100ms | 55x faster |
-| 5,000 edges, 100 frames | 85,000ms | < 200ms | 425x faster |
-| 10,000 edges, 100 frames | 170,000ms | < 300ms | 567x faster |
-| Memory upload/frame (252 edges) | 19KB | 3KB | 85% reduction |
-| Memory upload/frame (5000 edges) | 375KB | 12KB | 97% reduction |
+| Metric                           | Current   | Target  | Improvement   |
+| -------------------------------- | --------- | ------- | ------------- |
+| 252 edges, 129 frames            | 5,521ms   | < 100ms | 55x faster    |
+| 5,000 edges, 100 frames          | 85,000ms  | < 200ms | 425x faster   |
+| 10,000 edges, 100 frames         | 170,000ms | < 300ms | 567x faster   |
+| Memory upload/frame (252 edges)  | 19KB      | 3KB     | 85% reduction |
+| Memory upload/frame (5000 edges) | 375KB     | 12KB    | 97% reduction |
 
 ### Quality Targets
 
@@ -3553,56 +3668,64 @@ class Graph {
 **CRITICAL UPDATE**: With iOS Safari 26 shipping WebGPU support, the recommendations have changed significantly. WebGPU is now the recommended primary implementation path.
 
 ### Immediate (This Week)
+
 1. **Fix current performance issue**: Add dirty tracking for arrows
-   - Gets iPad performance back to acceptable levels (80% improvement expected)
-   - Buys time for WebGPU implementation
-   - Low risk, half-day implementation
-   - Keep thin instance architecture intact
+    - Gets iPad performance back to acceptable levels (80% improvement expected)
+    - Buys time for WebGPU implementation
+    - Low risk, half-day implementation
+    - Keep thin instance architecture intact
 
 ### Short Term (Next 2 Weeks)
+
 2. **WebGPU Proof of Concept**: Implement compute shader pipeline
-   - **Start with WebGPU, not WebGL 2.0** (simpler and faster)
-   - Target: 50,000 edge scalability
-   - Validate compute shader approach
-   - Measure actual performance gains on iPad/desktop
-   - Estimated: 5-7 days
+    - **Start with WebGPU, not WebGL 2.0** (simpler and faster)
+    - Target: 50,000 edge scalability
+    - Validate compute shader approach
+    - Measure actual performance gains on iPad/desktop
+    - Estimated: 5-7 days
 
 ### Medium Term (Next Month)
+
 3. **Production WebGPU Implementation**: Polish and deploy
-   - Full feature parity with current rendering
-   - Automatic fallback to CPU for ancient devices (< 2%)
-   - Skip WebGL 2.0 entirely (not worth 2% user base)
-   - Comprehensive testing on all platforms
-   - Estimated: 1 week
+    - Full feature parity with current rendering
+    - Automatic fallback to CPU for ancient devices (< 2%)
+    - Skip WebGL 2.0 entirely (not worth 2% user base)
+    - Comprehensive testing on all platforms
+    - Estimated: 1 week
 
 ### Long Term (Next Quarter)
+
 4. **Advanced WebGPU Features**: Optimization and scale
-   - Persistent compute results (cache when layout settled)
-   - Async compute (overlap with rendering)
-   - GPU-side culling (indirect draw)
-   - Target: 100,000+ edge graphs
-   - Estimated: 1-2 weeks
+    - Persistent compute results (cache when layout settled)
+    - Async compute (overlap with rendering)
+    - GPU-side culling (indirect draw)
+    - Target: 100,000+ edge graphs
+    - Estimated: 1-2 weeks
 
 ### Migration Path
 
 **Phase 1: Stabilize (Now)**
+
 - Add arrow dirty tracking to current code
 - Maintain thin instance architecture
 - Document performance baseline
 
 **Phase 2: WebGPU Core (Weeks 1-2)**
+
 - Implement compute shader arrow calculation
 - Storage buffers for node data
 - Basic billboarding in vertex shader
 - Fallback detection (WebGPU → CPU)
 
 **Phase 3: Production (Weeks 3-4)**
+
 - Feature complete implementation
 - Cross-platform testing (iOS, Android, desktop)
 - Performance profiling and optimization
 - Deploy as default renderer
 
 **Phase 4: Advanced (Month 2-3)**
+
 - Persistent compute caching
 - Async compute pipeline
 - GPU-side frustum culling
@@ -3617,12 +3740,14 @@ GPU-side rendering represents a **fundamental architectural improvement** that s
 ### Key Advantages (WebGPU Compute Pipeline)
 
 **Performance**:
+
 - ✅ **182-6,035x faster** than current thin instance approach
 - ✅ **Scales to 50,000+ edges** at 60fps on iPad
 - ✅ **25ms for 252 edges** (vs 4,563ms current = 182x speedup)
 - ✅ **150ms for 50,000 edges** (vs 905,360ms current = 6,035x speedup)
 
 **Architecture**:
+
 - ✅ **Simpler than WebGL 2.0** (no 64KB uniform limit, no texture buffer workarounds)
 - ✅ **Storage buffers** support unlimited nodes (up to 2GB)
 - ✅ **Compute shaders** enable pre-calculation and caching
@@ -3630,6 +3755,7 @@ GPU-side rendering represents a **fundamental architectural improvement** that s
 - ✅ **Future-proof** (modern API, better browser support going forward)
 
 **Compatibility**:
+
 - ✅ **98% browser support** (Chrome, Edge, Safari desktop and mobile)
 - ✅ **iOS Safari 26** includes WebGPU (all iOS devices)
 - ✅ **Simple fallback** to current CPU approach for ancient devices (< 2%)
@@ -3637,11 +3763,13 @@ GPU-side rendering represents a **fundamental architectural improvement** that s
 ### Trade-offs
 
 **Implementation Complexity**:
+
 - ⚠️ **Compute shader development** (new paradigm, 1-2 weeks)
 - ⚠️ **Harder debugging** (GPU shader errors are cryptic)
 - ⚠️ **BabylonJS integration** (custom compute pipeline)
 
 **Limitations**:
+
 - ⚠️ **Custom node shapes** require bounding sphere approximation
 - ⚠️ **WebGPU fallback** to CPU for very old browsers (< 2%)
 - ⚠️ **Architectural shift** (one-time investment)
@@ -3651,12 +3779,14 @@ GPU-side rendering represents a **fundamental architectural improvement** that s
 **This is the RIGHT architecture for the future of graphty-element.**
 
 **Why WebGPU Changes Everything**:
+
 1. **Simpler implementation** than WebGL 2.0 (no uniform limit workarounds)
 2. **Better performance** than any WebGL approach (compute shaders)
 3. **Wider support** than expected (iOS Safari 26 = 98%+ devices)
 4. **Future-proof** (the future of web graphics)
 
 **Implementation Strategy**:
+
 1. **Immediate**: Add arrow dirty tracking (stabilize current code)
 2. **Short-term**: WebGPU compute pipeline proof of concept (1-2 weeks)
 3. **Medium-term**: Production WebGPU implementation (1 week)
@@ -3673,6 +3803,7 @@ The performance numbers are compelling: **6,000x faster at 50,000 edges**. This 
 ## References
 
 ### Related Documents
+
 - `design/thin-instance-performance-analysis.md` - Current bottleneck analysis
 - `design/thin-instance-tradeoff-analysis.md` - Architecture comparison
 - `design/edge-optimization.md` - Initial optimization attempts
@@ -3681,6 +3812,7 @@ The performance numbers are compelling: **6,000x faster at 50,000 edges**. This 
 ### External Resources
 
 **WebGPU** (Recommended):
+
 - [WebGPU Spec](https://www.w3.org/TR/webgpu/)
 - [WebGPU Shading Language (WGSL)](https://www.w3.org/TR/WGSL/)
 - [WebGPU Fundamentals](https://webgpufundamentals.org/)
@@ -3689,21 +3821,25 @@ The performance numbers are compelling: **6,000x faster at 50,000 edges**. This 
 - [Safari 26 WebGPU Announcement](https://webkit.org/blog/) - iOS Safari 26 shipped with WebGPU
 
 **WebGL 2.0** (Fallback):
+
 - [WebGL 2.0 Spec](https://www.khronos.org/registry/webgl/specs/latest/2.0/)
 - [BabylonJS Shader Material Documentation](https://doc.babylonjs.com/divingDeeper/materials/shaders/shaderMaterial)
 
 **Graphics Programming**:
+
 - [GPU Gems: Ray-Sphere Intersection](https://developer.nvidia.com/gpugems/gpugems/part-iii-materials/chapter-20-fast-fluid-dynamics-simulation-gpu)
 - [Real-Time Rendering: Ray-Primitive Intersections](https://www.realtimerendering.com/)
 - [Compute Shader Introduction](https://developer.nvidia.com/gpugems/gpugems3/part-v-physics-simulation/chapter-29-real-time-rigid-body-simulation-gpus)
 
 **Ray-Triangle Intersection** (Arbitrary Shapes):
+
 - [Möller-Trumbore Algorithm - Scratchapixel](https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/moller-trumbore-ray-triangle-intersection.html) - Comprehensive tutorial
 - [Möller-Trumbore Algorithm - Wikipedia](https://en.wikipedia.org/wiki/Möller–Trumbore_intersection_algorithm)
 - [BabylonJS Ray Implementation](https://github.com/BabylonJS/Babylon.js/blob/master/packages/dev/core/src/Culling/ray.core.ts) - Production reference implementation
 - [WebGPU Path Tracer (rayfinder)](https://github.com/Nelarius/rayfinder) - WGSL ray tracing example
 
 **BVH and Acceleration Structures**:
+
 - [Understanding the Efficiency of Ray Traversal on GPUs](https://research.nvidia.com/publication/2009-08_understanding-efficiency-ray-traversal-gpus) - Aila & Laine, 2009
 - [GPU Ray Tracing Tutorial](https://developer.nvidia.com/rtx/raytracing/dxr/dx12-raytracing-tutorial-part-2) - NVIDIA DXR tutorial (concepts apply to WebGPU)
 
@@ -3711,49 +3847,49 @@ The performance numbers are compelling: **6,000x faster at 50,000 edges**. This 
 
 - **2025-11-11 (Initial)**: WebGL 2.0 vertex shader design
 - **2025-11-11 (WebGPU Update)**: Added comprehensive WebGPU considerations after iOS Safari 26 release
-  - Updated executive summary with WebGPU compute pipeline approach
-  - Added WebGPU section with compute shader examples
-  - Updated performance targets (182-6,035x speedup)
-  - Updated implementation plan (WebGPU-first, skip WebGL 2.0)
-  - Updated recommendations (implement WebGPU compute as primary)
-  - Updated conclusion (WebGPU changes architecture from "nice optimization" to "essential")
+    - Updated executive summary with WebGPU compute pipeline approach
+    - Added WebGPU section with compute shader examples
+    - Updated performance targets (182-6,035x speedup)
+    - Updated implementation plan (WebGPU-first, skip WebGL 2.0)
+    - Updated recommendations (implement WebGPU compute as primary)
+    - Updated conclusion (WebGPU changes architecture from "nice optimization" to "essential")
 - **2025-11-11 (Arbitrary Shapes Update)**: Added true arbitrary mesh support
-  - Researched and implemented Möller-Trumbore ray-triangle intersection algorithm
-  - Studied BabylonJS's production ray intersection implementation
-  - Added GPU triangle intersection with WGSL compute shader code
-  - Designed memory-efficient triangle storage with geometry instancing
-  - Added BVH (Bounding Volume Hierarchy) for complex meshes (10,000+ triangles)
-  - Performance analysis showing 250x speedup for 100-triangle meshes
-  - Measured all 25 current node shapes (torus knot: 8,192 triangles max)
-  - **Result**: No approximation required - true ray intersection for arbitrary node shapes!
+    - Researched and implemented Möller-Trumbore ray-triangle intersection algorithm
+    - Studied BabylonJS's production ray intersection implementation
+    - Added GPU triangle intersection with WGSL compute shader code
+    - Designed memory-efficient triangle storage with geometry instancing
+    - Added BVH (Bounding Volume Hierarchy) for complex meshes (10,000+ triangles)
+    - Performance analysis showing 250x speedup for 100-triangle meshes
+    - Measured all 25 current node shapes (torus knot: 8,192 triangles max)
+    - **Result**: No approximation required - true ray intersection for arbitrary node shapes!
 - **2025-11-11 (BabylonJS Integration Update)**: Added comprehensive WebGPU integration strategy
-  - Researched WebGL/WebGPU coexistence on same page (confirmed: YES)
-  - Documented two integration approaches: Hybrid (WebGL + standalone WebGPU) vs Native (BabylonJS WebGPU engine)
-  - **Recommended**: Native WebGPU approach (BabylonJS WebGPU engine + custom compute shaders)
-  - Added 4-phase migration path with code examples
-  - Integration best practices (engine detection, buffer management, synchronization)
-  - Performance comparison: Native WebGPU saves ~1ms per frame vs hybrid
-  - **Key finding**: BabylonJS WebGPU engine exposes native device for custom compute pipelines
+    - Researched WebGL/WebGPU coexistence on same page (confirmed: YES)
+    - Documented two integration approaches: Hybrid (WebGL + standalone WebGPU) vs Native (BabylonJS WebGPU engine)
+    - **Recommended**: Native WebGPU approach (BabylonJS WebGPU engine + custom compute shaders)
+    - Added 4-phase migration path with code examples
+    - Integration best practices (engine detection, buffer management, synchronization)
+    - Performance comparison: Native WebGPU saves ~1ms per frame vs hybrid
+    - **Key finding**: BabylonJS WebGPU engine exposes native device for custom compute pipelines
 - **2025-11-11 (GPU Buffer Management Research)**: Comprehensive buffer management documentation
-  - Researched BabylonJS WebGPU internals (WebGPUEngine, WebGPUBufferManager, WebGPUDataBuffer)
-  - Studied ComputeShader and StorageBuffer APIs in BabylonJS v5.0+
-  - Analyzed forum discussions on keeping buffers on GPU for compute shaders
-  - **Critical finding**: Zero-copy thin instances using storage buffers with VERTEX flag
-  - Added complete integration examples with WGSL compute shaders
-  - Documented mesh vertex/index extraction using `getVerticesData()` and `getIndices()`
-  - Buffer update strategies (static, dynamic, partial updates)
-  - Memory management best practices (disposal, pooling, monitoring)
-  - Debugging techniques (buffer reads, GPU error reporting, performance profiling)
-  - Common pitfalls and solutions (alignment errors, missing flags, update calls)
-  - **Result**: Complete practical guide for implementing GPU arrow compute pipeline (~550 lines)
+    - Researched BabylonJS WebGPU internals (WebGPUEngine, WebGPUBufferManager, WebGPUDataBuffer)
+    - Studied ComputeShader and StorageBuffer APIs in BabylonJS v5.0+
+    - Analyzed forum discussions on keeping buffers on GPU for compute shaders
+    - **Critical finding**: Zero-copy thin instances using storage buffers with VERTEX flag
+    - Added complete integration examples with WGSL compute shaders
+    - Documented mesh vertex/index extraction using `getVerticesData()` and `getIndices()`
+    - Buffer update strategies (static, dynamic, partial updates)
+    - Memory management best practices (disposal, pooling, monitoring)
+    - Debugging techniques (buffer reads, GPU error reporting, performance profiling)
+    - Common pitfalls and solutions (alignment errors, missing flags, update calls)
+    - **Result**: Complete practical guide for implementing GPU arrow compute pipeline (~550 lines)
 - **2025-11-11 (Headless WebGPU Testing Limitation)**: ⚠️ CRITICAL FINDING about headless testing
-  - Researched WebGPU support in headless Chrome with Playwright
-  - **BLOCKING ISSUE**: `--disable-vulkan-surface` flag breaks canvas rendering in headless mode
-  - WebGPU compute works in headless, but 3D rendering requires headed browser or Xvfb
-  - Documented three solutions: Xvfb (recommended), Hybrid testing, GPU CI
-  - **Impact on implementation**: Does NOT block development or testing!
-  - Testing strategy: WebGL for visual tests (headless), WebGPU for compute tests (headless), WebGPU full tests (Xvfb/headed)
-  - Why this works: Arrow visual output is identical in WebGL vs WebGPU (thin instances)
-  - Added complete testing strategy table and implementation phases
-  - References: Chrome blog, GitHub repos, Chromium issue #40540071, BabylonJS Playwright config
-  - **Result**: Clear path forward with hybrid testing approach (~275 lines documentation)
+    - Researched WebGPU support in headless Chrome with Playwright
+    - **BLOCKING ISSUE**: `--disable-vulkan-surface` flag breaks canvas rendering in headless mode
+    - WebGPU compute works in headless, but 3D rendering requires headed browser or Xvfb
+    - Documented three solutions: Xvfb (recommended), Hybrid testing, GPU CI
+    - **Impact on implementation**: Does NOT block development or testing!
+    - Testing strategy: WebGL for visual tests (headless), WebGPU for compute tests (headless), WebGPU full tests (Xvfb/headed)
+    - Why this works: Arrow visual output is identical in WebGL vs WebGPU (thin instances)
+    - Added complete testing strategy table and implementation phases
+    - References: Chrome blog, GitHub repos, Chromium issue #40540071, BabylonJS Playwright config
+    - **Result**: Clear path forward with hybrid testing approach (~275 lines documentation)

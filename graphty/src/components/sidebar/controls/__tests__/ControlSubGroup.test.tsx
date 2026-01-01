@@ -1,7 +1,7 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {fireEvent, render, screen} from "../../../../test/test-utils";
-import {ControlSubGroup} from "../ControlSubGroup";
+import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { ControlSubGroup } from "../ControlSubGroup";
 
 describe("ControlSubGroup", () => {
     it("renders the label", () => {
@@ -82,7 +82,7 @@ describe("ControlSubGroup", () => {
             </ControlSubGroup>,
         );
 
-        const button = screen.getByRole("button", {name: "Expand Options"});
+        const button = screen.getByRole("button", { name: "Expand Options" });
         expect(button).toBeInTheDocument();
     });
 
@@ -94,12 +94,12 @@ describe("ControlSubGroup", () => {
         );
 
         // Initially collapsed
-        expect(screen.getByRole("button", {name: "Expand Options"})).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Expand Options" })).toBeInTheDocument();
 
         // Click to expand
         fireEvent.click(screen.getByText("Options"));
 
         // Now expanded
-        expect(screen.getByRole("button", {name: "Collapse Options"})).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Collapse Options" })).toBeInTheDocument();
     });
 });

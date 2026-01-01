@@ -1,8 +1,8 @@
-import {ActionIcon, Box, Collapse, Group, Text, Tooltip} from "@mantine/core";
-import {Check, ChevronDown, ChevronRight, Clipboard, Database} from "lucide-react";
-import React, {useCallback, useEffect, useState} from "react";
+import { ActionIcon, Box, Collapse, Group, Text, Tooltip } from "@mantine/core";
+import { Check, ChevronDown, ChevronRight, Clipboard, Database } from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
 
-import {DataGrid} from "./DataGrid";
+import { DataGrid } from "./DataGrid";
 
 export interface DataAccordionProps {
     /** The data to display in the accordion. When null, shows placeholder text. */
@@ -22,7 +22,10 @@ export interface DataAccordionProps {
  *
  * This component is wrapped with React.memo for performance optimization.
  */
-export const DataAccordion = React.memo(function DataAccordion({data, title = "Data"}: DataAccordionProps): React.JSX.Element {
+export const DataAccordion = React.memo(function DataAccordion({
+    data,
+    title = "Data",
+}: DataAccordionProps): React.JSX.Element {
     const [isExpanded, setIsExpanded] = useState(true);
     const [copied, setCopied] = useState(false);
 
@@ -90,7 +93,11 @@ export const DataAccordion = React.memo(function DataAccordion({data, title = "D
                 }}
             >
                 <Group gap={4}>
-                    {isExpanded ? <ChevronDown size={12} aria-hidden="true" /> : <ChevronRight size={12} aria-hidden="true" />}
+                    {isExpanded ? (
+                        <ChevronDown size={12} aria-hidden="true" />
+                    ) : (
+                        <ChevronRight size={12} aria-hidden="true" />
+                    )}
                     <Database size={12} aria-hidden="true" />
                     <Text size="xs" fw={500}>
                         {title}
@@ -123,11 +130,7 @@ export const DataAccordion = React.memo(function DataAccordion({data, title = "D
                     }}
                 >
                     {data ? (
-                        <DataGrid
-                            data={data}
-                            defaultExpandDepth={1}
-                            showCopyButton={true}
-                        />
+                        <DataGrid data={data} defaultExpandDepth={1} showCopyButton={true} />
                     ) : (
                         <Box
                             style={{
@@ -135,8 +138,12 @@ export const DataAccordion = React.memo(function DataAccordion({data, title = "D
                                 padding: "16px 12px",
                             }}
                         >
-                            <Box style={{display: "flex", justifyContent: "center", marginBottom: "6px"}}>
-                                <Database size={18} style={{color: "var(--mantine-color-dimmed)"}} aria-hidden="true" />
+                            <Box style={{ display: "flex", justifyContent: "center", marginBottom: "6px" }}>
+                                <Database
+                                    size={18}
+                                    style={{ color: "var(--mantine-color-dimmed)" }}
+                                    aria-hidden="true"
+                                />
                             </Box>
                             <Text size="xs" c="dimmed">
                                 No element selected

@@ -1,7 +1,12 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {allPairsShortestPath, dijkstra, dijkstraPath, singleSourceShortestPath} from "../../src/algorithms/shortest-path/dijkstra.js";
-import {Graph} from "../../src/core/graph.js";
+import {
+    allPairsShortestPath,
+    dijkstra,
+    dijkstraPath,
+    singleSourceShortestPath,
+} from "../../src/algorithms/shortest-path/dijkstra.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Dijkstra Algorithm", () => {
     describe("dijkstra", () => {
@@ -50,7 +55,7 @@ describe("Dijkstra Algorithm", () => {
             graph.addEdge("b", "d", 1);
             graph.addEdge("c", "d", 1);
 
-            const results = dijkstra(graph, "a", {target: "b"});
+            const results = dijkstra(graph, "a", { target: "b" });
 
             expect(results.has("a")).toBe(true);
             expect(results.has("b")).toBe(true);
@@ -314,7 +319,7 @@ describe("Dijkstra Algorithm", () => {
 
     describe("edge cases", () => {
         it("should handle directed graphs correctly", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b", 1);
             graph.addEdge("c", "a", 1); // a can't reach c in directed graph
@@ -327,7 +332,7 @@ describe("Dijkstra Algorithm", () => {
         });
 
         it("should handle self-loops", () => {
-            const graph = new Graph({allowSelfLoops: true});
+            const graph = new Graph({ allowSelfLoops: true });
 
             graph.addEdge("a", "a", 5);
             graph.addEdge("a", "b", 1);
@@ -377,7 +382,7 @@ describe("Dijkstra Algorithm", () => {
         });
 
         it("should handle graphs with parallel edges", () => {
-            const graph = new Graph({allowParallelEdges: false});
+            const graph = new Graph({ allowParallelEdges: false });
 
             // Add edge, then try to add another with different weight
             graph.addEdge("a", "b", 5);

@@ -1,9 +1,9 @@
-import {StandardMaterial} from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { StandardMaterial } from "@babylonjs/core";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import {Graph} from "../../src/Graph";
-import type {PatternedLineMesh} from "../../src/meshes/PatternedLineMesh";
-import {asData, styleTemplate, type TestGraph} from "../helpers/testSetup";
+import { Graph } from "../../src/Graph";
+import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
+import { asData, styleTemplate, type TestGraph } from "../helpers/testSetup";
 
 describe("Edge 2D Patterns Integration", () => {
     let container: HTMLElement;
@@ -13,41 +13,47 @@ describe("Edge 2D Patterns Integration", () => {
         document.body.append(container);
     });
 
-    test("Patterned edge uses 2D materials in 2D mode", async() => {
+    test("Patterned edge uses 2D materials in 2D mode", async () => {
         const graph = new Graph(container);
 
         // Set 2D mode via style template with diamond pattern
-        await graph.setStyleTemplate(styleTemplate({
-            twoD: true,
-            layers: [
-                {
-                    edge: {
-                        selector: "",
-                        style: {
-                            enabled: true,
-                            line: {
-                                type: "diamond",
-                                color: "darkgrey",
+        await graph.setStyleTemplate(
+            styleTemplate({
+                twoD: true,
+                layers: [
+                    {
+                        edge: {
+                            selector: "",
+                            style: {
+                                enabled: true,
+                                line: {
+                                    type: "diamond",
+                                    color: "darkgrey",
+                                },
                             },
                         },
                     },
-                },
-            ],
-        }));
+                ],
+            }),
+        );
 
         // Wait for style template operation to complete
         await graph.operationQueue.waitForCompletion();
 
         // Add nodes
-        await graph.addNode(asData({id: "node1", x: 0, y: 0, z: 0}));
-        await graph.addNode(asData({id: "node2", x: 1, y: 0, z: 0}));
+        await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
+        await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
 
         // Add edge
-        await graph.addEdge(asData({
-            id: "edge1",
-            source: "node1",
-            target: "node2",
-        }), "source", "target");
+        await graph.addEdge(
+            asData({
+                id: "edge1",
+                source: "node1",
+                target: "node2",
+            }),
+            "source",
+            "target",
+        );
 
         // Wait for all operations to complete
         await graph.operationQueue.waitForCompletion();
@@ -68,56 +74,55 @@ describe("Edge 2D Patterns Integration", () => {
         // Verify pattern meshes use StandardMaterial in 2D mode
         assert(patternMesh.meshes.length > 0, "PatternedLineMesh should have at least one mesh");
         for (const mesh of patternMesh.meshes) {
-            assert(
-                mesh.material instanceof StandardMaterial,
-                "Pattern mesh should use StandardMaterial in 2D mode",
-            );
-            assert.strictEqual(
-                mesh.metadata?.is2D,
-                true,
-                "Pattern mesh should have is2D metadata",
-            );
+            assert(mesh.material instanceof StandardMaterial, "Pattern mesh should use StandardMaterial in 2D mode");
+            assert.strictEqual(mesh.metadata?.is2D, true, "Pattern mesh should have is2D metadata");
         }
 
         // Cleanup
         graph.dispose();
     });
 
-    test("Patterned edge uses 3D materials in 3D mode", async() => {
+    test("Patterned edge uses 3D materials in 3D mode", async () => {
         const graph = new Graph(container);
 
         // Set 3D mode via style template with diamond pattern
-        await graph.setStyleTemplate(styleTemplate({
-            twoD: false,
-            layers: [
-                {
-                    edge: {
-                        selector: "",
-                        style: {
-                            enabled: true,
-                            line: {
-                                type: "diamond",
-                                color: "darkgrey",
+        await graph.setStyleTemplate(
+            styleTemplate({
+                twoD: false,
+                layers: [
+                    {
+                        edge: {
+                            selector: "",
+                            style: {
+                                enabled: true,
+                                line: {
+                                    type: "diamond",
+                                    color: "darkgrey",
+                                },
                             },
                         },
                     },
-                },
-            ],
-        }));
+                ],
+            }),
+        );
 
         // Wait for style template operation to complete
         await graph.operationQueue.waitForCompletion();
 
         // Add nodes
-        await graph.addNode(asData({id: "node1", x: 0, y: 0, z: 0}));
-        await graph.addNode(asData({id: "node2", x: 1, y: 0, z: 0}));
+        await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
+        await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
 
         // Add edge
-        await graph.addEdge(asData({
-            id: "edge1",
-            source: "node1",
-            target: "node2",
-        }), "source", "target");
+        await graph.addEdge(
+            asData({
+                id: "edge1",
+                source: "node1",
+                target: "node2",
+            }),
+            "source",
+            "target",
+        );
 
         // Wait for all operations to complete
         await graph.operationQueue.waitForCompletion();
@@ -142,24 +147,22 @@ describe("Edge 2D Patterns Integration", () => {
                 !(mesh.material instanceof StandardMaterial),
                 "Pattern mesh should NOT use StandardMaterial in 3D mode",
             );
-            assert.strictEqual(
-                mesh.metadata?.is2D,
-                undefined,
-                "Pattern mesh should NOT have is2D metadata in 3D mode",
-            );
+            assert.strictEqual(mesh.metadata?.is2D, undefined, "Pattern mesh should NOT have is2D metadata in 3D mode");
         }
 
         // Cleanup
         graph.dispose();
     });
 
-    test("Multiple pattern types work in 2D mode", async() => {
+    test("Multiple pattern types work in 2D mode", async () => {
         const graph = new Graph(container);
 
         // Set 2D mode via style template
-        await graph.setStyleTemplate(styleTemplate({
-            twoD: true,
-        }));
+        await graph.setStyleTemplate(
+            styleTemplate({
+                twoD: true,
+            }),
+        );
 
         // Wait for style template operation to complete
         await graph.operationQueue.waitForCompletion();
@@ -168,30 +171,32 @@ describe("Edge 2D Patterns Integration", () => {
         const patterns = ["dot", "star", "diamond", "box", "dash"] as const;
 
         for (const [index, pattern] of patterns.entries()) {
-            const nodeId1 = `node${(index * 2)}`;
-            const nodeId2 = `node${(index * 2) + 1}`;
+            const nodeId1 = `node${index * 2}`;
+            const nodeId2 = `node${index * 2 + 1}`;
 
-            await graph.addNode(asData({id: nodeId1, x: index, y: 0, z: 0}));
-            await graph.addNode(asData({id: nodeId2, x: index + 1, y: 0, z: 0}));
+            await graph.addNode(asData({ id: nodeId1, x: index, y: 0, z: 0 }));
+            await graph.addNode(asData({ id: nodeId2, x: index + 1, y: 0, z: 0 }));
 
             // Update style template for this specific edge pattern
-            await graph.setStyleTemplate(styleTemplate({
-                twoD: true,
-                layers: [
-                    {
-                        edge: {
-                            selector: "",
-                            style: {
-                                enabled: true,
-                                line: {
-                                    type: pattern,
-                                    color: "darkgrey",
+            await graph.setStyleTemplate(
+                styleTemplate({
+                    twoD: true,
+                    layers: [
+                        {
+                            edge: {
+                                selector: "",
+                                style: {
+                                    enabled: true,
+                                    line: {
+                                        type: pattern,
+                                        color: "darkgrey",
+                                    },
                                 },
                             },
                         },
-                    },
-                ],
-            }));
+                    ],
+                }),
+            );
 
             await graph.operationQueue.waitForCompletion();
 
@@ -217,8 +222,8 @@ describe("Edge 2D Patterns Integration", () => {
 
         // Verify all pattern types use 2D materials
         for (const [index, pattern] of patterns.entries()) {
-            const nodeId1 = `node${(index * 2)}`;
-            const nodeId2 = `node${(index * 2) + 1}`;
+            const nodeId1 = `node${index * 2}`;
+            const nodeId2 = `node${index * 2 + 1}`;
             const edgeId = `${nodeId1}:${nodeId2}`;
 
             const edge = (graph as unknown as TestGraph).dataManager.edges.get(edgeId);

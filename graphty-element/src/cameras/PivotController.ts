@@ -1,4 +1,4 @@
-import {Axis, Quaternion, type Scene, Space, TransformNode, Vector3} from "@babylonjs/core";
+import { Axis, Quaternion, type Scene, Space, TransformNode, Vector3 } from "@babylonjs/core";
 
 /**
  * PivotController manages a TransformNode that serves as the pivot point for camera operations.
@@ -171,8 +171,8 @@ export class PivotController {
 
         // Right vector: (cos(yaw), 0, sin(yaw))
         // Forward vector: (-sin(yaw), 0, cos(yaw))
-        const worldX = (right * cosYaw) - (forward * sinYaw);
-        const worldZ = (right * sinYaw) + (forward * cosYaw);
+        const worldX = right * cosYaw - forward * sinYaw;
+        const worldZ = right * sinYaw + forward * cosYaw;
 
         this.pan(new Vector3(worldX, 0, worldZ));
     }

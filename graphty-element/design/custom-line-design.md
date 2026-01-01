@@ -15,84 +15,102 @@
 ### Root Cause
 
 GreasedLine uses a specific screen-space formula for consistent pixel width:
+
 ```glsl
 offset = (width * 0.5 * clipPosition.w) / (resolution.y * projection[1][1])
 ```
 
 When arrow heads use **different rendering technologies**, they can't replicate this formula exactly, leading to:
+
 - Width mismatches (arrow head slightly wider/narrower than line)
 - Alignment gaps at certain camera angles
 - Different perspective behavior
 
 ### Attempt 1: GreasedLine Arrow Caps (Current Production)
+
 **Location**: `src/meshes/EdgeMesh.ts` - `GreasedLineTools.GetArrowCap()`
 
 **How it works**:
+
 - Uses GreasedLine's built-in arrow cap geometry
 - Same shader as lines
-- *Should* work perfectly...
+- _Should_ work perfectly...
 
 **Problems discovered**:
+
 1. Limited arrow types (only triangular)
 2. Can't customize geometry easily
 3. Still had alignment issues in some cases
 4. **Key insight**: Using GreasedLine for EVERYTHING locks us into their API
 
 ### Attempt 2: Billboard Mode Disc (Failed ❌)
+
 **Location**: `design/dot-arrow-shader-implementation.md`
 
 **How it worked**:
+
 - Created quad with `BILLBOARD_MODE_ALL`
 - Custom fragment shader for circular shape
 - Always faces camera
 
 **Why it failed**:
+
 - ❌ Always faces camera (wrong behavior)
 - ❌ Doesn't match line perspective
 - ❌ ShaderMaterial doesn't support mesh caching
 - ❌ Different math = alignment issues
 
 ### Attempt 3: GreasedLine Circle (Failed ❌)
+
 **Location**: `design/dot-arrow-final-solution.md`
 
 **How it worked**:
+
 - Create 32-point circular path
 - Use GreasedLine with thick width
 - Hope it renders as filled disc
 
 **Why it failed**:
+
 - ❌ Rendered as ring/torus, not filled disc
 - ❌ GreasedLine is a line renderer, not a fill renderer
 
 ### Attempt 4: Thin Disc Mesh (Partial Success ⚠️)
+
 **Location**: `design/dot-arrow-final-solution.md`
 
 **How it works**:
+
 - Create thin cylinder (height=0.01)
 - StandardMaterial with emissive color
 - Rotate to match edge orientation
 
 **Why it's not enough**:
+
 - ⚠️ Works for dot arrows specifically
 - ⚠️ Uses StandardMaterial (different rendering path)
 - ⚠️ Not easily extensible to other arrow types
 - ⚠️ **Still uses different math than GreasedLine**
 
 ### Attempt 5: 3D Disc Shader (Best Effort ⭐)
+
 **Location**: `design/disc-shader-implementation-complete.md`
 
 **How it works**:
+
 - Custom shader that replicates GreasedLine formula exactly
 - 3D disc geometry with screen-space sizing
 - Perfect circular shape via fragment shader
 
 **Why it's better**:
+
 - ✅ Uses exact same screen-space formula as GreasedLine
 - ✅ Foreshortens naturally (3D geometry)
 - ✅ Constant screen-space size
 - ✅ Pixel-perfect matching with 95% confidence
 
 **Why it's still not ideal**:
+
 - ⚠️ Separate shader system (disc shader != line shader)
 - ⚠️ Need to maintain two shader implementations
 - ⚠️ Only works for circular dots, not triangular/diamond/box arrows
@@ -105,6 +123,7 @@ When arrow heads use **different rendering technologies**, they can't replicate 
 ### Core Principle
 
 **IDENTICAL screen-space formula across TWO specialized shaders:**
+
 - **Lines**: CustomLineRenderer shader (perpendicular expansion)
 - **Outline arrows**: CustomLineRenderer shader (perpendicular expansion along traced paths)
 - **Filled arrows**: FilledArrowRenderer shader (uniform scaling from center)
@@ -118,31 +137,31 @@ When arrow heads use **different rendering technologies**, they can't replicate 
 **Different geometry types need different expansion strategies:**
 
 1. **Lines & Outline Arrows** → Perpendicular expansion
-   - Lines expand perpendicular to path direction
-   - Outline arrows (tee, vee, crow, empty) trace perimeter as path
-   - Both use quad-strip geometry
-   - Same shader: CustomLineRenderer
+    - Lines expand perpendicular to path direction
+    - Outline arrows (tee, vee, crow, empty) trace perimeter as path
+    - Both use quad-strip geometry
+    - Same shader: CustomLineRenderer
 
 2. **Filled Arrows** → Uniform scaling
-   - Filled shapes (normal, diamond, box, dot) need to scale uniformly from center
-   - Use standard polygon meshes (triangles)
-   - Radial expansion doesn't work for line-based shapes
-   - Different shader: FilledArrowRenderer
+    - Filled shapes (normal, diamond, box, dot) need to scale uniformly from center
+    - Use standard polygon meshes (triangles)
+    - Radial expansion doesn't work for line-based shapes
+    - Different shader: FilledArrowRenderer
 
 **Both shaders use the SAME screen-space formula** → perfect alignment!
 
 ### Why This Solves Every Problem
 
-| Problem | Previous Approaches | Unified Formula Solution |
-|---------|-------------------|----------------------------|
-| **Width mismatch** | Different technologies = different formulas | Both shaders use `* w / resolution` |
-| **Alignment gaps** | Separate rendering paths | Identical screen-space formula |
-| **Perspective issues** | Some billboarded, some not | All use same 3D + screen-space hybrid |
-| **Performance** | Multiple draw calls, no instancing | Both shaders support instancing |
-| **Maintainability** | Multiple disparate implementations | Two shaders, one formula |
-| **Future compatibility** | Hard to add new arrow types | Just add geometry, use existing shaders |
-| **Filled arrows** | Can't create with line renderer | FilledArrowRenderer supports solid shapes |
-| **Outline arrows** | Different tech than lines | Use same CustomLineRenderer as lines |
+| Problem                  | Previous Approaches                         | Unified Formula Solution                  |
+| ------------------------ | ------------------------------------------- | ----------------------------------------- |
+| **Width mismatch**       | Different technologies = different formulas | Both shaders use `* w / resolution`       |
+| **Alignment gaps**       | Separate rendering paths                    | Identical screen-space formula            |
+| **Perspective issues**   | Some billboarded, some not                  | All use same 3D + screen-space hybrid     |
+| **Performance**          | Multiple draw calls, no instancing          | Both shaders support instancing           |
+| **Maintainability**      | Multiple disparate implementations          | Two shaders, one formula                  |
+| **Future compatibility** | Hard to add new arrow types                 | Just add geometry, use existing shaders   |
+| **Filled arrows**        | Can't create with line renderer             | FilledArrowRenderer supports solid shapes |
+| **Outline arrows**       | Different tech than lines                   | Use same CustomLineRenderer as lines      |
 
 ---
 
@@ -167,11 +186,13 @@ gl_Position.xy += offset;
 ```
 
 **What this does:**
+
 - `vertexClip.w` is proportional to depth (larger = farther from camera)
 - Multiplying offset by `w` pre-compensates for GPU's automatic divide by `w`
 - Result: Line maintains **constant pixel width** regardless of depth
 
 **Visual result:**
+
 ```
 Line from foreground to background:
 ══════════════════════  ← 5 pixels
@@ -202,6 +223,7 @@ offset /= resolution;
 ```
 
 **Visual result with perspective:**
+
 ```
 Line from foreground to background:
 ╔═══════════════╗    ← 10 pixels (closer)
@@ -222,6 +244,7 @@ Result: Tapers naturally with depth
 At any 3D point `P = (x, y, z)`:
 
 **Line endpoint vertex:**
+
 ```
 Position: P
 Clip space: Pc = projection × view × world × P
@@ -229,6 +252,7 @@ w value: Pc.w = f(z)  (function of depth)
 ```
 
 **Arrowhead base vertex** (at same location):
+
 ```
 Position: P  (same!)
 Clip space: Pc = projection × view × world × P  (same!)
@@ -236,6 +260,7 @@ w value: Pc.w = f(z)  (same!)
 ```
 
 **After GPU perspective divide** (automatically divides all coordinates by `w`):
+
 - Both vertices divided by **same `w`**
 - Both scaled by **same factor**
 - **Perfect alignment guaranteed by mathematics!**
@@ -298,10 +323,10 @@ This is **desirable behavior** - it adds realistic depth perception!
 
 ### Comparison: Screen-Space vs Perspective
 
-| Mode | Lines | Arrowheads | Use Case |
-|------|-------|------------|----------|
-| **Constant screen-space** (current) | Uniform width | Match line exactly | Graph visualization, readability |
-| **With perspective** | Taper with depth | Match line at depth | 3D visualization, realism |
+| Mode                                | Lines            | Arrowheads          | Use Case                         |
+| ----------------------------------- | ---------------- | ------------------- | -------------------------------- |
+| **Constant screen-space** (current) | Uniform width    | Match line exactly  | Graph visualization, readability |
+| **With perspective**                | Taper with depth | Match line at depth | 3D visualization, realism        |
 
 ### Implementation: Adding Perspective Toggle
 
@@ -326,6 +351,7 @@ static create(options: CustomLineOptions, scene: Scene): Mesh {
 ```
 
 **Shader update:**
+
 ```glsl
 uniform float sizeAttenuation; // 1.0 = constant, 0.0 = perspective
 
@@ -358,12 +384,14 @@ void main() {
 ### When to Use Each Mode
 
 **Constant Screen-Space (Current Default):**
+
 - ✅ Graph visualization where readability is critical
 - ✅ Complex graphs where distant edges need to remain visible
 - ✅ 2D-style graphs in 3D space
 - ✅ UI/HUD elements
 
 **Perspective Tapering:**
+
 - ✅ True 3D visualizations emphasizing depth
 - ✅ Architectural/engineering diagrams
 - ✅ Realistic simulations
@@ -383,6 +411,7 @@ Line from z=5 (close) to z=500 (far) with perspective:
 ```
 
 **Solution: Minimum width clamp**
+
 ```glsl
 float minWidth = 1.0; // Minimum 1 pixel
 float effectiveWidth = max(width / vertexClip.w, minWidth);
@@ -394,6 +423,7 @@ vec2 offset = perpendicular * effectiveWidth * 0.5 * side;
 #### Mixed-Depth Edges
 
 For graphs with edges at various depths, perspective tapering provides natural depth cues:
+
 ```
 Camera View:
 
@@ -416,6 +446,7 @@ Natural depth hierarchy without manual adjustment!
 #### 1. Lines (Already Implemented ✅)
 
 **Current CustomLineRenderer** (`src/meshes/CustomLineRenderer.ts:179-233`):
+
 ```typescript
 // Generate quad strip from path points
 for (let i = 0; i < points.length - 1; i++) {
@@ -430,6 +461,7 @@ for (let i = 0; i < points.length - 1; i++) {
 ```
 
 **Vertex shader** (screen-space expansion):
+
 ```glsl
 // Transform to clip space
 vec4 vertexClip = viewProjection * finalWorld * vec4(position, 1.0);
@@ -455,6 +487,7 @@ gl_Position.xy += offset;
 **Key Insight**: Outline arrows are **traced paths** fed into the **same shader as lines**!
 
 **Empty arrow (hollow triangle)**:
+
 ```typescript
 static createEmptyArrowGeometry(length: number, width: number): LineGeometry {
     const points = [
@@ -471,6 +504,7 @@ static createEmptyArrowGeometry(length: number, width: number): LineGeometry {
 ```
 
 **Tee arrow (perpendicular line)**:
+
 ```typescript
 static createTeeArrowGeometry(width: number): LineGeometry {
     const points = [
@@ -483,6 +517,7 @@ static createTeeArrowGeometry(width: number): LineGeometry {
 ```
 
 **Vee arrow (V-shape)**:
+
 ```typescript
 static createVeeArrowGeometry(length: number, width: number): LineGeometry {
     const points = [
@@ -502,6 +537,7 @@ static createVeeArrowGeometry(length: number, width: number): LineGeometry {
 **Key Insight**: Filled arrows need **uniform scaling**, not perpendicular expansion.
 
 **FilledArrowRenderer vertex shader**:
+
 ```glsl
 // Screen-space uniform scaling shader
 attribute vec3 position;
@@ -524,6 +560,7 @@ void main() {
 ```
 
 **Normal arrow (filled triangle)**:
+
 ```typescript
 static createTriangleMesh(length: number, width: number, inverted: boolean): Mesh {
     // Standard polygon mesh (not quad-strip!)
@@ -540,6 +577,7 @@ static createTriangleMesh(length: number, width: number, inverted: boolean): Mes
 ```
 
 **Diamond arrow (filled rhombus)**:
+
 ```typescript
 static createDiamondMesh(length: number, width: number): Mesh {
     const vertices = [
@@ -579,7 +617,7 @@ class EdgeMesh {
     static createOutlineArrow(type: string, length: number, width: number, scene: Scene): Mesh {
         let geometry: LineGeometry;
 
-        switch(type) {
+        switch (type) {
             case "empty":
                 geometry = CustomLineRenderer.createEmptyArrowGeometry(length, width);
                 break;
@@ -593,13 +631,13 @@ class EdgeMesh {
         }
 
         // Use CustomLineRenderer shader (same as lines!)
-        return CustomLineRenderer.createFromGeometry(geometry, {width, color, opacity}, scene);
+        return CustomLineRenderer.createFromGeometry(geometry, { width, color, opacity }, scene);
     }
 
     static createFilledArrow(type: string, length: number, width: number, scene: Scene): Mesh {
         let mesh: Mesh;
 
-        switch(type) {
+        switch (type) {
             case "normal":
                 mesh = FilledArrowRenderer.createTriangle(length, width, false, scene);
                 break;
@@ -613,12 +651,13 @@ class EdgeMesh {
         }
 
         // Apply FilledArrowRenderer shader (same formula as lines!)
-        return FilledArrowRenderer.applyShader(mesh, {size, color, opacity}, scene);
+        return FilledArrowRenderer.applyShader(mesh, { size, color, opacity }, scene);
     }
 }
 ```
 
 **Key benefits**:
+
 - ✅ **Perfect alignment**: Both shaders use `* clipPos.w / resolution`
 - ✅ **Lines and outline arrows**: Literally same shader (CustomLineRenderer)
 - ✅ **Filled arrows**: Different shader, but identical screen-space formula
@@ -634,11 +673,13 @@ class EdgeMesh {
 ### Current Approach (GreasedLine + Mixed Arrow Tech)
 
 **Per Edge**:
+
 - Line: 1 GreasedLine mesh (~500 bytes)
 - Arrow: 1 separate mesh (StandardMaterial or GreasedLine) (~500 bytes)
 - Total: ~1000 bytes, 2 draw calls
 
 **1000 edges**:
+
 - Memory: ~1 MB
 - Draw calls: 2000
 - Frame time: ~5ms
@@ -646,27 +687,30 @@ class EdgeMesh {
 ### CustomLineRenderer Unified Approach
 
 **Per Edge**:
+
 - Line + Arrow: 1 combined mesh (~700 bytes)
 - Total: ~700 bytes, 1 draw call
 
 **1000 edges**:
+
 - Memory: ~700 KB (30% reduction)
 - Draw calls: 1000 (50% reduction)
 - Frame time: ~2.5ms (50% faster)
 
 **With Instancing** (edges with same style):
+
 - 1000 edges, 10 styles: **10 draw calls total**
 - Frame time: **~0.5ms** (10x faster!)
 
 ### Large Graph Performance (10,000 edges)
 
-| Metric | Current | CustomLineRenderer | Improvement |
-|--------|---------|-------------------|-------------|
-| Memory | 10 MB | 7 MB | 30% less |
-| Draw calls | 20,000 | 10,000 | 50% less |
-| With instancing | N/A | ~50 | **400x less!** |
-| Frame time | 50ms | 5ms | **10x faster** |
-| FPS | 20 FPS | 60 FPS | **3x smoother** |
+| Metric          | Current | CustomLineRenderer | Improvement     |
+| --------------- | ------- | ------------------ | --------------- |
+| Memory          | 10 MB   | 7 MB               | 30% less        |
+| Draw calls      | 20,000  | 10,000             | 50% less        |
+| With instancing | N/A     | ~50                | **400x less!**  |
+| Frame time      | 50ms    | 5ms                | **10x faster**  |
+| FPS             | 20 FPS  | 60 FPS             | **3x smoother** |
 
 ---
 
@@ -677,6 +721,7 @@ class EdgeMesh {
 **Status**: Already implemented in `src/meshes/CustomLineRenderer.ts`
 
 **What works**:
+
 - Quad-strip geometry generation
 - Screen-space vertex shader
 - Pattern fragment shader (solid, dash, dot)
@@ -690,36 +735,41 @@ class EdgeMesh {
 **Objective**: Add arrow head geometry generators that feed into CustomLineRenderer shader
 
 **Tasks**:
+
 1. **Add arrow geometry generators** (`src/meshes/CustomLineRenderer.ts`):
-   ```typescript
-   static createTriangularArrowGeometry(length, width, inverted): LineGeometry
-   static createCircularDotGeometry(radius, segments): LineGeometry
-   static createDiamondArrowGeometry(length, width): LineGeometry
-   static createBoxArrowGeometry(length, width): LineGeometry
-   ```
+
+    ```typescript
+    static createTriangularArrowGeometry(length, width, inverted): LineGeometry
+    static createCircularDotGeometry(radius, segments): LineGeometry
+    static createDiamondArrowGeometry(length, width): LineGeometry
+    static createBoxArrowGeometry(length, width): LineGeometry
+    ```
 
 2. **Add geometry merging** (`src/meshes/CustomLineRenderer.ts`):
-   ```typescript
-   static mergeGeometries(line: LineGeometry, arrow: LineGeometry, arrowPosition: Vector3, orientation: Vector3): LineGeometry
-   ```
+
+    ```typescript
+    static mergeGeometries(line: LineGeometry, arrow: LineGeometry, arrowPosition: Vector3, orientation: Vector3): LineGeometry
+    ```
 
 3. **Update EdgeMesh** (`src/meshes/EdgeMesh.ts`):
-   ```typescript
-   static createWithArrow(options, style, scene): Mesh {
-       const lineGeom = CustomLineRenderer.createLineGeometry([src, dst]);
-       const arrowGeom = CustomLineRenderer.createArrowGeometry(style.arrowHead.type, ...);
-       const combined = CustomLineRenderer.mergeGeometries(lineGeom, arrowGeom, ...);
-       return CustomLineRenderer.createFromGeometry(combined, style, scene);
-   }
-   ```
+
+    ```typescript
+    static createWithArrow(options, style, scene): Mesh {
+        const lineGeom = CustomLineRenderer.createLineGeometry([src, dst]);
+        const arrowGeom = CustomLineRenderer.createArrowGeometry(style.arrowHead.type, ...);
+        const combined = CustomLineRenderer.mergeGeometries(lineGeom, arrowGeom, ...);
+        return CustomLineRenderer.createFromGeometry(combined, style, scene);
+    }
+    ```
 
 4. **Write tests** (`test/meshes/CustomLineArrows.test.ts`):
-   - Test arrow geometry generation
-   - Test geometry merging
-   - Property-based tests for all arrow types
-   - Visual comparison tests (arrow aligns with line)
+    - Test arrow geometry generation
+    - Test geometry merging
+    - Property-based tests for all arrow types
+    - Visual comparison tests (arrow aligns with line)
 
 **Success Criteria**:
+
 - ✅ All 12 arrow types render using CustomLineRenderer shader
 - ✅ Perfect alignment verified at multiple camera angles
 - ✅ Tests pass (unit + visual)
@@ -728,6 +778,7 @@ class EdgeMesh {
 ### Phase 2: Additional Arrow Types (2 days)
 
 **Add remaining arrow types**:
+
 - Hollow arrows (outline only)
 - Line-based arrows (3 lines forming arrow)
 - Arrow tails (bidirectional arrows)
@@ -736,11 +787,13 @@ class EdgeMesh {
 ### Phase 3: Advanced Features (3 days)
 
 **Pattern support for arrows**:
+
 - Dashed arrow heads
 - Animated arrow patterns
 - Gradient colors
 
 **Performance optimizations**:
+
 - LOD system (simplified geometry at distance)
 - Frustum culling optimization
 - Batch rendering improvements
@@ -754,6 +807,7 @@ class EdgeMesh {
 **Risk**: Some arrow types (hollow, line-based) may be complex to represent as quad strips
 
 **Mitigation**:
+
 - Start with simple filled shapes (triangular, dot, diamond, box)
 - Hollow shapes: render as two concentric paths with clever vertex sharing
 - Line-based shapes: multiple separate paths, still using same shader
@@ -766,6 +820,7 @@ class EdgeMesh {
 **Risk**: Merged geometry might be slower than separate meshes in some cases
 
 **Mitigation**:
+
 - Comprehensive benchmarking before/after
 - A/B testing with feature flag
 - Profile in worst-case scenarios (100K edges)
@@ -778,6 +833,7 @@ class EdgeMesh {
 **Risk**: BabylonJS instancing might not work with merged line+arrow geometry
 
 **Mitigation**:
+
 - Test instancing early in Phase 1
 - Alternative: keep arrow separate but use same shader (still gets alignment)
 - Use thin instances if standard instancing doesn't work
@@ -789,6 +845,7 @@ class EdgeMesh {
 **Risk**: Patterns (dash, dot) might look weird on arrow heads
 
 **Mitigation**:
+
 - Make patterns optional per-geometry-section (line vs arrow)
 - Add `patternMask` attribute to control pattern regions
 - Fragment shader: `if (vPatternMask == 0.0) pattern = 0.0;`
@@ -802,11 +859,13 @@ class EdgeMesh {
 ### Extensibility for New Arrow Types
 
 **Adding a new arrow type** requires only:
+
 1. Geometry generator function (returns `LineGeometry`)
 2. Test coverage
 3. Storybook story
 
 **Example: Star Arrow**:
+
 ```typescript
 static createStarArrowGeometry(size: number, points: number = 5): LineGeometry {
     const starPath: Vector3[] = [];
@@ -828,13 +887,14 @@ static createStarArrowGeometry(size: number, points: number = 5): LineGeometry {
 ### Custom User-Defined Arrows
 
 **Users can define custom arrows via API**:
+
 ```typescript
 graphty.registerArrowType("myArrow", (size) => {
     // Return Vector3[] path defining arrow shape
     return [
         new Vector3(0, 0, size),
-        new Vector3(-size/2, 0, -size),
-        new Vector3(size/2, 0, -size),
+        new Vector3(-size / 2, 0, -size),
+        new Vector3(size / 2, 0, -size),
         new Vector3(0, 0, size),
     ];
 });
@@ -842,19 +902,21 @@ graphty.registerArrowType("myArrow", (size) => {
 // Use it
 graphty.styleTemplate = {
     edgeStyle: {
-        arrowHead: { type: "myArrow", size: 1.5 }
-    }
+        arrowHead: { type: "myArrow", size: 1.5 },
+    },
 };
 ```
 
 ### WebGPU Compatibility
 
 **CustomLineRenderer shader is compatible with WebGPU**:
+
 - Modern WGSL syntax maps 1:1 to our GLSL
 - Screen-space formulas identical
 - No platform-specific hacks
 
 **Migration path**:
+
 1. Create WGSL version of shader
 2. Feature flag: `useWebGPU: boolean`
 3. Same geometry system for both GL and GPU
@@ -863,14 +925,14 @@ graphty.styleTemplate = {
 
 ## Comparison: All Approaches
 
-| Approach | Alignment | Performance | Maintainability | Extensibility | Status |
-|----------|-----------|-------------|-----------------|---------------|--------|
-| **GreasedLine mixed** | ⚠️ Good | ⭐⭐⭐ | ⚠️ Complex | ⭐ Limited | Current |
-| **Billboard disc** | ❌ Poor | ⭐⭐⭐ | ⭐⭐ | ⭐ Limited | Failed |
-| **GreasedLine circle** | ❌ Broken | N/A | N/A | N/A | Failed |
-| **Thin disc mesh** | ⚠️ OK | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐ Limited | Partial |
-| **3D disc shader** | ✅ Excellent | ⭐⭐⭐⭐ | ⚠️ Separate impl | ⭐ Limited | Best effort |
-| **CustomLineRenderer** | ✅ Perfect | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | **RECOMMENDED** |
+| Approach               | Alignment    | Performance | Maintainability  | Extensibility | Status          |
+| ---------------------- | ------------ | ----------- | ---------------- | ------------- | --------------- |
+| **GreasedLine mixed**  | ⚠️ Good      | ⭐⭐⭐      | ⚠️ Complex       | ⭐ Limited    | Current         |
+| **Billboard disc**     | ❌ Poor      | ⭐⭐⭐      | ⭐⭐             | ⭐ Limited    | Failed          |
+| **GreasedLine circle** | ❌ Broken    | N/A         | N/A              | N/A           | Failed          |
+| **Thin disc mesh**     | ⚠️ OK        | ⭐⭐⭐⭐    | ⭐⭐⭐           | ⭐ Limited    | Partial         |
+| **3D disc shader**     | ✅ Excellent | ⭐⭐⭐⭐    | ⚠️ Separate impl | ⭐ Limited    | Best effort     |
+| **CustomLineRenderer** | ✅ Perfect   | ⭐⭐⭐⭐⭐  | ⭐⭐⭐⭐⭐       | ⭐⭐⭐⭐⭐    | **RECOMMENDED** |
 
 ---
 
@@ -896,8 +958,8 @@ graphty.styleTemplate = {
 - **Property-based tests**: `test/CustomLineRenderer.test.ts`
 - **Phase 0 completion**: Documented in `design/custom-line-system-plan.md`
 - **Previous arrow head attempts**:
-  - `design/dot-arrow-final-solution.md`
-  - `design/disc-shader-implementation-complete.md`
-  - `design/dot-arrow-shader-implementation.md`
+    - `design/dot-arrow-final-solution.md`
+    - `design/disc-shader-implementation-complete.md`
+    - `design/dot-arrow-shader-implementation.md`
 - **GreasedLine shader analysis**: `design/greased-line-shader-design.md`
 - **Edge styles implementation**: `design/edge-styles-implementation-plan.md`

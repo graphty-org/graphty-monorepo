@@ -1,6 +1,6 @@
-import {ActionIcon, Box, Collapse, Divider, Group, Stack, Text} from "@mantine/core";
-import {useDisclosure} from "@mantine/hooks";
-import {ChevronDown, ChevronRight} from "lucide-react";
+import { ActionIcon, Box, Collapse, Divider, Group, Stack, Text } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import React from "react";
 
 interface ControlSectionProps {
@@ -17,21 +17,27 @@ interface ControlSectionProps {
  *
  * When hasConfiguredValues is true, shows a small indicator dot
  * to visually highlight that the section contains explicitly set values.
+ * @param root0 - Component props
+ * @param root0.label - The label text for the section header
+ * @param root0.defaultOpen - Whether the section is open by default
+ * @param root0.children - Child controls to render in the section
+ * @param root0.hasConfiguredValues - Whether this section has configured values
+ * @returns The control section component
  */
-export function ControlSection({label, defaultOpen = true, children, hasConfiguredValues = false}: ControlSectionProps): React.JSX.Element {
-    const [opened, {toggle}] = useDisclosure(defaultOpen);
+export function ControlSection({
+    label,
+    defaultOpen = true,
+    children,
+    hasConfiguredValues = false,
+}: ControlSectionProps): React.JSX.Element {
+    const [opened, { toggle }] = useDisclosure(defaultOpen);
 
     return (
         <Box>
             {/* Separator line above section */}
             <Divider color="gray.7" mt={8} mb={0} />
             {/* Header row with expand/collapse toggle */}
-            <Group
-                justify="space-between"
-                py={8}
-                style={{cursor: "pointer"}}
-                onClick={toggle}
-            >
+            <Group justify="space-between" py={8} style={{ cursor: "pointer" }} onClick={toggle}>
                 <Group gap={4}>
                     <ActionIcon
                         variant="subtle"

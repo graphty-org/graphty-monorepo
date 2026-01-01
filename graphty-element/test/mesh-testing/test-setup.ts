@@ -5,7 +5,7 @@
  * in Node.js with necessary polyfills and configurations.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 
 // import {NullEngine} from "@babylonjs/core";
 
@@ -121,9 +121,9 @@ export function setup(): void {
     // Polyfill for window (minimal)
     if (typeof window === "undefined") {
         (global as any).window = {
-            ... global,
-            location: {href: "http://localhost/"},
-            navigator: {userAgent: "Node.js"},
+            ...global,
+            location: { href: "http://localhost/" },
+            navigator: { userAgent: "Node.js" },
             setTimeout: global.setTimeout,
             clearTimeout: global.clearTimeout,
             setInterval: global.setInterval,
@@ -181,7 +181,7 @@ export function setup(): void {
  */
 function createMockCanvas2DContext(): unknown {
     const context = {
-    // State properties
+        // State properties
         fillStyle: "#000000",
         strokeStyle: "#000000",
         lineWidth: 1,
@@ -286,8 +286,8 @@ function createMockCanvas2DContext(): unknown {
         drawImage: () => {
             // Mock canvas operation
         },
-        createImageData: () => ({data: new Uint8ClampedArray(4), width: 1, height: 1}),
-        getImageData: () => ({data: new Uint8ClampedArray(4), width: 1, height: 1}),
+        createImageData: () => ({ data: new Uint8ClampedArray(4), width: 1, height: 1 }),
+        getImageData: () => ({ data: new Uint8ClampedArray(4), width: 1, height: 1 }),
         putImageData: () => {
             // Mock canvas operation
         },

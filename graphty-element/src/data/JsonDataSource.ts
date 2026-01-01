@@ -1,20 +1,24 @@
 import jmespath from "jmespath";
-import {z} from "zod/v4";
+import { z } from "zod/v4";
 import * as z4 from "zod/v4/core";
 
 // import {JSONParser} from "@streamparser/json";
-import type {AdHocData, PartiallyOptional} from "../config/common";
-import {BaseDataSourceConfig, DataSource, DataSourceChunk} from "./DataSource";
+import type { AdHocData, PartiallyOptional } from "../config/common";
+import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource";
 
-const JsonNodeConfig = z.strictObject({
-    path: z.string().default("nodes"),
-    schema: z.custom<z4.$ZodObject>().or(z.null()).default(null),
-}).prefault({});
+const JsonNodeConfig = z
+    .strictObject({
+        path: z.string().default("nodes"),
+        schema: z.custom<z4.$ZodObject>().or(z.null()).default(null),
+    })
+    .prefault({});
 
-const JsonEdgeConfig = z.strictObject({
-    path: z.string().default("edges"),
-    schema: z.custom<z4.$ZodObject>().or(z.null()).default(null),
-}).prefault({});
+const JsonEdgeConfig = z
+    .strictObject({
+        path: z.string().default("edges"),
+        schema: z.custom<z4.$ZodObject>().or(z.null()).default(null),
+    })
+    .prefault({});
 
 export const JsonDataSourceConfig = z.object({
     data: z.string().optional(),
@@ -64,9 +68,10 @@ export class JsonDataSource extends DataSource {
         // JsonDataSource has special handling for 'data' field:
         // If data starts with http/https/data:, treat it as URL
         // Otherwise treat it as inline JSON
-        const isUrl = (this.opts.data?.startsWith("http://") ?? false) ||
-                     (this.opts.data?.startsWith("https://") ?? false) ||
-                     (this.opts.data?.startsWith("data:") ?? false);
+        const isUrl =
+            (this.opts.data?.startsWith("http://") ?? false) ||
+            (this.opts.data?.startsWith("https://") ?? false) ||
+            (this.opts.data?.startsWith("data:") ?? false);
 
         return {
             data: isUrl ? undefined : this.opts.data,
@@ -237,12 +242,16 @@ export class JsonDataSource extends DataSource {
         // If a custom nodeIdPath is specified, also accept that field
         const nodeObj = node as Record<string, unknown>;
         const customIdPath = this.opts.nodeIdPath;
-        const hasId = "id" in nodeObj || "name" in nodeObj || "key" in nodeObj || "label" in nodeObj ||
-                      (customIdPath !== undefined && customIdPath in nodeObj);
+        const hasId =
+            "id" in nodeObj ||
+            "name" in nodeObj ||
+            "key" in nodeObj ||
+            "label" in nodeObj ||
+            (customIdPath !== undefined && customIdPath in nodeObj);
         if (!hasId) {
-            const expectedFields = customIdPath ?
-                `'id', 'name', 'key', 'label', or '${customIdPath}'` :
-                "'id', 'name', 'key', or 'label'";
+            const expectedFields = customIdPath
+                ? `'id', 'name', 'key', 'label', or '${customIdPath}'`
+                : "'id', 'name', 'key', or 'label'";
             const canContinue = this.errorAggregator.addError({
                 message: `Node at index ${index} is missing identifier field (expected ${expectedFields})`,
                 category: "missing-value",

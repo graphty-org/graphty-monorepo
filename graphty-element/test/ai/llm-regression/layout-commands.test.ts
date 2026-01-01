@@ -9,11 +9,11 @@
  * and parameter extraction for graph layout changes.
  */
 
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import {skipIfNoApiKey} from "../../helpers/llm-regression-env";
-import {LlmRegressionTestHarness} from "../../helpers/llm-regression-harness";
-import {serverNetworkFixture} from "./fixtures/test-graph-fixtures";
+import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
+import { LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 /**
  * Valid layout types that can be set.
@@ -69,7 +69,7 @@ function isValidLayoutType(actual: unknown, expected: string): boolean {
 describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
     let harness: LlmRegressionTestHarness;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         harness = await LlmRegressionTestHarness.create({
             graphData: serverNetworkFixture,
         });
@@ -80,7 +80,7 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
     });
 
     describe("setLayout", () => {
-        it("calls setLayout for 'Use circular layout'", async() => {
+        it("calls setLayout for 'Use circular layout'", async () => {
             const result = await harness.testPrompt("Use circular layout");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -94,7 +94,7 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             );
         });
 
-        it("calls setLayout for 'Switch to force-directed layout'", async() => {
+        it("calls setLayout for 'Switch to force-directed layout'", async () => {
             const result = await harness.testPrompt("Switch to force-directed layout");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -108,7 +108,7 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             );
         });
 
-        it("calls setLayout for 'Arrange nodes randomly'", async() => {
+        it("calls setLayout for 'Arrange nodes randomly'", async () => {
             const result = await harness.testPrompt("Arrange nodes randomly");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -124,7 +124,7 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
     });
 
     describe("setDimension", () => {
-        it("calls setDimension for 'Switch to 2D view'", async() => {
+        it("calls setDimension for 'Switch to 2D view'", async () => {
             const result = await harness.testPrompt("Switch to 2D view");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -132,14 +132,14 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             assert.ok(result.toolParams, "Expected tool parameters");
 
             // Verify dimension is 2D (accept various formats)
-            const {dimension} = result.toolParams;
+            const { dimension } = result.toolParams;
             assert.ok(
                 dimension === "2d" || dimension === "2D" || dimension === 2,
                 `Expected dimension '2d' but got '${String(dimension)}'`,
             );
         });
 
-        it("calls setDimension for 'Show in 3D'", async() => {
+        it("calls setDimension for 'Show in 3D'", async () => {
             const result = await harness.testPrompt("Show in 3D");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -147,7 +147,7 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             assert.ok(result.toolParams, "Expected tool parameters");
 
             // Verify dimension is 3D (accept various formats)
-            const {dimension} = result.toolParams;
+            const { dimension } = result.toolParams;
             assert.ok(
                 dimension === "3d" || dimension === "3D" || dimension === 3,
                 `Expected dimension '3d' but got '${String(dimension)}'`,
@@ -156,7 +156,7 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
     });
 
     describe("command result validation", () => {
-        it("returns command result for setLayout", async() => {
+        it("returns command result for setLayout", async () => {
             const result = await harness.testPrompt("Change layout to circular arrangement");
 
             assert.ok(result.toolWasCalled, "Expected setLayout to be called");
@@ -167,7 +167,7 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             assert.ok(result.commandResult.message, "Expected result message");
         });
 
-        it("returns command result for setDimension", async() => {
+        it("returns command result for setDimension", async () => {
             const result = await harness.testPrompt("Make the graph 2D");
 
             assert.ok(result.toolWasCalled, "Expected setDimension to be called");
@@ -178,14 +178,14 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             assert.ok(result.commandResult.message, "Expected result message");
         });
 
-        it("tracks latency for layout commands", async() => {
+        it("tracks latency for layout commands", async () => {
             const result = await harness.testPrompt("Use spiral layout");
 
             assert.ok(result.latencyMs > 0, "Expected positive latency");
             assert.ok(result.latencyMs < 60000, "Expected latency under 60 seconds");
         });
 
-        it("captures token usage for layout commands", async() => {
+        it("captures token usage for layout commands", async () => {
             const result = await harness.testPrompt("Switch to 3D mode");
 
             // Token usage may not always be available depending on provider configuration

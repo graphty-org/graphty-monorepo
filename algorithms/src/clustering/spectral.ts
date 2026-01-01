@@ -1,6 +1,6 @@
-import type {Graph} from "../core/graph.js";
-import type {NodeId} from "../types/index.js";
-import {euclideanDistance} from "../utils/math-utilities.js";
+import type { Graph } from "../core/graph.js";
+import type { NodeId } from "../types/index.js";
+import { euclideanDistance } from "../utils/math-utilities.js";
 
 /**
  * Spectral Clustering implementation
@@ -29,24 +29,19 @@ export interface SpectralClusteringResult {
 /**
  * Perform spectral clustering on a graph
  *
- * @warning This implementation uses simplified power iteration for eigenvector
+ * Note: This implementation uses simplified power iteration for eigenvector
  * computation with approximate eigenvalues. For production use cases requiring
  * precise clustering, consider using a proper linear algebra library like ml-matrix.
  *
  * The approximate eigenvalues (0.1, 0.2 for second and third eigenvectors) work
  * well for most graph structures but may produce suboptimal results for graphs
  * with unusual spectral properties.
+ * @param graph - The input graph to cluster
+ * @param options - Spectral clustering options (k, laplacianType, etc.)
+ * @returns Spectral clustering result with communities and cluster assignments
  */
-export function spectralClustering(
-    graph: Graph,
-    options: SpectralClusteringOptions,
-): SpectralClusteringResult {
-    const {
-        k,
-        laplacianType = "normalized",
-        maxIterations = 100,
-        tolerance = 1e-4,
-    } = options;
+export function spectralClustering(graph: Graph, options: SpectralClusteringOptions): SpectralClusteringResult {
+    const { k, laplacianType = "normalized", maxIterations = 100, tolerance = 1e-4 } = options;
 
     // Input validation
     if (k < 1 || !Number.isInteger(k)) {
@@ -62,7 +57,7 @@ export function spectralClustering(
         const communities: NodeId[][] = nodeIds.map((id) => [id]);
         const clusterAssignments = new Map<NodeId, number>();
         nodeIds.forEach((id, index) => clusterAssignments.set(id, index));
-        return {communities, clusterAssignments};
+        return { communities, clusterAssignments };
     }
 
     // Build adjacency matrix
@@ -97,7 +92,7 @@ export function spectralClustering(
     const kmeans = kMeansClustering(dataPoints, k, maxIterations, tolerance);
 
     // Build communities
-    const communities: NodeId[][] = Array.from({length: k}, () => []);
+    const communities: NodeId[][] = Array.from({ length: k }, () => []);
     const clusterAssignments = new Map<NodeId, number>();
 
     for (let i = 0; i < nodeIds.length; i++) {
@@ -139,10 +134,13 @@ export function spectralClustering(
 
 /**
  * Build adjacency matrix from graph
+ * @param graph - The input graph
+ * @param nodeIds - Array of node IDs defining matrix index order
+ * @returns Square adjacency matrix with edge weights
  */
 function buildAdjacencyMatrix(graph: Graph, nodeIds: NodeId[]): number[][] {
     const n = nodeIds.length;
-    const matrix: number[][] = Array.from({length: n}, () => Array(n).fill(0) as number[]);
+    const matrix: number[][] = Array.from({ length: n }, () => Array(n).fill(0) as number[]);
     const nodeToIndex = new Map<NodeId, number>();
 
     nodeIds.forEach((id, index) => nodeToIndex.set(id, index));
@@ -180,10 +178,13 @@ function buildAdjacencyMatrix(graph: Graph, nodeIds: NodeId[]): number[][] {
 
 /**
  * Build Laplacian matrix from adjacency matrix
+ * @param adjacency - Square adjacency matrix
+ * @param type - Type of Laplacian (unnormalized, normalized, or randomWalk)
+ * @returns The computed Laplacian matrix
  */
 function buildLaplacianMatrix(adjacency: number[][], type: string): number[][] {
     const n = adjacency.length;
-    const laplacian: number[][] = Array.from({length: n}, () => Array(n).fill(0) as number[]);
+    const laplacian: number[][] = Array.from({ length: n }, () => Array(n).fill(0) as number[]);
 
     // Calculate degree matrix
     const degrees = Array(n).fill(0) as number[];
@@ -239,7 +240,14 @@ function buildLaplacianMatrix(adjacency: number[][], type: string): number[][] {
                     const adjacencyVal = adjacencyRow[j];
                     const di = degrees[i];
                     const dj = degrees[j];
-                    if (adjacencyVal !== undefined && adjacencyVal > 0 && di !== undefined && dj !== undefined && di > 0 && dj > 0) {
+                    if (
+                        adjacencyVal !== undefined &&
+                        adjacencyVal > 0 &&
+                        di !== undefined &&
+                        dj !== undefined &&
+                        di > 0 &&
+                        dj > 0
+                    ) {
                         const laplacianRow = laplacian[i];
                         if (laplacianRow) {
                             laplacianRow[j] = -adjacencyVal / Math.sqrt(di * dj);
@@ -283,15 +291,21 @@ function buildLaplacianMatrix(adjacency: number[][], type: string): number[][] {
 /**
  * Find k smallest eigenvectors using simplified eigendecomposition
  * This is a simplified implementation - in practice, you'd use LAPACK or similar
+ * @param matrix - The Laplacian matrix for eigendecomposition
+ * @param k - Number of smallest eigenvectors to find
+ * @returns Object containing eigenvalues and corresponding eigenvectors
  */
-function findSmallestEigenvectors(matrix: number[][], k: number): {
+function findSmallestEigenvectors(
+    matrix: number[][],
+    k: number,
+): {
     eigenvalues: number[];
     eigenvectors: number[][];
 } {
     const n = matrix.length;
 
     if (n === 0 || k === 0) {
-        return {eigenvalues: [], eigenvectors: []};
+        return { eigenvalues: [], eigenvectors: [] };
     }
 
     // For very small matrices, use the full power iteration approach
@@ -314,10 +328,12 @@ function findSmallestEigenvectors(matrix: number[][], k: number): {
 
     for (let eigIdx = 0; eigIdx < k; eigIdx++) {
         // Initialize random vector
-        let vector = Array(n).fill(0).map(() => Math.random() - 0.5);
+        let vector = Array(n)
+            .fill(0)
+            .map(() => Math.random() - 0.5);
 
         // Normalize initial vector
-        const initNorm = Math.sqrt(vector.reduce((sum, val) => sum + (val * val), 0));
+        const initNorm = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
         if (initNorm > 0) {
             vector = vector.map((val) => val / initNorm);
         }
@@ -329,8 +345,8 @@ function findSmallestEigenvectors(matrix: number[][], k: number): {
                 continue;
             }
 
-            const dot = vector.reduce((sum, val, idx) => sum + (val * (ejVector[idx] ?? 0)), 0);
-            vector = vector.map((val, idx) => val - (dot * (ejVector[idx] ?? 0)));
+            const dot = vector.reduce((sum, val, idx) => sum + val * (ejVector[idx] ?? 0), 0);
+            vector = vector.map((val, idx) => val - dot * (ejVector[idx] ?? 0));
         }
 
         // Power iteration
@@ -345,7 +361,7 @@ function findSmallestEigenvectors(matrix: number[][], k: number): {
                     if (matrixVal !== undefined && vecVal !== undefined) {
                         const nvVal = newVector[i];
                         if (nvVal !== undefined) {
-                            newVector[i] = nvVal + (matrixVal * vecVal);
+                            newVector[i] = nvVal + matrixVal * vecVal;
                         }
                     }
                 }
@@ -358,20 +374,20 @@ function findSmallestEigenvectors(matrix: number[][], k: number): {
                     continue;
                 }
 
-                const dot = newVector.reduce((sum, val, idx) => sum + (val * (ejVector[idx] ?? 0)), 0);
+                const dot = newVector.reduce((sum, val, idx) => sum + val * (ejVector[idx] ?? 0), 0);
                 for (let i = 0; i < n; i++) {
                     const ejVal = ejVector[i];
                     if (ejVal !== undefined) {
                         const nvVal = newVector[i];
                         if (nvVal !== undefined) {
-                            newVector[i] = nvVal - (dot * ejVal);
+                            newVector[i] = nvVal - dot * ejVal;
                         }
                     }
                 }
             }
 
             // Normalize
-            const norm = Math.sqrt(newVector.reduce((sum, val) => sum + ((val * val)), 0));
+            const norm = Math.sqrt(newVector.reduce((sum, val) => sum + val * val, 0));
             if (norm > 1e-10) {
                 vector = newVector.map((val) => val / norm);
             } else {
@@ -390,29 +406,30 @@ function findSmallestEigenvectors(matrix: number[][], k: number): {
                 if (matrixVal !== undefined && vecVal !== undefined) {
                     const avVal = Av[i];
                     if (avVal !== undefined) {
-                        Av[i] = avVal + (matrixVal * vecVal);
+                        Av[i] = avVal + matrixVal * vecVal;
                     }
                 }
             }
         }
         eigenvalue = vector.reduce((sum, val, idx) => {
             const avVal = Av[idx];
-            return sum + (val * (avVal ?? 0));
+            return sum + val * (avVal ?? 0);
         }, 0);
 
         eigenvectors.push(vector);
         eigenvalues.push(eigenvalue);
     }
 
-    return {eigenvalues, eigenvectors};
+    return { eigenvalues, eigenvectors };
 }
 
 /**
  * Normalize matrix rows to unit length
+ * @param matrix - Matrix to normalize in place
  */
 function normalizeRows(matrix: number[][]): void {
     for (const row of matrix) {
-        const norm = Math.sqrt(row.reduce((sum, val) => sum + (val * val), 0));
+        const norm = Math.sqrt(row.reduce((sum, val) => sum + val * val, 0));
         if (norm > 0) {
             for (let j = 0; j < row.length; j++) {
                 const val = row[j];
@@ -426,25 +443,30 @@ function normalizeRows(matrix: number[][]): void {
 
 /**
  * K-means clustering algorithm
+ * @param data - Array of data points, each point is an array of coordinates
+ * @param k - Number of clusters to form
+ * @param maxIterations - Maximum number of iterations
+ * @param tolerance - Convergence tolerance for centroid movement
+ * @returns Object containing cluster assignments and final centroids
  */
 function kMeansClustering(
     data: number[][],
     k: number,
     maxIterations: number,
     tolerance = 1e-4,
-): {assignments: number[], centroids: number[][]} {
+): { assignments: number[]; centroids: number[][] } {
     const n = data.length;
     const d = data[0]?.length ?? 0;
 
     // Handle edge cases
     if (n === 0 || k === 0) {
-        return {assignments: [], centroids: []};
+        return { assignments: [], centroids: [] };
     }
 
     if (k >= n) {
         // Each point is its own cluster
         return {
-            assignments: Array.from({length: n}, (_, i) => i),
+            assignments: Array.from({ length: n }, (_, i) => i),
             centroids: data.slice(0, n),
         };
     }
@@ -457,7 +479,7 @@ function kMeansClustering(
         const idx = Math.floor(Math.random() * n);
         if (!selectedIndices.has(idx) && data[idx]) {
             selectedIndices.add(idx);
-            centroids.push([... data[idx]]);
+            centroids.push([...data[idx]]);
         }
     }
 
@@ -509,14 +531,14 @@ function kMeansClustering(
             break;
         }
 
-        oldAssignments = [... assignments];
+        oldAssignments = [...assignments];
 
         // Store old centroids for tolerance-based convergence check
-        const oldCentroids = centroids.map((c) => [... c]);
+        const oldCentroids = centroids.map((c) => [...c]);
 
         // Update centroids
         const counts = Array(k).fill(0) as number[];
-        const sums: number[][] = Array.from({length: k}, () => Array(d).fill(0) as number[]);
+        const sums: number[][] = Array.from({ length: k }, () => Array(d).fill(0) as number[]);
 
         for (let i = 0; i < n; i++) {
             const cluster = assignments[i] ?? 0;
@@ -581,13 +603,21 @@ function kMeansClustering(
         }
     }
 
-    return {assignments, centroids};
+    return { assignments, centroids };
 }
 
 /**
  * Compute smallest eigenvectors for small k (optimized for k=2, k=3)
+ * @param matrix - The Laplacian matrix
+ * @param k - Number of eigenvectors to compute (1-3)
+ * @param n - Size of the matrix
+ * @returns Object containing eigenvalues and eigenvectors
  */
-function computeSmallestEigenvectorsSimple(matrix: number[][], k: number, n: number): {
+function computeSmallestEigenvectorsSimple(
+    matrix: number[][],
+    k: number,
+    n: number,
+): {
     eigenvalues: number[];
     eigenvectors: number[][];
 } {
@@ -603,11 +633,13 @@ function computeSmallestEigenvectorsSimple(matrix: number[][], k: number, n: num
     if (k >= 2) {
         // Use power iteration on I - L/lambda_max to find second smallest
         const maxEig = 2; // For normalized Laplacian, max eigenvalue <= 2
-        let vector = Array(n).fill(0).map(() => Math.random() - 0.5);
+        let vector = Array(n)
+            .fill(0)
+            .map(() => Math.random() - 0.5);
 
         // Make orthogonal to first eigenvector
-        const dot1 = vector.reduce((sum, val) => sum + (val / Math.sqrt(n)), 0);
-        vector = vector.map((val) => val - (dot1 / Math.sqrt(n)));
+        const dot1 = vector.reduce((sum, val) => sum + val / Math.sqrt(n), 0);
+        vector = vector.map((val) => val - dot1 / Math.sqrt(n));
 
         // Power iteration on shifted matrix
         for (let iter = 0; iter < 100; iter++) {
@@ -624,18 +656,18 @@ function computeSmallestEigenvectorsSimple(matrix: number[][], k: number, n: num
                 for (let j = 0; j < n; j++) {
                     const matrixVal = matrix[i]?.[j] ?? 0;
                     const vecVal = vector[j] ?? 0;
-                    newVector[i] = (newVector[i] ?? 0) - ((matrixVal * vecVal) / maxEig);
+                    newVector[i] = (newVector[i] ?? 0) - (matrixVal * vecVal) / maxEig;
                 }
             }
 
             // Orthogonalize against first eigenvector
-            const dot = newVector.reduce((sum, val) => sum + (val / Math.sqrt(n)), 0);
+            const dot = newVector.reduce((sum, val) => sum + val / Math.sqrt(n), 0);
             for (let i = 0; i < n; i++) {
-                newVector[i] = (newVector[i] ?? 0) - (dot / Math.sqrt(n));
+                newVector[i] = (newVector[i] ?? 0) - dot / Math.sqrt(n);
             }
 
             // Normalize
-            const norm = Math.sqrt(newVector.reduce((sum, val) => sum + (val * val), 0));
+            const norm = Math.sqrt(newVector.reduce((sum, val) => sum + val * val, 0));
             if (norm > 1e-10) {
                 vector = newVector.map((val) => val / norm);
             }
@@ -647,12 +679,14 @@ function computeSmallestEigenvectorsSimple(matrix: number[][], k: number, n: num
 
     // For k = 3, add another eigenvector
     if (k >= 3) {
-        let vector = Array(n).fill(0).map(() => Math.random() - 0.5);
+        let vector = Array(n)
+            .fill(0)
+            .map(() => Math.random() - 0.5);
 
         // Orthogonalize against previous eigenvectors
         for (const prev of eigenvectors) {
-            const dot = vector.reduce((sum, val, idx) => sum + (val * (prev[idx] ?? 0)), 0);
-            vector = vector.map((val, idx) => val - (dot * (prev[idx] ?? 0)));
+            const dot = vector.reduce((sum, val, idx) => sum + val * (prev[idx] ?? 0), 0);
+            vector = vector.map((val, idx) => val - dot * (prev[idx] ?? 0));
         }
 
         // Similar power iteration
@@ -669,20 +703,20 @@ function computeSmallestEigenvectorsSimple(matrix: number[][], k: number, n: num
                 for (let j = 0; j < n; j++) {
                     const matrixVal = matrix[i]?.[j] ?? 0;
                     const vecVal = vector[j] ?? 0;
-                    newVector[i] = (newVector[i] ?? 0) - ((matrixVal * vecVal) / 2);
+                    newVector[i] = (newVector[i] ?? 0) - (matrixVal * vecVal) / 2;
                 }
             }
 
             // Orthogonalize
             for (const prev of eigenvectors) {
-                const dot = newVector.reduce((sum, val, idx) => sum + (val * (prev[idx] ?? 0)), 0);
+                const dot = newVector.reduce((sum, val, idx) => sum + val * (prev[idx] ?? 0), 0);
                 for (let i = 0; i < n; i++) {
-                    newVector[i] = (newVector[i] ?? 0) - (dot * (prev[i] ?? 0));
+                    newVector[i] = (newVector[i] ?? 0) - dot * (prev[i] ?? 0);
                 }
             }
 
             // Normalize
-            const norm = Math.sqrt(newVector.reduce((sum, val) => sum + (val * val), 0));
+            const norm = Math.sqrt(newVector.reduce((sum, val) => sum + val * val, 0));
             if (norm > 1e-10) {
                 vector = newVector.map((val) => val / norm);
             }
@@ -692,5 +726,5 @@ function computeSmallestEigenvectorsSimple(matrix: number[][], k: number, n: num
         eigenvalues.push(0.2); // Approximate
     }
 
-    return {eigenvalues: eigenvalues.slice(0, k), eigenvectors: eigenvectors.slice(0, k)};
+    return { eigenvalues: eigenvalues.slice(0, k), eigenvectors: eigenvectors.slice(0, k) };
 }

@@ -1,8 +1,8 @@
-import {Camera, StandardMaterial} from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { Camera, StandardMaterial } from "@babylonjs/core";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import {Graph} from "../../src/Graph";
-import {asData, styleTemplate, type TestGraph} from "../helpers/testSetup";
+import { Graph } from "../../src/Graph";
+import { asData, styleTemplate, type TestGraph } from "../helpers/testSetup";
 
 describe("Edge 2D Solid Integration", () => {
     let container: HTMLElement;
@@ -12,23 +12,25 @@ describe("Edge 2D Solid Integration", () => {
         document.body.append(container);
     });
 
-    test("Edge uses Simple2DLineRenderer in 2D mode", async() => {
+    test("Edge uses Simple2DLineRenderer in 2D mode", async () => {
         const graph = new Graph(container);
 
         // Set 2D mode via style template
-        await graph.setStyleTemplate(styleTemplate({
-            twoD: true,
-        }));
+        await graph.setStyleTemplate(
+            styleTemplate({
+                twoD: true,
+            }),
+        );
 
         // Wait for style template operation to complete
         await graph.operationQueue.waitForCompletion();
 
         // Add nodes
-        await graph.addNode(asData({id: "node1", x: 0, y: 0, z: 0}));
-        await graph.addNode(asData({id: "node2", x: 1, y: 0, z: 0}));
+        await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
+        await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
 
         // Add edge with source and target path parameters
-        await graph.addEdge(asData({id: "edge1", source: "node1", target: "node2"}), "source", "target");
+        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), "source", "target");
 
         // Wait for all operations to complete
         await graph.operationQueue.waitForCompletion();
@@ -46,32 +48,31 @@ describe("Edge 2D Solid Integration", () => {
         assert(edge.mesh.metadata?.is2DLine, "Edge mesh should be marked as 2D line");
 
         // Verify edge mesh uses StandardMaterial
-        assert(
-            edge.mesh.material instanceof StandardMaterial,
-            "Edge mesh should use StandardMaterial in 2D mode",
-        );
+        assert(edge.mesh.material instanceof StandardMaterial, "Edge mesh should use StandardMaterial in 2D mode");
 
         // Cleanup
         graph.dispose();
     });
 
-    test("Edge uses CustomLineRenderer in 3D mode", async() => {
+    test("Edge uses CustomLineRenderer in 3D mode", async () => {
         const graph = new Graph(container);
 
         // Ensure 3D mode (this is default, but making it explicit)
-        await graph.setStyleTemplate(styleTemplate({
-            twoD: false,
-        }));
+        await graph.setStyleTemplate(
+            styleTemplate({
+                twoD: false,
+            }),
+        );
 
         // Wait for style template operation to complete
         await graph.operationQueue.waitForCompletion();
 
         // Add nodes
-        await graph.addNode(asData({id: "node1", x: 0, y: 0, z: 0}));
-        await graph.addNode(asData({id: "node2", x: 1, y: 0, z: 0}));
+        await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
+        await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
 
         // Add edge with source and target path parameters
-        await graph.addEdge(asData({id: "edge1", source: "node1", target: "node2"}), "source", "target");
+        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), "source", "target");
 
         // Wait for all operations to complete
         await graph.operationQueue.waitForCompletion();
@@ -92,21 +93,23 @@ describe("Edge 2D Solid Integration", () => {
         graph.dispose();
     });
 
-    test("Edge switches from 2D to 3D mode when camera changes", async() => {
+    test("Edge switches from 2D to 3D mode when camera changes", async () => {
         const graph = new Graph(container);
 
         // Set 2D mode initially
-        await graph.setStyleTemplate(styleTemplate({
-            twoD: true,
-        }));
+        await graph.setStyleTemplate(
+            styleTemplate({
+                twoD: true,
+            }),
+        );
 
         // Wait for style template operation to complete
         await graph.operationQueue.waitForCompletion();
 
         // Add nodes and edge with source and target path parameters
-        await graph.addNode(asData({id: "node1", x: 0, y: 0, z: 0}));
-        await graph.addNode(asData({id: "node2", x: 1, y: 0, z: 0}));
-        await graph.addEdge(asData({id: "edge1", source: "node1", target: "node2"}), "source", "target");
+        await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
+        await graph.addNode(asData({ id: "node2", x: 1, y: 0, z: 0 }));
+        await graph.addEdge(asData({ id: "edge1", source: "node1", target: "node2" }), "source", "target");
 
         await new Promise((resolve) => {
             setTimeout(resolve, 100);
@@ -125,7 +128,7 @@ describe("Edge 2D Solid Integration", () => {
         // This test verifies the initial state only
         const cameraManager = graph.camera;
         if ("activeCamera" in cameraManager) {
-            const {activeCamera} = cameraManager as unknown as {activeCamera: Camera | null};
+            const { activeCamera } = cameraManager as unknown as { activeCamera: Camera | null };
             if (activeCamera) {
                 activeCamera.mode = Camera.PERSPECTIVE_CAMERA;
             }

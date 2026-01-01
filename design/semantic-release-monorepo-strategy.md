@@ -20,12 +20,14 @@ Semantic-release was designed with a fundamental assumption: **one repository = 
 **Overview**: A tool designed specifically for monorepo versioning and changelog management, created by Atlassian.
 
 **How it Works**:
+
 - Developers create "changeset" files describing their changes
 - Version bumps are decoupled from commit messages
 - Supports both fixed and independent versioning
 - Handles internal dependency updates automatically
 
 **Pros**:
+
 - **Native monorepo support**: Built from the ground up for multi-package repos
 - **Better developer experience**: Changes can be described separately from commits
 - **Flexible versioning**: Not tied to commit message conventions
@@ -34,22 +36,24 @@ Semantic-release was designed with a fundamental assumption: **one repository = 
 - **Supports all package managers**: npm, yarn, pnpm
 
 **Cons**:
+
 - **Manual step required**: Developers must create changeset files
 - **Different workflow**: Team needs to learn new process
 - **Not fully automated**: Requires human decision for version bumps
 
 **Implementation for Graphty**:
+
 ```json
 // .changeset/config.json
 {
-  "changelog": "@changesets/cli/changelog",
-  "commit": false,
-  "fixed": [],
-  "linked": [],
-  "access": "public",
-  "baseBranch": "main",
-  "updateInternalDependencies": "patch",
-  "ignore": ["@graphty/graphty"]  // Private package
+    "changelog": "@changesets/cli/changelog",
+    "commit": false,
+    "fixed": [],
+    "linked": [],
+    "access": "public",
+    "baseBranch": "main",
+    "updateInternalDependencies": "patch",
+    "ignore": ["@graphty/graphty"] // Private package
 }
 ```
 
@@ -58,32 +62,36 @@ Semantic-release was designed with a fundamental assumption: **one repository = 
 **Overview**: A wrapper around semantic-release that coordinates releases across multiple packages.
 
 **How it Works**:
+
 - Analyzes all packages for changes
 - Establishes version numbers for all packages first
 - Updates cross-dependencies before publishing
 - Uses synchronization points to coordinate releases
 
 **Pros**:
+
 - **Preserves semantic-release workflow**: Keeps commit-based versioning
 - **Handles dependencies**: Automatically updates internal package versions
 - **Proven solution**: Most mature semantic-release monorepo solution
 
 **Cons**:
+
 - **"Proof of concept" status**: Authors acknowledge fundamental instability
 - **Complex configuration**: Requires careful setup for each package
 - **Performance issues**: Can be slow with many packages
 - **Git tag complexity**: Still struggles with tag management
 
 **Implementation Example**:
+
 ```json
 // package.json (root)
 {
-  "scripts": {
-    "release": "multi-semantic-release"
-  },
-  "devDependencies": {
-    "@qiwi/multi-semantic-release": "^7.0.0"
-  }
+    "scripts": {
+        "release": "multi-semantic-release"
+    },
+    "devDependencies": {
+        "@qiwi/multi-semantic-release": "^7.0.0"
+    }
 }
 ```
 
@@ -92,15 +100,18 @@ Semantic-release was designed with a fundamental assumption: **one repository = 
 **Overview**: Plugin that extends semantic-release to work with monorepos by filtering commits per package.
 
 **How it Works**:
+
 - Assigns commits to packages based on changed files
 - Uses namespaced tags: `<package-name>-<version>`
 - Runs semantic-release for each package individually
 
 **Pros**:
+
 - Simple integration with existing semantic-release setup
 - Maintains semantic-release conventions
 
 **Cons**:
+
 - Doesn't handle cross-dependencies
 - Limited maintenance (last major update 2022)
 - Can miss commits that affect multiple packages
@@ -116,11 +127,13 @@ Semantic-release was designed with a fundamental assumption: **one repository = 
 **Overview**: Built-in release management in Nx monorepos.
 
 **Pros**:
+
 - Integrated with Nx graph understanding
 - Supports conventional commits
 - Handles dependency updates automatically
 
 **Cons**:
+
 - Requires full Nx adoption
 - Relatively new (2024)
 
@@ -129,12 +142,14 @@ Semantic-release was designed with a fundamental assumption: **one repository = 
 **Overview**: A tool that generates releases based on PR labels rather than commit messages.
 
 **How it Works**:
+
 - Contributors add labels to PRs (e.g., `major`, `minor`, `patch`)
 - No need to enforce conventional commits
 - Highly extensible plugin system
 - Supports various package managers
 
 **Pros**:
+
 - **Simple PR-based workflow**: Uses labels instead of commit conventions
 - **Plugin ecosystem**: Extensive plugins for npm, Docker, Chrome, Maven, etc.
 - **Monorepo aware**: Built-in support for lerna monorepos
@@ -142,22 +157,20 @@ Semantic-release was designed with a fundamental assumption: **one repository = 
 - **No commit rewriting**: Changes happen at PR level
 
 **Cons**:
+
 - **Requires PR discipline**: Team must remember to label PRs correctly
 - **Less automated**: Manual label application needed
 - **Smaller community**: 3.2k GitHub stars vs Changesets' 12k+
 
 **Implementation Example**:
+
 ```json
 // .autorc
 {
-  "plugins": [
-    "npm",
-    ["conventional-commits", { "preset": "angular" }],
-    "all-contributors"
-  ],
-  "shipit": {
-    "noChangelog": false
-  }
+    "plugins": ["npm", ["conventional-commits", { "preset": "angular" }], "all-contributors"],
+    "shipit": {
+        "noChangelog": false
+    }
 }
 ```
 
@@ -166,25 +179,29 @@ Semantic-release was designed with a fundamental assumption: **one repository = 
 **Overview**: Microsoft's semantic versioning tool designed for monorepos with change file system.
 
 **How it Works**:
+
 - Uses JSON change files to track changes
 - Groups changes per branch for simplicity
 - Optimized for large monorepos
 - Change files reviewed in PRs
 
 **Pros**:
+
 - **Performance optimized**: Configurable concurrency for large repos
 - **Change transparency**: JSON files visible in PR diffs
 - **No commit history rewriting**: Changes tracked separately
 - **Microsoft backing**: Used in Microsoft's own projects
 
 **Cons**:
+
 - **Smaller adoption**: 770 GitHub stars, 33k weekly downloads
 - **Microsoft-centric**: Best for Microsoft ecosystem
 - **Limited documentation**: Less community resources
 - **JSON format**: More verbose than markdown changesets
 
 **Implementation Example**:
-```json
+
+````json
 // beachball.config.js
 {
   "groupChanges": true,
@@ -214,13 +231,14 @@ Each package maintains its own version number independently.
   "fixed": [],  // Empty = independent
   "linked": []  // Can link packages that should version together
 }
-```
+````
 
 ### Fixed/Locked Versioning
 
 All packages share the same version number.
 
 **When to Use**:
+
 - Tightly coupled packages
 - Consistent API surface
 - Examples: Babel, Angular
@@ -230,21 +248,25 @@ All packages share the same version number.
 ## Dependency Update Strategies
 
 ### With Changesets
+
 ```json
 {
-  "updateInternalDependencies": "patch"  // or "minor"
+    "updateInternalDependencies": "patch" // or "minor"
 }
 ```
+
 - `patch`: Dependency updates trigger patch version bumps
 - `minor`: Dependency updates trigger minor version bumps
 
 ### With multi-semantic-release
+
 - Automatically handles dependency updates
 - Uses `*` in development, writes exact versions at release time
 
 ## Real-World Examples
 
 ### Projects Using Changesets
+
 - Turborepo
 - Astro
 - Remix
@@ -252,20 +274,24 @@ All packages share the same version number.
 - Atlassian projects
 
 ### Projects Using Auto
+
 - Intuit projects
 - Apollo GraphQL
 - Various open source libraries
 
 ### Projects Using Beachball
+
 - Microsoft projects (Office UI Fabric, Fluent UI)
 - Azure SDK
 - React Native Windows
 
 ### Projects Using Custom semantic-release
+
 - Very few major projects due to complexity
 - Most have migrated to alternatives
 
 ### Projects Using Fixed Versioning
+
 - Babel (custom tooling)
 - Angular (Nx Release)
 - React (custom tooling)
@@ -275,17 +301,20 @@ All packages share the same version number.
 ### Option 1: Changesets (Recommended)
 
 **Week 1: Setup**
+
 ```bash
 npm install -D @changesets/cli
 npx changeset init
 ```
 
 **Week 2: Configuration**
+
 - Configure independent versioning
 - Set up GitHub Actions
 - Train team on changeset workflow
 
 **Week 3: Migration**
+
 - Remove semantic-release configs
 - Update CI/CD pipelines
 - Test release process
@@ -293,11 +322,13 @@ npx changeset init
 ### Option 2: multi-semantic-release
 
 **Week 1: Installation**
+
 ```bash
 npm install -D @qiwi/multi-semantic-release
 ```
 
 **Week 2: Configuration**
+
 - Keep existing semantic-release configs
 - Add multi-semantic-release wrapper
 - Configure dependency handling
@@ -305,66 +336,69 @@ npm install -D @qiwi/multi-semantic-release
 ## CI/CD Integration
 
 ### Changesets GitHub Action
+
 ```yaml
 name: Release
 on:
-  push:
-    branches: [main]
+    push:
+        branches: [main]
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-      - run: npm ci
-      - run: npm run build
-      - name: Create Release Pull Request or Publish
-        uses: changesets/action@v1
-        with:
-          publish: npm run release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    release:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - uses: actions/setup-node@v3
+            - run: npm ci
+            - run: npm run build
+            - name: Create Release Pull Request or Publish
+              uses: changesets/action@v1
+              with:
+                  publish: npm run release
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
 
 ### multi-semantic-release Setup
+
 ```yaml
 name: Release
 on:
-  push:
-    branches: [main]
+    push:
+        branches: [main]
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - run: npm ci
-      - run: npm run build
-      - run: npm run release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    release:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - run: npm ci
+            - run: npm run build
+            - run: npm run release
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
 
 ## Decision Matrix
 
-| Criteria | Changesets | Auto | Beachball | multi-semantic-release | semantic-release-monorepo |
-|----------|------------|------|-----------|------------------------|---------------------------|
-| Monorepo Design | ✅ Native | ✅ Native | ✅ Native | ⚠️ Wrapper | ⚠️ Plugin |
-| Dependency Handling | ✅ Automatic | ✅ Automatic | ✅ Automatic | ✅ Automatic | ❌ Manual |
-| Developer Experience | ✅ Excellent | ✅ Good | ⚠️ Good | ⚠️ Complex | ⚠️ Limited |
-| Maintenance | ✅ Active | ✅ Active | ✅ Active | ⚠️ Moderate | ❌ Stale |
-| Performance | ✅ Fast | ✅ Fast | ✅ Optimized | ⚠️ Slow (20+ packages) | ✅ Fast |
-| Flexibility | ✅ High | ✅ High | ⚠️ Medium | ⚠️ Medium | ❌ Low |
-| Learning Curve | ⚠️ New workflow | ✅ Simple | ⚠️ New workflow | ✅ Familiar | ✅ Familiar |
-| Community | ✅ 1.4M weekly | ⚠️ Smaller | ❌ 33k weekly | ⚠️ Moderate | ❌ Limited |
-| Workflow Type | Change files | PR labels | JSON files | Commits | Commits |
+| Criteria             | Changesets      | Auto         | Beachball       | multi-semantic-release | semantic-release-monorepo |
+| -------------------- | --------------- | ------------ | --------------- | ---------------------- | ------------------------- |
+| Monorepo Design      | ✅ Native       | ✅ Native    | ✅ Native       | ⚠️ Wrapper             | ⚠️ Plugin                 |
+| Dependency Handling  | ✅ Automatic    | ✅ Automatic | ✅ Automatic    | ✅ Automatic           | ❌ Manual                 |
+| Developer Experience | ✅ Excellent    | ✅ Good      | ⚠️ Good         | ⚠️ Complex             | ⚠️ Limited                |
+| Maintenance          | ✅ Active       | ✅ Active    | ✅ Active       | ⚠️ Moderate            | ❌ Stale                  |
+| Performance          | ✅ Fast         | ✅ Fast      | ✅ Optimized    | ⚠️ Slow (20+ packages) | ✅ Fast                   |
+| Flexibility          | ✅ High         | ✅ High      | ⚠️ Medium       | ⚠️ Medium              | ❌ Low                    |
+| Learning Curve       | ⚠️ New workflow | ✅ Simple    | ⚠️ New workflow | ✅ Familiar            | ✅ Familiar               |
+| Community            | ✅ 1.4M weekly  | ⚠️ Smaller   | ❌ 33k weekly   | ⚠️ Moderate            | ❌ Limited                |
+| Workflow Type        | Change files    | PR labels    | JSON files      | Commits                | Commits                   |
 
 ## Recommendation for Graphty
 
 **Primary Choice: Changesets**
 
 **Rationale**:
+
 1. **Designed for monorepos**: Purpose-built for multi-package repositories
 2. **Best community support**: 1.4M weekly downloads, used by Turborepo, Astro, Remix
 3. **Developer experience**: Change descriptions separate from commits improve code review
@@ -374,12 +408,14 @@ jobs:
 **Strong Alternatives**:
 
 **Auto** - Consider if you prefer:
+
 - PR label-based workflow over change files
 - No enforcement of commit conventions
 - Extensive plugin ecosystem
 - Simpler learning curve
 
 **Beachball** - Consider if you have:
+
 - Very large monorepo with performance concerns
 - Preference for JSON configuration
 - Microsoft ecosystem alignment
@@ -405,6 +441,7 @@ jobs:
 While semantic-release is excellent for single-package repositories, its fundamental design makes it poorly suited for monorepos. After evaluating seven different approaches, including Auto and Beachball which offer compelling alternatives, Changesets emerges as the most balanced solution for Graphty. It combines native monorepo design, strong community support, and excellent developer experience.
 
 The choice ultimately depends on your team's workflow preferences:
+
 - **Changesets**: Best overall for most monorepos
 - **Auto**: Best for teams preferring PR-based workflows
 - **Beachball**: Best for large-scale enterprise monorepos

@@ -1,588 +1,588 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <!-- Eruda Mobile Console -->
-  <script src="https://cdn.jsdelivr.net/npm/eruda@3/eruda.min.js"></script>
-  <script>
-    // Initialize Eruda console for mobile debugging
-    if (typeof eruda !== "undefined") {
-      eruda.init();
-      // Auto-show on mobile devices
-      if (/mobile|android|ios|iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase())) {
-        eruda.show();
-      }
-    }
-  </script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ForceAtlas2 Layout Test</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: 250px 1fr 250px;
-            gap: 20px;
-        }
-        .graph-controls {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            height: fit-content;
-        }
-        .layout-controls {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            height: fit-content;
-        }
-        .visualization {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            padding: 20px;
-        }
-        .control-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #333;
-        }
-        input[type="range"], input[type="number"], select, input[type="checkbox"] {
-            width: 100%;
-            padding: 5px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        button {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            width: 100%;
-            margin: 5px 0;
-        }
-        button:hover {
-            background: #45a049;
-        }
-        #graph-svg {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        .back-link {
-            margin-bottom: 20px;
-        }
-        .back-link a {
-            color: #2c5aa0;
-            text-decoration: none;
-        }
-        .back-link a:hover {
-            text-decoration: underline;
-        }
-        .info-box {
-            background: #f0f7ff;
-            border: 1px solid #c0d7f0;
-            border-radius: 4px;
-            padding: 10px;
-            margin-top: 15px;
-            font-size: 0.85em;
-        }
-        .loading {
-            text-align: center;
-            color: #666;
-            font-style: italic;
-            margin-top: 10px;
-        }
-        .checkbox-control {
-            display: flex;
-            align-items: center;
-        }
-        .checkbox-control input {
-            width: auto;
-            margin-right: 10px;
-        }
-    </style>
-</head>
-<body>
-    <div class="back-link">
-        <a href="index.html">← Back to Index</a>
-    </div>
-    
-    <h1>ForceAtlas2 Layout Test</h1>
-    
-    <div class="container">
-        <div class="graph-controls">
-            <h3>Graph Settings</h3>
-            
-            <div class="control-group">
-                <label for="num-nodes">Number of nodes:</label>
-                <input type="range" id="num-nodes" min="10" max="50" value="20">
-                <span id="num-nodes-value">20</span>
-            </div>
-            
-            <div class="control-group">
-                <label for="graph-type">Graph type:</label>
-                <select id="graph-type">
-                    <option value="random">Random</option>
-                    <option value="scale-free">Scale-free</option>
-                    <option value="community">Community structure</option>
-                    <option value="grid">Grid</option>
-                </select>
-            </div>
-            
-            <button onclick="newGraph()">New Graph</button>
-
-            <div class="info-box">
-                <strong>ForceAtlas2:</strong> An advanced force-directed layout algorithm designed for network visualization. 
-                It helps reveal the structure of networks with community patterns.
-            </div>
-        </div>
-        
-        <div class="visualization">
-            <svg id="graph-svg" width="800" height="600"></svg>
+    <head>
+        <!-- Eruda Mobile Console -->
+        <script src="https://cdn.jsdelivr.net/npm/eruda@3/eruda.min.js"></script>
+        <script>
+            // Initialize Eruda console for mobile debugging
+            if (typeof eruda !== "undefined") {
+                eruda.init();
+                // Auto-show on mobile devices
+                if (/mobile|android|ios|iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase())) {
+                    eruda.show();
+                }
+            }
+        </script>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>ForceAtlas2 Layout Test</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+                background-color: #f5f5f5;
+            }
+            .container {
+                max-width: 1400px;
+                margin: 0 auto;
+                display: grid;
+                grid-template-columns: 250px 1fr 250px;
+                gap: 20px;
+            }
+            .graph-controls {
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                height: fit-content;
+            }
+            .layout-controls {
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                height: fit-content;
+            }
+            .visualization {
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                padding: 20px;
+            }
+            .control-group {
+                margin-bottom: 15px;
+            }
+            label {
+                display: block;
+                margin-bottom: 5px;
+                font-weight: bold;
+                color: #333;
+            }
+            input[type="range"],
+            input[type="number"],
+            select,
+            input[type="checkbox"] {
+                width: 100%;
+                padding: 5px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            button {
+                background: #4caf50;
+                color: white;
+                border: none;
+                padding: 10px 15px;
+                border-radius: 4px;
+                cursor: pointer;
+                width: 100%;
+                margin: 5px 0;
+            }
+            button:hover {
+                background: #45a049;
+            }
+            #graph-svg {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            .back-link {
+                margin-bottom: 20px;
+            }
+            .back-link a {
+                color: #2c5aa0;
+                text-decoration: none;
+            }
+            .back-link a:hover {
+                text-decoration: underline;
+            }
+            .info-box {
+                background: #f0f7ff;
+                border: 1px solid #c0d7f0;
+                border-radius: 4px;
+                padding: 10px;
+                margin-top: 15px;
+                font-size: 0.85em;
+            }
+            .loading {
+                text-align: center;
+                color: #666;
+                font-style: italic;
+                margin-top: 10px;
+            }
+            .checkbox-control {
+                display: flex;
+                align-items: center;
+            }
+            .checkbox-control input {
+                width: auto;
+                margin-right: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="back-link">
+            <a href="index.html">← Back to Index</a>
         </div>
 
-        <div class="layout-controls">
-            <h3>Layout Parameters</h3>
-            
-            <div class="control-group">
-                <label for="iterations">Iterations:</label>
-                <input type="range" id="iterations" min="10" max="3000" value="100">
-                <span id="iterations-value">100</span>
-            </div>
-            
-            <div class="control-group">
-                <label for="auto-configure">Auto-configure parameters:</label>
-                <input type="checkbox" id="auto-configure" checked>
-            </div>
-            
-            <div class="control-group" id="scaling-group">
-                <label for="scaling-ratio">Scaling Ratio:</label>
-                <input type="range" id="scaling-ratio" min="0.5" max="10" step="0.5" value="2">
-                <span id="scaling-ratio-value">2.0</span>
-            </div>
-            
-            <div class="control-group" id="gravity-group">
-                <label for="gravity">Gravity:</label>
-                <input type="range" id="gravity" min="0" max="5" step="0.1" value="1">
-                <span id="gravity-value">1.0</span>
-            </div>
-            
-            <div class="control-group checkbox-control">
-                <input type="checkbox" id="strong-gravity">
-                <label for="strong-gravity">Strong Gravity</label>
-            </div>
-            
-            <div class="control-group checkbox-control">
-                <input type="checkbox" id="dissuade-hubs">
-                <label for="dissuade-hubs">Dissuade Hubs</label>
-            </div>
-            
-            <div class="control-group checkbox-control">
-                <input type="checkbox" id="linlog">
-                <label for="linlog">LinLog Mode</label>
-            </div>
-            
-            <button onclick="applyLayout()">Apply Layout</button>
-            <div id="loading" class="loading" style="display: none;">Computing layout...</div>
-        </div>
-    </div>
+        <h1>ForceAtlas2 Layout Test</h1>
 
-    <script type="module">
-        import { 
-            forceatlas2Layout
-        } from "../dist/layout.js";
-        
-        import {
-            autoConfigureForce
-        } from "./layout-helpers.js";
-        
-        let currentGraph = null;
-        let currentConfig = null;
-        
-        // Graph generation utilities
-        function randomGraph(n, p, seed) {
-            const nodes = Array.from({length: n}, (_, i) => i);
-            const edges = [];
-            
-            // Simple random graph with probability p for each edge
-            for (let i = 0; i < n; i++) {
-                for (let j = i + 1; j < n; j++) {
-                    if (Math.random() < p) {
+        <div class="container">
+            <div class="graph-controls">
+                <h3>Graph Settings</h3>
+
+                <div class="control-group">
+                    <label for="num-nodes">Number of nodes:</label>
+                    <input type="range" id="num-nodes" min="10" max="50" value="20" />
+                    <span id="num-nodes-value">20</span>
+                </div>
+
+                <div class="control-group">
+                    <label for="graph-type">Graph type:</label>
+                    <select id="graph-type">
+                        <option value="random">Random</option>
+                        <option value="scale-free">Scale-free</option>
+                        <option value="community">Community structure</option>
+                        <option value="grid">Grid</option>
+                    </select>
+                </div>
+
+                <button onclick="newGraph()">New Graph</button>
+
+                <div class="info-box">
+                    <strong>ForceAtlas2:</strong> An advanced force-directed layout algorithm designed for network
+                    visualization. It helps reveal the structure of networks with community patterns.
+                </div>
+            </div>
+
+            <div class="visualization">
+                <svg id="graph-svg" width="800" height="600"></svg>
+            </div>
+
+            <div class="layout-controls">
+                <h3>Layout Parameters</h3>
+
+                <div class="control-group">
+                    <label for="iterations">Iterations:</label>
+                    <input type="range" id="iterations" min="10" max="3000" value="100" />
+                    <span id="iterations-value">100</span>
+                </div>
+
+                <div class="control-group">
+                    <label for="auto-configure">Auto-configure parameters:</label>
+                    <input type="checkbox" id="auto-configure" checked />
+                </div>
+
+                <div class="control-group" id="scaling-group">
+                    <label for="scaling-ratio">Scaling Ratio:</label>
+                    <input type="range" id="scaling-ratio" min="0.5" max="10" step="0.5" value="2" />
+                    <span id="scaling-ratio-value">2.0</span>
+                </div>
+
+                <div class="control-group" id="gravity-group">
+                    <label for="gravity">Gravity:</label>
+                    <input type="range" id="gravity" min="0" max="5" step="0.1" value="1" />
+                    <span id="gravity-value">1.0</span>
+                </div>
+
+                <div class="control-group checkbox-control">
+                    <input type="checkbox" id="strong-gravity" />
+                    <label for="strong-gravity">Strong Gravity</label>
+                </div>
+
+                <div class="control-group checkbox-control">
+                    <input type="checkbox" id="dissuade-hubs" />
+                    <label for="dissuade-hubs">Dissuade Hubs</label>
+                </div>
+
+                <div class="control-group checkbox-control">
+                    <input type="checkbox" id="linlog" />
+                    <label for="linlog">LinLog Mode</label>
+                </div>
+
+                <button onclick="applyLayout()">Apply Layout</button>
+                <div id="loading" class="loading" style="display: none">Computing layout...</div>
+            </div>
+        </div>
+
+        <script type="module">
+            import { forceatlas2Layout } from "../dist/layout.js";
+
+            import { autoConfigureForce } from "./layout-helpers.js";
+
+            let currentGraph = null;
+            let currentConfig = null;
+
+            // Graph generation utilities
+            function randomGraph(n, p, seed) {
+                const nodes = Array.from({ length: n }, (_, i) => i);
+                const edges = [];
+
+                // Simple random graph with probability p for each edge
+                for (let i = 0; i < n; i++) {
+                    for (let j = i + 1; j < n; j++) {
+                        if (Math.random() < p) {
+                            edges.push([i, j]);
+                        }
+                    }
+                }
+
+                return {
+                    nodes: () => nodes,
+                    edges: () => edges,
+                };
+            }
+
+            function scaleFreeGraph(n, m, seed) {
+                const nodes = Array.from({ length: n }, (_, i) => i);
+                const edges = [];
+
+                // Start with a complete graph of m+1 nodes
+                for (let i = 0; i <= m; i++) {
+                    for (let j = i + 1; j <= m; j++) {
                         edges.push([i, j]);
                     }
                 }
-            }
-            
-            return {
-                nodes: () => nodes,
-                edges: () => edges
-            };
-        }
-        
-        function scaleFreeGraph(n, m, seed) {
-            const nodes = Array.from({length: n}, (_, i) => i);
-            const edges = [];
-            
-            // Start with a complete graph of m+1 nodes
-            for (let i = 0; i <= m; i++) {
-                for (let j = i + 1; j <= m; j++) {
-                    edges.push([i, j]);
-                }
-            }
-            
-            // Add remaining nodes with preferential attachment
-            for (let i = m + 1; i < n; i++) {
-                const degrees = new Map();
-                for (const [u, v] of edges) {
-                    degrees.set(u, (degrees.get(u) || 0) + 1);
-                    degrees.set(v, (degrees.get(v) || 0) + 1);
-                }
-                
-                const totalDegree = Array.from(degrees.values()).reduce((a, b) => a + b, 0);
-                const targets = new Set();
-                
-                while (targets.size < Math.min(m, i)) {
-                    let r = Math.random() * totalDegree;
-                    let node = 0;
-                    
-                    for (const [n, d] of degrees) {
-                        r -= d;
-                        if (r <= 0) {
-                            node = n;
-                            break;
-                        }
+
+                // Add remaining nodes with preferential attachment
+                for (let i = m + 1; i < n; i++) {
+                    const degrees = new Map();
+                    for (const [u, v] of edges) {
+                        degrees.set(u, (degrees.get(u) || 0) + 1);
+                        degrees.set(v, (degrees.get(v) || 0) + 1);
                     }
-                    
-                    if (!targets.has(node)) {
-                        targets.add(node);
-                        edges.push([i, node]);
-                    }
-                }
-            }
-            
-            return {
-                nodes: () => nodes,
-                edges: () => edges
-            };
-        }
-        
-        function gridGraph(rows, cols) {
-            const nodes = [];
-            const edges = [];
-            
-            // Create nodes
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    nodes.push(r * cols + c);
-                }
-            }
-            
-            // Create edges
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    const node = r * cols + c;
-                    
-                    // Right edge
-                    if (c < cols - 1) {
-                        edges.push([node, node + 1]);
-                    }
-                    
-                    // Down edge
-                    if (r < rows - 1) {
-                        edges.push([node, node + cols]);
-                    }
-                }
-            }
-            
-            return {
-                nodes: () => nodes,
-                edges: () => edges
-            };
-        }
-        
-        function generateGraph(type, numNodes) {
-            switch(type) {
-                case 'scale-free':
-                    return scaleFreeGraph(numNodes, 2, Date.now());
-                    
-                case 'community':
-                    // Use multiple smaller scale-free graphs
-                    const numCommunities = Math.ceil(numNodes / 10);
-                    const nodesPerCommunity = Math.floor(numNodes / numCommunities);
-                    const nodes = [];
-                    const edges = [];
-                    
-                    // Create communities
-                    for (let c = 0; c < numCommunities; c++) {
-                        const start = c * nodesPerCommunity;
-                        const end = Math.min(start + nodesPerCommunity, numNodes);
-                        
-                        // Dense connections within community
-                        for (let i = start; i < end; i++) {
-                            nodes.push(i);
-                            for (let j = i + 1; j < end; j++) {
-                                if (Math.random() < 0.6) {
-                                    edges.push([i, j]);
-                                }
+
+                    const totalDegree = Array.from(degrees.values()).reduce((a, b) => a + b, 0);
+                    const targets = new Set();
+
+                    while (targets.size < Math.min(m, i)) {
+                        let r = Math.random() * totalDegree;
+                        let node = 0;
+
+                        for (const [n, d] of degrees) {
+                            r -= d;
+                            if (r <= 0) {
+                                node = n;
+                                break;
                             }
                         }
-                        
-                        // Sparse connections between communities
-                        if (c > 0) {
-                            const prevStart = (c - 1) * nodesPerCommunity;
-                            const prevEnd = Math.min(prevStart + nodesPerCommunity, numNodes);
-                            for (let i = start; i < end && i < start + 2; i++) {
-                                for (let j = prevStart; j < prevEnd && j < prevStart + 2; j++) {
-                                    if (Math.random() < 0.1) {
+
+                        if (!targets.has(node)) {
+                            targets.add(node);
+                            edges.push([i, node]);
+                        }
+                    }
+                }
+
+                return {
+                    nodes: () => nodes,
+                    edges: () => edges,
+                };
+            }
+
+            function gridGraph(rows, cols) {
+                const nodes = [];
+                const edges = [];
+
+                // Create nodes
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        nodes.push(r * cols + c);
+                    }
+                }
+
+                // Create edges
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const node = r * cols + c;
+
+                        // Right edge
+                        if (c < cols - 1) {
+                            edges.push([node, node + 1]);
+                        }
+
+                        // Down edge
+                        if (r < rows - 1) {
+                            edges.push([node, node + cols]);
+                        }
+                    }
+                }
+
+                return {
+                    nodes: () => nodes,
+                    edges: () => edges,
+                };
+            }
+
+            function generateGraph(type, numNodes) {
+                switch (type) {
+                    case "scale-free":
+                        return scaleFreeGraph(numNodes, 2, Date.now());
+
+                    case "community":
+                        // Use multiple smaller scale-free graphs
+                        const numCommunities = Math.ceil(numNodes / 10);
+                        const nodesPerCommunity = Math.floor(numNodes / numCommunities);
+                        const nodes = [];
+                        const edges = [];
+
+                        // Create communities
+                        for (let c = 0; c < numCommunities; c++) {
+                            const start = c * nodesPerCommunity;
+                            const end = Math.min(start + nodesPerCommunity, numNodes);
+
+                            // Dense connections within community
+                            for (let i = start; i < end; i++) {
+                                nodes.push(i);
+                                for (let j = i + 1; j < end; j++) {
+                                    if (Math.random() < 0.6) {
                                         edges.push([i, j]);
                                     }
                                 }
                             }
+
+                            // Sparse connections between communities
+                            if (c > 0) {
+                                const prevStart = (c - 1) * nodesPerCommunity;
+                                const prevEnd = Math.min(prevStart + nodesPerCommunity, numNodes);
+                                for (let i = start; i < end && i < start + 2; i++) {
+                                    for (let j = prevStart; j < prevEnd && j < prevStart + 2; j++) {
+                                        if (Math.random() < 0.1) {
+                                            edges.push([i, j]);
+                                        }
+                                    }
+                                }
+                            }
                         }
-                    }
-                    
-                    return { nodes: () => nodes, edges: () => edges };
-                    
-                case 'grid':
-                    const size = Math.ceil(Math.sqrt(numNodes));
-                    return gridGraph(size, size);
-                    
-                case 'random':
-                default:
-                    return randomGraph(numNodes, 0.1, Date.now());
+
+                        return { nodes: () => nodes, edges: () => edges };
+
+                    case "grid":
+                        const size = Math.ceil(Math.sqrt(numNodes));
+                        return gridGraph(size, size);
+
+                    case "random":
+                    default:
+                        return randomGraph(numNodes, 0.1, Date.now());
+                }
             }
-        }
-        
-        function visualizeGraph(graph, positions) {
-            const svg = document.getElementById('graph-svg');
-            const svgRect = svg.getBoundingClientRect();
-            const width = svgRect.width;
-            const height = svgRect.height;
-            
-            svg.innerHTML = '';
-            
-            const margin = 50;
-            const scaleX = (width - 2 * margin);
-            const scaleY = (height - 2 * margin);
-            
-            const nodes = graph.nodes();
-            const posValues = nodes.map(n => positions[n]);
-            const minX = Math.min(...posValues.map(p => p[0]));
-            const maxX = Math.max(...posValues.map(p => p[0]));
-            const minY = Math.min(...posValues.map(p => p[1]));
-            const maxY = Math.max(...posValues.map(p => p[1]));
-            
-            const rangeX = maxX - minX || 1;
-            const rangeY = maxY - minY || 1;
-            
-            // Draw edges
-            const edges = graph.edges();
-            edges.forEach(([source, target]) => {
-                const sourcePos = positions[source];
-                const targetPos = positions[target];
-                
-                const x1 = margin + (sourcePos[0] - minX) / rangeX * scaleX;
-                const y1 = margin + (sourcePos[1] - minY) / rangeY * scaleY;
-                const x2 = margin + (targetPos[0] - minX) / rangeX * scaleX;
-                const y2 = margin + (targetPos[1] - minY) / rangeY * scaleY;
-                
-                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.setAttribute('x1', x1);
-                line.setAttribute('y1', y1);
-                line.setAttribute('x2', x2);
-                line.setAttribute('y2', y2);
-                line.setAttribute('stroke', '#999');
-                line.setAttribute('stroke-width', '1.5');
-                line.setAttribute('stroke-opacity', '0.6');
-                svg.appendChild(line);
-            });
-            
-            // Draw nodes
-            nodes.forEach(node => {
-                const pos = positions[node];
-                const x = margin + (pos[0] - minX) / rangeX * scaleX;
-                const y = margin + (pos[1] - minY) / rangeY * scaleY;
-                
-                // Node size based on degree
+
+            function visualizeGraph(graph, positions) {
+                const svg = document.getElementById("graph-svg");
+                const svgRect = svg.getBoundingClientRect();
+                const width = svgRect.width;
+                const height = svgRect.height;
+
+                svg.innerHTML = "";
+
+                const margin = 50;
+                const scaleX = width - 2 * margin;
+                const scaleY = height - 2 * margin;
+
+                const nodes = graph.nodes();
+                const posValues = nodes.map((n) => positions[n]);
+                const minX = Math.min(...posValues.map((p) => p[0]));
+                const maxX = Math.max(...posValues.map((p) => p[0]));
+                const minY = Math.min(...posValues.map((p) => p[1]));
+                const maxY = Math.max(...posValues.map((p) => p[1]));
+
+                const rangeX = maxX - minX || 1;
+                const rangeY = maxY - minY || 1;
+
+                // Draw edges
                 const edges = graph.edges();
-                const degree = edges.filter(([u, v]) => u === node || v === node).length;
-                const radius = 4 + Math.sqrt(degree) * 1.5;
-                
-                // Color based on position/edge distribution
-                const hue = (node * 360 / nodes.length) % 360;
-                const color = `hsl(${hue}, 70%, 50%)`;
-                
-                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                circle.setAttribute('cx', x);
-                circle.setAttribute('cy', y);
-                circle.setAttribute('r', radius);
-                circle.setAttribute('fill', color);
-                circle.setAttribute('stroke', '#333');
-                circle.setAttribute('stroke-width', '1');
-                svg.appendChild(circle);
-                
-                // Add node label for smaller graphs
-                if(nodes.length <= 30) {
-                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                    text.setAttribute('x', x);
-                    text.setAttribute('y', y + 3);
-                    text.setAttribute('text-anchor', 'middle');
-                    text.setAttribute('font-size', '9');
-                    text.setAttribute('fill', 'white');
-                    text.textContent = node;
-                    svg.appendChild(text);
-                }
-            });
-        }
-        
-        window.newGraph = function() {
-            const numNodes = parseInt(document.getElementById('num-nodes').value);
-            const graphType = document.getElementById('graph-type').value;
-            
-            try {
-                // Generate new graph
-                currentGraph = generateGraph(graphType, numNodes);
-                
-                // Auto-configure parameters
-                currentConfig = autoConfigureForce(currentGraph);
-                
-                // Update controls with recommended values
-                if (document.getElementById('auto-configure').checked) {
-                    document.getElementById('iterations').value = currentConfig.iterations;
-                    document.getElementById('iterations-value').textContent = currentConfig.iterations;
-                    document.getElementById('scaling-ratio').value = currentConfig.scalingRatio;
-                    document.getElementById('scaling-ratio-value').textContent = currentConfig.scalingRatio.toFixed(1);
-                    document.getElementById('gravity').value = currentConfig.gravity;
-                    document.getElementById('gravity-value').textContent = currentConfig.gravity.toFixed(1);
-                }
-                
-                // Apply layout immediately
-                applyLayout();
-                
-            } catch (error) {
-                console.error('Error in graph generation:', error);
-            }
-        }
-        
-        window.applyLayout = async function() {
-            if (!currentGraph) return;
-            
-            const loadingDiv = document.getElementById('loading');
-            loadingDiv.style.display = 'block';
-            
-            try {
-                // Run layout with same graph but new parameters
-                await runForceAtlas2();
-            } catch (error) {
-                console.error('Error in ForceAtlas2 layout:', error);
-            } finally {
-                loadingDiv.style.display = 'none';
-            }
-        };
-        
-        async function runForceAtlas2() {
-            const autoConfig = document.getElementById('auto-configure').checked;
-            
-            let iterations, scalingRatio, gravity;
-            if (autoConfig && currentConfig) {
-                iterations = currentConfig.iterations;
-                scalingRatio = currentConfig.scalingRatio;
-                gravity = currentConfig.gravity;
-                
-                // Update sliders to show auto values
-                document.getElementById('iterations').value = iterations;
-                document.getElementById('iterations-value').textContent = iterations;
-                document.getElementById('scaling-ratio').value = scalingRatio;
-                document.getElementById('scaling-ratio-value').textContent = scalingRatio.toFixed(1);
-                document.getElementById('gravity').value = gravity;
-                document.getElementById('gravity-value').textContent = gravity.toFixed(1);
-            } else {
-                iterations = parseInt(document.getElementById('iterations').value);
-                scalingRatio = parseFloat(document.getElementById('scaling-ratio').value);
-                gravity = parseFloat(document.getElementById('gravity').value);
-            }
-            
-            const strongGravity = document.getElementById('strong-gravity').checked;
-            const dissuadeHubs = document.getElementById('dissuade-hubs').checked;
-            const linlog = document.getElementById('linlog').checked;
-            
-            // Run layout with a small delay to allow UI update
-            await new Promise(resolve => setTimeout(resolve, 10));
-            
-            const positions = await forceatlas2Layout(
-                currentGraph, 
-                null, // positions
-                iterations,
-                1.0, // jitterTolerance
-                scalingRatio,
-                gravity,
-                false, // distributedAction
-                strongGravity,
-                null, // nodeMass
-                null, // nodeSize
-                null, // weight
-                dissuadeHubs,
-                linlog,
-                Date.now()
-            );
-            
-            visualizeGraph(currentGraph, positions);
-        }
-        
-        function setupControls() {
-            const sliders = ['num-nodes', 'iterations', 'scaling-ratio', 'gravity'];
-            sliders.forEach(id => {
-                const slider = document.getElementById(id);
-                const valueSpan = document.getElementById(id + '-value');
-                slider.oninput = function() {
-                    valueSpan.textContent = this.value;
-                };
-            });
-            
-            // Auto-config checkbox handler
-            document.getElementById('auto-configure').onchange = function() {
-                const groups = ['scaling-group', 'gravity-group'];
-                groups.forEach(groupId => {
-                    const group = document.getElementById(groupId);
-                    group.style.opacity = this.checked ? '0.5' : '1';
+                edges.forEach(([source, target]) => {
+                    const sourcePos = positions[source];
+                    const targetPos = positions[target];
+
+                    const x1 = margin + ((sourcePos[0] - minX) / rangeX) * scaleX;
+                    const y1 = margin + ((sourcePos[1] - minY) / rangeY) * scaleY;
+                    const x2 = margin + ((targetPos[0] - minX) / rangeX) * scaleX;
+                    const y2 = margin + ((targetPos[1] - minY) / rangeY) * scaleY;
+
+                    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    line.setAttribute("x1", x1);
+                    line.setAttribute("y1", y1);
+                    line.setAttribute("x2", x2);
+                    line.setAttribute("y2", y2);
+                    line.setAttribute("stroke", "#999");
+                    line.setAttribute("stroke-width", "1.5");
+                    line.setAttribute("stroke-opacity", "0.6");
+                    svg.appendChild(line);
                 });
-                
-                if (this.checked && currentConfig) {
-                    document.getElementById('iterations').value = currentConfig.iterations;
-                    document.getElementById('iterations-value').textContent = currentConfig.iterations;
-                    document.getElementById('scaling-ratio').value = currentConfig.scalingRatio;
-                    document.getElementById('scaling-ratio-value').textContent = currentConfig.scalingRatio.toFixed(1);
-                    document.getElementById('gravity').value = currentConfig.gravity;
-                    document.getElementById('gravity-value').textContent = currentConfig.gravity.toFixed(1);
+
+                // Draw nodes
+                nodes.forEach((node) => {
+                    const pos = positions[node];
+                    const x = margin + ((pos[0] - minX) / rangeX) * scaleX;
+                    const y = margin + ((pos[1] - minY) / rangeY) * scaleY;
+
+                    // Node size based on degree
+                    const edges = graph.edges();
+                    const degree = edges.filter(([u, v]) => u === node || v === node).length;
+                    const radius = 4 + Math.sqrt(degree) * 1.5;
+
+                    // Color based on position/edge distribution
+                    const hue = ((node * 360) / nodes.length) % 360;
+                    const color = `hsl(${hue}, 70%, 50%)`;
+
+                    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    circle.setAttribute("cx", x);
+                    circle.setAttribute("cy", y);
+                    circle.setAttribute("r", radius);
+                    circle.setAttribute("fill", color);
+                    circle.setAttribute("stroke", "#333");
+                    circle.setAttribute("stroke-width", "1");
+                    svg.appendChild(circle);
+
+                    // Add node label for smaller graphs
+                    if (nodes.length <= 30) {
+                        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                        text.setAttribute("x", x);
+                        text.setAttribute("y", y + 3);
+                        text.setAttribute("text-anchor", "middle");
+                        text.setAttribute("font-size", "9");
+                        text.setAttribute("fill", "white");
+                        text.textContent = node;
+                        svg.appendChild(text);
+                    }
+                });
+            }
+
+            window.newGraph = function () {
+                const numNodes = parseInt(document.getElementById("num-nodes").value);
+                const graphType = document.getElementById("graph-type").value;
+
+                try {
+                    // Generate new graph
+                    currentGraph = generateGraph(graphType, numNodes);
+
+                    // Auto-configure parameters
+                    currentConfig = autoConfigureForce(currentGraph);
+
+                    // Update controls with recommended values
+                    if (document.getElementById("auto-configure").checked) {
+                        document.getElementById("iterations").value = currentConfig.iterations;
+                        document.getElementById("iterations-value").textContent = currentConfig.iterations;
+                        document.getElementById("scaling-ratio").value = currentConfig.scalingRatio;
+                        document.getElementById("scaling-ratio-value").textContent =
+                            currentConfig.scalingRatio.toFixed(1);
+                        document.getElementById("gravity").value = currentConfig.gravity;
+                        document.getElementById("gravity-value").textContent = currentConfig.gravity.toFixed(1);
+                    }
+
+                    // Apply layout immediately
+                    applyLayout();
+                } catch (error) {
+                    console.error("Error in graph generation:", error);
                 }
             };
-            
-            // Remove auto-update on change for these controls
-            document.getElementById('graph-type').onchange = null;
-            
-            // Checkbox controls don't auto-update either now
-            const checkboxes = ['strong-gravity', 'dissuade-hubs', 'linlog'];
-            checkboxes.forEach(id => {
-                document.getElementById(id).onchange = null;
-            });
-        }
-        
-        setupControls();
-        newGraph();
-    </script>
-</body>
+
+            window.applyLayout = async function () {
+                if (!currentGraph) return;
+
+                const loadingDiv = document.getElementById("loading");
+                loadingDiv.style.display = "block";
+
+                try {
+                    // Run layout with same graph but new parameters
+                    await runForceAtlas2();
+                } catch (error) {
+                    console.error("Error in ForceAtlas2 layout:", error);
+                } finally {
+                    loadingDiv.style.display = "none";
+                }
+            };
+
+            async function runForceAtlas2() {
+                const autoConfig = document.getElementById("auto-configure").checked;
+
+                let iterations, scalingRatio, gravity;
+                if (autoConfig && currentConfig) {
+                    iterations = currentConfig.iterations;
+                    scalingRatio = currentConfig.scalingRatio;
+                    gravity = currentConfig.gravity;
+
+                    // Update sliders to show auto values
+                    document.getElementById("iterations").value = iterations;
+                    document.getElementById("iterations-value").textContent = iterations;
+                    document.getElementById("scaling-ratio").value = scalingRatio;
+                    document.getElementById("scaling-ratio-value").textContent = scalingRatio.toFixed(1);
+                    document.getElementById("gravity").value = gravity;
+                    document.getElementById("gravity-value").textContent = gravity.toFixed(1);
+                } else {
+                    iterations = parseInt(document.getElementById("iterations").value);
+                    scalingRatio = parseFloat(document.getElementById("scaling-ratio").value);
+                    gravity = parseFloat(document.getElementById("gravity").value);
+                }
+
+                const strongGravity = document.getElementById("strong-gravity").checked;
+                const dissuadeHubs = document.getElementById("dissuade-hubs").checked;
+                const linlog = document.getElementById("linlog").checked;
+
+                // Run layout with a small delay to allow UI update
+                await new Promise((resolve) => setTimeout(resolve, 10));
+
+                const positions = await forceatlas2Layout(
+                    currentGraph,
+                    null, // positions
+                    iterations,
+                    1.0, // jitterTolerance
+                    scalingRatio,
+                    gravity,
+                    false, // distributedAction
+                    strongGravity,
+                    null, // nodeMass
+                    null, // nodeSize
+                    null, // weight
+                    dissuadeHubs,
+                    linlog,
+                    Date.now(),
+                );
+
+                visualizeGraph(currentGraph, positions);
+            }
+
+            function setupControls() {
+                const sliders = ["num-nodes", "iterations", "scaling-ratio", "gravity"];
+                sliders.forEach((id) => {
+                    const slider = document.getElementById(id);
+                    const valueSpan = document.getElementById(id + "-value");
+                    slider.oninput = function () {
+                        valueSpan.textContent = this.value;
+                    };
+                });
+
+                // Auto-config checkbox handler
+                document.getElementById("auto-configure").onchange = function () {
+                    const groups = ["scaling-group", "gravity-group"];
+                    groups.forEach((groupId) => {
+                        const group = document.getElementById(groupId);
+                        group.style.opacity = this.checked ? "0.5" : "1";
+                    });
+
+                    if (this.checked && currentConfig) {
+                        document.getElementById("iterations").value = currentConfig.iterations;
+                        document.getElementById("iterations-value").textContent = currentConfig.iterations;
+                        document.getElementById("scaling-ratio").value = currentConfig.scalingRatio;
+                        document.getElementById("scaling-ratio-value").textContent =
+                            currentConfig.scalingRatio.toFixed(1);
+                        document.getElementById("gravity").value = currentConfig.gravity;
+                        document.getElementById("gravity-value").textContent = currentConfig.gravity.toFixed(1);
+                    }
+                };
+
+                // Remove auto-update on change for these controls
+                document.getElementById("graph-type").onchange = null;
+
+                // Checkbox controls don't auto-update either now
+                const checkboxes = ["strong-gravity", "dissuade-hubs", "linlog"];
+                checkboxes.forEach((id) => {
+                    document.getElementById(id).onchange = null;
+                });
+            }
+
+            setupControls();
+            newGraph();
+        </script>
+    </body>
 </html>

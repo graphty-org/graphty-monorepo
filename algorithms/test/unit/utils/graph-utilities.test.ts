@@ -1,6 +1,6 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {Graph} from "../../../src/core/graph.js";
+import { Graph } from "../../../src/core/graph.js";
 import {
     getCommonNeighbors,
     getEdgeKey,
@@ -55,9 +55,9 @@ describe("reconstructPath", () => {
             value: number;
         }
 
-        const nodeA: Node = {id: "A", value: 1};
-        const nodeB: Node = {id: "B", value: 2};
-        const nodeC: Node = {id: "C", value: 3};
+        const nodeA: Node = { id: "A", value: 1 };
+        const nodeB: Node = { id: "B", value: 2 };
+        const nodeC: Node = { id: "C", value: 3 };
 
         const predecessor = new Map<Node, Node | null>([
             [nodeC, nodeB],
@@ -100,7 +100,7 @@ describe("getCommonNeighbors", () => {
     });
 
     it("should find common neighbors in directed graph", () => {
-        const graph = new Graph({directed: true});
+        const graph = new Graph({ directed: true });
         graph.addEdge("A", "C");
         graph.addEdge("B", "C");
         graph.addEdge("A", "D");
@@ -158,7 +158,7 @@ describe("getCommonNeighbors", () => {
 
 describe("getIntermediateNodes", () => {
     it("should find intermediate nodes in directed path", () => {
-        const graph = new Graph({directed: true});
+        const graph = new Graph({ directed: true });
         // Path: A -> B -> C and A -> D -> C
         graph.addEdge("A", "B");
         graph.addEdge("B", "C");
@@ -170,7 +170,7 @@ describe("getIntermediateNodes", () => {
     });
 
     it("should return empty set when no intermediate nodes exist", () => {
-        const graph = new Graph({directed: true});
+        const graph = new Graph({ directed: true });
         graph.addEdge("A", "B");
         graph.addEdge("C", "D");
 
@@ -179,7 +179,7 @@ describe("getIntermediateNodes", () => {
     });
 
     it("should handle direct edges", () => {
-        const graph = new Graph({directed: true});
+        const graph = new Graph({ directed: true });
         graph.addEdge("A", "B");
         graph.addEdge("A", "C");
         graph.addEdge("B", "C");
@@ -189,7 +189,7 @@ describe("getIntermediateNodes", () => {
     });
 
     it("should work with numeric node IDs", () => {
-        const graph = new Graph({directed: true});
+        const graph = new Graph({ directed: true });
         graph.addEdge(1, 2);
         graph.addEdge(2, 3);
         graph.addEdge(1, 4);
@@ -200,7 +200,7 @@ describe("getIntermediateNodes", () => {
     });
 
     it("should handle nodes with no outgoing or incoming edges", () => {
-        const graph = new Graph({directed: true});
+        const graph = new Graph({ directed: true });
         graph.addNode("A");
         graph.addNode("B");
 
@@ -247,7 +247,7 @@ describe("getEdgeKey", () => {
 
 describe("getTotalEdgeWeight", () => {
     it("should calculate total weight for undirected graph", () => {
-        const graph = new Graph({directed: false});
+        const graph = new Graph({ directed: false });
         graph.addEdge("A", "B", 2);
         graph.addEdge("B", "C", 3);
         graph.addEdge("C", "A", 4);
@@ -256,7 +256,7 @@ describe("getTotalEdgeWeight", () => {
     });
 
     it("should calculate total weight for directed graph", () => {
-        const graph = new Graph({directed: true});
+        const graph = new Graph({ directed: true });
         graph.addEdge("A", "B", 2);
         graph.addEdge("B", "C", 3);
         graph.addEdge("C", "A", 4);
@@ -297,7 +297,7 @@ describe("getTotalEdgeWeight", () => {
 
 describe("getNodeDegree", () => {
     it("should return total degree for undirected graph", () => {
-        const graph = new Graph({directed: false});
+        const graph = new Graph({ directed: false });
         graph.addEdge("A", "B");
         graph.addEdge("A", "C");
         graph.addEdge("A", "D");
@@ -307,7 +307,7 @@ describe("getNodeDegree", () => {
     });
 
     it("should return total degree for directed graph with default mode", () => {
-        const graph = new Graph({directed: true});
+        const graph = new Graph({ directed: true });
         graph.addEdge("A", "B");
         graph.addEdge("A", "C");
         graph.addEdge("D", "A");
@@ -317,7 +317,7 @@ describe("getNodeDegree", () => {
     });
 
     it("should return in-degree for directed graph", () => {
-        const graph = new Graph({directed: true});
+        const graph = new Graph({ directed: true });
         graph.addEdge("B", "A");
         graph.addEdge("C", "A");
         graph.addEdge("A", "D");
@@ -326,7 +326,7 @@ describe("getNodeDegree", () => {
     });
 
     it("should return out-degree for directed graph", () => {
-        const graph = new Graph({directed: true});
+        const graph = new Graph({ directed: true });
         graph.addEdge("A", "B");
         graph.addEdge("A", "C");
         graph.addEdge("D", "A");
@@ -335,7 +335,7 @@ describe("getNodeDegree", () => {
     });
 
     it("should ignore mode for undirected graphs", () => {
-        const graph = new Graph({directed: false});
+        const graph = new Graph({ directed: false });
         graph.addEdge("A", "B");
         graph.addEdge("A", "C");
 
@@ -356,7 +356,7 @@ describe("getNodeDegree", () => {
 
 describe("makeUndirected", () => {
     it("should return same graph if already undirected", () => {
-        const graph = new Graph({directed: false});
+        const graph = new Graph({ directed: false });
         graph.addEdge("A", "B");
         graph.addEdge("B", "C");
 
@@ -365,7 +365,7 @@ describe("makeUndirected", () => {
     });
 
     it("should convert directed graph to undirected", () => {
-        const directed = new Graph({directed: true});
+        const directed = new Graph({ directed: true });
         directed.addEdge("A", "B", 2);
         directed.addEdge("B", "C", 3);
         directed.addEdge("C", "A", 4);
@@ -378,31 +378,31 @@ describe("makeUndirected", () => {
     });
 
     it("should preserve node data", () => {
-        const directed = new Graph({directed: true});
-        directed.addNode("A", {value: 1});
-        directed.addNode("B", {value: 2});
+        const directed = new Graph({ directed: true });
+        directed.addNode("A", { value: 1 });
+        directed.addNode("B", { value: 2 });
         directed.addEdge("A", "B");
 
         const undirected = makeUndirected(directed);
-        expect(undirected.getNode("A")?.data).toEqual({value: 1});
-        expect(undirected.getNode("B")?.data).toEqual({value: 2});
+        expect(undirected.getNode("A")?.data).toEqual({ value: 1 });
+        expect(undirected.getNode("B")?.data).toEqual({ value: 2 });
     });
 
     it("should preserve edge data and weights", () => {
-        const directed = new Graph({directed: true});
-        directed.addEdge("A", "B", 5, {type: "strong"});
-        directed.addEdge("B", "C", 3, {type: "weak"});
+        const directed = new Graph({ directed: true });
+        directed.addEdge("A", "B", 5, { type: "strong" });
+        directed.addEdge("B", "C", 3, { type: "weak" });
 
         const undirected = makeUndirected(directed);
         const edgeAB = Array.from(undirected.edges()).find(
             (e) => (e.source === "A" && e.target === "B") || (e.source === "B" && e.target === "A"),
         );
         expect(edgeAB?.weight).toBe(5);
-        expect(edgeAB?.data).toEqual({type: "strong"});
+        expect(edgeAB?.data).toEqual({ type: "strong" });
     });
 
     it("should handle bidirectional edges correctly", () => {
-        const directed = new Graph({directed: true});
+        const directed = new Graph({ directed: true });
         directed.addEdge("A", "B", 2);
         directed.addEdge("B", "A", 3); // Different weight in reverse
 
@@ -414,7 +414,7 @@ describe("makeUndirected", () => {
     });
 
     it("should handle isolated nodes", () => {
-        const directed = new Graph({directed: true});
+        const directed = new Graph({ directed: true });
         directed.addNode("A");
         directed.addNode("B");
         directed.addEdge("C", "D");
@@ -495,13 +495,13 @@ describe("renumberCommunities", () => {
             [1, 100],
             [2, 100],
             [3, 200],
-            [{id: "A"}, 200],
+            [{ id: "A" }, 200],
         ]);
 
         const renumbered = renumberCommunities(communities);
         expect(renumbered.get(1)).toBe(renumbered.get(2));
         // Can't use object literal as key - need the same object reference
-        const objKey = {id: "A"};
+        const objKey = { id: "A" };
         expect(renumbered.has(objKey)).toBe(false); // Different object reference
         expect(renumbered.size).toBe(4);
     });

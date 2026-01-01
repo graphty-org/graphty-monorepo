@@ -9,11 +9,11 @@
  * and parameter extraction for camera positioning and zoom operations.
  */
 
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import {skipIfNoApiKey} from "../../helpers/llm-regression-env";
-import {LlmRegressionTestHarness} from "../../helpers/llm-regression-harness";
-import {serverNetworkFixture} from "./fixtures/test-graph-fixtures";
+import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
+import { LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 /**
  * Camera preset synonyms that map natural language to expected presets.
@@ -58,7 +58,7 @@ function isValidCameraPreset(actual: unknown, expected: string): boolean {
 describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
     let harness: LlmRegressionTestHarness;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         harness = await LlmRegressionTestHarness.create({
             graphData: serverNetworkFixture,
         });
@@ -69,7 +69,7 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
     });
 
     describe("setCameraPosition", () => {
-        it("calls setCameraPosition for 'Show the graph from above'", async() => {
+        it("calls setCameraPosition for 'Show the graph from above'", async () => {
             const result = await harness.testPrompt("Show the graph from above");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -77,14 +77,11 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
             assert.ok(result.toolParams, "Expected tool parameters");
 
             // Verify preset is topView or similar
-            const {preset} = result.toolParams;
-            assert.ok(
-                isValidCameraPreset(preset, "topView"),
-                `Expected topView preset but got '${String(preset)}'`,
-            );
+            const { preset } = result.toolParams;
+            assert.ok(isValidCameraPreset(preset, "topView"), `Expected topView preset but got '${String(preset)}'`);
         });
 
-        it("calls setCameraPosition for 'View from the side'", async() => {
+        it("calls setCameraPosition for 'View from the side'", async () => {
             const result = await harness.testPrompt("View from the side");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -92,14 +89,11 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
             assert.ok(result.toolParams, "Expected tool parameters");
 
             // Verify preset is sideView or similar
-            const {preset} = result.toolParams;
-            assert.ok(
-                isValidCameraPreset(preset, "sideView"),
-                `Expected sideView preset but got '${String(preset)}'`,
-            );
+            const { preset } = result.toolParams;
+            assert.ok(isValidCameraPreset(preset, "sideView"), `Expected sideView preset but got '${String(preset)}'`);
         });
 
-        it("calls setCameraPosition for 'Fit all nodes in view'", async() => {
+        it("calls setCameraPosition for 'Fit all nodes in view'", async () => {
             const result = await harness.testPrompt("Fit all nodes in view");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -111,7 +105,7 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
 
             // If setCameraPosition, verify preset is fitToGraph
             if (result.toolName === "setCameraPosition" && result.toolParams) {
-                const {preset} = result.toolParams;
+                const { preset } = result.toolParams;
                 assert.ok(
                     isValidCameraPreset(preset, "fitToGraph"),
                     `Expected fitToGraph preset but got '${String(preset)}'`,
@@ -121,7 +115,7 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
     });
 
     describe("zoomToNodes", () => {
-        it("calls zoomToNodes for 'Zoom to fit all nodes'", async() => {
+        it("calls zoomToNodes for 'Zoom to fit all nodes'", async () => {
             const result = await harness.testPrompt("Zoom to fit all nodes");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -132,7 +126,7 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
             );
         });
 
-        it("calls zoomToNodes for 'Focus on server nodes'", async() => {
+        it("calls zoomToNodes for 'Focus on server nodes'", async () => {
             const result = await harness.testPrompt("Focus on server nodes");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -156,7 +150,7 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
     });
 
     describe("command result validation", () => {
-        it("returns command result for setCameraPosition", async() => {
+        it("returns command result for setCameraPosition", async () => {
             const result = await harness.testPrompt("Move camera to front view");
 
             assert.ok(result.toolWasCalled, "Expected setCameraPosition to be called");
@@ -167,7 +161,7 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
             assert.ok(result.commandResult.message, "Expected result message");
         });
 
-        it("returns command result for zoomToNodes", async() => {
+        it("returns command result for zoomToNodes", async () => {
             const result = await harness.testPrompt("Zoom in on the database nodes");
 
             assert.ok(result.toolWasCalled, "Expected zoomToNodes to be called");
@@ -178,14 +172,14 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
             assert.ok(result.commandResult.message, "Expected result message");
         });
 
-        it("tracks latency for camera commands", async() => {
+        it("tracks latency for camera commands", async () => {
             const result = await harness.testPrompt("Show isometric view");
 
             assert.ok(result.latencyMs > 0, "Expected positive latency");
             assert.ok(result.latencyMs < 60000, "Expected latency under 60 seconds");
         });
 
-        it("captures token usage for camera commands", async() => {
+        it("captures token usage for camera commands", async () => {
             const result = await harness.testPrompt("View graph from the top");
 
             // Token usage may not always be available depending on provider configuration

@@ -1,9 +1,9 @@
 /**
  * ViewMode Type and Schema Tests
  */
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {DEFAULT_VIEW_MODE, isViewMode} from "../../src/config/ViewMode";
+import { DEFAULT_VIEW_MODE, isViewMode } from "../../src/config/ViewMode";
 
 describe("ViewMode", () => {
     describe("DEFAULT_VIEW_MODE", () => {

@@ -1,15 +1,15 @@
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import type {AdHocData} from "../../src/config";
-import type {Graph} from "../../src/Graph";
-import type {DataManager} from "../../src/managers/DataManager";
-import {cleanupTestGraph, createTestGraph} from "../helpers/testSetup";
+import type { AdHocData } from "../../src/config";
+import type { Graph } from "../../src/Graph";
+import type { DataManager } from "../../src/managers/DataManager";
+import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("DataManager", () => {
     let graph: Graph;
     let dataManager: DataManager;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         graph = await createTestGraph();
         dataManager = graph.getDataManager();
     });
@@ -48,9 +48,9 @@ describe("DataManager", () => {
 
         it("should add multiple nodes", () => {
             const nodesData = [
-                {id: "node1", label: "Node 1"},
-                {id: "node2", label: "Node 2"},
-                {id: "node3", label: "Node 3"},
+                { id: "node1", label: "Node 1" },
+                { id: "node2", label: "Node 2" },
+                { id: "node3", label: "Node 3" },
             ] as unknown as AdHocData[];
 
             dataManager.addNodes(nodesData);
@@ -97,7 +97,7 @@ describe("DataManager", () => {
         });
 
         it("should remove a node", () => {
-            dataManager.addNode({id: "node1", __brand: "AdHocData"} as AdHocData);
+            dataManager.addNode({ id: "node1", __brand: "AdHocData" } as AdHocData);
 
             const removed = dataManager.removeNode("node1");
 
@@ -112,11 +112,7 @@ describe("DataManager", () => {
         });
 
         it("should get all nodes", () => {
-            dataManager.addNodes([
-                {id: "node1"},
-                {id: "node2"},
-                {id: "node3"},
-            ] as unknown as AdHocData[]);
+            dataManager.addNodes([{ id: "node1" }, { id: "node2" }, { id: "node3" }] as unknown as AdHocData[]);
 
             const nodes = Array.from(dataManager.nodes.values());
             assert.equal(nodes.length, 3);
@@ -126,9 +122,9 @@ describe("DataManager", () => {
     describe("edge management", () => {
         beforeEach(() => {
             // Add nodes that edges will connect
-            dataManager.addNode({id: "node1", __brand: "AdHocData"} as AdHocData);
-            dataManager.addNode({id: "node2", __brand: "AdHocData"} as AdHocData);
-            dataManager.addNode({id: "node3", __brand: "AdHocData"} as AdHocData);
+            dataManager.addNode({ id: "node1", __brand: "AdHocData" } as AdHocData);
+            dataManager.addNode({ id: "node2", __brand: "AdHocData" } as AdHocData);
+            dataManager.addNode({ id: "node3", __brand: "AdHocData" } as AdHocData);
         });
 
         it("should add a single edge", () => {
@@ -149,9 +145,9 @@ describe("DataManager", () => {
 
         it("should add multiple edges", () => {
             const edgesData = [
-                {id: "edge1", src: "node1", dst: "node2"},
-                {id: "edge2", src: "node2", dst: "node3"},
-                {id: "edge3", src: "node3", dst: "node1"},
+                { id: "edge1", src: "node1", dst: "node2" },
+                { id: "edge2", src: "node2", dst: "node3" },
+                { id: "edge3", src: "node3", dst: "node1" },
             ] as unknown as AdHocData[];
 
             dataManager.addEdges(edgesData);
@@ -241,9 +237,9 @@ describe("DataManager", () => {
 
         it("should not remove edges when node is removed (current behavior)", () => {
             dataManager.addEdges([
-                {id: "edge1", src: "node1", dst: "node2"},
-                {id: "edge2", src: "node1", dst: "node3"},
-                {id: "edge3", src: "node2", dst: "node3"},
+                { id: "edge1", src: "node1", dst: "node2" },
+                { id: "edge2", src: "node1", dst: "node3" },
+                { id: "edge3", src: "node2", dst: "node3" },
             ] as unknown as AdHocData[]);
 
             dataManager.removeNode("node1");
@@ -259,7 +255,7 @@ describe("DataManager", () => {
 
     describe("cache management", () => {
         it("should use node cache for existing nodes", () => {
-            const nodeData = {id: "node1", label: "Test"} as unknown as AdHocData;
+            const nodeData = { id: "node1", label: "Test" } as unknown as AdHocData;
 
             dataManager.addNode(nodeData);
             const node1 = dataManager.getNode("node1");
@@ -273,10 +269,10 @@ describe("DataManager", () => {
         });
 
         it("should use edge cache for existing edges", () => {
-            dataManager.addNode({id: "node1", __brand: "AdHocData"} as AdHocData);
-            dataManager.addNode({id: "node2", __brand: "AdHocData"} as AdHocData);
+            dataManager.addNode({ id: "node1", __brand: "AdHocData" } as AdHocData);
+            dataManager.addNode({ id: "node2", __brand: "AdHocData" } as AdHocData);
 
-            const edgeData = {src: "node1", dst: "node2"} as unknown as AdHocData;
+            const edgeData = { src: "node1", dst: "node2" } as unknown as AdHocData;
 
             dataManager.addEdge(edgeData);
             const edge1 = dataManager.getEdge("node1:node2");
@@ -294,11 +290,7 @@ describe("DataManager", () => {
         it("should return correct node count", () => {
             assert.equal(dataManager.nodes.size, 0);
 
-            dataManager.addNodes([
-                {id: "node1"},
-                {id: "node2"},
-                {id: "node3"},
-            ] as unknown as AdHocData[]);
+            dataManager.addNodes([{ id: "node1" }, { id: "node2" }, { id: "node3" }] as unknown as AdHocData[]);
 
             assert.equal(dataManager.nodes.size, 3);
 
@@ -307,17 +299,13 @@ describe("DataManager", () => {
         });
 
         it("should return correct edge count", () => {
-            dataManager.addNodes([
-                {id: "node1"},
-                {id: "node2"},
-                {id: "node3"},
-            ] as unknown as AdHocData[]);
+            dataManager.addNodes([{ id: "node1" }, { id: "node2" }, { id: "node3" }] as unknown as AdHocData[]);
 
             assert.equal(dataManager.edges.size, 0);
 
             dataManager.addEdges([
-                {id: "edge1", src: "node1", dst: "node2"},
-                {id: "edge2", src: "node2", dst: "node3"},
+                { id: "edge1", src: "node1", dst: "node2" },
+                { id: "edge2", src: "node2", dst: "node3" },
             ] as unknown as AdHocData[]);
 
             assert.equal(dataManager.edges.size, 2);
@@ -328,15 +316,12 @@ describe("DataManager", () => {
     });
 
     describe("layout engine integration", () => {
-        it("should work with layout engine", async() => {
+        it("should work with layout engine", async () => {
             // Set a layout
             await graph.setLayout("ngraph", {});
 
             // Add nodes and edges
-            dataManager.addNodes([
-                {id: "node1"},
-                {id: "node2"},
-            ] as unknown as AdHocData[]);
+            dataManager.addNodes([{ id: "node1" }, { id: "node2" }] as unknown as AdHocData[]);
 
             dataManager.addEdge({
                 src: "node1",

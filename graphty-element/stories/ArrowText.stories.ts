@@ -1,7 +1,7 @@
-import type {Meta, StoryObj} from "@storybook/web-components-vite";
+import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import {Graphty} from "../src/graphty-element";
-import {eventWaitingDecorator, renderFn, templateCreator} from "./helpers";
+import { Graphty } from "../src/graphty-element";
+import { eventWaitingDecorator, renderFn, templateCreator } from "./helpers";
 
 const meta: Meta = {
     title: "Styles/Edge",
@@ -25,12 +25,10 @@ const meta: Meta = {
             },
         }),
         nodeData: [
-            {id: "A", position: {x: -3, y: 0, z: 0}},
-            {id: "B", position: {x: 3, y: 0, z: 0}},
+            { id: "A", position: { x: -3, y: 0, z: 0 } },
+            { id: "B", position: { x: 3, y: 0, z: 0 } },
         ],
-        edgeData: [
-            {src: "A", dst: "B"},
-        ],
+        edgeData: [{ src: "A", dst: "B" }],
         layout: "fixed",
         layoutConfig: {},
     },
@@ -78,7 +76,7 @@ export const ArrowText: Story = {
                     location: "top",
                     attachOffset: 0.5,
                 },
-                line: {type: "solid", color: "darkgrey"},
+                line: { type: "solid", color: "darkgrey" },
             },
         }),
     },

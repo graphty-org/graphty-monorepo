@@ -1,10 +1,10 @@
-import {createHash} from "crypto";
-import {chromium} from "playwright";
+import { createHash } from "crypto";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 
 async function main() {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
     console.log("Testing visual consistency of ngraph layout...\n");
@@ -18,7 +18,7 @@ async function main() {
         await page.goto(`${STORYBOOK_URL}/iframe.html?id=layout-3d--ngraph&viewMode=story`);
 
         // Wait for graphty-element
-        await page.waitForSelector("graphty-element", {timeout: 10000});
+        await page.waitForSelector("graphty-element", { timeout: 10000 });
 
         // Wait for settling
         await page.waitForTimeout(5000); // Give it 5 seconds to settle

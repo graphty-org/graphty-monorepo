@@ -5,14 +5,14 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import {fileURLToPath} from "node:url";
+import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, "../../..");
 
 interface ArgTypeConfig {
-    control?: string | {type: string, min?: number, max?: number, options?: string[]};
+    control?: string | { type: string; min?: number; max?: number; options?: string[] };
     options?: string[];
     name: string;
 }
@@ -30,27 +30,31 @@ const storyConfigs: StoryConfig[] = [
         fileName: "NodeStyles",
         title: "Styles/Node",
         argTypes: {
-            nodeColor: {control: "color", name: "texture.color"},
-            nodeShape: {control: "select", options: [
-                "box",
-                "sphere",
-                "cylinder",
-                "cone",
-                "capsule",
-                "torus-knot",
-                "tetrahedron",
-                "octahedron",
-                "dodecahedron",
-                "icosahedron",
-                "rhombicuboctahedron",
-                "triangular_prism",
-                "geodesic",
-            ], name: "shape.type"},
-            nodeSize: {control: {type: "range", min: 0.1, max: 10}, name: "shape.size"},
-            nodeWireframe: {control: "boolean", name: "effect.wireframe"},
-            nodeLabelEnabled: {control: "boolean", name: "label.enabled"},
-            advancedNodeColor: {control: "color", name: "texture.color.value"},
-            advancedNodeOpacity: {control: {type: "range", min: 0.1, max: 1}, name: "texture.color.opacity"},
+            nodeColor: { control: "color", name: "texture.color" },
+            nodeShape: {
+                control: "select",
+                options: [
+                    "box",
+                    "sphere",
+                    "cylinder",
+                    "cone",
+                    "capsule",
+                    "torus-knot",
+                    "tetrahedron",
+                    "octahedron",
+                    "dodecahedron",
+                    "icosahedron",
+                    "rhombicuboctahedron",
+                    "triangular_prism",
+                    "geodesic",
+                ],
+                name: "shape.type",
+            },
+            nodeSize: { control: { type: "range", min: 0.1, max: 10 }, name: "shape.size" },
+            nodeWireframe: { control: "boolean", name: "effect.wireframe" },
+            nodeLabelEnabled: { control: "boolean", name: "label.enabled" },
+            advancedNodeColor: { control: "color", name: "texture.color.value" },
+            advancedNodeOpacity: { control: { type: "range", min: 0.1, max: 1 }, name: "texture.color.opacity" },
         },
         stories: ["Default", "Color", "Shape", "Size", "Wireframe", "Label", "Opacity"],
     },
@@ -58,13 +62,13 @@ const storyConfigs: StoryConfig[] = [
         fileName: "EdgeStyles",
         title: "Styles/Edge",
         argTypes: {
-            edgeLineWidth: {control: {type: "range", min: 0.1, max: 10}, name: "line.width"},
-            edgeLineColor: {control: "color", name: "line.color"},
-            edgeArrowForward: {control: "boolean", name: "arrow.forward"},
-            edgeArrowBackward: {control: "boolean", name: "arrow.backward"},
-            edgeLineOpacity: {control: {type: "range", min: 0.1, max: 1}, name: "line.opacity"},
-            edgeLineDashed: {control: "boolean", name: "line.dashed"},
-            edgeLabelEnabled: {control: "boolean", name: "label.enabled"},
+            edgeLineWidth: { control: { type: "range", min: 0.1, max: 10 }, name: "line.width" },
+            edgeLineColor: { control: "color", name: "line.color" },
+            edgeArrowForward: { control: "boolean", name: "arrow.forward" },
+            edgeArrowBackward: { control: "boolean", name: "arrow.backward" },
+            edgeLineOpacity: { control: { type: "range", min: 0.1, max: 1 }, name: "line.opacity" },
+            edgeLineDashed: { control: "boolean", name: "line.dashed" },
+            edgeLabelEnabled: { control: "boolean", name: "label.enabled" },
         },
         stories: ["Default", "Width", "NormalArrowHead"],
     },
@@ -72,14 +76,15 @@ const storyConfigs: StoryConfig[] = [
         fileName: "LabelStyles",
         title: "Styles/Label",
         argTypes: {
-            labelEnabled: {control: "boolean", name: "label.enabled"},
-            labelPosition: {control: "select", options: ["center", "above", "below"], name: "label.position"},
-            labelFontSize: {control: {type: "range", min: 8, max: 24}, name: "label.style.fontSize"},
-            labelColor: {control: "color", name: "label.style.color"},
-            labelBackgroundColor: {control: "color", name: "label.style.backgroundColor"},
-            labelFontFamily: {control: "text", name: "label.style.fontFamily"},
+            labelEnabled: { control: "boolean", name: "label.enabled" },
+            labelPosition: { control: "select", options: ["center", "above", "below"], name: "label.position" },
+            labelFontSize: { control: { type: "range", min: 8, max: 24 }, name: "label.style.fontSize" },
+            labelColor: { control: "color", name: "label.style.color" },
+            labelBackgroundColor: { control: "color", name: "label.style.backgroundColor" },
+            labelFontFamily: { control: "text", name: "label.style.fontFamily" },
         },
-        stories: ["Default",
+        stories: [
+            "Default",
             "Enabled",
             "TextPath",
             "StaticText",
@@ -106,18 +111,19 @@ const storyConfigs: StoryConfig[] = [
             "TextAlign",
             "DepthFade",
             "EmojiLabels",
-            "UnicodeText"],
+            "UnicodeText",
+        ],
     },
     {
         fileName: "GraphStyles",
         title: "Styles/Graph",
         argTypes: {
-            skybox: {control: "text", name: "graph.background.skybox"},
-            background: {control: "color", name: "graph.background.color"},
-            fog: {control: "boolean", name: "graph.environment.fog"},
-            ground: {control: "boolean", name: "graph.environment.ground"},
-            groundColor: {control: "color", name: "graph.environment.groundColor"},
-            mode2D: {control: "boolean", name: "graph.mode2D"},
+            skybox: { control: "text", name: "graph.background.skybox" },
+            background: { control: "color", name: "graph.background.color" },
+            fog: { control: "boolean", name: "graph.environment.fog" },
+            ground: { control: "boolean", name: "graph.environment.ground" },
+            groundColor: { control: "color", name: "graph.environment.groundColor" },
+            mode2D: { control: "boolean", name: "graph.mode2D" },
         },
         stories: ["Default", "Skybox", "BackgroundColor", "Layers"],
     },
@@ -125,10 +131,13 @@ const storyConfigs: StoryConfig[] = [
         fileName: "Layout",
         title: "Layout/3D",
         argTypes: {
-            d3AlphaMin: {control: {type: "range", min: 0.001, max: 0.5}, name: "graph.layoutOptions.alphaMin"},
-            d3AlphaDecay: {control: {type: "range", min: 0.01, max: 0.99}, name: "graph.layoutOptions.alphaDecay"},
-            d3ChargeStrength: {control: {type: "range", min: -1000, max: 0}, name: "graph.layoutOptions.chargeStrength"},
-            d3LinkDistance: {control: {type: "range", min: 10, max: 200}, name: "graph.layoutOptions.linkDistance"},
+            d3AlphaMin: { control: { type: "range", min: 0.001, max: 0.5 }, name: "graph.layoutOptions.alphaMin" },
+            d3AlphaDecay: { control: { type: "range", min: 0.01, max: 0.99 }, name: "graph.layoutOptions.alphaDecay" },
+            d3ChargeStrength: {
+                control: { type: "range", min: -1000, max: 0 },
+                name: "graph.layoutOptions.chargeStrength",
+            },
+            d3LinkDistance: { control: { type: "range", min: 10, max: 200 }, name: "graph.layoutOptions.linkDistance" },
         },
         stories: ["ngraph", "D3", "Circular", "Random", "Spring", "KamadaKawai", "ForceAtlas2"],
     },
@@ -136,14 +145,24 @@ const storyConfigs: StoryConfig[] = [
         fileName: "Layout2D",
         title: "Layout/2D",
         argTypes: {
-            springK: {control: {type: "number"}, name: "graph.layoutOptions.k"},
-            springLength: {control: {type: "range", min: 10, max: 200}, name: "graph.layoutOptions.restLength"},
-            springMaxIterations: {control: {type: "number"}, name: "graph.layoutOptions.maxIterations"},
-            multipartiteAlign: {control: {type: "select", options: ["vertical", "horizontal"]}, name: "graph.layoutOptions.align"},
-            bipartiteAlign: {control: {type: "select", options: ["vertical", "horizontal"]}, name: "graph.layoutOptions.align"},
-            bfsAlign: {control: {type: "select", options: ["vertical", "horizontal"]}, name: "graph.layoutOptions.align"},
+            springK: { control: { type: "number" }, name: "graph.layoutOptions.k" },
+            springLength: { control: { type: "range", min: 10, max: 200 }, name: "graph.layoutOptions.restLength" },
+            springMaxIterations: { control: { type: "number" }, name: "graph.layoutOptions.maxIterations" },
+            multipartiteAlign: {
+                control: { type: "select", options: ["vertical", "horizontal"] },
+                name: "graph.layoutOptions.align",
+            },
+            bipartiteAlign: {
+                control: { type: "select", options: ["vertical", "horizontal"] },
+                name: "graph.layoutOptions.align",
+            },
+            bfsAlign: {
+                control: { type: "select", options: ["vertical", "horizontal"] },
+                name: "graph.layoutOptions.align",
+            },
         },
-        stories: ["Spiral",
+        stories: [
+            "Spiral",
             "Circular",
             "Shell",
             "Random",
@@ -154,7 +173,8 @@ const storyConfigs: StoryConfig[] = [
             "Arf",
             "Bfs",
             "Bipartite",
-            "Multipartite"],
+            "Multipartite",
+        ],
     },
 ];
 
@@ -177,7 +197,7 @@ class SimpleChromaticGenerator {
 
     private async ensureDirectory(dir: string): Promise<void> {
         try {
-            await fs.mkdir(dir, {recursive: true});
+            await fs.mkdir(dir, { recursive: true });
         } catch {
             // Directory might already exist
         }
@@ -203,8 +223,10 @@ class SimpleChromaticGenerator {
         }
     }
 
-    private generateVariationSets(argTypes: Record<string, ArgTypeConfig>): {parameterName: string, variations: {name: string, value: unknown}[]}[] {
-        const variationSets: {parameterName: string, variations: {name: string, value: unknown}[]}[] = [];
+    private generateVariationSets(
+        argTypes: Record<string, ArgTypeConfig>,
+    ): { parameterName: string; variations: { name: string; value: unknown }[] }[] {
+        const variationSets: { parameterName: string; variations: { name: string; value: unknown }[] }[] = [];
 
         for (const [paramName, argType] of Object.entries(argTypes)) {
             const variations = this.generateVariations(paramName, argType);
@@ -219,17 +241,17 @@ class SimpleChromaticGenerator {
         return variationSets;
     }
 
-    private generateVariations(paramName: string, argType: ArgTypeConfig): {name: string, value: unknown}[] {
-        const {control, options} = argType;
+    private generateVariations(paramName: string, argType: ArgTypeConfig): { name: string; value: unknown }[] {
+        const { control, options } = argType;
 
         // Handle different control types
         if (typeof control === "object" && control.type === "range") {
-            const {min = 0, max = 100} = control;
+            const { min = 0, max = 100 } = control;
             const mid = (min + max) / 2;
             return [
-                {name: `min_${String(min).replace(/\./g, "_")}`, value: min},
-                {name: `mid_${String(mid).replace(/\./g, "_")}`, value: mid},
-                {name: `max_${String(max).replace(/\./g, "_")}`, value: max},
+                { name: `min_${String(min).replace(/\./g, "_")}`, value: min },
+                { name: `mid_${String(mid).replace(/\./g, "_")}`, value: mid },
+                { name: `max_${String(max).replace(/\./g, "_")}`, value: max },
             ];
         }
 
@@ -245,37 +267,40 @@ class SimpleChromaticGenerator {
 
         if (control === "boolean") {
             return [
-                {name: "true", value: true},
-                {name: "false", value: false},
+                { name: "true", value: true },
+                { name: "false", value: false },
             ];
         }
 
         if (control === "color") {
             return [
-                {name: "hex", value: "#FF5733"},
-                {name: "named", value: "blue"},
-                {name: "rgb", value: "rgb(128, 256, 0)"},
-                {name: "rgba", value: "rgba(255, 0, 0, 0.5)"},
+                { name: "hex", value: "#FF5733" },
+                { name: "named", value: "blue" },
+                { name: "rgb", value: "rgb(128, 256, 0)" },
+                { name: "rgba", value: "rgba(255, 0, 0, 0.5)" },
             ];
         }
 
         if (control === "text" || control === "string") {
-            return [{name: "default", value: "Test Value"}];
+            return [{ name: "default", value: "Test Value" }];
         }
 
         if (control === "number" || typeof control === "number") {
             return [
-                {name: "value_1", value: 1},
-                {name: "value_10", value: 10},
-                {name: "value_100", value: 100},
+                { name: "value_1", value: 1 },
+                { name: "value_10", value: 10 },
+                { name: "value_100", value: 100 },
             ];
         }
 
         return [];
     }
 
-    private generateTestFileContent(config: StoryConfig, variationSets: {parameterName: string, variations: {name: string, value: unknown}[]}[]): string {
-        const {fileName, title, stories} = config;
+    private generateTestFileContent(
+        config: StoryConfig,
+        variationSets: { parameterName: string; variations: { name: string; value: unknown }[] }[],
+    ): string {
+        const { fileName, title, stories } = config;
 
         let content = `// AUTO-GENERATED FILE - DO NOT EDIT
 // Source: stories/human/${fileName}.stories.ts
@@ -331,7 +356,7 @@ type Story = StoryObj;
     }
 
     private getOutputPath(config: StoryConfig): string {
-        const {fileName, title} = config;
+        const { fileName, title } = config;
 
         // Determine subdirectory based on story title
         let subDir = "";

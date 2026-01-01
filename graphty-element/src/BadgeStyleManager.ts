@@ -1,7 +1,7 @@
-import type {BadgeType, RichTextLabelOptions} from "./meshes/RichTextLabel";
+import type { BadgeType, RichTextLabelOptions } from "./meshes/RichTextLabel";
 
 const BADGE_STYLES: Record<Exclude<BadgeType, undefined>, Partial<RichTextLabelOptions>> = {
-    "notification": {
+    notification: {
         backgroundColor: "rgba(255, 59, 48, 1)",
         textColor: "white",
         fontWeight: "bold",
@@ -18,7 +18,7 @@ const BADGE_STYLES: Record<Exclude<BadgeType, undefined>, Partial<RichTextLabelO
         _smartSizing: true,
         _paddingRatio: 0.8,
     },
-    "label": {
+    label: {
         fontSize: 24,
         cornerRadius: 12,
         fontWeight: "600",
@@ -66,7 +66,7 @@ const BADGE_STYLES: Record<Exclude<BadgeType, undefined>, Partial<RichTextLabelO
         _badgeType: "label",
         _paddingRatio: 0.6,
     },
-    "count": {
+    count: {
         backgroundColor: "rgba(0, 122, 255, 1)",
         textColor: "white",
         fontWeight: "bold",
@@ -81,7 +81,7 @@ const BADGE_STYLES: Record<Exclude<BadgeType, undefined>, Partial<RichTextLabelO
         _smartSizing: true,
         _paddingRatio: 0.7,
     },
-    "icon": {
+    icon: {
         fontSize: 28,
         cornerRadius: 999,
         textAlign: "center",
@@ -90,7 +90,7 @@ const BADGE_STYLES: Record<Exclude<BadgeType, undefined>, Partial<RichTextLabelO
         _badgeType: "icon",
         _paddingRatio: 0.5,
     },
-    "progress": {
+    progress: {
         backgroundColor: "rgba(235, 235, 235, 1)",
         textColor: "black",
         fontSize: 24,
@@ -104,7 +104,7 @@ const BADGE_STYLES: Record<Exclude<BadgeType, undefined>, Partial<RichTextLabelO
         _paddingRatio: 0.8,
         _progressBar: true,
     },
-    "dot": {
+    dot: {
         backgroundColor: "rgba(255, 59, 48, 1)",
         cornerRadius: 999,
         animation: "pulse",
@@ -125,10 +125,7 @@ export const BadgeStyleManager = {
         return BADGE_STYLES[badgeType];
     },
 
-    applyBadgeBehaviors(
-        options: RichTextLabelOptions,
-        userOptions: RichTextLabelOptions,
-    ): void {
+    applyBadgeBehaviors(options: RichTextLabelOptions, userOptions: RichTextLabelOptions): void {
         const badgeType = options._badgeType;
 
         if (options._paddingRatio && !userOptions.marginTop) {
@@ -156,10 +153,7 @@ export const BadgeStyleManager = {
         }
     },
 
-    applySmartOverflow(
-        options: RichTextLabelOptions,
-        userOptions: RichTextLabelOptions,
-    ): void {
+    applySmartOverflow(options: RichTextLabelOptions, userOptions: RichTextLabelOptions): void {
         if (options.smartOverflow && !isNaN(Number(userOptions.text))) {
             const num = parseInt(userOptions.text ?? "0");
             const maxNumber = options.maxNumber ?? 999;
@@ -175,10 +169,7 @@ export const BadgeStyleManager = {
         }
     },
 
-    applyIconBehavior(
-        options: RichTextLabelOptions,
-        userOptions: RichTextLabelOptions,
-    ): void {
+    applyIconBehavior(options: RichTextLabelOptions, userOptions: RichTextLabelOptions): void {
         if (userOptions.icon && !userOptions.text) {
             options.text = userOptions.icon;
         } else if (userOptions.icon && userOptions.text) {
@@ -191,4 +182,3 @@ export const BadgeStyleManager = {
         }
     },
 };
-

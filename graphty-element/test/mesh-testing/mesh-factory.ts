@@ -5,13 +5,13 @@
  * to provide 100% test coverage of NodeMesh, EdgeMesh, and RichTextLabel classes.
  */
 
-import {Color3} from "@babylonjs/core";
+import { Color3 } from "@babylonjs/core";
 
-import {PropertyValidator} from "./property-discovery";
+import { PropertyValidator } from "./property-discovery";
 
 // Create a shared instance for all factories
 const propertyValidator = new PropertyValidator();
-import {TrackingMockMaterial, TrackingMockMesh, TrackingMockTexture} from "./tracking-mocks";
+import { TrackingMockMaterial, TrackingMockMesh, TrackingMockTexture } from "./tracking-mocks";
 
 // Test result interfaces
 export interface MeshTestResult {
@@ -96,7 +96,7 @@ export const NodeMeshFactory = {
         material: TrackingMockMaterial,
         style: Record<string, unknown>,
     ): void {
-    // Simulate shape creation (NodeMesh.createMeshWithoutCache)
+        // Simulate shape creation (NodeMesh.createMeshWithoutCache)
         const shape = typeof style.shape === "string" ? style.shape : "sphere";
         const size = style.size ?? 1;
 
@@ -149,7 +149,7 @@ export const NodeMeshFactory = {
         }
 
         if (typeof color === "object" && color !== null) {
-            const colorObj = color as {colorType: string, value: string, opacity: number};
+            const colorObj = color as { colorType: string; value: string; opacity: number };
             if (colorObj.value && typeof colorObj.value === "string") {
                 return propertyValidator.parseColor(colorObj.value);
             }
@@ -176,9 +176,12 @@ export const NodeMeshFactory = {
 
         // Validate material properties
         if (style.wireframe !== undefined && material.wireframe !== style.wireframe) {
-            const expected = typeof style.wireframe === "string" || typeof style.wireframe === "boolean" || typeof style.wireframe === "number" ?
-                String(style.wireframe) :
-                "[object]";
+            const expected =
+                typeof style.wireframe === "string" ||
+                typeof style.wireframe === "boolean" ||
+                typeof style.wireframe === "number"
+                    ? String(style.wireframe)
+                    : "[object]";
             errors.push(`Wireframe mismatch: expected ${expected}, got ${material.wireframe}`);
         }
 
@@ -384,23 +387,19 @@ export const EdgeMeshFactory = {
 
     getPatternConfig(lineType: string): PatternConfig {
         const configs: Record<string, PatternConfig> = {
-            "dot": {shape: "circle", spacing: 2, aspectRatio: 1},
-            "star": {shape: "star", spacing: 3, aspectRatio: 1},
-            "box": {shape: "square", spacing: 2, aspectRatio: 1},
-            "dash": {shape: "rectangle", spacing: 1.5, aspectRatio: 3},
-            "diamond": {shape: "diamond", spacing: 2, aspectRatio: 1},
-            "dash-dot": {shape: "alternating", spacing: 2, aspectRatio: 1},
-            "sinewave": {shape: "wave", spacing: 1, aspectRatio: 1},
-            "zigzag": {shape: "zigzag", spacing: 1, aspectRatio: 1},
+            dot: { shape: "circle", spacing: 2, aspectRatio: 1 },
+            star: { shape: "star", spacing: 3, aspectRatio: 1 },
+            box: { shape: "square", spacing: 2, aspectRatio: 1 },
+            dash: { shape: "rectangle", spacing: 1.5, aspectRatio: 3 },
+            diamond: { shape: "diamond", spacing: 2, aspectRatio: 1 },
+            "dash-dot": { shape: "alternating", spacing: 2, aspectRatio: 1 },
+            sinewave: { shape: "wave", spacing: 1, aspectRatio: 1 },
+            zigzag: { shape: "zigzag", spacing: 1, aspectRatio: 1 },
         };
-        return configs[lineType] ?? {shape: "unknown", spacing: 1, aspectRatio: 1};
+        return configs[lineType] ?? { shape: "unknown", spacing: 1, aspectRatio: 1 };
     },
 
-    simulateArrows(
-        mesh: TrackingMockMesh,
-        arrowConfig: Record<string, unknown>,
-        style: Record<string, unknown>,
-    ): void {
+    simulateArrows(mesh: TrackingMockMesh, arrowConfig: Record<string, unknown>, style: Record<string, unknown>): void {
         const is2D = Boolean(style.is2D);
 
         if (arrowConfig.source) {
@@ -453,19 +452,17 @@ export const EdgeMeshFactory = {
             // Material type
             materialType: is2D ? "StandardMaterial" : "ShaderMaterial",
             // Shader uniforms (3D only)
-            shaderUniforms: !is2D ? {
-                size,
-                color: propertyValidator.parseColor(color),
-                opacity,
-            } : undefined,
+            shaderUniforms: !is2D
+                ? {
+                      size,
+                      color: propertyValidator.parseColor(color),
+                      opacity,
+                  }
+                : undefined,
         };
     },
 
-    validate(
-        mesh: TrackingMockMesh,
-        material: TrackingMockMaterial,
-        style: Record<string, unknown>,
-    ): ValidationResult {
+    validate(mesh: TrackingMockMesh, material: TrackingMockMaterial, style: Record<string, unknown>): ValidationResult {
         const errors: string[] = [];
         const warnings: string[] = [];
 
@@ -580,23 +577,8 @@ export const ArrowMeshFactory = {
     ],
 
     // Categorized by renderer
-    FILLED_ARROWS: [
-        "normal",
-        "inverted",
-        "diamond",
-        "box",
-        "dot",
-    ],
-    OUTLINE_ARROWS: [
-        "open-normal",
-        "open-dot",
-        "open-diamond",
-        "tee",
-        "open",
-        "half-open",
-        "vee",
-        "crow",
-    ],
+    FILLED_ARROWS: ["normal", "inverted", "diamond", "box", "dot"],
+    OUTLINE_ARROWS: ["open-normal", "open-dot", "open-diamond", "tee", "open", "half-open", "vee", "crow"],
     SPHERE_ARROWS: ["sphere-dot"],
 
     // Expected vertex counts for filled arrows (XZ plane geometry)
@@ -630,12 +612,18 @@ export const ArrowMeshFactory = {
             return {
                 mesh: null,
                 material: null,
-                validation: {isValid: true, errors: [], warnings: [], expected: style, actual: null},
+                validation: { isValid: true, errors: [], warnings: [], expected: style, actual: null },
             };
         }
 
         ArrowMeshFactory.simulateArrowCreation(mesh, material, {
-            type, is2D, size, width, length, color, opacity,
+            type,
+            is2D,
+            size,
+            width,
+            length,
+            color,
+            opacity,
         });
 
         mesh.setMaterial(material);
@@ -660,7 +648,7 @@ export const ArrowMeshFactory = {
             opacity: number;
         },
     ): void {
-        const {type, is2D, size, width, length, color, opacity} = config;
+        const { type, is2D, size, width, length, color, opacity } = config;
         const isFilled = ArrowMeshFactory.FILLED_ARROWS.includes(type);
 
         // Common metadata
@@ -685,13 +673,13 @@ export const ArrowMeshFactory = {
     simulate2DArrow(
         mesh: TrackingMockMesh,
         material: TrackingMockMaterial,
-        config: {type: string, color: string, opacity: number},
+        config: { type: string; color: string; opacity: number },
     ): void {
         // 2D arrows use StandardMaterial with XY plane geometry
         // Reference: FilledArrowRenderer.create2DArrow()
         mesh.setMetadata("rendererType", "FilledArrowRenderer.create2DArrow");
         mesh.setMetadata("geometryPlane", "XY");
-        mesh.setMetadata("rotation", {x: Math.PI / 2, y: 0, z: 0});
+        mesh.setMetadata("rotation", { x: Math.PI / 2, y: 0, z: 0 });
 
         // StandardMaterial with emissive color (unlit)
         material.setMetadata("materialType", "StandardMaterial");
@@ -706,7 +694,7 @@ export const ArrowMeshFactory = {
     simulate3DFilledArrow(
         mesh: TrackingMockMesh,
         material: TrackingMockMaterial,
-        config: {type: string, size: number, color: string, opacity: number},
+        config: { type: string; size: number; color: string; opacity: number },
     ): void {
         // 3D filled arrows use tangent billboarding shader
         // Reference: FilledArrowRenderer.ts
@@ -735,7 +723,7 @@ export const ArrowMeshFactory = {
     simulate3DOutlineArrow(
         mesh: TrackingMockMesh,
         material: TrackingMockMaterial,
-        config: {type: string, size: number, width: number, color: string, opacity: number},
+        config: { type: string; size: number; width: number; color: string; opacity: number },
     ): void {
         // Outline arrows use CustomLineRenderer (same shader as lines)
         // Reference: design/edge-styles-implementation-plan.md Phase 3
@@ -759,20 +747,20 @@ export const ArrowMeshFactory = {
         mesh.visibility = config.opacity;
     },
 
-    getOutlineArrowPath(type: string): {points: number, closed: boolean} {
+    getOutlineArrowPath(type: string): { points: number; closed: boolean } {
         // Approximate path info for each outline arrow type
-        const paths: Record<string, {points: number, closed: boolean}> = {
-            "open-normal": {points: 3, closed: false}, // V-shape (2 segments)
-            "open-dot": {points: 33, closed: true}, // Circle outline
-            "open-diamond": {points: 5, closed: true}, // Diamond outline (4 segments)
-            "tee": {points: 2, closed: false}, // Perpendicular line (1 segment)
-            "open": {points: 3, closed: false}, // Chevron (2 segments)
-            "half-open": {points: 3, closed: false}, // Asymmetric V
-            "vee": {points: 3, closed: false}, // Wide V
-            "crow": {points: 7, closed: false}, // Three-prong fork (6 segments)
+        const paths: Record<string, { points: number; closed: boolean }> = {
+            "open-normal": { points: 3, closed: false }, // V-shape (2 segments)
+            "open-dot": { points: 33, closed: true }, // Circle outline
+            "open-diamond": { points: 5, closed: true }, // Diamond outline (4 segments)
+            tee: { points: 2, closed: false }, // Perpendicular line (1 segment)
+            open: { points: 3, closed: false }, // Chevron (2 segments)
+            "half-open": { points: 3, closed: false }, // Asymmetric V
+            vee: { points: 3, closed: false }, // Wide V
+            crow: { points: 7, closed: false }, // Three-prong fork (6 segments)
         };
 
-        return paths[type] ?? {points: 3, closed: false};
+        return paths[type] ?? { points: 3, closed: false };
     },
 
     validate(
@@ -789,12 +777,12 @@ export const ArrowMeshFactory = {
                 errors.push("Arrow type 'none' should return null mesh");
             }
 
-            return {isValid: errors.length === 0, errors, warnings, expected: style, actual: null};
+            return { isValid: errors.length === 0, errors, warnings, expected: style, actual: null };
         }
 
         if (!mesh || !material) {
             errors.push("Mesh and material should be created for non-none arrow type");
-            return {isValid: false, errors, warnings, expected: style, actual: null};
+            return { isValid: false, errors, warnings, expected: style, actual: null };
         }
 
         // Validate arrow type
@@ -814,7 +802,9 @@ export const ArrowMeshFactory = {
         // Validate material type
         const expectedMaterialType = is2D ? "StandardMaterial" : "ShaderMaterial";
         if (material.metadata.materialType !== expectedMaterialType) {
-            errors.push(`Material type mismatch: expected ${expectedMaterialType}, got ${material.metadata.materialType}`);
+            errors.push(
+                `Material type mismatch: expected ${expectedMaterialType}, got ${material.metadata.materialType}`,
+            );
         }
 
         // Validate opacity
@@ -901,7 +891,7 @@ export const LabelMeshFactory = {
         texture: TrackingMockTexture,
         style: Record<string, unknown>,
     ): void {
-    // Set billboard mode for labels (always face camera)
+        // Set billboard mode for labels (always face camera)
         mesh.setBillboardMode(7); // BILLBOARDMODE_ALL
 
         // Set required mesh metadata for golden master validation
@@ -918,7 +908,10 @@ export const LabelMeshFactory = {
         mesh.setMetadata("textColor", style.textColor !== undefined ? style.textColor : "#000000");
 
         // Background properties with proper defaults
-        mesh.setMetadata("backgroundColor", style.backgroundColor !== undefined ? style.backgroundColor : "transparent");
+        mesh.setMetadata(
+            "backgroundColor",
+            style.backgroundColor !== undefined ? style.backgroundColor : "transparent",
+        );
         mesh.setMetadata("backgroundPadding", style.backgroundPadding !== undefined ? style.backgroundPadding : 8);
         mesh.setMetadata("cornerRadius", style.cornerRadius !== undefined ? style.cornerRadius : 0);
 
@@ -935,7 +928,11 @@ export const LabelMeshFactory = {
         // Handle transparency
         if (style.backgroundColor === "transparent") {
             material.setAlpha(0);
-        } else if (style.backgroundColor && typeof style.backgroundColor === "string" && style.backgroundColor.includes("rgba")) {
+        } else if (
+            style.backgroundColor &&
+            typeof style.backgroundColor === "string" &&
+            style.backgroundColor.includes("rgba")
+        ) {
             const alpha = propertyValidator.extractAlpha(style.backgroundColor);
             material.setAlpha(alpha);
         }
@@ -966,8 +963,12 @@ export const LabelMeshFactory = {
         }
     },
 
-    calculateLabelDimensions(mesh: TrackingMockMesh, texture: TrackingMockTexture, style: Record<string, unknown>): void {
-    // Estimate text dimensions
+    calculateLabelDimensions(
+        mesh: TrackingMockMesh,
+        texture: TrackingMockTexture,
+        style: Record<string, unknown>,
+    ): void {
+        // Estimate text dimensions
         const text = typeof style.text === "string" ? style.text : "";
         const fontSize = Number(style.fontSize ?? 48);
         const textWidth = Math.max(text.length * fontSize * 0.6, 50);
@@ -975,10 +976,12 @@ export const LabelMeshFactory = {
 
         // Add padding and borders
         const padding = Number(style.backgroundPadding ?? 8);
-        const borderWidth = LabelMeshFactory.calculateBorderWidth((style.borders ?? []) as {width: number, spacing?: number}[]);
+        const borderWidth = LabelMeshFactory.calculateBorderWidth(
+            (style.borders ?? []) as { width: number; spacing?: number }[],
+        );
 
-        const totalWidth = Math.max(128, textWidth + (2 * padding) + (2 * borderWidth));
-        const totalHeight = Math.max(64, textHeight + (2 * padding) + (2 * borderWidth));
+        const totalWidth = Math.max(128, textWidth + 2 * padding + 2 * borderWidth);
+        const totalHeight = Math.max(64, textHeight + 2 * padding + 2 * borderWidth);
 
         // Update texture size (power of 2)
         const textureWidth = LabelMeshFactory.nextPowerOf2(totalWidth);
@@ -1016,7 +1019,11 @@ export const LabelMeshFactory = {
 
         // Draw borders
         if (style.borders && Array.isArray(style.borders) && style.borders.length > 0) {
-            LabelMeshFactory.drawBorders(ctx, size, style.borders as {width: number, color: string, spacing?: number}[]);
+            LabelMeshFactory.drawBorders(
+                ctx,
+                size,
+                style.borders as { width: number; color: string; spacing?: number }[],
+            );
         }
 
         // Draw text shadow
@@ -1054,18 +1061,29 @@ export const LabelMeshFactory = {
         texture.update();
     },
 
-    drawBorders(ctx: CanvasRenderingContext2D, size: {width: number, height: number}, borders: {width: number, color: string, spacing?: number}[]): void {
+    drawBorders(
+        ctx: CanvasRenderingContext2D,
+        size: { width: number; height: number },
+        borders: { width: number; color: string; spacing?: number }[],
+    ): void {
         let offset = 0;
         borders.forEach((border) => {
             offset += border.spacing ?? 0;
             ctx.strokeStyle = border.color;
             ctx.lineWidth = border.width;
-            ctx.strokeRect(offset, offset, size.width - (2 * offset), size.height - (2 * offset));
+            ctx.strokeRect(offset, offset, size.width - 2 * offset, size.height - 2 * offset);
             offset += border.width;
         });
     },
 
-    drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number): void {
+    drawRoundedRect(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        radius: number,
+    ): void {
         ctx.beginPath();
         ctx.moveTo(x + radius, y);
         ctx.lineTo(x + width - radius, y);
@@ -1102,7 +1120,7 @@ export const LabelMeshFactory = {
         mesh.setMetadata("animationSpeed", animationConfig.speed ?? 1);
     },
 
-    calculateBorderWidth(borders: {width: number, spacing?: number}[]): number {
+    calculateBorderWidth(borders: { width: number; spacing?: number }[]): number {
         return borders.reduce((total, border) => {
             return total + border.width + (border.spacing ?? 0);
         }, 0);
@@ -1112,7 +1130,12 @@ export const LabelMeshFactory = {
         return Math.pow(2, Math.ceil(Math.log2(value)));
     },
 
-    validate(mesh: TrackingMockMesh, material: TrackingMockMaterial, texture: TrackingMockTexture, style: Record<string, unknown>): ValidationResult {
+    validate(
+        mesh: TrackingMockMesh,
+        material: TrackingMockMaterial,
+        texture: TrackingMockTexture,
+        style: Record<string, unknown>,
+    ): ValidationResult {
         const errors: string[] = [];
         const warnings: string[] = [];
 

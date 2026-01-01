@@ -1,6 +1,6 @@
-import {Graph} from "../../src/core/graph.js";
-import {DirectionOptimizedBFS} from "../../src/optimized/direction-optimized-bfs.js";
-import {toCSRGraph} from "../../src/optimized/graph-adapter.js";
+import { Graph } from "../../src/core/graph.js";
+import { DirectionOptimizedBFS } from "../../src/optimized/direction-optimized-bfs.js";
+import { toCSRGraph } from "../../src/optimized/graph-adapter.js";
 
 /**
  * Memory profiling utilities for graph optimizations
@@ -54,8 +54,10 @@ export class MemoryProfiler {
     snapshot(label: string): MemorySnapshot {
         if (typeof process === "undefined") {
             // Browser environment - use performance.memory if available
-            const performanceWithMemory = performance as unknown as {memory?: {usedJSHeapSize: number, totalJSHeapSize: number}};
-            const {memory} = performanceWithMemory;
+            const performanceWithMemory = performance as unknown as {
+                memory?: { usedJSHeapSize: number; totalJSHeapSize: number };
+            };
+            const { memory } = performanceWithMemory;
             if (memory) {
                 const snapshot: MemorySnapshot = {
                     timestamp: performance.now() - this.startTime,
@@ -132,7 +134,7 @@ export class MemoryProfiler {
     /**
      * Generate detailed report
      */
-    generateReport(algorithm: string, graph: {nodeCount: number, edgeCount: number}): MemoryProfile {
+    generateReport(algorithm: string, graph: { nodeCount: number; edgeCount: number }): MemoryProfile {
         return {
             algorithm,
             graphSize: graph.nodeCount,
@@ -169,7 +171,7 @@ export function profileCSRConversion(graph: Graph): MemoryProfile {
 
     profiler.snapshot("after-access");
 
-    return profiler.generateReport("CSR Conversion", {nodeCount, edgeCount});
+    return profiler.generateReport("CSR Conversion", { nodeCount, edgeCount });
 }
 
 /**
@@ -198,7 +200,10 @@ export function profileDirectionOptimizedBFS(graph: Graph, source: number): Memo
     void result.distances.size;
     profiler.snapshot("after-access");
 
-    return profiler.generateReport("Direction-Optimized BFS", {nodeCount: graph.nodeCount, edgeCount: graph.totalEdgeCount});
+    return profiler.generateReport("Direction-Optimized BFS", {
+        nodeCount: graph.nodeCount,
+        edgeCount: graph.totalEdgeCount,
+    });
 }
 
 /**
@@ -341,11 +346,12 @@ export function runMemoryProfiling(): void {
         const s = profile.summary;
         console.log(
             `${profile.algorithm.padEnd(17)} | ` +
-            `${profile.graphSize.toString().padEnd(7)} | ` +
-            `${(s.initialMemory / 1024 / 1024).toFixed(1).padStart(7)} | ` +
-            `${(s.peakMemory / 1024 / 1024).toFixed(1).padStart(7)} | ` +
-            `${(s.finalMemory / 1024 / 1024).toFixed(1).padStart(7)} | ${
-                (s.totalCost / 1024 / 1024).toFixed(1).padStart(5)}`,
+                `${profile.graphSize.toString().padEnd(7)} | ` +
+                `${(s.initialMemory / 1024 / 1024).toFixed(1).padStart(7)} | ` +
+                `${(s.peakMemory / 1024 / 1024).toFixed(1).padStart(7)} | ` +
+                `${(s.finalMemory / 1024 / 1024).toFixed(1).padStart(7)} | ${(s.totalCost / 1024 / 1024)
+                    .toFixed(1)
+                    .padStart(5)}`,
         );
     }
 }

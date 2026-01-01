@@ -12,11 +12,11 @@ import {
     Textarea,
     Title,
 } from "@mantine/core";
-import {GripVertical, Minimize2, Send, Settings, Sparkles, Square, X} from "lucide-react";
-import React, {useCallback, useEffect, useRef, useState} from "react";
+import { GripVertical, Minimize2, Send, Settings, Sparkles, Square, X } from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import type {ExecutionResult} from "../../hooks/useAiManager";
-import type {AiStatus, ProviderType} from "../../types/ai";
+import type { ExecutionResult } from "../../hooks/useAiManager";
+import type { AiStatus, ProviderType } from "../../types/ai";
 import {
     DIALOG_HEIGHT,
     DIALOG_MIN_HEIGHT,
@@ -25,7 +25,7 @@ import {
     getSavedDialogPosition,
     saveDialogPosition,
 } from "../../utils/ai-storage";
-import {AiMessageBubble, type ChatMessage} from "./AiMessageBubble";
+import { AiMessageBubble, type ChatMessage } from "./AiMessageBubble";
 
 /** Available provider option */
 interface ProviderOption {
@@ -58,11 +58,26 @@ interface AiChatDialogProps {
 
 /** Suggested quick actions */
 const QUICK_ACTIONS = [
-    {label: "Style nodes", prompt: "Make all nodes blue"},
-    {label: "Run layout", prompt: "Apply force-directed layout"},
-    {label: "Find nodes", prompt: "Find nodes with degree > 3"},
+    { label: "Style nodes", prompt: "Make all nodes blue" },
+    { label: "Run layout", prompt: "Apply force-directed layout" },
+    { label: "Find nodes", prompt: "Find nodes with degree > 3" },
 ];
 
+/**
+ * AI Chat Dialog component for interacting with AI assistants.
+ * @param root0 - Component props
+ * @param root0.opened - Whether the dialog is open
+ * @param root0.onClose - Close the dialog
+ * @param root0.onOpenSettings - Open settings modal
+ * @param root0.status - Current AI status
+ * @param root0.isProcessing - Whether AI is processing
+ * @param root0.onExecute - Execute a command
+ * @param root0.onCancel - Cancel current execution
+ * @param root0.availableProviders - Available providers
+ * @param root0.currentProvider - Current provider
+ * @param root0.onProviderChange - Set the current provider
+ * @returns The AI chat dialog component or null if not opened
+ */
 export function AiChatDialog({
     opened,
     onClose,
@@ -77,10 +92,10 @@ export function AiChatDialog({
 }: AiChatDialogProps): React.JSX.Element | null {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputValue, setInputValue] = useState("");
-    const [position, setPosition] = useState({x: 0, y: 0});
+    const [position, setPosition] = useState({ x: 0, y: 0 });
     const [isMinimized, setIsMinimized] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
-    const [dragOffset, setDragOffset] = useState({x: 0, y: 0});
+    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
     const dialogRef = useRef<HTMLDivElement>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -122,17 +137,20 @@ export function AiChatDialog({
     }, [messages, status]);
 
     // Handle drag start
-    const handleDragStart = useCallback((e: React.MouseEvent) => {
-        if ((e.target as HTMLElement).closest("[data-no-drag]")) {
-            return;
-        }
+    const handleDragStart = useCallback(
+        (e: React.MouseEvent) => {
+            if ((e.target as HTMLElement).closest("[data-no-drag]")) {
+                return;
+            }
 
-        setIsDragging(true);
-        setDragOffset({
-            x: e.clientX - position.x,
-            y: e.clientY - position.y,
-        });
-    }, [position]);
+            setIsDragging(true);
+            setDragOffset({
+                x: e.clientX - position.x,
+                y: e.clientY - position.y,
+            });
+        },
+        [position],
+    );
 
     // Handle drag move
     useEffect(() => {
@@ -143,7 +161,7 @@ export function AiChatDialog({
         const handleMouseMove = (e: MouseEvent): void => {
             const newX = Math.max(0, Math.min(window.innerWidth - DIALOG_WIDTH, e.clientX - dragOffset.x));
             const newY = Math.max(0, Math.min(window.innerHeight - 50, e.clientY - dragOffset.y));
-            setPosition({x: newX, y: newY});
+            setPosition({ x: newX, y: newY });
         };
 
         const handleMouseUp = (): void => {
@@ -162,80 +180,89 @@ export function AiChatDialog({
     // Track the last user message for retry functionality
     const lastUserMessageRef = useRef<string | null>(null);
 
-    const handleSubmit = useCallback(async(retryInput?: string) => {
-        const trimmedInput = retryInput ?? inputValue.trim();
-        if (!trimmedInput || isProcessing) {
-            return;
-        }
+    const handleSubmit = useCallback(
+        async (retryInput?: string) => {
+            const trimmedInput = retryInput ?? inputValue.trim();
+            if (!trimmedInput || isProcessing) {
+                return;
+            }
 
-        // Add user message (skip if retrying - the message is already there)
-        if (!retryInput) {
-            const userMessage: ChatMessage = {
-                id: `user-${Date.now()}`,
-                role: "user",
-                content: trimmedInput,
+            // Add user message (skip if retrying - the message is already there)
+            if (!retryInput) {
+                const userMessage: ChatMessage = {
+                    id: `user-${Date.now()}`,
+                    role: "user",
+                    content: trimmedInput,
+                    timestamp: Date.now(),
+                };
+                setMessages((prev) => [...prev, userMessage]);
+                setInputValue("");
+            }
+
+            // Store last user input for retry
+            lastUserMessageRef.current = trimmedInput;
+
+            // Execute the command
+            const result = await onExecute(trimmedInput);
+
+            // Add assistant message
+            // Priority: message (tool result) > text/llmText (LLM response) > fallback
+            const isError = !result.success;
+            const assistantMessage: ChatMessage = {
+                id: `assistant-${Date.now()}`,
+                role: "assistant",
+                content: result.success
+                    ? (result.message ?? result.text ?? result.llmText ?? "Command executed successfully.")
+                    : `Error: ${result.error?.message ?? result.message ?? "Unknown error"}`,
                 timestamp: Date.now(),
+                isError,
             };
-            setMessages((prev) => [... prev, userMessage]);
-            setInputValue("");
-        }
-
-        // Store last user input for retry
-        lastUserMessageRef.current = trimmedInput;
-
-        // Execute the command
-        const result = await onExecute(trimmedInput);
-
-        // Add assistant message
-        // Priority: message (tool result) > text/llmText (LLM response) > fallback
-        const isError = !result.success;
-        const assistantMessage: ChatMessage = {
-            id: `assistant-${Date.now()}`,
-            role: "assistant",
-            content: result.success ?
-                result.message ?? result.text ?? result.llmText ?? "Command executed successfully." :
-                `Error: ${result.error?.message ?? result.message ?? "Unknown error"}`,
-            timestamp: Date.now(),
-            isError,
-        };
-        setMessages((prev) => [... prev, assistantMessage]);
-    }, [inputValue, isProcessing, onExecute]);
+            setMessages((prev) => [...prev, assistantMessage]);
+        },
+        [inputValue, isProcessing, onExecute],
+    );
 
     // Handle retry of a failed message
-    const handleRetry = useCallback((message: ChatMessage) => {
-        // Find the user message that preceded this error
-        const messageIndex = messages.findIndex((m) => m.id === message.id);
-        if (messageIndex > 0) {
-            // Look for the previous user message
-            for (let i = messageIndex - 1; i >= 0; i--) {
-                if (messages[i].role === "user") {
-                    // Remove the error message and retry
-                    setMessages((prev) => prev.filter((m) => m.id !== message.id));
-                    void handleSubmit(messages[i].content);
-                    return;
+    const handleRetry = useCallback(
+        (message: ChatMessage) => {
+            // Find the user message that preceded this error
+            const messageIndex = messages.findIndex((m) => m.id === message.id);
+            if (messageIndex > 0) {
+                // Look for the previous user message
+                for (let i = messageIndex - 1; i >= 0; i--) {
+                    if (messages[i].role === "user") {
+                        // Remove the error message and retry
+                        setMessages((prev) => prev.filter((m) => m.id !== message.id));
+                        void handleSubmit(messages[i].content);
+                        return;
+                    }
                 }
             }
-        }
 
-        // Fallback: use the last stored user message
-        if (lastUserMessageRef.current) {
-            setMessages((prev) => prev.filter((m) => m.id !== message.id));
-            void handleSubmit(lastUserMessageRef.current);
-        }
-    }, [messages, handleSubmit]);
-
-    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            void handleSubmit();
-        } else if (e.key === "Escape") {
-            if (isProcessing) {
-                onCancel();
-            } else {
-                onClose();
+            // Fallback: use the last stored user message
+            if (lastUserMessageRef.current) {
+                setMessages((prev) => prev.filter((m) => m.id !== message.id));
+                void handleSubmit(lastUserMessageRef.current);
             }
-        }
-    }, [handleSubmit, isProcessing, onCancel, onClose]);
+        },
+        [messages, handleSubmit],
+    );
+
+    const handleKeyDown = useCallback(
+        (e: React.KeyboardEvent) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void handleSubmit();
+            } else if (e.key === "Escape") {
+                if (isProcessing) {
+                    onCancel();
+                } else {
+                    onClose();
+                }
+            }
+        },
+        [handleSubmit, isProcessing, onCancel, onClose],
+    );
 
     const handleQuickAction = useCallback((prompt: string) => {
         setInputValue(prompt);
@@ -268,7 +295,9 @@ export function AiChatDialog({
                     <Group gap="xs">
                         <GripVertical size={14} color="var(--mantine-color-dimmed)" />
                         <Sparkles size={16} color="var(--mantine-color-violet-6)" />
-                        <Text size="sm" fw={500}>AI Assistant</Text>
+                        <Text size="sm" fw={500}>
+                            AI Assistant
+                        </Text>
                     </Group>
                     <ActionIcon
                         variant="subtle"
@@ -339,13 +368,7 @@ export function AiChatDialog({
                         >
                             <Minimize2 size={14} />
                         </ActionIcon>
-                        <ActionIcon
-                            variant="subtle"
-                            size="sm"
-                            color="gray"
-                            onClick={onClose}
-                            aria-label="Close"
-                        >
+                        <ActionIcon variant="subtle" size="sm" color="gray" onClick={onClose} aria-label="Close">
                             <X size={14} />
                         </ActionIcon>
                     </Group>
@@ -353,10 +376,7 @@ export function AiChatDialog({
             </Box>
 
             {/* Messages */}
-            <ScrollArea
-                style={{flex: 1, minHeight: 150}}
-                viewportRef={scrollAreaRef}
-            >
+            <ScrollArea style={{ flex: 1, minHeight: 150 }} viewportRef={scrollAreaRef}>
                 <Stack gap="sm" p="sm">
                     {messages.length === 0 && (
                         <Box ta="center" py="lg">
@@ -377,14 +397,16 @@ export function AiChatDialog({
 
                     {/* Processing indicator */}
                     {isProcessing && status && (
-                        <Box style={{alignSelf: "flex-start", maxWidth: "85%"}}>
-                            <Paper p="xs" radius="md" style={{backgroundColor: "var(--mantine-color-default)"}}>
+                        <Box style={{ alignSelf: "flex-start", maxWidth: "85%" }}>
+                            <Paper p="xs" radius="md" style={{ backgroundColor: "var(--mantine-color-default)" }}>
                                 <Group gap="xs">
                                     <Loader size="xs" />
                                     <Text size="sm" c="dimmed">
                                         {status.stage === "processing" && "Processing..."}
-                                        {status.stage === "executingTool" && `Executing: ${status.toolCalls?.[0]?.name ?? "tool"}`}
-                                        {status.stage === "streaming" && (status.streamedText ?? "Generating response...")}
+                                        {status.stage === "executingTool" &&
+                                            `Executing: ${status.toolCalls?.[0]?.name ?? "tool"}`}
+                                        {status.stage === "streaming" &&
+                                            (status.streamedText ?? "Generating response...")}
                                     </Text>
                                 </Group>
                             </Paper>
@@ -395,7 +417,7 @@ export function AiChatDialog({
 
             {/* Provider selector (if multiple) */}
             {availableProviders.length > 1 && (
-                <Box px="sm" py="xs" style={{borderTop: "1px solid var(--mantine-color-default-border)"}}>
+                <Box px="sm" py="xs" style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
                     <Select
                         size="xs"
                         data={availableProviders}
@@ -406,13 +428,13 @@ export function AiChatDialog({
                             }
                         }}
                         leftSection={<Sparkles size={12} />}
-                        styles={{input: {fontSize: "12px"}}}
+                        styles={{ input: { fontSize: "12px" } }}
                     />
                 </Box>
             )}
 
             {/* Input area */}
-            <Box p="sm" style={{borderTop: "1px solid var(--mantine-color-default-border)"}}>
+            <Box p="sm" style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
                 <Group gap="xs" align="flex-end">
                     <Textarea
                         ref={inputRef}
@@ -425,7 +447,7 @@ export function AiChatDialog({
                         autosize
                         minRows={1}
                         maxRows={4}
-                        style={{flex: 1}}
+                        style={{ flex: 1 }}
                         styles={{
                             input: {
                                 overflowY: "auto",
@@ -434,13 +456,7 @@ export function AiChatDialog({
                         disabled={isProcessing}
                     />
                     {isProcessing ? (
-                        <ActionIcon
-                            variant="light"
-                            color="red"
-                            size="lg"
-                            onClick={onCancel}
-                            aria-label="Cancel"
-                        >
+                        <ActionIcon variant="light" color="red" size="lg" onClick={onCancel} aria-label="Cancel">
                             <Square size={16} />
                         </ActionIcon>
                     ) : (

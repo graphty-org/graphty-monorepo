@@ -4,9 +4,9 @@
  */
 
 // Provider factory
-import {MockLlmProvider} from "./MockLlmProvider";
-import type {LlmProvider} from "./types";
-import {VercelAiProvider, type VercelProviderType} from "./VercelAiProvider";
+import { MockLlmProvider } from "./MockLlmProvider";
+import type { LlmProvider } from "./types";
+import { VercelAiProvider, type VercelProviderType } from "./VercelAiProvider";
 // NOTE: WebLlmProvider is NOT imported here to avoid Safari compatibility issues.
 // It references @mlc-ai/web-llm which is an optional dependency that may not be installed.
 // Safari fails on dynamic imports of non-existent modules even before the import is called.
@@ -24,11 +24,11 @@ export type {
 } from "./types";
 
 // Providers
-export {MockLlmProvider} from "./MockLlmProvider";
-export type {VercelProviderType} from "./VercelAiProvider";
-export {VercelAiProvider} from "./VercelAiProvider";
+export { MockLlmProvider } from "./MockLlmProvider";
+export type { VercelProviderType } from "./VercelAiProvider";
+export { VercelAiProvider } from "./VercelAiProvider";
 // Re-export types from WebLlmProvider (types are erased at runtime, safe to import)
-export type {ProgressCallback, WebLlmModelInfo} from "./WebLlmProvider";
+export type { ProgressCallback, WebLlmModelInfo } from "./WebLlmProvider";
 // NOTE: WebLlmProvider class is NOT exported directly. Use getWebLlmProviderClass() instead.
 
 /** All supported provider types */
@@ -63,7 +63,7 @@ export function createProvider(type: ProviderType): LlmProvider {
     if (type === "webllm") {
         throw new Error(
             "WebLlmProvider cannot be created synchronously. " +
-            "Use createWebLlmProvider() or getWebLlmProviderClass() instead.",
+                "Use createWebLlmProvider() or getWebLlmProviderClass() instead.",
         );
     }
 

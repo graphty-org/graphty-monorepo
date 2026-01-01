@@ -1,4 +1,4 @@
-import {Color3, Mesh, Scene, StandardMaterial, Vector3} from "@babylonjs/core";
+import { Color3, Mesh, Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
 
 export type AnimationType = "none" | "pulse" | "bounce" | "shake" | "glow" | "fill";
 
@@ -33,11 +33,7 @@ export class RichTextAnimator {
      * @param material - The mesh material (for glow animation)
      * @param progressCallback - Optional callback for progress-based animations
      */
-    setupAnimation(
-        mesh: Mesh,
-        material: StandardMaterial | null,
-        progressCallback?: (value: number) => void,
-    ): void {
+    setupAnimation(mesh: Mesh, material: StandardMaterial | null, progressCallback?: (value: number) => void): void {
         if (this.options.animation === "none") {
             return;
         }
@@ -80,7 +76,7 @@ export class RichTextAnimator {
     }
 
     private animatePulse(mesh: Mesh): void {
-        const scale = 1 + (Math.sin(this.animationTime * 3) * 0.1);
+        const scale = 1 + Math.sin(this.animationTime * 3) * 0.1;
         mesh.scaling.x = scale;
         mesh.scaling.y = scale;
     }
@@ -107,7 +103,7 @@ export class RichTextAnimator {
             const effectiveSpeed = Math.max(1.5, this.options.animationSpeed);
             const glowTime = this.animationTime * (effectiveSpeed / this.options.animationSpeed);
             // Animate between 0.3 and 1.0 for more visible effect
-            const glow = 0.65 + (Math.sin(glowTime * 2) * 0.35);
+            const glow = 0.65 + Math.sin(glowTime * 2) * 0.35;
             material.emissiveColor = new Color3(glow, glow, glow);
         }
     }

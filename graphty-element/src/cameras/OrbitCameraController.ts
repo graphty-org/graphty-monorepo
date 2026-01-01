@@ -1,6 +1,6 @@
-import {Camera, Color4, Scalar, Scene, type TransformNode, UniversalCamera, Vector3} from "@babylonjs/core";
+import { Camera, Color4, Scalar, Scene, type TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
 
-import {PivotController} from "./PivotController";
+import { PivotController } from "./PivotController";
 
 export interface OrbitConfig {
     trackballRotationSpeed: number;
@@ -72,10 +72,7 @@ export class OrbitCameraController {
     public rotate(dx: number, dy: number): void {
         // Delegate to PivotController
         // Note: negative values because mouse movement is inverted from rotation direction
-        this.pivotController.rotate(
-            -dx * this.config.trackballRotationSpeed,
-            -dy * this.config.trackballRotationSpeed,
-        );
+        this.pivotController.rotate(-dx * this.config.trackballRotationSpeed, -dy * this.config.trackballRotationSpeed);
         this.updateCameraPosition();
     }
 
@@ -186,11 +183,11 @@ export class OrbitCameraController {
 
                     // Distance needed to fit this corner horizontally
                     // d > z + |x| / tan(fovX/2)
-                    const distanceForX = z + (Math.abs(x) / Math.tan(halfFovX));
+                    const distanceForX = z + Math.abs(x) / Math.tan(halfFovX);
 
                     // Distance needed to fit this corner vertically
                     // d > z + |y| / tan(fovY/2)
-                    const distanceForY = z + (Math.abs(y) / Math.tan(halfFovY));
+                    const distanceForY = z + Math.abs(y) / Math.tan(halfFovY);
 
                     maxRequiredDistance = Math.max(maxRequiredDistance, distanceForX, distanceForY);
                 }
@@ -201,7 +198,7 @@ export class OrbitCameraController {
         // Since we already include labels in the bounding box, we only need
         // a small padding for visual comfort and edge arrows
         const PADDING_PERCENT = 5; // 5% padding
-        const targetDistance = maxRequiredDistance * (1 + (PADDING_PERCENT / 100));
+        const targetDistance = maxRequiredDistance * (1 + PADDING_PERCENT / 100);
 
         // Clamp to configured limits
         this.cameraDistance = Scalar.Clamp(targetDistance, this.config.minZoomDistance, this.config.maxZoomDistance);

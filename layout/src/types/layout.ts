@@ -2,7 +2,7 @@
  * Layout-specific type definitions
  */
 
-import { Node } from './graph';
+import { Node } from "./graph";
 
 export type Position = number[];
 

@@ -1,9 +1,9 @@
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {GraphMLDataSource} from "../../src/data/GraphMLDataSource.js";
+import { GraphMLDataSource } from "../../src/data/GraphMLDataSource.js";
 
 describe("GraphMLDataSource", () => {
-    test("parses basic GraphML", async() => {
+    test("parses basic GraphML", async () => {
         const xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns">
   <graph edgedefault="undirected">
@@ -13,7 +13,7 @@ describe("GraphMLDataSource", () => {
   </graph>
 </graphml>`;
 
-        const source = new GraphMLDataSource({data: xml});
+        const source = new GraphMLDataSource({ data: xml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -28,7 +28,7 @@ describe("GraphMLDataSource", () => {
         assert.strictEqual(chunks[0].edges[0].dst, "n1");
     });
 
-    test("parses key definitions and data elements", async() => {
+    test("parses key definitions and data elements", async () => {
         const xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns">
   <key id="d0" for="node" attr.name="color" attr.type="string"/>
@@ -46,7 +46,7 @@ describe("GraphMLDataSource", () => {
   </graph>
 </graphml>`;
 
-        const source = new GraphMLDataSource({data: xml});
+        const source = new GraphMLDataSource({ data: xml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -58,7 +58,7 @@ describe("GraphMLDataSource", () => {
         assert.strictEqual(chunks[0].edges[0].weight, 1.5);
     });
 
-    test("yields nodes in chunks for large graphs", async() => {
+    test("yields nodes in chunks for large graphs", async () => {
         // Create GraphML with 5000 nodes
         let xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns">
@@ -69,7 +69,7 @@ describe("GraphMLDataSource", () => {
         }
         xml += "</graph></graphml>";
 
-        const source = new GraphMLDataSource({data: xml});
+        const source = new GraphMLDataSource({ data: xml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -84,7 +84,7 @@ describe("GraphMLDataSource", () => {
         assert.strictEqual(totalNodes, 5000);
     });
 
-    test("handles parsing errors gracefully", async() => {
+    test("handles parsing errors gracefully", async () => {
         const xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns">
   <graph>
@@ -95,7 +95,7 @@ describe("GraphMLDataSource", () => {
   </graph>
 </graphml>`;
 
-        const source = new GraphMLDataSource({data: xml});
+        const source = new GraphMLDataSource({ data: xml });
         const chunks = [];
 
         // Should not throw, should collect errors
@@ -108,7 +108,7 @@ describe("GraphMLDataSource", () => {
         assert.strictEqual(chunks[0].edges.length, 2);
     });
 
-    test("parses nodes without edges", async() => {
+    test("parses nodes without edges", async () => {
         const xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns">
   <graph>
@@ -117,7 +117,7 @@ describe("GraphMLDataSource", () => {
   </graph>
 </graphml>`;
 
-        const source = new GraphMLDataSource({data: xml});
+        const source = new GraphMLDataSource({ data: xml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -128,13 +128,13 @@ describe("GraphMLDataSource", () => {
         assert.strictEqual(chunks[0].edges.length, 0);
     });
 
-    test("handles empty graph", async() => {
+    test("handles empty graph", async () => {
         const xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns">
   <graph/>
 </graphml>`;
 
-        const source = new GraphMLDataSource({data: xml});
+        const source = new GraphMLDataSource({ data: xml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -145,7 +145,7 @@ describe("GraphMLDataSource", () => {
         assert.isTrue(chunks.length === 0 || (chunks.length === 1 && chunks[0].nodes.length === 0));
     });
 
-    test("parses multiple data types correctly", async() => {
+    test("parses multiple data types correctly", async () => {
         const xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns">
   <key id="d0" for="node" attr.name="intValue" attr.type="int"/>
@@ -162,7 +162,7 @@ describe("GraphMLDataSource", () => {
   </graph>
 </graphml>`;
 
-        const source = new GraphMLDataSource({data: xml});
+        const source = new GraphMLDataSource({ data: xml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -177,7 +177,7 @@ describe("GraphMLDataSource", () => {
     });
 
     describe("yFiles GraphML support", () => {
-        test("parses yFiles ShapeNode visual properties", async() => {
+        test("parses yFiles ShapeNode visual properties", async () => {
             const xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">
   <key id="d0" for="node" yfiles.type="nodegraphics"/>
@@ -196,7 +196,7 @@ describe("GraphMLDataSource", () => {
   </graph>
 </graphml>`;
 
-            const source = new GraphMLDataSource({data: xml});
+            const source = new GraphMLDataSource({ data: xml });
             const chunks = [];
 
             for await (const chunk of source.getData()) {
@@ -217,7 +217,7 @@ describe("GraphMLDataSource", () => {
             assert.strictEqual(node.shape, "box"); // rectangle maps to box
         });
 
-        test("parses yFiles PolyLineEdge visual properties", async() => {
+        test("parses yFiles PolyLineEdge visual properties", async () => {
             const xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">
   <key id="d0" for="edge" yfiles.type="edgegraphics"/>
@@ -235,7 +235,7 @@ describe("GraphMLDataSource", () => {
   </graph>
 </graphml>`;
 
-            const source = new GraphMLDataSource({data: xml});
+            const source = new GraphMLDataSource({ data: xml });
             const chunks = [];
 
             for await (const chunk of source.getData()) {
@@ -250,7 +250,7 @@ describe("GraphMLDataSource", () => {
             assert.strictEqual(edge.directed, true); // target arrow means directed
         });
 
-        test("maps yFiles shape types to Graphty shapes", async() => {
+        test("maps yFiles shape types to Graphty shapes", async () => {
             const xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">
   <key id="d0" for="node" yfiles.type="nodegraphics"/>
@@ -285,7 +285,7 @@ describe("GraphMLDataSource", () => {
   </graph>
 </graphml>`;
 
-            const source = new GraphMLDataSource({data: xml});
+            const source = new GraphMLDataSource({ data: xml });
             const chunks = [];
 
             for await (const chunk of source.getData()) {
@@ -297,7 +297,7 @@ describe("GraphMLDataSource", () => {
             assert.strictEqual(chunks[0].nodes[2].shape, "box"); // diamond -> box (no direct mapping)
         });
 
-        test("normalizes yFiles colors to standard hex format", async() => {
+        test("normalizes yFiles colors to standard hex format", async () => {
             const xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">
   <key id="d0" for="node" yfiles.type="nodegraphics"/>
@@ -313,7 +313,7 @@ describe("GraphMLDataSource", () => {
   </graph>
 </graphml>`;
 
-            const source = new GraphMLDataSource({data: xml});
+            const source = new GraphMLDataSource({ data: xml });
             const chunks = [];
 
             for await (const chunk of source.getData()) {
@@ -326,7 +326,7 @@ describe("GraphMLDataSource", () => {
             assert.match(node.color, /^#[0-9A-F]{6}$/);
         });
 
-        test("handles GraphML without yFiles namespace", async() => {
+        test("handles GraphML without yFiles namespace", async () => {
             const xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns">
   <graph>
@@ -335,7 +335,7 @@ describe("GraphMLDataSource", () => {
   </graph>
 </graphml>`;
 
-            const source = new GraphMLDataSource({data: xml});
+            const source = new GraphMLDataSource({ data: xml });
             const chunks = [];
 
             for await (const chunk of source.getData()) {
@@ -347,7 +347,7 @@ describe("GraphMLDataSource", () => {
             assert.strictEqual(chunks[0].edges.length, 1);
         });
 
-        test("extracts node label from NodeLabel element", async() => {
+        test("extracts node label from NodeLabel element", async () => {
             const xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">
   <key id="d0" for="node" yfiles.type="nodegraphics"/>
@@ -363,7 +363,7 @@ describe("GraphMLDataSource", () => {
   </graph>
 </graphml>`;
 
-            const source = new GraphMLDataSource({data: xml});
+            const source = new GraphMLDataSource({ data: xml });
             const chunks = [];
 
             for await (const chunk of source.getData()) {
@@ -373,7 +373,7 @@ describe("GraphMLDataSource", () => {
             assert.strictEqual(chunks[0].nodes[0].label, "My Label");
         });
 
-        test("handles edge arrows (directed vs undirected)", async() => {
+        test("handles edge arrows (directed vs undirected)", async () => {
             const xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">
   <key id="d0" for="edge" yfiles.type="edgegraphics"/>
@@ -398,7 +398,7 @@ describe("GraphMLDataSource", () => {
   </graph>
 </graphml>`;
 
-            const source = new GraphMLDataSource({data: xml});
+            const source = new GraphMLDataSource({ data: xml });
             const chunks = [];
 
             for await (const chunk of source.getData()) {

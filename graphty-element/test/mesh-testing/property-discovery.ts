@@ -5,7 +5,7 @@
  * for comprehensive test coverage generation.
  */
 
-import {Color3} from "@babylonjs/core";
+import { Color3 } from "@babylonjs/core";
 import * as fc from "fast-check";
 
 // Property definition interface
@@ -128,11 +128,7 @@ export const NODE_PROPERTIES: PropertyMap = {
         affectsMesh: true,
         meshProperty: "glowLayer",
         description: "Glow effect configuration",
-        examples: [
-            null,
-            {color: "#ff0000", strength: 1},
-            {color: "#00ff00", strength: 2.5},
-        ],
+        examples: [null, { color: "#ff0000", strength: 1 }, { color: "#00ff00", strength: 2.5 }],
     },
 
     outline: {
@@ -142,11 +138,7 @@ export const NODE_PROPERTIES: PropertyMap = {
         affectsMesh: true,
         meshProperty: "outlineRenderer",
         description: "Outline effect configuration",
-        examples: [
-            null,
-            {color: "#000000", width: 1},
-            {color: "#ffffff", width: 3},
-        ],
+        examples: [null, { color: "#000000", width: 1 }, { color: "#ffffff", width: 3 }],
     },
 
     flatShading: {
@@ -220,9 +212,9 @@ export const EDGE_PROPERTIES: PropertyMap = {
         description: "Arrow head and tail configuration",
         examples: [
             null,
-            {source: {type: "normal"}},
-            {target: {type: "diamond", color: "#ff0000"}},
-            {source: {type: "dot"}, target: {type: "normal", size: 1.5}},
+            { source: { type: "normal" } },
+            { target: { type: "diamond", color: "#ff0000" } },
+            { source: { type: "dot" }, target: { type: "normal", size: 1.5 } },
         ],
     },
 
@@ -234,11 +226,7 @@ export const EDGE_PROPERTIES: PropertyMap = {
         affectsMesh: true,
         meshProperty: "material.animation",
         description: "Edge animation configuration",
-        examples: [
-            null,
-            {speed: 1},
-            {speed: 2.5, reverse: true},
-        ],
+        examples: [null, { speed: 1 }, { speed: 2.5, reverse: true }],
     },
 };
 
@@ -411,10 +399,10 @@ export const LABEL_PROPERTIES: PropertyMap = {
         description: "Array of border configurations",
         examples: [
             [],
-            [{width: 2, color: "#ff0000"}],
+            [{ width: 2, color: "#ff0000" }],
             [
-                {width: 2, color: "#ff0000"},
-                {width: 1, color: "#00ff00", spacing: 3},
+                { width: 2, color: "#ff0000" },
+                { width: 1, color: "#00ff00", spacing: 3 },
             ],
         ],
     },
@@ -427,11 +415,7 @@ export const LABEL_PROPERTIES: PropertyMap = {
         affectsMesh: true,
         meshProperty: "texture.textOutline",
         description: "Text outline configuration",
-        examples: [
-            null,
-            {width: 2, color: "#000000"},
-            {width: 3, color: "#ffffff"},
-        ],
+        examples: [null, { width: 2, color: "#000000" }, { width: 3, color: "#ffffff" }],
     },
 
     textShadow: {
@@ -443,8 +427,8 @@ export const LABEL_PROPERTIES: PropertyMap = {
         description: "Text shadow configuration",
         examples: [
             null,
-            {color: "rgba(0,0,0,0.5)", blur: 4, offsetX: 2, offsetY: 2},
-            {color: "rgba(255,255,255,0.8)", blur: 2, offsetX: 1, offsetY: 1},
+            { color: "rgba(0,0,0,0.5)", blur: 4, offsetX: 2, offsetY: 2 },
+            { color: "rgba(255,255,255,0.8)", blur: 2, offsetX: 1, offsetY: 1 },
         ],
     },
 
@@ -458,8 +442,8 @@ export const LABEL_PROPERTIES: PropertyMap = {
         description: "Speech bubble pointer configuration",
         examples: [
             null,
-            {direction: "bottom", width: 20, height: 15},
-            {direction: "top", curve: true, offset: 0.3},
+            { direction: "bottom", width: 20, height: 15 },
+            { direction: "top", curve: true, offset: 0.3 },
         ],
     },
 
@@ -471,11 +455,7 @@ export const LABEL_PROPERTIES: PropertyMap = {
         affectsMesh: true,
         meshProperty: "texture.badge",
         description: "Badge configuration",
-        examples: [
-            null,
-            {type: "notification", count: 5},
-            {type: "progress", progress: 0.75},
-        ],
+        examples: [null, { type: "notification", count: 5 }, { type: "progress", progress: 0.75 }],
     },
 
     // Animation properties
@@ -486,11 +466,7 @@ export const LABEL_PROPERTIES: PropertyMap = {
         affectsMesh: true,
         meshProperty: "animationGroup",
         description: "Label animation configuration",
-        examples: [
-            null,
-            {type: "pulse", speed: 1.5},
-            {type: "bounce", speed: 2},
-        ],
+        examples: [null, { type: "pulse", speed: 1.5 }, { type: "bounce", speed: 2 }],
     },
 };
 
@@ -503,85 +479,89 @@ export const PropertyArbitraries = {
             // Hex colors
             fc.stringMatching(/^#[0-9a-fA-F]{6}$/),
             // RGB colors
-            fc.tuple(
-                fc.integer({min: 0, max: 255}),
-                fc.integer({min: 0, max: 255}),
-                fc.integer({min: 0, max: 255}),
-            ).map(([r, g, b]) => `rgb(${r}, ${g}, ${b})`),
+            fc
+                .tuple(
+                    fc.integer({ min: 0, max: 255 }),
+                    fc.integer({ min: 0, max: 255 }),
+                    fc.integer({ min: 0, max: 255 }),
+                )
+                .map(([r, g, b]) => `rgb(${r}, ${g}, ${b})`),
             // RGBA colors
-            fc.tuple(
-                fc.integer({min: 0, max: 255}),
-                fc.integer({min: 0, max: 255}),
-                fc.integer({min: 0, max: 255}),
-                fc.float({min: 0, max: 1}),
-            ).map(([r, g, b, a]) => `rgba(${r}, ${g}, ${b}, ${a})`),
+            fc
+                .tuple(
+                    fc.integer({ min: 0, max: 255 }),
+                    fc.integer({ min: 0, max: 255 }),
+                    fc.integer({ min: 0, max: 255 }),
+                    fc.float({ min: 0, max: 1 }),
+                )
+                .map(([r, g, b, a]) => `rgba(${r}, ${g}, ${b}, ${a})`),
             // Named colors
             fc.constantFrom("red", "green", "blue", "yellow", "purple", "orange", "black", "white"),
         );
     },
 
     nodeShape(): fc.Arbitrary<string> {
-        return fc.constantFrom(... NODE_PROPERTIES.shape.enumValues ?? []);
+        return fc.constantFrom(...(NODE_PROPERTIES.shape.enumValues ?? []));
     },
 
     edgeType(): fc.Arbitrary<string> {
-        return fc.constantFrom(... EDGE_PROPERTIES.type.enumValues ?? []);
+        return fc.constantFrom(...(EDGE_PROPERTIES.type.enumValues ?? []));
     },
 
     arrowType(): fc.Arbitrary<string> {
-        return fc.constantFrom(... ARROWHEAD_PROPERTIES.type.enumValues ?? []);
+        return fc.constantFrom(...(ARROWHEAD_PROPERTIES.type.enumValues ?? []));
     },
 
-    borderConfig(): fc.Arbitrary<{width: number, color: string, spacing?: number}> {
+    borderConfig(): fc.Arbitrary<{ width: number; color: string; spacing?: number }> {
         return fc.record({
-            width: fc.integer({min: 1, max: 10}),
+            width: fc.integer({ min: 1, max: 10 }),
             color: this.color(),
-            spacing: fc.option(fc.integer({min: 0, max: 10}), {nil: undefined}),
+            spacing: fc.option(fc.integer({ min: 0, max: 10 }), { nil: undefined }),
         });
     },
 
-    textOutlineConfig(): fc.Arbitrary<{width: number, color: string}> {
+    textOutlineConfig(): fc.Arbitrary<{ width: number; color: string }> {
         return fc.record({
-            width: fc.integer({min: 1, max: 5}),
+            width: fc.integer({ min: 1, max: 5 }),
             color: this.color(),
         });
     },
 
-    textShadowConfig(): fc.Arbitrary<{color: string, blur: number, offsetX: number, offsetY: number}> {
+    textShadowConfig(): fc.Arbitrary<{ color: string; blur: number; offsetX: number; offsetY: number }> {
         return fc.record({
             color: this.color(),
-            blur: fc.integer({min: 0, max: 10}),
-            offsetX: fc.integer({min: -10, max: 10}),
-            offsetY: fc.integer({min: -10, max: 10}),
+            blur: fc.integer({ min: 0, max: 10 }),
+            offsetX: fc.integer({ min: -10, max: 10 }),
+            offsetY: fc.integer({ min: -10, max: 10 }),
         });
     },
 
     nodeStyle(): fc.Arbitrary<Record<string, unknown>> {
         return fc.record({
             shape: fc.option(this.nodeShape()),
-            size: fc.option(fc.float({min: 0.01, max: 100})),
+            size: fc.option(fc.float({ min: 0.01, max: 100 })),
             color: fc.option(this.color()),
             wireframe: fc.option(fc.boolean()),
-            opacity: fc.option(fc.float({min: 0, max: 1})),
+            opacity: fc.option(fc.float({ min: 0, max: 1 })),
         });
     },
 
     edgeStyle(): fc.Arbitrary<Record<string, unknown>> {
         return fc.record({
-            width: fc.option(fc.float({min: 0.1, max: 50})),
+            width: fc.option(fc.float({ min: 0.1, max: 50 })),
             color: fc.option(this.color()),
             type: fc.option(this.edgeType()),
-            opacity: fc.option(fc.float({min: 0, max: 1})),
+            opacity: fc.option(fc.float({ min: 0, max: 1 })),
         });
     },
 
     labelStyle(): fc.Arbitrary<Record<string, unknown>> {
         return fc.record({
-            text: fc.option(fc.string({maxLength: 100})),
-            fontSize: fc.option(fc.integer({min: 8, max: 200})),
+            text: fc.option(fc.string({ maxLength: 100 })),
+            fontSize: fc.option(fc.integer({ min: 8, max: 200 })),
             textColor: fc.option(this.color()),
             backgroundColor: fc.option(this.color()),
-            borders: fc.option(fc.array(this.borderConfig(), {maxLength: 5})),
+            borders: fc.option(fc.array(this.borderConfig(), { maxLength: 5 })),
             textOutline: fc.option(this.textOutlineConfig()),
             textShadow: fc.option(this.textShadowConfig()),
         });
@@ -593,7 +573,7 @@ export const PropertyArbitraries = {
  */
 export class PropertyValidator {
     parseColor(color: string): Color3 {
-    // Simple color parsing - extend as needed
+        // Simple color parsing - extend as needed
         if (color.startsWith("#")) {
             const hex = color.slice(1);
             const r = parseInt(hex.slice(0, 2), 16) / 255;
@@ -605,11 +585,7 @@ export class PropertyValidator {
         if (color.startsWith("rgb(")) {
             const values = color.match(/\d+/g);
             if (values && values.length >= 3) {
-                return new Color3(
-                    parseInt(values[0]) / 255,
-                    parseInt(values[1]) / 255,
-                    parseInt(values[2]) / 255,
-                );
+                return new Color3(parseInt(values[0]) / 255, parseInt(values[1]) / 255, parseInt(values[2]) / 255);
             }
         }
 

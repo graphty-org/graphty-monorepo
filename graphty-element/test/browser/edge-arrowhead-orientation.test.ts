@@ -13,8 +13,8 @@
  * Using quaternion composition qZ * qX ensures rotations are applied in the
  * correct order (X first, then Z in world space).
  */
-import {Matrix, Quaternion, Vector3} from "@babylonjs/core";
-import {assert, describe, test} from "vitest";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core";
+import { assert, describe, test } from "vitest";
 
 /**
  * Simulate the 2D arrow rotation using the same logic as Edge.transformArrowCap
@@ -61,8 +61,8 @@ describe("2D Arrow Quaternion Rotation Math", () => {
         assert(
             angleDiff < tolerance,
             `0° edge: Arrow direction differs by ${angleDiff.toFixed(3)}° from expected. ` +
-            `Expected: (${expectedDir.x.toFixed(3)}, ${expectedDir.y.toFixed(3)}, ${expectedDir.z.toFixed(3)}), ` +
-            `Actual: (${actualDir.x.toFixed(3)}, ${actualDir.y.toFixed(3)}, ${actualDir.z.toFixed(3)})`,
+                `Expected: (${expectedDir.x.toFixed(3)}, ${expectedDir.y.toFixed(3)}, ${expectedDir.z.toFixed(3)}), ` +
+                `Actual: (${actualDir.x.toFixed(3)}, ${actualDir.y.toFixed(3)}, ${actualDir.z.toFixed(3)})`,
         );
     });
 
@@ -75,8 +75,8 @@ describe("2D Arrow Quaternion Rotation Math", () => {
         assert(
             angleDiff < tolerance,
             `90° edge: Arrow direction differs by ${angleDiff.toFixed(3)}° from expected. ` +
-            `Expected: (${expectedDir.x.toFixed(3)}, ${expectedDir.y.toFixed(3)}, ${expectedDir.z.toFixed(3)}), ` +
-            `Actual: (${actualDir.x.toFixed(3)}, ${actualDir.y.toFixed(3)}, ${actualDir.z.toFixed(3)})`,
+                `Expected: (${expectedDir.x.toFixed(3)}, ${expectedDir.y.toFixed(3)}, ${expectedDir.z.toFixed(3)}), ` +
+                `Actual: (${actualDir.x.toFixed(3)}, ${actualDir.y.toFixed(3)}, ${actualDir.z.toFixed(3)})`,
         );
     });
 
@@ -89,8 +89,8 @@ describe("2D Arrow Quaternion Rotation Math", () => {
         assert(
             angleDiff < tolerance,
             `45° edge: Arrow direction differs by ${angleDiff.toFixed(3)}° from expected. ` +
-            `Expected: (${expectedDir.x.toFixed(3)}, ${expectedDir.y.toFixed(3)}, ${expectedDir.z.toFixed(3)}), ` +
-            `Actual: (${actualDir.x.toFixed(3)}, ${actualDir.y.toFixed(3)}, ${actualDir.z.toFixed(3)})`,
+                `Expected: (${expectedDir.x.toFixed(3)}, ${expectedDir.y.toFixed(3)}, ${expectedDir.z.toFixed(3)}), ` +
+                `Actual: (${actualDir.x.toFixed(3)}, ${actualDir.y.toFixed(3)}, ${actualDir.z.toFixed(3)})`,
         );
     });
 
@@ -103,8 +103,8 @@ describe("2D Arrow Quaternion Rotation Math", () => {
         assert(
             angleDiff < tolerance,
             `135° edge: Arrow direction differs by ${angleDiff.toFixed(3)}° from expected. ` +
-            `Expected: (${expectedDir.x.toFixed(3)}, ${expectedDir.y.toFixed(3)}, ${expectedDir.z.toFixed(3)}), ` +
-            `Actual: (${actualDir.x.toFixed(3)}, ${actualDir.y.toFixed(3)}, ${actualDir.z.toFixed(3)})`,
+                `Expected: (${expectedDir.x.toFixed(3)}, ${expectedDir.y.toFixed(3)}, ${expectedDir.z.toFixed(3)}), ` +
+                `Actual: (${actualDir.x.toFixed(3)}, ${actualDir.y.toFixed(3)}, ${actualDir.z.toFixed(3)})`,
         );
     });
 
@@ -117,8 +117,8 @@ describe("2D Arrow Quaternion Rotation Math", () => {
         assert(
             angleDiff < tolerance,
             `180° edge: Arrow direction differs by ${angleDiff.toFixed(3)}° from expected. ` +
-            `Expected: (${expectedDir.x.toFixed(3)}, ${expectedDir.y.toFixed(3)}, ${expectedDir.z.toFixed(3)}), ` +
-            `Actual: (${actualDir.x.toFixed(3)}, ${actualDir.y.toFixed(3)}, ${actualDir.z.toFixed(3)})`,
+                `Expected: (${expectedDir.x.toFixed(3)}, ${expectedDir.y.toFixed(3)}, ${expectedDir.z.toFixed(3)}), ` +
+                `Actual: (${actualDir.x.toFixed(3)}, ${actualDir.y.toFixed(3)}, ${actualDir.z.toFixed(3)})`,
         );
     });
 
@@ -131,8 +131,8 @@ describe("2D Arrow Quaternion Rotation Math", () => {
         assert(
             angleDiff < tolerance,
             `-45° edge: Arrow direction differs by ${angleDiff.toFixed(3)}° from expected. ` +
-            `Expected: (${expectedDir.x.toFixed(3)}, ${expectedDir.y.toFixed(3)}, ${expectedDir.z.toFixed(3)}), ` +
-            `Actual: (${actualDir.x.toFixed(3)}, ${actualDir.y.toFixed(3)}, ${actualDir.z.toFixed(3)})`,
+                `Expected: (${expectedDir.x.toFixed(3)}, ${expectedDir.y.toFixed(3)}, ${expectedDir.z.toFixed(3)}), ` +
+                `Actual: (${actualDir.x.toFixed(3)}, ${actualDir.y.toFixed(3)}, ${actualDir.z.toFixed(3)})`,
         );
     });
 
@@ -144,7 +144,7 @@ describe("2D Arrow Quaternion Rotation Math", () => {
             const dir = compute2DArrowDirection(angle);
             assert(
                 Math.abs(dir.z) < zTolerance,
-                `Angle ${(angle * 180 / Math.PI).toFixed(1)}°: Arrow Z component should be 0, got ${dir.z.toFixed(6)}`,
+                `Angle ${((angle * 180) / Math.PI).toFixed(1)}°: Arrow Z component should be 0, got ${dir.z.toFixed(6)}`,
             );
         }
     });
@@ -152,10 +152,14 @@ describe("2D Arrow Quaternion Rotation Math", () => {
     test("pentagon graph angles produce correct directions", () => {
         // Test the specific angles from a pentagon graph (which was used to debug the bug)
         const pentagonAngles = [
-            {name: "A:B", angle: Math.atan2(0.93 - 3, 2.85 - 0), expected: new Vector3(2.85, -2.07, 0).normalize()},
-            {name: "B:E", angle: Math.PI, expected: new Vector3(-1, 0, 0)}, // Horizontal left
-            {name: "C:D", angle: Math.PI, expected: new Vector3(-1, 0, 0)}, // Horizontal left
-            {name: "D:E", angle: Math.atan2(0.93 - (-2.43), -2.85 - (-1.76)), expected: new Vector3(-1.09, 3.36, 0).normalize()},
+            { name: "A:B", angle: Math.atan2(0.93 - 3, 2.85 - 0), expected: new Vector3(2.85, -2.07, 0).normalize() },
+            { name: "B:E", angle: Math.PI, expected: new Vector3(-1, 0, 0) }, // Horizontal left
+            { name: "C:D", angle: Math.PI, expected: new Vector3(-1, 0, 0) }, // Horizontal left
+            {
+                name: "D:E",
+                angle: Math.atan2(0.93 - -2.43, -2.85 - -1.76),
+                expected: new Vector3(-1.09, 3.36, 0).normalize(),
+            },
         ];
 
         for (const testCase of pentagonAngles) {

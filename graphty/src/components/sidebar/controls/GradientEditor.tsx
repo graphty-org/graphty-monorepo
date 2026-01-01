@@ -1,13 +1,13 @@
-import {ActionIcon, Box, ColorInput, Group, Slider, Stack, Text} from "@mantine/core";
-import {Minus, Plus} from "lucide-react";
+import { ActionIcon, Box, ColorInput, Group, Slider, Stack, Text } from "@mantine/core";
+import { Minus, Plus } from "lucide-react";
 import React from "react";
 
-import {DEFAULT_GRADIENT_STOP_COLOR} from "../../../constants/colors";
-import type {ColorStop} from "../../../types/style-layer";
-import {createColorStop} from "../../../utils/color-stops";
+import { DEFAULT_GRADIENT_STOP_COLOR } from "../../../constants/colors";
+import type { ColorStop } from "../../../types/style-layer";
+import { createColorStop } from "../../../utils/color-stops";
 
 // Re-export ColorStop for backwards compatibility
-export type {ColorStop} from "../../../types/style-layer";
+export type { ColorStop } from "../../../types/style-layer";
 
 interface GradientEditorProps {
     stops: ColorStop[];
@@ -19,6 +19,12 @@ interface GradientEditorProps {
 /**
  * Editor for gradient color stops with optional direction control.
  * Allows adding/removing color stops and adjusting their positions.
+ * @param root0 - Component props
+ * @param root0.stops - Array of color stops to edit
+ * @param root0.direction - Gradient direction in degrees
+ * @param root0.showDirection - Whether to show direction control
+ * @param root0.onChange - Called when stops or direction change
+ * @returns The gradient editor component
  */
 export function GradientEditor({
     stops,
@@ -27,14 +33,14 @@ export function GradientEditor({
     onChange,
 }: GradientEditorProps): React.JSX.Element {
     const handleStopColorChange = (index: number, color: string): void => {
-        const newStops = [... stops];
-        newStops[index] = {... newStops[index], color};
+        const newStops = [...stops];
+        newStops[index] = { ...newStops[index], color };
         onChange(newStops, direction);
     };
 
     const handleStopOffsetChange = (index: number, offset: number): void => {
-        const newStops = [... stops];
-        newStops[index] = {... newStops[index], offset: offset / 100};
+        const newStops = [...stops];
+        newStops[index] = { ...newStops[index], offset: offset / 100 };
         onChange(newStops, direction);
     };
 
@@ -48,7 +54,7 @@ export function GradientEditor({
         }
 
         const newOffset = stops.length > 0 ? (stops[stops.length - 1].offset + 1) / 2 : 0.5;
-        const newStops = [... stops, createColorStop(newOffset, DEFAULT_GRADIENT_STOP_COLOR)];
+        const newStops = [...stops, createColorStop(newOffset, DEFAULT_GRADIENT_STOP_COLOR)];
         newStops.sort((a, b) => a.offset - b.offset);
         onChange(newStops, direction);
     };
@@ -82,7 +88,7 @@ export function GradientEditor({
 
             {stops.map((stop, index) => (
                 <Group key={stop.id} gap="xs" align="flex-end">
-                    <Box style={{flex: 1}}>
+                    <Box style={{ flex: 1 }}>
                         <ColorInput
                             size="compact"
                             value={stop.color}
@@ -92,7 +98,7 @@ export function GradientEditor({
                             aria-label={`Color stop ${index + 1}`}
                         />
                     </Box>
-                    <Box style={{width: "80px"}}>
+                    <Box style={{ width: "80px" }}>
                         <Slider
                             size="compact"
                             min={0}
@@ -134,10 +140,10 @@ export function GradientEditor({
                         label={(value) => `${value}°`}
                         aria-label="Gradient direction"
                         marks={[
-                            {value: 0, label: "0°"},
-                            {value: 90, label: "90°"},
-                            {value: 180, label: "180°"},
-                            {value: 270, label: "270°"},
+                            { value: 0, label: "0°" },
+                            { value: 90, label: "90°" },
+                            { value: 180, label: "180°" },
+                            { value: 270, label: "270°" },
                         ]}
                     />
                 </Box>

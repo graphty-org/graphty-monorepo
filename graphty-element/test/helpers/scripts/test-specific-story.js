@@ -1,9 +1,9 @@
-import {chromium} from "playwright";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 
 async function main() {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
     console.log("Testing specific story: layout-3d--ngraph");
@@ -24,7 +24,7 @@ async function main() {
     const graphState = await page.evaluate(() => {
         const graphty = document.querySelector("graphty-element");
         if (!graphty) {
-            return {error: "No graphty element"};
+            return { error: "No graphty element" };
         }
 
         return {
@@ -41,8 +41,8 @@ async function main() {
     console.log("Graph state:", JSON.stringify(graphState, null, 2));
 
     // Take screenshot
-    await page.screenshot({path: "test/screenshots/debug-specific-story.png", fullPage: true});
-    await page.locator("graphty-element").screenshot({path: "test/screenshots/debug-graphty-element.png"});
+    await page.screenshot({ path: "test/screenshots/debug-specific-story.png", fullPage: true });
+    await page.locator("graphty-element").screenshot({ path: "test/screenshots/debug-graphty-element.png" });
 
     console.log("Screenshots saved");
 

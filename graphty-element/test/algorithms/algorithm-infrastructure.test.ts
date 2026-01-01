@@ -1,7 +1,7 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../src/algorithms/Algorithm";
-import {createMockGraph, getGraphResult} from "../helpers/mockGraph";
+import { Algorithm } from "../../src/algorithms/Algorithm";
+import { createMockGraph, getGraphResult } from "../helpers/mockGraph";
 
 // Test algorithm that stores edge results
 class TestEdgeAlgorithm extends Algorithm {
@@ -58,12 +58,12 @@ Algorithm.register(TestCombinedAlgorithm);
 
 describe("Algorithm Infrastructure", () => {
     describe("Edge Result Storage", () => {
-        it("stores edge results via addEdgeResult", async() => {
-            const graph = await createMockGraph({dataPath: "./data4.json"});
+        it("stores edge results via addEdgeResult", async () => {
+            const graph = await createMockGraph({ dataPath: "./data4.json" });
             const algo = new TestEdgeAlgorithm(graph);
             await algo.run();
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const dm = graph.getDataManager() as any;
             for (const edge of dm.edges.values()) {
                 assert.property(edge, "algorithmResults");
@@ -74,12 +74,12 @@ describe("Algorithm Infrastructure", () => {
             }
         });
 
-        it("retrieves edge results via Algorithm.results", async() => {
-            const graph = await createMockGraph({dataPath: "./data4.json"});
+        it("retrieves edge results via Algorithm.results", async () => {
+            const graph = await createMockGraph({ dataPath: "./data4.json" });
             const algo = new TestEdgeAlgorithm(graph);
             await algo.run();
 
-            const {results} = algo;
+            const { results } = algo;
             assert.property(results, "edge");
 
             // Check that edge results are included
@@ -95,8 +95,8 @@ describe("Algorithm Infrastructure", () => {
     });
 
     describe("Graph Result Storage", () => {
-        it("stores graph-level results via addGraphResult", async() => {
-            const graph = await createMockGraph({dataPath: "./data4.json"});
+        it("stores graph-level results via addGraphResult", async () => {
+            const graph = await createMockGraph({ dataPath: "./data4.json" });
             const algo = new TestGraphAlgorithm(graph);
             await algo.run();
 
@@ -108,12 +108,12 @@ describe("Algorithm Infrastructure", () => {
             assert.strictEqual(componentCount, 3);
         });
 
-        it("retrieves graph results via Algorithm.results", async() => {
-            const graph = await createMockGraph({dataPath: "./data4.json"});
+        it("retrieves graph results via Algorithm.results", async () => {
+            const graph = await createMockGraph({ dataPath: "./data4.json" });
             const algo = new TestGraphAlgorithm(graph);
             await algo.run();
 
-            const {results} = algo;
+            const { results } = algo;
             assert.property(results, "graph");
 
             // Check structure
@@ -125,12 +125,12 @@ describe("Algorithm Infrastructure", () => {
     });
 
     describe("Combined Results", () => {
-        it("retrieves all result types (node, edge, graph) via results getter", async() => {
-            const graph = await createMockGraph({dataPath: "./data4.json"});
+        it("retrieves all result types (node, edge, graph) via results getter", async () => {
+            const graph = await createMockGraph({ dataPath: "./data4.json" });
             const algo = new TestCombinedAlgorithm(graph);
             await algo.run();
 
-            const {results} = algo;
+            const { results } = algo;
 
             // Should have all three result types
             assert.property(results, "node");
@@ -151,22 +151,19 @@ describe("Algorithm Infrastructure", () => {
             const graphResults = results.graph as Record<string, Record<string, Record<string, unknown>>>;
             assert.property(graphResults, "test-namespace");
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const dm = graph.getDataManager() as any;
-            assert.strictEqual(
-                graphResults["test-namespace"]["test-combined-algo"].totalNodes,
-                dm.nodes.size,
-            );
+            assert.strictEqual(graphResults["test-namespace"]["test-combined-algo"].totalNodes, dm.nodes.size);
         });
     });
 
     describe("Edge Cases", () => {
-        it("handles empty graph for edge results", async() => {
+        it("handles empty graph for edge results", async () => {
             const emptyGraph = await createMockGraph();
             const algo = new TestEdgeAlgorithm(emptyGraph);
             await algo.run();
 
-            const {results} = algo;
+            const { results } = algo;
             // edge property should exist but be empty or undefined
             if (results.edge) {
                 const edgeResults = results.edge as Record<string, unknown>;
@@ -174,19 +171,19 @@ describe("Algorithm Infrastructure", () => {
             }
         });
 
-        it("handles empty graph for graph results", async() => {
+        it("handles empty graph for graph results", async () => {
             const emptyGraph = await createMockGraph();
             const algo = new TestGraphAlgorithm(emptyGraph);
             await algo.run();
 
-            const {results} = algo;
+            const { results } = algo;
             assert.property(results, "graph");
             const graphResults = results.graph as Record<string, Record<string, Record<string, unknown>>>;
             assert.property(graphResults, "test-namespace");
         });
 
-        it("multiple algorithms can store results without conflicts", async() => {
-            const graph = await createMockGraph({dataPath: "./data4.json"});
+        it("multiple algorithms can store results without conflicts", async () => {
+            const graph = await createMockGraph({ dataPath: "./data4.json" });
 
             // Run both algorithms
             const edgeAlgo = new TestEdgeAlgorithm(graph);
@@ -199,7 +196,7 @@ describe("Algorithm Infrastructure", () => {
             assert.strictEqual(totalWeight, 42);
 
             // Check edge results are still there
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const dm = graph.getDataManager() as any;
             for (const edge of dm.edges.values()) {
                 assert.property(edge.algorithmResults["test-namespace"], "test-edge-algo");

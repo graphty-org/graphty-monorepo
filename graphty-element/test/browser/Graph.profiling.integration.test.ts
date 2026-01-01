@@ -1,12 +1,12 @@
-import {afterEach, assert, beforeEach, describe, it, vi} from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
-import {Graph} from "../../src/Graph";
+import { Graph } from "../../src/Graph";
 
 describe("Graph - Profiling Integration", () => {
     let container: HTMLElement;
     let graph: Graph;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         container = document.createElement("div");
         container.style.width = "800px";
         container.style.height = "600px";
@@ -152,7 +152,6 @@ describe("Graph - Profiling Integration", () => {
         // Once we modify Graph constructor to accept GraphContextConfig
         // this test will verify that passing { enableDetailedProfiling: true }
         // automatically enables profiling
-
         // For now, this test is skipped because Graph constructor doesn't
         // yet accept a config parameter
     });

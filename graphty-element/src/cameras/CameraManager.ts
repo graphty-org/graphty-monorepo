@@ -1,5 +1,5 @@
 // CameraManager.ts
-import {Camera, Scene, Vector3} from "@babylonjs/core";
+import { Camera, Scene, Vector3 } from "@babylonjs/core";
 
 export interface CameraController {
     camera: Camera;

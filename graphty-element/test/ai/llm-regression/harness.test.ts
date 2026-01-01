@@ -6,7 +6,7 @@
  * These tests verify the harness works correctly with both mocked and real LLM providers.
  */
 
-import {afterEach, assert, beforeEach, describe, it, vi} from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import {
     getLlmRegressionModel,
@@ -64,7 +64,7 @@ describe("LlmRegressionTestHarness", () => {
             vi.unstubAllEnvs();
         });
 
-        it("throws error when API key not available", async() => {
+        it("throws error when API key not available", async () => {
             // Skip if API key is actually set in the environment
             if (isLlmRegressionEnabled()) {
                 return;
@@ -84,7 +84,7 @@ describe("LlmRegressionTestHarness", () => {
     describe.skipIf(skipIfNoApiKey())("Harness with Real API", () => {
         let harness: LlmRegressionTestHarness;
 
-        beforeEach(async() => {
+        beforeEach(async () => {
             harness = await LlmRegressionTestHarness.create();
         });
 
@@ -102,7 +102,7 @@ describe("LlmRegressionTestHarness", () => {
             assert.ok(harness);
         });
 
-        it("tracks tool calls made during execution", async() => {
+        it("tracks tool calls made during execution", async () => {
             const result = await harness.testPrompt("How many nodes are there?");
 
             assert.ok(result);
@@ -113,14 +113,14 @@ describe("LlmRegressionTestHarness", () => {
             }
         });
 
-        it("measures latency for each prompt", async() => {
+        it("measures latency for each prompt", async () => {
             const result = await harness.testPrompt("How many nodes are there?");
 
             assert.ok(result.latencyMs > 0);
             assert.strictEqual(typeof result.latencyMs, "number");
         });
 
-        it("captures token usage from responses", async() => {
+        it("captures token usage from responses", async () => {
             const result = await harness.testPrompt("How many nodes are there?");
 
             // Token usage may or may not be present depending on model response
@@ -131,7 +131,7 @@ describe("LlmRegressionTestHarness", () => {
             }
         });
 
-        it("returns result structure with all required fields", async() => {
+        it("returns result structure with all required fields", async () => {
             const result = await harness.testPrompt("What layout is being used?");
 
             // Verify all required fields are present
@@ -150,18 +150,18 @@ describe("LlmRegressionTestHarness", () => {
                 prompt: "test prompt",
                 toolWasCalled: true,
                 toolName: "testTool",
-                toolParams: {param1: "value1"},
-                commandResult: {success: true, message: "done"},
+                toolParams: { param1: "value1" },
+                commandResult: { success: true, message: "done" },
                 llmText: "Some response text",
                 latencyMs: 1500,
-                tokenUsage: {prompt: 100, completion: 50},
+                tokenUsage: { prompt: 100, completion: 50 },
                 error: undefined,
             };
 
             assert.strictEqual(mockResult.prompt, "test prompt");
             assert.strictEqual(mockResult.toolWasCalled, true);
             assert.strictEqual(mockResult.toolName, "testTool");
-            assert.deepStrictEqual(mockResult.toolParams, {param1: "value1"});
+            assert.deepStrictEqual(mockResult.toolParams, { param1: "value1" });
             assert.strictEqual(mockResult.commandResult?.success, true);
             assert.strictEqual(mockResult.llmText, "Some response text");
             assert.strictEqual(mockResult.latencyMs, 1500);
@@ -191,12 +191,10 @@ describe("LlmRegressionTestHarness", () => {
         it("supports custom node and edge data", () => {
             const fixture: TestGraphFixture = {
                 nodes: [
-                    {id: "1", data: {type: "server", name: "web-01"}},
-                    {id: "2", data: {type: "database", name: "db-01"}},
+                    { id: "1", data: { type: "server", name: "web-01" } },
+                    { id: "2", data: { type: "database", name: "db-01" } },
                 ],
-                edges: [
-                    {source: "1", target: "2", data: {weight: 0.8}},
-                ],
+                edges: [{ source: "1", target: "2", data: { weight: 0.8 } }],
             };
 
             assert.strictEqual(fixture.nodes.length, 2);
@@ -207,7 +205,7 @@ describe("LlmRegressionTestHarness", () => {
     });
 
     describe("Harness Disposal", () => {
-        it("dispose does not throw", async() => {
+        it("dispose does not throw", async () => {
             // Skip if no API key
             if (!isLlmRegressionEnabled()) {
                 return;
@@ -218,7 +216,7 @@ describe("LlmRegressionTestHarness", () => {
             // Should not throw
         });
 
-        it("double dispose does not throw", async() => {
+        it("double dispose does not throw", async () => {
             // Skip if no API key
             if (!isLlmRegressionEnabled()) {
                 return;
@@ -229,7 +227,7 @@ describe("LlmRegressionTestHarness", () => {
             localHarness.dispose(); // Should not throw
         });
 
-        it("throws on testPrompt after dispose", async() => {
+        it("throws on testPrompt after dispose", async () => {
             // Skip if no API key
             if (!isLlmRegressionEnabled()) {
                 return;
@@ -250,7 +248,7 @@ describe("LlmRegressionTestHarness", () => {
 
     describe("Harness Options", () => {
         describe.skipIf(skipIfNoApiKey())("with real API", () => {
-            it("accepts custom model option", async() => {
+            it("accepts custom model option", async () => {
                 const localHarness = await LlmRegressionTestHarness.create({
                     model: "gpt-4o-mini",
                 });
@@ -259,7 +257,7 @@ describe("LlmRegressionTestHarness", () => {
                 localHarness.dispose();
             });
 
-            it("accepts custom temperature option", async() => {
+            it("accepts custom temperature option", async () => {
                 const localHarness = await LlmRegressionTestHarness.create({
                     temperature: 0,
                 });
@@ -268,15 +266,13 @@ describe("LlmRegressionTestHarness", () => {
                 localHarness.dispose();
             });
 
-            it("accepts custom graph fixture", async() => {
+            it("accepts custom graph fixture", async () => {
                 const fixture: TestGraphFixture = {
                     nodes: [
-                        {id: "a", data: {name: "Node A"}},
-                        {id: "b", data: {name: "Node B"}},
+                        { id: "a", data: { name: "Node A" } },
+                        { id: "b", data: { name: "Node B" } },
                     ],
-                    edges: [
-                        {source: "a", target: "b", data: {}},
-                    ],
+                    edges: [{ source: "a", target: "b", data: {} }],
                 };
 
                 const localHarness = await LlmRegressionTestHarness.create({

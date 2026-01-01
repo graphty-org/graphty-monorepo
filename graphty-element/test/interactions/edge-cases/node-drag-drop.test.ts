@@ -5,12 +5,12 @@
  * easy to break during refactoring.
  */
 
-import {PointerEventTypes, type PointerInfo, Vector3} from "@babylonjs/core";
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test, vi} from "vitest";
+import { PointerEventTypes, type PointerInfo, Vector3 } from "@babylonjs/core";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import type {StyleSchema} from "../../../src/config";
-import {Graph} from "../../../src/Graph";
+import type { StyleSchema } from "../../../src/config";
+import { Graph } from "../../../src/Graph";
 
 function createStyleTemplate(twoD: boolean): StyleSchema {
     return {
@@ -20,7 +20,7 @@ function createStyleTemplate(twoD: boolean): StyleSchema {
             addDefaultStyle: true,
             twoD,
             layout: "fixed",
-            layoutOptions: {dim: twoD ? 2 : 3},
+            layoutOptions: { dim: twoD ? 2 : 3 },
         },
         layers: [],
         data: {
@@ -35,21 +35,24 @@ function createStyleTemplate(twoD: boolean): StyleSchema {
             },
         },
         behavior: {
-            layout: {type: "fixed", preSteps: 0, stepMultiplier: 1, minDelta: 0.001, zoomStepInterval: 5},
-            node: {pinOnDrag: true},
+            layout: { type: "fixed", preSteps: 0, stepMultiplier: 1, minDelta: 0.001, zoomStepInterval: 5 },
+            node: { pinOnDrag: true },
         },
     } as unknown as StyleSchema;
 }
 
-const TEST_NODES = [{id: "node1", x: 0, y: 0, z: 0}, {id: "node2", x: 5, y: 0, z: 0}];
-const TEST_EDGES = [{src: "node1", dst: "node2"}];
+const TEST_NODES = [
+    { id: "node1", x: 0, y: 0, z: 0 },
+    { id: "node2", x: 5, y: 0, z: 0 },
+];
+const TEST_EDGES = [{ src: "node1", dst: "node2" }];
 
 describe("Node Drag and Drop", () => {
     let graph: Graph;
     let container: HTMLDivElement;
 
     describe("3D Mode Edge Cases", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             container = document.createElement("div");
             container.style.width = "800px";
             container.style.height = "600px";
@@ -70,7 +73,7 @@ describe("Node Drag and Drop", () => {
             document.body.removeChild(container);
         });
 
-        test("node position can be updated", async() => {
+        test("node position can be updated", async () => {
             const node1 = graph.getNode("node1");
             assert.isDefined(node1, "Node 1 should exist");
             assert.isNotNull(node1);
@@ -82,13 +85,13 @@ describe("Node Drag and Drop", () => {
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             assert.notDeepEqual(
-                {x: node1.mesh.position.x, y: node1.mesh.position.y, z: node1.mesh.position.z},
-                {x: initialNodePos.x, y: initialNodePos.y, z: initialNodePos.z},
+                { x: node1.mesh.position.x, y: node1.mesh.position.y, z: node1.mesh.position.z },
+                { x: initialNodePos.x, y: initialNodePos.y, z: initialNodePos.z },
                 "Node should have moved",
             );
         });
 
-        test("edge count is maintained after node operations", async() => {
+        test("edge count is maintained after node operations", async () => {
             assert.equal(graph.getEdgeCount(), 1, "Should have 1 edge");
 
             const node1 = graph.getNode("node1");
@@ -119,7 +122,7 @@ describe("Node Drag and Drop", () => {
         });
 
         test("pointer events can be sent to scene", () => {
-            const {scene} = graph;
+            const { scene } = graph;
             const node1 = graph.getNode("node1");
             if (!node1) {
                 return;
@@ -128,19 +131,19 @@ describe("Node Drag and Drop", () => {
             // Just verify we can send events without throwing
             scene.onPointerObservable.notifyObservers({
                 type: PointerEventTypes.POINTERDOWN,
-                event: {clientX: 400, clientY: 300, buttons: 1, button: 0} as PointerEvent,
-                pickInfo: {hit: true, pickedMesh: node1.mesh},
+                event: { clientX: 400, clientY: 300, buttons: 1, button: 0 } as PointerEvent,
+                pickInfo: { hit: true, pickedMesh: node1.mesh },
             } as unknown as PointerInfo);
 
             scene.onPointerObservable.notifyObservers({
                 type: PointerEventTypes.POINTERUP,
-                event: {clientX: 400, clientY: 300, buttons: 0, button: 0} as PointerEvent,
+                event: { clientX: 400, clientY: 300, buttons: 0, button: 0 } as PointerEvent,
             } as unknown as PointerInfo);
 
             assert.isDefined(graph.scene, "Scene should still exist after events");
         });
 
-        test("node beyond scene bounds handled gracefully", async() => {
+        test("node beyond scene bounds handled gracefully", async () => {
             const node1 = graph.getNode("node1");
             assert.isDefined(node1, "Node 1 should exist");
             assert.isNotNull(node1);
@@ -156,7 +159,7 @@ describe("Node Drag and Drop", () => {
     });
 
     describe("2D Mode Edge Cases", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             container = document.createElement("div");
             container.style.width = "800px";
             container.style.height = "600px";
@@ -189,7 +192,7 @@ describe("Node Drag and Drop", () => {
         });
 
         test("pointer events work in 2D mode", () => {
-            const {scene} = graph;
+            const { scene } = graph;
             const node1 = graph.getNode("node1");
             if (!node1) {
                 return;
@@ -198,13 +201,13 @@ describe("Node Drag and Drop", () => {
             // Just verify we can send events without throwing
             scene.onPointerObservable.notifyObservers({
                 type: PointerEventTypes.POINTERDOWN,
-                event: {clientX: 400, clientY: 300, buttons: 1, button: 0} as PointerEvent,
-                pickInfo: {hit: true, pickedMesh: node1.mesh},
+                event: { clientX: 400, clientY: 300, buttons: 1, button: 0 } as PointerEvent,
+                pickInfo: { hit: true, pickedMesh: node1.mesh },
             } as unknown as PointerInfo);
 
             scene.onPointerObservable.notifyObservers({
                 type: PointerEventTypes.POINTERUP,
-                event: {clientX: 400, clientY: 300, buttons: 0, button: 0} as PointerEvent,
+                event: { clientX: 400, clientY: 300, buttons: 0, button: 0 } as PointerEvent,
             } as unknown as PointerInfo);
 
             assert.isDefined(graph.scene, "Scene should still exist after events");

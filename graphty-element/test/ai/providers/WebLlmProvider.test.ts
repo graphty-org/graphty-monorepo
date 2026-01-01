@@ -1,17 +1,27 @@
-import {assert, beforeEach, describe, expect, it} from "vitest";
+import { assert, beforeEach, describe, expect, it } from "vitest";
 
-import type {StreamCallbacks} from "../../../src/ai/providers/types";
-import {WebLlmProvider} from "../../../src/ai/providers/WebLlmProvider";
+import type { StreamCallbacks } from "../../../src/ai/providers/types";
+import { WebLlmProvider } from "../../../src/ai/providers/WebLlmProvider";
 
 /** Create a StreamCallbacks object with no-op defaults and optional overrides */
 function createCallbacks(overrides?: Partial<StreamCallbacks>): StreamCallbacks {
     return {
-        onChunk: () => { /* no-op */ },
-        onToolCall: () => { /* no-op */ },
-        onToolResult: () => { /* no-op */ },
-        onComplete: () => { /* no-op */ },
-        onError: () => { /* no-op */ },
-        ... overrides,
+        onChunk: () => {
+            /* no-op */
+        },
+        onToolCall: () => {
+            /* no-op */
+        },
+        onToolResult: () => {
+            /* no-op */
+        },
+        onComplete: () => {
+            /* no-op */
+        },
+        onError: () => {
+            /* no-op */
+        },
+        ...overrides,
     };
 }
 
@@ -45,19 +55,19 @@ describe("WebLlmProvider", () => {
 
     describe("configure", () => {
         it("accepts model configuration", () => {
-            provider.configure({model: "Llama-3.2-1B-Instruct-q4f32_1-MLC"});
+            provider.configure({ model: "Llama-3.2-1B-Instruct-q4f32_1-MLC" });
             // Should not throw
             assert.ok(true);
         });
 
         it("accepts temperature configuration", () => {
-            provider.configure({temperature: 0.7});
+            provider.configure({ temperature: 0.7 });
             // Should not throw
             assert.ok(true);
         });
 
         it("accepts maxTokens configuration", () => {
-            provider.configure({maxTokens: 1024});
+            provider.configure({ maxTokens: 1024 });
             // Should not throw
             assert.ok(true);
         });
@@ -65,8 +75,8 @@ describe("WebLlmProvider", () => {
 
     describe("progress reporting", () => {
         it("reports initialization progress via callback", () => {
-            const progress: {progress: number, text: string}[] = [];
-            provider.onProgress((p, text) => progress.push({progress: p, text}));
+            const progress: { progress: number; text: string }[] = [];
+            provider.onProgress((p, text) => progress.push({ progress: p, text }));
 
             // Simulate progress
             provider.simulateProgress(0.5, "Loading model...");
@@ -107,7 +117,7 @@ describe("WebLlmProvider", () => {
     });
 
     describe("WebGPU detection", () => {
-        it("provides WebGPU availability check", async() => {
+        it("provides WebGPU availability check", async () => {
             // In test environment, WebGPU is typically not available
             const available = await WebLlmProvider.isWebGPUAvailable();
             // This can be true or false depending on the test environment
@@ -143,25 +153,25 @@ describe("WebLlmProvider", () => {
     });
 
     describe("generate (not initialized)", () => {
-        it("throws error when not initialized", async() => {
-            await expect(
-                provider.generate([{role: "user", content: "test"}], []),
-            ).rejects.toThrow(/not initialized/i);
+        it("throws error when not initialized", async () => {
+            await expect(provider.generate([{ role: "user", content: "test" }], [])).rejects.toThrow(
+                /not initialized/i,
+            );
         });
     });
 
     describe("generateStream (not initialized)", () => {
-        it("throws error when not initialized", async() => {
+        it("throws error when not initialized", async () => {
             const callbacks = createCallbacks();
 
-            await expect(
-                provider.generateStream([{role: "user", content: "test"}], [], callbacks),
-            ).rejects.toThrow(/not initialized/i);
+            await expect(provider.generateStream([{ role: "user", content: "test" }], [], callbacks)).rejects.toThrow(
+                /not initialized/i,
+            );
         });
     });
 
     describe("validateApiKey", () => {
-        it("returns true for WebLLM (no API key needed)", async() => {
+        it("returns true for WebLLM (no API key needed)", async () => {
             const result = await provider.validateApiKey();
             assert.strictEqual(result, true);
         });
@@ -179,20 +189,17 @@ describe("WebLlmProvider", () => {
     });
 
     describe("mock mode for testing", () => {
-        it("can operate in mock mode without WebGPU", async() => {
+        it("can operate in mock mode without WebGPU", async () => {
             provider.enableMockMode();
 
             // Should be able to generate in mock mode
-            const response = await provider.generate(
-                [{role: "user", content: "Hello"}],
-                [],
-            );
+            const response = await provider.generate([{ role: "user", content: "Hello" }], []);
 
             assert.ok(response.text.length > 0);
             assert.ok(Array.isArray(response.toolCalls));
         });
 
-        it("mock mode supports streaming", async() => {
+        it("mock mode supports streaming", async () => {
             provider.enableMockMode();
 
             const chunks: string[] = [];
@@ -204,11 +211,7 @@ describe("WebLlmProvider", () => {
                 },
             });
 
-            await provider.generateStream(
-                [{role: "user", content: "Hello"}],
-                [],
-                callbacks,
-            );
+            await provider.generateStream([{ role: "user", content: "Hello" }], [], callbacks);
 
             assert.ok(chunks.length > 0);
             assert.strictEqual(completed, true);
@@ -222,24 +225,20 @@ describe("WebLlmProvider", () => {
             assert.strictEqual(provider.isMockMode, false);
         });
 
-        it("mock mode respects abort signal", async() => {
+        it("mock mode respects abort signal", async () => {
             provider.enableMockMode();
 
             const controller = new AbortController();
             controller.abort();
 
             await expect(
-                provider.generate(
-                    [{role: "user", content: "test"}],
-                    [],
-                    {signal: controller.signal},
-                ),
+                provider.generate([{ role: "user", content: "test" }], [], { signal: controller.signal }),
             ).rejects.toThrow(/aborted/i);
         });
     });
 
     describe("error handling", () => {
-        it("provides meaningful error for missing WebGPU", async() => {
+        it("provides meaningful error for missing WebGPU", async () => {
             // In mock mode disabled (default), trying to initialize without WebGPU
             // should provide a helpful error message
             try {
@@ -251,9 +250,9 @@ describe("WebLlmProvider", () => {
                 const message = error.message.toLowerCase();
                 assert.ok(
                     message.includes("webgpu") ||
-                    message.includes("browser") ||
-                    message.includes("not supported") ||
-                    message.includes("not initialized"),
+                        message.includes("browser") ||
+                        message.includes("not supported") ||
+                        message.includes("not initialized"),
                     `Expected helpful error message, got: ${error.message}`,
                 );
             }
@@ -261,7 +260,7 @@ describe("WebLlmProvider", () => {
     });
 
     describe("resource cleanup", () => {
-        it("provides dispose method for cleanup", async() => {
+        it("provides dispose method for cleanup", async () => {
             provider.enableMockMode();
 
             // Dispose should not throw

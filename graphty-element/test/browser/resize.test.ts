@@ -1,8 +1,8 @@
 import "../../src/graphty-element";
 
-import {expect, test} from "vitest";
+import { expect, test } from "vitest";
 
-test("canvas resizes when container element dimensions change", async() => {
+test("canvas resizes when container element dimensions change", async () => {
     // Create a container with initial dimensions
     const container = document.createElement("div");
     container.style.width = "800px";
@@ -13,9 +13,9 @@ test("canvas resizes when container element dimensions change", async() => {
     // Create graphty-element
     const graphtyElement = document.createElement("graphty-element") as HTMLElement & {
         graph: {
-            engine: {resize: () => void};
-            addNodes: (nodes: {id: string}[]) => Promise<void>;
-            addEdges: (edges: {src: string, dst: string}[]) => Promise<void>;
+            engine: { resize: () => void };
+            addNodes: (nodes: { id: string }[]) => Promise<void>;
+            addEdges: (edges: { src: string; dst: string }[]) => Promise<void>;
         };
     };
     graphtyElement.style.width = "100%";
@@ -27,14 +27,10 @@ test("canvas resizes when container element dimensions change", async() => {
     await new Promise((resolve) => setTimeout(resolve, 200));
 
     // Add some test data
-    await graphtyElement.graph.addNodes([
-        {id: "1"},
-        {id: "2"},
-        {id: "3"},
-    ]);
+    await graphtyElement.graph.addNodes([{ id: "1" }, { id: "2" }, { id: "3" }]);
     await graphtyElement.graph.addEdges([
-        {src: "1", dst: "2"},
-        {src: "2", dst: "3"},
+        { src: "1", dst: "2" },
+        { src: "2", dst: "3" },
     ]);
 
     // Wait for initial render
@@ -79,7 +75,7 @@ test("canvas resizes when container element dimensions change", async() => {
     document.body.removeChild(container);
 });
 
-test("canvas resizes in flexbox layout", async() => {
+test("canvas resizes in flexbox layout", async () => {
     // Create a flexbox container
     const container = document.createElement("div");
     container.style.display = "flex";
@@ -97,8 +93,8 @@ test("canvas resizes in flexbox layout", async() => {
     // Add graphty-element that should flex to fill remaining space
     const graphtyElement = document.createElement("graphty-element") as HTMLElement & {
         graph: {
-            addNodes: (nodes: {id: string}[]) => Promise<void>;
-            addEdges: (edges: {src: string, dst: string}[]) => Promise<void>;
+            addNodes: (nodes: { id: string }[]) => Promise<void>;
+            addEdges: (edges: { src: string; dst: string }[]) => Promise<void>;
         };
     };
     graphtyElement.style.flex = "1";
@@ -109,20 +105,14 @@ test("canvas resizes in flexbox layout", async() => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Add some test data
-    await graphtyElement.graph.addNodes([
-        {id: "1"},
-        {id: "2"},
-    ]);
-    await graphtyElement.graph.addEdges([
-        {src: "1", dst: "2"},
-    ]);
+    await graphtyElement.graph.addNodes([{ id: "1" }, { id: "2" }]);
+    await graphtyElement.graph.addEdges([{ src: "1", dst: "2" }]);
 
     // Wait for render
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Get the canvas element
-    const canvas = graphtyElement.shadowRoot?.querySelector("canvas") ??
-        graphtyElement.querySelector("canvas");
+    const canvas = graphtyElement.shadowRoot?.querySelector("canvas") ?? graphtyElement.querySelector("canvas");
     expect(canvas).toBeTruthy();
 
     if (!canvas) {

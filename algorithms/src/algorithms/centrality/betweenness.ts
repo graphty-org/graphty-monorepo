@@ -1,6 +1,6 @@
-import type {Graph} from "../../core/graph.js";
-import type {NodeId} from "../../types/index.js";
-import {bfsWithPathCounting} from "../traversal/bfs-variants.js";
+import type { Graph } from "../../core/graph.js";
+import type { NodeId } from "../../types/index.js";
+import { bfsWithPathCounting } from "../traversal/bfs-variants.js";
 
 /**
  * Betweenness centrality implementation using Brandes' algorithm
@@ -39,9 +39,13 @@ interface BrandesResult {
 
 /**
  * Run single-source shortest path computation using BFS
+ * @param graph - The input graph to analyze
+ * @param source - The source node for shortest path computation
+ * @param optimized - Whether to use optimized BFS implementation
+ * @returns The BFS result containing stack, predecessors, sigma, and distances
  */
 function brandesSingleSource(graph: Graph, source: NodeId, optimized?: boolean): BrandesResult {
-    const result = bfsWithPathCounting(graph, source, optimized !== undefined ? {optimized} : {});
+    const result = bfsWithPathCounting(graph, source, optimized !== undefined ? { optimized } : {});
 
     return {
         stack: result.stack,
@@ -53,6 +57,10 @@ function brandesSingleSource(graph: Graph, source: NodeId, optimized?: boolean):
 
 /**
  * Accumulate betweenness contributions from a single source
+ * @param result - The BFS result from brandesSingleSource
+ * @param source - The source node used in BFS
+ * @param centrality - The centrality map to update
+ * @param options - Algorithm configuration options
  */
 function accumulateBetweenness(
     result: BrandesResult,
@@ -60,7 +68,7 @@ function accumulateBetweenness(
     centrality: Record<string, number>,
     options: BetweennessCentralityOptions,
 ): void {
-    const {stack, predecessors, sigma} = result;
+    const { stack, predecessors, sigma } = result;
     const delta = new Map<NodeId, number>();
 
     // Initialize delta
@@ -109,6 +117,10 @@ function accumulateBetweenness(
 
 /**
  * Accumulate edge betweenness contributions from a single source
+ * @param result - The BFS result from brandesSingleSource
+ * @param source - The source node used in BFS
+ * @param edgeCentrality - The edge centrality map to update
+ * @param options - Algorithm configuration options
  */
 function accumulateEdgeBetweenness(
     result: BrandesResult,
@@ -116,7 +128,7 @@ function accumulateEdgeBetweenness(
     edgeCentrality: Map<string, number>,
     options: BetweennessCentralityOptions,
 ): void {
-    const {stack, predecessors, sigma} = result;
+    const { stack, predecessors, sigma } = result;
     const delta = new Map<NodeId, number>();
 
     // Initialize delta
@@ -165,16 +177,13 @@ function accumulateEdgeBetweenness(
 
 /**
  * Apply normalization to centrality values
+ * @param centrality - The centrality map to normalize in place
+ * @param nodeCount - Total number of nodes in the graph
+ * @param isDirected - Whether the graph is directed
  */
-function normalizeCentrality(
-    centrality: Record<string, number>,
-    nodeCount: number,
-    isDirected: boolean,
-): void {
+function normalizeCentrality(centrality: Record<string, number>, nodeCount: number, isDirected: boolean): void {
     const n = nodeCount;
-    const normalizationFactor = isDirected ?
-        (n - 1) * (n - 2) :
-        ((n - 1) * (n - 2)) / 2;
+    const normalizationFactor = isDirected ? (n - 1) * (n - 2) : ((n - 1) * (n - 2)) / 2;
 
     if (normalizationFactor > 0) {
         for (const key in centrality) {
@@ -188,6 +197,9 @@ function normalizeCentrality(
 
 /**
  * Calculate betweenness centrality for all nodes using Brandes' algorithm
+ * @param graph - The input graph to analyze
+ * @param options - Algorithm configuration options
+ * @returns Centrality scores for each node keyed by node ID
  */
 export function betweennessCentrality(
     graph: Graph,
@@ -228,6 +240,10 @@ export function betweennessCentrality(
 
 /**
  * Calculate betweenness centrality for a specific node
+ * @param graph - The input graph to analyze
+ * @param targetNode - The node to calculate centrality for
+ * @param options - Algorithm configuration options
+ * @returns The betweenness centrality score for the target node
  */
 export function nodeBetweennessCentrality(
     graph: Graph,
@@ -244,6 +260,9 @@ export function nodeBetweennessCentrality(
 
 /**
  * Calculate edge betweenness centrality
+ * @param graph - The input graph to analyze
+ * @param options - Algorithm configuration options
+ * @returns Edge centrality scores keyed by edge string representation
  */
 export function edgeBetweennessCentrality(
     graph: Graph,
@@ -274,9 +293,7 @@ export function edgeBetweennessCentrality(
     // Normalization for edges
     if (options.normalized) {
         const n = nodes.length;
-        const normalizationFactor = graph.isDirected ?
-            (n - 1) * (n - 2) :
-            ((n - 1) * (n - 2)) / 2;
+        const normalizationFactor = graph.isDirected ? (n - 1) * (n - 2) : ((n - 1) * (n - 2)) / 2;
 
         if (normalizationFactor > 0) {
             for (const [edgeKey, centrality] of Array.from(edgeCentrality)) {

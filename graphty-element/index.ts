@@ -9,13 +9,13 @@ import "./src/graphty-element";
 // =============================================================================
 // Core classes
 // =============================================================================
-export {Edge} from "./src/Edge";
-export {Graph} from "./src/Graph";
-export {Graphty} from "./src/graphty-element";
-export type {NodeIdType} from "./src/Node";
-export {Node} from "./src/Node";
-export type {EdgeStyleId, NodeStyleId, StylesOpts} from "./src/Styles";
-export {Styles} from "./src/Styles";
+export { Edge } from "./src/Edge";
+export { Graph } from "./src/Graph";
+export { Graphty } from "./src/graphty-element";
+export type { NodeIdType } from "./src/Node";
+export { Node } from "./src/Node";
+export type { EdgeStyleId, NodeStyleId, StylesOpts } from "./src/Styles";
+export { Styles } from "./src/Styles";
 
 // =============================================================================
 // Config - Styles, Templates, and Types
@@ -45,7 +45,7 @@ export type {
 } from "./src/config/index";
 
 // XR partial config type (for setting XR options)
-export type {PartialXRConfig} from "./src/config/xr-config-schema";
+export type { PartialXRConfig } from "./src/config/xr-config-schema";
 
 // Style configuration values and helpers
 export {
@@ -80,31 +80,23 @@ export * from "./src/config/palettes/index";
 // =============================================================================
 // Layout Engine
 // =============================================================================
-export type {
-    EdgePosition,
-    Position,
-    SimpleLayoutConfigType,
-    SimpleLayoutOpts,
-} from "./src/layout/LayoutEngine";
-export {LayoutEngine, SimpleLayoutConfig, SimpleLayoutEngine} from "./src/layout/LayoutEngine";
+export type { EdgePosition, Position, SimpleLayoutConfigType, SimpleLayoutOpts } from "./src/layout/LayoutEngine";
+export { LayoutEngine, SimpleLayoutConfig, SimpleLayoutEngine } from "./src/layout/LayoutEngine";
 
 // =============================================================================
 // Data Sources
 // =============================================================================
-export type {
-    BaseDataSourceConfig,
-    DataSourceChunk,
-} from "./src/data/DataSource";
-export {DataSource} from "./src/data/DataSource";
+export type { BaseDataSourceConfig, DataSourceChunk } from "./src/data/DataSource";
+export { DataSource } from "./src/data/DataSource";
 
 // Error aggregation for data loading
-export type {DataLoadingError, ErrorSummary} from "./src/data/index";
-export {ErrorAggregator} from "./src/data/index";
+export type { DataLoadingError, ErrorSummary } from "./src/data/index";
+export { ErrorAggregator } from "./src/data/index";
 
 // =============================================================================
 // Algorithms
 // =============================================================================
-export {Algorithm} from "./src/algorithms/Algorithm";
+export { Algorithm } from "./src/algorithms/Algorithm";
 
 // =============================================================================
 // Events
@@ -143,12 +135,7 @@ export type {
 // =============================================================================
 // Managers
 // =============================================================================
-export type {
-    Manager,
-    ManagerConfig,
-    ManagerContext,
-    QueueableManager,
-} from "./src/managers/index";
+export type { Manager, ManagerConfig, ManagerContext, QueueableManager } from "./src/managers/index";
 
 // Export specific managers that may be useful for advanced integration
 export {
@@ -166,22 +153,22 @@ export {
 } from "./src/managers/index";
 
 // GraphContext for custom node/edge implementations
-export type {GraphContext, GraphContextConfig} from "./src/managers/index";
+export type { GraphContext, GraphContextConfig } from "./src/managers/index";
 
 // =============================================================================
 // Operation Queue Types
 // =============================================================================
-export type {QueueableOptions, RunAlgorithmOptions} from "./src/utils/queue-migration";
+export type { QueueableOptions, RunAlgorithmOptions } from "./src/utils/queue-migration";
 
 // =============================================================================
 // Constants
 // =============================================================================
-export {EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS} from "./src/constants/meshConstants";
+export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants/meshConstants";
 
 // =============================================================================
 // Screenshot exports
 // =============================================================================
-export {ScreenshotError, ScreenshotErrorCode} from "./src/screenshot/ScreenshotError";
+export { ScreenshotError, ScreenshotErrorCode } from "./src/screenshot/ScreenshotError";
 export type {
     CameraAnimationOptions,
     CameraState,
@@ -192,23 +179,19 @@ export type {
 } from "./src/screenshot/types";
 
 // Capability check for screenshot support
-export type {CapabilityCheck} from "./src/screenshot/capability-check";
+export type { CapabilityCheck } from "./src/screenshot/capability-check";
 
 // =============================================================================
 // Video capture exports
 // =============================================================================
-export {AnimationCancelledError} from "./src/video/MediaRecorderCapture";
-export type {
-    AnimationOptions,
-    AnimationResult,
-    CameraWaypoint,
-} from "./src/video/VideoCapture";
+export { AnimationCancelledError } from "./src/video/MediaRecorderCapture";
+export type { AnimationOptions, AnimationResult, CameraWaypoint } from "./src/video/VideoCapture";
 
 // Video capture estimation
-export type {CaptureEstimate} from "./src/video/estimation";
+export type { CaptureEstimate } from "./src/video/estimation";
 
 // Camera presets
-export {BUILTIN_PRESETS} from "./src/camera/presets";
+export { BUILTIN_PRESETS } from "./src/camera/presets";
 
 // =============================================================================
 // Logging
@@ -258,23 +241,18 @@ export type {
     ToolCallStatus,
     ToolCallStatusType,
 } from "./src/ai/index";
-export {AiStatusManager} from "./src/ai/index";
+export { AiStatusManager } from "./src/ai/index";
 
 // AI Controller
-export type {AiControllerOptions, AiEventEmitter, ExecutionResult} from "./src/ai/index";
-export {AiController} from "./src/ai/index";
+export type { AiControllerOptions, AiEventEmitter, ExecutionResult } from "./src/ai/index";
+export { AiController } from "./src/ai/index";
 
 // AI Manager
-export type {AiManagerConfig, KeyPersistenceConfig} from "./src/ai/index";
-export {AiManager, createAiManager} from "./src/ai/index";
+export type { AiManagerConfig, KeyPersistenceConfig } from "./src/ai/index";
+export { AiManager, createAiManager } from "./src/ai/index";
 
 // AI Commands
-export type {
-    CommandContext,
-    CommandExample,
-    CommandResult,
-    GraphCommand,
-} from "./src/ai/index";
+export type { CommandContext, CommandExample, CommandResult, GraphCommand } from "./src/ai/index";
 export {
     captureScreenshot,
     captureVideo,
@@ -320,17 +298,17 @@ export {
 } from "./src/ai/index";
 
 // AI Key Management
-export type {PersistenceConfig} from "./src/ai/index";
-export {ApiKeyManager} from "./src/ai/index";
+export type { PersistenceConfig } from "./src/ai/index";
+export { ApiKeyManager } from "./src/ai/index";
 
 // AI Prompt Builder
-export type {SystemPromptOptions} from "./src/ai/index";
-export {createSystemPromptBuilder, SystemPromptBuilder} from "./src/ai/index";
+export type { SystemPromptOptions } from "./src/ai/index";
+export { createSystemPromptBuilder, SystemPromptBuilder } from "./src/ai/index";
 
 // AI Input Adapters
-export type {InputAdapter, InputCallback, InputOptions} from "./src/ai/index";
-export {TextInputAdapter, VoiceInputAdapter} from "./src/ai/index";
-export type {VoiceStartCallback} from "./src/ai/input/VoiceInputAdapter";
+export type { InputAdapter, InputCallback, InputOptions } from "./src/ai/index";
+export { TextInputAdapter, VoiceInputAdapter } from "./src/ai/index";
+export type { VoiceStartCallback } from "./src/ai/input/VoiceInputAdapter";
 
 // AI Schema Discovery
 export type {
@@ -341,7 +319,7 @@ export type {
     SchemaExtractorOptions,
     SchemaSummary,
 } from "./src/ai/index";
-export {formatSchemaForPrompt, SchemaExtractor, SchemaManager} from "./src/ai/index";
+export { formatSchemaForPrompt, SchemaExtractor, SchemaManager } from "./src/ai/index";
 
 // =============================================================================
 // Colorblind Simulation Utilities

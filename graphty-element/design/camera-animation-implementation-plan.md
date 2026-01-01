@@ -26,9 +26,9 @@ This document outlines the implementation plan for adding animated camera transi
 ```typescript
 // Structure
 class OrbitCameraController {
-    pivot: TransformNode;           // Pivot node that rotates
-    camera: UniversalCamera;        // Camera parented to pivot
-    cameraDistance: number;         // Distance from pivot
+    pivot: TransformNode; // Pivot node that rotates
+    camera: UniversalCamera; // Camera parented to pivot
+    cameraDistance: number; // Distance from pivot
 
     updateCameraPosition() {
         // Camera local position is ALWAYS (0, 0, -cameraDistance)
@@ -40,6 +40,7 @@ class OrbitCameraController {
 ```
 
 **Key Properties**:
+
 - `pivot.position` - Target point (what camera looks at)
 - `pivot.rotation` - Camera view direction
 - `cameraDistance` - How far camera is from target
@@ -49,13 +50,14 @@ class OrbitCameraController {
 
 ```typescript
 class TwoDCameraController {
-    camera: UniversalCamera;        // Orthographic mode
-    zoom: number;                   // Zoom level
-    pan: Vector2;                   // Pan offset
+    camera: UniversalCamera; // Orthographic mode
+    zoom: number; // Zoom level
+    pan: Vector2; // Pan offset
 }
 ```
 
 **Key Properties**:
+
 - `zoom` - Orthographic zoom
 - `pan.x`, `pan.y` - Camera pan offset
 - `camera.orthoLeft/Right/Top/Bottom` - **Derived** from zoom
@@ -66,10 +68,10 @@ Original plan (from screen-capture-implementation-plan.md):
 
 ```typescript
 // ❌ This assumes camera.position is directly settable
-const posAnim = new Animation('position', 'position', 60, ANIMATIONTYPE_VECTOR3);
+const posAnim = new Animation("position", "position", 60, ANIMATIONTYPE_VECTOR3);
 posAnim.setKeys([
     { frame: 0, value: camera.position.clone() },
-    { frame: 60, value: targetPosition }
+    { frame: 60, value: targetPosition },
 ]);
 camera.animations = [posAnim];
 scene.beginAnimation(camera, 0, 60);
@@ -617,10 +619,10 @@ async setCameraState(
 #### File: `test/browser/camera/camera-animation-3d.test.ts`
 
 ```typescript
-import {afterEach, assert, test} from "vitest";
+import { afterEach, assert, test } from "vitest";
 
-import {Graph} from "../../../src/Graph.js";
-import {cleanupTestGraph, createTestGraph} from "../../helpers/testSetup.js";
+import { Graph } from "../../../src/Graph.js";
+import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup.js";
 
 let graph: Graph;
 
@@ -630,17 +632,14 @@ afterEach(() => {
     }
 });
 
-test("animates camera position smoothly", async() => {
+test("animates camera position smoothly", async () => {
     graph = await createTestGraph();
 
     const startState = graph.getCameraState();
-    const targetPos = {x: 50, y: 50, z: 50};
+    const targetPos = { x: 50, y: 50, z: 50 };
 
     const startTime = Date.now();
-    await graph.setCameraState(
-        {position: targetPos, target: {x: 0, y: 0, z: 0}},
-        {animate: true, duration: 500},
-    );
+    await graph.setCameraState({ position: targetPos, target: { x: 0, y: 0, z: 0 } }, { animate: true, duration: 500 });
     const elapsed = Date.now() - startTime;
 
     // Animation should take approximately the requested duration
@@ -655,21 +654,21 @@ test("animates camera position smoothly", async() => {
     assert.ok(Math.abs(endState.position.z - targetPos.z) < 5);
 });
 
-test("applies easing correctly", async() => {
+test("applies easing correctly", async () => {
     graph = await createTestGraph();
 
     // Track position changes during animation
-    const positions: {x: number; y: number; z: number}[] = [];
+    const positions: { x: number; y: number; z: number }[] = [];
 
     const listenerId = graph.eventManager.addListener("camera-state-changed", (e) => {
         if (e.state.position) {
-            positions.push({...e.state.position});
+            positions.push({ ...e.state.position });
         }
     });
 
     await graph.setCameraState(
-        {position: {x: 100, y: 0, z: 0}, target: {x: 0, y: 0, z: 0}},
-        {animate: true, duration: 300, easing: 'easeInOut'},
+        { position: { x: 100, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
+        { animate: true, duration: 300, easing: "easeInOut" },
     );
 
     graph.eventManager.removeListener(listenerId);
@@ -679,22 +678,22 @@ test("applies easing correctly", async() => {
     assert.ok(positions.length > 0);
 });
 
-test("camera animation can be interrupted", async() => {
+test("camera animation can be interrupted", async () => {
     graph = await createTestGraph();
 
     // Start first animation
     const firstAnimation = graph.setCameraState(
-        {position: {x: 100, y: 100, z: 100}, target: {x: 0, y: 0, z: 0}},
-        {animate: true, duration: 1000},
+        { position: { x: 100, y: 100, z: 100 }, target: { x: 0, y: 0, z: 0 } },
+        { animate: true, duration: 1000 },
     );
 
     // Wait a bit
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await new Promise((resolve) => setTimeout(resolve, 200));
 
     // Start second animation (should obsolete first)
     const secondAnimation = graph.setCameraState(
-        {position: {x: 50, y: 50, z: 50}, target: {x: 0, y: 0, z: 0}},
-        {animate: true, duration: 500},
+        { position: { x: 50, y: 50, z: 50 }, target: { x: 0, y: 0, z: 0 } },
+        { animate: true, duration: 500 },
     );
 
     await secondAnimation;
@@ -708,7 +707,7 @@ test("camera animation can be interrupted", async() => {
     assert.ok(Math.abs(finalState.position.z - 50) < 5);
 });
 
-test("emits camera-state-changed event after animation", async() => {
+test("emits camera-state-changed event after animation", async () => {
     graph = await createTestGraph();
 
     let eventFired = false;
@@ -717,8 +716,8 @@ test("emits camera-state-changed event after animation", async() => {
     });
 
     await graph.setCameraState(
-        {position: {x: 20, y: 20, z: 20}, target: {x: 0, y: 0, z: 0}},
-        {animate: true, duration: 200},
+        { position: { x: 20, y: 20, z: 20 }, target: { x: 0, y: 0, z: 0 } },
+        { animate: true, duration: 200 },
     );
 
     assert.ok(eventFired, "camera-state-changed event should fire after animation");
@@ -730,10 +729,10 @@ test("emits camera-state-changed event after animation", async() => {
 #### File: `test/browser/camera/camera-animation-2d.test.ts`
 
 ```typescript
-import {afterEach, assert, test} from "vitest";
+import { afterEach, assert, test } from "vitest";
 
-import {Graph} from "../../../src/Graph.js";
-import {cleanupTestGraph, createTestGraph} from "../../helpers/testSetup.js";
+import { Graph } from "../../../src/Graph.js";
+import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup.js";
 
 let graph: Graph;
 
@@ -743,20 +742,20 @@ afterEach(() => {
     }
 });
 
-test("animates 2D zoom smoothly", async() => {
+test("animates 2D zoom smoothly", async () => {
     graph = await createTestGraph();
 
     // Switch to 2D mode
     await graph.setStyleTemplate({
         graphtyTemplate: true,
         majorVersion: "1",
-        graph: {twoD: true},
+        graph: { twoD: true },
     });
 
     const targetZoom = 2.0;
 
     const startTime = Date.now();
-    await graph.setCameraZoom(targetZoom, {animate: true, duration: 500});
+    await graph.setCameraZoom(targetZoom, { animate: true, duration: 500 });
     const elapsed = Date.now() - startTime;
 
     assert.ok(elapsed >= 450 && elapsed <= 600);
@@ -766,19 +765,19 @@ test("animates 2D zoom smoothly", async() => {
     assert.ok(Math.abs(state.zoom - targetZoom) < 0.1);
 });
 
-test("animates 2D pan smoothly", async() => {
+test("animates 2D pan smoothly", async () => {
     graph = await createTestGraph();
 
     // Switch to 2D mode
     await graph.setStyleTemplate({
         graphtyTemplate: true,
         majorVersion: "1",
-        graph: {twoD: true},
+        graph: { twoD: true },
     });
 
-    const targetPan = {x: 50, y: 50};
+    const targetPan = { x: 50, y: 50 };
 
-    await graph.setCameraPan(targetPan, {animate: true, duration: 500});
+    await graph.setCameraPan(targetPan, { animate: true, duration: 500 });
 
     const state = graph.getCameraState();
     assert.ok(state.pan);
@@ -792,7 +791,7 @@ test("animates 2D pan smoothly", async() => {
 Test animation with other graph operations:
 
 ```typescript
-test("camera animation works during layout", async() => {
+test("camera animation works during layout", async () => {
     graph = await createTestGraph();
 
     // Load data
@@ -803,10 +802,7 @@ test("camera animation works during layout", async() => {
     graph.startLayout();
 
     // Animate camera during layout
-    await graph.setCameraPosition(
-        {x: 100, y: 100, z: 100},
-        {animate: true, duration: 500},
-    );
+    await graph.setCameraPosition({ x: 100, y: 100, z: 100 }, { animate: true, duration: 500 });
 
     // Both should complete successfully
     const state = graph.getCameraState();
@@ -840,6 +836,7 @@ Using the Storybook stories:
 **Scenario**: User clicks multiple camera buttons rapidly
 
 **Solution**: Use OperationQueueManager with obsolescence
+
 - New camera operations obsolete previous ones
 - Stop running animations before starting new ones
 - Ensure cleanup of BabylonJS animation observers
@@ -849,6 +846,7 @@ Using the Storybook stories:
 **Scenario**: Graph is destroyed while animation is running
 
 **Solution**:
+
 - Stop all animations in `Graph.dispose()`
 - Remove all scene observers
 - Cancel pending operation queue items
@@ -890,6 +888,7 @@ private validateAnimationOptions(
 **Scenario**: Long animations (>5s) may cause performance issues
 
 **Solution**:
+
 - Limit max duration to reasonable value (5000ms)
 - Use requestAnimationFrame efficiently
 - Monitor frame rate during animation
@@ -975,61 +974,66 @@ this.scene.onBeforeRenderObservable.remove(observer);
 
 ### Functional
 
-- ✅ 3D camera position animations work smoothly *(verified 2025-01-24)*
-- ✅ 3D camera target animations work smoothly *(verified 2025-01-24)*
-- ✅ 2D zoom animations work smoothly *(verified 2025-01-24)*
-- ✅ 2D pan animations work smoothly *(verified 2025-01-24)*
-- ✅ All easing modes produce correct visual effects *(verified 2025-01-24)*
-- ✅ Animations can be interrupted cleanly *(verified 2025-01-24)*
-- ✅ Events fire correctly before/during/after animations *(verified 2025-01-24)*
-- ✅ Works with operation queue *(verified 2025-01-24)*
+- ✅ 3D camera position animations work smoothly _(verified 2025-01-24)_
+- ✅ 3D camera target animations work smoothly _(verified 2025-01-24)_
+- ✅ 2D zoom animations work smoothly _(verified 2025-01-24)_
+- ✅ 2D pan animations work smoothly _(verified 2025-01-24)_
+- ✅ All easing modes produce correct visual effects _(verified 2025-01-24)_
+- ✅ Animations can be interrupted cleanly _(verified 2025-01-24)_
+- ✅ Events fire correctly before/during/after animations _(verified 2025-01-24)_
+- ✅ Works with operation queue _(verified 2025-01-24)_
 
 ### Technical
 
-- ✅ All tests pass (unit, integration, E2E) *(45 camera tests + 48 video tests pass)*
-- ✅ No memory leaks (observers cleaned up) *(verified via test cleanup)*
-- ✅ No console errors or warnings *(fixed unhandled rejection during cleanup)*
-- ✅ Type safety maintained (no `any` types) *(build passes)*
-- ✅ Code follows existing patterns and style *(lint passes)*
+- ✅ All tests pass (unit, integration, E2E) _(45 camera tests + 48 video tests pass)_
+- ✅ No memory leaks (observers cleaned up) _(verified via test cleanup)_
+- ✅ No console errors or warnings _(fixed unhandled rejection during cleanup)_
+- ✅ Type safety maintained (no `any` types) _(build passes)_
+- ✅ Code follows existing patterns and style _(lint passes)_
 
 ### Performance
 
-- ✅ Maintains 60fps during animation on typical hardware *(verified in Storybook)*
-- ✅ No jank when starting/stopping animations *(verified in Storybook)*
-- ✅ Rapid successive animations don't degrade performance *(verified in Storybook)*
-- ✅ Works smoothly with 1000+ node graphs *(not explicitly tested but architecture supports it)*
+- ✅ Maintains 60fps during animation on typical hardware _(verified in Storybook)_
+- ✅ No jank when starting/stopping animations _(verified in Storybook)_
+- ✅ Rapid successive animations don't degrade performance _(verified in Storybook)_
+- ✅ Works smoothly with 1000+ node graphs _(not explicitly tested but architecture supports it)_
 
 ---
 
 ## Open Questions
 
 1. **Should we support animation callbacks?**
-   ```typescript
-   setCameraState(state, {
-       animate: true,
-       onStart: () => console.log('started'),
-       onProgress: (progress) => console.log(progress),
-       onComplete: () => console.log('done'),
-   });
-   ```
-   **Decision**: Defer to future enhancement. Use events for now.
+
+    ```typescript
+    setCameraState(state, {
+        animate: true,
+        onStart: () => console.log("started"),
+        onProgress: (progress) => console.log(progress),
+        onComplete: () => console.log("done"),
+    });
+    ```
+
+    **Decision**: Defer to future enhancement. Use events for now.
 
 2. **Should animations be interruptible by user input?**
-   - Option A: User drag during animation stops animation
-   - Option B: Animation continues, user input queued after
+    - Option A: User drag during animation stops animation
+    - Option B: Animation continues, user input queued after
 
-   **Decision**: TBD - test both approaches
+    **Decision**: TBD - test both approaches
 
 3. **Maximum animation duration?**
 
-   **Recommendation**: Clamp to 5000ms to prevent accidentally very long animations
+    **Recommendation**: Clamp to 5000ms to prevent accidentally very long animations
 
 4. **Should we add cubic bezier easing?**
-   ```typescript
-   {easing: 'cubic-bezier(0.4, 0.0, 0.2, 1)'}
-   ```
 
-   **Decision**: Defer - current easing modes sufficient for Phase 4
+    ```typescript
+    {
+        easing: "cubic-bezier(0.4, 0.0, 0.2, 1)";
+    }
+    ```
+
+    **Decision**: Defer - current easing modes sufficient for Phase 4
 
 ---
 

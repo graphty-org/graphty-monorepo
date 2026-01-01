@@ -1,7 +1,7 @@
-import {assert} from "chai";
-import {describe, test} from "vitest";
+import { assert } from "chai";
+import { describe, test } from "vitest";
 
-import {applyDeadzone} from "../../src/cameras/InputUtils";
+import { applyDeadzone } from "../../src/cameras/InputUtils";
 
 describe("InputUtils", () => {
     describe("applyDeadzone", () => {

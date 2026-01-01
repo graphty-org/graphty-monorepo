@@ -1,12 +1,16 @@
-import {readFileSync, writeFileSync} from "fs";
-import {join} from "path";
+import { readFileSync, writeFileSync } from "fs";
+import { join } from "path";
 
-import {betweennessCentrality} from "../../src/algorithms/centrality/betweenness.js";
-import {closenessCentrality} from "../../src/algorithms/centrality/closeness.js";
-import {dijkstra} from "../../src/algorithms/shortest-path/dijkstra.js";
-import {floydWarshall} from "../../src/algorithms/shortest-path/floyd-warshall.js";
-import {breadthFirstSearch, shortestPathBFS, singleSourceShortestPathBFS} from "../../src/algorithms/traversal/bfs.js";
-import {Graph} from "../../src/core/graph.js";
+import { betweennessCentrality } from "../../src/algorithms/centrality/betweenness.js";
+import { closenessCentrality } from "../../src/algorithms/centrality/closeness.js";
+import { dijkstra } from "../../src/algorithms/shortest-path/dijkstra.js";
+import { floydWarshall } from "../../src/algorithms/shortest-path/floyd-warshall.js";
+import {
+    breadthFirstSearch,
+    shortestPathBFS,
+    singleSourceShortestPathBFS,
+} from "../../src/algorithms/traversal/bfs.js";
+import { Graph } from "../../src/core/graph.js";
 
 /**
  * Performance regression testing framework
@@ -90,7 +94,7 @@ class PerformanceRegressionTest {
     /**
      * Get unique key for baseline lookup
      */
-    private getBaselineKey(baseline: {algorithm: string, graphType: string, nodeCount: number}): string {
+    private getBaselineKey(baseline: { algorithm: string; graphType: string; nodeCount: number }): string {
         return `${baseline.algorithm}-${baseline.graphType}-${String(baseline.nodeCount)}`;
     }
 
@@ -102,45 +106,47 @@ class PerformanceRegressionTest {
         console.log("====================================\n");
 
         // Test configurations - use smaller graphs in CI to prevent OOM
-        const configs = IS_CI ? [
-            // Small graphs (baseline)
-            {nodeCount: 1000, graphType: GraphType.SMALL_WORLD},
-            {nodeCount: 1000, graphType: GraphType.SCALE_FREE},
-            {nodeCount: 1000, graphType: GraphType.RANDOM},
+        const configs = IS_CI
+            ? [
+                  // Small graphs (baseline)
+                  { nodeCount: 1000, graphType: GraphType.SMALL_WORLD },
+                  { nodeCount: 1000, graphType: GraphType.SCALE_FREE },
+                  { nodeCount: 1000, graphType: GraphType.RANDOM },
 
-            // Medium graphs (reduced from 10K to 5K in CI)
-            {nodeCount: 5000, graphType: GraphType.SMALL_WORLD},
-            {nodeCount: 5000, graphType: GraphType.SCALE_FREE},
+                  // Medium graphs (reduced from 10K to 5K in CI)
+                  { nodeCount: 5000, graphType: GraphType.SMALL_WORLD },
+                  { nodeCount: 5000, graphType: GraphType.SCALE_FREE },
 
-            // Large graphs (reduced from 50K to 10K in CI)
-            {nodeCount: 10000, graphType: GraphType.SMALL_WORLD},
-        ] : [
-            // Small graphs (baseline)
-            {nodeCount: 1000, graphType: GraphType.SMALL_WORLD},
-            {nodeCount: 1000, graphType: GraphType.SCALE_FREE},
-            {nodeCount: 1000, graphType: GraphType.RANDOM},
+                  // Large graphs (reduced from 50K to 10K in CI)
+                  { nodeCount: 10000, graphType: GraphType.SMALL_WORLD },
+              ]
+            : [
+                  // Small graphs (baseline)
+                  { nodeCount: 1000, graphType: GraphType.SMALL_WORLD },
+                  { nodeCount: 1000, graphType: GraphType.SCALE_FREE },
+                  { nodeCount: 1000, graphType: GraphType.RANDOM },
 
-            // Medium graphs (optimization threshold)
-            {nodeCount: 10000, graphType: GraphType.SMALL_WORLD},
-            {nodeCount: 10000, graphType: GraphType.SCALE_FREE},
-            {nodeCount: 10000, graphType: GraphType.RANDOM},
+                  // Medium graphs (optimization threshold)
+                  { nodeCount: 10000, graphType: GraphType.SMALL_WORLD },
+                  { nodeCount: 10000, graphType: GraphType.SCALE_FREE },
+                  { nodeCount: 10000, graphType: GraphType.RANDOM },
 
-            // Large graphs (optimized)
-            {nodeCount: 50000, graphType: GraphType.SMALL_WORLD},
-            {nodeCount: 50000, graphType: GraphType.SCALE_FREE},
+                  // Large graphs (optimized)
+                  { nodeCount: 50000, graphType: GraphType.SMALL_WORLD },
+                  { nodeCount: 50000, graphType: GraphType.SCALE_FREE },
 
-            // Very large (stress test)
-            {nodeCount: 100000, graphType: GraphType.SMALL_WORLD},
-        ];
+                  // Very large (stress test)
+                  { nodeCount: 100000, graphType: GraphType.SMALL_WORLD },
+              ];
 
         // Algorithms to test
         const algorithms = [
-            {name: "BFS", fn: (graph: Graph) => this.benchmarkBFS(graph)},
-            {name: "ShortestPath", fn: (graph: Graph) => this.benchmarkShortestPath(graph)},
-            {name: "SingleSourceSP", fn: (graph: Graph) => this.benchmarkSingleSourceSP(graph)},
-            {name: "Betweenness", fn: (graph: Graph) => this.benchmarkBetweenness(graph)},
-            {name: "Closeness", fn: (graph: Graph) => this.benchmarkCloseness(graph)},
-            {name: "Dijkstra", fn: (graph: Graph) => this.benchmarkDijkstra(graph)},
+            { name: "BFS", fn: (graph: Graph) => this.benchmarkBFS(graph) },
+            { name: "ShortestPath", fn: (graph: Graph) => this.benchmarkShortestPath(graph) },
+            { name: "SingleSourceSP", fn: (graph: Graph) => this.benchmarkSingleSourceSP(graph) },
+            { name: "Betweenness", fn: (graph: Graph) => this.benchmarkBetweenness(graph) },
+            { name: "Closeness", fn: (graph: Graph) => this.benchmarkCloseness(graph) },
+            { name: "Dijkstra", fn: (graph: Graph) => this.benchmarkDijkstra(graph) },
         ];
 
         // Run tests
@@ -215,7 +221,7 @@ class PerformanceRegressionTest {
         const medianTime = times[Math.floor(times.length / 2)] ?? 0;
 
         // Compare with baseline
-        const key = this.getBaselineKey({algorithm, graphType, nodeCount: graph.nodeCount});
+        const key = this.getBaselineKey({ algorithm, graphType, nodeCount: graph.nodeCount });
         const baseline = this.baselines.get(key);
 
         if (baseline) {
@@ -235,8 +241,11 @@ class PerformanceRegressionTest {
             });
 
             const status = passed ? "✅" : "❌";
-            const change = percentChange >= 0 ? `+${(percentChange * 100).toFixed(1)}%` : `${(percentChange * 100).toFixed(1)}%`;
-            console.log(`    Time: ${medianTime.toFixed(2)}ms (baseline: ${baseline.executionTime.toFixed(2)}ms) ${change} ${status}`);
+            const change =
+                percentChange >= 0 ? `+${(percentChange * 100).toFixed(1)}%` : `${(percentChange * 100).toFixed(1)}%`;
+            console.log(
+                `    Time: ${medianTime.toFixed(2)}ms (baseline: ${baseline.executionTime.toFixed(2)}ms) ${change} ${status}`,
+            );
         } else {
             // Create new baseline
             const newBaseline: PerformanceBaseline = {
@@ -448,19 +457,19 @@ class PerformanceRegressionTest {
         console.log("-------------------|--------------|--------|---------|----------|--------|-------");
 
         for (const result of this.results) {
-            const change = result.percentChange >= 0 ?
-                `+${(result.percentChange * 100).toFixed(1)}%` :
-                `${(result.percentChange * 100).toFixed(1)}%`;
+            const change =
+                result.percentChange >= 0
+                    ? `+${(result.percentChange * 100).toFixed(1)}%`
+                    : `${(result.percentChange * 100).toFixed(1)}%`;
             const status = result.passed ? "✅ PASS" : "❌ FAIL";
 
             console.log(
                 `${result.algorithm.padEnd(18)} | ` +
-                `${result.graphType.padEnd(12)} | ` +
-                `${result.nodeCount.toString().padEnd(6)} | ` +
-                `${result.currentTime.toFixed(1).padStart(7)} | ` +
-                `${result.baselineTime.toFixed(1).padStart(8)} | ` +
-                `${change.padStart(6)} | ${
-                    status}`,
+                    `${result.graphType.padEnd(12)} | ` +
+                    `${result.nodeCount.toString().padEnd(6)} | ` +
+                    `${result.currentTime.toFixed(1).padStart(7)} | ` +
+                    `${result.baselineTime.toFixed(1).padStart(8)} | ` +
+                    `${change.padStart(6)} | ${status}`,
             );
         }
 
@@ -470,7 +479,9 @@ class PerformanceRegressionTest {
         const avgChange = this.results.reduce((sum, r) => sum + r.percentChange, 0) / totalTests;
 
         console.log(`\n${"=".repeat(80)}`);
-        console.log(`Total: ${String(passedTests)}/${String(totalTests)} passed | Average change: ${(avgChange * 100).toFixed(1)}%`);
+        console.log(
+            `Total: ${String(passedTests)}/${String(totalTests)} passed | Average change: ${(avgChange * 100).toFixed(1)}%`,
+        );
     }
 
     /**
@@ -492,5 +503,4 @@ class PerformanceRegressionTest {
     }
 }
 
-export {PerformanceRegressionTest};
-
+export { PerformanceRegressionTest };

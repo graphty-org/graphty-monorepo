@@ -1,7 +1,7 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {fireEvent, render, screen} from "../../../../test/test-utils";
-import {ControlSection} from "../ControlSection";
+import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { ControlSection } from "../ControlSection";
 
 describe("ControlSection", () => {
     it("renders with label", () => {

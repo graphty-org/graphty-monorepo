@@ -1,7 +1,7 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {findAllIsomorphisms, isGraphIsomorphic} from "../../src/algorithms/matching/isomorphism.js";
-import {Graph} from "../../src/core/graph.js";
+import { findAllIsomorphisms, isGraphIsomorphic } from "../../src/algorithms/matching/isomorphism.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Graph Isomorphism (VF2)", () => {
     describe("isGraphIsomorphic", () => {
@@ -82,12 +82,12 @@ describe("Graph Isomorphism (VF2)", () => {
         });
 
         it("should handle directed graphs", () => {
-            const graph1 = new Graph({directed: true});
+            const graph1 = new Graph({ directed: true });
             graph1.addEdge("a", "b");
             graph1.addEdge("b", "c");
             graph1.addEdge("c", "a");
 
-            const graph2 = new Graph({directed: true});
+            const graph2 = new Graph({ directed: true });
             graph2.addEdge("x", "y");
             graph2.addEdge("y", "z");
             graph2.addEdge("z", "x");
@@ -98,12 +98,12 @@ describe("Graph Isomorphism (VF2)", () => {
         });
 
         it("should detect non-isomorphic directed graphs", () => {
-            const graph1 = new Graph({directed: true});
+            const graph1 = new Graph({ directed: true });
             graph1.addEdge("a", "b");
             graph1.addEdge("b", "c");
             graph1.addEdge("c", "a");
 
-            const graph2 = new Graph({directed: true});
+            const graph2 = new Graph({ directed: true });
             graph2.addEdge("x", "y");
             graph2.addEdge("y", "z");
             graph2.addEdge("x", "z"); // Different edge direction
@@ -129,13 +129,13 @@ describe("Graph Isomorphism (VF2)", () => {
 
         it("should use node match predicate", () => {
             const graph1 = new Graph();
-            graph1.addNode("a", {type: "red"});
-            graph1.addNode("b", {type: "blue"});
+            graph1.addNode("a", { type: "red" });
+            graph1.addNode("b", { type: "blue" });
             graph1.addEdge("a", "b");
 
             const graph2 = new Graph();
-            graph2.addNode("x", {type: "red"});
-            graph2.addNode("y", {type: "blue"});
+            graph2.addNode("x", { type: "red" });
+            graph2.addNode("y", { type: "blue" });
             graph2.addEdge("x", "y");
 
             const nodeMatch = (n1: string, n2: string, g1: Graph, g2: Graph) => {
@@ -144,7 +144,7 @@ describe("Graph Isomorphism (VF2)", () => {
                 return data1?.type === data2?.type;
             };
 
-            const result = isGraphIsomorphic(graph1, graph2, {nodeMatch});
+            const result = isGraphIsomorphic(graph1, graph2, { nodeMatch });
 
             expect(result.isIsomorphic).toBe(true);
             expect(result.mapping!.get("a")).toBe("x");
@@ -166,7 +166,7 @@ describe("Graph Isomorphism (VF2)", () => {
                 return weight1 === weight2;
             };
 
-            const result = isGraphIsomorphic(graph1, graph2, {edgeMatch});
+            const result = isGraphIsomorphic(graph1, graph2, { edgeMatch });
 
             expect(result.isIsomorphic).toBe(true);
         });
@@ -187,11 +187,11 @@ describe("Graph Isomorphism (VF2)", () => {
         });
 
         it("should handle self-loops", () => {
-            const graph1 = new Graph({allowSelfLoops: true});
+            const graph1 = new Graph({ allowSelfLoops: true });
             graph1.addEdge("a", "a");
             graph1.addEdge("a", "b");
 
-            const graph2 = new Graph({allowSelfLoops: true});
+            const graph2 = new Graph({ allowSelfLoops: true });
             graph2.addEdge("x", "x");
             graph2.addEdge("x", "y");
 
@@ -239,10 +239,10 @@ describe("Graph Isomorphism (VF2)", () => {
         });
 
         it("should handle graphs with different directedness", () => {
-            const graph1 = new Graph({directed: true});
+            const graph1 = new Graph({ directed: true });
             graph1.addEdge("a", "b");
 
-            const graph2 = new Graph({directed: false});
+            const graph2 = new Graph({ directed: false });
             graph2.addEdge("x", "y");
 
             const result = isGraphIsomorphic(graph1, graph2);
@@ -370,14 +370,14 @@ describe("Graph Isomorphism (VF2)", () => {
         });
 
         it("should handle complex directed graphs", () => {
-            const graph1 = new Graph({directed: true});
+            const graph1 = new Graph({ directed: true });
             graph1.addEdge("a", "b");
             graph1.addEdge("b", "c");
             graph1.addEdge("c", "d");
             graph1.addEdge("d", "a");
             graph1.addEdge("a", "c");
 
-            const graph2 = new Graph({directed: true});
+            const graph2 = new Graph({ directed: true });
             graph2.addEdge("w", "x");
             graph2.addEdge("x", "y");
             graph2.addEdge("y", "z");
@@ -390,11 +390,11 @@ describe("Graph Isomorphism (VF2)", () => {
         });
 
         it("should detect non-isomorphic graphs with same structure but different edge directions", () => {
-            const graph1 = new Graph({directed: true});
+            const graph1 = new Graph({ directed: true });
             graph1.addEdge("a", "b");
             graph1.addEdge("b", "c");
 
-            const graph2 = new Graph({directed: true});
+            const graph2 = new Graph({ directed: true });
             graph2.addEdge("x", "y");
             graph2.addEdge("z", "y"); // Different direction
 

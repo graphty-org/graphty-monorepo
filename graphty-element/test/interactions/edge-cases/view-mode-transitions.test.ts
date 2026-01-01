@@ -4,11 +4,11 @@
  * Tests verify switching between view modes correctly cleans up state.
  */
 
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test, vi} from "vitest";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import type {StyleSchema} from "../../../src/config";
-import {Graph} from "../../../src/Graph";
+import type { StyleSchema } from "../../../src/config";
+import { Graph } from "../../../src/Graph";
 
 function createStyleTemplate(twoD: boolean): StyleSchema {
     return {
@@ -18,7 +18,7 @@ function createStyleTemplate(twoD: boolean): StyleSchema {
             addDefaultStyle: true,
             twoD,
             layout: "fixed",
-            layoutOptions: {dim: twoD ? 2 : 3},
+            layoutOptions: { dim: twoD ? 2 : 3 },
         },
         layers: [],
         data: {
@@ -33,20 +33,23 @@ function createStyleTemplate(twoD: boolean): StyleSchema {
             },
         },
         behavior: {
-            layout: {type: "fixed", preSteps: 0, stepMultiplier: 1, minDelta: 0.001, zoomStepInterval: 5},
-            node: {pinOnDrag: true},
+            layout: { type: "fixed", preSteps: 0, stepMultiplier: 1, minDelta: 0.001, zoomStepInterval: 5 },
+            node: { pinOnDrag: true },
         },
     } as unknown as StyleSchema;
 }
 
-const TEST_NODES = [{id: "node1", x: 0, y: 0, z: 0}, {id: "node2", x: 5, y: 0, z: 0}];
-const TEST_EDGES = [{src: "node1", dst: "node2"}];
+const TEST_NODES = [
+    { id: "node1", x: 0, y: 0, z: 0 },
+    { id: "node2", x: 5, y: 0, z: 0 },
+];
+const TEST_EDGES = [{ src: "node1", dst: "node2" }];
 
 describe("View Mode Transitions", () => {
     let graph: Graph;
     let container: HTMLDivElement;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         container = document.createElement("div");
         container.style.width = "800px";
         container.style.height = "600px";
@@ -67,7 +70,7 @@ describe("View Mode Transitions", () => {
         document.body.removeChild(container);
     });
 
-    test("2D -> 3D cleans up 2D input state", async() => {
+    test("2D -> 3D cleans up 2D input state", async () => {
         await graph.setViewMode("2d");
         await graph.operationQueue.waitForCompletion();
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -85,7 +88,7 @@ describe("View Mode Transitions", () => {
         assert.equal(graph.getNodes().length, 2, "All nodes should still exist");
     });
 
-    test("3D -> 2D cleans up orbit state", async() => {
+    test("3D -> 2D cleans up orbit state", async () => {
         assert.equal(graph.getViewMode(), "3d", "Should start in 3D mode");
 
         await graph.setViewMode("2d");
@@ -103,7 +106,7 @@ describe("View Mode Transitions", () => {
         assert.equal(graph.getNodes().length, 2, "All nodes should still exist");
     });
 
-    test("rapid mode switching does not corrupt state", async() => {
+    test("rapid mode switching does not corrupt state", async () => {
         assert.equal(graph.getViewMode(), "3d", "Should start in 3D mode");
         assert.equal(graph.getNodes().length, 2, "Should have 2 nodes initially");
 
@@ -129,7 +132,7 @@ describe("View Mode Transitions", () => {
         assert.equal(graph.getNodes().length, 2, "All nodes should still exist");
     });
 
-    test("3D -> 2D flattens Z coordinates", async() => {
+    test("3D -> 2D flattens Z coordinates", async () => {
         assert.equal(graph.getViewMode(), "3d", "Should start in 3D mode");
 
         const node1 = graph.getNode("node1");
@@ -147,7 +150,7 @@ describe("View Mode Transitions", () => {
         assert.closeTo(node1.mesh.position.z, 0, 0.01, "Node Z should be flattened to 0 in 2D mode");
     });
 
-    test("camera type changes correctly with view mode", async() => {
+    test("camera type changes correctly with view mode", async () => {
         assert.equal(graph.getViewMode(), "3d", "Should be in 3D mode");
         let controller = graph.camera.getActiveController();
         assert.isDefined(controller, "Controller should exist in 3D mode");

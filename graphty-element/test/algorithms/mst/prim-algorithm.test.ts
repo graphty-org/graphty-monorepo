@@ -1,7 +1,7 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {PrimAlgorithm} from "../../../src/algorithms/PrimAlgorithm";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { PrimAlgorithm } from "../../../src/algorithms/PrimAlgorithm";
 
 describe("PrimAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -90,7 +90,12 @@ describe("PrimAlgorithm", () => {
             assert.ok(styles.description);
             // Should mention minimum spanning tree, Prim, or MST
             const descLower = styles.description.toLowerCase();
-            assert.ok(descLower.includes("minimum") || descLower.includes("mst") || descLower.includes("spanning") || descLower.includes("prim"));
+            assert.ok(
+                descLower.includes("minimum") ||
+                    descLower.includes("mst") ||
+                    descLower.includes("spanning") ||
+                    descLower.includes("prim"),
+            );
         });
     });
 
@@ -103,7 +108,7 @@ describe("PrimAlgorithm", () => {
             assert.ok(mstEdgeLayer.edge);
 
             // First layer uses calculatedStyle with input referencing algorithmResults
-            const {calculatedStyle} = mstEdgeLayer.edge;
+            const { calculatedStyle } = mstEdgeLayer.edge;
             assert.ok(calculatedStyle);
 
             const input = calculatedStyle.inputs[0];
@@ -121,7 +126,7 @@ describe("PrimAlgorithm", () => {
             const nonMstEdgeLayer = styles.layers[1];
             assert.ok(nonMstEdgeLayer.edge);
 
-            const {selector} = nonMstEdgeLayer.edge;
+            const { selector } = nonMstEdgeLayer.edge;
             assert.ok(selector);
 
             // Should reference algorithmResults.graphty.prim.inMST
@@ -176,7 +181,7 @@ describe("PrimAlgorithm", () => {
             assert.ok(nonMstEdgeLayer.edge.style);
 
             // Should have reduced opacity
-            const {style} = nonMstEdgeLayer.edge;
+            const { style } = nonMstEdgeLayer.edge;
             const hasReducedOpacity = typeof style.line?.opacity === "number" && style.line.opacity < 1;
 
             assert.ok(hasReducedOpacity, "Non-MST edges should have reduced opacity");

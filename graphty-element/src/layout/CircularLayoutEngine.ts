@@ -1,8 +1,8 @@
-import {circularLayout, Edge as LayoutEdge, Node as LayoutNode} from "@graphty/layout";
-import {z} from "zod/v4";
+import { circularLayout, Edge as LayoutEdge, Node as LayoutNode } from "@graphty/layout";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema} from "../config";
-import {SimpleLayoutConfig, SimpleLayoutEngine} from "./LayoutEngine";
+import { defineOptions, type OptionsSchema } from "../config";
+import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
  * NEW: Zod-based options schema with UI metadata for Circular Layout
@@ -37,7 +37,7 @@ export const circularLayoutOptionsSchema = defineOptions({
 
 // Legacy Zod config (kept for backward compatibility)
 export const CircularLayoutConfig = z.strictObject({
-    ... SimpleLayoutConfig.shape,
+    ...SimpleLayoutConfig.shape,
     scale: z.number().positive().default(1),
     center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
     dim: z.number().default(2),
@@ -75,7 +75,7 @@ export class CircularLayout extends SimpleLayoutEngine {
      * @returns Options object with dim parameter
      */
     static getOptionsForDimension(dimension: 2 | 3): object {
-        return {dim: dimension};
+        return { dim: dimension };
     }
 
     /**
@@ -86,11 +86,6 @@ export class CircularLayout extends SimpleLayoutEngine {
         const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
         const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
 
-        this.positions = circularLayout(
-            {nodes, edges},
-            this.config.scale,
-            this.config.center,
-            this.config.dim,
-        );
+        this.positions = circularLayout({ nodes, edges }, this.config.scale, this.config.center, this.config.dim);
     }
 }

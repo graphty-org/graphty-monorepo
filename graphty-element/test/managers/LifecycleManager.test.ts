@@ -1,12 +1,12 @@
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import {Graph} from "../../src/Graph";
-import {cleanupTestGraph, createTestGraph} from "../helpers/testSetup";
+import { Graph } from "../../src/Graph";
+import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("LifecycleManager", () => {
     let graph: Graph;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         graph = await createTestGraph();
     });
 
@@ -32,7 +32,7 @@ describe("LifecycleManager", () => {
             });
         });
 
-        it("should reinitialize after shutdown", async() => {
+        it("should reinitialize after shutdown", async () => {
             graph.shutdown();
 
             // Create a new graph instance instead of reinitializing
@@ -61,7 +61,7 @@ describe("LifecycleManager", () => {
             });
         });
 
-        it("should coordinate manager initialization order", async() => {
+        it("should coordinate manager initialization order", async () => {
             // Create a new graph to test initialization
             const container = document.createElement("div");
             document.body.appendChild(container);
@@ -79,14 +79,14 @@ describe("LifecycleManager", () => {
             container.remove();
         });
 
-        it("should handle manager operations after initialization", async() => {
+        it("should handle manager operations after initialization", async () => {
             const dataManager = graph.getDataManager();
             const layoutManager = graph.getLayoutManager();
 
             // Should be able to add data
             dataManager.addNodes([
-                {id: "test1", label: "Test 1"},
-                {id: "test2", label: "Test 2"},
+                { id: "test1", label: "Test 1" },
+                { id: "test2", label: "Test 2" },
             ] as Record<string, unknown>[]);
 
             // Should be able to set layout
@@ -105,7 +105,7 @@ describe("LifecycleManager", () => {
 
             // Should throw immediately on construction with null container
             assert.throws(() => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                 
                 new Graph(badContainer as any);
             }, /Graph constructor requires 'element' argument/);
         });
@@ -117,7 +117,7 @@ describe("LifecycleManager", () => {
             // This tests the lifecycle manager's error handling
             try {
                 const dataManager = graph.getDataManager();
-                dataManager.addNodes([{id: "test"} as Record<string, unknown>]);
+                dataManager.addNodes([{ id: "test" } as Record<string, unknown>]);
                 assert.isNotNull(dataManager);
             } catch (error) {
                 // It's acceptable to throw after shutdown
@@ -126,4 +126,3 @@ describe("LifecycleManager", () => {
         });
     });
 });
-

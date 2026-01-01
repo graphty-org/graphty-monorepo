@@ -1,5 +1,5 @@
-import type {Graph} from "../../core/graph.js";
-import type {CentralityOptions, CentralityResult} from "../../types/index.js";
+import type { Graph } from "../../core/graph.js";
+import type { CentralityOptions, CentralityResult } from "../../types/index.js";
 
 /**
  * Degree centrality implementation
@@ -10,13 +10,13 @@ import type {CentralityOptions, CentralityResult} from "../../types/index.js";
 
 /**
  * Calculate degree centrality for all nodes in the graph
+ * @param graph - The input graph to analyze
+ * @param options - Algorithm configuration options
+ * @returns Centrality scores for each node keyed by node ID
  */
-export function degreeCentrality(
-    graph: Graph,
-    options: CentralityOptions = {},
-): CentralityResult {
+export function degreeCentrality(graph: Graph, options: CentralityOptions = {}): CentralityResult {
     const centrality: CentralityResult = {};
-    const {nodeCount} = graph;
+    const { nodeCount } = graph;
 
     // Calculate normalization factor (same for both directed and undirected graphs)
     const maxPossibleDegree = nodeCount - 1;
@@ -49,9 +49,7 @@ export function degreeCentrality(
         }
 
         // Apply normalization if requested
-        const normalizedDegree = options.normalized && maxPossibleDegree > 0 ?
-            degree / maxPossibleDegree :
-            degree;
+        const normalizedDegree = options.normalized && maxPossibleDegree > 0 ? degree / maxPossibleDegree : degree;
 
         centrality[node.id.toString()] = normalizedDegree;
     }
@@ -61,17 +59,17 @@ export function degreeCentrality(
 
 /**
  * Calculate degree centrality for a specific node
+ * @param graph - The input graph to analyze
+ * @param nodeId - The node to calculate centrality for
+ * @param options - Algorithm configuration options
+ * @returns The degree centrality score for the node
  */
-export function nodeDegreeCentrality(
-    graph: Graph,
-    nodeId: string | number,
-    options: CentralityOptions = {},
-): number {
+export function nodeDegreeCentrality(graph: Graph, nodeId: string | number, options: CentralityOptions = {}): number {
     if (!graph.hasNode(nodeId)) {
         throw new Error(`Node ${String(nodeId)} not found in graph`);
     }
 
-    const {nodeCount} = graph;
+    const { nodeCount } = graph;
     let degree: number;
 
     if (graph.isDirected && options.mode) {
@@ -99,7 +97,5 @@ export function nodeDegreeCentrality(
     // Apply normalization if requested
     const maxPossibleDegree = nodeCount - 1;
 
-    return options.normalized && maxPossibleDegree > 0 ?
-        degree / maxPossibleDegree :
-        degree;
+    return options.normalized && maxPossibleDegree > 0 ? degree / maxPossibleDegree : degree;
 }

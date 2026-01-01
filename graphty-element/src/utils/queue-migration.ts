@@ -1,4 +1,4 @@
-import type {OperationCategory, OperationContext} from "../managers/OperationQueueManager";
+import type { OperationCategory, OperationContext } from "../managers/OperationQueueManager";
 
 export interface QueueableOptions {
     /**
@@ -55,33 +55,39 @@ export interface RunAlgorithmOptions extends QueueableOptions {
  * @param getDescription - Optional function to generate a description from method arguments
  * @returns The wrapped method with queue support
  */
-export function wrapWithQueue<T extends (... args: unknown[]) => unknown>(
-    queueOperation: (category: OperationCategory, execute: (context: OperationContext) => Promise<void> | void, metadata?: Record<string, unknown>) => string,
+export function wrapWithQueue<T extends (...args: unknown[]) => unknown>(
+    queueOperation: (
+        category: OperationCategory,
+        execute: (context: OperationContext) => Promise<void> | void,
+        metadata?: Record<string, unknown>,
+    ) => string,
     category: OperationCategory,
     method: T,
-    getDescription?: (... args: Parameters<T>) => string,
+    getDescription?: (...args: Parameters<T>) => string,
 ): T {
-    return (async(... args: Parameters<T>): Promise<ReturnType<T>> => {
+    return (async (...args: Parameters<T>): Promise<ReturnType<T>> => {
         // Check if last argument contains queue options
         const lastArg = args[args.length - 1];
-        const hasQueueOptions = lastArg && typeof lastArg === "object" &&
+        const hasQueueOptions =
+            lastArg &&
+            typeof lastArg === "object" &&
             ("skipQueue" in lastArg || "description" in lastArg || "obsoletes" in lastArg);
 
         const options: QueueableOptions = hasQueueOptions ? (lastArg as QueueableOptions) : {};
 
         if (options.skipQueue) {
             // Execute directly without queuing
-            return method(... args) as ReturnType<T>;
+            return method(...args) as ReturnType<T>;
         }
 
         // Default description if not provided
-        const description = options.description ?? (getDescription ? getDescription(... args) : undefined);
+        const description = options.description ?? (getDescription ? getDescription(...args) : undefined);
 
         // Queue the operation
         return new Promise((resolve, reject) => {
             queueOperation(
                 category,
-                async(context) => {
+                async (context) => {
                     try {
                         // Check for cancellation
                         if (context.signal.aborted) {
@@ -89,7 +95,7 @@ export function wrapWithQueue<T extends (... args: unknown[]) => unknown>(
                             return;
                         }
 
-                        const result = await method(... args);
+                        const result = await method(...args);
                         resolve(result as ReturnType<T>);
                     } catch (error) {
                         reject(error instanceof Error ? error : new Error(String(error)));

@@ -12,7 +12,7 @@
 function throwNotInstalledError(): never {
     throw new Error(
         "@mlc-ai/web-llm is not installed. " +
-        "To use WebLLM for local AI processing, install it with: npm install @mlc-ai/web-llm",
+            "To use WebLLM for local AI processing, install it with: npm install @mlc-ai/web-llm",
     );
 }
 
@@ -26,14 +26,26 @@ export const CreateMLCEngine = function CreateMLCEngine(): never {
     return throwNotInstalledError();
 };
 
+/**
+ * Stub for prebuiltAppConfig that throws a not-installed error.
+ * @returns Never - always throws an error
+ */
 export function prebuiltAppConfig(): never {
     return throwNotInstalledError();
 }
 
+/**
+ * Stub for hasModelInCache that throws a not-installed error.
+ * @returns Never - always throws an error
+ */
 export function hasModelInCache(): never {
     return throwNotInstalledError();
 }
 
+/**
+ * Stub for deleteModelAllInfoInCache that throws a not-installed error.
+ * @returns Never - always throws an error
+ */
 export function deleteModelAllInfoInCache(): never {
     return throwNotInstalledError();
 }

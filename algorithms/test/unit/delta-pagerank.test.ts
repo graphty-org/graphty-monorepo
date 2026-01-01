@@ -1,13 +1,13 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {SimpleDeltaPageRank} from "../../src/algorithms/centrality/delta-pagerank-simple.js";
-import {pageRank} from "../../src/algorithms/centrality/pagerank.js";
-import {Graph} from "../../src/core/graph.js";
+import { SimpleDeltaPageRank } from "../../src/algorithms/centrality/delta-pagerank-simple.js";
+import { pageRank } from "../../src/algorithms/centrality/pagerank.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Delta-Based PageRank Algorithm", () => {
     describe("DeltaPageRank class", () => {
         it("should calculate PageRank correctly", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a simple directed graph
             graph.addEdge("A", "B");
@@ -31,7 +31,7 @@ describe("Delta-Based PageRank Algorithm", () => {
         });
 
         it("should match results of standard PageRank", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a more complex graph
             graph.addEdge("A", "B");
@@ -42,7 +42,7 @@ describe("Delta-Based PageRank Algorithm", () => {
             graph.addEdge("D", "C");
 
             // Standard PageRank
-            const standardResult = pageRank(graph, {useDelta: false});
+            const standardResult = pageRank(graph, { useDelta: false });
 
             // Delta PageRank
             const deltaPageRank = new SimpleDeltaPageRank(graph);
@@ -61,7 +61,7 @@ describe("Delta-Based PageRank Algorithm", () => {
         });
 
         it("should handle dangling nodes correctly", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create graph with dangling node (no outgoing edges)
             graph.addEdge("A", "B");
@@ -78,7 +78,7 @@ describe("Delta-Based PageRank Algorithm", () => {
         });
 
         it("should respect damping factor", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a graph where damping factor matters more
             graph.addEdge("A", "B");
@@ -88,17 +88,17 @@ describe("Delta-Based PageRank Algorithm", () => {
             graph.addEdge("A", "D"); // Extra edge to break symmetry
 
             const deltaPageRank1 = new SimpleDeltaPageRank(graph);
-            const ranks1 = deltaPageRank1.compute({dampingFactor: 0.85});
+            const ranks1 = deltaPageRank1.compute({ dampingFactor: 0.85 });
 
             const deltaPageRank2 = new SimpleDeltaPageRank(graph);
-            const ranks2 = deltaPageRank2.compute({dampingFactor: 0.5});
+            const ranks2 = deltaPageRank2.compute({ dampingFactor: 0.5 });
 
             // Different damping factors should produce different results
             expect(ranks1.get("A")).not.toBeCloseTo(ranks2.get("A") ?? 0, 2);
         });
 
         it("should converge within reasonable iterations", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a larger connected graph
             for (let i = 0; i < 20; i++) {
@@ -114,13 +114,13 @@ describe("Delta-Based PageRank Algorithm", () => {
             }
 
             const deltaPageRank = new SimpleDeltaPageRank(graph);
-            const ranks = deltaPageRank.compute({maxIterations: 50});
+            const ranks = deltaPageRank.compute({ maxIterations: 50 });
 
             expect(ranks.size).toBe(20);
         });
 
         it("should handle personalized PageRank", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
@@ -136,7 +136,7 @@ describe("Delta-Based PageRank Algorithm", () => {
             ]);
 
             const deltaPageRank = new SimpleDeltaPageRank(graph);
-            const ranks = deltaPageRank.compute({personalization});
+            const ranks = deltaPageRank.compute({ personalization });
 
             // Node A should have highest rank due to personalization
             const rankA = ranks.get("A") ?? 0;
@@ -148,7 +148,7 @@ describe("Delta-Based PageRank Algorithm", () => {
         });
 
         it("should handle weighted edges", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("A", "B", 2);
             graph.addEdge("A", "C", 1);
@@ -156,7 +156,7 @@ describe("Delta-Based PageRank Algorithm", () => {
             graph.addEdge("C", "A", 1);
 
             const deltaPageRank = new SimpleDeltaPageRank(graph);
-            const weightedRanks = deltaPageRank.compute({weight: "weight"});
+            const weightedRanks = deltaPageRank.compute({ weight: "weight" });
             const unweightedRanks = deltaPageRank.compute();
 
             // Weighted and unweighted should produce different results
@@ -166,7 +166,7 @@ describe("Delta-Based PageRank Algorithm", () => {
 
     describe("pageRank with delta optimization", () => {
         it("should use delta by default for large graphs", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create graph with >100 nodes
             for (let i = 0; i < 150; i++) {
@@ -184,7 +184,7 @@ describe("Delta-Based PageRank Algorithm", () => {
         });
 
         it("should use standard algorithm for small graphs", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create small graph with <100 nodes
             for (let i = 0; i < 50; i++) {
@@ -197,7 +197,7 @@ describe("Delta-Based PageRank Algorithm", () => {
         });
 
         it("should respect explicit useDelta option", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Small graph
             graph.addEdge("A", "B");
@@ -205,17 +205,17 @@ describe("Delta-Based PageRank Algorithm", () => {
             graph.addEdge("C", "A");
 
             // Force delta usage on small graph
-            const deltaResult = pageRank(graph, {useDelta: true});
+            const deltaResult = pageRank(graph, { useDelta: true });
             // Delta algorithm still tracks iterations similar to standard
             expect(deltaResult.converged).toBe(true);
 
             // Force standard usage
-            const standardResult = pageRank(graph, {useDelta: false});
+            const standardResult = pageRank(graph, { useDelta: false });
             expect(standardResult.iterations).toBeGreaterThan(0);
         });
 
         it("should handle edge case of empty graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             const result = pageRank(graph);
             expect(result.ranks).toEqual({});
@@ -223,7 +223,7 @@ describe("Delta-Based PageRank Algorithm", () => {
         });
 
         it("should handle single node graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addNode("A");
 
             const result = pageRank(graph);
@@ -231,7 +231,7 @@ describe("Delta-Based PageRank Algorithm", () => {
         });
 
         it("should throw error for undirected graph", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("A", "B");
 
             expect(() => pageRank(graph)).toThrow("PageRank requires a directed graph");
@@ -240,12 +240,12 @@ describe("Delta-Based PageRank Algorithm", () => {
 
     describe("Incremental updates", () => {
         it("should support efficient incremental updates", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create initial graph
             for (let i = 0; i < 100; i++) {
                 for (let j = 0; j < 5; j++) {
-                    const target = ((i + (j * 20)) % 100);
+                    const target = (i + j * 20) % 100;
                     if (target !== i && !graph.hasEdge(i, target)) {
                         graph.addEdge(i, target);
                     }
@@ -294,7 +294,7 @@ describe("Delta-Based PageRank Algorithm", () => {
         });
 
         it("should handle multiple rounds of updates", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create initial graph
             for (let i = 0; i < 50; i++) {
@@ -326,7 +326,7 @@ describe("Delta-Based PageRank Algorithm", () => {
                     ranks = deltaPageRank.update(modifiedNodes);
 
                     // Verify against full computation
-                    const fullRanks = pageRank(graph, {useDelta: false});
+                    const fullRanks = pageRank(graph, { useDelta: false });
                     for (const nodeId of Object.keys(fullRanks.ranks)) {
                         // Convert string key to number for Map lookup
                         const numericId = Number(nodeId);
@@ -341,7 +341,7 @@ describe("Delta-Based PageRank Algorithm", () => {
 
     describe("Performance characteristics", () => {
         it("should be faster on graphs with localized changes", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             // Use 200 nodes to trigger delta optimization
 
             // Create a graph with communities
@@ -366,17 +366,17 @@ describe("Delta-Based PageRank Algorithm", () => {
             }
 
             // Warm up
-            pageRank(graph, {useDelta: false});
-            pageRank(graph, {useDelta: true});
+            pageRank(graph, { useDelta: false });
+            pageRank(graph, { useDelta: true });
 
             // Benchmark standard PageRank
             const standardStart = performance.now();
-            const standardResult = pageRank(graph, {useDelta: false});
+            const standardResult = pageRank(graph, { useDelta: false });
             const standardTime = performance.now() - standardStart;
 
             // Benchmark delta PageRank
             const deltaStart = performance.now();
-            const deltaResult = pageRank(graph, {useDelta: true});
+            const deltaResult = pageRank(graph, { useDelta: true });
             const deltaTime = performance.now() - deltaStart;
 
             console.log(`Standard: ${standardTime.toFixed(2)}ms, Delta: ${deltaTime.toFixed(2)}ms`);

@@ -3,10 +3,10 @@
  * @module test/ai/input/VoiceInputAdapter.test
  */
 
-import {assert, beforeEach, describe, it, vi} from "vitest";
+import { assert, beforeEach, describe, it, vi } from "vitest";
 
-import type {InputCallback, InputOptions} from "../../../src/ai/input/types";
-import {VoiceInputAdapter} from "../../../src/ai/input/VoiceInputAdapter";
+import type { InputCallback, InputOptions } from "../../../src/ai/input/types";
+import { VoiceInputAdapter } from "../../../src/ai/input/VoiceInputAdapter";
 
 describe("VoiceInputAdapter", () => {
     let adapter: VoiceInputAdapter;

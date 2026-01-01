@@ -1,17 +1,18 @@
-import {Vector2, Vector3} from "@babylonjs/core/Maths/math.vector";
-import {afterEach, beforeAll, expect, vi} from "vitest";
+import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { afterEach, beforeAll, expect, vi } from "vitest";
 
-import type {Graph} from "../src/Graph";
-import {MockDeviceInputSystem} from "../src/input/mock-device-input-system";
+import type { Graph } from "../src/Graph";
+import { MockDeviceInputSystem } from "../src/input/mock-device-input-system";
 
 // Mock CreateScreenshotAsync to return a valid 1x1 PNG data URL
 // This allows testing screenshot logic without requiring actual WebGL rendering
-vi.mock("@babylonjs/core", async() => {
+vi.mock("@babylonjs/core", async () => {
     const actual = await vi.importActual<typeof import("@babylonjs/core")>("@babylonjs/core");
     // 1x1 white PNG: 67 bytes base64-encoded
-    const mockPngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+    const mockPngDataUrl =
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
     return {
-        ... actual,
+        ...actual,
         CreateScreenshotAsync: vi.fn().mockResolvedValue(mockPngDataUrl),
     };
 });
@@ -28,22 +29,23 @@ declare global {
 }
 
 // Suppress Babylon.js logs during tests - must use dynamic import since we mock @babylonjs/core
-beforeAll(async() => {
-    const {Logger} = await import("@babylonjs/core");
+beforeAll(async () => {
+    const { Logger } = await import("@babylonjs/core");
     Logger.LogLevels = Logger.ErrorLogLevel;
 });
 
 // Suppress Lit dev mode warnings by setting production mode
 if (typeof window !== "undefined") {
     // Global window modification for test environment
-    (window as typeof window & {litIssuedWarnings?: Set<unknown>}).litIssuedWarnings = new Set(); // Prevent duplicate warnings
+    (window as typeof window & { litIssuedWarnings?: Set<unknown> }).litIssuedWarnings = new Set(); // Prevent duplicate warnings
     // Suppress console warnings from Lit during tests
     const originalWarn = console.warn;
-    console.warn = (... args: unknown[]) => {
+    console.warn = (...args: unknown[]) => {
         const message = args[0];
-        if (typeof message === "string" &&
-            (message.includes("Lit is in dev mode") ||
-             message.includes("Multiple versions of Lit loaded"))) {
+        if (
+            typeof message === "string" &&
+            (message.includes("Lit is in dev mode") || message.includes("Multiple versions of Lit loaded"))
+        ) {
             return; // Suppress Lit warnings
         }
 
@@ -83,7 +85,7 @@ export function createTestContainer(): HTMLElement {
 
 export function waitForGraph(graph: Graph): Promise<void> {
     return new Promise((resolve) => {
-    // Check if graph has initialized property
+        // Check if graph has initialized property
         if (graph.initialized) {
             resolve();
         } else {

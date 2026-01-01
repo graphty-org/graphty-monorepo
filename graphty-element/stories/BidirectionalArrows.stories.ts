@@ -1,7 +1,7 @@
-import type {Meta, StoryObj} from "@storybook/web-components-vite";
+import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import {Graphty} from "../src/graphty-element";
-import {eventWaitingDecorator, renderFn, templateCreator} from "./helpers";
+import { Graphty } from "../src/graphty-element";
+import { eventWaitingDecorator, renderFn, templateCreator } from "./helpers";
 
 const meta: Meta = {
     title: "Styles/Edge",
@@ -9,10 +9,18 @@ const meta: Meta = {
     render: renderFn,
     decorators: [eventWaitingDecorator],
     argTypes: {
-        arrowHeadSize: {control: {type: "range", min: 0.1, max: 5, step: 0.1}, table: {category: "Head"}, name: "arrowHead.size"},
-        arrowHeadColor: {control: "color", table: {category: "Head"}, name: "arrowHead.color"},
-        arrowTailSize: {control: {type: "range", min: 0.1, max: 5, step: 0.1}, table: {category: "Tail"}, name: "arrowTail.size"},
-        arrowTailColor: {control: "color", table: {category: "Tail"}, name: "arrowTail.color"},
+        arrowHeadSize: {
+            control: { type: "range", min: 0.1, max: 5, step: 0.1 },
+            table: { category: "Head" },
+            name: "arrowHead.size",
+        },
+        arrowHeadColor: { control: "color", table: { category: "Head" }, name: "arrowHead.color" },
+        arrowTailSize: {
+            control: { type: "range", min: 0.1, max: 5, step: 0.1 },
+            table: { category: "Tail" },
+            name: "arrowTail.size",
+        },
+        arrowTailColor: { control: "color", table: { category: "Tail" }, name: "arrowTail.color" },
     },
     args: {
         styleTemplate: templateCreator({}),
@@ -21,7 +29,7 @@ const meta: Meta = {
             data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/cat-social-network-2.json",
         },
         layout: "ngraph",
-        layoutConfig: {seed: 42},
+        layoutConfig: { seed: 42 },
     },
 };
 export default meta;
@@ -32,9 +40,9 @@ export const Bidirectional: Story = {
     args: {
         styleTemplate: templateCreator({
             edgeStyle: {
-                arrowHead: {type: "normal", color: "#FF0000"},
-                arrowTail: {type: "tee", color: "#0000FF"},
-                line: {color: "darkgrey"},
+                arrowHead: { type: "normal", color: "#FF0000" },
+                arrowTail: { type: "tee", color: "#0000FF" },
+                line: { color: "darkgrey" },
             },
         }),
     },

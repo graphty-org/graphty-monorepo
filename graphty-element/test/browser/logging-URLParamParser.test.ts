@@ -1,7 +1,7 @@
-import {afterEach, assert, describe, test} from "vitest";
+import { afterEach, assert, describe, test } from "vitest";
 
-import {LogLevel} from "../../src/logging/types.js";
-import {parseLoggingURLParams} from "../../src/logging/URLParamParser.js";
+import { LogLevel } from "../../src/logging/types.js";
+import { parseLoggingURLParams } from "../../src/logging/URLParamParser.js";
 
 describe("URLParamParser", () => {
     afterEach(() => {
@@ -85,15 +85,15 @@ describe("URLParamParser", () => {
 
         test("should parse all valid log levels", () => {
             const levels = [
-                {param: "silent", expected: LogLevel.SILENT},
-                {param: "error", expected: LogLevel.ERROR},
-                {param: "warn", expected: LogLevel.WARN},
-                {param: "info", expected: LogLevel.INFO},
-                {param: "debug", expected: LogLevel.DEBUG},
-                {param: "trace", expected: LogLevel.TRACE},
+                { param: "silent", expected: LogLevel.SILENT },
+                { param: "error", expected: LogLevel.ERROR },
+                { param: "warn", expected: LogLevel.WARN },
+                { param: "info", expected: LogLevel.INFO },
+                { param: "debug", expected: LogLevel.DEBUG },
+                { param: "trace", expected: LogLevel.TRACE },
             ];
 
-            for (const {param, expected} of levels) {
+            for (const { param, expected } of levels) {
                 setURLParams(`graphty-element-logging=true&graphty-element-log-level=${param}`);
                 const result = parseLoggingURLParams();
                 assert.isNotNull(result, `Expected result for level ${param}`);

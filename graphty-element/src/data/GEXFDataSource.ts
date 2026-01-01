@@ -1,7 +1,7 @@
-import {XMLParser} from "fast-xml-parser";
+import { XMLParser } from "fast-xml-parser";
 
-import type {AdHocData} from "../config/common.js";
-import {BaseDataSourceConfig, DataSource, DataSourceChunk} from "./DataSource.js";
+import type { AdHocData } from "../config/common.js";
+import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 
 // GEXF has no additional config currently, so just use the base config
 export type GEXFDataSourceConfig = BaseDataSourceConfig;
@@ -39,7 +39,7 @@ export class GEXFDataSource extends DataSource {
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-    // Get XML content
+        // Get XML content
         const xmlContent = await this.getContent();
 
         // Parse XML
@@ -61,13 +61,13 @@ export class GEXFDataSource extends DataSource {
             throw new Error(`Failed to parse GEXF XML: ${error instanceof Error ? error.message : String(error)}`);
         }
 
-        const {gexf} = parsed;
+        const { gexf } = parsed;
         if (!gexf) {
             throw new Error("Invalid GEXF: missing <gexf> root element");
         }
 
         // Get graph element
-        const {graph} = gexf;
+        const { graph } = gexf;
         if (!graph) {
             throw new Error("Invalid GEXF: missing <graph> element");
         }
@@ -84,10 +84,7 @@ export class GEXFDataSource extends DataSource {
         yield* this.chunkData(nodes, edges);
     }
 
-    private parseAttributeDefinitions(
-        attributesData: unknown,
-        forClass: "node" | "edge",
-    ): Map<string, GEXFAttribute> {
+    private parseAttributeDefinitions(attributesData: unknown, forClass: "node" | "edge"): Map<string, GEXFAttribute> {
         const attributes = new Map<string, GEXFAttribute>();
 
         if (!attributesData) {
@@ -98,12 +95,12 @@ export class GEXFDataSource extends DataSource {
         const attrGroups = Array.isArray(attributesData) ? attributesData : [attributesData];
 
         for (const group of attrGroups) {
-            const groupClass = (group as {"@_class"?: string})["@_class"];
+            const groupClass = (group as { "@_class"?: string })["@_class"];
             if (groupClass !== forClass) {
                 continue;
             }
 
-            const attrList = (group as {attribute?: unknown[]}).attribute;
+            const attrList = (group as { attribute?: unknown[] }).attribute;
             if (!attrList) {
                 continue;
             }
@@ -120,17 +117,14 @@ export class GEXFDataSource extends DataSource {
                 const title = attrObj["@_title"] || id;
                 const type = attrObj["@_type"] || "string";
 
-                attributes.set(id, {id, title, type});
+                attributes.set(id, { id, title, type });
             }
         }
 
         return attributes;
     }
 
-    private parseNodes(
-        nodeData: unknown,
-        attributes: Map<string, GEXFAttribute>,
-    ): AdHocData[] {
+    private parseNodes(nodeData: unknown, attributes: Map<string, GEXFAttribute>): AdHocData[] {
         if (!nodeData) {
             return [] as AdHocData[];
         }
@@ -143,7 +137,7 @@ export class GEXFDataSource extends DataSource {
                 const nodeObj = node as {
                     "@_id": string;
                     "@_label"?: string;
-                    "attvalues"?: {attvalue?: unknown[]};
+                    attvalues?: { attvalue?: unknown[] };
                     "viz:position"?: {
                         "@_x"?: string;
                         "@_y"?: string;
@@ -170,7 +164,7 @@ export class GEXFDataSource extends DataSource {
                     continue;
                 }
 
-                const nodeData: Record<string, unknown> = {id};
+                const nodeData: Record<string, unknown> = { id };
 
                 // Add label if present
                 if (nodeObj["@_label"]) {
@@ -179,12 +173,12 @@ export class GEXFDataSource extends DataSource {
 
                 // Parse attribute values
                 if (nodeObj.attvalues?.attvalue) {
-                    const attvalues = Array.isArray(nodeObj.attvalues.attvalue) ?
-                        nodeObj.attvalues.attvalue :
-                        [nodeObj.attvalues.attvalue];
+                    const attvalues = Array.isArray(nodeObj.attvalues.attvalue)
+                        ? nodeObj.attvalues.attvalue
+                        : [nodeObj.attvalues.attvalue];
 
                     for (const attvalue of attvalues) {
-                        const attObj = attvalue as {"@_for": string, "@_value": string};
+                        const attObj = attvalue as { "@_for": string; "@_value": string };
                         const attrId = attObj["@_for"];
                         const value = attObj["@_value"];
 
@@ -236,10 +230,7 @@ export class GEXFDataSource extends DataSource {
         return nodes as AdHocData[];
     }
 
-    private parseEdges(
-        edgeData: unknown,
-        attributes: Map<string, GEXFAttribute>,
-    ): AdHocData[] {
+    private parseEdges(edgeData: unknown, attributes: Map<string, GEXFAttribute>): AdHocData[] {
         if (!edgeData) {
             return [] as AdHocData[];
         }
@@ -256,7 +247,7 @@ export class GEXFDataSource extends DataSource {
                     "@_weight"?: string;
                     "@_type"?: string;
                     "@_label"?: string;
-                    "attvalues"?: {attvalue?: unknown[]};
+                    attvalues?: { attvalue?: unknown[] };
                 };
 
                 const src = edgeObj["@_source"];
@@ -271,7 +262,7 @@ export class GEXFDataSource extends DataSource {
                     continue;
                 }
 
-                const edgeData: Record<string, unknown> = {src, dst};
+                const edgeData: Record<string, unknown> = { src, dst };
 
                 // Add optional attributes
                 if (edgeObj["@_id"]) {
@@ -292,12 +283,12 @@ export class GEXFDataSource extends DataSource {
 
                 // Parse attribute values
                 if (edgeObj.attvalues?.attvalue) {
-                    const attvalues = Array.isArray(edgeObj.attvalues.attvalue) ?
-                        edgeObj.attvalues.attvalue :
-                        [edgeObj.attvalues.attvalue];
+                    const attvalues = Array.isArray(edgeObj.attvalues.attvalue)
+                        ? edgeObj.attvalues.attvalue
+                        : [edgeObj.attvalues.attvalue];
 
                     for (const attvalue of attvalues) {
-                        const attObj = attvalue as {"@_for": string, "@_value": string};
+                        const attObj = attvalue as { "@_for": string; "@_value": string };
                         const attrId = attObj["@_for"];
                         const value = attObj["@_value"];
 

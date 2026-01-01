@@ -1,10 +1,16 @@
-import {Box, Button, Stack, Text, Title} from "@mantine/core";
-import {AlertTriangle, RefreshCw} from "lucide-react";
+import { Box, Button, Stack, Text, Title } from "@mantine/core";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import React from "react";
 
-import type {FallbackProps} from "@/types/error-boundary";
+import type { FallbackProps } from "@/types/error-boundary";
 
-export function ErrorFallback({resetError}: FallbackProps): React.JSX.Element {
+/**
+ * Fallback UI shown when an error is caught by the error boundary.
+ * @param root0 - Component props
+ * @param root0.resetError - Function to reset the error state and try again
+ * @returns The error fallback UI component
+ */
+export function ErrorFallback({ resetError }: FallbackProps): React.JSX.Element {
     return (
         <Box
             style={{

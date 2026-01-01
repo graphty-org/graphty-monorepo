@@ -1,14 +1,14 @@
-import type {Scene} from "@babylonjs/core";
+import type { Scene } from "@babylonjs/core";
 
-import type {XRConfig} from "../config/XRConfig";
-import type {MeshCache} from "../meshes/MeshCache";
-import type {XRSessionManager} from "../xr/XRSessionManager";
-import type {DataManager} from "./DataManager";
-import type {EventManager} from "./EventManager";
-import type {LayoutManager} from "./LayoutManager";
-import type {SelectionManager} from "./SelectionManager";
-import type {StatsManager} from "./StatsManager";
-import type {StyleManager} from "./StyleManager";
+import type { XRConfig } from "../config/XRConfig";
+import type { MeshCache } from "../meshes/MeshCache";
+import type { XRSessionManager } from "../xr/XRSessionManager";
+import type { DataManager } from "./DataManager";
+import type { EventManager } from "./EventManager";
+import type { LayoutManager } from "./LayoutManager";
+import type { SelectionManager } from "./SelectionManager";
+import type { StatsManager } from "./StatsManager";
+import type { StyleManager } from "./StyleManager";
 
 /**
  * GraphContext provides controlled access to graph services

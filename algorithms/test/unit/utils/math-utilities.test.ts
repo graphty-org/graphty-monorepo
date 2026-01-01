@@ -1,6 +1,6 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {euclideanDistance, normalize, SeededRandom, shuffle} from "../../../src/utils/math-utilities.js";
+import { euclideanDistance, normalize, SeededRandom, shuffle } from "../../../src/utils/math-utilities.js";
 
 describe("SeededRandom", () => {
     it("should produce deterministic values", () => {
@@ -32,8 +32,8 @@ describe("SeededRandom", () => {
         const rng1 = new SeededRandom(42);
         const rng2 = new SeededRandom(43);
 
-        const values1 = Array.from({length: 10}, () => rng1.next());
-        const values2 = Array.from({length: 10}, () => rng2.next());
+        const values1 = Array.from({ length: 10 }, () => rng1.next());
+        const values2 = Array.from({ length: 10 }, () => rng2.next());
 
         // At least some values should be different
         const differentCount = values1.filter((v, i) => v !== values2[i]).length;
@@ -64,7 +64,7 @@ describe("SeededRandom", () => {
 describe("shuffle", () => {
     it("should shuffle array in place", () => {
         const arr = [1, 2, 3, 4, 5];
-        const original = [... arr];
+        const original = [...arr];
         const shuffled = shuffle(arr);
 
         expect(shuffled).toBe(arr); // Same reference
@@ -98,7 +98,7 @@ describe("shuffle", () => {
 
     it("should handle array with undefined values", () => {
         const arr = [1, undefined, 3, undefined, 5];
-        const original = [... arr];
+        const original = [...arr];
         shuffle(arr);
 
         // Check all elements are preserved
@@ -108,7 +108,7 @@ describe("shuffle", () => {
 
     it("should produce different results with different RNG values", () => {
         const arr1 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        const arr2 = [... arr1];
+        const arr2 = [...arr1];
 
         const rng1 = SeededRandom.createGenerator(42);
         const rng2 = SeededRandom.createGenerator(123);
@@ -167,7 +167,11 @@ describe("euclideanDistance", () => {
 describe("normalize", () => {
     describe("minMax", () => {
         it("should normalize values to [0, 1] range", () => {
-            const values = new Map([["a", 10], ["b", 20], ["c", 30]]);
+            const values = new Map([
+                ["a", 10],
+                ["b", 20],
+                ["c", 30],
+            ]);
             normalize.minMax(values);
             expect(values.get("a")).toBe(0);
             expect(values.get("b")).toBe(0.5);
@@ -175,7 +179,11 @@ describe("normalize", () => {
         });
 
         it("should handle all equal values", () => {
-            const values = new Map([["a", 5], ["b", 5], ["c", 5]]);
+            const values = new Map([
+                ["a", 5],
+                ["b", 5],
+                ["c", 5],
+            ]);
             normalize.minMax(values);
             expect(values.get("a")).toBe(5);
             expect(values.get("b")).toBe(5);
@@ -183,7 +191,11 @@ describe("normalize", () => {
         });
 
         it("should handle negative values", () => {
-            const values = new Map([["a", -10], ["b", 0], ["c", 10]]);
+            const values = new Map([
+                ["a", -10],
+                ["b", 0],
+                ["c", 10],
+            ]);
             normalize.minMax(values);
             expect(values.get("a")).toBe(0);
             expect(values.get("b")).toBe(0.5);
@@ -199,7 +211,11 @@ describe("normalize", () => {
 
     describe("byMax", () => {
         it("should normalize by maximum value", () => {
-            const values = new Map([["a", 10], ["b", 20], ["c", 40]]);
+            const values = new Map([
+                ["a", 10],
+                ["b", 20],
+                ["c", 40],
+            ]);
             normalize.byMax(values);
             expect(values.get("a")).toBe(0.25);
             expect(values.get("b")).toBe(0.5);
@@ -207,7 +223,11 @@ describe("normalize", () => {
         });
 
         it("should handle all zeros", () => {
-            const values = new Map([["a", 0], ["b", 0], ["c", 0]]);
+            const values = new Map([
+                ["a", 0],
+                ["b", 0],
+                ["c", 0],
+            ]);
             normalize.byMax(values);
             expect(values.get("a")).toBe(0);
             expect(values.get("b")).toBe(0);
@@ -215,7 +235,11 @@ describe("normalize", () => {
         });
 
         it("should handle negative values", () => {
-            const values = new Map([["a", -10], ["b", -5], ["c", -20]]);
+            const values = new Map([
+                ["a", -10],
+                ["b", -5],
+                ["c", -20],
+            ]);
             normalize.byMax(values);
             // When all values are negative, max is -5, so:
             // -10 / -5 = 2
@@ -229,7 +253,10 @@ describe("normalize", () => {
 
     describe("l2Norm", () => {
         it("should perform L2 normalization", () => {
-            const values = new Map([["a", 3], ["b", 4]]);
+            const values = new Map([
+                ["a", 3],
+                ["b", 4],
+            ]);
             normalize.l2Norm(values);
             expect(values.get("a")).toBeCloseTo(0.6, 10);
             expect(values.get("b")).toBeCloseTo(0.8, 10);
@@ -242,24 +269,34 @@ describe("normalize", () => {
         });
 
         it("should handle all zeros", () => {
-            const values = new Map([["a", 0], ["b", 0]]);
+            const values = new Map([
+                ["a", 0],
+                ["b", 0],
+            ]);
             normalize.l2Norm(values);
             expect(values.get("a")).toBe(0);
             expect(values.get("b")).toBe(0);
         });
 
         it("should normalize to unit length", () => {
-            const values = new Map([["a", 1], ["b", 2], ["c", 2]]);
+            const values = new Map([
+                ["a", 1],
+                ["b", 2],
+                ["c", 2],
+            ]);
             normalize.l2Norm(values);
-            const sumSquares = Array.from(values.values())
-                .reduce((sum, val) => sum + (val * val), 0);
+            const sumSquares = Array.from(values.values()).reduce((sum, val) => sum + val * val, 0);
             expect(sumSquares).toBeCloseTo(1, 10);
         });
     });
 
     describe("sumToOne", () => {
         it("should normalize values to sum to 1", () => {
-            const values = new Map([["a", 10], ["b", 20], ["c", 30]]);
+            const values = new Map([
+                ["a", 10],
+                ["b", 20],
+                ["c", 30],
+            ]);
             normalize.sumToOne(values);
             expect(values.get("a")).toBeCloseTo(1 / 6, 10);
             expect(values.get("b")).toBeCloseTo(2 / 6, 10);
@@ -270,14 +307,21 @@ describe("normalize", () => {
         });
 
         it("should handle negative values", () => {
-            const values = new Map([["a", -10], ["b", 20], ["c", 30]]);
+            const values = new Map([
+                ["a", -10],
+                ["b", 20],
+                ["c", 30],
+            ]);
             normalize.sumToOne(values);
             const sum = Array.from(values.values()).reduce((a, b) => a + b, 0);
             expect(sum).toBeCloseTo(1, 10);
         });
 
         it("should handle all zeros", () => {
-            const values = new Map([["a", 0], ["b", 0]]);
+            const values = new Map([
+                ["a", 0],
+                ["b", 0],
+            ]);
             normalize.sumToOne(values);
             expect(values.get("a")).toBe(0);
             expect(values.get("b")).toBe(0);

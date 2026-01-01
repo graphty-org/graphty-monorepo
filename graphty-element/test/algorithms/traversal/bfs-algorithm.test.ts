@@ -1,15 +1,15 @@
-/* eslint-disable @typescript-eslint/no-deprecated */
-import {assert, describe, it} from "vitest";
+ 
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {BFSAlgorithm} from "../../../src/algorithms/BFSAlgorithm";
-import type {AdHocData} from "../../../src/config";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { BFSAlgorithm } from "../../../src/algorithms/BFSAlgorithm";
+import type { AdHocData } from "../../../src/config";
 
 interface MockGraphOpts {
     dataPath?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
     const nodes = new Map<string | number, AdHocData>();
     const edges = new Map<string | number, AdHocData>();
@@ -56,14 +56,14 @@ describe("BFSAlgorithm", () => {
     });
 
     describe("Algorithm Execution", () => {
-        it("exists", async() => {
+        it("exists", async () => {
             new BFSAlgorithm(await mockGraph());
         });
 
-        it("assigns level 0 to source node", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("assigns level 0 to source node", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new BFSAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean"});
+            algo.configure({ source: "Valjean" });
             await algo.run();
 
             const sourceNode = fakeGraph.nodes.get("Valjean");
@@ -71,10 +71,10 @@ describe("BFSAlgorithm", () => {
             assert.strictEqual(sourceNode.algorithmResults.graphty.bfs.level, 0);
         });
 
-        it("assigns levels to all reachable nodes", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("assigns levels to all reachable nodes", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new BFSAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean"});
+            algo.configure({ source: "Valjean" });
             await algo.run();
 
             // All nodes should have levels >= 0
@@ -86,10 +86,10 @@ describe("BFSAlgorithm", () => {
             }
         });
 
-        it("assigns normalized levelPct between 0 and 1", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("assigns normalized levelPct between 0 and 1", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new BFSAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean"});
+            algo.configure({ source: "Valjean" });
             await algo.run();
 
             for (const node of fakeGraph.nodes.values()) {
@@ -101,10 +101,10 @@ describe("BFSAlgorithm", () => {
             }
         });
 
-        it("records visit order for all reachable nodes", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("records visit order for all reachable nodes", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new BFSAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean"});
+            algo.configure({ source: "Valjean" });
             await algo.run();
 
             const visitOrders = new Set<number>();
@@ -126,38 +126,38 @@ describe("BFSAlgorithm", () => {
             assert.strictEqual(visitOrders.size, nodeWithOrderCount);
         });
 
-        it("stores maxLevel at graph level", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("stores maxLevel at graph level", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new BFSAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean"});
+            algo.configure({ source: "Valjean" });
             await algo.run();
 
-            const {results} = algo;
+            const { results } = algo;
             assert.ok(results.graph?.graphty?.bfs?.maxLevel !== undefined);
             assert.isAtLeast(results.graph.graphty.bfs.maxLevel, 0);
         });
 
-        it("stores visitedCount at graph level", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("stores visitedCount at graph level", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new BFSAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean"});
+            algo.configure({ source: "Valjean" });
             await algo.run();
 
-            const {results} = algo;
+            const { results } = algo;
             assert.ok(results.graph?.graphty?.bfs?.visitedCount !== undefined);
             assert.isAtLeast(results.graph.graphty.bfs.visitedCount, 1);
         });
 
-        it("handles empty graph", async() => {
+        it("handles empty graph", async () => {
             const emptyGraph = await mockGraph();
             const algo = new BFSAlgorithm(emptyGraph);
-            algo.configure({source: "A"});
+            algo.configure({ source: "A" });
             await algo.run();
             // Should not throw
         });
 
-        it("uses first node as default source when not configured", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("uses first node as default source when not configured", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new BFSAlgorithm(fakeGraph);
             // Don't call configure - let it use default source
             await algo.run();
@@ -207,9 +207,7 @@ describe("BFSAlgorithm", () => {
             const styles = BFSAlgorithm.getSuggestedStyles();
             assert.ok(styles);
 
-            const colorLayer = styles.layers.find((l) =>
-                l.node?.calculatedStyle?.output.includes("color"),
-            );
+            const colorLayer = styles.layers.find((l) => l.node?.calculatedStyle?.output.includes("color"));
             assert.ok(colorLayer);
             assert.ok(colorLayer.node);
             assert.ok(colorLayer.node.calculatedStyle);

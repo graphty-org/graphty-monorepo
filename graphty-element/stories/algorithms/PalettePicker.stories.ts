@@ -1,7 +1,7 @@
-import type {Meta, StoryObj} from "@storybook/web-components-vite";
-import {html} from "lit";
+import type { Meta, StoryObj } from "@storybook/web-components-vite";
+import { html } from "lit";
 
-import {StyleHelpers} from "../../src/config/StyleHelpers";
+import { StyleHelpers } from "../../src/config/StyleHelpers";
 
 const meta: Meta = {
     title: "Algorithms/Palette Picker",
@@ -103,27 +103,19 @@ export const PalettePicker: Story = {
                 <h2>Sequential Gradients (Continuous Data)</h2>
 
                 <div class="palette-row">
-                    <div class="palette-name">
-                        Viridis <span class="accessibility-badge">✓ Colorblind Safe</span>
-                    </div>
-                    <div class="palette-description">
-                        Purple → Yellow | Default for continuous data
-                    </div>
+                    <div class="palette-name">Viridis <span class="accessibility-badge">✓ Colorblind Safe</span></div>
+                    <div class="palette-description">Purple → Yellow | Default for continuous data</div>
                     <div class="color-swatches" id="seq-viridis"></div>
                 </div>
 
                 <div class="palette-row">
-                    <div class="palette-name">
-                        Plasma <span class="accessibility-badge">✓ Colorblind Safe</span>
-                    </div>
+                    <div class="palette-name">Plasma <span class="accessibility-badge">✓ Colorblind Safe</span></div>
                     <div class="palette-description">Blue → Pink → Yellow | Warmer alternative</div>
                     <div class="color-swatches" id="seq-plasma"></div>
                 </div>
 
                 <div class="palette-row">
-                    <div class="palette-name">
-                        Inferno <span class="accessibility-badge">✓ Colorblind Safe</span>
-                    </div>
+                    <div class="palette-name">Inferno <span class="accessibility-badge">✓ Colorblind Safe</span></div>
                     <div class="palette-description">Black → Red → Yellow | Dark, dramatic</div>
                     <div class="color-swatches" id="seq-inferno"></div>
                 </div>
@@ -152,9 +144,7 @@ export const PalettePicker: Story = {
                 <h2>Categorical Palettes (Discrete Groups)</h2>
 
                 <div class="palette-row">
-                    <div class="palette-name">
-                        Okabe-Ito <span class="accessibility-badge">✓ Colorblind Safe</span>
-                    </div>
+                    <div class="palette-name">Okabe-Ito <span class="accessibility-badge">✓ Colorblind Safe</span></div>
                     <div class="palette-description">8 colors | R 4.0+ default, universally safe</div>
                     <div class="color-swatches" id="cat-okabe"></div>
                 </div>
@@ -183,9 +173,7 @@ export const PalettePicker: Story = {
 
                 <div class="palette-row">
                     <div class="palette-name">Pastel</div>
-                    <div class="palette-description">
-                        8 colors | Softer, derived from Okabe-Ito
-                    </div>
+                    <div class="palette-description">8 colors | Softer, derived from Okabe-Ito</div>
                     <div class="color-swatches" id="cat-pastel"></div>
                 </div>
             </div>
@@ -198,9 +186,7 @@ export const PalettePicker: Story = {
                     <div class="palette-name">
                         Purple-Green <span class="accessibility-badge">✓ Colorblind Safe</span>
                     </div>
-                    <div class="palette-description">
-                        Purple ← White → Green | No red-green confusion
-                    </div>
+                    <div class="palette-description">Purple ← White → Green | No red-green confusion</div>
                     <div class="color-swatches" id="div-purple-green"></div>
                 </div>
 
@@ -214,9 +200,7 @@ export const PalettePicker: Story = {
 
                 <div class="palette-row">
                     <div class="palette-name">Red-Blue ⚠️</div>
-                    <div class="palette-description">
-                        Red ← White → Blue | Use only for temperature
-                    </div>
+                    <div class="palette-description">Red ← White → Blue | Use only for temperature</div>
                     <div class="color-swatches" id="div-red-blue"></div>
                 </div>
             </div>
@@ -245,13 +229,9 @@ export const PalettePicker: Story = {
             </div>
         </div>
     `,
-    play: ({canvasElement}) => {
+    play: ({ canvasElement }) => {
         // Helper to render sequential gradient swatches
-        const renderSequential = (
-            containerId: string,
-            fn: (value: number) => string,
-            steps = 20,
-        ): void => {
+        const renderSequential = (containerId: string, fn: (value: number) => string, steps = 20): void => {
             const container = canvasElement.querySelector(`#${containerId}`);
 
             if (!container) {
@@ -270,11 +250,7 @@ export const PalettePicker: Story = {
         };
 
         // Helper to render categorical swatches
-        const renderCategorical = (
-            containerId: string,
-            fn: (index: number) => string,
-            count: number,
-        ): void => {
+        const renderCategorical = (containerId: string, fn: (index: number) => string, count: number): void => {
             const container = canvasElement.querySelector(`#${containerId}`);
 
             if (!container) {

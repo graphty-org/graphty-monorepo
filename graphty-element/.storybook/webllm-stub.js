@@ -20,7 +20,7 @@ async function loadWebLLM() {
     }
 
     if (!loadPromise) {
-        loadPromise = import(/* @vite-ignore */ CDN_URL).then(module => {
+        loadPromise = import(/* @vite-ignore */ CDN_URL).then((module) => {
             webllmModule = module;
             return module;
         });

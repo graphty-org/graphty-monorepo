@@ -1,20 +1,20 @@
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {JsonDataSource} from "../../src/data/JsonDataSource";
+import { JsonDataSource } from "../../src/data/JsonDataSource";
 
 describe("JsonDataSource - Data URL support", () => {
-    test("should parse data URL encoded JSON", async() => {
+    test("should parse data URL encoded JSON", async () => {
         const testData = {
-            nodes: [{id: "1"}, {id: "2"}],
-            edges: [{source: "1", target: "2"}],
+            nodes: [{ id: "1" }, { id: "2" }],
+            edges: [{ source: "1", target: "2" }],
         };
 
         const dataUrl = `data:application/json,${encodeURIComponent(JSON.stringify(testData))}`;
 
         const source = new JsonDataSource({
             data: dataUrl,
-            node: {path: "nodes"},
-            edge: {path: "edges"},
+            node: { path: "nodes" },
+            edge: { path: "edges" },
         });
 
         const chunks = [];
@@ -27,11 +27,11 @@ describe("JsonDataSource - Data URL support", () => {
         assert.equal(chunks[0].edges.length, 1, "Should have 1 edge");
     });
 
-    test("should handle data URL with Cytoscape.js format", async() => {
+    test("should handle data URL with Cytoscape.js format", async () => {
         const testData = {
             elements: {
-                nodes: [{data: {id: "a"}}, {data: {id: "b"}}],
-                edges: [{data: {source: "a", target: "b"}}],
+                nodes: [{ data: { id: "a" } }, { data: { id: "b" } }],
+                edges: [{ data: { source: "a", target: "b" } }],
             },
         };
 
@@ -39,8 +39,8 @@ describe("JsonDataSource - Data URL support", () => {
 
         const source = new JsonDataSource({
             data: dataUrl,
-            node: {path: "elements.nodes[*].data"},
-            edge: {path: "elements.edges[*].data"},
+            node: { path: "elements.nodes[*].data" },
+            edge: { path: "elements.edges[*].data" },
         });
 
         const chunks = [];
@@ -54,16 +54,16 @@ describe("JsonDataSource - Data URL support", () => {
         assert.equal(chunks[0].nodes[0].id, "a", "First node should have id 'a'");
     });
 
-    test("should still work with inline JSON string", async() => {
+    test("should still work with inline JSON string", async () => {
         const testData = {
-            nodes: [{id: "1"}],
+            nodes: [{ id: "1" }],
             edges: [],
         };
 
         const source = new JsonDataSource({
             data: JSON.stringify(testData),
-            node: {path: "nodes"},
-            edge: {path: "edges"},
+            node: { path: "nodes" },
+            edge: { path: "edges" },
         });
 
         const chunks = [];

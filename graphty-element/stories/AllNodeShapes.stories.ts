@@ -1,8 +1,8 @@
-import type {Meta, StoryObj} from "@storybook/web-components-vite";
+import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import type {StyleLayerType} from "../src/config";
-import {Graphty} from "../src/graphty-element";
-import {eventWaitingDecorator, nodeShapes, renderFn, templateCreator} from "./helpers";
+import type { StyleLayerType } from "../src/config";
+import { Graphty } from "../src/graphty-element";
+import { eventWaitingDecorator, nodeShapes, renderFn, templateCreator } from "./helpers";
 
 const meta: Meta = {
     title: "Styles/Node",
@@ -25,8 +25,8 @@ export default meta;
 type Story = StoryObj<Graphty>;
 
 // Generate node data for all shapes in a 5x5 grid with 3D depth
-const generateNodeData = (): {id: string, position: {x: number, y: number, z: number}}[] => {
-    const nodes: {id: string, position: {x: number, y: number, z: number}}[] = [];
+const generateNodeData = (): { id: string; position: { x: number; y: number; z: number } }[] => {
+    const nodes: { id: string; position: { x: number; y: number; z: number } }[] = [];
     const spacing = 4;
     const cols = 5;
 
@@ -52,7 +52,7 @@ const generateLayers = (): StyleLayerType[] => {
         node: {
             selector: `id == '${shape}'`,
             style: {
-                shape: {type: shape},
+                shape: { type: shape },
                 label: {
                     enabled: true,
                     text: shape,
@@ -75,7 +75,7 @@ const generateLayers = (): StyleLayerType[] => {
 export const AllNodeShapes: Story = {
     args: {
         styleTemplate: templateCreator({
-            graph: {twoD: false, startingCameraDistance: 30},
+            graph: { twoD: false, startingCameraDistance: 30 },
             nodeStyle: {
                 texture: {
                     color: {

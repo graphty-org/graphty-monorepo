@@ -1,4 +1,4 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
 import {
     defineOptionsSchema,
@@ -221,9 +221,9 @@ describe("OptionSchema", () => {
                 label: "Test Select",
                 description: "A test select",
                 options: [
-                    {value: "a", label: "Option A"},
-                    {value: "b", label: "Option B"},
-                    {value: "c", label: "Option C"},
+                    { value: "a", label: "Option A" },
+                    { value: "b", label: "Option B" },
+                    { value: "c", label: "Option C" },
                 ],
             };
 
@@ -302,7 +302,7 @@ describe("OptionSchema", () => {
                 );
                 assert.throws(
                     () => {
-                        validateOption("test", {id: 1}, nodeIdDef);
+                        validateOption("test", { id: 1 }, nodeIdDef);
                     },
                     OptionValidationError,
                     "must be a string or number",
@@ -409,14 +409,14 @@ describe("OptionSchema", () => {
 
         it("validates provided options", () => {
             assert.throws(
-                () => resolveOptions(testSchema, {dampingFactor: 1.5}),
+                () => resolveOptions(testSchema, { dampingFactor: 1.5 }),
                 OptionValidationError,
                 "must be <= 1",
             );
         });
 
         it("handles partial options correctly", () => {
-            const resolved = resolveOptions(testSchema, {normalized: false});
+            const resolved = resolveOptions(testSchema, { normalized: false });
             assert.strictEqual(resolved.dampingFactor, 0.85);
             assert.strictEqual(resolved.maxIterations, 100);
             assert.strictEqual(resolved.normalized, false);

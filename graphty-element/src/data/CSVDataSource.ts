@@ -1,8 +1,8 @@
 import Papa from "papaparse";
 
-import {AdHocData} from "../config";
-import {type CSVVariant, type CSVVariantInfo, detectCSVVariant} from "./csv-variant-detection.js";
-import {BaseDataSourceConfig, DataSource, DataSourceChunk} from "./DataSource.js";
+import { AdHocData } from "../config";
+import { type CSVVariant, type CSVVariantInfo, detectCSVVariant } from "./csv-variant-detection.js";
+import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 
 export interface CSVDataSourceConfig extends BaseDataSourceConfig {
     delimiter?: string;
@@ -36,7 +36,7 @@ export class CSVDataSource extends DataSource {
             delimiter: ",",
             chunkSize: 1000,
             errorLimit: 100,
-            ... config,
+            ...config,
         };
     }
 
@@ -51,12 +51,7 @@ export class CSVDataSource extends DataSource {
      */
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
         // Handle paired files first
-        if (
-            this.config.nodeFile ||
-            this.config.edgeFile ||
-            this.config.nodeURL ||
-            this.config.edgeURL
-        ) {
+        if (this.config.nodeFile || this.config.edgeFile || this.config.nodeURL || this.config.edgeURL) {
             yield* this.parsePairedFiles();
             return;
         }
@@ -80,35 +75,35 @@ export class CSVDataSource extends DataSource {
         if (this.config.variant) {
             // User specified a variant - get defaults for that variant type
             const variantDefaults: Record<string, Partial<CSVVariantInfo>> = {
-                "neo4j": {
+                neo4j: {
                     hasHeaders: false,
                     labelColumn: ":LABEL",
                     typeColumn: ":TYPE",
                 },
-                "adjacency-list": {hasHeaders: false},
-                "node-list": {hasHeaders: true},
+                "adjacency-list": { hasHeaders: false },
+                "node-list": { hasHeaders: true },
                 "edge-list": {
                     hasHeaders: true,
                     sourceColumn: "source",
                     targetColumn: "target",
                 },
-                "gephi": {
+                gephi: {
                     hasHeaders: true,
                     sourceColumn: "Source",
                     targetColumn: "Target",
                     typeColumn: "Type",
                     labelColumn: "Label",
                 },
-                "cytoscape": {
+                cytoscape: {
                     hasHeaders: true,
                     sourceColumn: "source",
                     targetColumn: "target",
                     interactionColumn: "interaction",
                 },
-                "generic": {hasHeaders: true},
+                generic: { hasHeaders: true },
             };
 
-            const defaults = variantDefaults[this.config.variant] ?? {hasHeaders: true};
+            const defaults = variantDefaults[this.config.variant] ?? { hasHeaders: true };
             variantInfo = {
                 variant: this.config.variant,
                 hasHeaders: defaults.hasHeaders ?? true,
@@ -124,7 +119,7 @@ export class CSVDataSource extends DataSource {
         } else {
             // Auto-detect variant
             variantInfo = {
-                ... detectCSVVariant(headers),
+                ...detectCSVVariant(headers),
                 // Preserve user-specified delimiter if provided
                 delimiter: this.config.delimiter ?? detectCSVVariant(headers).delimiter,
             };
@@ -151,9 +146,7 @@ export class CSVDataSource extends DataSource {
                 });
 
                 if (!canContinue) {
-                    throw new Error(
-                        `Too many CSV parsing errors (${this.errorAggregator.getErrorCount()}), aborting`,
-                    );
+                    throw new Error(`Too many CSV parsing errors (${this.errorAggregator.getErrorCount()}), aborting`);
                 }
             }
         }
@@ -161,26 +154,16 @@ export class CSVDataSource extends DataSource {
         // Route to appropriate parser based on variant
         switch (variantInfo.variant) {
             case "neo4j":
-                yield* this.parseNeo4jFormat(
-                    fullParse.data as string[][],
-                );
+                yield* this.parseNeo4jFormat(fullParse.data as string[][]);
                 break;
             case "gephi":
-                yield* this.parseGephiFormat(
-                    fullParse.data as Record<string, unknown>[],
-                    variantInfo,
-                );
+                yield* this.parseGephiFormat(fullParse.data as Record<string, unknown>[], variantInfo);
                 break;
             case "cytoscape":
-                yield* this.parseCytoscapeFormat(
-                    fullParse.data as Record<string, unknown>[],
-                    variantInfo,
-                );
+                yield* this.parseCytoscapeFormat(fullParse.data as Record<string, unknown>[], variantInfo);
                 break;
             case "adjacency-list":
-                yield* this.parseAdjacencyList(
-                    fullParse.data as string[][],
-                );
+                yield* this.parseAdjacencyList(fullParse.data as string[][]);
                 break;
             case "node-list":
                 yield* this.parseNodeList(fullParse.data as Record<string, unknown>[]);
@@ -264,14 +247,7 @@ export class CSVDataSource extends DataSource {
         for (let i = 0; i < rows.length; i++) {
             try {
                 const row = rows[i];
-                const edge = this.createEdge(
-                    row[sourceCol],
-                    row[targetCol],
-                    row,
-                    sourceCol,
-                    targetCol,
-                    i + 1,
-                );
+                const edge = this.createEdge(row[sourceCol], row[targetCol], row, sourceCol, targetCol, i + 1);
 
                 if (edge) {
                     // Track unique node IDs
@@ -282,7 +258,7 @@ export class CSVDataSource extends DataSource {
 
                     // Yield chunk when full
                     if (edges.length >= this.chunkSize) {
-                        yield {nodes: [] as AdHocData[], edges: edges.splice(0, this.chunkSize) as AdHocData[]};
+                        yield { nodes: [] as AdHocData[], edges: edges.splice(0, this.chunkSize) as AdHocData[] };
                     }
                 }
             } catch (error) {
@@ -299,16 +275,14 @@ export class CSVDataSource extends DataSource {
         }
 
         // Create nodes from unique IDs and yield final chunk
-        const nodes: unknown[] = Array.from(nodeIds).map((id) => ({id}));
+        const nodes: unknown[] = Array.from(nodeIds).map((id) => ({ id }));
 
         // Always yield final chunk to ensure nodes are included
         // (edges may have been yielded in earlier chunks, but nodes are collected at the end)
-        yield {nodes: nodes as AdHocData[], edges: edges as AdHocData[]};
+        yield { nodes: nodes as AdHocData[], edges: edges as AdHocData[] };
     }
 
-    private *parseNodeList(
-        rows: Record<string, unknown>[],
-    ): Generator<DataSourceChunk, void, unknown> {
+    private *parseNodeList(rows: Record<string, unknown>[]): Generator<DataSourceChunk, void, unknown> {
         const nodes: unknown[] = [];
 
         for (let i = 0; i < rows.length; i++) {
@@ -320,7 +294,7 @@ export class CSVDataSource extends DataSource {
 
                 const node: Record<string, unknown> = {
                     id,
-                    ... row,
+                    ...row,
                 };
 
                 nodes.push(node);
@@ -340,22 +314,18 @@ export class CSVDataSource extends DataSource {
                 });
 
                 if (!canContinue) {
-                    throw new Error(
-                        `Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`,
-                    );
+                    throw new Error(`Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`);
                 }
             }
         }
 
         // Yield remaining nodes
         if (nodes.length > 0) {
-            yield {nodes: nodes as AdHocData[], edges: [] as AdHocData[]};
+            yield { nodes: nodes as AdHocData[], edges: [] as AdHocData[] };
         }
     }
 
-    private *parseNeo4jFormat(
-        rows: string[][],
-    ): Generator<DataSourceChunk, void, unknown> {
+    private *parseNeo4jFormat(rows: string[][]): Generator<DataSourceChunk, void, unknown> {
         // Neo4j format has multiple sections with headers
         // Format: header row, data rows, header row, data rows, etc.
         const nodes: unknown[] = [];
@@ -441,7 +411,7 @@ export class CSVDataSource extends DataSource {
 
         // Yield remaining
         if (nodes.length > 0 || edges.length > 0) {
-            yield {nodes: nodes as AdHocData[], edges: edges as AdHocData[]};
+            yield { nodes: nodes as AdHocData[], edges: edges as AdHocData[] };
         }
     }
 
@@ -458,14 +428,7 @@ export class CSVDataSource extends DataSource {
         for (let i = 0; i < rows.length; i++) {
             try {
                 const row = rows[i];
-                const edge = this.createEdge(
-                    row[sourceCol],
-                    row[targetCol],
-                    row,
-                    sourceCol,
-                    targetCol,
-                    i + 1,
-                );
+                const edge = this.createEdge(row[sourceCol], row[targetCol], row, sourceCol, targetCol, i + 1);
 
                 if (edge) {
                     // Track unique node IDs
@@ -490,16 +453,14 @@ export class CSVDataSource extends DataSource {
                 });
 
                 if (!canContinue) {
-                    throw new Error(
-                        `Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`,
-                    );
+                    throw new Error(`Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`);
                 }
             }
         }
 
         // Create nodes from unique IDs and yield final chunk
-        const nodes: unknown[] = Array.from(nodeIds).map((id) => ({id}));
-        yield {nodes: nodes as AdHocData[], edges: edges as AdHocData[]};
+        const nodes: unknown[] = Array.from(nodeIds).map((id) => ({ id }));
+        yield { nodes: nodes as AdHocData[], edges: edges as AdHocData[] };
     }
 
     private *parseCytoscapeFormat(
@@ -515,14 +476,7 @@ export class CSVDataSource extends DataSource {
         for (let i = 0; i < rows.length; i++) {
             try {
                 const row = rows[i];
-                const edge = this.createEdge(
-                    row[sourceCol],
-                    row[targetCol],
-                    row,
-                    sourceCol,
-                    targetCol,
-                    i + 1,
-                );
+                const edge = this.createEdge(row[sourceCol], row[targetCol], row, sourceCol, targetCol, i + 1);
 
                 if (edge) {
                     // Track unique node IDs
@@ -546,20 +500,16 @@ export class CSVDataSource extends DataSource {
                 });
 
                 if (!canContinue) {
-                    throw new Error(
-                        `Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`,
-                    );
+                    throw new Error(`Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`);
                 }
             }
         }
 
-        const nodes: unknown[] = Array.from(nodeIds).map((id) => ({id}));
-        yield {nodes: nodes as AdHocData[], edges: edges as AdHocData[]};
+        const nodes: unknown[] = Array.from(nodeIds).map((id) => ({ id }));
+        yield { nodes: nodes as AdHocData[], edges: edges as AdHocData[] };
     }
 
-    private *parseAdjacencyList(
-        rows: string[][],
-    ): Generator<DataSourceChunk, void, unknown> {
+    private *parseAdjacencyList(rows: string[][]): Generator<DataSourceChunk, void, unknown> {
         // Format: each row is [node, neighbor1, neighbor2, ...]
         // Can optionally have weights: node neighbor1:weight1 neighbor2:weight2
         const edges: unknown[] = [];
@@ -594,14 +544,7 @@ export class CSVDataSource extends DataSource {
                     }
                 }
 
-                const edge = this.createEdge(
-                    sourceNode,
-                    targetNode,
-                    rowData,
-                    "source",
-                    "target",
-                    rowIndex + 1,
-                );
+                const edge = this.createEdge(sourceNode, targetNode, rowData, "source", "target", rowIndex + 1);
 
                 if (edge) {
                     nodeIds.add(edge.src as string);
@@ -620,15 +563,11 @@ export class CSVDataSource extends DataSource {
         }
 
         // Create nodes for all unique node IDs
-        const nodes = Array.from(nodeIds).map((id) => ({id}));
-        yield {nodes: nodes as unknown as AdHocData[], edges: edges as AdHocData[]};
+        const nodes = Array.from(nodeIds).map((id) => ({ id }));
+        yield { nodes: nodes as unknown as AdHocData[], edges: edges as AdHocData[] };
     }
 
-    private async *parsePairedFiles(): AsyncGenerator<
-        DataSourceChunk,
-        void,
-        unknown
-    > {
+    private async *parsePairedFiles(): AsyncGenerator<DataSourceChunk, void, unknown> {
         // Validate that both URLs or both files are provided
         const hasNodeSource = !!(this.config.nodeURL ?? this.config.nodeFile);
         const hasEdgeSource = !!(this.config.edgeURL ?? this.config.edgeFile);
@@ -636,16 +575,16 @@ export class CSVDataSource extends DataSource {
         if (!hasNodeSource || !hasEdgeSource) {
             throw new Error(
                 "parsePairedFiles requires both node and edge sources. " +
-                "Provide either (nodeURL + edgeURL) or (nodeFile + edgeFile).",
+                    "Provide either (nodeURL + edgeURL) or (nodeFile + edgeFile).",
             );
         }
 
         // Load and parse node file
         const nodes: unknown[] = [];
         if (this.config.nodeFile ?? this.config.nodeURL) {
-            const nodeContent = this.config.nodeFile ?
-                await this.config.nodeFile.text() :
-                await (await this.fetchWithRetry(this.config.nodeURL ?? "")).text();
+            const nodeContent = this.config.nodeFile
+                ? await this.config.nodeFile.text()
+                : await (await this.fetchWithRetry(this.config.nodeURL ?? "")).text();
 
             const nodeParse = Papa.parse(nodeContent, {
                 header: true,
@@ -657,7 +596,7 @@ export class CSVDataSource extends DataSource {
             for (const row of nodeParse.data as Record<string, unknown>[]) {
                 nodes.push({
                     id: row.id ?? row.Id ?? row.ID,
-                    ... row,
+                    ...row,
                 });
             }
         }
@@ -665,9 +604,9 @@ export class CSVDataSource extends DataSource {
         // Load and parse edge file
         const edges: unknown[] = [];
         if (this.config.edgeFile ?? this.config.edgeURL) {
-            const edgeContent = this.config.edgeFile ?
-                await this.config.edgeFile.text() :
-                await (await this.fetchWithRetry(this.config.edgeURL ?? "")).text();
+            const edgeContent = this.config.edgeFile
+                ? await this.config.edgeFile.text()
+                : await (await this.fetchWithRetry(this.config.edgeURL ?? "")).text();
 
             const edgeParse = Papa.parse(edgeContent, {
                 header: true,
@@ -680,7 +619,7 @@ export class CSVDataSource extends DataSource {
                 edges.push({
                     src: row.source ?? row.src ?? row.Source,
                     dst: row.target ?? row.dst ?? row.Target,
-                    ... row,
+                    ...row,
                 });
             }
         }

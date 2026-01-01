@@ -6,11 +6,11 @@
  * and stores graph-level results (total weight, edge count).
  */
 
-import {kruskalMST} from "@graphty/algorithms";
+import { kruskalMST } from "@graphty/algorithms";
 
-import {SuggestedStylesConfig} from "../config";
-import {Algorithm} from "./Algorithm";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import { SuggestedStylesConfig } from "../config";
+import { Algorithm } from "./Algorithm";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  *
@@ -24,7 +24,7 @@ export class KruskalAlgorithm extends Algorithm {
             {
                 edge: {
                     selector: "",
-                    style: {enabled: true},
+                    style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.kruskal.inMST"],
                         output: "style.line.color",
@@ -71,7 +71,7 @@ export class KruskalAlgorithm extends Algorithm {
 
         // Convert to @graphty/algorithms format and run Kruskal's algorithm
         // Note: Kruskal's algorithm requires a truly undirected graph (not a directed graph with reverse edges)
-        const graphData = toAlgorithmGraph(g, {directed: false, addReverseEdges: false});
+        const graphData = toAlgorithmGraph(g, { directed: false, addReverseEdges: false });
         const mstResult = kruskalMST(graphData);
 
         // Create set of MST edge keys for fast lookup

@@ -31,12 +31,7 @@ export class XRUIManager {
      * @param arAvailable - Whether AR is available on this device
      * @param config - UI configuration options
      */
-    constructor(
-        container: HTMLElement,
-        vrAvailable: boolean,
-        arAvailable: boolean,
-        config: XRUIConfig,
-    ) {
+    constructor(container: HTMLElement, vrAvailable: boolean, arAvailable: boolean, config: XRUIConfig) {
         this.container = container;
         this.config = config;
 

@@ -1,10 +1,6 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-    mantineJsonGridDarkTheme,
-    mantineJsonGridLightTheme,
-    mantineJsonGridTheme,
-} from "../mantineTheme";
+import { mantineJsonGridDarkTheme, mantineJsonGridLightTheme, mantineJsonGridTheme } from "../mantineTheme";
 
 const requiredProperties = [
     "bgColor",
@@ -70,7 +66,7 @@ describe("mantineJsonGridLightTheme", () => {
 
 describe("mantineJsonGridTheme (deprecated)", () => {
     it("is an alias for the dark theme", () => {
-        // eslint-disable-next-line @typescript-eslint/no-deprecated -- testing deprecated export
+         
         expect(mantineJsonGridTheme).toBe(mantineJsonGridDarkTheme);
     });
 });

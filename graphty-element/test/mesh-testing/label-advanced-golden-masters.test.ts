@@ -5,9 +5,9 @@
  * configurations to complete 100% coverage of RichTextLabel.ts advanced functionality.
  */
 
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {LabelMeshFactory} from "./mesh-factory";
+import { LabelMeshFactory } from "./mesh-factory";
 
 describe("Label Golden Masters - Advanced Features", () => {
     // Pointer configurations
@@ -24,8 +24,10 @@ describe("Label Golden Masters - Advanced Features", () => {
                 },
             });
 
-            assert.isTrue(result.validation.isValid,
-                `Bottom pointer validation failed: ${result.validation.errors.join(", ")}`);
+            assert.isTrue(
+                result.validation.isValid,
+                `Bottom pointer validation failed: ${result.validation.errors.join(", ")}`,
+            );
             assert.isTrue(result.mesh.metadata.hasPointer);
             assert.equal(result.mesh.metadata.pointerDirection, "bottom");
             assert.equal(result.mesh.metadata.pointerWidth, 20);
@@ -71,10 +73,10 @@ describe("Label Golden Masters - Advanced Features", () => {
 
         test("creates pointers with various sizes", () => {
             const sizes = [
-                {width: 10, height: 8},
-                {width: 20, height: 15},
-                {width: 40, height: 30},
-                {width: 60, height: 45},
+                { width: 10, height: 8 },
+                { width: 20, height: 15 },
+                { width: 40, height: 30 },
+                { width: 60, height: 45 },
             ];
 
             sizes.forEach((size) => {
@@ -111,8 +113,10 @@ describe("Label Golden Masters - Advanced Features", () => {
                     },
                 });
 
-                assert.isTrue(result.validation.isValid,
-                    `${badgeType} badge validation failed: ${result.validation.errors.join(", ")}`);
+                assert.isTrue(
+                    result.validation.isValid,
+                    `${badgeType} badge validation failed: ${result.validation.errors.join(", ")}`,
+                );
                 assert.isTrue(result.mesh.metadata.hasBadge);
                 assert.equal(result.mesh.metadata.badgeType, badgeType);
             });
@@ -352,8 +356,8 @@ describe("Label Golden Masters - Advanced Features", () => {
                 backgroundPadding: 16,
                 cornerRadius: 12,
                 borders: [
-                    {width: 2, color: "#1976D2", spacing: 0},
-                    {width: 1, color: "#FFFFFF", spacing: 3},
+                    { width: 2, color: "#1976D2", spacing: 0 },
+                    { width: 1, color: "#FFFFFF", spacing: 3 },
                 ],
                 pointer: {
                     direction: "bottom",
@@ -425,7 +429,10 @@ describe("Label Golden Masters - Advanced Features", () => {
         });
 
         test("handles very long text content", () => {
-            const longText = "This is a very long text content that should test the label system's ability to handle extensive text content with proper wrapping and dimension calculations. ".repeat(5);
+            const longText =
+                "This is a very long text content that should test the label system's ability to handle extensive text content with proper wrapping and dimension calculations. ".repeat(
+                    5,
+                );
 
             const result = LabelMeshFactory.create({
                 text: longText,
@@ -487,7 +494,7 @@ describe("Label Golden Masters - Advanced Features", () => {
     // Performance and optimization scenarios
     describe("Performance Scenarios", () => {
         test("handles large number of borders efficiently", () => {
-            const manyBorders = Array.from({length: 10}, (_, i) => ({
+            const manyBorders = Array.from({ length: 10 }, (_, i) => ({
                 width: 1,
                 color: `#${(i * 25).toString(16).padStart(2, "0")}0000`,
                 spacing: 1,

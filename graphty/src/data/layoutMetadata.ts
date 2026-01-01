@@ -148,14 +148,18 @@ export const LAYOUT_METADATA: LayoutMetadata[] = [
 ];
 
 /**
- * Get layout metadata by type
+ * Get layout metadata by type.
+ * @param type - The layout type to look up
+ * @returns The layout metadata or undefined if not found
  */
 export function getLayoutMetadata(type: string): LayoutMetadata | undefined {
     return LAYOUT_METADATA.find((layout) => layout.type === type);
 }
 
 /**
- * Get all layouts in a specific category
+ * Get all layouts in a specific category.
+ * @param category - The category to filter by
+ * @returns The layouts in the specified category
  */
 export function getLayoutsByCategory(category: LayoutMetadata["category"]): LayoutMetadata[] {
     return LAYOUT_METADATA.filter((layout) => layout.category === category);

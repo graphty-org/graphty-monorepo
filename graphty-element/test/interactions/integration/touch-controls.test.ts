@@ -5,12 +5,12 @@
  * by creating Graph instances directly and simulating touch events.
  */
 
-import {PointerEventTypes, type PointerInfo, type PointerInfoPre} from "@babylonjs/core";
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test, vi} from "vitest";
+import { PointerEventTypes, type PointerInfo, type PointerInfoPre } from "@babylonjs/core";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import type {StyleSchema} from "../../../src/config";
-import {Graph} from "../../../src/Graph";
+import type { StyleSchema } from "../../../src/config";
+import { Graph } from "../../../src/Graph";
 
 /**
  * Create a minimal style template for testing
@@ -54,15 +54,11 @@ function createStyleTemplate(twoD: boolean): StyleSchema {
     } as unknown as StyleSchema;
 }
 
-const TEST_NODES = [
-    {id: 1},
-    {id: 2},
-    {id: 3},
-];
+const TEST_NODES = [{ id: 1 }, { id: 2 }, { id: 3 }];
 
 const TEST_EDGES = [
-    {src: 1, dst: 2},
-    {src: 2, dst: 3},
+    { src: 1, dst: 2 },
+    { src: 2, dst: 3 },
 ];
 
 describe("Touch Controls Integration", () => {
@@ -70,7 +66,7 @@ describe("Touch Controls Integration", () => {
     let container: HTMLDivElement;
 
     describe("2D Mode", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             container = document.createElement("div");
             container.style.width = "800px";
             container.style.height = "600px";
@@ -103,11 +99,11 @@ describe("Touch Controls Integration", () => {
                 throw new Error("Camera controller should be defined");
             }
 
-            const {camera} = cameraController;
+            const { camera } = cameraController;
             const initialX = camera.position.x;
             const initialY = camera.position.y;
 
-            const {scene} = graph;
+            const { scene } = graph;
 
             // 2D mode uses scene observables for mouse pan
             // Simulate a mouse drag which uses the same pan mechanism as touch
@@ -153,22 +149,25 @@ describe("Touch Controls Integration", () => {
                 throw new Error("Camera controller should be defined");
             }
 
-            const {camera} = cameraController;
+            const { camera } = cameraController;
             const initialOrthoTop = camera.orthoTop ?? 10;
             const initialOrthoBottom = camera.orthoBottom ?? -10;
             const initialRange = initialOrthoTop - initialOrthoBottom;
 
-            const {scene} = graph;
+            const { scene } = graph;
 
             // Note: Pinch gestures are typically converted to wheel events by browsers
             // Simulate wheel zoom in (negative deltaY = pinch spread)
-            scene.onPrePointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERWHEEL,
-                event: {
-                    deltaY: -100,
-                    preventDefault: vi.fn(),
-                } as unknown as WheelEvent,
-            } as unknown as PointerInfoPre, PointerEventTypes.POINTERWHEEL);
+            scene.onPrePointerObservable.notifyObservers(
+                {
+                    type: PointerEventTypes.POINTERWHEEL,
+                    event: {
+                        deltaY: -100,
+                        preventDefault: vi.fn(),
+                    } as unknown as WheelEvent,
+                } as unknown as PointerInfoPre,
+                PointerEventTypes.POINTERWHEEL,
+            );
 
             const newOrthoTop = camera.orthoTop ?? 10;
             const newOrthoBottom = camera.orthoBottom ?? -10;
@@ -185,21 +184,24 @@ describe("Touch Controls Integration", () => {
                 throw new Error("Camera controller should be defined");
             }
 
-            const {camera} = cameraController;
+            const { camera } = cameraController;
             const initialOrthoTop = camera.orthoTop ?? 10;
             const initialOrthoBottom = camera.orthoBottom ?? -10;
             const initialRange = initialOrthoTop - initialOrthoBottom;
 
-            const {scene} = graph;
+            const { scene } = graph;
 
             // Simulate wheel zoom out (positive deltaY = pinch together)
-            scene.onPrePointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERWHEEL,
-                event: {
-                    deltaY: 100,
-                    preventDefault: vi.fn(),
-                } as unknown as WheelEvent,
-            } as unknown as PointerInfoPre, PointerEventTypes.POINTERWHEEL);
+            scene.onPrePointerObservable.notifyObservers(
+                {
+                    type: PointerEventTypes.POINTERWHEEL,
+                    event: {
+                        deltaY: 100,
+                        preventDefault: vi.fn(),
+                    } as unknown as WheelEvent,
+                } as unknown as PointerInfoPre,
+                PointerEventTypes.POINTERWHEEL,
+            );
 
             const newOrthoTop = camera.orthoTop ?? 10;
             const newOrthoBottom = camera.orthoBottom ?? -10;
@@ -211,7 +213,7 @@ describe("Touch Controls Integration", () => {
     });
 
     describe("3D Mode", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             container = document.createElement("div");
             container.style.width = "800px";
             container.style.height = "600px";
@@ -241,7 +243,7 @@ describe("Touch Controls Integration", () => {
             const cameraController = graph.camera.getActiveController();
             assert.isDefined(cameraController, "Camera controller should be defined");
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const cameraManager = graph.camera as any;
             const orbitController = cameraManager.activeCameraController;
             const inputController = cameraManager.activeInputHandler;
@@ -252,25 +254,31 @@ describe("Touch Controls Integration", () => {
             // Spy on the rotate method to verify it's called during drag
             const rotateSpy = vi.spyOn(orbitController, "rotate");
 
-            const {canvas} = graph;
+            const { canvas } = graph;
 
             // 3D mode uses direct canvas events - touch and mouse use same pointer handlers
-            canvas.dispatchEvent(new PointerEvent("pointerdown", {
-                clientX: 100,
-                clientY: 100,
-                button: 0,
-                bubbles: true,
-            }));
+            canvas.dispatchEvent(
+                new PointerEvent("pointerdown", {
+                    clientX: 100,
+                    clientY: 100,
+                    button: 0,
+                    bubbles: true,
+                }),
+            );
 
-            canvas.dispatchEvent(new PointerEvent("pointermove", {
-                clientX: 200,
-                clientY: 150,
-                bubbles: true,
-            }));
+            canvas.dispatchEvent(
+                new PointerEvent("pointermove", {
+                    clientX: 200,
+                    clientY: 150,
+                    bubbles: true,
+                }),
+            );
 
-            canvas.dispatchEvent(new PointerEvent("pointerup", {
-                bubbles: true,
-            }));
+            canvas.dispatchEvent(
+                new PointerEvent("pointerup", {
+                    bubbles: true,
+                }),
+            );
 
             // Verify rotate was called during drag
             assert.isAbove(rotateSpy.mock.calls.length, 0, "rotate() should be called during touch drag");
@@ -279,7 +287,7 @@ describe("Touch Controls Integration", () => {
         test("keyboard zoom in 3D mode (simulating pinch)", () => {
             // Note: In 3D mode, pinch gestures use Hammer.js which is difficult to simulate.
             // However, keyboard W/S keys also control zoom in 3D mode.
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const cameraManager = graph.camera as any;
             const orbitController = cameraManager.activeCameraController;
             const inputController = cameraManager.activeInputHandler;
@@ -289,10 +297,10 @@ describe("Touch Controls Integration", () => {
 
             const initialDistance = orbitController.cameraDistance;
 
-            const {canvas} = graph;
+            const { canvas } = graph;
 
             // W key zooms in (decreases distance) - similar to pinch spread
-            canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "w", bubbles: true}));
+            canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "w", bubbles: true }));
             inputController.update();
 
             assert.isBelow(
@@ -301,13 +309,13 @@ describe("Touch Controls Integration", () => {
                 "W key (zoom in) should decrease camera distance (like pinch spread)",
             );
 
-            canvas.dispatchEvent(new KeyboardEvent("keyup", {key: "w", bubbles: true}));
+            canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "w", bubbles: true }));
         });
 
         test("keyboard zoom out 3D mode (simulating pinch)", () => {
             // Note: In 3D mode, pinch gestures use Hammer.js which is difficult to simulate.
             // However, keyboard W/S keys also control zoom in 3D mode.
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const cameraManager = graph.camera as any;
             const orbitController = cameraManager.activeCameraController;
             const inputController = cameraManager.activeInputHandler;
@@ -317,10 +325,10 @@ describe("Touch Controls Integration", () => {
 
             const initialDistance = orbitController.cameraDistance;
 
-            const {canvas} = graph;
+            const { canvas } = graph;
 
             // S key zooms out (increases distance) - similar to pinch together
-            canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "s", bubbles: true}));
+            canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "s", bubbles: true }));
             inputController.update();
 
             assert.isAbove(
@@ -329,7 +337,7 @@ describe("Touch Controls Integration", () => {
                 "S key (zoom out) should increase camera distance (like pinch together)",
             );
 
-            canvas.dispatchEvent(new KeyboardEvent("keyup", {key: "s", bubbles: true}));
+            canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "s", bubbles: true }));
         });
     });
 });

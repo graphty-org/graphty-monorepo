@@ -1,16 +1,16 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 // @ts-nocheck
-import {ActionManager, Vector3} from "@babylonjs/core";
-import {afterEach, assert, beforeEach, describe, test, vi} from "vitest";
+import { ActionManager, Vector3 } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
-import type {AdHocData} from "../../src/config/common";
-import {Graph} from "../../src/Graph";
-import {cleanupTestGraph, createTestGraph} from "../helpers/testSetup";
+import type { AdHocData } from "../../src/config/common";
+import { Graph } from "../../src/Graph";
+import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("Node Behavior Tests", () => {
     let graph: Graph;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Create test graph using the helper
         graph = await createTestGraph();
     });
@@ -23,7 +23,7 @@ describe("Node Behavior Tests", () => {
     test("drag behavior with pinOnDrag enabled", () => {
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({id: "test-node", label: "Test Node"} as AdHocData);
+        dataManager.addNode({ id: "test-node", label: "Test Node" } as AdHocData);
 
         const node = dataManager.getNode("test-node");
         assert.isDefined(node);
@@ -51,7 +51,7 @@ describe("Node Behavior Tests", () => {
     test("drag behavior observables work correctly", () => {
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({id: "test-node-2", label: "Test Node 2"} as AdHocData);
+        dataManager.addNode({ id: "test-node-2", label: "Test Node 2" } as AdHocData);
 
         const node = dataManager.getNode("test-node-2");
         assert.isDefined(node);
@@ -77,7 +77,7 @@ describe("Node Behavior Tests", () => {
     test("position changed during drag updates layout engine", () => {
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({id: "test-node-3", label: "Test Node 3"} as AdHocData);
+        dataManager.addNode({ id: "test-node-3", label: "Test Node 3" } as AdHocData);
 
         const node = dataManager.getNode("test-node-3");
         assert.isDefined(node);
@@ -107,7 +107,7 @@ describe("Node Behavior Tests", () => {
     test("position changed when not dragging does not update layout engine", () => {
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({id: "test-node-4", label: "Test Node 4"} as AdHocData);
+        dataManager.addNode({ id: "test-node-4", label: "Test Node 4" } as AdHocData);
 
         const node = dataManager.getNode("test-node-4");
         assert.isDefined(node);
@@ -130,21 +130,23 @@ describe("Node Behavior Tests", () => {
 
     test("double-click expansion triggers fetch when fetchNodes/fetchEdges exist", () => {
         const fetchNodes = vi.fn().mockReturnValue([
-            {id: "node2", data: {}},
-            {id: "node3", data: {}},
+            { id: "node2", data: {} },
+            { id: "node3", data: {} },
         ]);
-        const fetchEdges = vi.fn().mockReturnValue(new Set([
-            {src: "test-node-5", dst: "node2"},
-            {src: "test-node-5", dst: "node3"},
-        ]));
+        const fetchEdges = vi.fn().mockReturnValue(
+            new Set([
+                { src: "test-node-5", dst: "node2" },
+                { src: "test-node-5", dst: "node3" },
+            ]),
+        );
 
         // Add fetch functions to graph
-        (graph as {fetchNodes?: typeof fetchNodes, fetchEdges?: typeof fetchEdges}).fetchNodes = fetchNodes;
-        (graph as {fetchNodes?: typeof fetchNodes, fetchEdges?: typeof fetchEdges}).fetchEdges = fetchEdges;
+        (graph as { fetchNodes?: typeof fetchNodes; fetchEdges?: typeof fetchEdges }).fetchNodes = fetchNodes;
+        (graph as { fetchNodes?: typeof fetchNodes; fetchEdges?: typeof fetchEdges }).fetchEdges = fetchEdges;
 
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({id: "test-node-5", label: "Test Node 5"} as AdHocData);
+        dataManager.addNode({ id: "test-node-5", label: "Test Node 5" } as AdHocData);
 
         const node = dataManager.getNode("test-node-5");
         assert.isDefined(node);
@@ -156,20 +158,18 @@ describe("Node Behavior Tests", () => {
         assert.isDefined(node.mesh.actionManager);
 
         // Find the double-click action
-        const {actions} = (node.mesh.actionManager ?? {actions: []});
-        const doubleClickAction = actions.find(
-            (action) => action.trigger === ActionManager.OnDoublePickTrigger,
-        );
+        const { actions } = node.mesh.actionManager ?? { actions: [] };
+        const doubleClickAction = actions.find((action) => action.trigger === ActionManager.OnDoublePickTrigger);
 
         assert.isDefined(doubleClickAction);
 
         // Trigger the double-click action
         // ExecuteCodeAction stores the function in the execute property
         if ("execute" in doubleClickAction) {
-            (doubleClickAction as {execute?: () => void}).execute?.();
+            (doubleClickAction as { execute?: () => void }).execute?.();
         } else {
             // Try accessing the function property directly
-            (doubleClickAction as {_executionCallback?: () => void})._executionCallback?.();
+            (doubleClickAction as { _executionCallback?: () => void })._executionCallback?.();
         }
 
         // Verify fetch functions were called
@@ -193,16 +193,14 @@ describe("Node Behavior Tests", () => {
     test("double-click expansion does nothing when fetchNodes/fetchEdges don't exist", () => {
         // Add a node using DataManager (no fetch functions on graph)
         const dataManager = graph.getDataManager();
-        dataManager.addNode({id: "test-node-6", label: "Test Node 6"} as AdHocData);
+        dataManager.addNode({ id: "test-node-6", label: "Test Node 6" } as AdHocData);
 
         const node = dataManager.getNode("test-node-6");
         assert.isDefined(node);
 
         // No double-click action should be registered when fetch functions don't exist
         const actions = node.mesh.actionManager?.actions ?? [];
-        const doubleClickAction = actions.find(
-            (action) => action.trigger === ActionManager.OnDoublePickTrigger,
-        );
+        const doubleClickAction = actions.find((action) => action.trigger === ActionManager.OnDoublePickTrigger);
 
         assert.isUndefined(doubleClickAction);
     });
@@ -210,7 +208,7 @@ describe("Node Behavior Tests", () => {
     test("mesh is made pickable", () => {
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({id: "test-node-7", label: "Test Node 7"} as AdHocData);
+        dataManager.addNode({ id: "test-node-7", label: "Test Node 7" } as AdHocData);
 
         const node = dataManager.getNode("test-node-7");
         assert.isDefined(node);

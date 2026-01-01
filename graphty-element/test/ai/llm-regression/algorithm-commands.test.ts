@@ -9,22 +9,22 @@
  * and parameter extraction for graph algorithm operations.
  */
 
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import {skipIfNoApiKey} from "../../helpers/llm-regression-env";
-import {LlmRegressionTestHarness} from "../../helpers/llm-regression-harness";
-import {serverNetworkFixture} from "./fixtures/test-graph-fixtures";
+import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
+import { LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 /**
  * Valid algorithm types that the LLM might suggest.
  * Maps common algorithm names to their recognized variants.
  */
 const ALGORITHM_SYNONYMS: Record<string, string[]> = {
-    "degree": ["degree", "degree-centrality", "degreecentrality"],
-    "pagerank": ["pagerank", "page-rank", "page_rank"],
+    degree: ["degree", "degree-centrality", "degreecentrality"],
+    pagerank: ["pagerank", "page-rank", "page_rank"],
     "connected-components": ["connected-components", "connectedcomponents", "components", "connected"],
-    "betweenness": ["betweenness", "betweenness-centrality", "betweennesscentrality"],
-    "closeness": ["closeness", "closeness-centrality", "closenesscentrality"],
+    betweenness: ["betweenness", "betweenness-centrality", "betweennesscentrality"],
+    closeness: ["closeness", "closeness-centrality", "closenesscentrality"],
 };
 
 /**
@@ -70,7 +70,7 @@ function isValidAlgorithmType(actual: unknown, expected: string): boolean {
 describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
     let harness: LlmRegressionTestHarness;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         harness = await LlmRegressionTestHarness.create({
             graphData: serverNetworkFixture,
         });
@@ -81,7 +81,7 @@ describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
     });
 
     describe("listAlgorithms", () => {
-        it("calls listAlgorithms for 'What algorithms are available?'", async() => {
+        it("calls listAlgorithms for 'What algorithms are available?'", async () => {
             const result = await harness.testPrompt("What algorithms are available?");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -90,7 +90,7 @@ describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
             // The command should work with an empty params object
         });
 
-        it("calls listAlgorithms for 'List graphty algorithms'", async() => {
+        it("calls listAlgorithms for 'List graphty algorithms'", async () => {
             const result = await harness.testPrompt("List graphty algorithms");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -104,7 +104,7 @@ describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
     });
 
     describe("runAlgorithm", () => {
-        it("calls runAlgorithm for 'Calculate the degree of each node'", async() => {
+        it("calls runAlgorithm for 'Calculate the degree of each node'", async () => {
             const result = await harness.testPrompt("Calculate the degree of each node");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -119,14 +119,11 @@ describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
 
             // Namespace should typically be 'graphty'
             if (result.toolParams.namespace) {
-                assert.ok(
-                    typeof result.toolParams.namespace === "string",
-                    "Namespace should be a string",
-                );
+                assert.ok(typeof result.toolParams.namespace === "string", "Namespace should be a string");
             }
         });
 
-        it("calls runAlgorithm for 'Run pagerank'", async() => {
+        it("calls runAlgorithm for 'Run pagerank'", async () => {
             const result = await harness.testPrompt("Run pagerank");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -140,7 +137,7 @@ describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
             );
         });
 
-        it("calls runAlgorithm for 'Run connected components algorithm'", async() => {
+        it("calls runAlgorithm for 'Run connected components algorithm'", async () => {
             const result = await harness.testPrompt("Run the connected components algorithm on this graph");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -156,7 +153,7 @@ describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
     });
 
     describe("command result validation", () => {
-        it("returns command result for listAlgorithms", async() => {
+        it("returns command result for listAlgorithms", async () => {
             const result = await harness.testPrompt("Show me all available graph analysis algorithms");
 
             assert.ok(result.toolWasCalled, "Expected listAlgorithms to be called");
@@ -167,7 +164,7 @@ describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
             assert.ok(result.commandResult.message, "Expected result message");
         });
 
-        it("returns command result for runAlgorithm", async() => {
+        it("returns command result for runAlgorithm", async () => {
             const result = await harness.testPrompt("Analyze the graph using degree centrality");
 
             assert.ok(result.toolWasCalled, "Expected runAlgorithm to be called");
@@ -178,14 +175,14 @@ describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
             assert.ok(result.commandResult.message, "Expected result message");
         });
 
-        it("tracks latency for algorithm commands", async() => {
+        it("tracks latency for algorithm commands", async () => {
             const result = await harness.testPrompt("What graph algorithms can I use?");
 
             assert.ok(result.latencyMs > 0, "Expected positive latency");
             assert.ok(result.latencyMs < 60000, "Expected latency under 60 seconds");
         });
 
-        it("captures token usage for algorithm commands", async() => {
+        it("captures token usage for algorithm commands", async () => {
             const result = await harness.testPrompt("Run the degree algorithm on the graph");
 
             // Token usage may not always be available depending on provider configuration

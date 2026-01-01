@@ -2,5 +2,5 @@
  * Specialized layout algorithms
  */
 
-export { spectralLayout } from './spectral';
-export { planarLayout } from './planar';
+export { planarLayout } from "./planar";
+export { spectralLayout } from "./spectral";

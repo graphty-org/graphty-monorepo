@@ -5,15 +5,39 @@
  * Focused on successful execution rather than complex scenarios.
  */
 
-import {AbstractMesh, MeshBuilder, NullEngine, Scene, Vector3} from "@babylonjs/core";
-import {afterEach, assert, beforeEach, describe, test} from "vitest";
+import { AbstractMesh, MeshBuilder, NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
-import {EdgeMesh} from "../../src/meshes/EdgeMesh";
-import {MeshCache} from "../../src/meshes/MeshCache";
-import {NodeMesh} from "../../src/meshes/NodeMesh";
-import {RichTextLabel} from "../../src/meshes/RichTextLabel";
+import { EdgeMesh } from "../../src/meshes/EdgeMesh";
+import { MeshCache } from "../../src/meshes/MeshCache";
+import { NodeMesh } from "../../src/meshes/NodeMesh";
+import { RichTextLabel } from "../../src/meshes/RichTextLabel";
 
-type NodeShapeType = "box" | "sphere" | "cylinder" | "cone" | "capsule" | "torus-knot" | "tetrahedron" | "octahedron" | "dodecahedron" | "icosahedron" | "rhombicuboctahedron" | "triangular_prism" | "pentagonal_prism" | "hexagonal_prism" | "square_pyramid" | "pentagonal_pyramid" | "triangular_dipyramid" | "pentagonal_dipyramid" | "elongated_square_dipyramid" | "elongated_pentagonal_dipyramid" | "elongated_pentagonal_cupola" | "goldberg" | "icosphere" | "geodesic";
+type NodeShapeType =
+    | "box"
+    | "sphere"
+    | "cylinder"
+    | "cone"
+    | "capsule"
+    | "torus-knot"
+    | "tetrahedron"
+    | "octahedron"
+    | "dodecahedron"
+    | "icosahedron"
+    | "rhombicuboctahedron"
+    | "triangular_prism"
+    | "pentagonal_prism"
+    | "hexagonal_prism"
+    | "square_pyramid"
+    | "pentagonal_pyramid"
+    | "triangular_dipyramid"
+    | "pentagonal_dipyramid"
+    | "elongated_square_dipyramid"
+    | "elongated_pentagonal_dipyramid"
+    | "elongated_pentagonal_cupola"
+    | "goldberg"
+    | "icosphere"
+    | "geodesic";
 
 describe("Simple Real Mesh Tests", () => {
     let engine: NullEngine;
@@ -28,7 +52,7 @@ describe("Simple Real Mesh Tests", () => {
 
     afterEach(() => {
         scene.dispose();
-    // Skip engine disposal to avoid DOM issues
+        // Skip engine disposal to avoid DOM issues
     });
 
     describe("NodeMesh Coverage", () => {
@@ -40,9 +64,9 @@ describe("Simple Real Mesh Tests", () => {
             };
 
             const createOptions = {
-                shape: {type: "sphere" as const, size: 1},
-                texture: {color: "#FF0000"},
-                effect: {wireframe: false},
+                shape: { type: "sphere" as const, size: 1 },
+                texture: { color: "#FF0000" },
+                effect: { wireframe: false },
             };
 
             const mesh = NodeMesh.create(meshCache, options, createOptions, scene);
@@ -57,9 +81,9 @@ describe("Simple Real Mesh Tests", () => {
             };
 
             const createOptions = {
-                shape: {type: "box" as const, size: 2},
-                texture: {color: "#00FF00"},
-                effect: {wireframe: false},
+                shape: { type: "box" as const, size: 2 },
+                texture: { color: "#00FF00" },
+                effect: { wireframe: false },
             };
 
             const mesh = NodeMesh.create(meshCache, options, createOptions, scene);
@@ -74,7 +98,7 @@ describe("Simple Real Mesh Tests", () => {
             };
 
             const createOptions = {
-                shape: {type: "cylinder" as const, size: 1},
+                shape: { type: "cylinder" as const, size: 1 },
                 texture: {
                     color: {
                         colorType: "solid" as const,
@@ -82,7 +106,7 @@ describe("Simple Real Mesh Tests", () => {
                         opacity: 0.7,
                     },
                 },
-                effect: {wireframe: true},
+                effect: { wireframe: true },
             };
 
             const mesh = NodeMesh.create(meshCache, options, createOptions, scene);
@@ -99,9 +123,9 @@ describe("Simple Real Mesh Tests", () => {
             };
 
             const createOptions1 = {
-                shape: {type: "tetrahedron" as const, size: 1},
-                texture: {color: "##FFFFFF"},
-                effect: {wireframe: false},
+                shape: { type: "tetrahedron" as const, size: 1 },
+                texture: { color: "##FFFFFF" },
+                effect: { wireframe: false },
             };
 
             const mesh1 = NodeMesh.create(meshCache, options1, createOptions1, scene);
@@ -155,9 +179,9 @@ describe("Simple Real Mesh Tests", () => {
                 };
 
                 const createOptions = {
-                    shape: {type: shape as NodeShapeType, size: 1},
-                    texture: {color: "#FFFFFF"},
-                    effect: {wireframe: false},
+                    shape: { type: shape as NodeShapeType, size: 1 },
+                    texture: { color: "#FFFFFF" },
+                    effect: { wireframe: false },
                 };
 
                 const mesh = NodeMesh.create(meshCache, options, createOptions, scene);
@@ -192,7 +216,7 @@ describe("Simple Real Mesh Tests", () => {
 
             const style = {
                 enabled: true,
-                line: {animationSpeed: 1.5},
+                line: { animationSpeed: 1.5 },
             };
 
             const mesh = EdgeMesh.create(meshCache, options, style, scene);
@@ -206,12 +230,7 @@ describe("Simple Real Mesh Tests", () => {
                 color: "#0000FF",
             };
 
-            const arrow = EdgeMesh.createArrowHead(
-                meshCache,
-                "test-arrow",
-                arrowOptions,
-                scene,
-            );
+            const arrow = EdgeMesh.createArrowHead(meshCache, "test-arrow", arrowOptions, scene);
 
             assert.isNotNull(arrow);
         });
@@ -223,12 +242,7 @@ describe("Simple Real Mesh Tests", () => {
                 color: "#0000FF",
             };
 
-            const arrow = EdgeMesh.createArrowHead(
-                meshCache,
-                "test-arrow-none",
-                arrowOptions,
-                scene,
-            );
+            const arrow = EdgeMesh.createArrowHead(meshCache, "test-arrow-none", arrowOptions, scene);
 
             assert.isNull(arrow);
         });
@@ -250,7 +264,7 @@ describe("Simple Real Mesh Tests", () => {
                 color: "#000000",
             };
 
-            const style = {enabled: true, line: {}};
+            const style = { enabled: true, line: {} };
             const mesh = EdgeMesh.create(meshCache, options, style, scene) as AbstractMesh;
 
             const srcPoint = new Vector3(0, 0, 0);
@@ -293,9 +307,7 @@ describe("Simple Real Mesh Tests", () => {
         test("creates label with borders", () => {
             const options = {
                 text: "Border Test",
-                borders: [
-                    {width: 2, color: "#FF0000", spacing: 0},
-                ],
+                borders: [{ width: 2, color: "#FF0000", spacing: 0 }],
             };
 
             const label = RichTextLabel.createLabel(scene, options);
@@ -617,8 +629,8 @@ describe("Simple Real Mesh Tests", () => {
                 text: "Rounded with Pointer",
                 cornerRadius: 15,
                 borders: [
-                    {width: 2, color: "#FF0000", spacing: 1},
-                    {width: 3, color: "#00FF00", spacing: 2},
+                    { width: 2, color: "#FF0000", spacing: 1 },
+                    { width: 3, color: "#00FF00", spacing: 2 },
                 ],
                 pointer: true,
                 pointerDirection: "bottom" as const,
@@ -686,7 +698,7 @@ describe("Simple Real Mesh Tests", () => {
         });
 
         test("handles attachment to mesh", () => {
-            const targetMesh = MeshBuilder.CreateBox("target", {size: 1}, scene);
+            const targetMesh = MeshBuilder.CreateBox("target", { size: 1 }, scene);
 
             const options = {
                 text: "Attached to Mesh",
@@ -696,7 +708,17 @@ describe("Simple Real Mesh Tests", () => {
             const label = RichTextLabel.createLabel(scene, options);
 
             // Test all attach positions
-            const positions = ["top", "bottom", "left", "right", "center", "top-left", "top-right", "bottom-left", "bottom-right"] as const;
+            const positions = [
+                "top",
+                "bottom",
+                "left",
+                "right",
+                "center",
+                "top-left",
+                "top-right",
+                "bottom-left",
+                "bottom-right",
+            ] as const;
             positions.forEach((pos) => {
                 label.attachTo(targetMesh, pos, 1.0);
                 assert.isNotNull(label.labelMesh);
@@ -865,7 +887,7 @@ describe("Simple Real Mesh Tests", () => {
 
             // First call should be a miss
             const instance1 = cache.get("test-key", () => {
-                return MeshBuilder.CreateBox("test-box", {size: 1}, scene);
+                return MeshBuilder.CreateBox("test-box", { size: 1 }, scene);
             });
 
             assert.equal(cache.hits, 0);
@@ -875,7 +897,7 @@ describe("Simple Real Mesh Tests", () => {
 
             // Second call with same key should be a hit
             const instance2 = cache.get("test-key", () => {
-                return MeshBuilder.CreateBox("should-not-create", {size: 1}, scene);
+                return MeshBuilder.CreateBox("should-not-create", { size: 1 }, scene);
             });
 
             assert.equal(cache.hits, 1);
@@ -885,7 +907,7 @@ describe("Simple Real Mesh Tests", () => {
 
             // Different key should be another miss
             cache.get("different-key", () => {
-                return MeshBuilder.CreateSphere("test-sphere", {diameter: 1}, scene);
+                return MeshBuilder.CreateSphere("test-sphere", { diameter: 1 }, scene);
             });
 
             assert.equal(cache.hits, 1);
@@ -896,8 +918,8 @@ describe("Simple Real Mesh Tests", () => {
         test("reset clears hit/miss counters but keeps cache", () => {
             const cache = new MeshCache();
 
-            cache.get("key1", () => MeshBuilder.CreateBox("box1", {size: 1}, scene));
-            cache.get("key1", () => MeshBuilder.CreateBox("box2", {size: 1}, scene));
+            cache.get("key1", () => MeshBuilder.CreateBox("box1", { size: 1 }, scene));
+            cache.get("key1", () => MeshBuilder.CreateBox("box2", { size: 1 }, scene));
 
             assert.equal(cache.hits, 1);
             assert.equal(cache.misses, 1);
@@ -913,8 +935,8 @@ describe("Simple Real Mesh Tests", () => {
         test("clear disposes meshes and resets everything", () => {
             const cache = new MeshCache();
 
-            cache.get("key1", () => MeshBuilder.CreateBox("box1", {size: 1}, scene));
-            cache.get("key2", () => MeshBuilder.CreateSphere("sphere1", {diameter: 1}, scene));
+            cache.get("key1", () => MeshBuilder.CreateBox("box1", { size: 1 }, scene));
+            cache.get("key2", () => MeshBuilder.CreateSphere("sphere1", { diameter: 1 }, scene));
 
             assert.equal(cache.size(), 2);
             assert.equal(cache.hits, 0);
@@ -931,11 +953,11 @@ describe("Simple Real Mesh Tests", () => {
             const cache = new MeshCache();
 
             const instance1 = cache.get("test-mesh", () => {
-                return MeshBuilder.CreateBox("original", {size: 1}, scene);
+                return MeshBuilder.CreateBox("original", { size: 1 }, scene);
             });
 
             const instance2 = cache.get("test-mesh", () => {
-                return MeshBuilder.CreateBox("should-not-create", {size: 1}, scene);
+                return MeshBuilder.CreateBox("should-not-create", { size: 1 }, scene);
             });
 
             // Both should be instances of the same mesh
@@ -948,7 +970,7 @@ describe("Simple Real Mesh Tests", () => {
             const cache = new MeshCache();
 
             cache.get("positioned-mesh", () => {
-                const mesh = MeshBuilder.CreateBox("box", {size: 1}, scene);
+                const mesh = MeshBuilder.CreateBox("box", { size: 1 }, scene);
                 mesh.position.set(100, 100, 100); // Set initial position
                 return mesh;
             });

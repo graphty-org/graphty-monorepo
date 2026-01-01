@@ -1,6 +1,6 @@
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {detectFormat} from "../../src/data/format-detection.js";
+import { detectFormat } from "../../src/data/format-detection.js";
 
 describe("detectFormat", () => {
     test("detects GraphML from extension", () => {
@@ -8,12 +8,12 @@ describe("detectFormat", () => {
     });
 
     test("detects GraphML from XML namespace", () => {
-        const xml = "<?xml version=\"1.0\"?><graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\">";
+        const xml = '<?xml version="1.0"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns">';
         assert.strictEqual(detectFormat("", xml), "graphml");
     });
 
     test("detects GEXF from namespace", () => {
-        const xml = "<gexf xmlns=\"http://gexf.net/1.3\">";
+        const xml = '<gexf xmlns="http://gexf.net/1.3">';
         assert.strictEqual(detectFormat("", xml), "gexf");
     });
 
@@ -31,12 +31,12 @@ describe("detectFormat", () => {
     });
 
     test("detects JSON from content", () => {
-        const json = "{ \"nodes\": [], \"edges\": [] }";
+        const json = '{ "nodes": [], "edges": [] }';
         assert.strictEqual(detectFormat("", json), "json");
     });
 
     test("detects Pajek from content", () => {
-        const pajek = "*Vertices 3\n1 \"Node1\"\n2 \"Node2\"\n3 \"Node3\"";
+        const pajek = '*Vertices 3\n1 "Node1"\n2 "Node2"\n3 "Node3"';
         assert.strictEqual(detectFormat("", pajek), "pajek");
     });
 
@@ -46,12 +46,12 @@ describe("detectFormat", () => {
     });
 
     test("handles .xml extension with GraphML namespace", () => {
-        const xml = "<?xml version=\"1.0\"?><graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\">";
+        const xml = '<?xml version="1.0"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns">';
         assert.strictEqual(detectFormat("graph.xml", xml), "graphml");
     });
 
     test("handles .xml extension with GEXF namespace", () => {
-        const xml = "<gexf xmlns=\"http://gexf.net/1.3\">";
+        const xml = '<gexf xmlns="http://gexf.net/1.3">';
         assert.strictEqual(detectFormat("graph.xml", xml), "gexf");
     });
 });

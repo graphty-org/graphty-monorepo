@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/react";
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {captureUserFeedback, initSentry, isSentryEnabled, resetSentryState, testCaptureError} from "./sentry";
+import { captureUserFeedback, initSentry, isSentryEnabled, resetSentryState, testCaptureError } from "./sentry";
 
 // Create mock functions for scope
 const mockAddAttachment = vi.fn();
@@ -32,7 +32,7 @@ describe("Sentry initialization", () => {
     it("should not initialize when DSN is not configured", () => {
         const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-        initSentry({dsn: ""});
+        initSentry({ dsn: "" });
 
         expect(isSentryEnabled()).toBe(false);
         expect(Sentry.init).not.toHaveBeenCalled();
@@ -44,7 +44,7 @@ describe("Sentry initialization", () => {
     it("should not initialize when DSN is undefined", () => {
         const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-        initSentry({dsn: undefined});
+        initSentry({ dsn: undefined });
 
         expect(isSentryEnabled()).toBe(false);
         expect(Sentry.init).not.toHaveBeenCalled();
@@ -117,7 +117,7 @@ describe("captureUserFeedback", () => {
         mockAddAttachment.mockClear();
         mockClearAttachments.mockClear();
         // Initialize Sentry so captureUserFeedback works
-        initSentry({dsn: "https://test@test.ingest.sentry.io/123"});
+        initSentry({ dsn: "https://test@test.ingest.sentry.io/123" });
     });
 
     afterEach(() => {
@@ -127,7 +127,7 @@ describe("captureUserFeedback", () => {
     it("should return error when Sentry is not initialized", () => {
         resetSentryState(); // Reset to uninitialized state
 
-        const result = captureUserFeedback({message: "Test feedback"});
+        const result = captureUserFeedback({ message: "Test feedback" });
 
         expect(result.success).toBe(false);
         expect(result.message).toContain("not configured");
@@ -135,14 +135,14 @@ describe("captureUserFeedback", () => {
     });
 
     it("should return success when Sentry is initialized", () => {
-        const result = captureUserFeedback({message: "Test feedback"});
+        const result = captureUserFeedback({ message: "Test feedback" });
 
         expect(result.success).toBe(true);
         expect(result.message).toContain("Thank you");
     });
 
     it("should capture feedback with message only", () => {
-        captureUserFeedback({message: "Test feedback"});
+        captureUserFeedback({ message: "Test feedback" });
 
         expect(Sentry.captureFeedback).toHaveBeenCalledWith({
             message: "Test feedback",
@@ -166,14 +166,14 @@ describe("captureUserFeedback", () => {
     });
 
     it("should not add attachments when none provided", () => {
-        captureUserFeedback({message: "Test feedback"});
+        captureUserFeedback({ message: "Test feedback" });
 
         expect(mockAddAttachment).not.toHaveBeenCalled();
         expect(mockClearAttachments).toHaveBeenCalled();
     });
 
     it("should not add attachments when empty array provided", () => {
-        captureUserFeedback({message: "Test feedback", attachments: []});
+        captureUserFeedback({ message: "Test feedback", attachments: [] });
 
         expect(mockAddAttachment).not.toHaveBeenCalled();
         expect(mockClearAttachments).toHaveBeenCalled();
@@ -187,7 +187,7 @@ describe("captureUserFeedback", () => {
             contentType: "text/plain",
         };
 
-        captureUserFeedback({message: "Test feedback", attachments: [attachment]});
+        captureUserFeedback({ message: "Test feedback", attachments: [attachment] });
 
         expect(mockAddAttachment).toHaveBeenCalledTimes(1);
         expect(mockAddAttachment).toHaveBeenCalledWith({
@@ -213,7 +213,7 @@ describe("captureUserFeedback", () => {
             },
         ];
 
-        captureUserFeedback({message: "Test feedback", attachments});
+        captureUserFeedback({ message: "Test feedback", attachments });
 
         expect(mockAddAttachment).toHaveBeenCalledTimes(2);
         expect(mockAddAttachment).toHaveBeenNthCalledWith(1, {
@@ -231,7 +231,7 @@ describe("captureUserFeedback", () => {
     it("should clear attachments after sending feedback", () => {
         captureUserFeedback({
             message: "Test feedback",
-            attachments: [{filename: "test.txt", data: new Uint8Array([65])}],
+            attachments: [{ filename: "test.txt", data: new Uint8Array([65]) }],
         });
 
         expect(mockClearAttachments).toHaveBeenCalled();
@@ -248,7 +248,7 @@ describe("captureUserFeedback", () => {
             data,
         };
 
-        captureUserFeedback({message: "Test feedback", attachments: [attachment]});
+        captureUserFeedback({ message: "Test feedback", attachments: [attachment] });
 
         expect(mockAddAttachment).toHaveBeenCalledWith({
             filename: "test.bin",

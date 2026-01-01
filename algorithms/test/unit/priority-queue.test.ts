@@ -1,6 +1,6 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {PriorityQueue} from "../../src/data-structures/priority-queue.js";
+import { PriorityQueue } from "../../src/data-structures/priority-queue.js";
 
 describe("PriorityQueue", () => {
     describe("constructor", () => {
@@ -194,7 +194,7 @@ describe("PriorityQueue", () => {
                     // The next item should have equal or higher priority (min-heap)
                     const nextArray = pq.toArray();
                     if (nextArray.length > 0) {
-                        const minPriority = Math.min(... nextArray.map((x) => x.priority));
+                        const minPriority = Math.min(...nextArray.map((x) => x.priority));
                         expect(minPriority).toBeGreaterThanOrEqual(lastPriority);
                     }
                 }
@@ -237,8 +237,8 @@ describe("PriorityQueue", () => {
 
             const pq = new PriorityQueue<TestItem>();
 
-            const item1: TestItem = {id: "1", value: 100};
-            const item2: TestItem = {id: "2", value: 200};
+            const item1: TestItem = { id: "1", value: 100 };
+            const item2: TestItem = { id: "2", value: 200 };
 
             pq.enqueue(item1, 10);
             pq.enqueue(item2, 5);

@@ -1,11 +1,18 @@
-import {Quaternion, Ray, type Scene, Vector3, type WebXRDefaultExperience, type WebXRInputSource} from "@babylonjs/core";
+import {
+    Quaternion,
+    Ray,
+    type Scene,
+    Vector3,
+    type WebXRDefaultExperience,
+    type WebXRInputSource,
+} from "@babylonjs/core";
 
-import type {NodeDragHandler} from "../NodeBehavior";
-import {applyDeadzone} from "./InputUtils";
-import type {PivotController} from "./PivotController";
+import type { NodeDragHandler } from "../NodeBehavior";
+import { applyDeadzone } from "./InputUtils";
+import type { PivotController } from "./PivotController";
 
 // Re-export applyDeadzone for backwards compatibility
-export {applyDeadzone} from "./InputUtils";
+export { applyDeadzone } from "./InputUtils";
 
 /**
  * Internal state for tracking hand position and pinch gesture.
@@ -53,8 +60,8 @@ export class XRInputHandler {
     private gestureControllers = new Map<string, ControllerEntry>();
 
     // Thumbstick values - updated every frame
-    private leftStick = {x: 0, y: 0};
-    private rightStick = {x: 0, y: 0};
+    private leftStick = { x: 0, y: 0 };
+    private rightStick = { x: 0, y: 0 };
 
     // Hand tracking state for two-hand gestures
     private leftHand: HandState | null = null;
@@ -63,7 +70,7 @@ export class XRInputHandler {
     private previousDirection: Vector3 | null = null;
 
     // Track previous pinch state for hysteresis
-    private wasPinching: Record<string, boolean> = {left: false, right: false};
+    private wasPinching: Record<string, boolean> = { left: false, right: false };
 
     // Hand tracking feature reference
     private handTrackingFeature: unknown = null;
@@ -177,7 +184,7 @@ export class XRInputHandler {
      */
     private enableHandTracking(): void {
         try {
-            const {featuresManager} = this.xr.baseExperience;
+            const { featuresManager } = this.xr.baseExperience;
             // Try to get already enabled feature first
             this.handTrackingFeature = featuresManager.getEnabledFeature("xr-hand-tracking");
         } catch {
@@ -190,8 +197,8 @@ export class XRInputHandler {
      * @param controller - The XR input source to add for gesture tracking
      */
     private addGestureController(controller: WebXRInputSource): void {
-        const {uniqueId} = controller;
-        const {handedness} = controller.inputSource;
+        const { uniqueId } = controller;
+        const { handedness } = controller.inputSource;
 
         if (handedness === "left" || handedness === "right") {
             this.gestureControllers.set(uniqueId, {
@@ -206,7 +213,7 @@ export class XRInputHandler {
      * @param controller - The XR input source to remove from gesture tracking
      */
     private removeGestureController(controller: WebXRInputSource): void {
-        const {uniqueId} = controller;
+        const { uniqueId } = controller;
         if (this.gestureControllers.has(uniqueId)) {
             this.gestureControllers.delete(uniqueId);
         }
@@ -234,18 +241,18 @@ export class XRInputHandler {
         this.setupControllers.clear();
         this.controllerCleanup.clear();
         this.gestureControllers.clear();
-        this.leftStick = {x: 0, y: 0};
-        this.rightStick = {x: 0, y: 0};
+        this.leftStick = { x: 0, y: 0 };
+        this.rightStick = { x: 0, y: 0 };
         this.leftHand = null;
         this.rightHand = null;
-        this.wasPinching = {left: false, right: false};
+        this.wasPinching = { left: false, right: false };
         this.handTrackingFeature = null;
         this.resetGestureState();
     }
 
     private setupController(controller: WebXRInputSource): void {
-        const {handedness} = controller.inputSource;
-        const {uniqueId} = controller;
+        const { handedness } = controller.inputSource;
+        const { uniqueId } = controller;
 
         // Skip if already setup THIS specific controller
         if (this.setupControllers.has(uniqueId)) {
@@ -253,7 +260,7 @@ export class XRInputHandler {
         }
 
         // Check if this is a hand (detected as controller but no real controller capabilities)
-        const {inputSource} = controller;
+        const { inputSource } = controller;
         const hasHandProfile = inputSource.profiles.some(
             (p) => p.includes("hand") || p.includes("generic-trigger-touchpad"),
         );
@@ -269,8 +276,11 @@ export class XRInputHandler {
             const mc = motionController as {
                 getComponentIds: () => string[];
                 getComponent: (id: string) => {
-                    axes: {x: number, y: number};
-                    onAxisValueChangedObservable: {add: (callback: (axes: {x: number, y: number}) => void) => unknown, remove: (observer: unknown) => void};
+                    axes: { x: number; y: number };
+                    onAxisValueChangedObservable: {
+                        add: (callback: (axes: { x: number; y: number }) => void) => unknown;
+                        remove: (observer: unknown) => void;
+                    };
                     _disposed?: boolean;
                 } | null;
             };
@@ -286,13 +296,13 @@ export class XRInputHandler {
             let isCleanedUp = false;
 
             // Axis change observer
-            const axisCallback = (axes: {x: number, y: number}): void => {
+            const axisCallback = (axes: { x: number; y: number }): void => {
                 if (isCleanedUp) {
                     return;
                 }
 
-                const {x} = axes;
-                const {y} = axes;
+                const { x } = axes;
+                const { y } = axes;
 
                 if (isLeftHand) {
                     this.leftStick.x = x;
@@ -305,7 +315,12 @@ export class XRInputHandler {
             const axisObserver = thumbstick.onAxisValueChangedObservable.add(axisCallback);
 
             // Frame-by-frame polling as backup
-            const scene = this.scene as {onBeforeRenderObservable: {add: (callback: () => void) => unknown, remove: (observer: unknown) => void}};
+            const scene = this.scene as {
+                onBeforeRenderObservable: {
+                    add: (callback: () => void) => unknown;
+                    remove: (observer: unknown) => void;
+                };
+            };
             let pollObserverRef: unknown = null;
 
             const pollThumbstick = (): void => {
@@ -369,7 +384,7 @@ export class XRInputHandler {
 
         const mc = controller as unknown as {
             motionController?: unknown;
-            onMotionControllerInitObservable: {add: (callback: (mc: unknown) => void) => void};
+            onMotionControllerInitObservable: { add: (callback: (mc: unknown) => void) => void };
         };
 
         if (mc.motionController) {
@@ -397,8 +412,8 @@ export class XRInputHandler {
     }
 
     private cleanupController(controller: WebXRInputSource): void {
-        const {uniqueId} = controller;
-        const {handedness} = controller.inputSource;
+        const { uniqueId } = controller;
+        const { handedness } = controller.inputSource;
 
         const cleanup = this.controllerCleanup.get(uniqueId);
         if (cleanup) {
@@ -410,9 +425,9 @@ export class XRInputHandler {
 
         // Clear stick values for the removed controller
         if (handedness === "left") {
-            this.leftStick = {x: 0, y: 0};
+            this.leftStick = { x: 0, y: 0 };
         } else if (handedness === "right") {
-            this.rightStick = {x: 0, y: 0};
+            this.rightStick = { x: 0, y: 0 };
         }
 
         // Record removal time for delay mechanism
@@ -483,7 +498,7 @@ export class XRInputHandler {
         // RIGHT STICK: Zoom and Pan
         // Y = zoom (push forward = zoom in = scale up)
         if (Math.abs(rightY) > 0.0001) {
-            const zoomFactor = 1.0 + (rightY * this.ZOOM_SPEED);
+            const zoomFactor = 1.0 + rightY * this.ZOOM_SPEED;
             this.pivotController.zoom(zoomFactor);
         }
 
@@ -519,7 +534,7 @@ export class XRInputHandler {
 
         // Zoom from distance change
         const distanceDelta = currentDistance - this.previousDistance;
-        const zoomFactor = 1.0 + (distanceDelta * this.GESTURE_ZOOM_SENSITIVITY);
+        const zoomFactor = 1.0 + distanceDelta * this.GESTURE_ZOOM_SENSITIVITY;
         // Invert: hands apart (positive delta) = zoom out = scale down
         this.pivotController.zoom(2.0 - Math.max(0.9, Math.min(1.1, zoomFactor)));
 
@@ -565,9 +580,11 @@ export class XRInputHandler {
         }
 
         if (controllerEntry) {
-            const {controller} = controllerEntry;
-            const {grip} = controller;
-            const mc = controller as unknown as {motionController?: {getComponent: (id: string) => {pressed?: boolean, value?: number} | null}};
+            const { controller } = controllerEntry;
+            const { grip } = controller;
+            const mc = controller as unknown as {
+                motionController?: { getComponent: (id: string) => { pressed?: boolean; value?: number } | null };
+            };
 
             // Check if grip and motion controller are valid
             if (grip && mc.motionController) {
@@ -615,7 +632,7 @@ export class XRInputHandler {
             try {
                 const htFeature = this.handTrackingFeature as {
                     getHandByHandedness?: (h: string) => {
-                        getJointMesh: (joint: string) => {position: Vector3, rotationQuaternion?: Quaternion} | null;
+                        getJointMesh: (joint: string) => { position: Vector3; rotationQuaternion?: Quaternion } | null;
                     } | null;
                 };
 
@@ -637,13 +654,15 @@ export class XRInputHandler {
 
                         // Hysteresis: different thresholds for start vs stop
                         const wasP = this.wasPinching[handedness];
-                        const isP = wasP ?
-                            pinchDist < PINCH_RELEASE_THRESHOLD : // Already pinching - use looser threshold
-                            pinchDist < PINCH_THRESHOLD; // Not pinching - use tighter threshold
+                        const isP = wasP
+                            ? pinchDist < PINCH_RELEASE_THRESHOLD // Already pinching - use looser threshold
+                            : pinchDist < PINCH_THRESHOLD; // Not pinching - use tighter threshold
 
                         if (isP !== wasP) {
                             // eslint-disable-next-line no-console
-                            console.log(`🤲 PINCH_${isP ? "START" : "END"} ${handedness} (dist=${pinchDist.toFixed(3)})`);
+                            console.log(
+                                `🤲 PINCH_${isP ? "START" : "END"} ${handedness} (dist=${pinchDist.toFixed(3)})`,
+                            );
                             if (!isP) {
                                 this.resetGestureState();
                             }
@@ -656,7 +675,7 @@ export class XRInputHandler {
                                 position: wrist.position.clone(),
                                 rotation: wrist.rotationQuaternion?.clone() ?? Quaternion.Identity(),
                                 isPinching: true,
-                                pinchStrength: Math.max(0, 1 - (pinchDist / PINCH_THRESHOLD)),
+                                pinchStrength: Math.max(0, 1 - pinchDist / PINCH_THRESHOLD),
                             };
                         }
                     }
@@ -751,7 +770,7 @@ export class XRInputHandler {
         let controller: WebXRInputSource | null = null;
         for (const entry of this.gestureControllers.values()) {
             if (entry.handedness === handedness) {
-                ({controller} = entry);
+                ({ controller } = entry);
                 break;
             }
         }
@@ -797,14 +816,16 @@ export class XRInputHandler {
         // Get the node's current position for debugging
         const node = dragHandler.getNode();
         const nodeMeshPosition = node.mesh.position;
-        const {pickedPoint} = pickInfo;
+        const { pickedPoint } = pickInfo;
 
         // DEBUG: Log drag start with all relevant positions
         // eslint-disable-next-line no-console
         console.log(`🎯 DRAG_START ${handedness}`, {
             handPos: `(${handPosition.x.toFixed(3)}, ${handPosition.y.toFixed(3)}, ${handPosition.z.toFixed(3)})`,
             nodePos: `(${nodeMeshPosition.x.toFixed(3)}, ${nodeMeshPosition.y.toFixed(3)}, ${nodeMeshPosition.z.toFixed(3)})`,
-            pickPt: pickedPoint ? `(${pickedPoint.x.toFixed(3)}, ${pickedPoint.y.toFixed(3)}, ${pickedPoint.z.toFixed(3)})` : "null",
+            pickPt: pickedPoint
+                ? `(${pickedPoint.x.toFixed(3)}, ${pickedPoint.y.toFixed(3)}, ${pickedPoint.z.toFixed(3)})`
+                : "null",
         });
 
         this.isDraggingNode = true;
@@ -951,9 +972,9 @@ export class XRInputHandler {
         }
 
         // Transition zone: linear interpolation between slow and fast
-        const t = (velocity - this.VELOCITY_SLOW_THRESHOLD) /
-                  (this.VELOCITY_FAST_THRESHOLD - this.VELOCITY_SLOW_THRESHOLD);
-        return this.AMP_SLOW + (t * (this.AMP_FAST - this.AMP_SLOW));
+        const t =
+            (velocity - this.VELOCITY_SLOW_THRESHOLD) / (this.VELOCITY_FAST_THRESHOLD - this.VELOCITY_SLOW_THRESHOLD);
+        return this.AMP_SLOW + t * (this.AMP_FAST - this.AMP_SLOW);
     }
 
     /**
@@ -1018,11 +1039,11 @@ export class XRInputHandler {
      * @param mesh.metadata - The mesh metadata containing node reference
      * @returns The drag handler if found, null otherwise
      */
-    private findDragHandlerForMesh(mesh: {name: string, metadata?: unknown}): NodeDragHandler | null {
+    private findDragHandlerForMesh(mesh: { name: string; metadata?: unknown }): NodeDragHandler | null {
         // Check mesh.metadata.graphNode for node reference
         // Node.ts sets: mesh.metadata = { graphNode: this, ... }
         if (mesh.metadata && typeof mesh.metadata === "object") {
-            const metadata = mesh.metadata as {graphNode?: {dragHandler?: NodeDragHandler}};
+            const metadata = mesh.metadata as { graphNode?: { dragHandler?: NodeDragHandler } };
             if (metadata.graphNode?.dragHandler) {
                 return metadata.graphNode.dragHandler;
             }

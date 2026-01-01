@@ -4,7 +4,7 @@
  * This configuration controls the behavior of WebXR features in graphty-element.
  */
 
-import type {XRReferenceSpaceType} from "../xr/XRSessionManager";
+import type { XRReferenceSpaceType } from "../xr/XRSessionManager";
 
 /**
  * UI configuration for XR buttons

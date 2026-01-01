@@ -1,11 +1,4 @@
-export type CSVVariant =
-    | "neo4j"
-    | "gephi"
-    | "cytoscape"
-    | "adjacency-list"
-    | "edge-list"
-    | "node-list"
-    | "generic";
+export type CSVVariant = "neo4j" | "gephi" | "cytoscape" | "adjacency-list" | "edge-list" | "node-list" | "generic";
 
 export interface CSVVariantInfo {
     variant: CSVVariant;
@@ -24,9 +17,7 @@ export interface CSVVariantInfo {
  * @param headers - Array of column header names
  * @returns Information about the detected CSV variant including column mappings
  */
-export function detectCSVVariant(
-    headers: string[],
-): CSVVariantInfo {
+export function detectCSVVariant(headers: string[]): CSVVariantInfo {
     // Check Neo4j format: :ID, :LABEL, :TYPE, :START_ID, :END_ID
     if (headers.some((h) => /:(ID|LABEL|TYPE|START_ID|END_ID)/.test(h))) {
         return {

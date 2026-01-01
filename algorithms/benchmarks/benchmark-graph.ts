@@ -4,15 +4,15 @@
  */
 
 export interface GraphMetadata {
-  generationAlgorithm: string
-  parameters: Record<string, any>
+    generationAlgorithm: string;
+    parameters: Record<string, any>;
 }
 
 export interface GraphImpl {
-  vertices: number[]
-  edges: Array<[number, number, number?]> // [from, to, weight?]
-  adjacencyList: Record<number, number[]>
-  metadata: GraphMetadata
-  directed: boolean
-  weighted: boolean
+    vertices: number[];
+    edges: Array<[number, number, number?]>; // [from, to, weight?]
+    adjacencyList: Record<number, number[]>;
+    metadata: GraphMetadata;
+    directed: boolean;
+    weighted: boolean;
 }

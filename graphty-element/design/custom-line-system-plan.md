@@ -3,12 +3,14 @@
 ## Strategic Decision: Replace GreasedLine with Custom System
 
 **Rationale:**
+
 - **Unified Control**: Lines and arrowheads use identical screen-space math
 - **Pattern Support**: Full control over dash/dot/zigzag patterns via shaders
 - **Performance**: Optimized for graph workloads (thousands of edges)
 - **Future-Proof**: Complete flexibility for new features
 
 **Performance Requirements:**
+
 - Support 1,000-10,000 edges per graph
 - Maintain 60 FPS on mid-range hardware
 - Efficient memory usage via mesh instancing
@@ -20,6 +22,7 @@
 ### Rendering Strategy
 
 **Mesh Structure:**
+
 ```
 Line = Quad strip along path
 - 2 triangles per line segment
@@ -28,22 +31,25 @@ Line = Quad strip along path
 ```
 
 **Vertex Layout:**
+
 ```typescript
 interface LineVertex {
-    position: Vector3;      // Center point of line segment
-    direction: Vector3;     // Tangent (direction to next point)
-    side: number;           // -1 (left) or +1 (right) of line
-    distance: number;       // Cumulative distance along line (for patterns)
-    uv: Vector2;            // Texture coordinates
+    position: Vector3; // Center point of line segment
+    direction: Vector3; // Tangent (direction to next point)
+    side: number; // -1 (left) or +1 (right) of line
+    distance: number; // Cumulative distance along line (for patterns)
+    uv: Vector2; // Texture coordinates
 }
 ```
 
 **Shader System:**
+
 - **Vertex Shader**: Handles screen-space width expansion
 - **Fragment Shader**: Handles patterns (dash, dot, etc.) and color
 - **Unified Approach**: Arrowheads use same shaders as line body
 
 **Performance Optimizations:**
+
 1. **Mesh Instancing**: Edges with identical styles share geometry
 2. **Geometry Caching**: Static edges cached in MeshCache
 3. **LOD System**: Distant edges use simplified geometry
@@ -61,6 +67,7 @@ interface LineVertex {
 ### Tests to Write First
 
 **test/meshes/CustomLineRenderer.test.ts**:
+
 ```typescript
 describe("Custom Line Renderer", () => {
     test("generates quad strip for straight line", () => {
@@ -145,6 +152,7 @@ describe("Custom Line Shader", () => {
 ```
 
 **test/integration/custom-line-vs-greasedline.test.ts**:
+
 ```typescript
 describe("Custom Line vs GreasedLine Comparison", () => {
     test("visual parity at various widths", async () => {
@@ -180,6 +188,7 @@ describe("Custom Line vs GreasedLine Comparison", () => {
 ### Implementation
 
 **src/meshes/CustomLineRenderer.ts** (NEW FILE):
+
 ```typescript
 import {
     AbstractMesh,
@@ -196,22 +205,22 @@ import {
 } from "@babylonjs/core";
 
 export interface LineGeometry {
-    positions: number[];      // Vertex positions (center line)
-    directions: number[];     // Tangent directions
-    sides: number[];          // -1 or +1 for perpendicular offset
-    distances: number[];      // Cumulative distance for patterns
-    uvs: number[];            // UV coordinates
-    indices: number[];        // Triangle indices
+    positions: number[]; // Vertex positions (center line)
+    directions: number[]; // Tangent directions
+    sides: number[]; // -1 or +1 for perpendicular offset
+    distances: number[]; // Cumulative distance for patterns
+    uvs: number[]; // UV coordinates
+    indices: number[]; // Triangle indices
 }
 
 export interface CustomLineOptions {
-    points: Vector3[];        // Path points
-    width: number;            // Line width
-    color: string;            // Line color
-    opacity?: number;         // Opacity 0-1
-    pattern?: string;         // solid, dash, dot, etc.
-    dashLength?: number;      // For dash pattern
-    gapLength?: number;       // For dash pattern
+    points: Vector3[]; // Path points
+    width: number; // Line width
+    color: string; // Line color
+    opacity?: number; // Opacity 0-1
+    pattern?: string; // solid, dash, dot, etc.
+    dashLength?: number; // For dash pattern
+    gapLength?: number; // For dash pattern
 }
 
 export class CustomLineRenderer {
@@ -348,24 +357,22 @@ void main() {
 
             if (i === 0) {
                 // First segment: add start vertices
-                this.addVertexPair(
-                    positions, directions, sides, distances, uvs,
-                    p0, direction, cumulativeDistance
-                );
+                this.addVertexPair(positions, directions, sides, distances, uvs, p0, direction, cumulativeDistance);
             }
 
             // Add end vertices
             cumulativeDistance += segmentLength;
-            this.addVertexPair(
-                positions, directions, sides, distances, uvs,
-                p1, direction, cumulativeDistance
-            );
+            this.addVertexPair(positions, directions, sides, distances, uvs, p1, direction, cumulativeDistance);
 
             // Add indices for two triangles
             const baseIndex = i * 2;
             indices.push(
-                baseIndex, baseIndex + 1, baseIndex + 2,      // First triangle
-                baseIndex + 1, baseIndex + 3, baseIndex + 2   // Second triangle
+                baseIndex,
+                baseIndex + 1,
+                baseIndex + 2, // First triangle
+                baseIndex + 1,
+                baseIndex + 3,
+                baseIndex + 2, // Second triangle
             );
         }
 
@@ -390,7 +397,7 @@ void main() {
         uvs: number[],
         center: Vector3,
         direction: Vector3,
-        distance: number
+        distance: number,
     ): void {
         // Left vertex (side = -1)
         positions.push(center.x, center.y, center.z);
@@ -410,10 +417,7 @@ void main() {
     /**
      * Create a custom line mesh
      */
-    static create(
-        options: CustomLineOptions,
-        scene: Scene
-    ): Mesh {
+    static create(options: CustomLineOptions, scene: Scene): Mesh {
         this.registerShaders();
 
         // Generate geometry
@@ -457,7 +461,7 @@ void main() {
                     "dashLength",
                     "gapLength",
                 ],
-            }
+            },
         );
 
         // Set uniforms
@@ -493,26 +497,21 @@ void main() {
     /**
      * Create a straight line between two points (optimized common case)
      */
-    static createStraightLine(
-        src: Vector3,
-        dst: Vector3,
-        width: number,
-        color: string,
-        scene: Scene
-    ): Mesh {
+    static createStraightLine(src: Vector3, dst: Vector3, width: number, color: string, scene: Scene): Mesh {
         return this.create(
             {
                 points: [src, dst],
                 width,
                 color,
             },
-            scene
+            scene,
         );
     }
 }
 ```
 
 **src/meshes/EdgeMesh.ts** - Update to use CustomLineRenderer:
+
 ```typescript
 import { CustomLineRenderer } from "./CustomLineRenderer";
 
@@ -523,27 +522,14 @@ export class EdgeMesh {
     /**
      * Create edge mesh using custom line renderer
      */
-    static create(
-        cache: MeshCache,
-        options: EdgeMeshOptions,
-        style: EdgeStyleConfig,
-        scene: Scene,
-    ): AbstractMesh {
+    static create(cache: MeshCache, options: EdgeMeshOptions, style: EdgeStyleConfig, scene: Scene): AbstractMesh {
         const cacheKey = `edge-style-${options.styleId}`;
 
         return cache.get(cacheKey, () => {
             // Convert UNIT_VECTOR_POINTS to Vector3 array
             const points = [
-                new Vector3(
-                    this.UNIT_VECTOR_POINTS[0],
-                    this.UNIT_VECTOR_POINTS[1],
-                    this.UNIT_VECTOR_POINTS[2]
-                ),
-                new Vector3(
-                    this.UNIT_VECTOR_POINTS[3],
-                    this.UNIT_VECTOR_POINTS[4],
-                    this.UNIT_VECTOR_POINTS[5]
-                ),
+                new Vector3(this.UNIT_VECTOR_POINTS[0], this.UNIT_VECTOR_POINTS[1], this.UNIT_VECTOR_POINTS[2]),
+                new Vector3(this.UNIT_VECTOR_POINTS[3], this.UNIT_VECTOR_POINTS[4], this.UNIT_VECTOR_POINTS[5]),
             ];
 
             // Create using custom renderer
@@ -555,7 +541,7 @@ export class EdgeMesh {
                     opacity: style.line?.opacity,
                     pattern: style.line?.type,
                 },
-                scene
+                scene,
             );
 
             mesh.isPickable = false;
@@ -569,43 +555,51 @@ export class EdgeMesh {
 ```
 
 ### Dependencies
+
 - External: Babylon.js (existing)
 - Internal: None (foundational phase)
 
 ### Verification Steps
 
 1. **Unit Tests**:
-   ```bash
-   npm test -- CustomLineRenderer.test.ts
-   ```
-   Expected: All geometry generation tests pass
+
+    ```bash
+    npm test -- CustomLineRenderer.test.ts
+    ```
+
+    Expected: All geometry generation tests pass
 
 2. **Visual Comparison**:
-   ```bash
-   npm run storybook
-   ```
-   Navigate to comparison story, verify custom line matches GreasedLine
+
+    ```bash
+    npm run storybook
+    ```
+
+    Navigate to comparison story, verify custom line matches GreasedLine
 
 3. **Performance Test**:
-   ```bash
-   npm test -- custom-line-vs-greasedline.test.ts
-   ```
-   Expected: Custom line creates 1000 edges in <100ms
+
+    ```bash
+    npm test -- custom-line-vs-greasedline.test.ts
+    ```
+
+    Expected: Custom line creates 1000 edges in <100ms
 
 4. **Build & Lint**:
-   ```bash
-   npm run build
-   npm run lint
-   ```
-   Expected: No errors
+    ```bash
+    npm run build
+    npm run lint
+    ```
+    Expected: No errors
 
 ### Storybook Stories
 
 **stories/CustomLineComparison.stories.ts** (NEW FILE):
+
 ```typescript
-import type {Meta, StoryObj} from "@storybook/web-components-vite";
-import {Graphty} from "../src/graphty-element";
-import {eventWaitingDecorator, renderFn, templateCreator} from "./helpers";
+import type { Meta, StoryObj } from "@storybook/web-components-vite";
+import { Graphty } from "../src/graphty-element";
+import { eventWaitingDecorator, renderFn, templateCreator } from "./helpers";
 
 const meta: Meta = {
     title: "Migration/Custom Line Comparison",
@@ -614,22 +608,22 @@ const meta: Meta = {
     decorators: [eventWaitingDecorator],
     argTypes: {
         lineWidth: {
-            control: {type: "range", min: 0.1, max: 5, step: 0.1},
-            table: {category: "Line"},
-            name: "line.width"
+            control: { type: "range", min: 0.1, max: 5, step: 0.1 },
+            table: { category: "Line" },
+            name: "line.width",
         },
         lineColor: {
             control: "color",
-            table: {category: "Line"},
-            name: "line.color"
+            table: { category: "Line" },
+            name: "line.color",
         },
     },
     args: {
         nodeData: [
-            {id: "A", position: {x: -3, y: 0, z: 0}},
-            {id: "B", position: {x: 3, y: 0, z: 0}},
+            { id: "A", position: { x: -3, y: 0, z: 0 } },
+            { id: "B", position: { x: 3, y: 0, z: 0 } },
         ],
-        edgeData: [{src: "A", dst: "B"}],
+        edgeData: [{ src: "A", dst: "B" }],
         layout: "fixed",
     },
 };
@@ -641,7 +635,7 @@ export const CustomLineBasic: Story = {
     args: {
         styleTemplate: templateCreator({
             edgeStyle: {
-                line: {width: 0.5, color: "#FF0000"},
+                line: { width: 0.5, color: "#FF0000" },
             },
         }),
     },
@@ -651,12 +645,12 @@ export const WidthComparison: Story = {
     args: {
         styleTemplate: templateCreator({
             edgeStyle: {
-                line: {width: 2.0, color: "#00FF00"},
+                line: { width: 2.0, color: "#00FF00" },
             },
         }),
     },
     parameters: {
-        controls: {include: ["line.width"]},
+        controls: { include: ["line.width"] },
     },
 };
 ```
@@ -676,6 +670,7 @@ export const WidthComparison: Story = {
 **Objective**: Integrate arrowheads into the custom line system using the same shader approach for perfect visual consistency.
 
 ### Key Approach
+
 - Arrowheads are triangular meshes added to same rendering pipeline
 - Use identical screen-space shader as lines
 - Geometry attached to edge mesh (single draw call)
@@ -687,6 +682,7 @@ export const WidthComparison: Story = {
 ## Phase 2-7: Subsequent Phases
 
 The remaining phases follow similar structure:
+
 - Phase 2: Simple Arrow Shapes (2 days)
 - Phase 3: Hollow & Line Arrows + Tail (2 days)
 - Phase 4: Line Patterns (3 days)
@@ -701,16 +697,19 @@ The remaining phases follow similar structure:
 ## Performance Targets
 
 ### Rendering Performance
+
 - **1,000 edges**: 60 FPS sustained
 - **5,000 edges**: 30 FPS minimum
 - **10,000 edges**: 15 FPS minimum
 
 ### Memory Usage
+
 - **Per edge base cost**: ~500 bytes (geometry + shader)
 - **With instancing**: ~50 bytes per edge (shared geometry)
 - **10,000 edges**: <50 MB total
 
 ### Optimization Strategies
+
 1. **Instancing**: Edges with same style share geometry
 2. **LOD**: Distant edges (<100px) use simplified geometry
 3. **Culling**: Off-screen edges not rendered
@@ -722,6 +721,7 @@ The remaining phases follow similar structure:
 ## Migration Strategy
 
 ### Incremental Rollout
+
 1. **Phase 0**: Custom line coexists with GreasedLine
 2. **Feature Flag**: `useCustomLineRenderer: boolean` in config
 3. **Testing**: Both systems tested in parallel
@@ -729,6 +729,7 @@ The remaining phases follow similar structure:
 5. **Cleanup**: Remove GreasedLine dependency
 
 ### Backwards Compatibility
+
 - Existing edge styles continue working
 - Visual appearance identical
 - Performance equal or better
@@ -738,11 +739,13 @@ The remaining phases follow similar structure:
 ## Risk Mitigation
 
 ### Technical Risks
+
 1. **Shader Complexity**: Mitigated by incremental testing
 2. **Performance Regression**: Continuous benchmarking
 3. **Visual Artifacts**: Extensive visual testing
 
 ### Mitigation Strategies
+
 - Comprehensive test coverage
 - Visual regression tests
 - Performance benchmarks in CI
@@ -753,6 +756,7 @@ The remaining phases follow similar structure:
 ## Success Criteria
 
 ### Must Have
+
 ✅ Visual parity with GreasedLine (>95% similarity)
 ✅ Performance parity or better
 ✅ All arrow types working
@@ -761,11 +765,13 @@ The remaining phases follow similar structure:
 ✅ No regressions in existing features
 
 ### Should Have
+
 ⭐ 2x performance improvement
 ⭐ Instancing reduces memory by 90%
 ⭐ LOD system improves distant edge performance
 
 ### Nice to Have
+
 🌟 GPU-accelerated pattern animation
 🌟 Custom shader effects (glow, pulse)
 🌟 Real-time pattern editing

@@ -10,7 +10,7 @@ export {
     evaluateAdamicAdar,
     getTopAdamicAdarCandidatesForNode,
 } from "./adamic-adar.js";
-export type {LinkPredictionOptions, LinkPredictionScore} from "./common-neighbors.js";
+export type { LinkPredictionOptions, LinkPredictionScore } from "./common-neighbors.js";
 export {
     commonNeighborsForPairs,
     commonNeighborsPrediction,

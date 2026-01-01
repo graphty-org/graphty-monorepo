@@ -2,11 +2,7 @@
  * Re-export all optimization algorithms
  */
 
-export type { DistanceMap } from './types';
-export { 
-  _computeShortestPathDistances,
-  _kamadaKawaiSolve,
-  _kamadaKawaiCostfn
-} from './kamada-kawai-solver';
-export { _lbfgsDirection } from './lbfgs';
-export { _backtrackingLineSearch } from './line-search';
+export { _computeShortestPathDistances, _kamadaKawaiCostfn,_kamadaKawaiSolve } from "./kamada-kawai-solver";
+export { _lbfgsDirection } from "./lbfgs";
+export { _backtrackingLineSearch } from "./line-search";
+export type { DistanceMap } from "./types";

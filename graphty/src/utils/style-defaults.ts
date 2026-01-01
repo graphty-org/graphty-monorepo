@@ -20,7 +20,19 @@
  * - graphty-element/src/config/RichTextStyle.ts (defaultRichTextLabelStyle)
  */
 
-import type {ArrowConfig, EdgeLineConfig, GlowConfig, NodeEffectsConfig, OutlineConfig, RichTextStyle, ShapeConfig, SolidColorConfig, TextBackgroundStyle, TextOutlineStyle, TextShadowStyle} from "../types/style-layer";
+import type {
+    ArrowConfig,
+    EdgeLineConfig,
+    GlowConfig,
+    NodeEffectsConfig,
+    OutlineConfig,
+    RichTextStyle,
+    ShapeConfig,
+    SolidColorConfig,
+    TextBackgroundStyle,
+    TextOutlineStyle,
+    TextShadowStyle,
+} from "../types/style-layer";
 
 /**
  * Default shape configuration derived from graphty-element defaults.

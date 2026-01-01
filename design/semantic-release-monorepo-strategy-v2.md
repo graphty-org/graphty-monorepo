@@ -5,7 +5,7 @@
 After exhaustive research of **9 major release management tools**, I've identified three distinct approaches to monorepo versioning:
 
 1. **Conventional Commits-based** (automatic from git history)
-2. **Change File-based** (explicit change declaration) 
+2. **Change File-based** (explicit change declaration)
 3. **Hybrid/Flexible** (supports multiple workflows)
 
 For Graphty, I recommend **Changesets** as the primary choice, with **release-it** and **release-please** as strong alternatives depending on your workflow preferences.
@@ -24,6 +24,7 @@ Traditional semantic-release was designed with the assumption: **one repository 
 ### Conventional Commits-Based Tools
 
 These tools automatically determine versions from git commit messages following the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+
 - `fix:` → patch (0.0.X)
 - `feat:` → minor (0.X.0)
 - `feat!:` or `BREAKING CHANGE:` → major (X.0.0)
@@ -35,6 +36,7 @@ These tools automatically determine versions from git commit messages following 
 **Monorepo Status**: ❌ No native support
 
 **Why it fails for monorepos**:
+
 - Assumes one version per repository
 - Cannot handle multiple package.json files
 - Git tags conflict between packages
@@ -46,21 +48,24 @@ These tools automatically determine versions from git commit messages following 
 **Monorepo Status**: ⚠️ Experimental support
 
 **How it works**:
+
 ```json
 {
-  "workspaces": ["packages/*"],
-  "devDependencies": {
-    "@qiwi/multi-semantic-release": "^7.0.0"
-  }
+    "workspaces": ["packages/*"],
+    "devDependencies": {
+        "@qiwi/multi-semantic-release": "^7.0.0"
+    }
 }
 ```
 
 **Pros**:
+
 - Preserves semantic-release workflow
 - Handles cross-dependencies
 - Synchronizes releases
 
 **Cons**:
+
 - Self-described as "proof of concept"
 - Performance degrades with 20+ packages
 - Complex debugging
@@ -72,27 +77,31 @@ These tools automatically determine versions from git commit messages following 
 **Monorepo Status**: ✅ Native support via manifests
 
 **Configuration**:
+
 ```json
 // .release-please-manifest.json
 {
-  "packages/algorithms": "1.2.0",
-  "packages/layout": "1.2.9",
-  "packages/graphty-element": "1.0.4"
+    "packages/algorithms": "1.2.0",
+    "packages/layout": "1.2.9",
+    "packages/graphty-element": "1.0.4"
 }
 ```
 
 **Workflow**:
+
 1. Commits follow conventional format
 2. Creates/updates Release PRs automatically
 3. Merge PR to trigger release
 
 **Pros**:
+
 - Strong GitHub Actions integration
 - Supports 15+ languages/frameworks
 - Manual override capability
 - Monorepo-native with manifest files
 
 **Cons**:
+
 - Doesn't handle npm publishing
 - More complex than alternatives
 - Requires strict conventional commits
@@ -104,11 +113,13 @@ These tools automatically determine versions from git commit messages following 
 **Monorepo Status**: ✅ Native (requires Nx)
 
 **Pros**:
+
 - Leverages Nx project graph
 - Automated dependency updates
 - Integrated toolchain
 
 **Cons**:
+
 - Requires full Nx adoption
 - Newest option (2024)
 
@@ -123,6 +134,7 @@ These tools use explicit change files instead of parsing commit messages.
 **Monorepo Status**: ✅ Native, designed for monorepos
 
 **Workflow**:
+
 ```bash
 # Developer creates changeset
 npx changeset
@@ -136,12 +148,14 @@ npx changeset publish
 ```
 
 **Pros**:
+
 - **Best monorepo design**: Built specifically for multi-package repos
 - **Huge adoption**: 1.4M weekly downloads
 - **Flexible descriptions**: Not tied to commit messages
 - **PR review friendly**: Changes visible before release
 
 **Cons**:
+
 - Requires manual changeset creation
 - Learning curve for new workflow
 
@@ -152,21 +166,24 @@ npx changeset publish
 **Monorepo Status**: ✅ Native, optimized for scale
 
 **Configuration**:
+
 ```json
 {
-  "groupChanges": true,
-  "npmConcurrency": 10,
-  "packages": ["packages/*"]
+    "groupChanges": true,
+    "npmConcurrency": 10,
+    "packages": ["packages/*"]
 }
 ```
 
 **Pros**:
+
 - Performance optimized for huge monorepos
 - JSON change files in PR diffs
 - Groups changes per branch
 - Microsoft ecosystem integration
 
 **Cons**:
+
 - Smaller community (33k weekly downloads)
 - JSON more verbose than markdown
 - Microsoft-centric patterns
@@ -182,17 +199,20 @@ These tools support multiple versioning strategies.
 **Monorepo Status**: ✅ Native via plugins
 
 **Workflow**:
+
 - Add labels to PRs: `major`, `minor`, `patch`
 - No commit message requirements
 - Extensive plugin system
 
 **Pros**:
+
 - Simple PR-based workflow
 - No conventional commits required
 - Plugin for everything (npm, Docker, Maven)
 - Can maintain multiple major versions
 
 **Cons**:
+
 - Requires PR label discipline
 - Smaller community than Changesets
 
@@ -203,24 +223,27 @@ These tools support multiple versioning strategies.
 **Monorepo Status**: ✅ Via plugins
 
 **Configuration**:
+
 ```json
 {
-  "plugins": {
-    "@release-it/conventional-changelog": {
-      "preset": "angular"
-    },
-    "@release-it-plugins/workspaces": true
-  }
+    "plugins": {
+        "@release-it/conventional-changelog": {
+            "preset": "angular"
+        },
+        "@release-it-plugins/workspaces": true
+    }
 }
 ```
 
 **Pros**:
+
 - Best of both worlds (manual + automatic)
 - Simple configuration
 - Good monorepo plugin
 - Interactive or automated
 
 **Cons**:
+
 - Less opinionated (requires decisions)
 - Plugin quality varies
 
@@ -232,21 +255,22 @@ These tools support multiple versioning strategies.
 
 ## Conventional Commits Integration Comparison
 
-| Tool | Conventional Commits | Required? | Customizable? | Monorepo Support |
-|------|---------------------|-----------|---------------|------------------|
-| semantic-release | ✅ Native | Yes | Via plugins | ❌ None |
-| multi-semantic-release | ✅ Native | Yes | Via plugins | ⚠️ Wrapper |
-| release-please | ✅ Native | Yes | Limited | ✅ Manifest |
-| Changesets | ❌ Not used | No | N/A | ✅ Native |
-| Beachball | ❌ Not used | No | N/A | ✅ Native |
-| Auto | ⚠️ Optional | No | Via plugins | ✅ Native |
-| release-it | ⚠️ Optional | No | Via plugins | ✅ Plugin |
-| Nx Release | ✅ Supported | No | Yes | ✅ Native |
-| Lerna | ✅ Supported | No | Yes | ✅ Native |
+| Tool                   | Conventional Commits | Required? | Customizable? | Monorepo Support |
+| ---------------------- | -------------------- | --------- | ------------- | ---------------- |
+| semantic-release       | ✅ Native            | Yes       | Via plugins   | ❌ None          |
+| multi-semantic-release | ✅ Native            | Yes       | Via plugins   | ⚠️ Wrapper       |
+| release-please         | ✅ Native            | Yes       | Limited       | ✅ Manifest      |
+| Changesets             | ❌ Not used          | No        | N/A           | ✅ Native        |
+| Beachball              | ❌ Not used          | No        | N/A           | ✅ Native        |
+| Auto                   | ⚠️ Optional          | No        | Via plugins   | ✅ Native        |
+| release-it             | ⚠️ Optional          | No        | Via plugins   | ✅ Plugin        |
+| Nx Release             | ✅ Supported         | No        | Yes           | ✅ Native        |
+| Lerna                  | ✅ Supported         | No        | Yes           | ✅ Native        |
 
 ## Decision Framework
 
 ### Choose Conventional Commits-based if you want:
+
 - Fully automated versioning from git history
 - Enforced commit message standards
 - No manual intervention in release process
@@ -255,6 +279,7 @@ These tools support multiple versioning strategies.
 **Best Options**: release-please (monorepo-ready) or Nx Release (if using Nx)
 
 ### Choose Change File-based if you want:
+
 - Explicit control over releases
 - Flexibility in commit messages
 - Clear PR review of version changes
@@ -263,6 +288,7 @@ These tools support multiple versioning strategies.
 **Best Options**: Changesets (markdown) or Beachball (JSON)
 
 ### Choose Hybrid if you want:
+
 - Flexibility to use both approaches
 - Gradual migration path
 - Support for various workflows
@@ -285,18 +311,21 @@ These tools support multiple versioning strategies.
 ### Strong Alternatives:
 
 **release-please** - If you prefer:
+
 - Conventional commits workflow
 - Google's engineering practices
 - PR-based releases
 - Strong GitHub Actions integration
 
 **release-it** - If you want:
+
 - Maximum flexibility
 - Both manual and automated options
 - Simpler setup than release-please
 - Good middle ground
 
 **Auto** - If you prefer:
+
 - PR labels over commit messages
 - No enforcement of conventions
 - Extensive plugin ecosystem
@@ -307,6 +336,7 @@ These tools support multiple versioning strategies.
 ### From Current Semantic-Release to Changesets
 
 **Week 1: Setup**
+
 ```bash
 # Install
 npm install -D @changesets/cli
@@ -318,16 +348,19 @@ npx changeset init
 ```
 
 **Week 2: Team Training**
+
 - Document changeset workflow
 - Create PR templates
 - Set up CI checks
 
 **Week 3: Parallel Running**
+
 - Run both systems temporarily
 - Verify changeset outputs
 - Build team confidence
 
 **Week 4: Cut Over**
+
 - Remove semantic-release
 - Enable changeset publishing
 - Monitor and adjust
@@ -342,6 +375,7 @@ npx changeset init
 ## Final Recommendation
 
 For Graphty's specific situation:
+
 - 5 packages with different version numbers
 - Currently using semantic-release
 - Need better monorepo support

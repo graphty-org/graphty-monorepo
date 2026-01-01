@@ -11,6 +11,7 @@ Graphty provides two distinct APIs for different use cases.
 **Declarative configuration via HTML attributes and element properties.**
 
 Use this API when you want:
+
 - HTML-based configuration
 - Framework integration (React, Vue, Angular, Svelte)
 - Reactive property binding
@@ -18,10 +19,11 @@ Use this API when you want:
 
 ```html
 <graphty-element
-  layout="ngraph"
-  view-mode="3d"
-  node-data='[{"id": "a"}, {"id": "b"}]'
-  edge-data='[{"source": "a", "target": "b"}]'>
+    layout="ngraph"
+    view-mode="3d"
+    node-data='[{"id": "a"}, {"id": "b"}]'
+    edge-data='[{"source": "a", "target": "b"}]'
+>
 </graphty-element>
 ```
 
@@ -34,6 +36,7 @@ Use this API when you want:
 **Programmatic control via the `Graph` class.**
 
 Use this API when you need:
+
 - Dynamic data manipulation (add/remove nodes at runtime)
 - Algorithm execution and result handling
 - Camera control and animation
@@ -43,8 +46,8 @@ Use this API when you need:
 ```typescript
 const graph = element.graph;
 
-await graph.addNodes([{ id: 'a' }, { id: 'b' }]);
-await graph.runAlgorithm('graphty', 'degree');
+await graph.addNodes([{ id: "a" }, { id: "b" }]);
+await graph.runAlgorithm("graphty", "degree");
 graph.zoomToFit();
 ```
 
@@ -54,16 +57,16 @@ graph.zoomToFit();
 
 ## Quick Comparison
 
-| Feature | Web Component | JavaScript API |
-|---------|---------------|----------------|
-| Set initial data | ✅ `node-data` attribute | ✅ `addNodes()` method |
-| Add data dynamically | ❌ Replaces all data | ✅ Appends to existing |
-| Set layout | ✅ `layout` attribute | ✅ `setLayout()` method |
-| Run algorithms | ❌ | ✅ `runAlgorithm()` |
-| Camera control | ✅ Limited via methods | ✅ Full control |
-| Custom styles | ✅ `style-template` | ✅ `addStyleLayer()` |
-| Event handling | ✅ `addEventListener()` | ✅ `graph.on()` |
-| Screenshot/Video | ✅ Via element methods | ✅ Via graph methods |
+| Feature              | Web Component            | JavaScript API          |
+| -------------------- | ------------------------ | ----------------------- |
+| Set initial data     | ✅ `node-data` attribute | ✅ `addNodes()` method  |
+| Add data dynamically | ❌ Replaces all data     | ✅ Appends to existing  |
+| Set layout           | ✅ `layout` attribute    | ✅ `setLayout()` method |
+| Run algorithms       | ❌                       | ✅ `runAlgorithm()`     |
+| Camera control       | ✅ Limited via methods   | ✅ Full control         |
+| Custom styles        | ✅ `style-template`      | ✅ `addStyleLayer()`    |
+| Event handling       | ✅ `addEventListener()`  | ✅ `graph.on()`         |
+| Screenshot/Video     | ✅ Via element methods   | ✅ Via graph methods    |
 
 ## Configuration Types
 
@@ -73,11 +76,11 @@ Main configuration object:
 
 ```typescript
 interface GraphtyConfig {
-  layout?: string;
-  layoutOptions?: object;
-  styleTemplate?: string;
-  viewMode?: '2d' | '3d' | 'vr' | 'ar';
-  debug?: boolean;
+    layout?: string;
+    layoutOptions?: object;
+    styleTemplate?: string;
+    viewMode?: "2d" | "3d" | "vr" | "ar";
+    debug?: boolean;
 }
 ```
 
@@ -87,17 +90,17 @@ Style configuration:
 
 ```typescript
 interface StyleSchema {
-  layers: StyleLayer[];
+    layers: StyleLayer[];
 }
 
 interface StyleLayer {
-  selector: string;
-  priority?: number;
-  styles: {
-    node?: NodeStyle;
-    edge?: EdgeStyle;
-    label?: LabelStyle;
-  };
+    selector: string;
+    priority?: number;
+    styles: {
+        node?: NodeStyle;
+        edge?: EdgeStyle;
+        label?: LabelStyle;
+    };
 }
 ```
 
@@ -107,11 +110,11 @@ Node appearance options:
 
 ```typescript
 interface NodeStyle {
-  color?: string | ((node: Node) => string);
-  size?: number | ((node: Node) => number);
-  shape?: string;
-  opacity?: number;
-  texture?: string;
+    color?: string | ((node: Node) => string);
+    size?: number | ((node: Node) => number);
+    shape?: string;
+    opacity?: number;
+    texture?: string;
 }
 ```
 
@@ -121,23 +124,23 @@ Edge appearance options:
 
 ```typescript
 interface EdgeStyle {
-  line?: {
-    type?: string;
-    width?: number;
-    color?: string;
-    opacity?: number;
-    bezier?: boolean;
-  };
-  arrowHead?: {
-    type?: string;
-    size?: number;
-    color?: string;
-  };
-  arrowTail?: {
-    type?: string;
-    size?: number;
-    color?: string;
-  };
+    line?: {
+        type?: string;
+        width?: number;
+        color?: string;
+        opacity?: number;
+        bezier?: boolean;
+    };
+    arrowHead?: {
+        type?: string;
+        size?: number;
+        color?: string;
+    };
+    arrowTail?: {
+        type?: string;
+        size?: number;
+        color?: string;
+    };
 }
 ```
 
@@ -147,11 +150,11 @@ Label appearance options:
 
 ```typescript
 interface LabelStyle {
-  text?: string | ((element: Node | Edge) => string);
-  fontSize?: number;
-  fontColor?: string;
-  position?: string;
-  offset?: Vector3;
+    text?: string | ((element: Node | Edge) => string);
+    fontSize?: number;
+    fontColor?: string;
+    position?: string;
+    offset?: Vector3;
 }
 ```
 
@@ -160,18 +163,22 @@ interface LabelStyle {
 For complete type definitions auto-generated from TypeScript source:
 
 **Web Component**
+
 - [Graphty Class](/api/generated/graphty-element/classes/Graphty.md)
 
 **JavaScript API**
+
 - [Graph Class](/api/generated/Graph/classes/Graph.md)
 - [Node Class](/api/generated/Node/classes/Node.md)
 - [Edge Class](/api/generated/Edge/classes/Edge.md)
 
 **Configuration Types**
+
 - [Config Module](/api/generated/config/)
 - [Managers Module](/api/generated/managers/)
 
 **Extension Base Classes**
+
 - [LayoutEngine](/api/generated/layout/LayoutEngine/classes/LayoutEngine.md)
 - [Algorithm](/api/generated/algorithms/Algorithm/classes/Algorithm.md)
 - [DataSource](/api/generated/data/DataSource/classes/DataSource.md)

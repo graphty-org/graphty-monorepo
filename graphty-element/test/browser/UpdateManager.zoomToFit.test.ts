@@ -1,7 +1,7 @@
-import {NullEngine, Scene, Vector3} from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import {RichTextLabel} from "../../src/meshes/RichTextLabel";
+import { RichTextLabel } from "../../src/meshes/RichTextLabel";
 
 /**
  * Regression tests for zoomToFit bounding box calculation.
@@ -32,14 +32,14 @@ describe("zoomToFit Bounding Box Regression Tests", () => {
                 fontSize: 24,
             });
 
-            const {labelMesh} = label;
+            const { labelMesh } = label;
             assert.exists(labelMesh);
 
             const boundingInfo = labelMesh.getBoundingInfo();
             assert.exists(boundingInfo);
             assert.exists(boundingInfo.boundingBox);
 
-            const {minimumWorld: min, maximumWorld: max} = boundingInfo.boundingBox;
+            const { minimumWorld: min, maximumWorld: max } = boundingInfo.boundingBox;
 
             // Bounding box should have valid dimensions
             assert.isTrue(max.x >= min.x, "Max X should be >= Min X");
@@ -59,11 +59,11 @@ describe("zoomToFit Bounding Box Regression Tests", () => {
             const targetPos = new Vector3(0, 0, 0);
             label.attachTo(targetPos, "top", 5.0);
 
-            const {labelMesh} = label;
+            const { labelMesh } = label;
             assert.exists(labelMesh);
 
             const boundingInfo = labelMesh.getBoundingInfo();
-            const {maximumWorld: maxWorld} = boundingInfo.boundingBox;
+            const { maximumWorld: maxWorld } = boundingInfo.boundingBox;
 
             // The label should be positioned above the target
             // So its max Y should be greater than the target Y + offset
@@ -82,11 +82,11 @@ describe("zoomToFit Bounding Box Regression Tests", () => {
             const targetPos = new Vector3(0, 2, 0);
             label.attachTo(targetPos, "top", 1.0);
 
-            const {labelMesh} = label;
+            const { labelMesh } = label;
             assert.exists(labelMesh);
 
             // The mesh position should be above the target
-            const {position: meshPos} = labelMesh;
+            const { position: meshPos } = labelMesh;
             assert.isTrue(meshPos.y > 2, "Mesh position Y should be above target Y=2");
 
             label.dispose();
@@ -104,11 +104,11 @@ describe("zoomToFit Bounding Box Regression Tests", () => {
             // Position label at a specific location (using realistic coordinates)
             label.attachTo(new Vector3(5, 5, 0), "top", 1);
 
-            const {labelMesh} = label;
+            const { labelMesh } = label;
             assert.exists(labelMesh);
 
             // Check the mesh position directly - should be at (5, 5+offset+halfHeight)
-            const {position: meshPos} = labelMesh;
+            const { position: meshPos } = labelMesh;
             assert.isTrue(meshPos.x === 5, "Mesh position X should be at target X=5");
             assert.isTrue(meshPos.y > 5, "Mesh position Y should be above target Y=5");
 
@@ -130,11 +130,11 @@ describe("zoomToFit Bounding Box Regression Tests", () => {
         });
 
         test("labels at various positions all expand bounding box", () => {
-            const positions: {target: Vector3, attach: "top" | "bottom" | "left" | "right", offset: number}[] = [
-                {target: new Vector3(0, 5, 0), attach: "top", offset: 1}, // Above
-                {target: new Vector3(0, -5, 0), attach: "bottom", offset: 1}, // Below
-                {target: new Vector3(5, 0, 0), attach: "right", offset: 1}, // Right
-                {target: new Vector3(-5, 0, 0), attach: "left", offset: 1}, // Left
+            const positions: { target: Vector3; attach: "top" | "bottom" | "left" | "right"; offset: number }[] = [
+                { target: new Vector3(0, 5, 0), attach: "top", offset: 1 }, // Above
+                { target: new Vector3(0, -5, 0), attach: "bottom", offset: 1 }, // Below
+                { target: new Vector3(5, 0, 0), attach: "right", offset: 1 }, // Right
+                { target: new Vector3(-5, 0, 0), attach: "left", offset: 1 }, // Left
             ];
 
             const labels: RichTextLabel[] = [];
@@ -252,8 +252,8 @@ describe("zoomToFit Bounding Box Regression Tests", () => {
         });
 
         test("label with negative offset moves toward target", () => {
-            const labelPositive = new RichTextLabel(scene, {text: "Pos", fontSize: 24});
-            const labelNegative = new RichTextLabel(scene, {text: "Neg", fontSize: 24});
+            const labelPositive = new RichTextLabel(scene, { text: "Pos", fontSize: 24 });
+            const labelNegative = new RichTextLabel(scene, { text: "Neg", fontSize: 24 });
 
             const target = new Vector3(0, 0, 0);
 

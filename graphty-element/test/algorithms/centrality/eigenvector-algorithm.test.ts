@@ -1,14 +1,14 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {EigenvectorCentralityAlgorithm} from "../../../src/algorithms/EigenvectorCentralityAlgorithm";
-import type {AdHocData} from "../../../src/config";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { EigenvectorCentralityAlgorithm } from "../../../src/algorithms/EigenvectorCentralityAlgorithm";
+import type { AdHocData } from "../../../src/config";
 
 interface MockGraphOpts {
     dataPath?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
     const nodes = new Map<string | number, AdHocData>();
     const edges = new Map<string | number, AdHocData>();
@@ -55,12 +55,12 @@ describe("EigenvectorCentralityAlgorithm", () => {
     });
 
     describe("Algorithm Execution", () => {
-        it("exists", async() => {
+        it("exists", async () => {
             new EigenvectorCentralityAlgorithm(await mockGraph());
         });
 
-        it("calculates eigenvector scores for all nodes", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("calculates eigenvector scores for all nodes", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new EigenvectorCentralityAlgorithm(fakeGraph);
             await algo.run();
 
@@ -76,15 +76,15 @@ describe("EigenvectorCentralityAlgorithm", () => {
             }
         });
 
-        it("handles empty graph", async() => {
+        it("handles empty graph", async () => {
             const emptyGraph = await mockGraph();
             const algo = new EigenvectorCentralityAlgorithm(emptyGraph);
             await algo.run();
             // Should not throw
         });
 
-        it("influential nodes have higher eigenvector centrality", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("influential nodes have higher eigenvector centrality", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new EigenvectorCentralityAlgorithm(fakeGraph);
             await algo.run();
 
@@ -126,9 +126,11 @@ describe("EigenvectorCentralityAlgorithm", () => {
             const layer = styles.layers[0];
             assert.ok(layer.node);
             assert.property(layer.node, "calculatedStyle");
-            assert.ok(layer.node.calculatedStyle?.inputs.some((input) =>
-                input.includes("algorithmResults.graphty.eigenvector"),
-            ));
+            assert.ok(
+                layer.node.calculatedStyle?.inputs.some((input) =>
+                    input.includes("algorithmResults.graphty.eigenvector"),
+                ),
+            );
         });
     });
 });

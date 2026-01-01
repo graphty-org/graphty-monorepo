@@ -13,6 +13,7 @@ This analysis identifies critical gaps, risks, and potential problems in the pro
 **Risk**: Build failures due to mismatched dependency versions or unresolved workspace dependencies.
 
 **Recommendation**:
+
 - Add explicit step to update all inter-package dependencies to workspace protocol
 - Validate dependency graph before and after migration
 - Ensure all packages use consistent versioning for shared dependencies
@@ -25,6 +26,7 @@ This analysis identifies critical gaps, risks, and potential problems in the pro
 **Risk**: TypeScript compilation failures and incorrect module resolution.
 
 **Recommendation**:
+
 - Generate tsconfig paths dynamically from package.json files
 - Validate that all path mappings resolve correctly
 - Consider using Nx's built-in TypeScript path generation
@@ -34,6 +36,7 @@ This analysis identifies critical gaps, risks, and potential problems in the pro
 ### 4. Missing Package-Specific Configurations
 
 **Problem**: The migration uses generic configurations but doesn't account for package-specific needs:
+
 - Storybook configuration for graphty-element
 - Visual regression test setup
 - Package-specific test utilities and mocks
@@ -42,6 +45,7 @@ This analysis identifies critical gaps, risks, and potential problems in the pro
 **Risk**: Loss of functionality or broken builds for packages with special requirements.
 
 **Recommendation**:
+
 - Audit each package for custom configurations before migration
 - Create package-specific overrides where needed
 - Preserve existing Storybook, Playwright, and other tool configurations
@@ -53,6 +57,7 @@ This analysis identifies critical gaps, risks, and potential problems in the pro
 **Risk**: Port conflicts when developers run multiple packages simultaneously.
 
 **Recommendation**:
+
 - Assign fixed ports to each package's dev server
 - Document port assignments
 - Add port availability checking to dev scripts
@@ -64,6 +69,7 @@ This analysis identifies critical gaps, risks, and potential problems in the pro
 **Risk**: Breaking changes for package consumers due to different build outputs.
 
 **Recommendation**:
+
 - Compare build outputs before and after migration
 - Validate bundle sizes remain within acceptable ranges
 - Ensure all package.json exports fields are preserved
@@ -78,6 +84,7 @@ This analysis identifies critical gaps, risks, and potential problems in the pro
 **Risk**: Failed releases or incorrect versioning.
 
 **Recommendation**:
+
 - Test Nx Release with dry-run extensively
 - Validate changelog generation matches existing format
 - Ensure commit message parsing works identically
@@ -88,6 +95,7 @@ This analysis identifies critical gaps, risks, and potential problems in the pro
 ### 9. Test Configuration Migration
 
 **Problem**: Generic test configuration might not capture package-specific needs:
+
 - Visual regression tests for graphty-element
 - GPU/WebGPU requirements for gpu-3d-force-layout
 - React testing setup for graphty
@@ -95,6 +103,7 @@ This analysis identifies critical gaps, risks, and potential problems in the pro
 **Risk**: Broken or skipped tests after migration.
 
 **Recommendation**:
+
 - Preserve package-specific test configurations
 - Validate all test types work after migration
 - Ensure coverage thresholds are maintained per package
@@ -106,6 +115,7 @@ This analysis identifies critical gaps, risks, and potential problems in the pro
 **Risk**: CI/CD failures if Nx Cloud isn't set up.
 
 **Recommendation**:
+
 - Make Nx Cloud optional in initial migration
 - Document all required secrets
 - Provide fallback for local caching without Nx Cloud
@@ -119,6 +129,7 @@ This analysis identifies critical gaps, risks, and potential problems in the pro
 **Risk**: Inability to rollback if critical issues arise.
 
 **Recommendation**:
+
 - Create full backup of all individual repos before starting
 - Document how to restore from backup
 - Consider running parallel systems for a period
@@ -129,6 +140,7 @@ This analysis identifies critical gaps, risks, and potential problems in the pro
 ### 12. Missing Package Peculiarities
 
 **Problem**: The plan doesn't address known package-specific requirements:
+
 - graphty-element's Babylon.js peer dependency and mesh instancing
 - gpu-3d-force-layout's WebGPU requirements and experimental nature
 - Layout package's need for both Node.js and browser builds
@@ -137,6 +149,7 @@ This analysis identifies critical gaps, risks, and potential problems in the pro
 **Risk**: Runtime failures or missing functionality.
 
 **Recommendation**:
+
 - Document all package-specific requirements
 - Ensure build configs preserve all necessary optimizations
 - Validate peer dependencies are correctly managed
@@ -151,6 +164,7 @@ This analysis identifies critical gaps, risks, and potential problems in the pro
 **Risk**: Productivity loss and confusion during transition.
 
 **Recommendation**:
+
 - Create detailed workflow comparison (before/after)
 - Document common tasks with new commands
 - Provide troubleshooting guide
@@ -163,6 +177,7 @@ This analysis identifies critical gaps, risks, and potential problems in the pro
 **Risk**: Unable to pause or partially rollback if issues arise.
 
 **Recommendation**:
+
 - Break migration into smaller, independent phases
 - Migrate one package at a time if possible
 - Validate each package works before proceeding
@@ -173,6 +188,7 @@ This analysis identifies critical gaps, risks, and potential problems in the pro
 ### 15. Pre-Migration Validation
 
 Add these validation steps before starting:
+
 - Full backup of all repositories
 - Document all npm scripts and their Nx equivalents
 - List all CI/CD workflows and map to new versions
@@ -183,6 +199,7 @@ Add these validation steps before starting:
 ### 16. Missing Tool Configurations
 
 Address these missing configurations:
+
 - Knip configuration for unused dependency detection
 - Commitizen configuration preservation
 - Husky hook migration strategy for complex hooks
@@ -204,22 +221,22 @@ While the implementation plan provides a good foundation, it needs significant e
 
 The following table shows how each identified gap has been addressed in the updated implementation plan:
 
-| Gap # | Issue | Status | Resolution |
-|-------|-------|--------|------------|
-| #2 | Package Dependency Resolution | ✅ Resolved | Added `tools/convert-workspace-deps.js` script (Section 4.5) with circular dependency detection and validation |
-| #3 | TypeScript Path Mapping | ✅ Resolved | Added `tools/validate-tsconfig-paths.js` script (Section 2.1) to validate paths match package.json names |
-| #4 | Package-Specific Configurations | ✅ Resolved | Added Package-Specific Requirements Audit table and Files to Preserve checklist in Pre-Implementation section |
-| #5 | Port Management | ✅ Resolved | Added fixed PORT_ASSIGNMENTS table (Section 2.4) with dedicated ports per package |
-| #6 | Build Output Validation | ✅ Resolved | Added `tools/capture-pre-migration-state.sh` and enhanced `tools/validate-outputs.js` with snapshot comparison |
-| #7 | Semantic Release Migration | ✅ Resolved | Decision documented in `monorepo-design.md` Decision Record; dry-run testing in Phase 7 |
-| #9 | Test Configuration | ✅ Resolved | Package-specific test configs preserved in `configure-package-specifics.js`; visual test config for graphty-element |
-| #10 | CI/CD Secrets | ✅ Resolved | Removed Nx Cloud requirement; using local caching with `actions/cache` |
-| #11 | Rollback Strategy | ✅ Resolved | Added comprehensive Rollback Plan section with full repo archive, decision criteria table, and post-rollback steps |
-| #12 | Package Peculiarities | ✅ Resolved | Added detailed Package-Specific Requirements Audit table with validation criteria |
-| #13 | Developer Workflow Docs | ✅ Resolved | MIGRATION.md created in Phase 8 with before/after command comparison |
-| #14 | Incremental Migration | ✅ Resolved | Restructured Phase 4 for one-package-at-a-time migration with validation gates |
-| #15 | Pre-Migration Validation | ✅ Resolved | Added comprehensive Pre-Implementation Checklist with capture script |
-| #16 | Tool Configurations | ⚠️ Partial | Commitizen and Husky configs preserved; Knip config not explicitly addressed |
+| Gap # | Issue                           | Status      | Resolution                                                                                                          |
+| ----- | ------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------- |
+| #2    | Package Dependency Resolution   | ✅ Resolved | Added `tools/convert-workspace-deps.js` script (Section 4.5) with circular dependency detection and validation      |
+| #3    | TypeScript Path Mapping         | ✅ Resolved | Added `tools/validate-tsconfig-paths.js` script (Section 2.1) to validate paths match package.json names            |
+| #4    | Package-Specific Configurations | ✅ Resolved | Added Package-Specific Requirements Audit table and Files to Preserve checklist in Pre-Implementation section       |
+| #5    | Port Management                 | ✅ Resolved | Added fixed PORT_ASSIGNMENTS table (Section 2.4) with dedicated ports per package                                   |
+| #6    | Build Output Validation         | ✅ Resolved | Added `tools/capture-pre-migration-state.sh` and enhanced `tools/validate-outputs.js` with snapshot comparison      |
+| #7    | Semantic Release Migration      | ✅ Resolved | Decision documented in `monorepo-design.md` Decision Record; dry-run testing in Phase 7                             |
+| #9    | Test Configuration              | ✅ Resolved | Package-specific test configs preserved in `configure-package-specifics.js`; visual test config for graphty-element |
+| #10   | CI/CD Secrets                   | ✅ Resolved | Removed Nx Cloud requirement; using local caching with `actions/cache`                                              |
+| #11   | Rollback Strategy               | ✅ Resolved | Added comprehensive Rollback Plan section with full repo archive, decision criteria table, and post-rollback steps  |
+| #12   | Package Peculiarities           | ✅ Resolved | Added detailed Package-Specific Requirements Audit table with validation criteria                                   |
+| #13   | Developer Workflow Docs         | ✅ Resolved | MIGRATION.md created in Phase 8 with before/after command comparison                                                |
+| #14   | Incremental Migration           | ✅ Resolved | Restructured Phase 4 for one-package-at-a-time migration with validation gates                                      |
+| #15   | Pre-Migration Validation        | ✅ Resolved | Added comprehensive Pre-Implementation Checklist with capture script                                                |
+| #16   | Tool Configurations             | ⚠️ Partial  | Commitizen and Husky configs preserved; Knip config not explicitly addressed                                        |
 
 ### Decisions Made
 

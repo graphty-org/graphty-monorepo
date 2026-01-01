@@ -3,8 +3,8 @@
  * @module test/helpers/schema-test-graph
  */
 
-import type {Graph} from "../../src/Graph";
-import type {DataManager} from "../../src/managers";
+import type { Graph } from "../../src/Graph";
+import type { DataManager } from "../../src/managers";
 
 /**
  * Options for creating a schema test graph.
@@ -66,7 +66,11 @@ export function createSchemaTestGraph(options: SchemaTestGraphOptions = {}): Gra
 
     if (!empty) {
         const nodeTypes = ["server", "client", "router"];
-        const tags = [["web", "production"], ["database", "staging"], ["api", "development"]];
+        const tags = [
+            ["web", "production"],
+            ["database", "staging"],
+            ["api", "development"],
+        ];
 
         for (let i = 0; i < nodeCount; i++) {
             const id = `node-${i}`;
@@ -76,7 +80,7 @@ export function createSchemaTestGraph(options: SchemaTestGraphOptions = {}): Gra
                 // String property with limited values (enum-like)
                 type: nodeTypes[i % nodeTypes.length],
                 // Number property
-                age: 20 + (i * 3),
+                age: 20 + i * 3,
                 // Boolean property
                 active: i % 2 === 0,
                 // Array property

@@ -1,16 +1,35 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {astar, astarWithDetails, heuristics} from "../../src/pathfinding/astar";
-import {pathfindingUtils} from "../../src/pathfinding/utils";
+import { astar, astarWithDetails, heuristics } from "../../src/pathfinding/astar";
+import { pathfindingUtils } from "../../src/pathfinding/utils";
 
 describe("A* Algorithm", () => {
     describe("astar", () => {
         it("should find shortest path in a simple graph", () => {
             const graph = new Map([
-                ["A", new Map([["B", 4], ["C", 2]])],
+                [
+                    "A",
+                    new Map([
+                        ["B", 4],
+                        ["C", 2],
+                    ]),
+                ],
                 ["B", new Map([["D", 5]])],
-                ["C", new Map([["B", 1], ["D", 8], ["E", 10]])],
-                ["D", new Map([["E", 2], ["F", 6]])],
+                [
+                    "C",
+                    new Map([
+                        ["B", 1],
+                        ["D", 8],
+                        ["E", 10],
+                    ]),
+                ],
+                [
+                    "D",
+                    new Map([
+                        ["E", 2],
+                        ["F", 6],
+                    ]),
+                ],
                 ["E", new Map([["F", 3]])],
                 ["F", new Map()],
             ]);
@@ -63,18 +82,14 @@ describe("A* Algorithm", () => {
         });
 
         it("should return null for non-existent start node", () => {
-            const graph = new Map([
-                ["A", new Map([["B", 1]])],
-            ]);
+            const graph = new Map([["A", new Map([["B", 1]])]]);
 
             const result = astar(graph, "Z", "A", () => 0);
             expect(result).toBeNull();
         });
 
         it("should return null for non-existent goal node", () => {
-            const graph = new Map([
-                ["A", new Map([["B", 1]])],
-            ]);
+            const graph = new Map([["A", new Map([["B", 1]])]]);
 
             const result = astar(graph, "A", "Z", () => 0);
             expect(result).toBeNull();
@@ -93,9 +108,7 @@ describe("A* Algorithm", () => {
         });
 
         it("should handle single node path", () => {
-            const graph = new Map([
-                ["A", new Map()],
-            ]);
+            const graph = new Map([["A", new Map()]]);
 
             const result = astar(graph, "A", "A", () => 0);
             expect(result).not.toBeNull();
@@ -134,9 +147,21 @@ describe("A* Algorithm", () => {
     describe("astarWithDetails", () => {
         it("should return detailed search information", () => {
             const graph = new Map([
-                ["A", new Map([["B", 4], ["C", 2]])],
+                [
+                    "A",
+                    new Map([
+                        ["B", 4],
+                        ["C", 2],
+                    ]),
+                ],
                 ["B", new Map([["D", 5]])],
-                ["C", new Map([["B", 1], ["D", 8]])],
+                [
+                    "C",
+                    new Map([
+                        ["B", 1],
+                        ["D", 8],
+                    ]),
+                ],
                 ["D", new Map()],
             ]);
 
@@ -233,9 +258,7 @@ describe("A* Algorithm", () => {
 
         it("should handle extractMin returning null", () => {
             // Test the defensive check for extractMin
-            const graph = new Map([
-                ["A", new Map()],
-            ]);
+            const graph = new Map([["A", new Map()]]);
 
             const result = astar(graph, "A", "B", () => 0);
             expect(result).toBeNull();
@@ -243,7 +266,13 @@ describe("A* Algorithm", () => {
 
         it("should skip neighbors in closed set", () => {
             const graph = new Map([
-                ["A", new Map([["B", 1], ["C", 2]])],
+                [
+                    "A",
+                    new Map([
+                        ["B", 1],
+                        ["C", 2],
+                    ]),
+                ],
                 ["B", new Map([["C", 1]])],
                 ["C", new Map([["D", 1]])],
                 ["D", new Map()],
@@ -344,7 +373,13 @@ describe("A* Algorithm", () => {
 
         it("should handle case where f-score becomes undefined after computation", () => {
             const graph = new Map([
-                ["A", new Map([["B", 1], ["C", 2]])],
+                [
+                    "A",
+                    new Map([
+                        ["B", 1],
+                        ["C", 2],
+                    ]),
+                ],
                 ["B", new Map([["D", 1]])],
                 ["C", new Map([["D", 1]])],
                 ["D", new Map()],
@@ -456,7 +491,13 @@ describe("A* Algorithm", () => {
 
         it("should handle negative weights with admissible heuristic", () => {
             const graph = new Map([
-                ["A", new Map([["B", 1], ["C", 5]])],
+                [
+                    "A",
+                    new Map([
+                        ["B", 1],
+                        ["C", 5],
+                    ]),
+                ],
                 ["B", new Map([["C", -2]])],
                 ["C", new Map()],
             ]);

@@ -1,12 +1,13 @@
 /**
- * @graphty/algorithms - Graph algorithms library for browser environments
+ * graphty/algorithms - Graph algorithms library for browser environments
  *
  * A comprehensive TypeScript library implementing fundamental graph algorithms
  * optimized for browser environments and visualization applications.
+ * @module
  */
 
 // Core exports
-export {Graph} from "./core/graph.js";
+export { Graph } from "./core/graph.js";
 
 // Type exports
 export type {

@@ -1,7 +1,7 @@
-import {assert, test} from "vitest";
+import { assert, test } from "vitest";
 
-import {estimateAnimationCapture} from "../../../src/video/estimation.js";
-import {calculateDropRate} from "../../../src/video/VideoCapture.js";
+import { estimateAnimationCapture } from "../../../src/video/estimation.js";
+import { calculateDropRate } from "../../../src/video/VideoCapture.js";
 
 test("calculates frame drop rate correctly", () => {
     const dropRate1 = calculateDropRate(90, 100);

@@ -15,6 +15,7 @@ The quickest way to style your graph is with built-in templates:
 ```
 
 Available templates:
+
 - `dark` - Dark theme with light elements
 - `light` - Light theme with dark elements
 
@@ -25,17 +26,17 @@ Styles are organized in layers with priorities. Higher priority layers override 
 ```typescript
 // Add a style layer
 graph.styleManager.addLayer({
-  selector: '*',          // Apply to all elements
-  priority: 10,           // Higher = applied later
-  styles: {
-    node: {
-      color: '#3498db',
-      size: 1.0
+    selector: "*", // Apply to all elements
+    priority: 10, // Higher = applied later
+    styles: {
+        node: {
+            color: "#3498db",
+            size: 1.0,
+        },
+        edge: {
+            line: { color: "#ffffff" },
+        },
     },
-    edge: {
-      line: { color: '#ffffff' }
-    }
-  }
 });
 ```
 
@@ -52,40 +53,53 @@ Selectors use JMESPath syntax to target elements:
 
 ```typescript
 // All elements
-{ selector: '*' }
+{
+    selector: "*";
+}
 
 // Specific node by ID
-{ selector: "[?id == 'node1']" }
+{
+    selector: "[?id == 'node1']";
+}
 
 // Nodes with a property value
-{ selector: "[?category == 'important']" }
+{
+    selector: "[?category == 'important']";
+}
 
 // Numeric comparison
-{ selector: "[?weight > `5`]" }
+{
+    selector: "[?weight > `5`]";
+}
 
 // Multiple conditions (AND)
-{ selector: "[?category == 'type-a' && weight > `3`]" }
+{
+    selector: "[?category == 'type-a' && weight > `3`]";
+}
 
 // Based on algorithm results
-{ selector: "[?algorithmResults.'graphty:degree' > `10`]" }
+{
+    selector: "[?algorithmResults.'graphty:degree' > `10`]";
+}
 ```
 
 ## Node Styles
 
 ### Available Properties
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `color` | `string` | `'#ffffff'` | Node color (hex or CSS color) |
-| `size` | `number` | `1.0` | Size multiplier |
-| `shape` | `string` | `'sphere'` | Node shape |
-| `opacity` | `number` | `1.0` | Transparency (0-1) |
-| `texture` | `string` | `undefined` | Image URL for texture |
-| `label` | `object` | `{}` | Label configuration |
+| Property  | Type     | Default     | Description                   |
+| --------- | -------- | ----------- | ----------------------------- |
+| `color`   | `string` | `'#ffffff'` | Node color (hex or CSS color) |
+| `size`    | `number` | `1.0`       | Size multiplier               |
+| `shape`   | `string` | `'sphere'`  | Node shape                    |
+| `opacity` | `number` | `1.0`       | Transparency (0-1)            |
+| `texture` | `string` | `undefined` | Image URL for texture         |
+| `label`   | `object` | `{}`        | Label configuration           |
 
 ### Node Shapes
 
 Available shapes:
+
 - `sphere` (default)
 - `box`
 - `cylinder`
@@ -98,14 +112,14 @@ Available shapes:
 
 ```typescript
 graph.styleManager.addLayer({
-  selector: "[?category == 'server']",
-  styles: {
-    node: {
-      shape: 'box',
-      color: '#2ecc71',
-      size: 1.5
-    }
-  }
+    selector: "[?category == 'server']",
+    styles: {
+        node: {
+            shape: "box",
+            color: "#2ecc71",
+            size: 1.5,
+        },
+    },
 });
 ```
 
@@ -114,19 +128,19 @@ graph.styleManager.addLayer({
 ```typescript
 // Color by category
 graph.styleManager.addLayer({
-  selector: "[?category == 'primary']",
-  styles: { node: { color: '#e74c3c' } }
+    selector: "[?category == 'primary']",
+    styles: { node: { color: "#e74c3c" } },
 });
 
 graph.styleManager.addLayer({
-  selector: "[?category == 'secondary']",
-  styles: { node: { color: '#3498db' } }
+    selector: "[?category == 'secondary']",
+    styles: { node: { color: "#3498db" } },
 });
 
 // Size by importance
 graph.styleManager.addLayer({
-  selector: "[?importance == 'high']",
-  styles: { node: { size: 2.0 } }
+    selector: "[?importance == 'high']",
+    styles: { node: { size: 2.0 } },
 });
 ```
 
@@ -134,13 +148,13 @@ graph.styleManager.addLayer({
 
 ### Line Properties
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `line.type` | `string` | `'solid'` | Line pattern |
-| `line.width` | `number` | `0.5` | Line width |
-| `line.color` | `string` | `'#ffffff'` | Line color |
-| `line.opacity` | `number` | `1.0` | Transparency (0-1) |
-| `line.bezier` | `boolean` | `false` | Curved edges |
+| Property       | Type      | Default     | Description        |
+| -------------- | --------- | ----------- | ------------------ |
+| `line.type`    | `string`  | `'solid'`   | Line pattern       |
+| `line.width`   | `number`  | `0.5`       | Line width         |
+| `line.color`   | `string`  | `'#ffffff'` | Line color         |
+| `line.opacity` | `number`  | `1.0`       | Transparency (0-1) |
+| `line.bezier`  | `boolean` | `false`     | Curved edges       |
 
 ### Line Types
 
@@ -155,12 +169,12 @@ graph.styleManager.addLayer({
 
 ### Arrow Properties
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `arrowHead.type` | `string` | `'normal'` | Arrow head style |
-| `arrowHead.size` | `number` | `1.0` | Size multiplier |
+| Property          | Type     | Default     | Description                    |
+| ----------------- | -------- | ----------- | ------------------------------ |
+| `arrowHead.type`  | `string` | `'normal'`  | Arrow head style               |
+| `arrowHead.size`  | `number` | `1.0`       | Size multiplier                |
 | `arrowHead.color` | `string` | `undefined` | Color (defaults to line color) |
-| `arrowTail.type` | `string` | `'none'` | Arrow tail style |
+| `arrowTail.type`  | `string` | `'none'`    | Arrow tail style               |
 
 ### Arrow Types
 
@@ -181,33 +195,33 @@ graph.styleManager.addLayer({
 ```typescript
 // Dashed edges for weak connections
 graph.styleManager.addLayer({
-  selector: "[?weight < `0.5`]",
-  styles: {
-    edge: {
-      line: { type: 'dash', opacity: 0.5 }
-    }
-  }
+    selector: "[?weight < `0.5`]",
+    styles: {
+        edge: {
+            line: { type: "dash", opacity: 0.5 },
+        },
+    },
 });
 
 // Bidirectional arrows
 graph.styleManager.addLayer({
-  selector: "[?bidirectional == `true`]",
-  styles: {
-    edge: {
-      arrowHead: { type: 'normal' },
-      arrowTail: { type: 'normal' }
-    }
-  }
+    selector: "[?bidirectional == `true`]",
+    styles: {
+        edge: {
+            arrowHead: { type: "normal" },
+            arrowTail: { type: "normal" },
+        },
+    },
 });
 
 // Curved edges
 graph.styleManager.addLayer({
-  selector: '*',
-  styles: {
-    edge: {
-      line: { bezier: true }
-    }
-  }
+    selector: "*",
+    styles: {
+        edge: {
+            line: { bezier: true },
+        },
+    },
 });
 ```
 
@@ -215,25 +229,25 @@ graph.styleManager.addLayer({
 
 ### Label Properties
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `text` | `string` | `undefined` | Label text |
-| `fontSize` | `number` | `12` | Font size |
-| `fontColor` | `string` | `'#ffffff'` | Text color |
-| `position` | `string` | `'top'` | Position relative to node |
-| `offset` | `object` | `{x:0,y:0,z:0}` | Position offset |
+| Property    | Type     | Default         | Description               |
+| ----------- | -------- | --------------- | ------------------------- |
+| `text`      | `string` | `undefined`     | Label text                |
+| `fontSize`  | `number` | `12`            | Font size                 |
+| `fontColor` | `string` | `'#ffffff'`     | Text color                |
+| `position`  | `string` | `'top'`         | Position relative to node |
+| `offset`    | `object` | `{x:0,y:0,z:0}` | Position offset           |
 
 ```typescript
 graph.styleManager.addLayer({
-  selector: '*',
-  styles: {
-    label: {
-      text: (node) => node.label || node.id,
-      fontSize: 14,
-      fontColor: '#ffffff',
-      position: 'top'
-    }
-  }
+    selector: "*",
+    styles: {
+        label: {
+            text: (node) => node.label || node.id,
+            fontSize: 14,
+            fontColor: "#ffffff",
+            position: "top",
+        },
+    },
 });
 ```
 
@@ -243,19 +257,19 @@ Use functions to compute styles dynamically:
 
 ```typescript
 graph.styleManager.addLayer({
-  selector: '*',
-  styles: {
-    node: {
-      color: (node) => {
-        const degree = node.algorithmResults['graphty:degree'] || 0;
-        return degree > 5 ? '#e74c3c' : '#3498db';
-      },
-      size: (node) => {
-        const degree = node.algorithmResults['graphty:degree'] || 0;
-        return 0.5 + (degree * 0.1);
-      }
-    }
-  }
+    selector: "*",
+    styles: {
+        node: {
+            color: (node) => {
+                const degree = node.algorithmResults["graphty:degree"] || 0;
+                return degree > 5 ? "#e74c3c" : "#3498db";
+            },
+            size: (node) => {
+                const degree = node.algorithmResults["graphty:degree"] || 0;
+                return 0.5 + degree * 0.1;
+            },
+        },
+    },
 });
 ```
 

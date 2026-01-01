@@ -1,5 +1,5 @@
-import {ScreenshotError, ScreenshotErrorCode} from "./ScreenshotError.js";
-import type {ScreenshotOptions} from "./types.js";
+import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
+import type { ScreenshotOptions } from "./types.js";
 
 export const BROWSER_LIMITS = {
     MAX_DIMENSION: 16384,
@@ -19,10 +19,7 @@ export interface CalculatedDimensions {
  * @param options - Screenshot configuration options
  * @returns The calculated width and height for the screenshot
  */
-export function calculateDimensions(
-    canvas: HTMLCanvasElement,
-    options: ScreenshotOptions,
-): CalculatedDimensions {
+export function calculateDimensions(canvas: HTMLCanvasElement, options: ScreenshotOptions): CalculatedDimensions {
     const canvasWidth = canvas.width;
     const canvasHeight = canvas.height;
     const canvasAspect = canvasWidth / canvasHeight;
@@ -34,14 +31,14 @@ export function calculateDimensions(
 
         // Both dimensions specified
         if (options.width !== undefined && options.height !== undefined) {
-            ({width, height} = options as {width: number, height: number});
+            ({ width, height } = options as { width: number; height: number });
         } else if (options.width !== undefined) {
             // Only width specified - calculate height to maintain aspect ratio
-            ({width} = options);
+            ({ width } = options);
             height = Math.round(width / canvasAspect);
         } else if (options.height !== undefined) {
             // Only height specified - calculate width to maintain aspect ratio
-            ({height} = options);
+            ({ height } = options);
             width = Math.round(height * canvasAspect);
         } else {
             // This should never happen due to the outer if condition
@@ -73,7 +70,7 @@ export function calculateDimensions(
         }
 
         validateDimensions(width, height);
-        return {width, height};
+        return { width, height };
     }
 
     // Use multiplier (default: 1)
@@ -82,7 +79,7 @@ export function calculateDimensions(
     const height = Math.floor(canvasHeight * multiplier);
 
     validateDimensions(width, height);
-    return {width, height};
+    return { width, height };
 }
 
 /**
@@ -98,7 +95,7 @@ export function validateDimensions(width: number, height: number): void {
         throw new ScreenshotError(
             `Invalid dimensions: ${width}x${height}. Dimensions must be positive finite numbers.`,
             ScreenshotErrorCode.INVALID_DIMENSIONS,
-            {width, height},
+            { width, height },
         );
     }
 

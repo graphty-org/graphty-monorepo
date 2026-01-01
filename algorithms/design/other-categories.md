@@ -9,12 +9,12 @@ This report provides a comprehensive analysis of graph algorithm categories that
 The @graphty/algorithms library currently implements **11 categories** of graph algorithms:
 
 1. **Traversal algorithms** - BFS, DFS
-2. **Shortest path algorithms** - Dijkstra, Bellman-Ford, Floyd-Warshall  
+2. **Shortest path algorithms** - Dijkstra, Bellman-Ford, Floyd-Warshall
 3. **Centrality algorithms** - Betweenness, Closeness, Degree, Eigenvector, HITS, Katz, PageRank
 4. **Connected components algorithms**
 5. **Minimum spanning tree algorithms** - Kruskal, Prim
 6. **Community detection algorithms** - Girvan-Newman, Label Propagation, Leiden, Louvain
-7. **Pathfinding algorithms** - A*
+7. **Pathfinding algorithms** - A\*
 8. **Flow algorithms** - Ford-Fulkerson, Min-Cut
 9. **Clustering algorithms** - Hierarchical, K-Core, MCL, Spectral
 10. **Matching algorithms** - Bipartite, Isomorphism
@@ -27,6 +27,7 @@ The @graphty/algorithms library currently implements **11 categories** of graph 
 Graph coloring is fundamental in scheduling, register allocation, and map coloring problems.
 
 **Key Algorithms:**
+
 - **Greedy Coloring Algorithm** - Simple heuristic for vertex coloring
 - **Welsh-Powell Algorithm** - Improved vertex coloring with degree-based ordering
 - **DSATUR Algorithm** - Dynamic saturation degree coloring
@@ -36,8 +37,9 @@ Graph coloring is fundamental in scheduling, register allocation, and map colori
 **Applications:** Course scheduling, register allocation in compilers, frequency assignment in wireless networks, sudoku solving.
 
 **Visualization Benefits:**
+
 - **Vertex coloring** helps distinguish communities/clusters visually
-- **Edge coloring** can show different relationship types  
+- **Edge coloring** can show different relationship types
 - Reduces visual clutter by ensuring adjacent nodes have different colors
 - Essential for making dense graphs readable
 - Can be directly integrated with force-directed layouts to improve visual clarity
@@ -47,6 +49,7 @@ Graph coloring is fundamental in scheduling, register allocation, and map colori
 Essential for dependency resolution and workflow management.
 
 **Key Algorithms:**
+
 - **Kahn's Algorithm** - BFS-based topological sorting
 - **DFS-based Topological Sort** - Using depth-first search
 - **Lexicographic Topological Sort** - For multiple valid orderings
@@ -54,6 +57,7 @@ Essential for dependency resolution and workflow management.
 **Applications:** Build systems, dependency management, task scheduling, course prerequisites.
 
 **Visualization Benefits:**
+
 - Creates natural left-to-right/top-to-bottom layouts for DAGs
 - Shows dependency flow clearly with hierarchical positioning
 - Essential for workflow/pipeline visualization
@@ -65,6 +69,7 @@ Essential for dependency resolution and workflow management.
 Critical for deadlock detection and graph validation.
 
 **Key Algorithms:**
+
 - **Floyd's Cycle Detection** (Tortoise and Hare)
 - **White-Grey-Black Algorithm** - For directed graphs
 - **Union-Find based Cycle Detection** - For undirected graphs
@@ -77,6 +82,7 @@ Critical for deadlock detection and graph validation.
 Important for route optimization and network traversal.
 
 **Key Algorithms:**
+
 - **Hierholzer's Algorithm** - Finding Eulerian paths/cycles
 - **Held-Karp Algorithm** - Dynamic programming for Hamiltonian path (TSP)
 - **Christofides Algorithm** - Approximation for TSP
@@ -85,6 +91,7 @@ Important for route optimization and network traversal.
 **Applications:** GPS navigation, circuit design, DNA sequencing, traveling salesman problems.
 
 **Visualization Benefits:**
+
 - Highlights special paths for tour visualizations
 - Useful for showing graph traversability properties
 - Can guide edge bundling algorithms
@@ -96,6 +103,7 @@ Important for route optimization and network traversal.
 Specialized algorithms for tree structures and spanning tree variants.
 
 **Key Algorithms:**
+
 - **Lowest Common Ancestor (LCA)** - Tarjan's offline algorithm, binary lifting
 - **Heavy-Light Decomposition** - Tree path queries
 - **Centroid Decomposition** - Tree divide-and-conquer
@@ -104,6 +112,7 @@ Specialized algorithms for tree structures and spanning tree variants.
 **Applications:** Phylogenetic analysis, hierarchical data queries, tree-based databases.
 
 **Visualization Benefits:**
+
 - **LCA** helps with hierarchical layout positioning and path highlighting
 - **Centroid decomposition** finds natural center points for radial layouts
 - Useful for tree-based graph layouts (radial, hierarchical, treemap)
@@ -115,6 +124,7 @@ Specialized algorithms for tree structures and spanning tree variants.
 Essential for sampling, ranking, and probabilistic analysis.
 
 **Key Algorithms:**
+
 - **Simple Random Walk** - Basic vertex-to-vertex movement
 - **Biased Random Walk** - Weighted edge traversal
 - **Metropolis-Hastings Random Walk** - MCMC sampling
@@ -124,6 +134,7 @@ Essential for sampling, ranking, and probabilistic analysis.
 **Applications:** Web crawling, recommendation systems, graph sampling, network analysis.
 
 **Visualization Benefits:**
+
 - **Node2Vec** embeddings help position similar nodes together
 - Improves force-directed layouts by providing better initial positions
 - Can animate random walks to show graph exploration patterns
@@ -135,6 +146,7 @@ Essential for sampling, ranking, and probabilistic analysis.
 Specialized for planar graphs with unique properties.
 
 **Key Algorithms:**
+
 - **Planarity Testing** - Linear time algorithms (Hopcroft-Tarjan)
 - **Planar Graph Drawing** - Straight-line embeddings
 - **Face Detection** - Finding faces in planar embeddings
@@ -143,6 +155,7 @@ Specialized for planar graphs with unique properties.
 **Applications:** Circuit layout, map analysis, molecular structure analysis.
 
 **Visualization Benefits:**
+
 - **Planarity testing** determines if graph can be drawn without edge crossings
 - **Planar embeddings** create cleaner 2D visualizations with no overlaps
 - Critical for circuit/map-like visualizations
@@ -154,6 +167,7 @@ Specialized for planar graphs with unique properties.
 Breaking graphs into simpler components for analysis.
 
 **Key Algorithms:**
+
 - **Modular Decomposition** - Finding graph modules
 - **Tree Decomposition** - Creating tree-width decompositions
 - **Path Decomposition** - Linear arrangements of vertices
@@ -162,6 +176,7 @@ Breaking graphs into simpler components for analysis.
 **Applications:** Graph databases optimization, parallel processing, complexity analysis.
 
 **Visualization Benefits:**
+
 - **Modular decomposition** identifies visual groupings and nested structures
 - **Tree decomposition** creates hierarchical visualizations
 - Helps create multi-level/abstracted views of complex graphs
@@ -173,6 +188,7 @@ Breaking graphs into simpler components for analysis.
 For graphs that change over time.
 
 **Key Algorithms:**
+
 - **Temporal Path Algorithms** - Shortest paths in time-varying graphs
 - **Dynamic Connectivity** - Maintaining connectivity as edges change
 - **Temporal Centrality** - Time-aware importance measures
@@ -181,6 +197,7 @@ For graphs that change over time.
 **Applications:** Social network evolution, transportation networks, financial markets.
 
 **Visualization Benefits:**
+
 - Animates graph evolution over time with smooth transitions
 - Shows how communities/structure changes dynamically
 - Essential for dynamic network visualization
@@ -192,6 +209,7 @@ For graphs that change over time.
 Dividing graphs for parallel processing and analysis.
 
 **Key Algorithms:**
+
 - **METIS-style Algorithms** - Multilevel graph partitioning
 - **Spectral Partitioning** - Using eigenvectors for partitioning
 - **Kernighan-Lin Algorithm** - Iterative improvement partitioning
@@ -200,6 +218,7 @@ Dividing graphs for parallel processing and analysis.
 **Applications:** Parallel computing, load balancing, VLSI design, distributed systems.
 
 **Visualization Benefits:**
+
 - Divides graph into balanced visual regions with clear boundaries
 - Creates natural clustering for layout algorithms
 - Enables "overview+detail" visualization patterns
@@ -211,6 +230,7 @@ Dividing graphs for parallel processing and analysis.
 Converting graphs to vector representations for machine learning.
 
 **Key Algorithms:**
+
 - **Node2Vec** - Biased random walk embeddings
 - **DeepWalk** - Deep learning on graphs via random walks
 - **LINE (Large-scale Information Network Embedding)** - Preserving network structure
@@ -219,6 +239,7 @@ Converting graphs to vector representations for machine learning.
 **Applications:** Graph neural networks, recommendation systems, drug discovery.
 
 **Visualization Benefits:**
+
 - Converts graphs to 2D/3D coordinates for direct visualization
 - Preserves graph structure in visual space
 - Enables dimensionality reduction for complex graphs
@@ -230,6 +251,7 @@ Converting graphs to vector representations for machine learning.
 Quantum computing approaches to graph problems.
 
 **Key Algorithms:**
+
 - **Quantum Walk Algorithms** - Quantum random walks
 - **Grover's Algorithm for Graph Search** - Quantum speedup for searching
 - **Quantum Approximate Optimization Algorithm (QAOA)** - For optimization problems
@@ -242,6 +264,7 @@ Quantum computing approaches to graph problems.
 Algorithms for graphs with uncertainty and probabilistic edges.
 
 **Key Algorithms:**
+
 - **Probabilistic Shortest Path** - Paths in uncertain networks
 - **Expected Connectivity** - Connectivity in probabilistic graphs
 - **Monte Carlo Graph Algorithms** - Randomized approximations
@@ -254,6 +277,7 @@ Algorithms for graphs with uncertainty and probabilistic edges.
 Extensions to hypergraphs where edges can connect multiple vertices.
 
 **Key Algorithms:**
+
 - **Hypergraph Partitioning** - Dividing hypergraphs optimally
 - **Hypergraph Matching** - Finding perfect matchings in hypergraphs
 - **Hypergraph Traversal** - Extensions of BFS/DFS to hypergraphs
@@ -266,6 +290,7 @@ Extensions to hypergraphs where edges can connect multiple vertices.
 Specialized algorithms for biological networks and molecular graphs.
 
 **Key Algorithms:**
+
 - **Protein Interaction Network Analysis** - Finding functional modules
 - **Phylogenetic Tree Construction** - Building evolutionary trees
 - **Sequence Alignment on Graphs** - Aligning sequences using graph structures
@@ -277,11 +302,13 @@ Specialized algorithms for biological networks and molecular graphs.
 ## Implementation Priority Matrix
 
 ### High Priority (Immediate Value) ⭐
+
 1. **Graph Coloring** - Fundamental algorithm class with broad applications and visualization benefits
 2. **Topological Sorting** - Essential for dependency management and DAG visualization
 3. **Cycle Detection** - Critical for validation and deadlock detection
 
 ### Medium Priority (Strategic Expansion) 🔶
+
 4. **Eulerian/Hamiltonian Paths** - Route optimization and circuit design
 5. **Tree Algorithms** - Hierarchical data processing and tree layouts
 6. **Random Walk Algorithms** - Probabilistic analysis and layout optimization
@@ -292,6 +319,7 @@ Specialized algorithms for biological networks and molecular graphs.
 11. **Graph Embedding** - Direct coordinate generation for visualization
 
 ### Low Priority (Research/Specialized) 🔷
+
 12. **Quantum Graph Algorithms** - Future technology preparation
 13. **Probabilistic Graph Algorithms** - Uncertainty handling
 14. **Hypergraph Algorithms** - Specialized high-order relationships
@@ -304,29 +332,29 @@ Given the graphty ecosystem's focus on graph visualization (@graphty/graphty-ele
 ### 🎨 Top Visualization Priorities
 
 1. **Graph Coloring Algorithms** (HIGH)
-   - Immediate visual impact by reducing clutter
-   - Direct integration with existing layouts
-   - Enhances community detection visualization
+    - Immediate visual impact by reducing clutter
+    - Direct integration with existing layouts
+    - Enhances community detection visualization
 
 2. **Planar Graph Algorithms** (HIGH)
-   - Eliminates edge crossings for cleaner visualizations
-   - Essential for circuit and map-like graphs
-   - Complements force-directed layouts
+    - Eliminates edge crossings for cleaner visualizations
+    - Essential for circuit and map-like graphs
+    - Complements force-directed layouts
 
 3. **Graph Partitioning Algorithms** (HIGH)
-   - Enables efficient rendering of large graphs
-   - Natural visual clustering
-   - Supports level-of-detail rendering
+    - Enables efficient rendering of large graphs
+    - Natural visual clustering
+    - Supports level-of-detail rendering
 
 4. **Graph Decomposition Algorithms** (MEDIUM)
-   - Multi-resolution visualization
-   - Hierarchical graph exploration
-   - Overview+detail interaction patterns
+    - Multi-resolution visualization
+    - Hierarchical graph exploration
+    - Overview+detail interaction patterns
 
 5. **Topological Sorting** (MEDIUM)
-   - DAG-specific layouts
-   - Clear dependency visualization
-   - Sugiyama-style layered drawings
+    - DAG-specific layouts
+    - Clear dependency visualization
+    - Sugiyama-style layered drawings
 
 ### Integration with @graphty/layout
 
@@ -337,11 +365,11 @@ These algorithms would enhance the existing layout package:
 const colored = greedyColoring(graph, { maxColors: 6 });
 // Use colors in force-directed layout to separate communities
 
-// Example: Planar Graph Integration  
+// Example: Planar Graph Integration
 const isPlanar = planarityTest(graph);
 if (isPlanar) {
-  const embedding = planarEmbedding(graph);
-  // Use specialized planar layout algorithms
+    const embedding = planarEmbedding(graph);
+    // Use specialized planar layout algorithms
 }
 
 // Example: Graph Partitioning Integration
@@ -356,28 +384,36 @@ const embedding = node2vec(graph, { dimensions: 2 });
 ## Recommendations
 
 ### Phase 1: Visualization-First Algorithms (Q1-Q2)
+
 Focus on algorithms with immediate visual impact:
+
 - **Graph Coloring** (greedy, Welsh-Powell, DSATUR) for visual clarity
 - **Planar Graph Testing** and embedding for crossing-free layouts
 - **Graph Partitioning** (METIS-style) for large graph visualization
 - **Topological Sorting** for DAG layouts
 
 ### Phase 2: Layout Enhancement (Q3-Q4)
+
 Add algorithms that improve layout quality:
+
 - **Graph Decomposition** for hierarchical visualization
 - **Random Walk Embeddings** (Node2Vec) for better initial positions
 - **Tree Algorithms** (LCA, centroid) for tree-based layouts
 - **Temporal Graph** support for animation
 
 ### Phase 3: Advanced Visualization (Year 2)
+
 Implement specialized visualization algorithms:
+
 - **Graph Drawing Algorithms** specific to planar graphs
 - **Multi-level Graph Algorithms** for scalable visualization
 - **Edge Bundling** support via Eulerian paths
 - **3D Graph Embeddings** for @graphty/graphty-element
 
 ### Phase 4: Research Integration (Future)
+
 Explore cutting-edge visualization techniques:
+
 - **Quantum-inspired layouts** for complex graphs
 - **Probabilistic visualization** for uncertain data
 - **Hypergraph visualization** algorithms
@@ -385,21 +421,25 @@ Explore cutting-edge visualization techniques:
 ## Technical Considerations
 
 ### API Design Consistency
+
 All new algorithms should follow the existing pattern:
+
 ```typescript
 export function algorithmName<TNodeId = unknown>(
-  graph: ReadonlyGraph<TNodeId>,
-  options?: AlgorithmOptions
-): AlgorithmResult<TNodeId>
+    graph: ReadonlyGraph<TNodeId>,
+    options?: AlgorithmOptions,
+): AlgorithmResult<TNodeId>;
 ```
 
 ### Performance Requirements
+
 - Maintain browser-optimization focus
 - Implement efficient data structures for each category
 - Consider memory constraints for large graphs
 - Provide both exact and approximation algorithms where applicable
 
 ### Testing Strategy
+
 - Comprehensive unit tests for each algorithm
 - Performance benchmarks against known implementations
 - Edge case validation (empty graphs, single nodes, etc.)
@@ -413,4 +453,4 @@ The implementation of these categories would establish @graphty/algorithms as on
 
 ---
 
-*Report compiled from comprehensive research including Google Scholar academic papers, industry sources, and technical documentation. Research conducted on 2025-07-28.*
+_Report compiled from comprehensive research including Google Scholar academic papers, industry sources, and technical documentation. Research conducted on 2025-07-28._

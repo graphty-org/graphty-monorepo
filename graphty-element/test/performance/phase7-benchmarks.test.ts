@@ -7,13 +7,13 @@
  * - Mesh cache hit rate > 90%
  */
 
-import {AbstractMesh, InstancedMesh, NullEngine, Scene, Vector3} from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { AbstractMesh, InstancedMesh, NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import type {EdgeStyleConfig} from "../../src/config";
-import {EDGE_CONSTANTS} from "../../src/constants/meshConstants";
-import {EdgeMesh} from "../../src/meshes/EdgeMesh";
-import {MeshCache} from "../../src/meshes/MeshCache";
+import type { EdgeStyleConfig } from "../../src/config";
+import { EDGE_CONSTANTS } from "../../src/constants/meshConstants";
+import { EdgeMesh } from "../../src/meshes/EdgeMesh";
+import { MeshCache } from "../../src/meshes/MeshCache";
 
 describe("Phase 7 Performance Benchmarks", () => {
     let scene: Scene;
@@ -40,11 +40,7 @@ describe("Phase 7 Performance Benchmarks", () => {
             const avgTime = (endTime - startTime) / 100;
 
             // Bezier generation should be < 15ms per edge
-            assert.isBelow(
-                avgTime,
-                15,
-                `Bezier generation took ${avgTime.toFixed(2)}ms per edge (target < 15ms)`,
-            );
+            assert.isBelow(avgTime, 15, `Bezier generation took ${avgTime.toFixed(2)}ms per edge (target < 15ms)`);
         });
 
         test("bezier generation performance scales with edge length", () => {
@@ -107,14 +103,18 @@ describe("Phase 7 Performance Benchmarks", () => {
     describe("Mesh Cache Performance", () => {
         test("mesh cache provides instances for same style edges", () => {
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#FF0000"},
+                line: { width: 0.5, color: "#FF0000" },
                 enabled: true,
             };
 
             // Create first mesh
             const mesh1 = EdgeMesh.create(
                 meshCache,
-                {styleId: "cache-test-style", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                {
+                    styleId: "cache-test-style",
+                    width: style.line?.width ?? 0.25,
+                    color: style.line?.color ?? "#FFFFFF",
+                },
                 style,
                 scene,
             );
@@ -122,7 +122,11 @@ describe("Phase 7 Performance Benchmarks", () => {
             // Create second mesh with same style
             const mesh2 = EdgeMesh.create(
                 meshCache,
-                {styleId: "cache-test-style", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                {
+                    styleId: "cache-test-style",
+                    width: style.line?.width ?? 0.25,
+                    color: style.line?.color ?? "#FFFFFF",
+                },
                 style,
                 scene,
             );
@@ -138,28 +142,24 @@ describe("Phase 7 Performance Benchmarks", () => {
             const instancedMesh2 = mesh2 as InstancedMesh;
             const sourceMesh1 = instancedMesh1.sourceMesh;
             const sourceMesh2 = instancedMesh2.sourceMesh;
-            assert.strictEqual(
-                sourceMesh1,
-                sourceMesh2,
-                "Both meshes should share the same source mesh from cache",
-            );
+            assert.strictEqual(sourceMesh1, sourceMesh2, "Both meshes should share the same source mesh from cache");
         });
 
         test("mesh cache creates new meshes for different styles", () => {
             const style1: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#FF0000"},
+                line: { width: 0.5, color: "#FF0000" },
                 enabled: true,
             };
 
             const style2: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#00FF00"},
+                line: { width: 0.5, color: "#00FF00" },
                 enabled: true,
             };
 
             // Create first mesh
             const mesh1 = EdgeMesh.create(
                 meshCache,
-                {styleId: "cache-style-1", width: style1.line?.width ?? 0.25, color: style1.line?.color ?? "#FFFFFF"},
+                { styleId: "cache-style-1", width: style1.line?.width ?? 0.25, color: style1.line?.color ?? "#FFFFFF" },
                 style1,
                 scene,
             );
@@ -167,7 +167,7 @@ describe("Phase 7 Performance Benchmarks", () => {
             // Create second mesh with different style
             const mesh2 = EdgeMesh.create(
                 meshCache,
-                {styleId: "cache-style-2", width: style2.line?.width ?? 0.25, color: style2.line?.color ?? "#FFFFFF"},
+                { styleId: "cache-style-2", width: style2.line?.width ?? 0.25, color: style2.line?.color ?? "#FFFFFF" },
                 style2,
                 scene,
             );
@@ -217,11 +217,7 @@ describe("Phase 7 Performance Benchmarks", () => {
             const endTime = performance.now();
             const avgTime = (endTime - startTime) / iterations;
 
-            assert.isBelow(
-                avgTime,
-                0.1,
-                `getArrowGeometry took ${avgTime.toFixed(4)}ms per call (target < 0.1ms)`,
-            );
+            assert.isBelow(avgTime, 0.1, `getArrowGeometry took ${avgTime.toFixed(4)}ms per call (target < 0.1ms)`);
         });
 
         test("calculateArrowPosition is fast (< 0.1ms avg)", () => {
@@ -277,7 +273,7 @@ describe("Phase 7 Performance Benchmarks", () => {
         test("solid line mesh creation is fast (< 5ms avg)", () => {
             const iterations = 100;
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#FF0000"},
+                line: { width: 0.5, color: "#FF0000" },
                 enabled: true,
             };
 
@@ -288,7 +284,11 @@ describe("Phase 7 Performance Benchmarks", () => {
                 const startTime = performance.now();
                 EdgeMesh.create(
                     meshCache,
-                    {styleId: `perf-test-${i}`, width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                    {
+                        styleId: `perf-test-${i}`,
+                        width: style.line?.width ?? 0.25,
+                        color: style.line?.color ?? "#FFFFFF",
+                    },
                     style,
                     scene,
                 );
@@ -297,17 +297,13 @@ describe("Phase 7 Performance Benchmarks", () => {
 
             const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
 
-            assert.isBelow(
-                avgTime,
-                5,
-                `Solid line mesh creation took ${avgTime.toFixed(2)}ms per mesh (target < 5ms)`,
-            );
+            assert.isBelow(avgTime, 5, `Solid line mesh creation took ${avgTime.toFixed(2)}ms per mesh (target < 5ms)`);
         });
 
         test("bezier mesh creation is fast (< 10ms avg)", () => {
             const iterations = 50;
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#FF0000", bezier: true},
+                line: { width: 0.5, color: "#FF0000", bezier: true },
                 enabled: true,
             };
 
@@ -320,7 +316,11 @@ describe("Phase 7 Performance Benchmarks", () => {
                 const startTime = performance.now();
                 EdgeMesh.create(
                     meshCache,
-                    {styleId: `bezier-perf-${i}`, width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                    {
+                        styleId: `bezier-perf-${i}`,
+                        width: style.line?.width ?? 0.25,
+                        color: style.line?.color ?? "#FFFFFF",
+                    },
                     style,
                     scene,
                     srcPoint,
@@ -331,11 +331,7 @@ describe("Phase 7 Performance Benchmarks", () => {
 
             const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
 
-            assert.isBelow(
-                avgTime,
-                10,
-                `Bezier mesh creation took ${avgTime.toFixed(2)}ms per mesh (target < 10ms)`,
-            );
+            assert.isBelow(avgTime, 10, `Bezier mesh creation took ${avgTime.toFixed(2)}ms per mesh (target < 10ms)`);
         });
 
         test("arrow mesh creation is fast (< 5ms avg)", () => {
@@ -365,11 +361,7 @@ describe("Phase 7 Performance Benchmarks", () => {
 
             const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
 
-            assert.isBelow(
-                avgTime,
-                5,
-                `Arrow mesh creation took ${avgTime.toFixed(2)}ms per mesh (target < 5ms)`,
-            );
+            assert.isBelow(avgTime, 5, `Arrow mesh creation took ${avgTime.toFixed(2)}ms per mesh (target < 5ms)`);
         });
     });
 
@@ -377,14 +369,14 @@ describe("Phase 7 Performance Benchmarks", () => {
         test("transformMesh is fast (< 0.5ms avg)", () => {
             const iterations = 1000;
             const style: EdgeStyleConfig = {
-                line: {width: 0.5, color: "#FF0000"},
+                line: { width: 0.5, color: "#FF0000" },
                 enabled: true,
             };
 
             // Create a mesh to transform
             const mesh = EdgeMesh.create(
                 meshCache,
-                {styleId: "transform-perf", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF"},
+                { styleId: "transform-perf", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
                 style,
                 scene,
             );
@@ -402,11 +394,7 @@ describe("Phase 7 Performance Benchmarks", () => {
 
             const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
 
-            assert.isBelow(
-                avgTime,
-                0.5,
-                `transformMesh took ${avgTime.toFixed(4)}ms per call (target < 0.5ms)`,
-            );
+            assert.isBelow(avgTime, 0.5, `transformMesh took ${avgTime.toFixed(4)}ms per call (target < 0.5ms)`);
         });
     });
 });

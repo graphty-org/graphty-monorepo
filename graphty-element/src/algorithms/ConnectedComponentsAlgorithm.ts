@@ -1,8 +1,8 @@
-import {connectedComponents} from "@graphty/algorithms";
+import { connectedComponents } from "@graphty/algorithms";
 
-import type {SuggestedStylesConfig} from "../config";
-import {Algorithm} from "./Algorithm";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import type { SuggestedStylesConfig } from "../config";
+import { Algorithm } from "./Algorithm";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  *
@@ -50,7 +50,7 @@ export class ConnectedComponentsAlgorithm extends Algorithm {
 
         // Convert to @graphty/algorithms format (truly undirected for connected components)
         // addReverseEdges: false creates an undirected graph required by connectedComponents
-        const graphData = toAlgorithmGraph(g, {addReverseEdges: false});
+        const graphData = toAlgorithmGraph(g, { addReverseEdges: false });
 
         // Run Connected Components algorithm - returns NodeId[][] directly
         const components = connectedComponents(graphData);

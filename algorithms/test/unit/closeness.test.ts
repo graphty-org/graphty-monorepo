@@ -1,4 +1,4 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
     closenessCentrality,
@@ -6,7 +6,7 @@ import {
     nodeWeightedClosenessCentrality,
     weightedClosenessCentrality,
 } from "../../src/algorithms/centrality/closeness.js";
-import {Graph} from "../../src/core/graph.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Closeness Centrality", () => {
     describe("closenessCentrality", () => {
@@ -73,11 +73,11 @@ describe("Closeness Centrality", () => {
             graph.addEdge("B", "C");
             graph.addEdge("C", "D");
 
-            const centrality = closenessCentrality(graph, {harmonic: true});
+            const centrality = closenessCentrality(graph, { harmonic: true });
 
             // Harmonic centrality sums reciprocals of distances
             // A: 1/1 + 1/2 + 1/3 = 1.833...
-            expect(centrality.A).toBeCloseTo(1 + (1 / 2) + (1 / 3));
+            expect(centrality.A).toBeCloseTo(1 + 1 / 2 + 1 / 3);
             // B: 1/1 + 1/1 + 1/2 = 2.5
             expect(centrality.B).toBeCloseTo(2.5);
         });
@@ -87,7 +87,7 @@ describe("Closeness Centrality", () => {
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
 
-            const centrality = closenessCentrality(graph, {normalized: true});
+            const centrality = closenessCentrality(graph, { normalized: true });
 
             // A can reach B (distance 1) and C (distance 2) -> total 3
             // Normalization: (1/3) * (2/2) = 1/3
@@ -103,7 +103,7 @@ describe("Closeness Centrality", () => {
             graph.addEdge("B", "C");
             graph.addEdge("C", "D");
 
-            const centrality = closenessCentrality(graph, {cutoff: 2});
+            const centrality = closenessCentrality(graph, { cutoff: 2 });
 
             // With cutoff 2, A can reach B (1) and C (2) -> total 3
             expect(centrality.A).toBeCloseTo(1 / 3);
@@ -174,7 +174,7 @@ describe("Closeness Centrality", () => {
             });
 
             // A can reach B (1) and C (2) within cutoff
-            expect(centrality).toBeCloseTo(1 + (1 / 2));
+            expect(centrality).toBeCloseTo(1 + 1 / 2);
         });
     });
 
@@ -214,7 +214,7 @@ describe("Closeness Centrality", () => {
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
 
-            const centrality = weightedClosenessCentrality(graph, {harmonic: true});
+            const centrality = weightedClosenessCentrality(graph, { harmonic: true });
 
             // Check that harmonic option works
             expect(centrality).toHaveProperty("A");
@@ -228,7 +228,7 @@ describe("Closeness Centrality", () => {
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
 
-            const centrality = weightedClosenessCentrality(graph, {normalized: true});
+            const centrality = weightedClosenessCentrality(graph, { normalized: true });
 
             // Check normalized option works
             expect(centrality).toHaveProperty("A");
@@ -242,7 +242,7 @@ describe("Closeness Centrality", () => {
             graph.addEdge("B", "C");
             graph.addEdge("C", "D");
 
-            const centrality = weightedClosenessCentrality(graph, {cutoff: 5});
+            const centrality = weightedClosenessCentrality(graph, { cutoff: 5 });
 
             // Check cutoff option works
             expect(centrality).toHaveProperty("A");

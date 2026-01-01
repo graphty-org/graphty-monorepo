@@ -3,6 +3,7 @@
 ## Overview
 
 Nx provides powerful code generation (codegen) capabilities through:
+
 1. **Generators** - Create projects, libraries, components, etc.
 2. **Plugins** - Language/framework-specific generators
 3. **Custom Generators** - Your own templates
@@ -94,6 +95,7 @@ npx nx generate @nx/js:library algorithms-gpu \
 ```
 
 This creates:
+
 ```
 packages/algorithms-gpu/
 ├── src/
@@ -216,26 +218,19 @@ npx nx generate @nx/plugin:generator my-generator \
 
 ```typescript
 // tools/src/generators/algorithm/generator.ts
-import { Tree, formatFiles, generateFiles, joinPathFragments } from '@nx/devkit';
+import { Tree, formatFiles, generateFiles, joinPathFragments } from "@nx/devkit";
 
-export async function algorithmGenerator(
-  tree: Tree,
-  options: { name: string; directory?: string }
-) {
-  const projectRoot = options.directory || `packages/algorithms/src/${options.name}`;
-  
-  generateFiles(
-    tree,
-    joinPathFragments(__dirname, './files'),
-    projectRoot,
-    options
-  );
-  
-  await formatFiles(tree);
+export async function algorithmGenerator(tree: Tree, options: { name: string; directory?: string }) {
+    const projectRoot = options.directory || `packages/algorithms/src/${options.name}`;
+
+    generateFiles(tree, joinPathFragments(__dirname, "./files"), projectRoot, options);
+
+    await formatFiles(tree);
 }
 ```
 
 Template files:
+
 ```typescript
 // tools/src/generators/algorithm/files/__name__.ts.template
 import { Graph } from '@graphty/types';
@@ -256,6 +251,7 @@ describe('<%= name %>', () => {
 ```
 
 Use it:
+
 ```bash
 npx nx generate @myorg/tools:algorithm pagerank-v2
 ```
@@ -266,34 +262,34 @@ After generation, each project gets a `project.json`:
 
 ```json
 {
-  "name": "algorithms-gpu",
-  "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "packages/algorithms-gpu/src",
-  "projectType": "library",
-  "targets": {
-    "build": {
-      "executor": "@nx/vite:build",
-      "outputs": ["{options.outputPath}"],
-      "options": {
-        "outputPath": "dist/packages/algorithms-gpu"
-      }
+    "name": "algorithms-gpu",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "packages/algorithms-gpu/src",
+    "projectType": "library",
+    "targets": {
+        "build": {
+            "executor": "@nx/vite:build",
+            "outputs": ["{options.outputPath}"],
+            "options": {
+                "outputPath": "dist/packages/algorithms-gpu"
+            }
+        },
+        "test": {
+            "executor": "@nx/vite:test",
+            "outputs": ["{options.reportsDirectory}"],
+            "options": {
+                "reportsDirectory": "coverage/packages/algorithms-gpu"
+            }
+        },
+        "lint": {
+            "executor": "@nx/linter:eslint",
+            "outputs": ["{options.outputFile}"],
+            "options": {
+                "lintFilePatterns": ["packages/algorithms-gpu/**/*.ts"]
+            }
+        }
     },
-    "test": {
-      "executor": "@nx/vite:test",
-      "outputs": ["{options.reportsDirectory}"],
-      "options": {
-        "reportsDirectory": "coverage/packages/algorithms-gpu"
-      }
-    },
-    "lint": {
-      "executor": "@nx/linter:eslint",
-      "outputs": ["{options.outputFile}"],
-      "options": {
-        "lintFilePatterns": ["packages/algorithms-gpu/**/*.ts"]
-      }
-    }
-  },
-  "tags": []
+    "tags": []
 }
 ```
 
@@ -314,48 +310,52 @@ For Graphty, you could:
 
 1. **Keep existing packages** as-is
 2. **Use generators for new packages**:
-   ```bash
-   npx nx g @nx/js:lib algorithms-wasm \
-     --directory=packages/algorithms-wasm \
-     --publishable \
-     --importPath=@graphty/algorithms-wasm
-   ```
+
+    ```bash
+    npx nx g @nx/js:lib algorithms-wasm \
+      --directory=packages/algorithms-wasm \
+      --publishable \
+      --importPath=@graphty/algorithms-wasm
+    ```
 
 3. **Generate components** in existing packages:
-   ```bash
-   npx nx g @nx/react:component ForceLayout \
-     --project=graphty-element \
-     --directory=src/layouts
-   ```
+    ```bash
+    npx nx g @nx/react:component ForceLayout \
+      --project=graphty-element \
+      --directory=src/layouts
+    ```
 
 ## Best Practices
 
 1. **Use `--dry-run`** to preview changes:
-   ```bash
-   npx nx g @nx/js:lib my-lib --dry-run
-   ```
+
+    ```bash
+    npx nx g @nx/js:lib my-lib --dry-run
+    ```
 
 2. **Consistent naming**:
-   ```bash
-   # Libraries: kebab-case
-   npx nx g lib graph-algorithms
-   
-   # Components: PascalCase
-   npx nx g component GraphViewer
-   ```
+
+    ```bash
+    # Libraries: kebab-case
+    npx nx g lib graph-algorithms
+
+    # Components: PascalCase
+    npx nx g component GraphViewer
+    ```
 
 3. **Organize by feature**:
-   ```
-   packages/
-   ├── algorithms/       # Core algorithms
-   ├── visualizations/   # Viz components  
-   ├── layouts/         # Layout algorithms
-   └── shared/          # Shared utilities
-   ```
+    ```
+    packages/
+    ├── algorithms/       # Core algorithms
+    ├── visualizations/   # Viz components
+    ├── layouts/         # Layout algorithms
+    └── shared/          # Shared utilities
+    ```
 
 ## Summary
 
 Nx generators provide:
+
 - **Consistency**: Same structure for all projects
 - **Best practices**: Built-in testing, linting, building
 - **Speed**: Generate entire projects in seconds

@@ -6,9 +6,9 @@
  * and arrow-related code in EdgeMesh.ts.
  */
 
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {ArrowMeshFactory} from "./mesh-factory";
+import { ArrowMeshFactory } from "./mesh-factory";
 
 describe("Arrowhead Golden Masters", () => {
     // ============================================
@@ -24,8 +24,7 @@ describe("Arrowhead Golden Masters", () => {
                     color: "#FF0000",
                 });
 
-                assert.isTrue(result.validation.isValid,
-                    `Validation failed: ${result.validation.errors.join(", ")}`);
+                assert.isTrue(result.validation.isValid, `Validation failed: ${result.validation.errors.join(", ")}`);
                 if (result.mesh) {
                     assert.equal(result.mesh.metadata.arrowType, "normal");
                     assert.isTrue(result.mesh.metadata.isFilled);
@@ -120,7 +119,11 @@ describe("Arrowhead Golden Masters", () => {
 
                     assert.isTrue(result.validation.isValid);
                     if (result.mesh) {
-                        assert.equal(result.mesh.metadata.geometryPlane, "XZ", `${arrowType} MUST use XZ plane for tangent billboarding to work`);
+                        assert.equal(
+                            result.mesh.metadata.geometryPlane,
+                            "XZ",
+                            `${arrowType} MUST use XZ plane for tangent billboarding to work`,
+                        );
                     }
                 });
 
@@ -132,7 +135,11 @@ describe("Arrowhead Golden Masters", () => {
 
                     assert.isTrue(result.validation.isValid);
                     if (result.mesh) {
-                        assert.equal(result.mesh.metadata.faceNormal, "Y", `${arrowType} face normal must be in ±Y for camera-facing`);
+                        assert.equal(
+                            result.mesh.metadata.faceNormal,
+                            "Y",
+                            `${arrowType} face normal must be in ±Y for camera-facing`,
+                        );
                     }
                 });
             });
@@ -305,7 +312,11 @@ describe("Arrowhead Golden Masters", () => {
 
                     assert.isTrue(result.validation.isValid);
                     if (result.mesh && result.material) {
-                        assert.equal(result.mesh.metadata.rendererType, "CustomLineRenderer", `${arrowType} should use same shader as lines`);
+                        assert.equal(
+                            result.mesh.metadata.rendererType,
+                            "CustomLineRenderer",
+                            `${arrowType} should use same shader as lines`,
+                        );
                         assert.equal(result.material.metadata.shaderName, "customLine");
                     }
                 });
@@ -433,7 +444,7 @@ describe("Arrowhead Golden Masters", () => {
                     assert.isTrue(result.validation.isValid);
                     if (result.mesh) {
                         assert.equal(result.mesh.metadata.geometryPlane, "XY");
-                        const rotation = result.mesh.metadata.rotation as {x: number, y: number, z: number};
+                        const rotation = result.mesh.metadata.rotation as { x: number; y: number; z: number };
                         assert.equal(rotation.x, Math.PI / 2);
                     }
                 });
@@ -589,8 +600,10 @@ describe("Arrowhead Golden Masters", () => {
                     opacity: 0.8,
                 });
 
-                assert.isTrue(result.validation.isValid,
-                    `${arrowType} 3D validation failed: ${result.validation.errors.join(", ")}`);
+                assert.isTrue(
+                    result.validation.isValid,
+                    `${arrowType} 3D validation failed: ${result.validation.errors.join(", ")}`,
+                );
                 assert.isNotNull(result.mesh);
                 assert.isNotNull(result.material);
                 assert.equal(result.mesh.metadata.arrowType, arrowType);
@@ -612,8 +625,10 @@ describe("Arrowhead Golden Masters", () => {
                     opacity: 0.9,
                 });
 
-                assert.isTrue(result.validation.isValid,
-                    `${arrowType} 2D validation failed: ${result.validation.errors.join(", ")}`);
+                assert.isTrue(
+                    result.validation.isValid,
+                    `${arrowType} 2D validation failed: ${result.validation.errors.join(", ")}`,
+                );
                 assert.isNotNull(result.mesh);
                 assert.isNotNull(result.material);
                 assert.equal(result.mesh.metadata.arrowType, arrowType);
@@ -629,7 +644,16 @@ describe("Arrowhead Golden Masters", () => {
         });
 
         test("all outline arrows are correctly categorized", () => {
-            const expectedOutline = ["open-normal", "open-dot", "open-diamond", "tee", "open", "half-open", "vee", "crow"];
+            const expectedOutline = [
+                "open-normal",
+                "open-dot",
+                "open-diamond",
+                "tee",
+                "open",
+                "half-open",
+                "vee",
+                "crow",
+            ];
             assert.deepEqual(ArrowMeshFactory.OUTLINE_ARROWS.slice().sort(), expectedOutline.sort());
         });
 
@@ -691,7 +715,11 @@ describe("Arrowhead Golden Masters", () => {
 
                 assert.isTrue(result.validation.isValid);
                 if (result.mesh) {
-                    assert.equal(result.mesh.metadata.rendererType, "FilledArrowRenderer", `${arrowType} should use FilledArrowRenderer`);
+                    assert.equal(
+                        result.mesh.metadata.rendererType,
+                        "FilledArrowRenderer",
+                        `${arrowType} should use FilledArrowRenderer`,
+                    );
                 }
             });
         });
@@ -705,7 +733,11 @@ describe("Arrowhead Golden Masters", () => {
 
                 assert.isTrue(result.validation.isValid);
                 if (result.mesh) {
-                    assert.equal(result.mesh.metadata.rendererType, "CustomLineRenderer", `${arrowType} should use CustomLineRenderer`);
+                    assert.equal(
+                        result.mesh.metadata.rendererType,
+                        "CustomLineRenderer",
+                        `${arrowType} should use CustomLineRenderer`,
+                    );
                 }
             });
         });
@@ -719,7 +751,11 @@ describe("Arrowhead Golden Masters", () => {
 
                 assert.isTrue(result.validation.isValid);
                 if (result.mesh) {
-                    assert.equal(result.mesh.metadata.rendererType, "FilledArrowRenderer.create2DArrow", `2D ${arrowType} should use FilledArrowRenderer.create2DArrow`);
+                    assert.equal(
+                        result.mesh.metadata.rendererType,
+                        "FilledArrowRenderer.create2DArrow",
+                        `2D ${arrowType} should use FilledArrowRenderer.create2DArrow`,
+                    );
                 }
             });
         });
@@ -735,22 +771,26 @@ describe("Arrowhead Golden Masters", () => {
 
                 assert.isTrue(result.validation.isValid);
                 if (result.mesh) {
-                    assert.equal(result.mesh.metadata.geometryType, "quadStrip", `${arrowType} should have quadStrip geometry type`);
+                    assert.equal(
+                        result.mesh.metadata.geometryType,
+                        "quadStrip",
+                        `${arrowType} should have quadStrip geometry type`,
+                    );
                 }
             });
         });
     });
 
     describe("Path Points for Outline Arrows", () => {
-        const pathExpectations: Record<string, {points: number, closed: boolean}> = {
-            "open-normal": {points: 3, closed: false},
-            "open-dot": {points: 33, closed: true},
-            "open-diamond": {points: 5, closed: true},
-            "tee": {points: 2, closed: false},
-            "open": {points: 3, closed: false},
-            "half-open": {points: 3, closed: false},
-            "vee": {points: 3, closed: false},
-            "crow": {points: 7, closed: false},
+        const pathExpectations: Record<string, { points: number; closed: boolean }> = {
+            "open-normal": { points: 3, closed: false },
+            "open-dot": { points: 33, closed: true },
+            "open-diamond": { points: 5, closed: true },
+            tee: { points: 2, closed: false },
+            open: { points: 3, closed: false },
+            "half-open": { points: 3, closed: false },
+            vee: { points: 3, closed: false },
+            crow: { points: 7, closed: false },
         };
 
         Object.entries(pathExpectations).forEach(([arrowType, expected]) => {

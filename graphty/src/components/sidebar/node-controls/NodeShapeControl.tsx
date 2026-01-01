@@ -1,10 +1,10 @@
-import {Box, Group, NativeSelect, NumberInput} from "@mantine/core";
-import {ChevronDown} from "lucide-react";
+import { Box, Group, NativeSelect, NumberInput } from "@mantine/core";
+import { ChevronDown } from "lucide-react";
 import React from "react";
 
-import {NODE_SHAPE_OPTIONS} from "../../../constants/style-options";
-import {useLocalValue} from "../../../hooks";
-import type {ShapeConfig} from "../../../types/style-layer";
+import { NODE_SHAPE_OPTIONS } from "../../../constants/style-options";
+import { useLocalValue } from "../../../hooks";
+import type { ShapeConfig } from "../../../types/style-layer";
 
 interface NodeShapeControlProps {
     value: ShapeConfig;
@@ -14,8 +14,12 @@ interface NodeShapeControlProps {
 /**
  * Control for selecting node shape and size.
  * Displays shapes in grouped categories (Basic, Platonic, Spherical, Other).
+ * @param root0 - Component props
+ * @param root0.value - The current shape configuration
+ * @param root0.onChange - Called when the shape configuration changes
+ * @returns The node shape control component
  */
-export function NodeShapeControl({value, onChange}: NodeShapeControlProps): React.JSX.Element {
+export function NodeShapeControl({ value, onChange }: NodeShapeControlProps): React.JSX.Element {
     const {
         localValue: localSize,
         setLocalValue: setLocalSize,
@@ -24,7 +28,7 @@ export function NodeShapeControl({value, onChange}: NodeShapeControlProps): Reac
 
     const handleShapeChange = (event: React.ChangeEvent<HTMLSelectElement>): void => {
         onChange({
-            ... value,
+            ...value,
             type: event.currentTarget.value,
         });
     };
@@ -37,7 +41,7 @@ export function NodeShapeControl({value, onChange}: NodeShapeControlProps): Reac
         const size = commitSize();
         if (size !== value.size) {
             onChange({
-                ... value,
+                ...value,
                 size,
             });
         }
@@ -54,7 +58,7 @@ export function NodeShapeControl({value, onChange}: NodeShapeControlProps): Reac
 
     return (
         <Group gap={4} grow align="flex-end">
-            <Box style={{flex: 1}}>
+            <Box style={{ flex: 1 }}>
                 <NativeSelect
                     label="Shape Type"
                     value={value.type}
@@ -65,7 +69,7 @@ export function NodeShapeControl({value, onChange}: NodeShapeControlProps): Reac
                     rightSectionPointerEvents="none"
                 />
             </Box>
-            <Box style={{flex: 1}}>
+            <Box style={{ flex: 1 }}>
                 <NumberInput
                     label="Size"
                     value={localSize}

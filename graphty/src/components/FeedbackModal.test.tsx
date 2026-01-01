@@ -1,8 +1,8 @@
-import {beforeEach, describe, expect, it, vi} from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {captureUserFeedback} from "../lib/sentry";
-import {fireEvent, render, screen, waitFor} from "../test/test-utils";
-import {FeedbackModal} from "./FeedbackModal";
+import { captureUserFeedback } from "../lib/sentry";
+import { fireEvent, render, screen, waitFor } from "../test/test-utils";
+import { FeedbackModal } from "./FeedbackModal";
 
 vi.mock("../lib/sentry", () => ({
     captureUserFeedback: vi.fn(),
@@ -23,7 +23,7 @@ describe("FeedbackModal", () => {
     it("renders modal when opened", () => {
         render(<FeedbackModal opened onClose={vi.fn()} />);
         expect(screen.getByRole("dialog")).toBeInTheDocument();
-        expect(screen.getByRole("heading", {name: "Send Feedback"})).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: "Send Feedback" })).toBeInTheDocument();
     });
 
     it("does not render modal when closed", () => {
@@ -33,22 +33,22 @@ describe("FeedbackModal", () => {
 
     it("disables submit when message is empty", () => {
         render(<FeedbackModal opened onClose={vi.fn()} />);
-        expect(screen.getByRole("button", {name: /Send Feedback/i})).toBeDisabled();
+        expect(screen.getByRole("button", { name: /Send Feedback/i })).toBeDisabled();
     });
 
     it("enables submit when message is provided", () => {
         render(<FeedbackModal opened onClose={vi.fn()} />);
         const textarea = screen.getByPlaceholderText(/Describe the issue/);
         fireEvent.change(textarea, {
-            target: {value: "Bug report"},
+            target: { value: "Bug report" },
         });
-        expect(screen.getByRole("button", {name: /Send Feedback/i})).not.toBeDisabled();
+        expect(screen.getByRole("button", { name: /Send Feedback/i })).not.toBeDisabled();
     });
 
     it("calls onClose when Cancel is clicked", () => {
         const onClose = vi.fn();
         render(<FeedbackModal opened onClose={onClose} />);
-        fireEvent.click(screen.getByRole("button", {name: /Cancel/i}));
+        fireEvent.click(screen.getByRole("button", { name: /Cancel/i }));
         expect(onClose).toHaveBeenCalled();
     });
 
@@ -75,27 +75,27 @@ describe("FeedbackModal", () => {
     it("updates name field when typed into", () => {
         render(<FeedbackModal opened onClose={vi.fn()} />);
         const nameInput = screen.getByPlaceholderText("Your name");
-        fireEvent.change(nameInput, {target: {value: "John Doe"}});
+        fireEvent.change(nameInput, { target: { value: "John Doe" } });
         expect(nameInput).toHaveValue("John Doe");
     });
 
     it("updates email field when typed into", () => {
         render(<FeedbackModal opened onClose={vi.fn()} />);
         const emailInput = screen.getByPlaceholderText("your.email@example.com");
-        fireEvent.change(emailInput, {target: {value: "john@example.com"}});
+        fireEvent.change(emailInput, { target: { value: "john@example.com" } });
         expect(emailInput).toHaveValue("john@example.com");
     });
 
-    it("submits feedback with message only", async() => {
+    it("submits feedback with message only", async () => {
         const onClose = vi.fn();
         render(<FeedbackModal opened onClose={onClose} />);
 
         // Fill in message
         const textarea = screen.getByPlaceholderText(/Describe the issue/);
-        fireEvent.change(textarea, {target: {value: "Test feedback message"}});
+        fireEvent.change(textarea, { target: { value: "Test feedback message" } });
 
         // Click submit
-        fireEvent.click(screen.getByRole("button", {name: /Send Feedback/i}));
+        fireEvent.click(screen.getByRole("button", { name: /Send Feedback/i }));
 
         await waitFor(() => {
             expect(mockCaptureUserFeedback).toHaveBeenCalledWith({
@@ -111,27 +111,27 @@ describe("FeedbackModal", () => {
         });
     });
 
-    it("submits feedback with name and email", async() => {
+    it("submits feedback with name and email", async () => {
         const onClose = vi.fn();
         render(<FeedbackModal opened onClose={onClose} />);
 
         // Fill in name
         fireEvent.change(screen.getByPlaceholderText("Your name"), {
-            target: {value: "John Doe"},
+            target: { value: "John Doe" },
         });
 
         // Fill in email
         fireEvent.change(screen.getByPlaceholderText("your.email@example.com"), {
-            target: {value: "john@example.com"},
+            target: { value: "john@example.com" },
         });
 
         // Fill in message
         fireEvent.change(screen.getByPlaceholderText(/Describe the issue/), {
-            target: {value: "Test feedback"},
+            target: { value: "Test feedback" },
         });
 
         // Click submit
-        fireEvent.click(screen.getByRole("button", {name: /Send Feedback/i}));
+        fireEvent.click(screen.getByRole("button", { name: /Send Feedback/i }));
 
         await waitFor(() => {
             expect(mockCaptureUserFeedback).toHaveBeenCalledWith({
@@ -143,20 +143,20 @@ describe("FeedbackModal", () => {
         });
     });
 
-    it("resets form after successful submission", async() => {
+    it("resets form after successful submission", async () => {
         const onClose = vi.fn();
         render(<FeedbackModal opened onClose={onClose} />);
 
         // Fill in fields
         fireEvent.change(screen.getByPlaceholderText("Your name"), {
-            target: {value: "John"},
+            target: { value: "John" },
         });
         fireEvent.change(screen.getByPlaceholderText(/Describe the issue/), {
-            target: {value: "Test"},
+            target: { value: "Test" },
         });
 
         // Click submit
-        fireEvent.click(screen.getByRole("button", {name: /Send Feedback/i}));
+        fireEvent.click(screen.getByRole("button", { name: /Send Feedback/i }));
 
         await waitFor(() => {
             expect(onClose).toHaveBeenCalled();
@@ -168,7 +168,7 @@ describe("FeedbackModal", () => {
     });
 
     describe("error handling", () => {
-        it("shows error alert when Sentry is not configured", async() => {
+        it("shows error alert when Sentry is not configured", async () => {
             mockCaptureUserFeedback.mockReturnValue({
                 success: false,
                 message: "Feedback could not be sent. Error reporting is not configured.",
@@ -179,11 +179,11 @@ describe("FeedbackModal", () => {
 
             // Fill in message
             fireEvent.change(screen.getByPlaceholderText(/Describe the issue/), {
-                target: {value: "Test feedback"},
+                target: { value: "Test feedback" },
             });
 
             // Click submit
-            fireEvent.click(screen.getByRole("button", {name: /Send Feedback/i}));
+            fireEvent.click(screen.getByRole("button", { name: /Send Feedback/i }));
 
             // Should show error alert
             await waitFor(() => {
@@ -195,7 +195,7 @@ describe("FeedbackModal", () => {
             expect(onClose).not.toHaveBeenCalled();
         });
 
-        it("keeps form data when submission fails", async() => {
+        it("keeps form data when submission fails", async () => {
             mockCaptureUserFeedback.mockReturnValue({
                 success: false,
                 message: "Feedback could not be sent.",
@@ -205,17 +205,17 @@ describe("FeedbackModal", () => {
 
             // Fill in all fields
             fireEvent.change(screen.getByPlaceholderText("Your name"), {
-                target: {value: "John Doe"},
+                target: { value: "John Doe" },
             });
             fireEvent.change(screen.getByPlaceholderText("your.email@example.com"), {
-                target: {value: "john@example.com"},
+                target: { value: "john@example.com" },
             });
             fireEvent.change(screen.getByPlaceholderText(/Describe the issue/), {
-                target: {value: "My feedback message"},
+                target: { value: "My feedback message" },
             });
 
             // Click submit
-            fireEvent.click(screen.getByRole("button", {name: /Send Feedback/i}));
+            fireEvent.click(screen.getByRole("button", { name: /Send Feedback/i }));
 
             // Wait for error alert
             await waitFor(() => {
@@ -282,12 +282,7 @@ describe("FeedbackModal", () => {
             render(<FeedbackModal opened onClose={vi.fn()} />);
             const allInputs = screen.getAllByRole("textbox");
 
-            const passwordAutocompleteValues = [
-                "current-password",
-                "new-password",
-                "password",
-                "username",
-            ];
+            const passwordAutocompleteValues = ["current-password", "new-password", "password", "username"];
 
             allInputs.forEach((input) => {
                 const autocomplete = input.getAttribute("autocomplete");

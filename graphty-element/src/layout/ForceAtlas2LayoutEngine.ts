@@ -1,8 +1,8 @@
-import {Edge as LayoutEdge, forceatlas2Layout, Node as LayoutNode} from "@graphty/layout";
-import {z} from "zod/v4";
+import { Edge as LayoutEdge, forceatlas2Layout, Node as LayoutNode } from "@graphty/layout";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema} from "../config";
-import {SimpleLayoutConfig, SimpleLayoutEngine} from "./LayoutEngine";
+import { defineOptions, type OptionsSchema } from "../config";
+import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for ForceAtlas2 Layout
@@ -97,7 +97,7 @@ export const forceAtlas2LayoutOptionsSchema = defineOptions({
 });
 
 export const ForceAtlas2LayoutConfig = z.strictObject({
-    ... SimpleLayoutConfig.shape,
+    ...SimpleLayoutConfig.shape,
     pos: z.record(z.number(), z.array(z.number()).min(2).max(3)).or(z.null()).default(null),
     maxIter: z.number().positive().default(100),
     jitterTolerance: z.number().positive().default(1.0),
@@ -141,7 +141,7 @@ export class ForceAtlas2Layout extends SimpleLayoutEngine {
      * @returns Options object with dim parameter
      */
     static getOptionsForDimension(dimension: 2 | 3): object {
-        return {dim: dimension};
+        return { dim: dimension };
     }
 
     /**
@@ -153,7 +153,7 @@ export class ForceAtlas2Layout extends SimpleLayoutEngine {
         const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
 
         this.positions = forceatlas2Layout(
-            {nodes, edges},
+            { nodes, edges },
             this.config.pos,
             this.config.maxIter,
             this.config.jitterTolerance,

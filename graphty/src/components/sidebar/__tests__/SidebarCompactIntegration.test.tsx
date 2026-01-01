@@ -1,9 +1,9 @@
-import {describe, expect, it, vi} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {render, screen} from "../../../test/test-utils";
-import {GradientEditor} from "../controls/GradientEditor";
-import {NodeColorControl} from "../node-controls/NodeColorControl";
-import {NodeShapeControl} from "../node-controls/NodeShapeControl";
+import { render, screen } from "../../../test/test-utils";
+import { GradientEditor } from "../controls/GradientEditor";
+import { NodeColorControl } from "../node-controls/NodeColorControl";
+import { NodeShapeControl } from "../node-controls/NodeShapeControl";
 
 // Noop function for onChange handlers
 const noop = vi.fn();
@@ -22,15 +22,10 @@ const noop = vi.fn();
 
 describe("Sidebar Compact Integration", () => {
     describe("NodeShapeControl compact styles", () => {
-        const defaultShape = {type: "sphere", size: 1.0};
+        const defaultShape = { type: "sphere", size: 1.0 };
 
         it("NativeSelect in NodeShapeControl has compact height", () => {
-            render(
-                <NodeShapeControl
-                    value={defaultShape}
-                    onChange={noop}
-                />,
-            );
+            render(<NodeShapeControl value={defaultShape} onChange={noop} />);
 
             // NativeSelect renders a select element
             const select = screen.getByLabelText("Shape Type");
@@ -40,12 +35,7 @@ describe("Sidebar Compact Integration", () => {
         });
 
         it("NumberInput in NodeShapeControl has compact height", () => {
-            render(
-                <NodeShapeControl
-                    value={defaultShape}
-                    onChange={noop}
-                />,
-            );
+            render(<NodeShapeControl value={defaultShape} onChange={noop} />);
 
             // NumberInput for size
             const input = screen.getByLabelText("Size");
@@ -55,12 +45,7 @@ describe("Sidebar Compact Integration", () => {
         });
 
         it("NativeSelect in NodeShapeControl has compact font size", () => {
-            render(
-                <NodeShapeControl
-                    value={defaultShape}
-                    onChange={noop}
-                />,
-            );
+            render(<NodeShapeControl value={defaultShape} onChange={noop} />);
 
             const select = screen.getByLabelText("Shape Type");
             const computed = window.getComputedStyle(select);
@@ -69,12 +54,7 @@ describe("Sidebar Compact Integration", () => {
         });
 
         it("NumberInput in NodeShapeControl has compact font size", () => {
-            render(
-                <NodeShapeControl
-                    value={defaultShape}
-                    onChange={noop}
-                />,
-            );
+            render(<NodeShapeControl value={defaultShape} onChange={noop} />);
 
             const input = screen.getByLabelText("Size");
             const computed = window.getComputedStyle(input);
@@ -91,12 +71,7 @@ describe("Sidebar Compact Integration", () => {
         };
 
         it("SegmentedControl in NodeColorControl uses compact styles", () => {
-            render(
-                <NodeColorControl
-                    value={defaultSolidColor}
-                    onChange={noop}
-                />,
-            );
+            render(<NodeColorControl value={defaultSolidColor} onChange={noop} />);
 
             // Find the segmented control root element
             const segmentedControl = document.querySelector(".mantine-SegmentedControl-root");
@@ -111,12 +86,7 @@ describe("Sidebar Compact Integration", () => {
         });
 
         it("TextInput for hex value has compact height", () => {
-            render(
-                <NodeColorControl
-                    value={defaultSolidColor}
-                    onChange={noop}
-                />,
-            );
+            render(<NodeColorControl value={defaultSolidColor} onChange={noop} />);
 
             // The hex input
             const hexInput = screen.getByLabelText("Color hex value");
@@ -126,12 +96,7 @@ describe("Sidebar Compact Integration", () => {
         });
 
         it("NumberInput for opacity has compact height", () => {
-            render(
-                <NodeColorControl
-                    value={defaultSolidColor}
-                    onChange={noop}
-                />,
-            );
+            render(<NodeColorControl value={defaultSolidColor} onChange={noop} />);
 
             // The opacity input
             const opacityInput = screen.getByLabelText("Opacity");
@@ -143,17 +108,12 @@ describe("Sidebar Compact Integration", () => {
 
     describe("GradientEditor compact styles", () => {
         const defaultStops = [
-            {id: "stop-1", offset: 0, color: "#ff0000"},
-            {id: "stop-2", offset: 1, color: "#0000ff"},
+            { id: "stop-1", offset: 0, color: "#ff0000" },
+            { id: "stop-2", offset: 1, color: "#0000ff" },
         ];
 
         it("ActionIcon for add stop has compact size", () => {
-            render(
-                <GradientEditor
-                    stops={defaultStops}
-                    onChange={noop}
-                />,
-            );
+            render(<GradientEditor stops={defaultStops} onChange={noop} />);
 
             const addButton = screen.getByLabelText("Add color stop");
             const computed = window.getComputedStyle(addButton);
@@ -164,12 +124,7 @@ describe("Sidebar Compact Integration", () => {
         });
 
         it("ColorInput in GradientEditor has compact height", () => {
-            render(
-                <GradientEditor
-                    stops={defaultStops}
-                    onChange={noop}
-                />,
-            );
+            render(<GradientEditor stops={defaultStops} onChange={noop} />);
 
             // Find the ColorInput inputs
             const colorInputs = document.querySelectorAll(".mantine-ColorInput-input");
@@ -182,12 +137,7 @@ describe("Sidebar Compact Integration", () => {
         });
 
         it("Slider in GradientEditor has compact styles", () => {
-            render(
-                <GradientEditor
-                    stops={defaultStops}
-                    onChange={noop}
-                />,
-            );
+            render(<GradientEditor stops={defaultStops} onChange={noop} />);
 
             // Find the slider root elements
             const sliders = document.querySelectorAll(".mantine-Slider-root");
@@ -202,12 +152,7 @@ describe("Sidebar Compact Integration", () => {
         });
 
         it("Remove stop ActionIcon has compact size", () => {
-            render(
-                <GradientEditor
-                    stops={defaultStops}
-                    onChange={noop}
-                />,
-            );
+            render(<GradientEditor stops={defaultStops} onChange={noop} />);
 
             const removeButtons = screen.getAllByLabelText(/Remove color stop/);
             expect(removeButtons.length).toBeGreaterThan(0);
@@ -220,14 +165,7 @@ describe("Sidebar Compact Integration", () => {
         });
 
         it("Direction slider has compact styles when shown", () => {
-            render(
-                <GradientEditor
-                    stops={defaultStops}
-                    direction={90}
-                    showDirection={true}
-                    onChange={noop}
-                />,
-            );
+            render(<GradientEditor stops={defaultStops} direction={90} showDirection={true} onChange={noop} />);
 
             const directionSlider = screen.getByLabelText("Gradient direction");
             expect(directionSlider).not.toBeNull();
@@ -244,8 +182,8 @@ describe("Sidebar Compact Integration", () => {
 
     describe("Consistent compact sizing across controls", () => {
         it("All input controls have the same compact height (24px)", () => {
-            const defaultShape = {type: "sphere", size: 1.0};
-            const defaultColor = {mode: "solid" as const, color: "#5b8ff9", opacity: 1.0};
+            const defaultShape = { type: "sphere", size: 1.0 };
+            const defaultColor = { mode: "solid" as const, color: "#5b8ff9", opacity: 1.0 };
 
             render(
                 <>
@@ -270,8 +208,8 @@ describe("Sidebar Compact Integration", () => {
         });
 
         it("All input controls have the same compact font size (11px)", () => {
-            const defaultShape = {type: "sphere", size: 1.0};
-            const defaultColor = {mode: "solid" as const, color: "#5b8ff9", opacity: 1.0};
+            const defaultShape = { type: "sphere", size: 1.0 };
+            const defaultColor = { mode: "solid" as const, color: "#5b8ff9", opacity: 1.0 };
 
             render(
                 <>

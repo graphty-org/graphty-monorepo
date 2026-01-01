@@ -1,6 +1,6 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {Graphty} from "../../src/graphty-element";
+import { Graphty } from "../../src/graphty-element";
 
 describe("Graphty API Parity", () => {
     describe("Phase 7a: High Priority Methods", () => {
@@ -115,7 +115,7 @@ describe("Graphty API Parity", () => {
     });
 
     describe("Phase 7c: New Event Types", () => {
-        it("event types are defined in events module", async() => {
+        it("event types are defined in events module", async () => {
             // Import the events module - TypeScript will fail compilation if types don't exist
             const eventsModule = await import("../../src/events");
             // Just verify the module loaded successfully - TypeScript checks types at compile time
@@ -124,13 +124,13 @@ describe("Graphty API Parity", () => {
     });
 
     describe("Phase 7d: Extension API Methods", () => {
-        it("has Algorithm.getRegisteredTypes static method", async() => {
-            const {Algorithm} = await import("../../src/algorithms/Algorithm");
+        it("has Algorithm.getRegisteredTypes static method", async () => {
+            const { Algorithm } = await import("../../src/algorithms/Algorithm");
             assert.isFunction(Algorithm.getRegisteredTypes);
         });
 
-        it("has DataSource.getRegisteredTypes static method", async() => {
-            const {DataSource} = await import("../../src/data/DataSource");
+        it("has DataSource.getRegisteredTypes static method", async () => {
+            const { DataSource } = await import("../../src/data/DataSource");
             assert.isFunction(DataSource.getRegisteredTypes);
         });
     });

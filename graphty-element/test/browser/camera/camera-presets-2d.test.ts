@@ -1,14 +1,14 @@
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test} from "vitest";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test } from "vitest";
 
-import type {AdHocData} from "../../../src/config/index.js";
-import {Graph} from "../../../src/Graph.js";
+import type { AdHocData } from "../../../src/config/index.js";
+import { Graph } from "../../../src/Graph.js";
 
 describe("Camera Presets - 2D", () => {
     let graph: Graph;
     let container: HTMLElement;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Create a container element
         container = document.createElement("div");
         container.id = "test-container-2d";
@@ -29,7 +29,7 @@ describe("Camera Presets - 2D", () => {
             graph: {
                 twoD: true,
                 viewMode: "2d",
-                background: {backgroundType: "color", color: "#f0f0f0"},
+                background: { backgroundType: "color", color: "#f0f0f0" },
                 addDefaultStyle: true,
                 startingCameraDistance: 30,
                 layout: "fixed",
@@ -72,11 +72,11 @@ describe("Camera Presets - 2D", () => {
         document.body.removeChild(container);
     });
 
-    test("fitToGraph preset calculates 2D zoom based on node bounds", async() => {
-    // Set up graph with known bounds
-        await graph.addNode({id: "n1", position: {x: 0, y: 0, z: 0}} as unknown as AdHocData);
-        await graph.addNode({id: "n2", position: {x: 200, y: 150, z: 0}} as unknown as AdHocData);
-        await graph.addNode({id: "n3", position: {x: -100, y: -75, z: 0}} as unknown as AdHocData);
+    test("fitToGraph preset calculates 2D zoom based on node bounds", async () => {
+        // Set up graph with known bounds
+        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } } as unknown as AdHocData);
+        await graph.addNode({ id: "n2", position: { x: 200, y: 150, z: 0 } } as unknown as AdHocData);
+        await graph.addNode({ id: "n3", position: { x: -100, y: -75, z: 0 } } as unknown as AdHocData);
         await graph.waitForSettled();
 
         const presetState = graph.resolveCameraPreset("fitToGraph");
@@ -86,7 +86,7 @@ describe("Camera Presets - 2D", () => {
         assert.ok(presetState.pan);
 
         // Pan should be at center of bounding box
-        const expectedCenter = {x: 50, y: 37.5}; // Center of [-100, 200] x [-75, 150]
+        const expectedCenter = { x: 50, y: 37.5 }; // Center of [-100, 200] x [-75, 150]
         assert.approximately(presetState.pan.x, expectedCenter.x, 1);
         assert.approximately(presetState.pan.y, expectedCenter.y, 1);
 
@@ -94,10 +94,10 @@ describe("Camera Presets - 2D", () => {
         assert.ok(presetState.zoom > 0);
     });
 
-    test("topView preset provides standard 2D view", async() => {
-    // Add some nodes to establish bounds
-        await graph.addNode({id: "n1", position: {x: 0, y: 0, z: 0}} as unknown as AdHocData);
-        await graph.addNode({id: "n2", position: {x: 100, y: 100, z: 0}} as unknown as AdHocData);
+    test("topView preset provides standard 2D view", async () => {
+        // Add some nodes to establish bounds
+        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } } as unknown as AdHocData);
+        await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 0 } } as unknown as AdHocData);
         await graph.waitForSettled();
 
         const presetState = graph.resolveCameraPreset("topView");

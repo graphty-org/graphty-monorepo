@@ -1,10 +1,10 @@
-import {z} from "zod/v4";
+import { z } from "zod/v4";
 
-import {DataConfig} from "./DataConfig";
-import {EdgeStyle} from "./EdgeStyle";
-import {GraphBehaviorOpts} from "./GraphBehavior";
-import {GraphStyle} from "./GraphStyle";
-import {NodeStyle} from "./NodeStyle";
+import { DataConfig } from "./DataConfig";
+import { EdgeStyle } from "./EdgeStyle";
+import { GraphBehaviorOpts } from "./GraphBehavior";
+import { GraphStyle } from "./GraphStyle";
+import { NodeStyle } from "./NodeStyle";
 
 const AllowedInputPaths = z.string().regex(/^data\.|algorithmResults\./);
 const AllowedOuputPaths = z.string().startsWith("style.");
@@ -36,16 +36,14 @@ const StyleLayerMetadata = z.strictObject({
     name: z.string(),
 });
 
-export const StyleLayer = z.strictObject({
-    node: AppliedNodeStyle,
-    edge: AppliedEdgeStyle,
-    metadata: StyleLayerMetadata.optional(),
-})
+export const StyleLayer = z
+    .strictObject({
+        node: AppliedNodeStyle,
+        edge: AppliedEdgeStyle,
+        metadata: StyleLayerMetadata.optional(),
+    })
     .partial()
-    .refine(
-        (data) => !!data.node || !!data.edge,
-        "StyleLayer requires either 'node' or 'edge'.",
-    );
+    .refine((data) => !!data.node || !!data.edge, "StyleLayer requires either 'node' or 'edge'.");
 
 const TemplateMetadata = z.strictObject({
     templateName: z.string().optional(),
@@ -64,9 +62,7 @@ export const StyleTemplateV1 = z.strictObject({
     behavior: GraphBehaviorOpts.prefault({}),
 });
 
-export const StyleTemplate = z.discriminatedUnion("majorVersion", [
-    StyleTemplateV1,
-]);
+export const StyleTemplate = z.discriminatedUnion("majorVersion", [StyleTemplateV1]);
 
 export type StyleSchema = z.infer<typeof StyleTemplate>;
 export type StyleSchemaV1 = z.infer<typeof StyleTemplateV1>;

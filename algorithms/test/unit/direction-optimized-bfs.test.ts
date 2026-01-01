@@ -1,7 +1,7 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {CSRGraph} from "../../src/optimized/csr-graph.js";
-import {DirectionOptimizedBFS, directionOptimizedBFS} from "../../src/optimized/direction-optimized-bfs.js";
+import { CSRGraph } from "../../src/optimized/csr-graph.js";
+import { DirectionOptimizedBFS, directionOptimizedBFS } from "../../src/optimized/direction-optimized-bfs.js";
 
 describe("DirectionOptimizedBFS", () => {
     describe("basic functionality", () => {
@@ -72,7 +72,7 @@ describe("DirectionOptimizedBFS", () => {
             }
 
             const csrGraph = new CSRGraph(adjacencyList);
-            const bfs = new DirectionOptimizedBFS(csrGraph, {alpha: 10, beta: 20});
+            const bfs = new DirectionOptimizedBFS(csrGraph, { alpha: 10, beta: 20 });
             const result = bfs.search(hubNode);
 
             expect(result.visitedCount).toBe(leafCount + 1);
@@ -176,8 +176,8 @@ describe("DirectionOptimizedBFS", () => {
 
             for (let i = 0; i < nodeCount; i++) {
                 const neighbors: number[] = [];
-                const leftChild = (2 * i) + 1;
-                const rightChild = (2 * i) + 2;
+                const leftChild = 2 * i + 1;
+                const rightChild = 2 * i + 2;
 
                 if (leftChild < nodeCount) {
                     neighbors.push(leftChild);

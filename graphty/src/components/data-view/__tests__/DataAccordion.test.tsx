@@ -1,11 +1,11 @@
 import userEvent from "@testing-library/user-event";
-import {afterEach, beforeEach, describe, expect, it, type MockInstance, vi} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 
-import {render, screen, waitFor} from "../../../test/test-utils";
-import {DataAccordion} from "../DataAccordion";
+import { render, screen, waitFor } from "../../../test/test-utils";
+import { DataAccordion } from "../DataAccordion";
 
 describe("DataAccordion", () => {
-    const mockData = {id: "1", label: "Test", metadata: {x: 10}};
+    const mockData = { id: "1", label: "Test", metadata: { x: 10 } };
 
     it("renders Data section header", () => {
         render(<DataAccordion data={mockData} />);
@@ -17,7 +17,7 @@ describe("DataAccordion", () => {
         expect(screen.getByText("Test")).toBeInTheDocument();
     });
 
-    it("collapses when header clicked", async() => {
+    it("collapses when header clicked", async () => {
         const user = userEvent.setup();
         render(<DataAccordion data={mockData} />);
 
@@ -59,7 +59,7 @@ describe("DataAccordion", () => {
             vi.restoreAllMocks();
         });
 
-        it("copies entire JSON when copy all button clicked", async() => {
+        it("copies entire JSON when copy all button clicked", async () => {
             const user = userEvent.setup();
             render(<DataAccordion data={mockData} />);
 
@@ -70,7 +70,7 @@ describe("DataAccordion", () => {
             });
         });
 
-        it("shows copied feedback after copying", async() => {
+        it("shows copied feedback after copying", async () => {
             const user = userEvent.setup();
             render(<DataAccordion data={mockData} />);
 
@@ -82,7 +82,7 @@ describe("DataAccordion", () => {
         });
     });
 
-    it("expands when clicked while collapsed", async() => {
+    it("expands when clicked while collapsed", async () => {
         const user = userEvent.setup();
         render(<DataAccordion data={mockData} />);
 

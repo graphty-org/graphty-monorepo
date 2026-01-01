@@ -6,9 +6,9 @@
  * Advanced features (pointers, badges, animations) are tested separately.
  */
 
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {LabelMeshFactory} from "./mesh-factory";
+import { LabelMeshFactory } from "./mesh-factory";
 
 describe("Label Golden Masters - Core Features", () => {
     // Basic text rendering
@@ -21,8 +21,10 @@ describe("Label Golden Masters - Core Features", () => {
                 textColor: "#000000",
             });
 
-            assert.isTrue(result.validation.isValid,
-                `Basic text validation failed: ${result.validation.errors.join(", ")}`);
+            assert.isTrue(
+                result.validation.isValid,
+                `Basic text validation failed: ${result.validation.errors.join(", ")}`,
+            );
             assert.equal(result.mesh.metadata.text, "Hello World");
             assert.equal(result.mesh.metadata.font, "Verdana");
             assert.equal(result.mesh.metadata.fontSize, 48);
@@ -244,11 +246,13 @@ describe("Label Golden Masters - Core Features", () => {
         test("creates single border", () => {
             const result = LabelMeshFactory.create({
                 text: "Single Border",
-                borders: [{
-                    width: 2,
-                    color: "#000000",
-                    spacing: 0,
-                }],
+                borders: [
+                    {
+                        width: 2,
+                        color: "#000000",
+                        spacing: 0,
+                    },
+                ],
             });
 
             assert.isTrue(result.validation.isValid);
@@ -264,9 +268,9 @@ describe("Label Golden Masters - Core Features", () => {
             const result = LabelMeshFactory.create({
                 text: "Multi Border",
                 borders: [
-                    {width: 2, color: "#FF0000", spacing: 0},
-                    {width: 1, color: "#00FF00", spacing: 2},
-                    {width: 3, color: "#0000FF", spacing: 1},
+                    { width: 2, color: "#FF0000", spacing: 0 },
+                    { width: 1, color: "#00FF00", spacing: 2 },
+                    { width: 3, color: "#0000FF", spacing: 1 },
                 ],
             });
 
@@ -282,8 +286,8 @@ describe("Label Golden Masters - Core Features", () => {
             const result = LabelMeshFactory.create({
                 text: "Spaced Borders",
                 borders: [
-                    {width: 2, color: "#000000", spacing: 5},
-                    {width: 1, color: "#FF0000", spacing: 3},
+                    { width: 2, color: "#000000", spacing: 5 },
+                    { width: 1, color: "#FF0000", spacing: 3 },
                 ],
             });
 
@@ -479,8 +483,8 @@ describe("Label Golden Masters - Core Features", () => {
                 backgroundPadding: 12,
                 cornerRadius: 8,
                 borders: [
-                    {width: 2, color: "#FFFFFF", spacing: 0},
-                    {width: 1, color: "#003366", spacing: 2},
+                    { width: 2, color: "#FFFFFF", spacing: 0 },
+                    { width: 1, color: "#003366", spacing: 2 },
                 ],
                 textOutline: {
                     color: "#000000",

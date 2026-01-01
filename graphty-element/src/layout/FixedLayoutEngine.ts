@@ -1,7 +1,7 @@
-import {z} from "zod/v4";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema} from "../config";
-import {SimpleLayoutConfig, SimpleLayoutEngine} from "./LayoutEngine";
+import { defineOptions, type OptionsSchema } from "../config";
+import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for Fixed Layout
@@ -17,7 +17,7 @@ export const fixedLayoutOptionsSchema = defineOptions({
 });
 
 export const FixedLayoutConfig = z.strictObject({
-    ... SimpleLayoutConfig.shape,
+    ...SimpleLayoutConfig.shape,
     dim: z.number().default(3),
 });
 export type FixedLayoutConfigType = z.infer<typeof FixedLayoutConfig>;
@@ -51,7 +51,7 @@ export class FixedLayout extends SimpleLayoutEngine {
         super.addNode(n);
         // For fixed layout, apply position immediately when node is added
         const nodeData = n.data as Record<string, unknown>;
-        const position = nodeData.position as {x?: number, y?: number, z?: number} | undefined;
+        const position = nodeData.position as { x?: number; y?: number; z?: number } | undefined;
         if (position) {
             n.mesh.position.set(position.x ?? 0, position.y ?? 0, position.z ?? 0);
         }
@@ -67,15 +67,11 @@ export class FixedLayout extends SimpleLayoutEngine {
 
         for (const node of this._nodes) {
             const nodeData = node.data as Record<string, unknown>;
-            const position = nodeData.position as {x?: number, y?: number, z?: number} | undefined;
+            const position = nodeData.position as { x?: number; y?: number; z?: number } | undefined;
 
             let pos: number[];
             if (position) {
-                pos = [
-                    position.x ?? 0,
-                    position.y ?? 0,
-                    position.z ?? 0,
-                ];
+                pos = [position.x ?? 0, position.y ?? 0, position.z ?? 0];
             } else {
                 // Default position if not specified
                 pos = [0, 0, 0];

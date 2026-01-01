@@ -1,14 +1,6 @@
-import {
-    Color3,
-    Effect,
-    Mesh,
-    Scene,
-    ShaderMaterial,
-    Vector3,
-    VertexData,
-} from "@babylonjs/core";
+import { Color3, Effect, Mesh, Scene, ShaderMaterial, Vector3, VertexData } from "@babylonjs/core";
 
-import {MaterialHelper} from "./MaterialHelper";
+import { MaterialHelper } from "./MaterialHelper";
 
 export interface FilledArrowOptions {
     size: number; // Screen-space size in pixels
@@ -178,10 +170,7 @@ void main() {
      * @param scene - Babylon.js scene
      * @returns Created triangle arrow mesh
      */
-    static createTriangle(
-        inverted: boolean,
-        scene: Scene,
-    ): Mesh {
+    static createTriangle(inverted: boolean, scene: Scene): Mesh {
         const mesh = new Mesh("filled-triangle-arrow", scene);
 
         // Normalized dimensions
@@ -388,7 +377,7 @@ void main() {
         const base = -length;
 
         // Middle point: starts at center of baseline, pushed 60% toward tip (2/3 - 10%)
-        const middleX = base + (0.6 * length); // -1.0 + 0.6 = -0.4
+        const middleX = base + 0.6 * length; // -1.0 + 0.6 = -0.4
 
         // XZ plane (normal in Y), pointing along X axis
         // 4 vertices to form V-shape (2 triangles)
@@ -497,7 +486,7 @@ void main() {
         const base = -length;
 
         // Middle point: pushed 60% toward tip (same as vee)
-        const middleX = base + (0.6 * length); // -0.4
+        const middleX = base + 0.6 * length; // -0.4
 
         // XZ plane (normal in Y), pointing along X axis
         // Only one side of the V (3 vertices forming 1 triangle)
@@ -549,7 +538,7 @@ void main() {
         const base = 0; // Base now at front
 
         // Middle point: pushed 60% from base toward tip
-        const middleX = base + (0.6 * (tip - base)); // 0 + 0.6 * (-1.0) = -0.6
+        const middleX = base + 0.6 * (tip - base); // 0 + 0.6 * (-1.0) = -0.6
 
         // Width of center prong at base
         const centerProngWidth = 0.2;
@@ -622,18 +611,18 @@ void main() {
         const insetFactor = 0.225; // How much to inset inner triangle (22.5% toward center) - matches open-diamond thickness
 
         // Outer triangle vertices
-        const v0 = {x: 0, z: 0}; // Tip
-        const v1 = {x: -length, z: -width / 2}; // Bottom-left
-        const v2 = {x: -length, z: width / 2}; // Top-right
+        const v0 = { x: 0, z: 0 }; // Tip
+        const v1 = { x: -length, z: -width / 2 }; // Bottom-left
+        const v2 = { x: -length, z: width / 2 }; // Top-right
 
         // Calculate centroid
         const centerX = (v0.x + v1.x + v2.x) / 3;
         const centerZ = (v0.z + v1.z + v2.z) / 3;
 
         // Inner triangle vertices (moved toward center by insetFactor)
-        const v3 = {x: v0.x + ((centerX - v0.x) * insetFactor), z: v0.z + ((centerZ - v0.z) * insetFactor)};
-        const v4 = {x: v1.x + ((centerX - v1.x) * insetFactor), z: v1.z + ((centerZ - v1.z) * insetFactor)};
-        const v5 = {x: v2.x + ((centerX - v2.x) * insetFactor), z: v2.z + ((centerZ - v2.z) * insetFactor)};
+        const v3 = { x: v0.x + (centerX - v0.x) * insetFactor, z: v0.z + (centerZ - v0.z) * insetFactor };
+        const v4 = { x: v1.x + (centerX - v1.x) * insetFactor, z: v1.z + (centerZ - v1.z) * insetFactor };
+        const v5 = { x: v2.x + (centerX - v2.x) * insetFactor, z: v2.z + (centerZ - v2.z) * insetFactor };
 
         // Build positions array (outer vertices, then inner vertices)
         const positions = [
@@ -661,26 +650,11 @@ void main() {
         // Each edge forms 2 triangles (a quad strip)
         const indices = [
             // Edge 0->1 (tip to bottom-left)
-            0,
-            3,
-            4,
-            0,
-            4,
-            1,
+            0, 3, 4, 0, 4, 1,
             // Edge 1->2 (bottom-left to top-right)
-            1,
-            4,
-            5,
-            1,
-            5,
-            2,
+            1, 4, 5, 1, 5, 2,
             // Edge 2->0 (top-right to tip)
-            2,
-            5,
-            3,
-            2,
-            3,
-            0,
+            2, 5, 3, 2, 3, 0,
         ];
 
         const vertexData = new VertexData();
@@ -774,20 +748,20 @@ void main() {
         const insetFactor = 0.225; // How much to inset inner diamond (22.5% toward center) - 50% thicker than original 0.15
 
         // Outer diamond vertices
-        const v0 = {x: 0, z: 0}; // Front tip
-        const v1 = {x: -length / 2, z: width / 2}; // Top
-        const v2 = {x: -length, z: 0}; // Back tip
-        const v3 = {x: -length / 2, z: -width / 2}; // Bottom
+        const v0 = { x: 0, z: 0 }; // Front tip
+        const v1 = { x: -length / 2, z: width / 2 }; // Top
+        const v2 = { x: -length, z: 0 }; // Back tip
+        const v3 = { x: -length / 2, z: -width / 2 }; // Bottom
 
         // Calculate centroid
         const centerX = (v0.x + v1.x + v2.x + v3.x) / 4;
         const centerZ = (v0.z + v1.z + v2.z + v3.z) / 4;
 
         // Inner diamond vertices (moved toward center by insetFactor)
-        const v4 = {x: v0.x + ((centerX - v0.x) * insetFactor), z: v0.z + ((centerZ - v0.z) * insetFactor)};
-        const v5 = {x: v1.x + ((centerX - v1.x) * insetFactor), z: v1.z + ((centerZ - v1.z) * insetFactor)};
-        const v6 = {x: v2.x + ((centerX - v2.x) * insetFactor), z: v2.z + ((centerZ - v2.z) * insetFactor)};
-        const v7 = {x: v3.x + ((centerX - v3.x) * insetFactor), z: v3.z + ((centerZ - v3.z) * insetFactor)};
+        const v4 = { x: v0.x + (centerX - v0.x) * insetFactor, z: v0.z + (centerZ - v0.z) * insetFactor };
+        const v5 = { x: v1.x + (centerX - v1.x) * insetFactor, z: v1.z + (centerZ - v1.z) * insetFactor };
+        const v6 = { x: v2.x + (centerX - v2.x) * insetFactor, z: v2.z + (centerZ - v2.z) * insetFactor };
+        const v7 = { x: v3.x + (centerX - v3.x) * insetFactor, z: v3.z + (centerZ - v3.z) * insetFactor };
 
         // Build positions array (outer vertices, then inner vertices)
         const positions = [
@@ -821,33 +795,13 @@ void main() {
         // Each edge forms 2 triangles (a quad strip)
         const indices = [
             // Edge 0->1 (front tip to top)
-            0,
-            4,
-            5,
-            0,
-            5,
-            1,
+            0, 4, 5, 0, 5, 1,
             // Edge 1->2 (top to back tip)
-            1,
-            5,
-            6,
-            1,
-            6,
-            2,
+            1, 5, 6, 1, 6, 2,
             // Edge 2->3 (back tip to bottom)
-            2,
-            6,
-            7,
-            2,
-            7,
-            3,
+            2, 6, 7, 2, 7, 3,
             // Edge 3->0 (bottom to front tip)
-            3,
-            7,
-            4,
-            3,
-            4,
-            0,
+            3, 7, 4, 3, 4, 0,
         ];
 
         const vertexData = new VertexData();

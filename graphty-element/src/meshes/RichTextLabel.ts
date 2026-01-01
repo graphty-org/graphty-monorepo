@@ -1,14 +1,44 @@
-import {AbstractMesh, Color3, DynamicTexture, Engine, Mesh, MeshBuilder, Scene, StandardMaterial, Texture, Vector3} from "@babylonjs/core";
+import {
+    AbstractMesh,
+    Color3,
+    DynamicTexture,
+    Engine,
+    Mesh,
+    MeshBuilder,
+    Scene,
+    StandardMaterial,
+    Texture,
+    Vector3,
+} from "@babylonjs/core";
 
-import {BadgeStyleManager} from "../BadgeStyleManager";
-import {type RichTextStyleType} from "../config";
-import {type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer} from "./PointerRenderer";
-import {RichTextAnimator} from "./RichTextAnimator";
-import {RichTextParser} from "./RichTextParser";
-import {RichTextRenderer} from "./RichTextRenderer";
+import { BadgeStyleManager } from "../BadgeStyleManager";
+import { type RichTextStyleType } from "../config";
+import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
+import { RichTextAnimator } from "./RichTextAnimator";
+import { RichTextParser } from "./RichTextParser";
+import { RichTextRenderer } from "./RichTextRenderer";
 
-export type BadgeType = "notification" | "label" | "label-success" | "label-warning" | "label-danger" | "count" | "icon" | "progress" | "dot" | undefined;
-export type AttachPosition = "top" | "bottom" | "left" | "right" | "center" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
+export type BadgeType =
+    | "notification"
+    | "label"
+    | "label-success"
+    | "label-warning"
+    | "label-danger"
+    | "count"
+    | "icon"
+    | "progress"
+    | "dot"
+    | undefined;
+export type AttachPosition =
+    | "top"
+    | "bottom"
+    | "left"
+    | "right"
+    | "center"
+    | "top-left"
+    | "top-right"
+    | "bottom-left"
+    | "bottom-right";
 
 export interface RichTextStyle {
     font: string;
@@ -73,7 +103,19 @@ type RequiredExceptOptional<T, K extends keyof T> = Required<Omit<T, K>> & Pick<
 // Resolved options with all properties defined
 type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     RichTextLabelOptions,
-    "badge" | "icon" | "progress" | "attachTo" | "_badgeType" | "_smartSizing" | "_paddingRatio" | "_removeText" | "_progressBar" | "enabled" | "textPath" | "location" | "borders"
+    | "badge"
+    | "icon"
+    | "progress"
+    | "attachTo"
+    | "_badgeType"
+    | "_smartSizing"
+    | "_paddingRatio"
+    | "_removeText"
+    | "_progressBar"
+    | "enabled"
+    | "textPath"
+    | "location"
+    | "borders"
 > & {
     badge: BadgeType;
     icon: string | undefined;
@@ -97,8 +139,8 @@ export class RichTextLabel {
     private texture: DynamicTexture | null = null;
     private material: StandardMaterial | null = null;
     private parsedContent: TextSegment[][] = [];
-    private actualDimensions: ActualDimensions = {width: 0, height: 0};
-    private contentArea: ContentArea = {x: 0, y: 0, width: 0, height: 0};
+    private actualDimensions: ActualDimensions = { width: 0, height: 0 };
+    private contentArea: ContentArea = { x: 0, y: 0, width: 0, height: 0 };
     private totalBorderWidth = 0;
     private pointerInfo: PointerInfo | null = null;
     private _progressValue = 0;
@@ -132,7 +174,7 @@ export class RichTextLabel {
 
         const defaultOptions: ResolvedRichTextLabelOptions = {
             text: "Label",
-            position: {x: 0, y: 0, z: 0},
+            position: { x: 0, y: 0, z: 0 },
             resolution: 512,
             autoSize: true,
             font: "Verdana",
@@ -193,23 +235,25 @@ export class RichTextLabel {
             _progressBar: undefined,
         };
 
-        let finalOptions: ResolvedRichTextLabelOptions = {... defaultOptions, ... userOptions};
+        let finalOptions: ResolvedRichTextLabelOptions = { ...defaultOptions, ...userOptions };
 
         if (finalOptions.badge) {
             const badgeDefaults = BadgeStyleManager.getBadgeStyle(finalOptions.badge);
             if (badgeDefaults) {
-                finalOptions = {... finalOptions, ... badgeDefaults, ... userOptions};
+                finalOptions = { ...finalOptions, ...badgeDefaults, ...userOptions };
             }
         }
 
         BadgeStyleManager.applyBadgeBehaviors(finalOptions, userOptions);
 
         if (finalOptions.borderWidth > 0 && finalOptions.borders.length === 0) {
-            finalOptions.borders = [{
-                width: finalOptions.borderWidth,
-                color: finalOptions.borderColor,
-                spacing: 0,
-            }];
+            finalOptions.borders = [
+                {
+                    width: finalOptions.borderWidth,
+                    color: finalOptions.borderColor,
+                    spacing: 0,
+                },
+            ];
         }
 
         this.options = finalOptions;
@@ -269,11 +313,7 @@ export class RichTextLabel {
         if (this.options.attachTo) {
             this._attachToTarget();
         } else if (this.mesh) {
-            this.mesh.position = new Vector3(
-                this.options.position.x,
-                this.options.position.y,
-                this.options.position.z,
-            );
+            this.mesh.position = new Vector3(this.options.position.x, this.options.position.y, this.options.position.z);
             this.originalPosition ??= this.mesh.position.clone();
         }
 
@@ -296,7 +336,7 @@ export class RichTextLabel {
             return;
         }
 
-        const {maxWidth, totalHeight} = this.parser.measureText(this.parsedContent, tempCtx, {
+        const { maxWidth, totalHeight } = this.parser.measureText(this.parsedContent, tempCtx, {
             lineHeight: this.options.lineHeight,
             textOutline: this.options.textOutline,
             textOutlineWidth: this.options.textOutlineWidth,
@@ -324,8 +364,8 @@ export class RichTextLabel {
             height: contentHeight,
         };
 
-        this.actualDimensions.width = contentWidth + (this.totalBorderWidth * 2);
-        this.actualDimensions.height = contentHeight + (this.totalBorderWidth * 2);
+        this.actualDimensions.width = contentWidth + this.totalBorderWidth * 2;
+        this.actualDimensions.height = contentHeight + this.totalBorderWidth * 2;
 
         if (this.options.pointer) {
             this._calculatePointerDimensions();
@@ -381,14 +421,14 @@ export class RichTextLabel {
     private _createTexture(): void {
         const MAX_TEXTURE_SIZE = 4096;
 
-        let textureWidth = this.options.autoSize ?
-            Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.width))) :
-            this.options.resolution;
+        let textureWidth = this.options.autoSize
+            ? Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.width)))
+            : this.options.resolution;
 
         const aspectRatio = this.actualDimensions.width / this.actualDimensions.height;
-        let textureHeight = this.options.autoSize ?
-            Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.height))) :
-            Math.floor(textureWidth / aspectRatio);
+        let textureHeight = this.options.autoSize
+            ? Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.height)))
+            : Math.floor(textureWidth / aspectRatio);
 
         if (textureWidth > MAX_TEXTURE_SIZE || textureHeight > MAX_TEXTURE_SIZE) {
             const scale = MAX_TEXTURE_SIZE / Math.max(textureWidth, textureHeight);
@@ -396,20 +436,28 @@ export class RichTextLabel {
             textureHeight = Math.floor(textureHeight * scale);
             // Only warn in non-test environments
             // Check if we're in a test environment by looking for vitest or testing context
-            const isTest = typeof globalThis !== "undefined" &&
-                          (("__vitest_worker__" in globalThis) ||
-                           ("__vitest_environment__" in globalThis) ||
-                           (typeof window !== "undefined" && window.location.href.includes("vitest")));
+            const isTest =
+                typeof globalThis !== "undefined" &&
+                ("__vitest_worker__" in globalThis ||
+                    "__vitest_environment__" in globalThis ||
+                    (typeof window !== "undefined" && window.location.href.includes("vitest")));
 
             if (!isTest) {
-                console.warn(`RichTextLabel: Texture size clamped to ${textureWidth}x${textureHeight} (max: ${MAX_TEXTURE_SIZE})`);
+                console.warn(
+                    `RichTextLabel: Texture size clamped to ${textureWidth}x${textureHeight} (max: ${MAX_TEXTURE_SIZE})`,
+                );
             }
         }
 
-        this.texture = new DynamicTexture(`richTextTexture_${this.id}`, {
-            width: textureWidth,
-            height: textureHeight,
-        }, this.scene, true);
+        this.texture = new DynamicTexture(
+            `richTextTexture_${this.id}`,
+            {
+                width: textureWidth,
+                height: textureHeight,
+            },
+            this.scene,
+            true,
+        );
 
         this.texture.hasAlpha = true;
         this.texture.updateSamplingMode(Texture.TRILINEAR_SAMPLINGMODE);
@@ -423,8 +471,8 @@ export class RichTextLabel {
         }
 
         const ctx = this.texture.getContext() as unknown as CanvasRenderingContext2D;
-        const {width} = this.texture.getSize();
-        const {height} = this.texture.getSize();
+        const { width } = this.texture.getSize();
+        const { height } = this.texture.getSize();
 
         ctx.clearRect(0, 0, width, height);
 
@@ -447,7 +495,7 @@ export class RichTextLabel {
                 x: this.contentArea.x,
                 y: this.contentArea.y,
                 width: this.contentArea.width,
-                height: this.contentArea.height - progressBarHeight - (this.options.marginBottom / 2),
+                height: this.contentArea.height - progressBarHeight - this.options.marginBottom / 2,
             };
         }
 
@@ -458,8 +506,8 @@ export class RichTextLabel {
     }
 
     private _drawBackgroundWithBorders(ctx: CanvasRenderingContext2D): void {
-        const {width} = this.actualDimensions;
-        const {height} = this.actualDimensions;
+        const { width } = this.actualDimensions;
+        const { height } = this.actualDimensions;
         const radius = this.options.cornerRadius;
 
         if (this.options.borders.length > 0) {
@@ -477,8 +525,8 @@ export class RichTextLabel {
 
                 const x = currentOffset;
                 const y = currentOffset;
-                const w = width - (currentOffset * 2);
-                const h = height - (currentOffset * 2);
+                const w = width - currentOffset * 2;
+                const h = height - currentOffset * 2;
                 const r = Math.max(0, radius - currentOffset);
 
                 this._createRoundedRectPath(ctx, x, y, w, h, r);
@@ -500,11 +548,12 @@ export class RichTextLabel {
                         innerRadius = 0;
                     }
 
-                    this._createRoundedRectPath(ctx,
+                    this._createRoundedRectPath(
+                        ctx,
                         innerOffset,
                         innerOffset,
-                        width - (innerOffset * 2),
-                        height - (innerOffset * 2),
+                        width - innerOffset * 2,
+                        height - innerOffset * 2,
                         innerRadius,
                     );
                 }
@@ -517,7 +566,8 @@ export class RichTextLabel {
         }
 
         ctx.beginPath();
-        this._createRoundedRectPath(ctx,
+        this._createRoundedRectPath(
+            ctx,
             this.contentArea.x,
             this.contentArea.y,
             this.contentArea.width,
@@ -553,8 +603,8 @@ export class RichTextLabel {
                 const pointerArea: PointerContentArea = {
                     x: this.contentArea.x - this.totalBorderWidth + currentOffset,
                     y: this.contentArea.y - this.totalBorderWidth + currentOffset,
-                    width: this.contentArea.width + ((this.totalBorderWidth - currentOffset) * 2),
-                    height: this.contentArea.height + ((this.totalBorderWidth - currentOffset) * 2),
+                    width: this.contentArea.width + (this.totalBorderWidth - currentOffset) * 2,
+                    height: this.contentArea.height + (this.totalBorderWidth - currentOffset) * 2,
                 };
 
                 this.pointerRenderer.createSpeechBubblePath(ctx, pointerArea, Math.max(0, radius - currentOffset), {
@@ -589,8 +639,8 @@ export class RichTextLabel {
                     const innerPointerArea: PointerContentArea = {
                         x: innerX,
                         y: innerY,
-                        width: this.contentArea.width + ((this.totalBorderWidth - innerOffset) * 2),
-                        height: this.contentArea.height + ((this.totalBorderWidth - innerOffset) * 2),
+                        width: this.contentArea.width + (this.totalBorderWidth - innerOffset) * 2,
+                        height: this.contentArea.height + (this.totalBorderWidth - innerOffset) * 2,
                     };
 
                     this.pointerRenderer.createSpeechBubblePathCCW(ctx, innerPointerArea, innerRadius, {
@@ -642,14 +692,14 @@ export class RichTextLabel {
 
                 // Create linear gradient based on direction
                 const angle = (bgColor.direction * Math.PI) / 180;
-                const x1 = gradientX + (gradientWidth / 2) - ((Math.cos(angle) * gradientWidth) / 2);
-                const y1 = gradientY + (gradientHeight / 2) - ((Math.sin(angle) * gradientHeight) / 2);
-                const x2 = gradientX + (gradientWidth / 2) + ((Math.cos(angle) * gradientWidth) / 2);
-                const y2 = gradientY + (gradientHeight / 2) + ((Math.sin(angle) * gradientHeight) / 2);
+                const x1 = gradientX + gradientWidth / 2 - (Math.cos(angle) * gradientWidth) / 2;
+                const y1 = gradientY + gradientHeight / 2 - (Math.sin(angle) * gradientHeight) / 2;
+                const x2 = gradientX + gradientWidth / 2 + (Math.cos(angle) * gradientWidth) / 2;
+                const y2 = gradientY + gradientHeight / 2 + (Math.sin(angle) * gradientHeight) / 2;
 
                 const gradient = ctx.createLinearGradient(x1, y1, x2, y2);
 
-                const {colors} = bgColor;
+                const { colors } = bgColor;
                 for (let i = 0; i < colors.length; i++) {
                     gradient.addColorStop(i / (colors.length - 1), colors[i] ?? "transparent");
                 }
@@ -674,8 +724,8 @@ export class RichTextLabel {
             const gradientHeight = this.contentArea.height;
 
             if (this.options.backgroundGradientType === "radial") {
-                const centerX = gradientX + (gradientWidth / 2);
-                const centerY = gradientY + (gradientHeight / 2);
+                const centerX = gradientX + gradientWidth / 2;
+                const centerY = gradientY + gradientHeight / 2;
                 const radius = Math.max(gradientWidth, gradientHeight) / 2;
                 gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
             } else {
@@ -684,11 +734,21 @@ export class RichTextLabel {
                         gradient = ctx.createLinearGradient(gradientX, gradientY, gradientX + gradientWidth, gradientY);
                         break;
                     case "diagonal":
-                        gradient = ctx.createLinearGradient(gradientX, gradientY, gradientX + gradientWidth, gradientY + gradientHeight);
+                        gradient = ctx.createLinearGradient(
+                            gradientX,
+                            gradientY,
+                            gradientX + gradientWidth,
+                            gradientY + gradientHeight,
+                        );
                         break;
                     case "vertical":
                     default:
-                        gradient = ctx.createLinearGradient(gradientX, gradientY, gradientX, gradientY + gradientHeight);
+                        gradient = ctx.createLinearGradient(
+                            gradientX,
+                            gradientY,
+                            gradientX,
+                            gradientY + gradientHeight,
+                        );
                         break;
                 }
             }
@@ -707,9 +767,14 @@ export class RichTextLabel {
 
     private _drawProgressBar(ctx: CanvasRenderingContext2D): void {
         const progressBarHeight = this.contentArea.height * 0.2;
-        const progressBarY = this.contentArea.y + this.contentArea.height - progressBarHeight - this.options.backgroundPadding - (this.options.marginBottom / 2);
+        const progressBarY =
+            this.contentArea.y +
+            this.contentArea.height -
+            progressBarHeight -
+            this.options.backgroundPadding -
+            this.options.marginBottom / 2;
         const progressBarX = this.contentArea.x + this.options.backgroundPadding;
-        const progressBarWidth = this.contentArea.width - (this.options.backgroundPadding * 2);
+        const progressBarWidth = this.contentArea.width - this.options.backgroundPadding * 2;
 
         ctx.save();
 
@@ -730,17 +795,22 @@ export class RichTextLabel {
         }
 
         const ctx = this.texture.getContext() as unknown as CanvasRenderingContext2D;
-        const {width} = this.texture.getSize();
-        const {height} = this.texture.getSize();
+        const { width } = this.texture.getSize();
+        const { height } = this.texture.getSize();
 
         const scaleX = width / this.actualDimensions.width;
         const scaleY = height / this.actualDimensions.height;
 
         // Calculate progress bar area
         const progressBarHeight = this.contentArea.height * 0.2;
-        const progressBarY = this.contentArea.y + this.contentArea.height - progressBarHeight - this.options.backgroundPadding - (this.options.marginBottom / 2);
+        const progressBarY =
+            this.contentArea.y +
+            this.contentArea.height -
+            progressBarHeight -
+            this.options.backgroundPadding -
+            this.options.marginBottom / 2;
         const progressBarX = this.contentArea.x + this.options.backgroundPadding;
-        const progressBarWidth = this.contentArea.width - (this.options.backgroundPadding * 2);
+        const progressBarWidth = this.contentArea.width - this.options.backgroundPadding * 2;
 
         // Clear only the progress bar area
         ctx.save();
@@ -763,8 +833,14 @@ export class RichTextLabel {
         this.texture.update();
     }
 
-    private _createRoundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number,
-        width: number, height: number, radius: number): void {
+    private _createRoundedRectPath(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        radius: number,
+    ): void {
         ctx.beginPath();
         ctx.moveTo(x + radius, y);
         ctx.lineTo(x + width - radius, y);
@@ -805,11 +881,15 @@ export class RichTextLabel {
         const planeHeight = sizeScale;
         const planeWidth = aspectRatio * sizeScale;
 
-        this.mesh = MeshBuilder.CreatePlane(`richTextPlane_${this.id}`, {
-            width: planeWidth,
-            height: planeHeight,
-            sideOrientation: Mesh.DOUBLESIDE,
-        }, this.scene);
+        this.mesh = MeshBuilder.CreatePlane(
+            `richTextPlane_${this.id}`,
+            {
+                width: planeWidth,
+                height: planeHeight,
+                sideOrientation: Mesh.DOUBLESIDE,
+            },
+            this.scene,
+        );
 
         this.mesh.material = this.material;
         this.mesh.billboardMode = this.options.billboardMode;
@@ -825,7 +905,7 @@ export class RichTextLabel {
         }
 
         let targetPos: Vector3;
-        let bounds: {min: Vector3, max: Vector3};
+        let bounds: { min: Vector3; max: Vector3 };
 
         if (target instanceof Vector3) {
             targetPos = target.clone();
@@ -843,11 +923,7 @@ export class RichTextLabel {
                 max: boundingInfo.boundingBox.maximum,
             };
         } else {
-            this.mesh.position = new Vector3(
-                this.options.position.x,
-                this.options.position.y,
-                this.options.position.z,
-            );
+            this.mesh.position = new Vector3(this.options.position.x, this.options.position.y, this.options.position.z);
             return;
         }
 
@@ -885,19 +961,19 @@ export class RichTextLabel {
 
         switch (position) {
             case "top-left":
-                newPos.x = bounds.min.x - (labelWidth / 2) - offset;
-                newPos.y = bounds.max.y + (labelHeight / 2) + offset;
+                newPos.x = bounds.min.x - labelWidth / 2 - offset;
+                newPos.y = bounds.max.y + labelHeight / 2 + offset;
                 break;
             case "top":
                 newPos.x = (bounds.min.x + bounds.max.x) / 2;
-                newPos.y = bounds.max.y + (labelHeight / 2) + offset;
+                newPos.y = bounds.max.y + labelHeight / 2 + offset;
                 break;
             case "top-right":
-                newPos.x = bounds.max.x + (labelWidth / 2) + offset;
-                newPos.y = bounds.max.y + (labelHeight / 2) + offset;
+                newPos.x = bounds.max.x + labelWidth / 2 + offset;
+                newPos.y = bounds.max.y + labelHeight / 2 + offset;
                 break;
             case "left":
-                newPos.x = bounds.min.x - (labelWidth / 2) - offset;
+                newPos.x = bounds.min.x - labelWidth / 2 - offset;
                 newPos.y = (bounds.min.y + bounds.max.y) / 2;
                 break;
             case "center":
@@ -905,23 +981,23 @@ export class RichTextLabel {
                 newPos.y = (bounds.min.y + bounds.max.y) / 2;
                 break;
             case "right":
-                newPos.x = bounds.max.x + (labelWidth / 2) + offset;
+                newPos.x = bounds.max.x + labelWidth / 2 + offset;
                 newPos.y = (bounds.min.y + bounds.max.y) / 2;
                 break;
             case "bottom-left":
-                newPos.x = bounds.min.x - (labelWidth / 2) - offset;
-                newPos.y = bounds.min.y - (labelHeight / 2) - offset;
+                newPos.x = bounds.min.x - labelWidth / 2 - offset;
+                newPos.y = bounds.min.y - labelHeight / 2 - offset;
                 break;
             case "bottom":
                 newPos.x = (bounds.min.x + bounds.max.x) / 2;
-                newPos.y = bounds.min.y - (labelHeight / 2) - offset;
+                newPos.y = bounds.min.y - labelHeight / 2 - offset;
                 break;
             case "bottom-right":
-                newPos.x = bounds.max.x + (labelWidth / 2) + offset;
-                newPos.y = bounds.min.y - (labelHeight / 2) - offset;
+                newPos.x = bounds.max.x + labelWidth / 2 + offset;
+                newPos.y = bounds.min.y - labelHeight / 2 - offset;
                 break;
             default:
-                newPos.y = bounds.max.y + (labelHeight / 2) + offset;
+                newPos.y = bounds.max.y + labelHeight / 2 + offset;
         }
 
         this.mesh.position = newPos;
@@ -949,7 +1025,7 @@ export class RichTextLabel {
                 fadeFactor = 0.0;
             } else {
                 const fadeRange = this.options.depthFadeFar - this.options.depthFadeNear;
-                fadeFactor = 1.0 - ((distance - this.options.depthFadeNear) / fadeRange);
+                fadeFactor = 1.0 - (distance - this.options.depthFadeNear) / fadeRange;
             }
 
             this.material.alpha = fadeFactor;
@@ -1033,10 +1109,12 @@ export class RichTextLabel {
         }
 
         // For fill animation, only redraw if progress bar is enabled
-        const progressCallback = this.options._progressBar ? (value: number) => {
-            this._progressValue = value;
-            this._updateProgressBarOnly();
-        } : undefined;
+        const progressCallback = this.options._progressBar
+            ? (value: number) => {
+                  this._progressValue = value;
+                  this._updateProgressBarOnly();
+              }
+            : undefined;
 
         this.animator.setupAnimation(this.mesh, this.material, progressCallback);
     }
@@ -1084,4 +1162,3 @@ export class RichTextLabel {
         return this.id;
     }
 }
-

@@ -1,8 +1,8 @@
-import {afterEach, assert, expect, test, vi} from "vitest";
+import { afterEach, assert, expect, test, vi } from "vitest";
 
-import type {Graph} from "../../../src/Graph";
-import {ScreenshotErrorCode} from "../../../src/screenshot/ScreenshotError.js";
-import {cleanupTestGraphWithData, createTestGraphWithData} from "./test-setup.js";
+import type { Graph } from "../../../src/Graph";
+import { ScreenshotErrorCode } from "../../../src/screenshot/ScreenshotError.js";
+import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
 
@@ -11,17 +11,17 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-test("multiplier increases resolution correctly", async() => {
+test("multiplier increases resolution correctly", async () => {
     graph = await createTestGraphWithData();
 
-    const base = await graph.captureScreenshot({multiplier: 1});
-    const result = await graph.captureScreenshot({multiplier: 2});
+    const base = await graph.captureScreenshot({ multiplier: 1 });
+    const result = await graph.captureScreenshot({ multiplier: 2 });
 
     assert.equal(result.metadata.width, base.metadata.width * 2);
     assert.equal(result.metadata.height, base.metadata.height * 2);
 });
 
-test("explicit dimensions override multiplier", async() => {
+test("explicit dimensions override multiplier", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot({
@@ -34,27 +34,27 @@ test("explicit dimensions override multiplier", async() => {
     assert.equal(result.metadata.height, 1080);
 });
 
-test("width-only maintains aspect ratio", async() => {
+test("width-only maintains aspect ratio", async () => {
     graph = await createTestGraphWithData();
 
     // Canvas is 800x600 (4:3 aspect)
-    const result = await graph.captureScreenshot({width: 1600});
+    const result = await graph.captureScreenshot({ width: 1600 });
 
     assert.equal(result.metadata.width, 1600);
     assert.equal(result.metadata.height, 1200); // Maintains 4:3
 });
 
-test("height-only maintains aspect ratio", async() => {
+test("height-only maintains aspect ratio", async () => {
     graph = await createTestGraphWithData();
 
     // Canvas is 800x600 (4:3 aspect)
-    const result = await graph.captureScreenshot({height: 1200});
+    const result = await graph.captureScreenshot({ height: 1200 });
 
     assert.equal(result.metadata.width, 1600); // Maintains 4:3
     assert.equal(result.metadata.height, 1200);
 });
 
-test("strictAspectRatio throws when aspect mismatch", async() => {
+test("strictAspectRatio throws when aspect mismatch", async () => {
     graph = await createTestGraphWithData();
 
     // Canvas is 800x600 (4:3 aspect)
@@ -70,7 +70,7 @@ test("strictAspectRatio throws when aspect mismatch", async() => {
     });
 });
 
-test("dimensions exceeding browser limit throw error", async() => {
+test("dimensions exceeding browser limit throw error", async () => {
     graph = await createTestGraphWithData();
 
     await expect(
@@ -84,7 +84,7 @@ test("dimensions exceeding browser limit throw error", async() => {
     });
 });
 
-test("total pixels exceeding limit throw error", async() => {
+test("total pixels exceeding limit throw error", async () => {
     graph = await createTestGraphWithData();
 
     await expect(
@@ -98,7 +98,7 @@ test("total pixels exceeding limit throw error", async() => {
     });
 });
 
-test("large dimensions produce console warning", async() => {
+test("large dimensions produce console warning", async () => {
     graph = await createTestGraphWithData();
 
     const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {

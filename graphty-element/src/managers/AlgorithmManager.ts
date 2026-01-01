@@ -1,8 +1,8 @@
-import {Algorithm} from "../algorithms/Algorithm";
-import type {Graph} from "../Graph";
-import type {AlgorithmSpecificOptions} from "../utils/queue-migration";
-import type {EventManager} from "./EventManager";
-import type {Manager} from "./interfaces";
+import { Algorithm } from "../algorithms/Algorithm";
+import type { Graph } from "../Graph";
+import type { AlgorithmSpecificOptions } from "../utils/queue-migration";
+import type { EventManager } from "./EventManager";
+import type { Manager } from "./interfaces";
 
 /**
  * Manages algorithm execution and coordination
@@ -62,20 +62,15 @@ export class AlgorithmManager implements Manager {
         // If there were any errors, throw a summary error
         if (errors.length > 0) {
             const summaryError = new Error(
-                `${errors.length} algorithm(s) failed during template execution: ${
-                    errors.map((e) => e.message).join(", ")
-                }`,
+                `${errors.length} algorithm(s) failed during template execution: ${errors
+                    .map((e) => e.message)
+                    .join(", ")}`,
             );
 
-            this.eventManager.emitGraphError(
-                this.graph,
-                summaryError,
-                "algorithm",
-                {
-                    errorCount: errors.length,
-                    component: "AlgorithmManager",
-                },
-            );
+            this.eventManager.emitGraphError(this.graph, summaryError, "algorithm", {
+                errorCount: errors.length,
+                component: "AlgorithmManager",
+            });
 
             throw summaryError;
         }
@@ -87,11 +82,7 @@ export class AlgorithmManager implements Manager {
      * @param type - Algorithm type (e.g., "dijkstra")
      * @param algorithmOptions - Optional algorithm-specific options (source, target, etc.)
      */
-    async runAlgorithm(
-        namespace: string,
-        type: string,
-        algorithmOptions?: AlgorithmSpecificOptions,
-    ): Promise<void> {
+    async runAlgorithm(namespace: string, type: string, algorithmOptions?: AlgorithmSpecificOptions): Promise<void> {
         try {
             const alg = Algorithm.get(this.graph, namespace, type);
             if (!alg) {
@@ -113,15 +104,10 @@ export class AlgorithmManager implements Manager {
             // Emit error event for any error (not found or execution)
             const algorithmError = error instanceof Error ? error : new Error(String(error));
 
-            this.eventManager.emitGraphError(
-                this.graph,
-                algorithmError,
-                "algorithm",
-                {
-                    algorithm: `${namespace}:${type}`,
-                    component: "AlgorithmManager",
-                },
-            );
+            this.eventManager.emitGraphError(this.graph, algorithmError, "algorithm", {
+                algorithm: `${namespace}:${type}`,
+                component: "AlgorithmManager",
+            });
 
             throw algorithmError;
         }

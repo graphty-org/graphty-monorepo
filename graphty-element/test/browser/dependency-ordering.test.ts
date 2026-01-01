@@ -8,26 +8,26 @@
  * These tests correspond to the stories in stories/DependencyOrdering.stories.ts
  */
 
-import {Color3, InstancedMesh, type StandardMaterial} from "@babylonjs/core";
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { Color3, InstancedMesh, type StandardMaterial } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import type {StyleSchema} from "../../src/config";
-import {Graph} from "../../src/Graph";
-import {Styles} from "../../src/Styles";
-import {isDisposed, type TestGraph} from "../helpers/testSetup";
+import type { StyleSchema } from "../../src/config";
+import { Graph } from "../../src/Graph";
+import { Styles } from "../../src/Styles";
+import { isDisposed, type TestGraph } from "../helpers/testSetup";
 
 // Test data constants (matching the stories)
 const TEST_NODES = [
-    {id: "1", label: "Node 1"},
-    {id: "2", label: "Node 2"},
-    {id: "3", label: "Node 3"},
-    {id: "4", label: "Node 4"},
+    { id: "1", label: "Node 1" },
+    { id: "2", label: "Node 2" },
+    { id: "3", label: "Node 3" },
+    { id: "4", label: "Node 4" },
 ];
 
 const TEST_EDGES = [
-    {src: "1", dst: "2"},
-    {src: "2", dst: "3"},
-    {src: "3", dst: "4"},
+    { src: "1", dst: "2" },
+    { src: "2", dst: "3" },
+    { src: "3", dst: "4" },
 ];
 
 // Style template matching the stories (cast to AdHocData for partial config)
@@ -37,20 +37,22 @@ const STYLE_TEMPLATE = {
     graph: {
         addDefaultStyle: true,
     },
-    layers: [{
-        node: {
-            selector: "",
-            style: {
-                texture: {
-                    color: "#4CAF50",
-                },
-                shape: {
-                    type: "sphere",
-                    size: 10,
+    layers: [
+        {
+            node: {
+                selector: "",
+                style: {
+                    texture: {
+                        color: "#4CAF50",
+                    },
+                    shape: {
+                        type: "sphere",
+                        size: 10,
+                    },
                 },
             },
         },
-    }],
+    ],
 } as unknown as StyleSchema;
 
 // Helper to wait for a delay
@@ -62,7 +64,7 @@ describe("Dependency Ordering", () => {
     let container: HTMLElement;
     let graph: Graph;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         container = document.createElement("div");
         container.style.width = "800px";
         container.style.height = "600px";
@@ -80,11 +82,11 @@ describe("Dependency Ordering", () => {
     // Helper functions for position verification
     // =========================================================================
 
-    function getNodePositions(): Map<string, {x: number, y: number, z: number}> {
-        const positions = new Map<string, {x: number, y: number, z: number}>();
+    function getNodePositions(): Map<string, { x: number; y: number; z: number }> {
+        const positions = new Map<string, { x: number; y: number; z: number }>();
         for (const node of graph.getNodes()) {
             const pos = node.getPosition();
-            positions.set(node.id as string, {x: pos.x, y: pos.y, z: pos.z});
+            positions.set(node.id as string, { x: pos.x, y: pos.y, z: pos.z });
         }
         return positions;
     }
@@ -92,7 +94,7 @@ describe("Dependency Ordering", () => {
     /**
      * Relaxed check - just verify nodes have non-zero positions (layout was applied)
      */
-    function layoutWasApplied(positions: Map<string, {x: number, y: number, z: number}>): boolean {
+    function layoutWasApplied(positions: Map<string, { x: number; y: number; z: number }>): boolean {
         if (positions.size === 0) {
             return false;
         }
@@ -162,7 +164,7 @@ describe("Dependency Ordering", () => {
      * Polls the layout manager's isSettled property until it returns true.
      */
     async function waitForLayoutSettle(maxWaitMs = 5000): Promise<void> {
-        const {layoutManager} = graph as unknown as TestGraph;
+        const { layoutManager } = graph as unknown as TestGraph;
         const startTime = Date.now();
 
         while (Date.now() - startTime < maxWaitMs) {
@@ -183,8 +185,8 @@ describe("Dependency Ordering", () => {
      * This ensures the rendering pipeline correctly synced positions from layout to meshes.
      */
     async function verifyNodePositionsMatchLayout(): Promise<void> {
-        const {layoutManager} = graph as unknown as TestGraph;
-        const {layoutEngine} = layoutManager;
+        const { layoutManager } = graph as unknown as TestGraph;
+        const { layoutEngine } = layoutManager;
 
         // Verify layout engine exists
         assert.isDefined(layoutEngine, "Layout engine should exist");
@@ -237,9 +239,24 @@ describe("Dependency Ordering", () => {
         for (const node of graph.getNodes()) {
             const material = node.mesh.material as StandardMaterial | null;
             if (material?.diffuseColor) {
-                assert.closeTo(material.diffuseColor.r, expectedColorObj.r, 0.01, `Node ${node.id} material red should match`);
-                assert.closeTo(material.diffuseColor.g, expectedColorObj.g, 0.01, `Node ${node.id} material green should match`);
-                assert.closeTo(material.diffuseColor.b, expectedColorObj.b, 0.01, `Node ${node.id} material blue should match`);
+                assert.closeTo(
+                    material.diffuseColor.r,
+                    expectedColorObj.r,
+                    0.01,
+                    `Node ${node.id} material red should match`,
+                );
+                assert.closeTo(
+                    material.diffuseColor.g,
+                    expectedColorObj.g,
+                    0.01,
+                    `Node ${node.id} material green should match`,
+                );
+                assert.closeTo(
+                    material.diffuseColor.b,
+                    expectedColorObj.b,
+                    0.01,
+                    `Node ${node.id} material blue should match`,
+                );
             }
         }
     }
@@ -249,9 +266,7 @@ describe("Dependency Ordering", () => {
      */
     function verifyNodeMeshShapes(expectedShape: string): void {
         for (const node of graph.getNodes()) {
-            const meshName = node.mesh instanceof InstancedMesh ?
-                node.mesh.sourceMesh.name :
-                node.mesh.name;
+            const meshName = node.mesh instanceof InstancedMesh ? node.mesh.sourceMesh.name : node.mesh.name;
             assert.isTrue(
                 meshName.toLowerCase().includes(expectedShape.toLowerCase()),
                 `Node ${node.id} source mesh name "${meshName}" should contain shape "${expectedShape}"`,
@@ -285,14 +300,19 @@ describe("Dependency Ordering", () => {
             const dx = pos.x - centerX;
             const dy = pos.y - centerY;
             const dz = pos.z - centerZ;
-            distances.push(Math.sqrt((dx * dx) + (dy * dy) + (dz * dz)));
+            distances.push(Math.sqrt(dx * dx + dy * dy + dz * dz));
         }
 
         const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
         const tolerance = avgDistance * 0.2;
 
         for (const distance of distances) {
-            assert.closeTo(distance, avgDistance, tolerance, "Node distance from center should be approximately equal for circular layout");
+            assert.closeTo(
+                distance,
+                avgDistance,
+                tolerance,
+                "Node distance from center should be approximately equal for circular layout",
+            );
         }
     }
 
@@ -317,7 +337,7 @@ describe("Dependency Ordering", () => {
     // =========================================================================
 
     describe("Story 1: Rapid Layout + Data", () => {
-        it("should handle rapid layout and data operations without delay", async() => {
+        it("should handle rapid layout and data operations without delay", async () => {
             // No setTimeout - immediate operations
             // Testing stateless design: style AFTER data should work the same
             await graph.setLayout("circular"); // Queues layout-set
@@ -337,7 +357,7 @@ describe("Dependency Ordering", () => {
             await verifyMeshState();
         });
 
-        it("should apply style correctly when set after data", async() => {
+        it("should apply style correctly when set after data", async () => {
             // The key here is that style is set AFTER data but should still work
             await graph.setLayout("circular");
             await graph.addNodes(TEST_NODES);
@@ -366,13 +386,13 @@ describe("Dependency Ordering", () => {
     // =========================================================================
 
     describe("Story 2: Multiple Data Additions", () => {
-        it("should handle multiple data additions with only final layout-update executing", async() => {
+        it("should handle multiple data additions with only final layout-update executing", async () => {
             await graph.setLayout("circular");
             await graph.addNodes([TEST_NODES[0], TEST_NODES[1]]);
             await graph.setStyleTemplate(STYLE_TEMPLATE); // Style set AFTER initial data
 
             await delay(10);
-            await graph.addNodes([... TEST_NODES.slice(0, 2), ... TEST_NODES.slice(2)]);
+            await graph.addNodes([...TEST_NODES.slice(0, 2), ...TEST_NODES.slice(2)]);
             await graph.addEdges(TEST_EDGES); // Add edges after all nodes are present
 
             await graph.operationQueue.waitForCompletion();
@@ -387,7 +407,7 @@ describe("Dependency Ordering", () => {
             await verifyMeshState();
         });
 
-        it("should coalesce multiple layout-update operations", async() => {
+        it("should coalesce multiple layout-update operations", async () => {
             let layoutUpdateCount = 0;
 
             // Track layout-update completions
@@ -427,7 +447,7 @@ describe("Dependency Ordering", () => {
     // =========================================================================
 
     describe("Story 3: Multiple Layouts Before Data", () => {
-        it("should use final layout when multiple layouts set before data", async() => {
+        it("should use final layout when multiple layouts set before data", async () => {
             // Set multiple layouts before data
             await graph.setLayout("random");
             await graph.setLayout("random");
@@ -450,7 +470,7 @@ describe("Dependency Ordering", () => {
             await verifyMeshState();
         });
 
-        it("should obsolete previous layout-set operations", async() => {
+        it("should obsolete previous layout-set operations", async () => {
             const layoutSetCategories: string[] = [];
 
             // Track layout-set starts
@@ -481,7 +501,7 @@ describe("Dependency Ordering", () => {
     // =========================================================================
 
     describe("Story 4: Interleaved Layout + Data", () => {
-        it("should handle interleaved layout and data changes correctly", async() => {
+        it("should handle interleaved layout and data changes correctly", async () => {
             await graph.setLayout("random");
 
             await delay(5);
@@ -507,7 +527,7 @@ describe("Dependency Ordering", () => {
             await verifyMeshState();
         });
 
-        it("should apply final state regardless of interleaved order", async() => {
+        it("should apply final state regardless of interleaved order", async () => {
             // Different interleaving order
             await graph.addNodes([TEST_NODES[0]]);
             await graph.setLayout("random");
@@ -539,7 +559,7 @@ describe("Dependency Ordering", () => {
     // =========================================================================
 
     describe("Additional Dependency Tests", () => {
-        it("should handle data before style template without errors", async() => {
+        it("should handle data before style template without errors", async () => {
             const executionOrder: string[] = [];
 
             // Track operation execution
@@ -567,7 +587,7 @@ describe("Dependency Ordering", () => {
             await verifyMeshState();
         });
 
-        it("should handle layout-set before data without errors", async() => {
+        it("should handle layout-set before data without errors", async () => {
             // This should work in stateless design - layout can be set before data exists
             await graph.setLayout("circular");
             await graph.setStyleTemplate(STYLE_TEMPLATE);
@@ -589,7 +609,7 @@ describe("Dependency Ordering", () => {
             await verifyMeshState();
         });
 
-        it("should handle edges before nodes by buffering", async() => {
+        it("should handle edges before nodes by buffering", async () => {
             // Edges set before nodes - should be buffered until nodes exist
             await graph.setStyleTemplate(STYLE_TEMPLATE);
             await graph.setLayout("circular");
@@ -608,15 +628,15 @@ describe("Dependency Ordering", () => {
             assert.equal(graph.getEdgeCount(), 3, "Should have 3 edges");
         });
 
-        it("should maintain FIFO order within same operation category", async() => {
+        it("should maintain FIFO order within same operation category", async () => {
             const nodeAddOrder: string[] = [];
 
             // Track node additions
             const originalAddNodes = graph.addNodes.bind(graph);
             let callIndex = 0;
-            graph.addNodes = async(nodes, ... args) => {
+            graph.addNodes = async (nodes, ...args) => {
                 const idx = callIndex++;
-                await originalAddNodes(nodes, ... args);
+                await originalAddNodes(nodes, ...args);
                 nodeAddOrder.push(`add-${idx}`);
             };
 
@@ -639,7 +659,7 @@ describe("Dependency Ordering", () => {
     // =========================================================================
 
     describe("Error Handling and Edge Cases", () => {
-        it("should handle empty graph operations gracefully", async() => {
+        it("should handle empty graph operations gracefully", async () => {
             // Set configuration on empty graph
             await graph.setStyleTemplate(STYLE_TEMPLATE);
             await graph.setLayout("circular");
@@ -651,14 +671,14 @@ describe("Dependency Ordering", () => {
             assert.equal(graph.getEdgeCount(), 0, "Should have no edges");
         });
 
-        it("should handle duplicate node IDs", async() => {
+        it("should handle duplicate node IDs", async () => {
             await graph.setStyleTemplate(STYLE_TEMPLATE);
             await graph.setLayout("circular");
 
             // Add nodes with same IDs multiple times
-            await graph.addNodes([{id: "1", label: "First"}]);
-            await graph.addNodes([{id: "1", label: "Second"}]); // Same ID
-            await graph.addNodes([{id: "2", label: "Node 2"}]);
+            await graph.addNodes([{ id: "1", label: "First" }]);
+            await graph.addNodes([{ id: "1", label: "Second" }]); // Same ID
+            await graph.addNodes([{ id: "2", label: "Node 2" }]);
 
             await graph.operationQueue.waitForCompletion();
 
@@ -666,13 +686,13 @@ describe("Dependency Ordering", () => {
             assert.equal(graph.getNodeCount(), 2, "Should have 2 unique nodes");
         });
 
-        it("should handle rapid successive operations without race conditions", async() => {
+        it("should handle rapid successive operations without race conditions", async () => {
             await graph.setStyleTemplate(STYLE_TEMPLATE);
             await graph.setLayout("circular");
 
             // Fire operations rapidly - reduced count to avoid timeout
             for (let i = 0; i < 5; i++) {
-                await graph.addNodes([{id: `node-${i}`, label: `Node ${i}`}]);
+                await graph.addNodes([{ id: `node-${i}`, label: `Node ${i}` }]);
             }
 
             await graph.operationQueue.waitForCompletion();

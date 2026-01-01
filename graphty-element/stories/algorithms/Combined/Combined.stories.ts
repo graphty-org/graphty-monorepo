@@ -1,8 +1,8 @@
-import type {Graphty} from "../../../src/graphty-element";
-import {algorithmMetaBase, type Story, templateCreator} from "../helpers";
+import type { Graphty } from "../../../src/graphty-element";
+import { algorithmMetaBase, type Story, templateCreator } from "../helpers";
 
 const meta = {
-    ... algorithmMetaBase,
+    ...algorithmMetaBase,
     title: "Algorithms/Combined",
 };
 export default meta;
@@ -19,7 +19,7 @@ export const DegreeAndPageRank: Story = {
         }),
         runAlgorithmsOnLoad: true,
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
         const element = canvasElement.querySelector("graphty-element");
@@ -28,7 +28,7 @@ export const DegreeAndPageRank: Story = {
         }
 
         const graphtyElement = element as Graphty;
-        const {graph} = graphtyElement;
+        const { graph } = graphtyElement;
 
         graph.applySuggestedStyles(["graphty:degree", "graphty:pagerank"]);
         graph.getDataManager().applyStylesToExistingNodes();
@@ -54,7 +54,7 @@ export const CentralityVsCommunity: Story = {
         }),
         runAlgorithmsOnLoad: true,
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
         const element = canvasElement.querySelector("graphty-element");
@@ -63,7 +63,7 @@ export const CentralityVsCommunity: Story = {
         }
 
         const graphtyElement = element as Graphty;
-        const {graph} = graphtyElement;
+        const { graph } = graphtyElement;
 
         graph.applySuggestedStyles(["graphty:pagerank", "graphty:louvain"]);
         graph.getDataManager().applyStylesToExistingNodes();
@@ -85,7 +85,7 @@ export const CommunityStructureWithPath: Story = {
         }),
         runAlgorithmsOnLoad: true,
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
         const element = canvasElement.querySelector("graphty-element");
@@ -94,7 +94,7 @@ export const CommunityStructureWithPath: Story = {
         }
 
         const graphtyElement = element as Graphty;
-        const {graph} = graphtyElement;
+        const { graph } = graphtyElement;
 
         // Order matters: later algorithms can override earlier ones
         graph.applySuggestedStyles([
@@ -123,7 +123,7 @@ export const CombinedEdgeFlow: Story = {
                 {
                     edge: {
                         selector: "",
-                        style: {enabled: true},
+                        style: { enabled: true },
                         calculatedStyle: {
                             inputs: ["data.value"],
                             output: "style.line.color",
@@ -134,7 +134,7 @@ export const CombinedEdgeFlow: Story = {
                 {
                     edge: {
                         selector: "",
-                        style: {enabled: true},
+                        style: { enabled: true },
                         calculatedStyle: {
                             inputs: ["data.value"],
                             output: "style.line.width",
@@ -145,7 +145,7 @@ export const CombinedEdgeFlow: Story = {
                 {
                     edge: {
                         selector: "",
-                        style: {enabled: true},
+                        style: { enabled: true },
                         calculatedStyle: {
                             inputs: ["data.value"],
                             output: "style.arrowHead.color",

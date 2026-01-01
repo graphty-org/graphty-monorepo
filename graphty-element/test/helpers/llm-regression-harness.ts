@@ -6,9 +6,9 @@
  * Sends prompts to real LLM providers and captures tool calls for verification.
  */
 
-import {Color3} from "@babylonjs/core";
+import { Color3 } from "@babylonjs/core";
 
-import {AiController} from "../../src/ai/AiController";
+import { AiController } from "../../src/ai/AiController";
 import {
     captureScreenshot,
     captureVideo,
@@ -29,18 +29,18 @@ import {
     setLayout,
     zoomToNodes,
 } from "../../src/ai/commands";
-import type {ToolCall} from "../../src/ai/providers/types";
-import {VercelAiProvider} from "../../src/ai/providers/VercelAiProvider";
-import type {Graph} from "../../src/Graph";
-import {getLlmRegressionModel, getOpenAiApiKey} from "./llm-regression-env";
-import {createMockGraphWithCustomData} from "./mock-graph-custom-data";
+import type { ToolCall } from "../../src/ai/providers/types";
+import { VercelAiProvider } from "../../src/ai/providers/VercelAiProvider";
+import type { Graph } from "../../src/Graph";
+import { getLlmRegressionModel, getOpenAiApiKey } from "./llm-regression-env";
+import { createMockGraphWithCustomData } from "./mock-graph-custom-data";
 
 /**
  * Test graph fixture interface
  */
 export interface TestGraphFixture {
-    nodes: {id: string, data: Record<string, unknown>}[];
-    edges: {source: string, target: string, data: Record<string, unknown>}[];
+    nodes: { id: string; data: Record<string, unknown> }[];
+    edges: { source: string; target: string; data: Record<string, unknown> }[];
 }
 
 /**
@@ -62,7 +62,7 @@ export interface LlmRegressionResult {
     /** Time taken to get the LLM response in milliseconds */
     latencyMs: number;
     /** Token usage from the LLM response */
-    tokenUsage?: {prompt: number, completion: number};
+    tokenUsage?: { prompt: number; completion: number };
     /** Error that occurred during execution */
     error?: Error;
 }
@@ -126,7 +126,7 @@ interface CapturedToolCall {
  */
 class ToolCallCapturingProvider extends VercelAiProvider {
     capturedToolCalls: CapturedToolCall[] = [];
-    capturedTokenUsage?: {prompt: number, completion: number};
+    capturedTokenUsage?: { prompt: number; completion: number };
 
     async generate(
         messages: Parameters<VercelAiProvider["generate"]>[0],
@@ -436,9 +436,9 @@ export class LlmRegressionTestHarness {
     private validateExpectations(result: LlmRegressionResult, expectations: TestExpectations): void {
         // Check expected tool
         if (expectations.expectedTool !== undefined) {
-            const expectedTools = Array.isArray(expectations.expectedTool) ?
-                expectations.expectedTool :
-                [expectations.expectedTool];
+            const expectedTools = Array.isArray(expectations.expectedTool)
+                ? expectations.expectedTool
+                : [expectations.expectedTool];
 
             if (!result.toolWasCalled) {
                 throw new Error(`Expected tool call but none occurred. Expected one of: ${expectedTools.join(", ")}`);
@@ -643,10 +643,7 @@ export function includesParams(
             typeof actualValue === "object" &&
             actualValue !== null
         ) {
-            if (!includesParams(
-                actualValue as Record<string, unknown>,
-                expectedValue as Record<string, unknown>,
-            )) {
+            if (!includesParams(actualValue as Record<string, unknown>, expectedValue as Record<string, unknown>)) {
                 return false;
             }
 

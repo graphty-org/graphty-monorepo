@@ -1,9 +1,9 @@
-import type {Graph} from "../../core/graph.js";
-import {PriorityQueue} from "../../data-structures/priority-queue.js";
-import {CSRGraph} from "../../optimized/csr-graph.js";
-import {DirectionOptimizedBFS} from "../../optimized/direction-optimized-bfs.js";
-import {toCSRGraph} from "../../optimized/graph-adapter.js";
-import type {NodeId} from "../../types/index.js";
+import type { Graph } from "../../core/graph.js";
+import { PriorityQueue } from "../../data-structures/priority-queue.js";
+import { CSRGraph } from "../../optimized/csr-graph.js";
+import { DirectionOptimizedBFS } from "../../optimized/direction-optimized-bfs.js";
+import { toCSRGraph } from "../../optimized/graph-adapter.js";
+import type { NodeId } from "../../types/index.js";
 
 /**
  * Threshold for switching to CSR-optimized implementations.
@@ -20,17 +20,22 @@ const LARGE_GRAPH_THRESHOLD = 10000;
  * - All predecessors on shortest paths
  * - Number of shortest paths (sigma)
  * - Stack of nodes in reverse BFS order
+ * @param graph - The input graph to traverse
+ * @param source - The source node to start BFS from
+ * @param options - Configuration options
+ * @param options.optimized - Whether to use CSR-optimized implementation for large graphs
+ * @returns Object containing distances, predecessors, path counts (sigma), and traversal stack
  */
 export function bfsWithPathCounting(
     graph: Graph,
     source: NodeId,
-    options: {optimized?: boolean} = {},
+    options: { optimized?: boolean } = {},
 ): {
-        distances: Map<NodeId, number>;
-        predecessors: Map<NodeId, NodeId[]>;
-        sigma: Map<NodeId, number>;
-        stack: NodeId[];
-    } {
+    distances: Map<NodeId, number>;
+    predecessors: Map<NodeId, NodeId[]>;
+    sigma: Map<NodeId, number>;
+    stack: NodeId[];
+} {
     const useOptimized = options.optimized ?? false;
 
     // Use CSR format for large graphs
@@ -94,12 +99,18 @@ export function bfsWithPathCounting(
  * BFS that only returns distances (for closeness centrality)
  *
  * Optimized variant that skips predecessor tracking
+ * @param graph - The input graph to traverse
+ * @param source - The source node to start BFS from
+ * @param cutoff - Maximum distance to explore (optional)
+ * @param options - Configuration options
+ * @param options.optimized - Whether to use CSR-optimized implementation for large graphs
+ * @returns Map of node IDs to their shortest distances from the source
  */
 export function bfsDistancesOnly(
     graph: Graph,
     source: NodeId,
     cutoff?: number,
-    options: {optimized?: boolean} = {},
+    options: { optimized?: boolean } = {},
 ): Map<NodeId, number> {
     const useOptimized = options.optimized ?? false;
 
@@ -144,13 +155,13 @@ export function bfsDistancesOnly(
  * BFS for bipartite checking with partition sets
  *
  * Returns whether the graph is bipartite and the two partitions if it is
+ * @param graph - The input graph to check for bipartiteness
+ * @returns Object with bipartite status and optional partition sets
  */
-export function bfsColoringWithPartitions(
-    graph: Graph,
-): {
-        isBipartite: boolean;
-        partitions?: [Set<NodeId>, Set<NodeId>];
-    } {
+export function bfsColoringWithPartitions(graph: Graph): {
+    isBipartite: boolean;
+    partitions?: [Set<NodeId>, Set<NodeId>];
+} {
     const colors = new Map<NodeId, number>();
     const partitionA = new Set<NodeId>();
     const partitionB = new Set<NodeId>();
@@ -183,7 +194,7 @@ export function bfsColoringWithPartitions(
                         }
                     } else if (colors.get(neighbor) === currentColor) {
                         // Same color as current node - not bipartite
-                        return {isBipartite: false};
+                        return { isBipartite: false };
                     }
                 }
             }
@@ -200,6 +211,10 @@ export function bfsColoringWithPartitions(
  * BFS for finding augmenting paths (for flow algorithms)
  *
  * Finds a path from source to sink in a residual graph with positive capacity
+ * @param residualGraph - Map representing the residual graph with capacities
+ * @param source - The source node ID
+ * @param sink - The sink node ID
+ * @returns Object with path and capacity, or null if no path exists
  */
 export function bfsAugmentingPath(
     residualGraph: Map<string, Map<string, number>>,
@@ -239,7 +254,7 @@ export function bfsAugmentingPath(
                 node = parentNode ?? null;
             }
 
-            return {path, pathCapacity};
+            return { path, pathCapacity };
         }
 
         const neighbors = residualGraph.get(current);
@@ -260,12 +275,18 @@ export function bfsAugmentingPath(
  * BFS for weighted graphs using priority queue (simplified Dijkstra)
  *
  * Returns distances from source using edge weights
+ * @param graph - The input weighted graph to traverse
+ * @param source - The source node to start BFS from
+ * @param cutoff - Maximum distance to explore (optional)
+ * @param options - Configuration options
+ * @param options.optimized - Whether to use CSR-optimized implementation for large graphs
+ * @returns Map of node IDs to their shortest weighted distances from the source
  */
 export function bfsWeightedDistances(
     graph: Graph,
     source: NodeId,
     cutoff?: number,
-    options: {optimized?: boolean} = {},
+    options: { optimized?: boolean } = {},
 ): Map<NodeId, number> {
     const useOptimized = options.optimized ?? false;
 
@@ -323,16 +344,19 @@ export function bfsWeightedDistances(
 
 /**
  * CSR-optimized version of bfsWithPathCounting
+ * @param graph - The CSR graph representation
+ * @param source - The source node to start BFS from
+ * @returns Object containing distances, predecessors, path counts (sigma), and traversal stack
  */
 function bfsWithPathCountingCSR(
     graph: CSRGraph,
     source: NodeId,
 ): {
-        distances: Map<NodeId, number>;
-        predecessors: Map<NodeId, NodeId[]>;
-        sigma: Map<NodeId, number>;
-        stack: NodeId[];
-    } {
+    distances: Map<NodeId, number>;
+    predecessors: Map<NodeId, NodeId[]>;
+    sigma: Map<NodeId, number>;
+    stack: NodeId[];
+} {
     const distances = new Map<NodeId, number>();
     const predecessors = new Map<NodeId, NodeId[]>();
     const sigma = new Map<NodeId, number>();
@@ -385,12 +409,12 @@ function bfsWithPathCountingCSR(
 
 /**
  * CSR-optimized version of bfsDistancesOnly
+ * @param graph - The CSR graph representation
+ * @param source - The source node to start BFS from
+ * @param cutoff - Maximum distance to explore (optional)
+ * @returns Map of node IDs to their shortest distances from the source
  */
-function bfsDistancesOnlyCSR(
-    graph: CSRGraph,
-    source: NodeId,
-    cutoff?: number,
-): Map<NodeId, number> {
+function bfsDistancesOnlyCSR(graph: CSRGraph, source: NodeId, cutoff?: number): Map<NodeId, number> {
     // Use Direction-Optimized BFS for best performance
     if (graph.nodeCount() > LARGE_GRAPH_THRESHOLD) {
         const dobfs = new DirectionOptimizedBFS(graph);
@@ -443,12 +467,12 @@ function bfsDistancesOnlyCSR(
 
 /**
  * CSR-optimized version of bfsWeightedDistances
+ * @param graph - The CSR graph representation
+ * @param source - The source node to start BFS from
+ * @param cutoff - Maximum distance to explore (optional)
+ * @returns Map of node IDs to their shortest weighted distances from the source
  */
-function bfsWeightedDistancesCSR(
-    graph: CSRGraph,
-    source: NodeId,
-    cutoff?: number,
-): Map<NodeId, number> {
+function bfsWeightedDistancesCSR(graph: CSRGraph, source: NodeId, cutoff?: number): Map<NodeId, number> {
     const distances = new Map<NodeId, number>();
     const visited = new Set<NodeId>();
 

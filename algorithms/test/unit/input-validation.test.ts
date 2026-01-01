@@ -1,8 +1,8 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {spectralClustering} from "../../src/clustering/spectral.js";
-import {Graph} from "../../src/core/graph.js";
-import {teraHAC} from "../../src/research/terahac.js";
+import { spectralClustering } from "../../src/clustering/spectral.js";
+import { Graph } from "../../src/core/graph.js";
+import { teraHAC } from "../../src/research/terahac.js";
 
 describe("Input validation", () => {
     describe("spectralClustering", () => {
@@ -11,7 +11,7 @@ describe("Input validation", () => {
             graph.addEdge("A", "B");
 
             expect(() => {
-                spectralClustering(graph, {k: -1});
+                spectralClustering(graph, { k: -1 });
             }).toThrow("k must be a positive integer");
         });
 
@@ -20,7 +20,7 @@ describe("Input validation", () => {
             graph.addEdge("A", "B");
 
             expect(() => {
-                spectralClustering(graph, {k: 0});
+                spectralClustering(graph, { k: 0 });
             }).toThrow("k must be a positive integer");
         });
 
@@ -29,7 +29,7 @@ describe("Input validation", () => {
             graph.addEdge("A", "B");
 
             expect(() => {
-                spectralClustering(graph, {k: 2.5});
+                spectralClustering(graph, { k: 2.5 });
             }).toThrow("k must be a positive integer");
         });
 
@@ -40,7 +40,7 @@ describe("Input validation", () => {
             graph.addEdge("C", "A");
 
             // Should not throw
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
             expect(result.communities.length).toBeGreaterThan(0);
         });
     });
@@ -51,7 +51,7 @@ describe("Input validation", () => {
             graph.addEdge("A", "B");
 
             expect(() => {
-                teraHAC(graph, {numClusters: -1});
+                teraHAC(graph, { numClusters: -1 });
             }).toThrow("numClusters must be a positive integer");
         });
 
@@ -60,7 +60,7 @@ describe("Input validation", () => {
             graph.addEdge("A", "B");
 
             expect(() => {
-                teraHAC(graph, {numClusters: 0});
+                teraHAC(graph, { numClusters: 0 });
             }).toThrow("numClusters must be a positive integer");
         });
 
@@ -69,7 +69,7 @@ describe("Input validation", () => {
             graph.addEdge("A", "B");
 
             expect(() => {
-                teraHAC(graph, {numClusters: 1.5});
+                teraHAC(graph, { numClusters: 1.5 });
             }).toThrow("numClusters must be a positive integer");
         });
 
@@ -79,7 +79,7 @@ describe("Input validation", () => {
             graph.addEdge("B", "C");
 
             // Should not throw
-            const result = teraHAC(graph, {numClusters: 2});
+            const result = teraHAC(graph, { numClusters: 2 });
             expect(result.dendrogram).toBeDefined();
         });
 

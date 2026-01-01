@@ -1,13 +1,13 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {Graph} from "../../src/core/graph.js";
-import {syncClustering, type SynCConfig} from "../../src/research/sync.js";
+import { Graph } from "../../src/core/graph.js";
+import { syncClustering, type SynCConfig } from "../../src/research/sync.js";
 
 describe("SynC (Synergistic Deep Graph Clustering)", () => {
     describe("Basic functionality", () => {
         it("should handle empty graph", () => {
             const graph = new Graph();
-            const config: SynCConfig = {numClusters: 1};
+            const config: SynCConfig = { numClusters: 1 };
 
             const result = syncClustering(graph, config);
 
@@ -20,7 +20,7 @@ describe("SynC (Synergistic Deep Graph Clustering)", () => {
         it("should handle single node", () => {
             const graph = new Graph();
             graph.addNode("A");
-            const config: SynCConfig = {numClusters: 1};
+            const config: SynCConfig = { numClusters: 1 };
 
             const result = syncClustering(graph, config);
 
@@ -37,12 +37,12 @@ describe("SynC (Synergistic Deep Graph Clustering)", () => {
 
             // Invalid: 0 clusters
             expect(() => {
-                syncClustering(graph, {numClusters: 0});
+                syncClustering(graph, { numClusters: 0 });
             }).toThrow("Invalid number of clusters");
 
             // Invalid: more clusters than nodes
             expect(() => {
-                syncClustering(graph, {numClusters: 3});
+                syncClustering(graph, { numClusters: 3 });
             }).toThrow("Invalid number of clusters");
         });
     });
@@ -65,7 +65,7 @@ describe("SynC (Synergistic Deep Graph Clustering)", () => {
             graph.addEdge("D", "E");
             graph.addEdge("E", "F");
 
-            const config: SynCConfig = {numClusters: 2, seed: 42};
+            const config: SynCConfig = { numClusters: 2, seed: 42 };
             const result = syncClustering(graph, config);
 
             expect(result.clusters.size).toBe(6);
@@ -90,7 +90,7 @@ describe("SynC (Synergistic Deep Graph Clustering)", () => {
             graph.addNode("C");
             graph.addEdge("A", "B");
 
-            const config: SynCConfig = {numClusters: 2, seed: 42};
+            const config: SynCConfig = { numClusters: 2, seed: 42 };
             const result = syncClustering(graph, config);
 
             const embeddingA = result.embeddings.get("A")!;
@@ -111,8 +111,8 @@ describe("SynC (Synergistic Deep Graph Clustering)", () => {
             graph.addEdge("A", "B");
             graph.addEdge("C", "D");
 
-            const config1: SynCConfig = {numClusters: 2, seed: 123};
-            const config2: SynCConfig = {numClusters: 2, seed: 123};
+            const config1: SynCConfig = { numClusters: 2, seed: 123 };
+            const config2: SynCConfig = { numClusters: 2, seed: 123 };
 
             const result1 = syncClustering(graph, config1);
             const result2 = syncClustering(graph, config2);
@@ -129,7 +129,7 @@ describe("SynC (Synergistic Deep Graph Clustering)", () => {
             graph.addNode("A");
             graph.addNode("B");
 
-            const result = syncClustering(graph, {numClusters: 2});
+            const result = syncClustering(graph, { numClusters: 2 });
 
             expect(result.iterations).toBeGreaterThan(0);
             expect(result.iterations).toBeLessThanOrEqual(100); // default maxIterations
@@ -183,8 +183,8 @@ describe("SynC (Synergistic Deep Graph Clustering)", () => {
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
 
-            const config1: SynCConfig = {numClusters: 2, learningRate: 0.001, seed: 42};
-            const config2: SynCConfig = {numClusters: 2, learningRate: 0.1, seed: 42};
+            const config1: SynCConfig = { numClusters: 2, learningRate: 0.001, seed: 42 };
+            const config2: SynCConfig = { numClusters: 2, learningRate: 0.1, seed: 42 };
 
             const result1 = syncClustering(graph, config1);
             const result2 = syncClustering(graph, config2);
@@ -206,7 +206,7 @@ describe("SynC (Synergistic Deep Graph Clustering)", () => {
                 graph.addEdge("center", leafNode);
             }
 
-            const config: SynCConfig = {numClusters: 2, seed: 42};
+            const config: SynCConfig = { numClusters: 2, seed: 42 };
             const result = syncClustering(graph, config);
 
             expect(result.clusters.size).toBe(7);
@@ -235,7 +235,7 @@ describe("SynC (Synergistic Deep Graph Clustering)", () => {
                 }
             }
 
-            const config: SynCConfig = {numClusters: 2, seed: 42};
+            const config: SynCConfig = { numClusters: 2, seed: 42 };
             const result = syncClustering(graph, config);
 
             expect(result.clusters.size).toBe(4);
@@ -251,7 +251,7 @@ describe("SynC (Synergistic Deep Graph Clustering)", () => {
             graph.addEdge("A", "B", 1.0);
             graph.addEdge("B", "C", 0.1); // Weak connection
 
-            const config: SynCConfig = {numClusters: 2, seed: 42};
+            const config: SynCConfig = { numClusters: 2, seed: 42 };
             const result = syncClustering(graph, config);
 
             expect(result.clusters.size).toBe(3);
@@ -269,13 +269,13 @@ describe("SynC (Synergistic Deep Graph Clustering)", () => {
 
     describe("Edge cases", () => {
         it("should handle graph with self-loops", () => {
-            const graph = new Graph({allowSelfLoops: true});
+            const graph = new Graph({ allowSelfLoops: true });
             graph.addNode("A");
             graph.addNode("B");
             graph.addEdge("A", "A"); // Self-loop
             graph.addEdge("A", "B");
 
-            const config: SynCConfig = {numClusters: 2};
+            const config: SynCConfig = { numClusters: 2 };
 
             expect(() => {
                 syncClustering(graph, config);
@@ -289,7 +289,7 @@ describe("SynC (Synergistic Deep Graph Clustering)", () => {
             graph.addNode("C");
             // No edges - all nodes disconnected
 
-            const config: SynCConfig = {numClusters: 3, seed: 42};
+            const config: SynCConfig = { numClusters: 3, seed: 42 };
             const result = syncClustering(graph, config);
 
             expect(result.clusters.size).toBe(3);
@@ -332,7 +332,7 @@ describe("SynC (Synergistic Deep Graph Clustering)", () => {
             }
 
             const startTime = performance.now();
-            const config: SynCConfig = {numClusters: 5, seed: 42};
+            const config: SynCConfig = { numClusters: 5, seed: 42 };
             const result = syncClustering(graph, config);
             const endTime = performance.now();
 

@@ -1,9 +1,9 @@
-import {chromium} from "playwright";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 
 async function main() {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
     // Capture console messages
@@ -26,11 +26,10 @@ async function main() {
         const graphty = document.createElement("graphty-element");
 
         // Set basic properties
-        graphty.nodeData = [
-            {id: 0}, {id: 1}, {id: 2},
-        ];
+        graphty.nodeData = [{ id: 0 }, { id: 1 }, { id: 2 }];
         graphty.edgeData = [
-            {src: 0, dst: 1}, {src: 1, dst: 2},
+            { src: 0, dst: 1 },
+            { src: 1, dst: 2 },
         ];
 
         graphty.layout = "ngraph";
@@ -48,23 +47,25 @@ async function main() {
         graphty.styleTemplate = {
             graphtyTemplate: true,
             majorVersion: "1",
-            layers: [{
-                node: {
-                    selector: "",
-                    style: {
-                        shape: {type: "sphere", size: 2},
-                        texture: {color: "steelblue"},
+            layers: [
+                {
+                    node: {
+                        selector: "",
+                        style: {
+                            shape: { type: "sphere", size: 2 },
+                            texture: { color: "steelblue" },
+                        },
+                    },
+                    edge: {
+                        selector: "",
+                        style: {
+                            line: { width: 1, color: "lightgray" },
+                        },
                     },
                 },
-                edge: {
-                    selector: "",
-                    style: {
-                        line: {width: 1, color: "lightgray"},
-                    },
-                },
-            }],
+            ],
             graph: {},
-            behavior: {node: {pinOnDrag: true}},
+            behavior: { node: { pinOnDrag: true } },
         };
 
         document.body.appendChild(graphty);

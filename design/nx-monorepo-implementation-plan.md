@@ -17,24 +17,24 @@ See the full decision record in `monorepo-design.md` under "Decision Record: Nx 
 ### Primary Goals
 
 1. **Unified Tooling**
-   - Single set of configurations for TypeScript, ESLint, Vitest, Vite
-   - Shared development dependencies installed once
-   - Consistent build and test commands across all packages
+    - Single set of configurations for TypeScript, ESLint, Vitest, Vite
+    - Shared development dependencies installed once
+    - Consistent build and test commands across all packages
 
 2. **Cross-Dependency Testing**
-   - Test dependent packages without publishing to npm
-   - Automatic detection of affected packages
-   - Local development with live updates between packages
+    - Test dependent packages without publishing to npm
+    - Automatic detection of affected packages
+    - Local development with live updates between packages
 
 3. **Automated Releases**
-   - Replace individual semantic-release with Nx Release
-   - Maintain conventional commits workflow
-   - Automated versioning and publishing from CI/CD
+    - Replace individual semantic-release with Nx Release
+    - Maintain conventional commits workflow
+    - Automated versioning and publishing from CI/CD
 
 4. **Developer Experience**
-   - Easy creation of new packages with consistent structure
-   - Faster builds through caching
-   - Better visibility into project dependencies
+    - Easy creation of new packages with consistent structure
+    - Faster builds through caching
+    - Better visibility into project dependencies
 
 ### Success Metrics
 
@@ -51,6 +51,7 @@ See the full decision record in `monorepo-design.md` under "Decision Record: Nx 
 ## Pre-Implementation Checklist
 
 ### Prerequisites
+
 - [ ] Full backup of repository (see Rollback Plan section)
 - [ ] **Clean up git worktrees** (see Worktree Cleanup section below)
 - [ ] Document current package versions
@@ -65,6 +66,7 @@ See the full decision record in `monorepo-design.md` under "Decision Record: Nx 
 Git worktrees create separate working directories for branches. These must be removed before migration to avoid confusion and data loss during git history preservation.
 
 **Known worktrees to remove:**
+
 - `graphty-element/.worktrees/` - 14 worktrees (ai-interface, algorithms, api-documentation, config, data-loading, edge-data-not-loading, edge-styles, logging, screen-resizing-bug, screenshots, test-consolidation, todo-comments, viewmode, xr-camera)
 - `graphty/.worktrees/` - 6 worktrees (ai-tools, algorithms, data-view, layouts, properties-sidebar, sentry)
 
@@ -153,11 +155,13 @@ chmod +x tools/cleanup-worktrees.sh
 ```
 
 **Run the cleanup:**
+
 ```bash
 ./tools/cleanup-worktrees.sh
 ```
 
 **Important:** Before running cleanup, ensure:
+
 - All worktree branches have been merged to master (or are intentionally abandoned)
 - No uncommitted work exists in any worktree
 - You've pushed any work you want to keep
@@ -166,13 +170,13 @@ chmod +x tools/cleanup-worktrees.sh
 
 Before migration, verify these package-specific requirements are preserved:
 
-| Package | Requirements | Validation |
-|---------|--------------|------------|
-| **algorithms** | TypedFastBitSet dependency | Verify import works after build |
-| **layout** | Dual Node.js + browser builds (ES, CJS, UMD) | Test `require()` and `import` both work |
-| **graphty-element** | Babylon.js peer dependency, Storybook config, visual regression tests, Playwright config | Run Storybook, visual tests pass |
-| **graphty** | React app, Mantine UI, eruda for mobile debugging, private (not published) | Dev server starts, eruda loads |
-| **gpu-3d-force-layout** | WebGPU experimental, may need browser-specific test environment | Tests run in appropriate environment |
+| Package                 | Requirements                                                                             | Validation                              |
+| ----------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------- |
+| **algorithms**          | TypedFastBitSet dependency                                                               | Verify import works after build         |
+| **layout**              | Dual Node.js + browser builds (ES, CJS, UMD)                                             | Test `require()` and `import` both work |
+| **graphty-element**     | Babylon.js peer dependency, Storybook config, visual regression tests, Playwright config | Run Storybook, visual tests pass        |
+| **graphty**             | React app, Mantine UI, eruda for mobile debugging, private (not published)               | Dev server starts, eruda loads          |
+| **gpu-3d-force-layout** | WebGPU experimental, may need browser-specific test environment                          | Tests run in appropriate environment    |
 
 ### Package-Specific Files to Preserve
 
@@ -243,6 +247,7 @@ chmod +x tools/capture-pre-migration-state.sh
 ```
 
 ### Risk Mitigation
+
 - Each phase will be tested before proceeding
 - Original package.json files will be preserved until migration is complete
 - **Full repository archive backup required before starting** (see Rollback Plan section)
@@ -267,13 +272,13 @@ Each phase ends with a **Verification Checkpoint** that must pass before proceed
 
 Each phase verification includes:
 
-| Component | Description |
-|-----------|-------------|
-| **Automated Checks** | Scripts that test technical requirements |
+| Component               | Description                                   |
+| ----------------------- | --------------------------------------------- |
+| **Automated Checks**    | Scripts that test technical requirements      |
 | **Manual Verification** | Steps the user performs and visually confirms |
-| **Expected Outcomes** | What success looks like |
-| **Failure Indicators** | Signs that something went wrong |
-| **Rollback Trigger** | When to stop and revert |
+| **Expected Outcomes**   | What success looks like                       |
+| **Failure Indicators**  | Signs that something went wrong               |
+| **Rollback Trigger**    | When to stop and revert                       |
 
 ### Overall Migration Progress Tracking
 
@@ -489,6 +494,7 @@ Complete these checks manually:
 ### Pre-Flight Rollback Trigger
 
 🛑 **STOP if**:
+
 - Any package tests are failing
 - No backup exists
 - Git working directory has critical uncommitted changes
@@ -781,17 +787,18 @@ Perform these checks yourself:
 
 #### Phase 1 Expected Outcomes
 
-| Check | Expected Result |
-|-------|-----------------|
-| `pnpm --version` | `8.x.x` or higher |
-| `pnpm exec nx --version` | Version string displayed |
-| `ls node_modules/.pnpm` | Directory listing with packages |
-| `cat pnpm-workspace.yaml` | Lists all 5 packages |
-| `cat nx.json` | Valid JSON with configuration |
+| Check                     | Expected Result                 |
+| ------------------------- | ------------------------------- |
+| `pnpm --version`          | `8.x.x` or higher               |
+| `pnpm exec nx --version`  | Version string displayed        |
+| `ls node_modules/.pnpm`   | Directory listing with packages |
+| `cat pnpm-workspace.yaml` | Lists all 5 packages            |
+| `cat nx.json`             | Valid JSON with configuration   |
 
 #### Phase 1 Failure Indicators
 
 🔴 **Something is wrong if**:
+
 - `pnpm: command not found`
 - `nx: command not found` after running through pnpm
 - `node_modules` directory doesn't exist or is empty
@@ -800,6 +807,7 @@ Perform these checks yourself:
 #### Phase 1 Rollback Trigger
 
 🛑 **STOP and rollback if**:
+
 - pnpm install fails repeatedly
 - Nx initialization produces errors that can't be resolved
 - You've spent more than 2 hours troubleshooting this phase
@@ -1116,13 +1124,13 @@ EOF
 
 Each package has a fixed port assignment to avoid conflicts:
 
-| Package | Dev Server | Storybook | Notes |
-|---------|------------|-----------|-------|
-| algorithms | 9000 | - | Library, rarely needs dev server |
-| layout | 9010 | - | Library, rarely needs dev server |
-| graphty-element | 9020 | 9025 | Web component with Storybook |
-| graphty | 9050 | - | React application |
-| gpu-3d-force-layout | 9060 | - | Experimental GPU library |
+| Package             | Dev Server | Storybook | Notes                            |
+| ------------------- | ---------- | --------- | -------------------------------- |
+| algorithms          | 9000       | -         | Library, rarely needs dev server |
+| layout              | 9010       | -         | Library, rarely needs dev server |
+| graphty-element     | 9020       | 9025      | Web component with Storybook     |
+| graphty             | 9050       | -         | React application                |
+| gpu-3d-force-layout | 9060       | -         | Experimental GPU library         |
 
 ```bash
 # Create shared Vite config
@@ -1388,47 +1396,56 @@ chmod +x tools/verify-phase-2.sh
 Perform these checks yourself:
 
 1. **TypeScript config readable**:
-   ```bash
-   cat tsconfig.base.json | jq '.compilerOptions.paths'
-   ```
-   Do you see 5 path mappings for all packages?
+
+    ```bash
+    cat tsconfig.base.json | jq '.compilerOptions.paths'
+    ```
+
+    Do you see 5 path mappings for all packages?
 
 2. **Vitest config exists**:
-   ```bash
-   head -20 tools/vitest/vitest.shared.config.ts
-   ```
-   Does it export a `createVitestConfig` function?
+
+    ```bash
+    head -20 tools/vitest/vitest.shared.config.ts
+    ```
+
+    Does it export a `createVitestConfig` function?
 
 3. **Vite config has port assignments**:
-   ```bash
-   grep -A10 "PORT_ASSIGNMENTS" tools/vite/vite.shared.config.ts
-   ```
-   Do you see ports 9000-9060 assigned?
+
+    ```bash
+    grep -A10 "PORT_ASSIGNMENTS" tools/vite/vite.shared.config.ts
+    ```
+
+    Do you see ports 9000-9060 assigned?
 
 4. **Directory structure**:
-   ```bash
-   tree tools/ -L 2
-   ```
-   Do you see `vitest/` and `vite/` subdirectories?
+
+    ```bash
+    tree tools/ -L 2
+    ```
+
+    Do you see `vitest/` and `vite/` subdirectories?
 
 5. **ESLint base config (flat format)**:
-   ```bash
-   head -30 eslint.config.base.js
-   ```
-   Does it import from `typescript-eslint` and export `createEslintConfig`?
+    ```bash
+    head -30 eslint.config.base.js
+    ```
+    Does it import from `typescript-eslint` and export `createEslintConfig`?
 
 #### Phase 2 Expected Outcomes
 
-| File | Must Contain |
-|------|--------------|
-| `tsconfig.base.json` | `paths` with 5 package mappings |
-| `tools/vitest/vitest.shared.config.ts` | `createVitestConfig` function |
-| `tools/vite/vite.shared.config.ts` | `PORT_ASSIGNMENTS` and `createViteConfig` |
-| `eslint.config.base.js` | `createEslintConfig` function, `tseslint.config()` |
+| File                                   | Must Contain                                       |
+| -------------------------------------- | -------------------------------------------------- |
+| `tsconfig.base.json`                   | `paths` with 5 package mappings                    |
+| `tools/vitest/vitest.shared.config.ts` | `createVitestConfig` function                      |
+| `tools/vite/vite.shared.config.ts`     | `PORT_ASSIGNMENTS` and `createViteConfig`          |
+| `eslint.config.base.js`                | `createEslintConfig` function, `tseslint.config()` |
 
 #### Phase 2 Failure Indicators
 
 🔴 **Something is wrong if**:
+
 - `tsc --showConfig` fails to parse tsconfig.base.json
 - tools/ directory is missing or empty
 - Config files are empty or malformed
@@ -1436,11 +1453,13 @@ Perform these checks yourself:
 #### Phase 2 Rollback Trigger
 
 🛑 **STOP and rollback if**:
+
 - TypeScript refuses to parse the base config
 - You cannot get the shared configs to compile
 - Errors cascade when trying to fix one issue
 
 **Rollback command**:
+
 ```bash
 rm -f tsconfig.base.json eslint.config.base.js
 rm -rf tools/vitest tools/vite
@@ -1739,49 +1758,58 @@ chmod +x tools/verify-phase-3.sh
 Perform these checks yourself:
 
 1. **Verify commit history exists**:
-   ```bash
-   git log --oneline | head -20
-   ```
-   Do you see commits from multiple packages?
+
+    ```bash
+    git log --oneline | head -20
+    ```
+
+    Do you see commits from multiple packages?
 
 2. **Check file history is preserved**:
-   ```bash
-   git log --oneline -- algorithms/src/index.ts | head -5
-   git log --oneline -- layout/src/index.ts | head -5
-   ```
-   Do these show historical commits, not just the merge?
+
+    ```bash
+    git log --oneline -- algorithms/src/index.ts | head -5
+    git log --oneline -- layout/src/index.ts | head -5
+    ```
+
+    Do these show historical commits, not just the merge?
 
 3. **Verify authors are preserved**:
-   ```bash
-   git shortlog -sn | head -10
-   ```
-   Do you see the expected contributors?
+
+    ```bash
+    git shortlog -sn | head -10
+    ```
+
+    Do you see the expected contributors?
 
 4. **Check no nested .git directories**:
-   ```bash
-   find . -name ".git" -type d
-   ```
-   Should show only `./.git`
+
+    ```bash
+    find . -name ".git" -type d
+    ```
+
+    Should show only `./.git`
 
 5. **Verify git blame works**:
-   ```bash
-   git blame algorithms/package.json | head -5
-   ```
-   Do you see actual commit hashes and dates, not all the same?
+    ```bash
+    git blame algorithms/package.json | head -5
+    ```
+    Do you see actual commit hashes and dates, not all the same?
 
 #### Phase 3 Expected Outcomes
 
-| Check | Expected Result |
-|-------|-----------------|
-| `find . -name ".git" -type d` | Only `./.git` |
-| `git log --oneline \| wc -l` | Hundreds of commits (combined history) |
-| `git log --oneline -- algorithms/` | Shows algorithms package history |
-| `git shortlog -sn` | Shows multiple authors |
-| `git blame <any-file>` | Shows varied commit history |
+| Check                              | Expected Result                        |
+| ---------------------------------- | -------------------------------------- |
+| `find . -name ".git" -type d`      | Only `./.git`                          |
+| `git log --oneline \| wc -l`       | Hundreds of commits (combined history) |
+| `git log --oneline -- algorithms/` | Shows algorithms package history       |
+| `git shortlog -sn`                 | Shows multiple authors                 |
+| `git blame <any-file>`             | Shows varied commit history            |
 
 #### Phase 3 Failure Indicators
 
 🔴 **Something is wrong if**:
+
 - Multiple `.git` directories exist
 - `git log` shows only a few commits
 - `git blame` shows all lines from the same commit
@@ -1790,11 +1818,13 @@ Perform these checks yourself:
 #### Phase 3 Rollback Trigger
 
 🛑 **STOP and rollback if**:
+
 - Git history merge fails with conflicts
 - Commits are lost or mangled
 - You cannot recover the original history
 
 **Rollback command**:
+
 ```bash
 # This is a critical phase - restore from backup
 cd ..
@@ -1813,13 +1843,13 @@ cd graphty-monorepo
 
 Packages are migrated **one at a time** in dependency order, with validation gates between each:
 
-| Order | Package | Type | Dependencies | Validation Gate |
-|-------|---------|------|--------------|-----------------|
-| 1 | algorithms | Library | None | Build + Test |
-| 2 | layout | Library | algorithms | Build + Test |
-| 3 | graphty-element | Web Component | algorithms, layout | Build + Test + Storybook |
-| 4 | gpu-3d-force-layout | Library | None | Build + Test |
-| 5 | graphty | React App | graphty-element | Build + Test + Dev Server |
+| Order | Package             | Type          | Dependencies       | Validation Gate           |
+| ----- | ------------------- | ------------- | ------------------ | ------------------------- |
+| 1     | algorithms          | Library       | None               | Build + Test              |
+| 2     | layout              | Library       | algorithms         | Build + Test              |
+| 3     | graphty-element     | Web Component | algorithms, layout | Build + Test + Storybook  |
+| 4     | gpu-3d-force-layout | Library       | None               | Build + Test              |
+| 5     | graphty             | React App     | graphty-element    | Build + Test + Dev Server |
 
 **Important**: Do NOT proceed to the next package until the current package passes all validation gates.
 
@@ -1875,7 +1905,7 @@ function migratePackage(packageName, packagePath) {
         }
       },
       "test:coverage": {
-        "executor": "nx:run-commands", 
+        "executor": "nx:run-commands",
         "options": {
           "command": "vitest run --coverage",
           "cwd": packagePath
@@ -2158,29 +2188,29 @@ export default defineConfig({
 // Apply package-specific configurations
 Object.entries(packageConfigs).forEach(([pkgPath, config]) => {
   const projectJsonPath = path.join(pkgPath, 'project.json');
-  
+
   if (fs.existsSync(projectJsonPath)) {
     let projectJson = JSON.parse(fs.readFileSync(projectJsonPath, 'utf-8'));
-    
+
     // Add additional targets
     if (config.additionalTargets) {
       projectJson.targets = { ...projectJson.targets, ...config.additionalTargets };
     }
-    
+
     // Apply project.json overrides
     if (config.projectJsonOverride) {
       projectJson = { ...projectJson, ...config.projectJsonOverride };
     }
-    
+
     fs.writeFileSync(projectJsonPath, JSON.stringify(projectJson, null, 2));
-    
+
     // Create additional files
     if (config.additionalFiles) {
       Object.entries(config.additionalFiles).forEach(([fileName, content]) => {
         fs.writeFileSync(path.join(pkgPath, fileName), content);
       });
     }
-    
+
     console.log(`✅ Configured package-specific settings for ${pkgPath}`);
   }
 });
@@ -2211,7 +2241,7 @@ const path = require('path');
 
 const packages = [
   'algorithms',
-  'layout', 
+  'layout',
   'graphty-element',
   'graphty',
   'gpu-3d-force-layout'
@@ -2243,13 +2273,13 @@ const rootDevDeps = [
 packages.forEach(pkgPath => {
   const packageJsonPath = path.join(pkgPath, 'package.json');
   const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-  
+
   if (pkg.devDependencies) {
     rootDevDeps.forEach(dep => {
       delete pkg.devDependencies[dep];
     });
   }
-  
+
   fs.writeFileSync(packageJsonPath, JSON.stringify(pkg, null, 2));
   console.log(`✅ Cleaned ${pkgPath}/package.json`);
 });
@@ -2632,53 +2662,62 @@ chmod +x tools/verify-phase-4.sh
 Perform these checks yourself:
 
 1. **Nx shows all projects**:
-   ```bash
-   pnpm exec nx show projects
-   ```
-   Do you see all 5 packages listed?
+
+    ```bash
+    pnpm exec nx show projects
+    ```
+
+    Do you see all 5 packages listed?
 
 2. **Dependency graph looks correct**:
-   ```bash
-   pnpm exec nx graph
-   ```
-   Open in browser - do dependencies flow correctly? (algorithms → layout → graphty-element → graphty)
+
+    ```bash
+    pnpm exec nx graph
+    ```
+
+    Open in browser - do dependencies flow correctly? (algorithms → layout → graphty-element → graphty)
 
 3. **Individual package still works**:
-   ```bash
-   # Pick any package and run its original npm scripts
-   cd algorithms
-   pnpm exec nx run algorithms:build
-   pnpm exec nx run algorithms:test --run
-   cd ..
-   ```
-   Does it behave like before?
+
+    ```bash
+    # Pick any package and run its original npm scripts
+    cd algorithms
+    pnpm exec nx run algorithms:build
+    pnpm exec nx run algorithms:test --run
+    cd ..
+    ```
+
+    Does it behave like before?
 
 4. **Storybook still works (graphty-element)**:
-   ```bash
-   pnpm exec nx run graphty-element:storybook
-   ```
-   Does Storybook launch on port 9025?
+
+    ```bash
+    pnpm exec nx run graphty-element:storybook
+    ```
+
+    Does Storybook launch on port 9025?
 
 5. **Dev server still works (graphty)**:
-   ```bash
-   pnpm exec nx run graphty:dev
-   ```
-   Does the React app launch on port 9050?
+    ```bash
+    pnpm exec nx run graphty:dev
+    ```
+    Does the React app launch on port 9050?
 
 #### Phase 4 Expected Outcomes
 
-| Check | Expected Result |
-|-------|-----------------|
-| `nx show projects` | Lists all 5 packages |
-| `nx run-many -t build --all` | All builds succeed |
-| `nx run-many -t test --all` | All tests pass |
-| `nx graph` | Shows correct dependency graph |
-| Storybook | Launches on port 9025 |
-| graphty dev server | Launches on port 9050 |
+| Check                        | Expected Result                |
+| ---------------------------- | ------------------------------ |
+| `nx show projects`           | Lists all 5 packages           |
+| `nx run-many -t build --all` | All builds succeed             |
+| `nx run-many -t test --all`  | All tests pass                 |
+| `nx graph`                   | Shows correct dependency graph |
+| Storybook                    | Launches on port 9025          |
+| graphty dev server           | Launches on port 9050          |
 
 #### Phase 4 Failure Indicators
 
 🔴 **Something is wrong if**:
+
 - Nx doesn't see one or more projects
 - Builds fail with "cannot find module" errors
 - Tests fail that were passing before
@@ -2687,11 +2726,13 @@ Perform these checks yourself:
 #### Phase 4 Rollback Trigger
 
 🛑 **STOP and rollback if**:
+
 - More than 2 packages fail to build
 - Core functionality is broken (can't run tests)
 - Circular dependency errors appear
 
 **Rollback command** (per-package):
+
 ```bash
 # Revert a single package
 git checkout -- <package>/project.json
@@ -2701,6 +2742,7 @@ git checkout -- <package>/vitest.config.ts
 ```
 
 **Full rollback**:
+
 ```bash
 git checkout -- .
 rm -rf node_modules
@@ -2957,48 +2999,57 @@ chmod +x tools/verify-phase-5.sh
 Perform these checks yourself:
 
 1. **Commitlint works with valid commit**:
-   ```bash
-   echo "feat(algorithms): add new algorithm" | pnpm exec commitlint
-   ```
-   Should pass without errors.
+
+    ```bash
+    echo "feat(algorithms): add new algorithm" | pnpm exec commitlint
+    ```
+
+    Should pass without errors.
 
 2. **Commitlint rejects invalid commit**:
-   ```bash
-   echo "bad commit" | pnpm exec commitlint
-   ```
-   Should fail with an error.
+
+    ```bash
+    echo "bad commit" | pnpm exec commitlint
+    ```
+
+    Should fail with an error.
 
 3. **Nx release dry run shows expected output**:
-   ```bash
-   pnpm exec nx release --dry-run --skip-publish
-   ```
-   Review the output - do version bumps look reasonable?
+
+    ```bash
+    pnpm exec nx release --dry-run --skip-publish
+    ```
+
+    Review the output - do version bumps look reasonable?
 
 4. **Changelog generation preview**:
-   ```bash
-   pnpm exec nx release changelog --dry-run
-   ```
-   Does the changelog format look correct?
+
+    ```bash
+    pnpm exec nx release changelog --dry-run
+    ```
+
+    Does the changelog format look correct?
 
 5. **Husky hooks are executable**:
-   ```bash
-   ls -la .husky/
-   ```
-   Are all hook files executable (have x permission)?
+    ```bash
+    ls -la .husky/
+    ```
+    Are all hook files executable (have x permission)?
 
 #### Phase 5 Expected Outcomes
 
-| Check | Expected Result |
-|-------|-----------------|
-| `jq '.release' nx.json` | Shows release configuration |
-| `commitlint` with valid msg | Passes |
-| `commitlint` with invalid msg | Fails |
-| `nx release --dry-run` | Completes without errors |
-| `.husky/commit-msg` | Exists and is executable |
+| Check                         | Expected Result             |
+| ----------------------------- | --------------------------- |
+| `jq '.release' nx.json`       | Shows release configuration |
+| `commitlint` with valid msg   | Passes                      |
+| `commitlint` with invalid msg | Fails                       |
+| `nx release --dry-run`        | Completes without errors    |
+| `.husky/commit-msg`           | Exists and is executable    |
 
 #### Phase 5 Failure Indicators
 
 🔴 **Something is wrong if**:
+
 - Commitlint accepts invalid commit messages
 - Nx release dry run crashes
 - Husky hooks don't exist
@@ -3006,10 +3057,12 @@ Perform these checks yourself:
 #### Phase 5 Rollback Trigger
 
 🛑 **STOP and rollback if**:
+
 - Cannot get commitlint to work at all
 - Nx release configuration is fundamentally broken
 
 **Rollback command**:
+
 ```bash
 # Remove release-specific files
 rm -f commitlint.config.js
@@ -3329,44 +3382,52 @@ chmod +x tools/verify-phase-6.sh
 Perform these checks yourself:
 
 1. **Workflow files are valid YAML**:
-   ```bash
-   # Install actionlint if available for thorough validation
-   # brew install actionlint (macOS) or go install github.com/rhysd/actionlint/cmd/actionlint@latest
-   actionlint .github/workflows/*.yml 2>/dev/null || echo "actionlint not installed"
-   ```
+
+    ```bash
+    # Install actionlint if available for thorough validation
+    # brew install actionlint (macOS) or go install github.com/rhysd/actionlint/cmd/actionlint@latest
+    actionlint .github/workflows/*.yml 2>/dev/null || echo "actionlint not installed"
+    ```
 
 2. **CI workflow has correct structure**:
-   ```bash
-   cat .github/workflows/ci.yml | head -50
-   ```
-   Does it have jobs for test, build, lint?
+
+    ```bash
+    cat .github/workflows/ci.yml | head -50
+    ```
+
+    Does it have jobs for test, build, lint?
 
 3. **Release workflow triggers on correct branch**:
-   ```bash
-   grep -A5 "on:" .github/workflows/release.yml
-   ```
-   Does it trigger on `master` (or your default branch)?
+
+    ```bash
+    grep -A5 "on:" .github/workflows/release.yml
+    ```
+
+    Does it trigger on `master` (or your default branch)?
 
 4. **Required secrets list**:
-   ```bash
-   grep -h "secrets\." .github/workflows/*.yml | sort -u
-   ```
-   Make a note of secrets you'll need to configure in GitHub.
+
+    ```bash
+    grep -h "secrets\." .github/workflows/*.yml | sort -u
+    ```
+
+    Make a note of secrets you'll need to configure in GitHub.
 
 5. **No syntax errors in workflows**:
-   - Go to GitHub → Actions → Click on any workflow
-   - GitHub will show syntax errors if any exist
+    - Go to GitHub → Actions → Click on any workflow
+    - GitHub will show syntax errors if any exist
 
 #### Phase 6 Expected Outcomes
 
-| File | Must Exist | Must Contain |
-|------|------------|--------------|
-| `.github/workflows/ci.yml` | ✅ | `pnpm/action-setup`, `nx affected` |
-| `.github/workflows/release.yml` | ✅ | `nx release`, `fetch-depth: 0` |
+| File                            | Must Exist | Must Contain                       |
+| ------------------------------- | ---------- | ---------------------------------- |
+| `.github/workflows/ci.yml`      | ✅         | `pnpm/action-setup`, `nx affected` |
+| `.github/workflows/release.yml` | ✅         | `nx release`, `fetch-depth: 0`     |
 
 #### Phase 6 Failure Indicators
 
 🔴 **Something is wrong if**:
+
 - YAML files have syntax errors
 - Workflows reference wrong branches
 - Required actions are missing
@@ -3374,15 +3435,18 @@ Perform these checks yourself:
 #### Phase 6 Rollback Trigger
 
 🛑 **STOP and rollback if**:
+
 - Workflow syntax is fundamentally broken
 - You've accidentally deleted existing workflows
 
 **Rollback command**:
+
 ```bash
 git checkout -- .github/workflows/
 ```
 
 ⚠️ **NOTE**: Full CI/CD testing requires pushing to GitHub. Consider:
+
 1. Creating a `test/ci-migration` branch
 2. Pushing to test workflows
 3. Deleting the branch after verification
@@ -3416,10 +3480,10 @@ packages=("algorithms" "layout" "graphty-element" "graphty" "gpu-3d-force-layout
 for pkg in "${packages[@]}"; do
   echo "✓ Testing $pkg build"
   pnpm exec nx run $pkg:build
-  
+
   echo "✓ Testing $pkg test"
   pnpm exec nx run $pkg:test --run
-  
+
   echo "✓ Testing $pkg lint"
   pnpm exec nx run $pkg:lint
 done
@@ -3462,10 +3526,10 @@ for pkg in "${packages[@]}"; do
   if [ -d "$pkg/dist" ]; then
     # Capture file list and sizes
     find "$pkg/dist" -type f -exec ls -la {} \; > ".migration/build-snapshots/${pkg}-files.txt"
-    
+
     # Capture package.json exports
     jq '.exports' "$pkg/package.json" > ".migration/build-snapshots/${pkg}-exports.json"
-    
+
     # Calculate bundle sizes
     if [ -f "$pkg/dist/${pkg}.js" ]; then
       wc -c "$pkg/dist/${pkg}.js" > ".migration/build-snapshots/${pkg}-es-size.txt"
@@ -3473,7 +3537,7 @@ for pkg in "${packages[@]}"; do
     if [ -f "$pkg/dist/${pkg}.umd.js" ]; then
       wc -c "$pkg/dist/${pkg}.umd.js" > ".migration/build-snapshots/${pkg}-umd-size.txt"
     fi
-    
+
     echo "✅ Captured build outputs for $pkg"
   fi
 done
@@ -3504,9 +3568,9 @@ packages.forEach(({ name, hasUmd, formats }) => {
   const distPath = path.join(name, 'dist');
   const pkgJsonPath = path.join(name, 'package.json');
   const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
-  
+
   console.log(`\nValidating ${name}...`);
-  
+
   // Check ES module
   const esPath = path.join(distPath, `${name}.js`);
   if (!fs.existsSync(esPath)) {
@@ -3525,7 +3589,7 @@ packages.forEach(({ name, hasUmd, formats }) => {
       allValid = false;
     }
   }
-  
+
   // Check CJS if layout package
   if (name === 'layout' && formats.includes('cjs')) {
     const cjsPath = path.join(distPath, `${name}.cjs`);
@@ -3534,7 +3598,7 @@ packages.forEach(({ name, hasUmd, formats }) => {
       allValid = false;
     }
   }
-  
+
   // Check UMD if expected
   if (hasUmd) {
     const umdPath = path.join(distPath, `${name}.umd.js`);
@@ -3543,7 +3607,7 @@ packages.forEach(({ name, hasUmd, formats }) => {
       allValid = false;
     }
   }
-  
+
   // Check TypeScript declarations
   const dtsFiles = fs.readdirSync(distPath).filter(f => f.endsWith('.d.ts'));
   if (dtsFiles.length === 0) {
@@ -3556,14 +3620,14 @@ packages.forEach(({ name, hasUmd, formats }) => {
       allValid = false;
     }
   }
-  
+
   // Check source maps
   const sourceMapFiles = fs.readdirSync(distPath).filter(f => f.endsWith('.map'));
   if (sourceMapFiles.length === 0) {
     errors.push(`Missing source maps in ${distPath}`);
     allValid = false;
   }
-  
+
   // Validate package.json exports field
   if (!pkg.exports) {
     errors.push(`Missing exports field in ${pkgJsonPath}`);
@@ -3582,7 +3646,7 @@ packages.forEach(({ name, hasUmd, formats }) => {
       }
     }
   }
-  
+
   // Compare with pre-migration snapshots if available
   const snapshotDir = '.migration-snapshot';
   const snapshotSizePath = path.join(snapshotDir, `${name}-bundle-sizes.txt`);
@@ -3611,7 +3675,7 @@ packages.forEach(({ name, hasUmd, formats }) => {
       }
     }
   }
-  
+
   if (!errors.find(e => e.includes(name))) {
     console.log(`✅ ${name} build outputs valid`);
   }
@@ -3785,65 +3849,77 @@ chmod +x tools/verify-phase-7.sh
 Perform these comprehensive checks yourself:
 
 1. **Full build succeeds**:
-   ```bash
-   pnpm exec nx run-many -t build --all
-   ```
-   Do all 5 packages build without errors?
+
+    ```bash
+    pnpm exec nx run-many -t build --all
+    ```
+
+    Do all 5 packages build without errors?
 
 2. **All tests pass**:
-   ```bash
-   pnpm exec nx run-many -t test --all -- --run
-   ```
-   Do all tests pass?
+
+    ```bash
+    pnpm exec nx run-many -t test --all -- --run
+    ```
+
+    Do all tests pass?
 
 3. **Storybook works**:
-   ```bash
-   pnpm exec nx run graphty-element:storybook
-   ```
-   - Does Storybook launch?
-   - Can you see components?
-   - Do stories render correctly?
+
+    ```bash
+    pnpm exec nx run graphty-element:storybook
+    ```
+
+    - Does Storybook launch?
+    - Can you see components?
+    - Do stories render correctly?
 
 4. **React app works**:
-   ```bash
-   pnpm exec nx run graphty:dev
-   ```
-   - Does the app start on port 9050?
-   - Does it load correctly in browser?
-   - Are there any console errors?
+
+    ```bash
+    pnpm exec nx run graphty:dev
+    ```
+
+    - Does the app start on port 9050?
+    - Does it load correctly in browser?
+    - Are there any console errors?
 
 5. **Import a built package in Node.js**:
-   ```bash
-   node -e "const algo = require('./algorithms/dist/algorithms.umd.js'); console.log('Loaded:', Object.keys(algo).slice(0,5))"
-   ```
-   Does it load and show exported functions?
+
+    ```bash
+    node -e "const algo = require('./algorithms/dist/algorithms.umd.js'); console.log('Loaded:', Object.keys(algo).slice(0,5))"
+    ```
+
+    Does it load and show exported functions?
 
 6. **Compare with pre-migration**:
-   ```bash
-   # If you captured pre-migration state:
-   diff .migration-snapshot/algorithms-scripts.json <(jq '.scripts' algorithms/package.json)
-   ```
-   Are the scripts equivalent or better?
+    ```bash
+    # If you captured pre-migration state:
+    diff .migration-snapshot/algorithms-scripts.json <(jq '.scripts' algorithms/package.json)
+    ```
+    Are the scripts equivalent or better?
 
 #### Phase 7 Expected Outcomes
 
-| Test | Expected Result |
-|------|-----------------|
-| `nx run-many -t build` | All 5 packages build |
-| `nx run-many -t test` | All tests pass |
-| `nx run-many -t lint` | No errors (warnings OK) |
-| Storybook | Launches and works |
-| graphty dev | Launches and works |
-| Caching | Second build < 10s |
+| Test                   | Expected Result         |
+| ---------------------- | ----------------------- |
+| `nx run-many -t build` | All 5 packages build    |
+| `nx run-many -t test`  | All tests pass          |
+| `nx run-many -t lint`  | No errors (warnings OK) |
+| Storybook              | Launches and works      |
+| graphty dev            | Launches and works      |
+| Caching                | Second build < 10s      |
 
 #### Phase 7 Failure Indicators
 
 🔴 **Critical failures**:
+
 - Any package fails to build
 - Tests that passed before now fail
 - Storybook or dev server won't start
 
 🟠 **Concerning issues**:
+
 - Build outputs significantly different sizes
 - Missing TypeScript declarations
 - Caching not working
@@ -3851,11 +3927,13 @@ Perform these comprehensive checks yourself:
 #### Phase 7 Rollback Trigger
 
 🛑 **STOP and rollback if**:
+
 - More than 1 package has critical failures
 - Functionality that worked before is now broken
 - You cannot resolve issues after 4+ hours
 
 **At this point, rollback means starting over from backup**:
+
 ```bash
 cd ..
 rm -rf graphty-monorepo
@@ -3868,7 +3946,7 @@ tar -xzf $HOME/graphty-backups/graphty-pre-nx-migration-*.tar.gz
 
 ### 8.1 Update Documentation
 
-```bash
+````bash
 # Create migration guide
 cat > MIGRATION.md << 'EOF'
 # Nx Monorepo Migration Guide
@@ -3898,10 +3976,12 @@ pnpm exec nx g @nx/js:lib my-new-package \
   --directory=packages/my-new-package \
   --publishable \
   --importPath=@graphty/my-new-package
-```
+````
 
 ### Releases
+
 Releases are now automated through Nx Release using conventional commits:
+
 - `feat:` commits trigger minor releases
 - `fix:` commits trigger patch releases
 - `feat!:` or `BREAKING CHANGE:` trigger major releases
@@ -3909,17 +3989,21 @@ Releases are now automated through Nx Release using conventional commits:
 ## Troubleshooting
 
 ### Clear Cache
+
 ```bash
 pnpm exec nx reset
 ```
 
 ### Reinstall Dependencies
+
 ```bash
 rm -rf node_modules pnpm-lock.yaml
 pnpm install
 ```
+
 EOF
-```
+
+````
 
 ### 8.2 Clean Up Old Files
 
@@ -3932,7 +4016,7 @@ find . -name "package-lock.json" -delete
 
 # Remove old semantic-release configs
 find . -name ".releaserc*" -delete
-```
+````
 
 ### 8.3 Final Verification
 
@@ -4149,58 +4233,66 @@ chmod +x tools/verify-phase-8-final.sh
 This is your final sign-off checklist. Complete every item:
 
 **Build & Test**
+
 - [ ] `pnpm exec nx run-many -t build --all` - All packages build
 - [ ] `pnpm exec nx run-many -t test --all -- --run` - All tests pass
 - [ ] `pnpm exec nx run-many -t lint --all` - No lint errors
 
 **Functionality**
+
 - [ ] Storybook launches: `pnpm exec nx run graphty-element:storybook`
 - [ ] React app works: `pnpm exec nx run graphty:dev`
 - [ ] Dependency graph correct: `pnpm exec nx graph`
 
 **Release Process**
+
 - [ ] `pnpm exec nx release --dry-run` - Completes without errors
 - [ ] Conventional commits work: `echo "feat(test): msg" | pnpm exec commitlint`
 - [ ] Husky hooks work: Attempt a commit
 
 **Documentation**
+
 - [ ] MIGRATION.md exists and is accurate
 - [ ] README.md updated (if needed)
 - [ ] .migration-progress.md updated
 
 **Cleanup**
+
 - [ ] No package-lock.json files (except maybe root)
 - [ ] No .releaserc files in packages
 - [ ] No orphaned .husky directories in packages
 - [ ] No orphaned .git directories
 
 **Git**
+
 - [ ] All changes reviewed
 - [ ] Commit message follows conventional format
 - [ ] Ready to push to test branch
 
 #### Phase 8 Expected Outcomes
 
-| Item | Status |
-|------|--------|
-| All builds pass | ✅ Required |
-| All tests pass | ✅ Required |
-| Storybook works | ✅ Required |
-| Dev server works | ✅ Required |
-| Release dry-run works | ✅ Required |
-| Documentation complete | ✅ Required |
-| Old files cleaned up | ⚠️ Recommended |
+| Item                   | Status         |
+| ---------------------- | -------------- |
+| All builds pass        | ✅ Required    |
+| All tests pass         | ✅ Required    |
+| Storybook works        | ✅ Required    |
+| Dev server works       | ✅ Required    |
+| Release dry-run works  | ✅ Required    |
+| Documentation complete | ✅ Required    |
+| Old files cleaned up   | ⚠️ Recommended |
 
 #### Phase 8 Rollback Trigger
 
 At this phase, rollback should be rare. However:
 
 🛑 **STOP if**:
+
 - Critical functionality is broken that wasn't caught earlier
 - You discover data loss or corruption
 - CI/CD completely fails after pushing
 
 **Emergency rollback**:
+
 ```bash
 cd ..
 rm -rf graphty-monorepo
@@ -4239,18 +4331,21 @@ Before declaring victory, ensure:
 ## Post-Migration Tasks
 
 ### Week 1 After Migration
+
 - [ ] Monitor CI/CD pipelines for issues
 - [ ] Gather team feedback on new workflows
 - [ ] Document any pain points
 - [ ] Fine-tune cache settings
 
 ### Week 2 After Migration
+
 - [ ] Create custom generators for common patterns
 - [ ] Optimize CI/CD with more parallelization
 - [ ] Remove any remaining duplicate configurations
 - [ ] Fine-tune local cache retention policies
 
 ### Long-term Improvements
+
 - [ ] Gradually adopt more Nx plugins (e.g., @nx/storybook)
 - [ ] Implement stricter project boundaries
 - [ ] Create shared UI component library
@@ -4329,14 +4424,14 @@ git cherry-pick <commit-hash>
 
 Trigger a rollback if any of the following occur:
 
-| Severity | Condition | Action |
-|----------|-----------|--------|
-| **Critical** | All builds fail | Immediate rollback |
-| **Critical** | Unable to publish packages | Immediate rollback |
-| **High** | >50% of tests fail | Rollback within 4 hours |
-| **High** | CI/CD pipeline completely broken | Rollback within 4 hours |
-| **Medium** | Some packages don't build | Attempt fix, rollback after 1 day |
-| **Low** | Minor configuration issues | Fix forward, no rollback |
+| Severity     | Condition                        | Action                            |
+| ------------ | -------------------------------- | --------------------------------- |
+| **Critical** | All builds fail                  | Immediate rollback                |
+| **Critical** | Unable to publish packages       | Immediate rollback                |
+| **High**     | >50% of tests fail               | Rollback within 4 hours           |
+| **High**     | CI/CD pipeline completely broken | Rollback within 4 hours           |
+| **Medium**   | Some packages don't build        | Attempt fix, rollback after 1 day |
+| **Low**      | Minor configuration issues       | Fix forward, no rollback          |
 
 ### Post-Rollback Steps
 
@@ -4366,6 +4461,7 @@ After rolling back:
 5. **Dependencies**: Internal dependencies use workspace protocol
 
 This migration preserves all existing functionality while adding:
+
 - 30-50% faster CI/CD through caching
 - Ability to test affected packages only
 - Unified configuration management

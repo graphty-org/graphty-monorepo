@@ -1,7 +1,7 @@
-import {get as deepGet, set as deepSet} from "lodash";
+import { get as deepGet, set as deepSet } from "lodash";
 import * as z4 from "zod/v4/core";
 
-import {AdHocData, StyleHelpers} from "./config";
+import { AdHocData, StyleHelpers } from "./config";
 
 // interface CalculatedValueNodeData {
 //     style: AdHocData,
@@ -20,7 +20,7 @@ import {AdHocData, StyleHelpers} from "./config";
 /**
  * Expression function type that accepts StyleHelpers and variable arguments.
  */
-type ExpressionFunction = (styleHelpers: typeof StyleHelpers, ... args: unknown[]) => unknown;
+type ExpressionFunction = (styleHelpers: typeof StyleHelpers, ...args: unknown[]) => unknown;
 
 /**
  * Represents a calculated value that computes outputs based on input data.
@@ -37,7 +37,7 @@ export class CalculatedValue {
      * @param output - Output property path where result will be stored
      * @param expr - Expression string or function to compute the output
      */
-    constructor(inputs: string[], output: string, expr: string | ((... args: unknown[]) => unknown)) {
+    constructor(inputs: string[], output: string, expr: string | ((...args: unknown[]) => unknown)) {
         this.inputs = inputs;
         this.output = output;
 
@@ -62,9 +62,11 @@ export class CalculatedValue {
         const isBlockStatement = trimmedExpr.startsWith("{") && trimmedExpr.endsWith("}");
 
         // eslint-disable-next-line @typescript-eslint/no-implied-eval
-        this.exprFn = Function("StyleHelpers", "...args", isBlockStatement ?
-            `const arguments = args; ${trimmedExpr}` :
-            `const arguments = args; return (${expr});`) as ExpressionFunction;
+        this.exprFn = Function(
+            "StyleHelpers",
+            "...args",
+            isBlockStatement ? `const arguments = args; ${trimmedExpr}` : `const arguments = args; return (${expr});`,
+        ) as ExpressionFunction;
     }
 
     /**
@@ -75,7 +77,7 @@ export class CalculatedValue {
     run(data: AdHocData, schema?: z4.$ZodType): void {
         // TODO: inputs can be: style.*, data.*, algorithm.*
         const args = this.inputs.map((i) => deepGet(data, i));
-        let ret = this.exprFn(StyleHelpers, ... args);
+        let ret = this.exprFn(StyleHelpers, ...args);
         if (schema) {
             // @ts-expect-error parse exists on schema, not sure why it isn't found here
             ret = schema.parse(ret);

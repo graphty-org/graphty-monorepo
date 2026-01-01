@@ -1,14 +1,14 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {HITSAlgorithm} from "../../../src/algorithms/HITSAlgorithm";
-import type {AdHocData} from "../../../src/config";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { HITSAlgorithm } from "../../../src/algorithms/HITSAlgorithm";
+import type { AdHocData } from "../../../src/config";
 
 interface MockGraphOpts {
     dataPath?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
     const nodes = new Map<string | number, AdHocData>();
     const edges = new Map<string | number, AdHocData>();
@@ -55,12 +55,12 @@ describe("HITSAlgorithm", () => {
     });
 
     describe("Algorithm Execution", () => {
-        it("exists", async() => {
+        it("exists", async () => {
             new HITSAlgorithm(await mockGraph());
         });
 
-        it("calculates hub and authority scores for all nodes", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("calculates hub and authority scores for all nodes", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new HITSAlgorithm(fakeGraph);
             await algo.run();
 
@@ -81,15 +81,15 @@ describe("HITSAlgorithm", () => {
             }
         });
 
-        it("handles empty graph", async() => {
+        it("handles empty graph", async () => {
             const emptyGraph = await mockGraph();
             const algo = new HITSAlgorithm(emptyGraph);
             await algo.run();
             // Should not throw
         });
 
-        it("computes combined score for visualization", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("computes combined score for visualization", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new HITSAlgorithm(fakeGraph);
             await algo.run();
 
@@ -136,9 +136,7 @@ describe("HITSAlgorithm", () => {
             assert.ok(styles);
 
             const hasHITSInput = styles.layers.some((layer) =>
-                layer.node?.calculatedStyle?.inputs.some((input) =>
-                    input.includes("algorithmResults.graphty.hits"),
-                ),
+                layer.node?.calculatedStyle?.inputs.some((input) => input.includes("algorithmResults.graphty.hits")),
             );
             assert.isTrue(hasHITSInput);
         });

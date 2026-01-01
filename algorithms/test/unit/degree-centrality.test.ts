@@ -1,7 +1,7 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {degreeCentrality, nodeDegreeCentrality} from "../../src/algorithms/centrality/degree.js";
-import {Graph} from "../../src/core/graph.js";
+import { degreeCentrality, nodeDegreeCentrality } from "../../src/algorithms/centrality/degree.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Degree Centrality", () => {
     describe("degreeCentrality", () => {
@@ -29,7 +29,7 @@ describe("Degree Centrality", () => {
             graph.addEdge("center", "b");
             graph.addEdge("center", "c");
 
-            const centrality = degreeCentrality(graph, {normalized: true});
+            const centrality = degreeCentrality(graph, { normalized: true });
 
             expect(centrality.center).toBeCloseTo(1.0); // 3/3 = 1.0
             expect(centrality.a).toBeCloseTo(0.333, 2); // 1/3 ≈ 0.333
@@ -38,13 +38,13 @@ describe("Degree Centrality", () => {
         });
 
         it("should handle directed graph with total degree mode", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
             graph.addEdge("c", "b");
             graph.addEdge("b", "d");
 
-            const centrality = degreeCentrality(graph, {mode: "total"});
+            const centrality = degreeCentrality(graph, { mode: "total" });
 
             expect(centrality.a).toBe(1); // out-degree: 1
             expect(centrality.b).toBe(3); // in-degree: 2, out-degree: 1
@@ -53,13 +53,13 @@ describe("Degree Centrality", () => {
         });
 
         it("should handle directed graph with in-degree mode", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
             graph.addEdge("c", "b");
             graph.addEdge("b", "d");
 
-            const centrality = degreeCentrality(graph, {mode: "in"});
+            const centrality = degreeCentrality(graph, { mode: "in" });
 
             expect(centrality.a).toBe(0);
             expect(centrality.b).toBe(2); // Receives edges from a and c
@@ -68,13 +68,13 @@ describe("Degree Centrality", () => {
         });
 
         it("should handle directed graph with out-degree mode", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
             graph.addEdge("c", "b");
             graph.addEdge("b", "d");
 
-            const centrality = degreeCentrality(graph, {mode: "out"});
+            const centrality = degreeCentrality(graph, { mode: "out" });
 
             expect(centrality.a).toBe(1); // Sends edge to b
             expect(centrality.b).toBe(1); // Sends edge to d
@@ -118,7 +118,7 @@ describe("Degree Centrality", () => {
         });
 
         it("should handle self-loops correctly", () => {
-            const graph = new Graph({allowSelfLoops: true});
+            const graph = new Graph({ allowSelfLoops: true });
 
             graph.addEdge("a", "a"); // Self-loop
             graph.addEdge("a", "b");
@@ -148,7 +148,7 @@ describe("Degree Centrality", () => {
 
             graph.addNode("only");
 
-            const centrality = degreeCentrality(graph, {normalized: true});
+            const centrality = degreeCentrality(graph, { normalized: true });
 
             expect(centrality.only).toBe(0); // 0/0 should be handled gracefully
         });
@@ -158,7 +158,7 @@ describe("Degree Centrality", () => {
 
             graph.addEdge("a", "b");
 
-            const centrality = degreeCentrality(graph, {normalized: true});
+            const centrality = degreeCentrality(graph, { normalized: true });
 
             expect(centrality.a).toBe(1); // 1/1 = 1.0
             expect(centrality.b).toBe(1); // 1/1 = 1.0
@@ -187,21 +187,21 @@ describe("Degree Centrality", () => {
             graph.addEdge("a", "b");
             graph.addEdge("a", "c");
 
-            const centrality = nodeDegreeCentrality(graph, "a", {normalized: true});
+            const centrality = nodeDegreeCentrality(graph, "a", { normalized: true });
 
             expect(centrality).toBe(1.0); // 2/2 = 1.0
         });
 
         it("should handle directed graph modes for specific node", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
             graph.addEdge("c", "b");
             graph.addEdge("b", "d");
 
-            expect(nodeDegreeCentrality(graph, "b", {mode: "in"})).toBe(2);
-            expect(nodeDegreeCentrality(graph, "b", {mode: "out"})).toBe(1);
-            expect(nodeDegreeCentrality(graph, "b", {mode: "total"})).toBe(3);
+            expect(nodeDegreeCentrality(graph, "b", { mode: "in" })).toBe(2);
+            expect(nodeDegreeCentrality(graph, "b", { mode: "out" })).toBe(1);
+            expect(nodeDegreeCentrality(graph, "b", { mode: "total" })).toBe(3);
         });
 
         it("should throw error for non-existent node", () => {
@@ -228,38 +228,38 @@ describe("Degree Centrality", () => {
 
             graph.addNode("only");
 
-            const centrality = nodeDegreeCentrality(graph, "only", {normalized: true});
+            const centrality = nodeDegreeCentrality(graph, "only", { normalized: true });
 
             expect(centrality).toBe(0);
         });
 
         it("should handle self-loops for specific node", () => {
-            const graph = new Graph({allowSelfLoops: true, directed: true});
+            const graph = new Graph({ allowSelfLoops: true, directed: true });
 
             graph.addEdge("a", "a"); // Self-loop
             graph.addEdge("a", "b");
             graph.addEdge("c", "a");
 
-            expect(nodeDegreeCentrality(graph, "a", {mode: "in"})).toBe(2); // Self-loop + from c
-            expect(nodeDegreeCentrality(graph, "a", {mode: "out"})).toBe(2); // Self-loop + to b
-            expect(nodeDegreeCentrality(graph, "a", {mode: "total"})).toBe(4);
+            expect(nodeDegreeCentrality(graph, "a", { mode: "in" })).toBe(2); // Self-loop + from c
+            expect(nodeDegreeCentrality(graph, "a", { mode: "out" })).toBe(2); // Self-loop + to b
+            expect(nodeDegreeCentrality(graph, "a", { mode: "total" })).toBe(4);
         });
     });
 
     describe("normalization", () => {
         it("should normalize correctly for directed and undirected graphs", () => {
-            const undirectedGraph = new Graph({directed: false});
+            const undirectedGraph = new Graph({ directed: false });
             undirectedGraph.addEdge("A", "B");
             undirectedGraph.addEdge("B", "C");
             undirectedGraph.addEdge("C", "A");
 
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addEdge("A", "B");
             directedGraph.addEdge("B", "C");
             directedGraph.addEdge("C", "A");
 
-            const undirResult = degreeCentrality(undirectedGraph, {normalized: true});
-            const dirResult = degreeCentrality(directedGraph, {normalized: true});
+            const undirResult = degreeCentrality(undirectedGraph, { normalized: true });
+            const dirResult = degreeCentrality(directedGraph, { normalized: true });
 
             // Both should have same normalization factor (nodeCount - 1)
             // Undirected: A has degree 2 (edges to B and C), normalized: 2/(3-1) = 1
@@ -269,7 +269,7 @@ describe("Degree Centrality", () => {
             expect(dirResult.A).toBeCloseTo(1, 5);
 
             // To demonstrate the difference, use out-degree mode for directed graph
-            const dirOutResult = degreeCentrality(directedGraph, {normalized: true, mode: "out"});
+            const dirOutResult = degreeCentrality(directedGraph, { normalized: true, mode: "out" });
             // A has out-degree 1 (to B), normalized: 1/(3-1) = 0.5
             expect(dirOutResult.A).toBeCloseTo(0.5, 5);
         });
@@ -277,7 +277,7 @@ describe("Degree Centrality", () => {
 
     describe("edge cases", () => {
         it("should handle graph with only self-loops", () => {
-            const graph = new Graph({allowSelfLoops: true});
+            const graph = new Graph({ allowSelfLoops: true });
 
             graph.addEdge("a", "a");
             graph.addEdge("b", "b");
@@ -303,7 +303,7 @@ describe("Degree Centrality", () => {
                 }
             }
 
-            const centrality = degreeCentrality(graph, {normalized: true});
+            const centrality = degreeCentrality(graph, { normalized: true });
 
             // Each node connected to all others
             for (const node of nodes) {
@@ -346,15 +346,15 @@ describe("Degree Centrality", () => {
 
             graph.addNode("only");
 
-            const centrality = degreeCentrality(graph, {normalized: true});
+            const centrality = degreeCentrality(graph, { normalized: true });
 
             // Should handle division by zero gracefully
             expect(centrality.only).toBe(0);
         });
 
         it("should maintain consistency between undirected and directed default behavior", () => {
-            const undirectedGraph = new Graph({directed: false});
-            const directedGraph = new Graph({directed: true});
+            const undirectedGraph = new Graph({ directed: false });
+            const directedGraph = new Graph({ directed: true });
 
             // Same edges added to both
             undirectedGraph.addEdge("a", "b");

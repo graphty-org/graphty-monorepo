@@ -1,13 +1,13 @@
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {CSVDataSource} from "../../src/data/CSVDataSource.js";
+import { CSVDataSource } from "../../src/data/CSVDataSource.js";
 
 describe("CSVDataSource edge creation", () => {
-    test("creates edge with all properties preserved", async() => {
+    test("creates edge with all properties preserved", async () => {
         const csv = `source,target,weight,type,color
 n1,n2,1.5,friend,#ff0000`;
 
-        const source = new CSVDataSource({data: csv});
+        const source = new CSVDataSource({ data: csv });
         const chunks = [];
         for await (const chunk of source.getData()) {
             chunks.push(chunk);
@@ -21,12 +21,12 @@ n1,n2,1.5,friend,#ff0000`;
         assert.strictEqual(edge.color, "#ff0000");
     });
 
-    test("handles missing source gracefully", async() => {
+    test("handles missing source gracefully", async () => {
         const csv = `source,target
 ,n2
 n3,n4`;
 
-        const source = new CSVDataSource({data: csv});
+        const source = new CSVDataSource({ data: csv });
         const chunks = [];
         for await (const chunk of source.getData()) {
             chunks.push(chunk);
@@ -41,12 +41,12 @@ n3,n4`;
         assert.include(errors[0].message, "Missing source");
     });
 
-    test("handles missing target gracefully", async() => {
+    test("handles missing target gracefully", async () => {
         const csv = `source,target
 n1,
 n3,n4`;
 
-        const source = new CSVDataSource({data: csv});
+        const source = new CSVDataSource({ data: csv });
         const chunks = [];
         for await (const chunk of source.getData()) {
             chunks.push(chunk);
@@ -60,12 +60,12 @@ n3,n4`;
         assert.include(errors[0].message, "Missing target");
     });
 
-    test("converts source and target to strings", async() => {
+    test("converts source and target to strings", async () => {
         const csv = `source,target
 123,456
 true,false`;
 
-        const source = new CSVDataSource({data: csv});
+        const source = new CSVDataSource({ data: csv });
         const chunks = [];
         for await (const chunk of source.getData()) {
             chunks.push(chunk);

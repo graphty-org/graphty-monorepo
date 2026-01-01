@@ -5,6 +5,7 @@
 This implementation plan transforms the existing monolithic XR implementation (`src/xr-button.ts`) into a clean, modular architecture that follows the established `CameraController` and `InputHandler` patterns. The implementation will enable users to experience graph visualizations in immersive VR and AR environments using Meta Quest, Apple Vision Pro, and Android XR devices.
 
 **Key Objectives**:
+
 - Refactor XR code to match existing camera architecture patterns
 - Support VR and AR modes with configurable UI
 - Enable interactions (select, drag, zoom, pan, rotate) via controllers and hand tracking
@@ -26,344 +27,344 @@ This implementation plan transforms the existing monolithic XR implementation (`
 **Tests to Write First**:
 
 1. **`test/xr/XRSessionManager.test.ts`**: Session lifecycle testing
-   ```typescript
-   import { describe, test, beforeEach, afterEach } from "vitest";
-   import { assert } from "chai";
-   import { NullEngine, Scene } from "@babylonjs/core";
-   import { XRSessionManager } from "../../src/xr/XRSessionManager";
 
-   describe("XRSessionManager", () => {
-     let engine: NullEngine;
-     let scene: Scene;
-     let manager: XRSessionManager;
+    ```typescript
+    import { describe, test, beforeEach, afterEach } from "vitest";
+    import { assert } from "chai";
+    import { NullEngine, Scene } from "@babylonjs/core";
+    import { XRSessionManager } from "../../src/xr/XRSessionManager";
 
-     beforeEach(() => {
-       engine = new NullEngine();
-       scene = new Scene(engine);
-       manager = new XRSessionManager(scene, {
-         vr: { enabled: true, referenceSpaceType: "local-floor" },
-         ar: { enabled: true, referenceSpaceType: "local-floor" }
-       });
-     });
+    describe("XRSessionManager", () => {
+        let engine: NullEngine;
+        let scene: Scene;
+        let manager: XRSessionManager;
 
-     afterEach(() => {
-       manager.dispose();
-       scene.dispose();
-       engine.dispose();
-     });
+        beforeEach(() => {
+            engine = new NullEngine();
+            scene = new Scene(engine);
+            manager = new XRSessionManager(scene, {
+                vr: { enabled: true, referenceSpaceType: "local-floor" },
+                ar: { enabled: true, referenceSpaceType: "local-floor" },
+            });
+        });
 
-     test("should initialize without WebXR support", () => {
-       // Mock navigator.xr as undefined
-       assert.isFalse(manager.isXRSupported());
-     });
+        afterEach(() => {
+            manager.dispose();
+            scene.dispose();
+            engine.dispose();
+        });
 
-     test("should handle VR session initialization (mocked)", async () => {
-       // Mock WebXR availability
-       // Verify session state transitions
-     });
+        test("should initialize without WebXR support", () => {
+            // Mock navigator.xr as undefined
+            assert.isFalse(manager.isXRSupported());
+        });
 
-     test("should handle AR session initialization (mocked)", async () => {
-       // Test AR-specific initialization
-     });
+        test("should handle VR session initialization (mocked)", async () => {
+            // Mock WebXR availability
+            // Verify session state transitions
+        });
 
-     test("should cleanup resources on session end", async () => {
-       // Verify proper disposal
-     });
+        test("should handle AR session initialization (mocked)", async () => {
+            // Test AR-specific initialization
+        });
 
-     test("should transfer camera position in AR mode", async () => {
-       // Test camera position transfer logic
-     });
-   });
-   ```
+        test("should cleanup resources on session end", async () => {
+            // Verify proper disposal
+        });
+
+        test("should transfer camera position in AR mode", async () => {
+            // Test camera position transfer logic
+        });
+    });
+    ```
 
 2. **`test/ui/XRUIManager.test.ts`**: UI button rendering and behavior
-   ```typescript
-   import { describe, test, beforeEach, afterEach } from "vitest";
-   import { assert } from "chai";
-   import { XRUIManager } from "../../src/ui/XRUIManager";
 
-   describe("XRUIManager", () => {
-     let container: HTMLElement;
-     let uiManager: XRUIManager;
+    ```typescript
+    import { describe, test, beforeEach, afterEach } from "vitest";
+    import { assert } from "chai";
+    import { XRUIManager } from "../../src/ui/XRUIManager";
 
-     beforeEach(() => {
-       container = document.createElement("div");
-       document.body.appendChild(container);
-     });
+    describe("XRUIManager", () => {
+        let container: HTMLElement;
+        let uiManager: XRUIManager;
 
-     afterEach(() => {
-       uiManager?.dispose();
-       container.remove();
-     });
+        beforeEach(() => {
+            container = document.createElement("div");
+            document.body.appendChild(container);
+        });
 
-     test("should render unavailable message when XR not supported", () => {
-       uiManager = new XRUIManager(container, false, false, {
-         enabled: true,
-         position: "bottom-left",
-         unavailableMessageDuration: 5000
-       });
+        afterEach(() => {
+            uiManager?.dispose();
+            container.remove();
+        });
 
-       const message = container.querySelector(".webxr-not-available");
-       assert.exists(message);
-       assert.include(message?.textContent, "NOT AVAILABLE");
-     });
+        test("should render unavailable message when XR not supported", () => {
+            uiManager = new XRUIManager(container, false, false, {
+                enabled: true,
+                position: "bottom-left",
+                unavailableMessageDuration: 5000,
+            });
 
-     test("should render VR and AR buttons when available", () => {
-       uiManager = new XRUIManager(container, true, true, {
-         enabled: true,
-         position: "bottom-left"
-       });
+            const message = container.querySelector(".webxr-not-available");
+            assert.exists(message);
+            assert.include(message?.textContent, "NOT AVAILABLE");
+        });
 
-       const vrButton = container.querySelector("[data-xr-mode='immersive-vr']");
-       const arButton = container.querySelector("[data-xr-mode='immersive-ar']");
-       assert.exists(vrButton);
-       assert.exists(arButton);
-     });
+        test("should render VR and AR buttons when available", () => {
+            uiManager = new XRUIManager(container, true, true, {
+                enabled: true,
+                position: "bottom-left",
+            });
 
-     test("should position buttons according to config", () => {
-       uiManager = new XRUIManager(container, true, true, {
-         enabled: true,
-         position: "top-right"
-       });
+            const vrButton = container.querySelector("[data-xr-mode='immersive-vr']");
+            const arButton = container.querySelector("[data-xr-mode='immersive-ar']");
+            assert.exists(vrButton);
+            assert.exists(arButton);
+        });
 
-       const overlay = container.querySelector(".xr-button-overlay");
-       const styles = window.getComputedStyle(overlay as Element);
-       assert.include(styles.cssText, "top");
-       assert.include(styles.cssText, "right");
-     });
+        test("should position buttons according to config", () => {
+            uiManager = new XRUIManager(container, true, true, {
+                enabled: true,
+                position: "top-right",
+            });
 
-     test("should remove unavailable message after timeout", async () => {
-       // Test message auto-removal after 5 seconds
-     });
-   });
-   ```
+            const overlay = container.querySelector(".xr-button-overlay");
+            const styles = window.getComputedStyle(overlay as Element);
+            assert.include(styles.cssText, "top");
+            assert.include(styles.cssText, "right");
+        });
+
+        test("should remove unavailable message after timeout", async () => {
+            // Test message auto-removal after 5 seconds
+        });
+    });
+    ```
 
 3. **`test/visual/xr-ui.spec.ts`**: Visual regression tests for UI
-   ```typescript
-   import { test, expect } from "vitest";
-   import { page } from "@vitest/browser/context";
 
-   test("XR buttons render in bottom-left corner", async () => {
-     await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-ui--default");
-     await page.waitForSelector(".xr-button-overlay");
+    ```typescript
+    import { test, expect } from "vitest";
+    import { page } from "@vitest/browser/context";
 
-     const screenshot = await page.screenshot();
-     expect(screenshot).toMatchSnapshot("xr-buttons-bottom-left.png");
-   });
+    test("XR buttons render in bottom-left corner", async () => {
+        await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-ui--default");
+        await page.waitForSelector(".xr-button-overlay");
 
-   test("unavailable message displays correctly", async () => {
-     await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-ui--unavailable");
+        const screenshot = await page.screenshot();
+        expect(screenshot).toMatchSnapshot("xr-buttons-bottom-left.png");
+    });
 
-     const message = page.locator(".webxr-not-available");
-     await expect(message).toBeVisible();
+    test("unavailable message displays correctly", async () => {
+        await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-ui--unavailable");
 
-     const screenshot = await page.screenshot();
-     expect(screenshot).toMatchSnapshot("xr-unavailable.png");
-   });
-   ```
+        const message = page.locator(".webxr-not-available");
+        await expect(message).toBeVisible();
+
+        const screenshot = await page.screenshot();
+        expect(screenshot).toMatchSnapshot("xr-unavailable.png");
+    });
+    ```
 
 **Implementation**:
 
 1. **`src/xr/XRSessionManager.ts`**: Core session lifecycle management
-   ```typescript
-   import { Scene, WebXRDefaultExperience, Camera } from "@babylonjs/core";
 
-   export interface XRSessionConfig {
-     vr: {
-       enabled: boolean;
-       referenceSpaceType: XRReferenceSpaceType;
-       optionalFeatures?: string[];
-     };
-     ar: {
-       enabled: boolean;
-       referenceSpaceType: XRReferenceSpaceType;
-       optionalFeatures?: string[];
-     };
-   }
+    ```typescript
+    import { Scene, WebXRDefaultExperience, Camera } from "@babylonjs/core";
 
-   export class XRSessionManager {
-     private scene: Scene;
-     private config: XRSessionConfig;
-     private xrHelper: WebXRDefaultExperience | null = null;
-     private activeMode: "immersive-vr" | "immersive-ar" | null = null;
+    export interface XRSessionConfig {
+        vr: {
+            enabled: boolean;
+            referenceSpaceType: XRReferenceSpaceType;
+            optionalFeatures?: string[];
+        };
+        ar: {
+            enabled: boolean;
+            referenceSpaceType: XRReferenceSpaceType;
+            optionalFeatures?: string[];
+        };
+    }
 
-     constructor(scene: Scene, config: XRSessionConfig) {
-       this.scene = scene;
-       this.config = config;
-     }
+    export class XRSessionManager {
+        private scene: Scene;
+        private config: XRSessionConfig;
+        private xrHelper: WebXRDefaultExperience | null = null;
+        private activeMode: "immersive-vr" | "immersive-ar" | null = null;
 
-     public isXRSupported(): boolean {
-       return !!navigator.xr;
-     }
+        constructor(scene: Scene, config: XRSessionConfig) {
+            this.scene = scene;
+            this.config = config;
+        }
 
-     public async enterVR(previousCamera?: Camera): Promise<void> {
-       // Initialize WebXR with VR mode
-       // Transfer camera position if needed
-       // Set activeMode
-     }
+        public isXRSupported(): boolean {
+            return !!navigator.xr;
+        }
 
-     public async enterAR(previousCamera?: Camera): Promise<void> {
-       // Initialize WebXR with AR mode
-       // Always transfer camera position for AR
-       // Set activeMode
-     }
+        public async enterVR(previousCamera?: Camera): Promise<void> {
+            // Initialize WebXR with VR mode
+            // Transfer camera position if needed
+            // Set activeMode
+        }
 
-     public async exitXR(): Promise<void> {
-       // Cleanup XR session
-       // Reset activeMode
-     }
+        public async enterAR(previousCamera?: Camera): Promise<void> {
+            // Initialize WebXR with AR mode
+            // Always transfer camera position for AR
+            // Set activeMode
+        }
 
-     public getXRCamera(): Camera | null {
-       return this.xrHelper?.baseExperience.camera ?? null;
-     }
+        public async exitXR(): Promise<void> {
+            // Cleanup XR session
+            // Reset activeMode
+        }
 
-     public dispose(): void {
-       // Cleanup all XR resources
-     }
-   }
-   ```
+        public getXRCamera(): Camera | null {
+            return this.xrHelper?.baseExperience.camera ?? null;
+        }
+
+        public dispose(): void {
+            // Cleanup all XR resources
+        }
+    }
+    ```
 
 2. **`src/ui/XRUIManager.ts`**: Button rendering and positioning
-   ```typescript
-   export interface XRUIConfig {
-     enabled: boolean;
-     position: "bottom-left" | "bottom-right" | "top-left" | "top-right";
-     customStyles?: string;
-     unavailableMessageDuration: number;
-   }
 
-   export class XRUIManager {
-     private container: HTMLElement;
-     private overlay: HTMLElement | null = null;
-     private config: XRUIConfig;
+    ```typescript
+    export interface XRUIConfig {
+        enabled: boolean;
+        position: "bottom-left" | "bottom-right" | "top-left" | "top-right";
+        customStyles?: string;
+        unavailableMessageDuration: number;
+    }
 
-     constructor(
-       container: HTMLElement,
-       vrAvailable: boolean,
-       arAvailable: boolean,
-       config: XRUIConfig
-     ) {
-       this.container = container;
-       this.config = config;
+    export class XRUIManager {
+        private container: HTMLElement;
+        private overlay: HTMLElement | null = null;
+        private config: XRUIConfig;
 
-       if (!config.enabled) return;
+        constructor(container: HTMLElement, vrAvailable: boolean, arAvailable: boolean, config: XRUIConfig) {
+            this.container = container;
+            this.config = config;
 
-       this.createOverlay();
+            if (!config.enabled) return;
 
-       if (!vrAvailable && !arAvailable) {
-         this.showUnavailableMessage();
-       } else {
-         if (vrAvailable) this.createButton("VR", "immersive-vr");
-         if (arAvailable) this.createButton("AR", "immersive-ar");
-       }
-     }
+            this.createOverlay();
 
-     private createOverlay(): void {
-       // Create positioned overlay container
-     }
+            if (!vrAvailable && !arAvailable) {
+                this.showUnavailableMessage();
+            } else {
+                if (vrAvailable) this.createButton("VR", "immersive-vr");
+                if (arAvailable) this.createButton("AR", "immersive-ar");
+            }
+        }
 
-     private createButton(label: string, mode: XRSessionMode): HTMLButtonElement {
-       // Create styled button element
-       // Extract and refactor from xr-button.ts
-     }
+        private createOverlay(): void {
+            // Create positioned overlay container
+        }
 
-     private showUnavailableMessage(): void {
-       // Show message with auto-removal timeout
-     }
+        private createButton(label: string, mode: XRSessionMode): HTMLButtonElement {
+            // Create styled button element
+            // Extract and refactor from xr-button.ts
+        }
 
-     public dispose(): void {
-       this.overlay?.remove();
-     }
-   }
-   ```
+        private showUnavailableMessage(): void {
+            // Show message with auto-removal timeout
+        }
+
+        public dispose(): void {
+            this.overlay?.remove();
+        }
+    }
+    ```
 
 3. **`stories/XR/SessionLifecycle.stories.ts`**: Interactive Storybook story
-   ```typescript
-   import type { Meta, StoryObj } from "@storybook/web-components";
-   import { html } from "lit";
-   import "../../src/graphty-element";
 
-   const meta: Meta = {
-     title: "XR/Session Lifecycle",
-     component: "graphty-element",
-   };
+    ```typescript
+    import type { Meta, StoryObj } from "@storybook/web-components";
+    import { html } from "lit";
+    import "../../src/graphty-element";
 
-   export default meta;
+    const meta: Meta = {
+        title: "XR/Session Lifecycle",
+        component: "graphty-element",
+    };
 
-   export const BasicVRSession: StoryObj = {
-     render: () => html`
-       <graphty-element
-         .data=${{
-           nodes: [
-             { id: "1", label: "Node 1" },
-             { id: "2", label: "Node 2" },
-             { id: "3", label: "Node 3" }
-           ],
-           edges: [
-             { source: "1", target: "2" },
-             { source: "2", target: "3" }
-           ]
-         }}
-         .config=${{
-           camera: { type: "orbit" },
-           xr: {
-             enabled: true,
-             ui: { enabled: true, position: "bottom-left" }
-           }
-         }}
-       ></graphty-element>
-     `,
-   };
+    export default meta;
 
-   export const ARSession: StoryObj = {
-     render: () => html`
-       <!-- Similar but highlights AR mode -->
-     `,
-   };
+    export const BasicVRSession: StoryObj = {
+        render: () => html`
+            <graphty-element
+                .data=${{
+                    nodes: [
+                        { id: "1", label: "Node 1" },
+                        { id: "2", label: "Node 2" },
+                        { id: "3", label: "Node 3" },
+                    ],
+                    edges: [
+                        { source: "1", target: "2" },
+                        { source: "2", target: "3" },
+                    ],
+                }}
+                .config=${{
+                    camera: { type: "orbit" },
+                    xr: {
+                        enabled: true,
+                        ui: { enabled: true, position: "bottom-left" },
+                    },
+                }}
+            ></graphty-element>
+        `,
+    };
 
-   export const XRUnavailable: StoryObj = {
-     render: () => html`
-       <!-- Shows unavailable message (for non-XR browsers) -->
-     `,
-   };
-   ```
+    export const ARSession: StoryObj = {
+        render: () => html` <!-- Similar but highlights AR mode --> `,
+    };
+
+    export const XRUnavailable: StoryObj = {
+        render: () => html` <!-- Shows unavailable message (for non-XR browsers) --> `,
+    };
+    ```
 
 4. **Integration in `src/graph/Graph.ts`**:
-   ```typescript
-   // In Graph class constructor or initialization
-   import { XRSessionManager } from "../xr/XRSessionManager";
-   import { XRUIManager } from "../ui/XRUIManager";
 
-   private xrSessionManager: XRSessionManager | null = null;
-   private xrUIManager: XRUIManager | null = null;
+    ```typescript
+    // In Graph class constructor or initialization
+    import { XRSessionManager } from "../xr/XRSessionManager";
+    import { XRUIManager } from "../ui/XRUIManager";
 
-   private initializeXR(): void {
-     const xrConfig = this.config.xr; // From config
+    private xrSessionManager: XRSessionManager | null = null;
+    private xrUIManager: XRUIManager | null = null;
 
-     this.xrSessionManager = new XRSessionManager(this.scene, {
-       vr: xrConfig.vr,
-       ar: xrConfig.ar
-     });
+    private initializeXR(): void {
+      const xrConfig = this.config.xr; // From config
 
-     const vrAvailable = this.xrSessionManager.isXRSupported() && xrConfig.vr.enabled;
-     const arAvailable = this.xrSessionManager.isXRSupported() && xrConfig.ar.enabled;
+      this.xrSessionManager = new XRSessionManager(this.scene, {
+        vr: xrConfig.vr,
+        ar: xrConfig.ar
+      });
 
-     this.xrUIManager = new XRUIManager(
-       this.canvasContainer,
-       vrAvailable,
-       arAvailable,
-       xrConfig.ui
-     );
+      const vrAvailable = this.xrSessionManager.isXRSupported() && xrConfig.vr.enabled;
+      const arAvailable = this.xrSessionManager.isXRSupported() && xrConfig.ar.enabled;
 
-     // Wire up button click handlers (done in XRUIManager or here)
-   }
-   ```
+      this.xrUIManager = new XRUIManager(
+        this.canvasContainer,
+        vrAvailable,
+        arAvailable,
+        xrConfig.ui
+      );
+
+      // Wire up button click handlers (done in XRUIManager or here)
+    }
+    ```
 
 **Dependencies**:
+
 - **External**: None (uses existing BabylonJS)
 - **Internal**: Refactored code from `src/xr-button.ts`
 
 **Verification**:
+
 1. Run: `npm run storybook`
 2. Navigate to "XR/Session Lifecycle" story
 3. Expected: See VR/AR buttons in bottom-left corner (or "NOT AVAILABLE" message)
@@ -379,33 +380,34 @@ This implementation plan transforms the existing monolithic XR implementation (`
 **XR Button Styling** follows web component best practices using CSS Custom Properties and `::part()` selectors:
 
 1. **CSS Custom Properties** (14 available variables):
-   - Button base: `--xr-button-font-family`, `--xr-button-font-size`, `--xr-button-font-weight`, `--xr-button-color`, `--xr-button-border-width`, `--xr-button-border-color`, `--xr-button-padding`, `--xr-button-margin-left`, `--xr-button-border-radius`
-   - Available state: `--xr-available-bg` (default: black), `--xr-available-box-shadow`
-   - Unavailable state: `--xr-unavailable-bg` (default: grey), `--xr-unavailable-box-shadow`
-   - Presenting state: `--xr-presenting-bg` (default: red), `--xr-presenting-prefix` (default: "EXIT ")
-   - Overlay: `--xr-overlay-gap`, `--xr-overlay-z-index`, `--xr-overlay-offset-vertical`, `--xr-overlay-offset-horizontal`
+    - Button base: `--xr-button-font-family`, `--xr-button-font-size`, `--xr-button-font-weight`, `--xr-button-color`, `--xr-button-border-width`, `--xr-button-border-color`, `--xr-button-padding`, `--xr-button-margin-left`, `--xr-button-border-radius`
+    - Available state: `--xr-available-bg` (default: black), `--xr-available-box-shadow`
+    - Unavailable state: `--xr-unavailable-bg` (default: grey), `--xr-unavailable-box-shadow`
+    - Presenting state: `--xr-presenting-bg` (default: red), `--xr-presenting-prefix` (default: "EXIT ")
+    - Overlay: `--xr-overlay-gap`, `--xr-overlay-z-index`, `--xr-overlay-offset-vertical`, `--xr-overlay-offset-horizontal`
 
 2. **::part() Selectors** (5 available parts):
-   - `xr-overlay` - The button container overlay
-   - `xr-button` - All XR buttons (common styles)
-   - `xr-vr-button` - VR button specifically
-   - `xr-ar-button` - AR button specifically
-   - `xr-unavailable-message` - The "VR / AR NOT AVAILABLE" message
+    - `xr-overlay` - The button container overlay
+    - `xr-button` - All XR buttons (common styles)
+    - `xr-vr-button` - VR button specifically
+    - `xr-ar-button` - AR button specifically
+    - `xr-unavailable-message` - The "VR / AR NOT AVAILABLE" message
 
 3. **Example Usage**:
-   ```css
-   /* Method 1: CSS Custom Properties (Recommended) */
-   graphty-element {
-     --xr-button-color: gold;
-     --xr-button-border-color: gold;
-     --xr-available-bg: purple;
-   }
 
-   /* Method 2: ::part() Selectors (Advanced) */
-   graphty-element::part(xr-vr-button) {
-     background: linear-gradient(45deg, purple, blue);
-   }
-   ```
+    ```css
+    /* Method 1: CSS Custom Properties (Recommended) */
+    graphty-element {
+        --xr-button-color: gold;
+        --xr-button-border-color: gold;
+        --xr-available-bg: purple;
+    }
+
+    /* Method 2: ::part() Selectors (Advanced) */
+    graphty-element::part(xr-vr-button) {
+        background: linear-gradient(45deg, purple, blue);
+    }
+    ```
 
 4. **Default Styling**: Buttons use the original black background, white text, white border design. No inline styles are used - all styling is done via CSS classes and custom properties.
 
@@ -420,6 +422,7 @@ This implementation plan transforms the existing monolithic XR implementation (`
 **Critical Architectural Decision**:
 
 The existing `NodeBehavior.ts` provides:
+
 - `SixDofDragBehavior` for 6-DOF node dragging
 - Drag state management (`node.dragging`, `node.pinOnDrag`)
 - Layout engine integration (`setNodePosition`)
@@ -430,493 +433,491 @@ The existing `NodeBehavior.ts` provides:
 **Tests to Write First**:
 
 1. **`test/NodeBehavior-xr-compatibility.test.ts`**: Verify existing behaviors work in XR
-   ```typescript
-   import { describe, test, beforeEach, afterEach } from "vitest";
-   import { assert } from "chai";
-   import { NullEngine, Scene, MeshBuilder, Vector3 } from "@babylonjs/core";
-   import { NodeBehavior } from "../src/NodeBehavior";
-   import { Node as GraphNode } from "../src/Node";
 
-   describe("NodeBehavior XR Compatibility", () => {
-     let engine: NullEngine;
-     let scene: Scene;
-     let node: GraphNode;
+    ```typescript
+    import { describe, test, beforeEach, afterEach } from "vitest";
+    import { assert } from "chai";
+    import { NullEngine, Scene, MeshBuilder, Vector3 } from "@babylonjs/core";
+    import { NodeBehavior } from "../src/NodeBehavior";
+    import { Node as GraphNode } from "../src/Node";
 
-     beforeEach(() => {
-       engine = new NullEngine();
-       scene = new Scene(engine);
-       // Create mock graph node
-       node = createMockNode(scene);
-     });
+    describe("NodeBehavior XR Compatibility", () => {
+        let engine: NullEngine;
+        let scene: Scene;
+        let node: GraphNode;
 
-     afterEach(() => {
-       scene.dispose();
-       engine.dispose();
-     });
+        beforeEach(() => {
+            engine = new NullEngine();
+            scene = new Scene(engine);
+            // Create mock graph node
+            node = createMockNode(scene);
+        });
 
-     test("SixDofDragBehavior should be attachable in XR context", () => {
-       NodeBehavior.addDefaultBehaviors(node);
+        afterEach(() => {
+            scene.dispose();
+            engine.dispose();
+        });
 
-       assert.exists(node.meshDragBehavior);
-       assert.isTrue(node.mesh.isPickable);
-     });
+        test("SixDofDragBehavior should be attachable in XR context", () => {
+            NodeBehavior.addDefaultBehaviors(node);
 
-     test("drag behavior should set node.dragging flag", () => {
-       NodeBehavior.addDefaultBehaviors(node);
+            assert.exists(node.meshDragBehavior);
+            assert.isTrue(node.mesh.isPickable);
+        });
 
-       // Simulate drag start
-       node.meshDragBehavior!.onDragStartObservable.notifyObservers({});
-       assert.isTrue(node.dragging);
+        test("drag behavior should set node.dragging flag", () => {
+            NodeBehavior.addDefaultBehaviors(node);
 
-       // Simulate drag end
-       node.meshDragBehavior!.onDragEndObservable.notifyObservers({});
-       assert.isFalse(node.dragging);
-     });
+            // Simulate drag start
+            node.meshDragBehavior!.onDragStartObservable.notifyObservers({});
+            assert.isTrue(node.dragging);
 
-     test("pinOnDrag should be configurable", () => {
-       NodeBehavior.addDefaultBehaviors(node, { pinOnDrag: false });
-       assert.isFalse(node.pinOnDrag);
+            // Simulate drag end
+            node.meshDragBehavior!.onDragEndObservable.notifyObservers({});
+            assert.isFalse(node.dragging);
+        });
 
-       NodeBehavior.addDefaultBehaviors(node, { pinOnDrag: true });
-       assert.isTrue(node.pinOnDrag);
-     });
+        test("pinOnDrag should be configurable", () => {
+            NodeBehavior.addDefaultBehaviors(node, { pinOnDrag: false });
+            assert.isFalse(node.pinOnDrag);
 
-     test("ActionManager should handle XR pointer events", () => {
-       NodeBehavior.addDefaultBehaviors(node);
+            NodeBehavior.addDefaultBehaviors(node, { pinOnDrag: true });
+            assert.isTrue(node.pinOnDrag);
+        });
 
-       assert.exists(node.mesh.actionManager);
-       const actions = node.mesh.actionManager.actions;
-       assert.isAbove(actions.length, 0);
-       // Verify OnDoublePickTrigger is registered
-     });
-   });
-   ```
+        test("ActionManager should handle XR pointer events", () => {
+            NodeBehavior.addDefaultBehaviors(node);
+
+            assert.exists(node.mesh.actionManager);
+            const actions = node.mesh.actionManager.actions;
+            assert.isAbove(actions.length, 0);
+            // Verify OnDoublePickTrigger is registered
+        });
+    });
+    ```
 
 2. **`test/cameras/XRInputController.test.ts`**: XR-specific input handling
-   ```typescript
-   import { describe, test, beforeEach, afterEach } from "vitest";
-   import { assert } from "chai";
-   import { NullEngine, Scene } from "@babylonjs/core";
-   import { XRInputController } from "../../src/cameras/XRInputController";
 
-   describe("XRInputController", () => {
-     let engine: NullEngine;
-     let scene: Scene;
-     let inputController: XRInputController;
+    ```typescript
+    import { describe, test, beforeEach, afterEach } from "vitest";
+    import { assert } from "chai";
+    import { NullEngine, Scene } from "@babylonjs/core";
+    import { XRInputController } from "../../src/cameras/XRInputController";
 
-     beforeEach(() => {
-       engine = new NullEngine();
-       scene = new Scene(engine);
-       // Create mock XR session manager
-       inputController = new XRInputController(scene, mockXRSessionManager, {
-         handTracking: true,
-         controllers: true,
-         nearInteraction: true,
-         physics: false
-       });
-     });
+    describe("XRInputController", () => {
+        let engine: NullEngine;
+        let scene: Scene;
+        let inputController: XRInputController;
 
-     afterEach(() => {
-       inputController.dispose();
-       scene.dispose();
-       engine.dispose();
-     });
+        beforeEach(() => {
+            engine = new NullEngine();
+            scene = new Scene(engine);
+            // Create mock XR session manager
+            inputController = new XRInputController(scene, mockXRSessionManager, {
+                handTracking: true,
+                controllers: true,
+                nearInteraction: true,
+                physics: false,
+            });
+        });
 
-     test("should implement InputHandler interface", () => {
-       assert.isFunction(inputController.enable);
-       assert.isFunction(inputController.disable);
-       assert.isFunction(inputController.update);
-     });
+        afterEach(() => {
+            inputController.dispose();
+            scene.dispose();
+            engine.dispose();
+        });
 
-     test("should NOT duplicate NodeBehavior drag logic", () => {
-       // Verify XRInputController doesn't reimplement drag state
-       // It should rely on SixDofDragBehavior or trigger it
-       assert.notExists((inputController as any).handleDragState);
-     });
+        test("should implement InputHandler interface", () => {
+            assert.isFunction(inputController.enable);
+            assert.isFunction(inputController.disable);
+            assert.isFunction(inputController.update);
+        });
 
-     test("should track input sources on enable", () => {
-       inputController.enable();
-       // Verify input observables are subscribed
-     });
+        test("should NOT duplicate NodeBehavior drag logic", () => {
+            // Verify XRInputController doesn't reimplement drag state
+            // It should rely on SixDofDragBehavior or trigger it
+            assert.notExists((inputController as any).handleDragState);
+        });
 
-     test("should enable hand tracking feature", () => {
-       inputController.enable();
-       // Verify BabylonJS hand tracking feature enabled
-     });
+        test("should track input sources on enable", () => {
+            inputController.enable();
+            // Verify input observables are subscribed
+        });
 
-     test("should work with existing node behaviors", () => {
-       // Create node with NodeBehavior
-       const node = createMockNodeWithBehaviors(scene);
+        test("should enable hand tracking feature", () => {
+            inputController.enable();
+            // Verify BabylonJS hand tracking feature enabled
+        });
 
-       // XR input should trigger existing SixDofDragBehavior
-       // Not create a parallel drag system
-     });
-   });
-   ```
+        test("should work with existing node behaviors", () => {
+            // Create node with NodeBehavior
+            const node = createMockNodeWithBehaviors(scene);
+
+            // XR input should trigger existing SixDofDragBehavior
+            // Not create a parallel drag system
+        });
+    });
+    ```
 
 3. **`test/integration/xr-node-behaviors.spec.ts`**: Integration test with IWER
-   ```typescript
-   import { test, expect } from "vitest";
-   import { chromium } from "playwright";
 
-   test("SixDofDragBehavior works with XR controller input", async () => {
-     const browser = await chromium.launch();
-     const page = await browser.newPage();
+    ```typescript
+    import { test, expect } from "vitest";
+    import { chromium } from "playwright";
 
-     // Load IWER emulator
-     await page.addScriptTag({
-       url: "https://unpkg.com/iwer/build/iwer.min.js",
-     });
+    test("SixDofDragBehavior works with XR controller input", async () => {
+        const browser = await chromium.launch();
+        const page = await browser.newPage();
 
-     // Setup Meta Quest 3 emulation
-     await page.evaluate(() => {
-       const xrDevice = new (window as any).IWER.XRDevice(
-         (window as any).IWER.metaQuest3
-       );
-       xrDevice.installRuntime();
-       xrDevice.stereoEnabled = true;
-     });
+        // Load IWER emulator
+        await page.addScriptTag({
+            url: "https://unpkg.com/iwer/build/iwer.min.js",
+        });
 
-     // Navigate to story
-     await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-interactions--node-behavior-test");
+        // Setup Meta Quest 3 emulation
+        await page.evaluate(() => {
+            const xrDevice = new (window as any).IWER.XRDevice((window as any).IWER.metaQuest3);
+            xrDevice.installRuntime();
+            xrDevice.stereoEnabled = true;
+        });
 
-     // Enter VR mode
-     await page.click("[data-xr-mode='immersive-vr']");
-     await page.waitForTimeout(1000);
+        // Navigate to story
+        await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-interactions--node-behavior-test");
 
-     // Get initial node position
-     const initialPos = await page.evaluate(() => {
-       const graph = (window as any).__graph;
-       const node = graph.getNodes()[0];
-       return { x: node.mesh.position.x, y: node.mesh.position.y, z: node.mesh.position.z };
-     });
+        // Enter VR mode
+        await page.click("[data-xr-mode='immersive-vr']");
+        await page.waitForTimeout(1000);
 
-     // Simulate XR controller drag (using IWER)
-     await page.evaluate(() => {
-       // IWER API to simulate controller squeeze and movement
-       // This should trigger the existing SixDofDragBehavior
-     });
+        // Get initial node position
+        const initialPos = await page.evaluate(() => {
+            const graph = (window as any).__graph;
+            const node = graph.getNodes()[0];
+            return { x: node.mesh.position.x, y: node.mesh.position.y, z: node.mesh.position.z };
+        });
 
-     // Verify node position changed AND node.dragging flag was set
-     const result = await page.evaluate(() => {
-       const graph = (window as any).__graph;
-       const node = graph.getNodes()[0];
-       return {
-         positionChanged: node.mesh.position.x !== initialPos.x,
-         dragFlagWasSet: node.__dragWasTriggered, // Test hook
-         pinOnDrag: node.pinOnDrag,
-       };
-     });
+        // Simulate XR controller drag (using IWER)
+        await page.evaluate(() => {
+            // IWER API to simulate controller squeeze and movement
+            // This should trigger the existing SixDofDragBehavior
+        });
 
-     expect(result.positionChanged).toBe(true);
-     expect(result.dragFlagWasSet).toBe(true);
-     expect(result.pinOnDrag).toBe(true); // Default behavior
+        // Verify node position changed AND node.dragging flag was set
+        const result = await page.evaluate(() => {
+            const graph = (window as any).__graph;
+            const node = graph.getNodes()[0];
+            return {
+                positionChanged: node.mesh.position.x !== initialPos.x,
+                dragFlagWasSet: node.__dragWasTriggered, // Test hook
+                pinOnDrag: node.pinOnDrag,
+            };
+        });
 
-     await browser.close();
-   });
+        expect(result.positionChanged).toBe(true);
+        expect(result.dragFlagWasSet).toBe(true);
+        expect(result.pinOnDrag).toBe(true); // Default behavior
 
-   test("ActionManager double-click works in XR", async () => {
-     // Test that existing ActionManager behaviors (double-click expansion)
-     // work with XR pointer events
-   });
-   ```
+        await browser.close();
+    });
+
+    test("ActionManager double-click works in XR", async () => {
+        // Test that existing ActionManager behaviors (double-click expansion)
+        // work with XR pointer events
+    });
+    ```
 
 **Implementation**:
 
 1. **FIRST: Investigate if `SixDofDragBehavior` works with XR**
 
-   Before implementing custom XR drag logic, test if the existing `SixDofDragBehavior` from `NodeBehavior.ts` already works with XR pointer events. BabylonJS WebXR should emit pointer events that trigger existing behaviors.
+    Before implementing custom XR drag logic, test if the existing `SixDofDragBehavior` from `NodeBehavior.ts` already works with XR pointer events. BabylonJS WebXR should emit pointer events that trigger existing behaviors.
 
-   **Test procedure**:
-   - Create a simple XR story with nodes that have `NodeBehavior.addDefaultBehaviors()` called
-   - Enter VR mode with IWER or real headset
-   - Try to drag a node with controller squeeze
-   - Check if `node.dragging` flag is set and position updates
+    **Test procedure**:
+    - Create a simple XR story with nodes that have `NodeBehavior.addDefaultBehaviors()` called
+    - Enter VR mode with IWER or real headset
+    - Try to drag a node with controller squeeze
+    - Check if `node.dragging` flag is set and position updates
 
-   **Expected outcome**: `SixDofDragBehavior` should work automatically with XR inputs since BabylonJS handles pointer abstraction.
+    **Expected outcome**: `SixDofDragBehavior` should work automatically with XR inputs since BabylonJS handles pointer abstraction.
 
 2. **`src/cameras/XRInputController.ts`**: Minimal XR input coordinator (NOT a reimplementation)
-   ```typescript
-   import { Scene, WebXRInputSource, Observer, WebXRDefaultExperience } from "@babylonjs/core";
-   import type { XRSessionManager } from "../xr/XRSessionManager";
-   import type { InputHandler } from "./CameraManager";
 
-   export interface XRInputConfig {
-     handTracking: boolean;
-     controllers: boolean;
-     nearInteraction: boolean;
-     physics: boolean;
-   }
+    ```typescript
+    import { Scene, WebXRInputSource, Observer, WebXRDefaultExperience } from "@babylonjs/core";
+    import type { XRSessionManager } from "../xr/XRSessionManager";
+    import type { InputHandler } from "./CameraManager";
 
-   /**
-    * XRInputController coordinates XR input sources and enables XR-specific features.
-    *
-    * IMPORTANT: This does NOT reimplement node dragging or selection.
-    * NodeBehavior.ts (SixDofDragBehavior and ActionManager) handles those.
-    *
-    * This controller only:
-    * 1. Enables hand tracking and controller features
-    * 2. Adds XR-specific enhancements (future: multi-hand gestures)
-    * 3. Ensures existing NodeBehavior works in XR mode
-    */
-   export class XRInputController implements InputHandler {
-     private scene: Scene;
-     private sessionManager: XRSessionManager;
-     private config: XRInputConfig;
-     private inputSources = new Map<string, WebXRInputSource>();
-     private observers: Observer<any>[] = [];
+    export interface XRInputConfig {
+        handTracking: boolean;
+        controllers: boolean;
+        nearInteraction: boolean;
+        physics: boolean;
+    }
 
-     constructor(
-       scene: Scene,
-       sessionManager: XRSessionManager,
-       config: XRInputConfig
-     ) {
-       this.scene = scene;
-       this.sessionManager = sessionManager;
-       this.config = config;
-     }
+    /**
+     * XRInputController coordinates XR input sources and enables XR-specific features.
+     *
+     * IMPORTANT: This does NOT reimplement node dragging or selection.
+     * NodeBehavior.ts (SixDofDragBehavior and ActionManager) handles those.
+     *
+     * This controller only:
+     * 1. Enables hand tracking and controller features
+     * 2. Adds XR-specific enhancements (future: multi-hand gestures)
+     * 3. Ensures existing NodeBehavior works in XR mode
+     */
+    export class XRInputController implements InputHandler {
+        private scene: Scene;
+        private sessionManager: XRSessionManager;
+        private config: XRInputConfig;
+        private inputSources = new Map<string, WebXRInputSource>();
+        private observers: Observer<any>[] = [];
 
-     public enable(): void {
-       // Subscribe to WebXR input observables
-       const xrHelper = this.sessionManager.getXRHelper();
-       if (!xrHelper) return;
+        constructor(scene: Scene, sessionManager: XRSessionManager, config: XRInputConfig) {
+            this.scene = scene;
+            this.sessionManager = sessionManager;
+            this.config = config;
+        }
 
-       // Track input sources (for debugging and future features)
-       const controllerObserver = xrHelper.input.onControllerAddedObservable.add(
-         this.handleInputSourceAdded.bind(this)
-       );
-       this.observers.push(controllerObserver);
+        public enable(): void {
+            // Subscribe to WebXR input observables
+            const xrHelper = this.sessionManager.getXRHelper();
+            if (!xrHelper) return;
 
-       const removeObserver = xrHelper.input.onControllerRemovedObservable.add(
-         this.handleInputSourceRemoved.bind(this)
-       );
-       this.observers.push(removeObserver);
+            // Track input sources (for debugging and future features)
+            const controllerObserver = xrHelper.input.onControllerAddedObservable.add(
+                this.handleInputSourceAdded.bind(this),
+            );
+            this.observers.push(controllerObserver);
 
-       // Enable hand tracking if configured
-       if (this.config.handTracking) {
-         this.enableHandTracking(xrHelper);
-       }
+            const removeObserver = xrHelper.input.onControllerRemovedObservable.add(
+                this.handleInputSourceRemoved.bind(this),
+            );
+            this.observers.push(removeObserver);
 
-       // Enable near interaction if configured
-       if (this.config.nearInteraction) {
-         this.enableNearInteraction(xrHelper);
-       }
+            // Enable hand tracking if configured
+            if (this.config.handTracking) {
+                this.enableHandTracking(xrHelper);
+            }
 
-       // NOTE: We do NOT set up custom drag handlers here.
-       // The existing SixDofDragBehavior on nodes handles dragging.
-       // XR controllers emit pointer events that trigger it automatically.
-     }
+            // Enable near interaction if configured
+            if (this.config.nearInteraction) {
+                this.enableNearInteraction(xrHelper);
+            }
 
-     public disable(): void {
-       // Unsubscribe from observables
-       this.observers.forEach(obs => obs.remove());
-       this.observers = [];
-       this.inputSources.clear();
-     }
+            // NOTE: We do NOT set up custom drag handlers here.
+            // The existing SixDofDragBehavior on nodes handles dragging.
+            // XR controllers emit pointer events that trigger it automatically.
+        }
 
-     public update(): void {
-       // Called every frame
-       // Reserved for future multi-hand gesture detection
-       // NOT used for basic drag/selection (NodeBehavior handles that)
-     }
+        public disable(): void {
+            // Unsubscribe from observables
+            this.observers.forEach((obs) => obs.remove());
+            this.observers = [];
+            this.inputSources.clear();
+        }
 
-     private handleInputSourceAdded(inputSource: WebXRInputSource): void {
-       this.inputSources.set(inputSource.uniqueId, inputSource);
+        public update(): void {
+            // Called every frame
+            // Reserved for future multi-hand gesture detection
+            // NOT used for basic drag/selection (NodeBehavior handles that)
+        }
 
-       console.log(`XR input source added: ${inputSource.handedness} ${inputSource.hand ? 'hand' : 'controller'}`);
+        private handleInputSourceAdded(inputSource: WebXRInputSource): void {
+            this.inputSources.set(inputSource.uniqueId, inputSource);
 
-       // Future: Add visual indicators for hands/controllers
-       // Future: Setup multi-hand gesture detection
-     }
+            console.log(`XR input source added: ${inputSource.handedness} ${inputSource.hand ? "hand" : "controller"}`);
 
-     private handleInputSourceRemoved(inputSource: WebXRInputSource): void {
-       this.inputSources.delete(inputSource.uniqueId);
-       console.log(`XR input source removed: ${inputSource.handedness}`);
-     }
+            // Future: Add visual indicators for hands/controllers
+            // Future: Setup multi-hand gesture detection
+        }
 
-     private enableHandTracking(xrHelper: WebXRDefaultExperience): void {
-       // Enable BabylonJS hand tracking feature
-       if (xrHelper.featuresManager.getEnabledFeature("hand-tracking")) {
-         return; // Already enabled
-       }
+        private handleInputSourceRemoved(inputSource: WebXRInputSource): void {
+            this.inputSources.delete(inputSource.uniqueId);
+            console.log(`XR input source removed: ${inputSource.handedness}`);
+        }
 
-       const handTracking = xrHelper.featuresManager.enableFeature(
-         WebXRFeatureName.HAND_TRACKING,
-         "latest",
-         {
-           xrInput: xrHelper.input,
-           jointMeshes: {
-             enablePhysics: this.config.physics,
-           },
-         }
-       );
+        private enableHandTracking(xrHelper: WebXRDefaultExperience): void {
+            // Enable BabylonJS hand tracking feature
+            if (xrHelper.featuresManager.getEnabledFeature("hand-tracking")) {
+                return; // Already enabled
+            }
 
-       if (handTracking) {
-         console.log("Hand tracking enabled");
-       }
-     }
+            const handTracking = xrHelper.featuresManager.enableFeature(WebXRFeatureName.HAND_TRACKING, "latest", {
+                xrInput: xrHelper.input,
+                jointMeshes: {
+                    enablePhysics: this.config.physics,
+                },
+            });
 
-     private enableNearInteraction(xrHelper: WebXRDefaultExperience): void {
-       // Enable near interaction (touching nodes with hands)
-       const nearInteraction = xrHelper.featuresManager.enableFeature(
-         WebXRFeatureName.NEAR_INTERACTION,
-         "latest",
-         {
-           xrInput: xrHelper.input,
-           // Near interaction works with existing SixDofDragBehavior
-           // No custom handlers needed
-         }
-       );
+            if (handTracking) {
+                console.log("Hand tracking enabled");
+            }
+        }
 
-       if (nearInteraction) {
-         console.log("Near interaction enabled");
-       }
-     }
+        private enableNearInteraction(xrHelper: WebXRDefaultExperience): void {
+            // Enable near interaction (touching nodes with hands)
+            const nearInteraction = xrHelper.featuresManager.enableFeature(
+                WebXRFeatureName.NEAR_INTERACTION,
+                "latest",
+                {
+                    xrInput: xrHelper.input,
+                    // Near interaction works with existing SixDofDragBehavior
+                    // No custom handlers needed
+                },
+            );
 
-     public dispose(): void {
-       this.disable();
-     }
-   }
-   ```
+            if (nearInteraction) {
+                console.log("Near interaction enabled");
+            }
+        }
+
+        public dispose(): void {
+            this.disable();
+        }
+    }
+    ```
 
 3. **`stories/XR/Interactions.stories.ts`**: Test existing NodeBehavior in XR
-   ```typescript
-   import type { Meta, StoryObj } from "@storybook/web-components";
-   import { html } from "lit";
 
-   export default {
-     title: "XR/Interactions",
-     component: "graphty-element",
-   } as Meta;
+    ```typescript
+    import type { Meta, StoryObj } from "@storybook/web-components";
+    import { html } from "lit";
 
-   export const NodeBehaviorInXR: StoryObj = {
-     render: () => html`
-       <graphty-element
-         .data=${{
-           nodes: Array.from({ length: 10 }, (_, i) => ({
-             id: `${i}`,
-             label: `Node ${i}`,
-           })),
-           edges: Array.from({ length: 5 }, (_, i) => ({
-             source: `${i}`,
-             target: `${i + 1}`,
-           }))
-         }}
-         .config=${{
-           layout: { type: "random", dimensions: 3 },
-           xr: {
-             enabled: true,
-             input: {
-               handTracking: true,
-               controllers: true,
-               nearInteraction: true
-             }
-           }
-         }}
-       ></graphty-element>
-       <div style="position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.7); padding: 10px;">
-         <h3>Testing NodeBehavior in XR:</h3>
-         <ul>
-           <li>Enter VR mode</li>
-           <li><strong>Drag test:</strong> Squeeze controller and move to drag node</li>
-           <li>Node should pin after dragging (pinOnDrag default)</li>
-           <li><strong>Click test:</strong> Point and trigger to select</li>
-           <li><strong>Double-click test:</strong> Double trigger to expand node (if fetchNodes configured)</li>
-         </ul>
-         <p><strong>Expected:</strong> All existing NodeBehavior features work in XR without modifications</p>
-       </div>
-     `,
-   };
+    export default {
+      title: "XR/Interactions",
+      component: "graphty-element",
+    } as Meta;
 
-   export const HandTrackingInteraction: StoryObj = {
-     render: () => html`
-       <graphty-element .data=${...} .config=${{ xr: { input: { handTracking: true } } }}></graphty-element>
-       <div style="...">
-         <h3>Hand Tracking Test:</h3>
-         <ul>
-           <li>Use hand tracking mode (no controllers)</li>
-           <li>Pinch to select nodes</li>
-           <li>Near interaction: Touch nodes with hands</li>
-         </ul>
-       </div>
-     `,
-   };
-   ```
+    export const NodeBehaviorInXR: StoryObj = {
+      render: () => html`
+        <graphty-element
+          .data=${{
+            nodes: Array.from({ length: 10 }, (_, i) => ({
+              id: `${i}`,
+              label: `Node ${i}`,
+            })),
+            edges: Array.from({ length: 5 }, (_, i) => ({
+              source: `${i}`,
+              target: `${i + 1}`,
+            }))
+          }}
+          .config=${{
+            layout: { type: "random", dimensions: 3 },
+            xr: {
+              enabled: true,
+              input: {
+                handTracking: true,
+                controllers: true,
+                nearInteraction: true
+              }
+            }
+          }}
+        ></graphty-element>
+        <div style="position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.7); padding: 10px;">
+          <h3>Testing NodeBehavior in XR:</h3>
+          <ul>
+            <li>Enter VR mode</li>
+            <li><strong>Drag test:</strong> Squeeze controller and move to drag node</li>
+            <li>Node should pin after dragging (pinOnDrag default)</li>
+            <li><strong>Click test:</strong> Point and trigger to select</li>
+            <li><strong>Double-click test:</strong> Double trigger to expand node (if fetchNodes configured)</li>
+          </ul>
+          <p><strong>Expected:</strong> All existing NodeBehavior features work in XR without modifications</p>
+        </div>
+      `,
+    };
+
+    export const HandTrackingInteraction: StoryObj = {
+      render: () => html`
+        <graphty-element .data=${...} .config=${{ xr: { input: { handTracking: true } } }}></graphty-element>
+        <div style="...">
+          <h3>Hand Tracking Test:</h3>
+          <ul>
+            <li>Use hand tracking mode (no controllers)</li>
+            <li>Pinch to select nodes</li>
+            <li>Near interaction: Touch nodes with hands</li>
+          </ul>
+        </div>
+      `,
+    };
+    ```
 
 4. **Integration in Graph.ts**:
-   ```typescript
-   // Add XRInputController to Graph initialization
-   import { XRInputController } from "../cameras/XRInputController";
 
-   private xrInputController: XRInputController | null = null;
+    ```typescript
+    // Add XRInputController to Graph initialization
+    import { XRInputController } from "../cameras/XRInputController";
 
-   private initializeXR(): void {
-     // ... existing session manager setup ...
+    private xrInputController: XRInputController | null = null;
 
-     this.xrInputController = new XRInputController(
-       this.scene,
-       this.xrSessionManager,
-       this.config.xr.input
-     );
+    private initializeXR(): void {
+      // ... existing session manager setup ...
 
-     // Enable when entering XR mode
-     // Disable when exiting XR mode
-   }
+      this.xrInputController = new XRInputController(
+        this.scene,
+        this.xrSessionManager,
+        this.config.xr.input
+      );
 
-   // IMPORTANT: NodeBehavior.addDefaultBehaviors() should already be called
-   // when nodes are created (this is existing functionality)
-   // No changes needed to make it work with XR!
-   ```
+      // Enable when entering XR mode
+      // Disable when exiting XR mode
+    }
+
+    // IMPORTANT: NodeBehavior.addDefaultBehaviors() should already be called
+    // when nodes are created (this is existing functionality)
+    // No changes needed to make it work with XR!
+    ```
 
 5. **Fallback Plan (if `SixDofDragBehavior` doesn't work with XR)**:
 
-   If testing reveals that `SixDofDragBehavior` doesn't respond to XR pointer events, we'll need to create `XRNodeBehavior`:
+    If testing reveals that `SixDofDragBehavior` doesn't respond to XR pointer events, we'll need to create `XRNodeBehavior`:
 
-   ```typescript
-   // src/XRNodeBehavior.ts (ONLY if needed)
-   import { NodeBehavior } from "./NodeBehavior";
-   import type { Node as GraphNode } from "./Node";
+    ```typescript
+    // src/XRNodeBehavior.ts (ONLY if needed)
+    import { NodeBehavior } from "./NodeBehavior";
+    import type { Node as GraphNode } from "./Node";
 
-   export class XRNodeBehavior {
-     /**
-      * Add XR-compatible behaviors to nodes
-      * Reuses logic from NodeBehavior but with XR-specific triggers
-      */
-     static addXRBehaviors(node: GraphNode, options = {}): void {
-       // Use same drag state management as NodeBehavior
-       node.pinOnDrag = options.pinOnDrag ?? true;
+    export class XRNodeBehavior {
+        /**
+         * Add XR-compatible behaviors to nodes
+         * Reuses logic from NodeBehavior but with XR-specific triggers
+         */
+        static addXRBehaviors(node: GraphNode, options = {}): void {
+            // Use same drag state management as NodeBehavior
+            node.pinOnDrag = options.pinOnDrag ?? true;
 
-       // Setup XR-specific drag handling that calls same logic
-       // as NodeBehavior's SixDofDragBehavior observables
-     }
-   }
-   ```
+            // Setup XR-specific drag handling that calls same logic
+            // as NodeBehavior's SixDofDragBehavior observables
+        }
+    }
+    ```
 
-   This fallback ensures we don't duplicate logic even if we need XR-specific event handling.
+    This fallback ensures we don't duplicate logic even if we need XR-specific event handling.
 
 **Dependencies**:
+
 - **External**: None (uses BabylonJS WebXR features)
 - **Internal**: Phase 1 (XRSessionManager), **existing `NodeBehavior.ts`**
 - **Testing**: IWER library (`npm install iwer --save-dev`)
 
 **Verification**:
+
 1. Run: `npm run storybook`
 2. Navigate to "XR/Interactions" → "NodeBehavior in XR"
 3. Enter VR mode (click VR button or use browser XR emulator)
 4. **Test drag**: Point controller at node, squeeze, and move
-   - Expected: Node drags smoothly (same as non-XR)
-   - Expected: Node is pinned after release (default behavior)
-   - Expected: Layout engine receives position updates
+    - Expected: Node drags smoothly (same as non-XR)
+    - Expected: Node is pinned after release (default behavior)
+    - Expected: Layout engine receives position updates
 5. **Test selection**: Point and pull trigger
-   - Expected: Visual feedback (if implemented)
+    - Expected: Visual feedback (if implemented)
 6. **Test double-click**: Double-trigger on node
-   - Expected: Expansion behavior works (if fetchNodes configured)
+    - Expected: Expansion behavior works (if fetchNodes configured)
 7. **Test hand tracking**: Switch to hands (if device supports)
-   - Expected: Pinch and near interaction work
+    - Expected: Pinch and near interaction work
 8. Run: `npm test -- NodeBehavior-xr-compatibility`
-   - Expected: All compatibility tests pass
+    - Expected: All compatibility tests pass
 9. Run: `npm test -- xr-node-behaviors`
-   - Expected: Integration tests pass with IWER
+    - Expected: Integration tests pass with IWER
 10. **Critical verification**: Check that `node.dragging` flag is set during drag
     - This confirms we're using the same code path as non-XR
 
@@ -931,225 +932,232 @@ The existing `NodeBehavior.ts` provides:
 **Tests to Write First**:
 
 1. **`test/cameras/XRCameraController.test.ts`**: CameraController interface compliance
-   ```typescript
-   import { describe, test, beforeEach, afterEach } from "vitest";
-   import { assert } from "chai";
-   import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
-   import { XRCameraController } from "../../src/cameras/XRCameraController";
 
-   describe("XRCameraController", () => {
-     let engine: NullEngine;
-     let scene: Scene;
-     let controller: XRCameraController;
+    ```typescript
+    import { describe, test, beforeEach, afterEach } from "vitest";
+    import { assert } from "chai";
+    import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
+    import { XRCameraController } from "../../src/cameras/XRCameraController";
 
-     beforeEach(() => {
-       engine = new NullEngine();
-       scene = new Scene(engine);
-       // Mock XRSessionManager with XR camera
-       controller = new XRCameraController(mockSessionManager);
-     });
+    describe("XRCameraController", () => {
+        let engine: NullEngine;
+        let scene: Scene;
+        let controller: XRCameraController;
 
-     afterEach(() => {
-       controller.dispose();
-       scene.dispose();
-       engine.dispose();
-     });
+        beforeEach(() => {
+            engine = new NullEngine();
+            scene = new Scene(engine);
+            // Mock XRSessionManager with XR camera
+            controller = new XRCameraController(mockSessionManager);
+        });
 
-     test("should implement CameraController interface", () => {
-       assert.exists(controller.camera);
-       assert.isFunction(controller.zoomToBoundingBox);
-     });
+        afterEach(() => {
+            controller.dispose();
+            scene.dispose();
+            engine.dispose();
+        });
 
-     test("should return WebXRCamera from session manager", () => {
-       const camera = controller.camera;
-       assert.exists(camera);
-       // Verify it's the XR camera
-     });
+        test("should implement CameraController interface", () => {
+            assert.exists(controller.camera);
+            assert.isFunction(controller.zoomToBoundingBox);
+        });
 
-     test("should zoom to bounding box in XR space", () => {
-       const min = new Vector3(-10, -10, -10);
-       const max = new Vector3(10, 10, 10);
+        test("should return WebXRCamera from session manager", () => {
+            const camera = controller.camera;
+            assert.exists(camera);
+            // Verify it's the XR camera
+        });
 
-       controller.zoomToBoundingBox(min, max);
+        test("should zoom to bounding box in XR space", () => {
+            const min = new Vector3(-10, -10, -10);
+            const max = new Vector3(10, 10, 10);
 
-       // Verify camera position adjusted
-       // XR camera position should encompass bounding box
-     });
+            controller.zoomToBoundingBox(min, max);
 
-     test("should transfer position from previous camera", () => {
-       const previousPos = new Vector3(5, 5, 5);
-       controller.transferPositionFrom(previousPos);
+            // Verify camera position adjusted
+            // XR camera position should encompass bounding box
+        });
 
-       // Verify XR camera positioned correctly
-     });
-   });
-   ```
+        test("should transfer position from previous camera", () => {
+            const previousPos = new Vector3(5, 5, 5);
+            controller.transferPositionFrom(previousPos);
+
+            // Verify XR camera positioned correctly
+        });
+    });
+    ```
 
 2. **`test/integration/camera-switching.spec.ts`**: Camera switching flows
-   ```typescript
-   import { test, expect } from "vitest";
-   import { page } from "@vitest/browser/context";
 
-   test("can switch from Orbit to XR and back", async () => {
-     await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-camera-switching--orbit-to-xr");
+    ```typescript
+    import { test, expect } from "vitest";
+    import { page } from "@vitest/browser/context";
 
-     // Start with Orbit camera
-     let activeCamera = await page.evaluate(() => {
-       return (window as any).__graph.cameraManager.getActiveController().camera.name;
-     });
-     expect(activeCamera).toContain("orbit");
+    test("can switch from Orbit to XR and back", async () => {
+        await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-camera-switching--orbit-to-xr");
 
-     // Switch to XR
-     await page.click("[data-xr-mode='immersive-vr']");
-     await page.waitForTimeout(500);
+        // Start with Orbit camera
+        let activeCamera = await page.evaluate(() => {
+            return (window as any).__graph.cameraManager.getActiveController().camera.name;
+        });
+        expect(activeCamera).toContain("orbit");
 
-     activeCamera = await page.evaluate(() => {
-       return (window as any).__graph.cameraManager.getActiveController().camera.name;
-     });
-     expect(activeCamera).toContain("xr");
+        // Switch to XR
+        await page.click("[data-xr-mode='immersive-vr']");
+        await page.waitForTimeout(500);
 
-     // Exit XR
-     await page.click("[data-xr-exit]");
-     await page.waitForTimeout(500);
+        activeCamera = await page.evaluate(() => {
+            return (window as any).__graph.cameraManager.getActiveController().camera.name;
+        });
+        expect(activeCamera).toContain("xr");
 
-     activeCamera = await page.evaluate(() => {
-       return (window as any).__graph.cameraManager.getActiveController().camera.name;
-     });
-     expect(activeCamera).toContain("orbit");
-   });
+        // Exit XR
+        await page.click("[data-xr-exit]");
+        await page.waitForTimeout(500);
 
-   test("camera position preserved when switching", async () => {
-     // Test position continuity across switches
-   });
-   ```
+        activeCamera = await page.evaluate(() => {
+            return (window as any).__graph.cameraManager.getActiveController().camera.name;
+        });
+        expect(activeCamera).toContain("orbit");
+    });
+
+    test("camera position preserved when switching", async () => {
+        // Test position continuity across switches
+    });
+    ```
 
 **Implementation**:
 
 1. **`src/cameras/XRCameraController.ts`**: Wrapper for WebXRCamera
-   ```typescript
-   import { Camera, Vector3 } from "@babylonjs/core";
-   import type { CameraController } from "./CameraManager";
-   import type { XRSessionManager } from "../xr/XRSessionManager";
 
-   export class XRCameraController implements CameraController {
-     private sessionManager: XRSessionManager;
+    ```typescript
+    import { Camera, Vector3 } from "@babylonjs/core";
+    import type { CameraController } from "./CameraManager";
+    import type { XRSessionManager } from "../xr/XRSessionManager";
 
-     constructor(sessionManager: XRSessionManager) {
-       this.sessionManager = sessionManager;
-     }
+    export class XRCameraController implements CameraController {
+        private sessionManager: XRSessionManager;
 
-     public get camera(): Camera {
-       const xrCamera = this.sessionManager.getXRCamera();
-       if (!xrCamera) {
-         throw new Error("XRCameraController: XR session not active");
-       }
-       return xrCamera;
-     }
+        constructor(sessionManager: XRSessionManager) {
+            this.sessionManager = sessionManager;
+        }
 
-     public zoomToBoundingBox(min: Vector3, max: Vector3): void {
-       // Calculate bounding box center and size
-       const center = min.add(max).scale(0.5);
-       const size = max.subtract(min);
-       const maxDimension = Math.max(size.x, size.y, size.z);
+        public get camera(): Camera {
+            const xrCamera = this.sessionManager.getXRCamera();
+            if (!xrCamera) {
+                throw new Error("XRCameraController: XR session not active");
+            }
+            return xrCamera;
+        }
 
-       // In XR, we can't move the camera directly (user controls it)
-       // Instead, move the graph's root transform node
-       // Or teleport the user's reference space
+        public zoomToBoundingBox(min: Vector3, max: Vector3): void {
+            // Calculate bounding box center and size
+            const center = min.add(max).scale(0.5);
+            const size = max.subtract(min);
+            const maxDimension = Math.max(size.x, size.y, size.z);
 
-       // For now: Store target position and suggest teleportation
-       // Future: Implement smooth teleportation
-       console.warn("zoomToBoundingBox in XR mode: Feature not yet implemented");
-       // TODO: Implement teleportation or root transform adjustment
-     }
+            // In XR, we can't move the camera directly (user controls it)
+            // Instead, move the graph's root transform node
+            // Or teleport the user's reference space
 
-     public transferPositionFrom(previousCamera: Camera): void {
-       // Transfer camera position from non-XR to XR
-       // This is used when entering AR mode
-       const xrCamera = this.camera;
-       xrCamera.position.copyFrom(previousCamera.position);
-       xrCamera.rotation.copyFrom(previousCamera.rotation);
-     }
+            // For now: Store target position and suggest teleportation
+            // Future: Implement smooth teleportation
+            console.warn("zoomToBoundingBox in XR mode: Feature not yet implemented");
+            // TODO: Implement teleportation or root transform adjustment
+        }
 
-     public dispose(): void {
-       // No direct disposal needed (managed by XRSessionManager)
-     }
-   }
-   ```
+        public transferPositionFrom(previousCamera: Camera): void {
+            // Transfer camera position from non-XR to XR
+            // This is used when entering AR mode
+            const xrCamera = this.camera;
+            xrCamera.position.copyFrom(previousCamera.position);
+            xrCamera.rotation.copyFrom(previousCamera.rotation);
+        }
+
+        public dispose(): void {
+            // No direct disposal needed (managed by XRSessionManager)
+        }
+    }
+    ```
 
 2. **Update `src/cameras/CameraManager.ts`**: Add XR camera type
-   ```typescript
-   // Modify CameraKey type
-   export type CameraKey = "orbit" | "2d" | "xr";
 
-   // CameraManager class remains unchanged (uses existing registration pattern)
-   ```
+    ```typescript
+    // Modify CameraKey type
+    export type CameraKey = "orbit" | "2d" | "xr";
+
+    // CameraManager class remains unchanged (uses existing registration pattern)
+    ```
 
 3. **Update `src/graph/Graph.ts`**: Integrate with CameraManager
-   ```typescript
-   import { XRCameraController } from "../cameras/XRCameraController";
-   import { XRInputController } from "../cameras/XRInputController";
 
-   private initializeXR(): void {
-     // ... existing XRSessionManager and XRUIManager setup ...
+    ```typescript
+    import { XRCameraController } from "../cameras/XRCameraController";
+    import { XRInputController } from "../cameras/XRInputController";
 
-     // Create XR camera and input controllers
-     const xrCameraController = new XRCameraController(this.xrSessionManager);
-     const xrInputController = new XRInputController(
-       this.scene,
-       this.xrSessionManager,
-       this.config.xr.input
-     );
+    private initializeXR(): void {
+      // ... existing XRSessionManager and XRUIManager setup ...
 
-     // Register with CameraManager
-     this.cameraManager.registerCamera("xr", xrCameraController, xrInputController);
+      // Create XR camera and input controllers
+      const xrCameraController = new XRCameraController(this.xrSessionManager);
+      const xrInputController = new XRInputController(
+        this.scene,
+        this.xrSessionManager,
+        this.config.xr.input
+      );
 
-     // Wire up UI button clicks to activate XR camera
-     // When VR/AR button clicked:
-     //   1. Enter XR session (XRSessionManager)
-     //   2. Activate XR camera (CameraManager)
-     // When XR exited:
-     //   1. Exit XR session
-     //   2. Restore previous camera
-   }
+      // Register with CameraManager
+      this.cameraManager.registerCamera("xr", xrCameraController, xrInputController);
 
-   public async enterXR(mode: "immersive-vr" | "immersive-ar"): Promise<void> {
-     const previousCamera = this.cameraManager.getActiveController()?.camera;
+      // Wire up UI button clicks to activate XR camera
+      // When VR/AR button clicked:
+      //   1. Enter XR session (XRSessionManager)
+      //   2. Activate XR camera (CameraManager)
+      // When XR exited:
+      //   1. Exit XR session
+      //   2. Restore previous camera
+    }
 
-     if (mode === "immersive-vr") {
-       await this.xrSessionManager.enterVR();
-     } else {
-       await this.xrSessionManager.enterAR(previousCamera);
-     }
+    public async enterXR(mode: "immersive-vr" | "immersive-ar"): Promise<void> {
+      const previousCamera = this.cameraManager.getActiveController()?.camera;
 
-     this.cameraManager.activateCamera("xr");
-   }
+      if (mode === "immersive-vr") {
+        await this.xrSessionManager.enterVR();
+      } else {
+        await this.xrSessionManager.enterAR(previousCamera);
+      }
 
-   public async exitXR(): Promise<void> {
-     await this.xrSessionManager.exitXR();
-     // Restore previous camera (stored before entering XR)
-     this.cameraManager.activateCamera(this.previousCameraKey);
-   }
-   ```
+      this.cameraManager.activateCamera("xr");
+    }
+
+    public async exitXR(): Promise<void> {
+      await this.xrSessionManager.exitXR();
+      // Restore previous camera (stored before entering XR)
+      this.cameraManager.activateCamera(this.previousCameraKey);
+    }
+    ```
 
 4. **`stories/XR/CameraSwitching.stories.ts`**: Demo camera switching
-   ```typescript
-   export const OrbitToXRToOrbit: StoryObj = {
-     render: () => html`
-       <graphty-element .data=${...} .config=${{ camera: { type: "orbit" } }}></graphty-element>
-       <div style="position: absolute; top: 10px; right: 10px;">
-         <button onclick="switchTo('2d')">2D Camera</button>
-         <button onclick="switchTo('orbit')">Orbit Camera</button>
-         <button onclick="switchTo('xr')">XR Camera (via button)</button>
-       </div>
-     `,
-   };
-   ```
+    ```typescript
+    export const OrbitToXRToOrbit: StoryObj = {
+      render: () => html`
+        <graphty-element .data=${...} .config=${{ camera: { type: "orbit" } }}></graphty-element>
+        <div style="position: absolute; top: 10px; right: 10px;">
+          <button onclick="switchTo('2d')">2D Camera</button>
+          <button onclick="switchTo('orbit')">Orbit Camera</button>
+          <button onclick="switchTo('xr')">XR Camera (via button)</button>
+        </div>
+      `,
+    };
+    ```
 
 **Dependencies**:
+
 - **External**: None
 - **Internal**: Phase 1 (XRSessionManager), Phase 2 (XRInputController)
 
 **Verification**:
+
 1. Run: `npm run storybook`
 2. Navigate to "XR/Camera Switching" story
 3. Start with Orbit camera → Rotate graph
@@ -1172,227 +1180,244 @@ The existing `NodeBehavior.ts` provides:
 **Tests to Write First**:
 
 1. **`test/config/xr-config.test.ts`**: Configuration validation
-   ```typescript
-   import { describe, test } from "vitest";
-   import { assert } from "chai";
-   import { xrConfigSchema } from "../../src/config/xr-config";
 
-   describe("XR Configuration Schema", () => {
-     test("should accept valid minimal config", () => {
-       const config = { enabled: true };
-       const result = xrConfigSchema.safeParse(config);
-       assert.isTrue(result.success);
-     });
+    ```typescript
+    import { describe, test } from "vitest";
+    import { assert } from "chai";
+    import { xrConfigSchema } from "../../src/config/xr-config";
 
-     test("should apply defaults for missing fields", () => {
-       const config = { enabled: true };
-       const parsed = xrConfigSchema.parse(config);
+    describe("XR Configuration Schema", () => {
+        test("should accept valid minimal config", () => {
+            const config = { enabled: true };
+            const result = xrConfigSchema.safeParse(config);
+            assert.isTrue(result.success);
+        });
 
-       assert.equal(parsed.ui.position, "bottom-left");
-       assert.equal(parsed.ui.unavailableMessageDuration, 5000);
-       assert.isTrue(parsed.vr.enabled);
-       assert.isTrue(parsed.ar.enabled);
-     });
+        test("should apply defaults for missing fields", () => {
+            const config = { enabled: true };
+            const parsed = xrConfigSchema.parse(config);
 
-     test("should validate button position enum", () => {
-       const config = { ui: { position: "invalid" } };
-       const result = xrConfigSchema.safeParse(config);
-       assert.isFalse(result.success);
-     });
+            assert.equal(parsed.ui.position, "bottom-left");
+            assert.equal(parsed.ui.unavailableMessageDuration, 5000);
+            assert.isTrue(parsed.vr.enabled);
+            assert.isTrue(parsed.ar.enabled);
+        });
 
-     test("should accept custom styles", () => {
-       const config = {
-         ui: { customStyles: ".webxr-button { background: red; }" }
-       };
-       const parsed = xrConfigSchema.parse(config);
-       assert.exists(parsed.ui.customStyles);
-     });
+        test("should validate button position enum", () => {
+            const config = { ui: { position: "invalid" } };
+            const result = xrConfigSchema.safeParse(config);
+            assert.isFalse(result.success);
+        });
 
-     test("should validate optional features array", () => {
-       const config = {
-         vr: { optionalFeatures: ["hand-tracking", "hit-test"] }
-       };
-       const parsed = xrConfigSchema.parse(config);
-       assert.lengthOf(parsed.vr.optionalFeatures, 2);
-     });
-   });
-   ```
+        test("should accept custom styles", () => {
+            const config = {
+                ui: { customStyles: ".webxr-button { background: red; }" },
+            };
+            const parsed = xrConfigSchema.parse(config);
+            assert.exists(parsed.ui.customStyles);
+        });
+
+        test("should validate optional features array", () => {
+            const config = {
+                vr: { optionalFeatures: ["hand-tracking", "hit-test"] },
+            };
+            const parsed = xrConfigSchema.parse(config);
+            assert.lengthOf(parsed.vr.optionalFeatures, 2);
+        });
+    });
+    ```
 
 2. **`test/visual/xr-config-variants.spec.ts`**: Visual tests for config options
-   ```typescript
-   import { test, expect } from "vitest";
-   import { page } from "@vitest/browser/context";
 
-   test("buttons render in top-right corner", async () => {
-     await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-config--top-right");
-     const screenshot = await page.screenshot();
-     expect(screenshot).toMatchSnapshot("xr-buttons-top-right.png");
-   });
+    ```typescript
+    import { test, expect } from "vitest";
+    import { page } from "@vitest/browser/context";
 
-   test("custom button styles applied", async () => {
-     await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-config--custom-styles");
+    test("buttons render in top-right corner", async () => {
+        await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-config--top-right");
+        const screenshot = await page.screenshot();
+        expect(screenshot).toMatchSnapshot("xr-buttons-top-right.png");
+    });
 
-     const button = page.locator(".webxr-button");
-     const bgColor = await button.evaluate(el =>
-       window.getComputedStyle(el).backgroundColor
-     );
-     expect(bgColor).toBe("rgb(255, 0, 0)"); // Red background
-   });
+    test("custom button styles applied", async () => {
+        await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-config--custom-styles");
 
-   test("VR only mode (no AR button)", async () => {
-     await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-config--vr-only");
+        const button = page.locator(".webxr-button");
+        const bgColor = await button.evaluate((el) => window.getComputedStyle(el).backgroundColor);
+        expect(bgColor).toBe("rgb(255, 0, 0)"); // Red background
+    });
 
-     const vrButton = page.locator("[data-xr-mode='immersive-vr']");
-     const arButton = page.locator("[data-xr-mode='immersive-ar']");
+    test("VR only mode (no AR button)", async () => {
+        await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-config--vr-only");
 
-     await expect(vrButton).toBeVisible();
-     await expect(arButton).not.toBeVisible();
-   });
-   ```
+        const vrButton = page.locator("[data-xr-mode='immersive-vr']");
+        const arButton = page.locator("[data-xr-mode='immersive-ar']");
+
+        await expect(vrButton).toBeVisible();
+        await expect(arButton).not.toBeVisible();
+    });
+    ```
 
 **Implementation**:
 
 1. **`src/config/xr-config.ts`**: Zod schema definition
-   ```typescript
-   import { z } from "zod";
 
-   export const xrConfigSchema = z.object({
-     enabled: z.boolean().default(true),
+    ```typescript
+    import { z } from "zod";
 
-     ui: z.object({
-       enabled: z.boolean().default(true),
-       position: z.enum(["bottom-left", "bottom-right", "top-left", "top-right"])
-         .default("bottom-left"),
-       customStyles: z.string().optional(),
-       unavailableMessageDuration: z.number().positive().default(5000),
-     }).default({}),
+    export const xrConfigSchema = z
+        .object({
+            enabled: z.boolean().default(true),
 
-     vr: z.object({
-       enabled: z.boolean().default(true),
-       referenceSpaceType: z.enum([
-         "local", "local-floor", "bounded-floor", "unbounded"
-       ]).default("local-floor"),
-       optionalFeatures: z.array(z.string()).default([]),
-     }).default({}),
+            ui: z
+                .object({
+                    enabled: z.boolean().default(true),
+                    position: z.enum(["bottom-left", "bottom-right", "top-left", "top-right"]).default("bottom-left"),
+                    customStyles: z.string().optional(),
+                    unavailableMessageDuration: z.number().positive().default(5000),
+                })
+                .default({}),
 
-     ar: z.object({
-       enabled: z.boolean().default(true),
-       referenceSpaceType: z.enum([
-         "local", "local-floor", "bounded-floor", "unbounded"
-       ]).default("local-floor"),
-       optionalFeatures: z.array(z.string()).default(["hit-test"]),
-     }).default({}),
+            vr: z
+                .object({
+                    enabled: z.boolean().default(true),
+                    referenceSpaceType: z
+                        .enum(["local", "local-floor", "bounded-floor", "unbounded"])
+                        .default("local-floor"),
+                    optionalFeatures: z.array(z.string()).default([]),
+                })
+                .default({}),
 
-     input: z.object({
-       handTracking: z.boolean().default(true),
-       controllers: z.boolean().default(true),
-       nearInteraction: z.boolean().default(true),
-       physics: z.boolean().default(false),
-     }).default({}),
+            ar: z
+                .object({
+                    enabled: z.boolean().default(true),
+                    referenceSpaceType: z
+                        .enum(["local", "local-floor", "bounded-floor", "unbounded"])
+                        .default("local-floor"),
+                    optionalFeatures: z.array(z.string()).default(["hit-test"]),
+                })
+                .default({}),
 
-     teleportation: z.object({
-       enabled: z.boolean().default(false),
-       easeTime: z.number().positive().default(200),
-     }).default({}),
-   }).default({});
+            input: z
+                .object({
+                    handTracking: z.boolean().default(true),
+                    controllers: z.boolean().default(true),
+                    nearInteraction: z.boolean().default(true),
+                    physics: z.boolean().default(false),
+                })
+                .default({}),
 
-   export type XRConfig = z.infer<typeof xrConfigSchema>;
-   ```
+            teleportation: z
+                .object({
+                    enabled: z.boolean().default(false),
+                    easeTime: z.number().positive().default(200),
+                })
+                .default({}),
+        })
+        .default({});
+
+    export type XRConfig = z.infer<typeof xrConfigSchema>;
+    ```
 
 2. **Update `src/config/index.ts`**: Add XR config to main schema
-   ```typescript
-   import { xrConfigSchema } from "./xr-config";
 
-   export const configSchema = z.object({
-     // ... existing config fields ...
-     xr: xrConfigSchema,
-   });
-   ```
+    ```typescript
+    import { xrConfigSchema } from "./xr-config";
+
+    export const configSchema = z.object({
+        // ... existing config fields ...
+        xr: xrConfigSchema,
+    });
+    ```
 
 3. **Update `src/ui/XRUIManager.ts`**: Apply custom styles
-   ```typescript
-   constructor(/* ... */, config: XRUIConfig) {
-     // ... existing logic ...
 
-     if (config.customStyles) {
-       this.applyCustomStyles(config.customStyles);
-     }
-   }
+    ```typescript
+    constructor(/* ... */, config: XRUIConfig) {
+      // ... existing logic ...
 
-   private applyCustomStyles(css: string): void {
-     const styleElement = document.createElement("style");
-     styleElement.textContent = css;
-     document.head.appendChild(styleElement);
-   }
-   ```
+      if (config.customStyles) {
+        this.applyCustomStyles(config.customStyles);
+      }
+    }
+
+    private applyCustomStyles(css: string): void {
+      const styleElement = document.createElement("style");
+      styleElement.textContent = css;
+      document.head.appendChild(styleElement);
+    }
+    ```
 
 4. **`stories/XR/Configuration.stories.ts`**: Configuration variants
-   ```typescript
-   export const TopRightPosition: StoryObj = {
-     render: () => html`
-       <graphty-element
-         .config=${{
-           xr: { ui: { position: "top-right" } }
-         }}
-       ></graphty-element>
-     `,
-   };
 
-   export const CustomStyles: StoryObj = {
-     render: () => html`
-       <graphty-element
-         .config=${{
-           xr: {
-             ui: {
-               customStyles: `
-                 .webxr-button {
-                   background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-                   border-radius: 20px;
-                   font-weight: bold;
-                 }
-               `
-             }
-           }
-         }}
-       ></graphty-element>
-     `,
-   };
+    ```typescript
+    export const TopRightPosition: StoryObj = {
+        render: () => html`
+            <graphty-element
+                .config=${{
+                    xr: { ui: { position: "top-right" } },
+                }}
+            ></graphty-element>
+        `,
+    };
 
-   export const VROnly: StoryObj = {
-     render: () => html`
-       <graphty-element
-         .config=${{
-           xr: {
-             vr: { enabled: true },
-             ar: { enabled: false }
-           }
-         }}
-       ></graphty-element>
-     `,
-   };
+    export const CustomStyles: StoryObj = {
+        render: () => html`
+            <graphty-element
+                .config=${{
+                    xr: {
+                        ui: {
+                            customStyles: `
+                  .webxr-button {
+                    background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+                    border-radius: 20px;
+                    font-weight: bold;
+                  }
+                `,
+                        },
+                    },
+                }}
+            ></graphty-element>
+        `,
+    };
 
-   export const DisabledXR: StoryObj = {
-     render: () => html`
-       <graphty-element
-         .config=${{
-           xr: { enabled: false }
-         }}
-       ></graphty-element>
-     `,
-   };
-   ```
+    export const VROnly: StoryObj = {
+        render: () => html`
+            <graphty-element
+                .config=${{
+                    xr: {
+                        vr: { enabled: true },
+                        ar: { enabled: false },
+                    },
+                }}
+            ></graphty-element>
+        `,
+    };
+
+    export const DisabledXR: StoryObj = {
+        render: () => html`
+            <graphty-element
+                .config=${{
+                    xr: { enabled: false },
+                }}
+            ></graphty-element>
+        `,
+    };
+    ```
 
 **Dependencies**:
+
 - **External**: Zod (already in project)
 - **Internal**: All previous phases
 
 **Verification**:
+
 1. Run: `npm run storybook`
 2. Navigate through "XR/Configuration" stories:
-   - Top Right Position: Buttons in top-right corner
-   - Custom Styles: Red gradient buttons
-   - VR Only: Only VR button visible
-   - Disabled XR: No buttons at all
+    - Top Right Position: Buttons in top-right corner
+    - Custom Styles: Red gradient buttons
+    - VR Only: Only VR button visible
+    - Disabled XR: No buttons at all
 3. Test invalid config: Should fail validation with helpful error
 4. Run: `npm test -- xr-config`
 5. Expected: All configuration tests pass
@@ -1410,290 +1435,295 @@ The existing `NodeBehavior.ts` provides:
 **Tests to Write First**:
 
 1. **`test/cameras/xr-gestures.test.ts`**: Gesture detection logic
-   ```typescript
-   import { describe, test, beforeEach } from "vitest";
-   import { assert } from "chai";
-   import { Vector3 } from "@babylonjs/core";
-   import { XRGestureDetector } from "../../src/cameras/XRGestureDetector";
 
-   describe("XRGestureDetector", () => {
-     let detector: XRGestureDetector;
+    ```typescript
+    import { describe, test, beforeEach } from "vitest";
+    import { assert } from "chai";
+    import { Vector3 } from "@babylonjs/core";
+    import { XRGestureDetector } from "../../src/cameras/XRGestureDetector";
 
-     beforeEach(() => {
-       detector = new XRGestureDetector();
-     });
+    describe("XRGestureDetector", () => {
+        let detector: XRGestureDetector;
 
-     test("should detect two-hand pinch zoom", () => {
-       const leftHand = { position: new Vector3(0, 0, 0), pinching: true };
-       const rightHand = { position: new Vector3(1, 0, 0), pinching: true };
+        beforeEach(() => {
+            detector = new XRGestureDetector();
+        });
 
-       detector.updateHands(leftHand, rightHand);
+        test("should detect two-hand pinch zoom", () => {
+            const leftHand = { position: new Vector3(0, 0, 0), pinching: true };
+            const rightHand = { position: new Vector3(1, 0, 0), pinching: true };
 
-       // Move hands closer together
-       leftHand.position.x = 0.2;
-       rightHand.position.x = 0.8;
-       detector.updateHands(leftHand, rightHand);
+            detector.updateHands(leftHand, rightHand);
 
-       const gesture = detector.getCurrentGesture();
-       assert.equal(gesture.type, "zoom");
-       assert.isAbove(gesture.zoomDelta, 0); // Zoom in
-     });
+            // Move hands closer together
+            leftHand.position.x = 0.2;
+            rightHand.position.x = 0.8;
+            detector.updateHands(leftHand, rightHand);
 
-     test("should detect two-hand twist rotation", () => {
-       const leftHand = { position: new Vector3(-0.5, 0, 0), pinching: true };
-       const rightHand = { position: new Vector3(0.5, 0, 0), pinching: true };
+            const gesture = detector.getCurrentGesture();
+            assert.equal(gesture.type, "zoom");
+            assert.isAbove(gesture.zoomDelta, 0); // Zoom in
+        });
 
-       detector.updateHands(leftHand, rightHand);
+        test("should detect two-hand twist rotation", () => {
+            const leftHand = { position: new Vector3(-0.5, 0, 0), pinching: true };
+            const rightHand = { position: new Vector3(0.5, 0, 0), pinching: true };
 
-       // Rotate hands (left up, right down)
-       leftHand.position.y = 0.5;
-       rightHand.position.y = -0.5;
-       detector.updateHands(leftHand, rightHand);
+            detector.updateHands(leftHand, rightHand);
 
-       const gesture = detector.getCurrentGesture();
-       assert.equal(gesture.type, "rotate");
-       assert.exists(gesture.rotationAxis);
-     });
+            // Rotate hands (left up, right down)
+            leftHand.position.y = 0.5;
+            rightHand.position.y = -0.5;
+            detector.updateHands(leftHand, rightHand);
 
-     test("should not detect gestures with single hand", () => {
-       const leftHand = { position: new Vector3(0, 0, 0), pinching: true };
-       detector.updateHands(leftHand, null);
+            const gesture = detector.getCurrentGesture();
+            assert.equal(gesture.type, "rotate");
+            assert.exists(gesture.rotationAxis);
+        });
 
-       const gesture = detector.getCurrentGesture();
-       assert.equal(gesture.type, "none");
-     });
+        test("should not detect gestures with single hand", () => {
+            const leftHand = { position: new Vector3(0, 0, 0), pinching: true };
+            detector.updateHands(leftHand, null);
 
-     test("should handle thumbstick pan input", () => {
-       const thumbstickX = 0.5;
-       const thumbstickY = 0.5;
+            const gesture = detector.getCurrentGesture();
+            assert.equal(gesture.type, "none");
+        });
 
-       const panDelta = detector.calculatePanFromThumbstick(thumbstickX, thumbstickY);
-       assert.isAbove(panDelta.x, 0);
-       assert.isAbove(panDelta.y, 0);
-     });
-   });
-   ```
+        test("should handle thumbstick pan input", () => {
+            const thumbstickX = 0.5;
+            const thumbstickY = 0.5;
+
+            const panDelta = detector.calculatePanFromThumbstick(thumbstickX, thumbstickY);
+            assert.isAbove(panDelta.x, 0);
+            assert.isAbove(panDelta.y, 0);
+        });
+    });
+    ```
 
 2. **`test/integration/xr-gestures.spec.ts`**: Gesture integration with IWER
-   ```typescript
-   import { test, expect } from "vitest";
-   import { chromium } from "playwright";
 
-   test("two-hand pinch zooms graph", async () => {
-     // Setup IWER with hand tracking
-     // Simulate two hands pinching and moving apart
-     // Verify graph scale increased
-   });
+    ```typescript
+    import { test, expect } from "vitest";
+    import { chromium } from "playwright";
 
-   test("thumbstick pans camera", async () => {
-     // Setup IWER with controller
-     // Simulate thumbstick movement
-     // Verify camera/graph position changed
-   });
-   ```
+    test("two-hand pinch zooms graph", async () => {
+        // Setup IWER with hand tracking
+        // Simulate two hands pinching and moving apart
+        // Verify graph scale increased
+    });
+
+    test("thumbstick pans camera", async () => {
+        // Setup IWER with controller
+        // Simulate thumbstick movement
+        // Verify camera/graph position changed
+    });
+    ```
 
 **Implementation**:
 
 1. **`src/cameras/XRGestureDetector.ts`**: Gesture recognition utility
-   ```typescript
-   import { Vector3, Quaternion } from "@babylonjs/core";
 
-   export interface HandState {
-     position: Vector3;
-     rotation: Quaternion;
-     pinching: boolean;
-     pinchStrength: number;
-   }
+    ```typescript
+    import { Vector3, Quaternion } from "@babylonjs/core";
 
-   export interface GestureResult {
-     type: "none" | "zoom" | "rotate" | "pan";
-     zoomDelta?: number;
-     rotationAxis?: Vector3;
-     rotationAngle?: number;
-     panDelta?: Vector3;
-   }
+    export interface HandState {
+        position: Vector3;
+        rotation: Quaternion;
+        pinching: boolean;
+        pinchStrength: number;
+    }
 
-   export class XRGestureDetector {
-     private previousLeftHand: HandState | null = null;
-     private previousRightHand: HandState | null = null;
-     private previousDistance: number | null = null;
-     private previousAngle: number | null = null;
+    export interface GestureResult {
+        type: "none" | "zoom" | "rotate" | "pan";
+        zoomDelta?: number;
+        rotationAxis?: Vector3;
+        rotationAngle?: number;
+        panDelta?: Vector3;
+    }
 
-     public updateHands(
-       leftHand: HandState | null,
-       rightHand: HandState | null
-     ): void {
-       this.previousLeftHand = leftHand;
-       this.previousRightHand = rightHand;
+    export class XRGestureDetector {
+        private previousLeftHand: HandState | null = null;
+        private previousRightHand: HandState | null = null;
+        private previousDistance: number | null = null;
+        private previousAngle: number | null = null;
 
-       if (leftHand && rightHand) {
-         const distance = Vector3.Distance(leftHand.position, rightHand.position);
-         this.previousDistance = distance;
+        public updateHands(leftHand: HandState | null, rightHand: HandState | null): void {
+            this.previousLeftHand = leftHand;
+            this.previousRightHand = rightHand;
 
-         // Calculate angle between hands for twist detection
-         const direction = rightHand.position.subtract(leftHand.position);
-         const angle = Math.atan2(direction.y, direction.x);
-         this.previousAngle = angle;
-       }
-     }
+            if (leftHand && rightHand) {
+                const distance = Vector3.Distance(leftHand.position, rightHand.position);
+                this.previousDistance = distance;
 
-     public getCurrentGesture(): GestureResult {
-       const left = this.previousLeftHand;
-       const right = this.previousRightHand;
+                // Calculate angle between hands for twist detection
+                const direction = rightHand.position.subtract(leftHand.position);
+                const angle = Math.atan2(direction.y, direction.x);
+                this.previousAngle = angle;
+            }
+        }
 
-       if (!left || !right || !left.pinching || !right.pinching) {
-         return { type: "none" };
-       }
+        public getCurrentGesture(): GestureResult {
+            const left = this.previousLeftHand;
+            const right = this.previousRightHand;
 
-       // Detect pinch zoom
-       const currentDistance = Vector3.Distance(left.position, right.position);
-       if (this.previousDistance !== null) {
-         const distanceDelta = currentDistance - this.previousDistance;
-         if (Math.abs(distanceDelta) > 0.01) {
-           return {
-             type: "zoom",
-             zoomDelta: distanceDelta > 0 ? 1.1 : 0.9, // Scale factor
-           };
-         }
-       }
+            if (!left || !right || !left.pinching || !right.pinching) {
+                return { type: "none" };
+            }
 
-       // Detect twist rotation
-       const direction = right.position.subtract(left.position);
-       const currentAngle = Math.atan2(direction.y, direction.x);
-       if (this.previousAngle !== null) {
-         const angleDelta = currentAngle - this.previousAngle;
-         if (Math.abs(angleDelta) > 0.05) {
-           return {
-             type: "rotate",
-             rotationAxis: Vector3.Up(),
-             rotationAngle: angleDelta,
-           };
-         }
-       }
+            // Detect pinch zoom
+            const currentDistance = Vector3.Distance(left.position, right.position);
+            if (this.previousDistance !== null) {
+                const distanceDelta = currentDistance - this.previousDistance;
+                if (Math.abs(distanceDelta) > 0.01) {
+                    return {
+                        type: "zoom",
+                        zoomDelta: distanceDelta > 0 ? 1.1 : 0.9, // Scale factor
+                    };
+                }
+            }
 
-       return { type: "none" };
-     }
+            // Detect twist rotation
+            const direction = right.position.subtract(left.position);
+            const currentAngle = Math.atan2(direction.y, direction.x);
+            if (this.previousAngle !== null) {
+                const angleDelta = currentAngle - this.previousAngle;
+                if (Math.abs(angleDelta) > 0.05) {
+                    return {
+                        type: "rotate",
+                        rotationAxis: Vector3.Up(),
+                        rotationAngle: angleDelta,
+                    };
+                }
+            }
 
-     public calculatePanFromThumbstick(x: number, y: number): Vector3 {
-       // Map thumbstick input to world-space pan
-       const sensitivity = 0.1;
-       return new Vector3(x * sensitivity, y * sensitivity, 0);
-     }
-   }
-   ```
+            return { type: "none" };
+        }
+
+        public calculatePanFromThumbstick(x: number, y: number): Vector3 {
+            // Map thumbstick input to world-space pan
+            const sensitivity = 0.1;
+            return new Vector3(x * sensitivity, y * sensitivity, 0);
+        }
+    }
+    ```
 
 2. **Update `src/cameras/XRInputController.ts`**: Integrate gestures
-   ```typescript
-   import { XRGestureDetector } from "./XRGestureDetector";
 
-   export class XRInputController implements InputHandler {
-     private gestureDetector: XRGestureDetector;
-     // ... existing fields ...
+    ```typescript
+    import { XRGestureDetector } from "./XRGestureDetector";
 
-     constructor(/* ... */) {
-       // ... existing initialization ...
-       this.gestureDetector = new XRGestureDetector();
-     }
+    export class XRInputController implements InputHandler {
+        private gestureDetector: XRGestureDetector;
+        // ... existing fields ...
 
-     public update(): void {
-       // Update hand states
-       const leftHand = this.getHandState("left");
-       const rightHand = this.getHandState("right");
-       this.gestureDetector.updateHands(leftHand, rightHand);
+        constructor(/* ... */) {
+            // ... existing initialization ...
+            this.gestureDetector = new XRGestureDetector();
+        }
 
-       // Process current gesture
-       const gesture = this.gestureDetector.getCurrentGesture();
-       switch (gesture.type) {
-         case "zoom":
-           this.handleZoom(gesture.zoomDelta!);
-           break;
-         case "rotate":
-           this.handleRotate(gesture.rotationAxis!, gesture.rotationAngle!);
-           break;
-         case "pan":
-           this.handlePan(gesture.panDelta!);
-           break;
-       }
+        public update(): void {
+            // Update hand states
+            const leftHand = this.getHandState("left");
+            const rightHand = this.getHandState("right");
+            this.gestureDetector.updateHands(leftHand, rightHand);
 
-       // Process thumbstick input from controllers
-       this.processThumbstickInput();
-     }
+            // Process current gesture
+            const gesture = this.gestureDetector.getCurrentGesture();
+            switch (gesture.type) {
+                case "zoom":
+                    this.handleZoom(gesture.zoomDelta!);
+                    break;
+                case "rotate":
+                    this.handleRotate(gesture.rotationAxis!, gesture.rotationAngle!);
+                    break;
+                case "pan":
+                    this.handlePan(gesture.panDelta!);
+                    break;
+            }
 
-     private handleZoom(scaleFactor: number): void {
-       // Scale the graph's root transform or adjust camera distance
-       const graph = this.scene.getTransformNodeByName("graph-root");
-       if (graph) {
-         graph.scaling.scaleInPlace(scaleFactor);
-       }
-     }
+            // Process thumbstick input from controllers
+            this.processThumbstickInput();
+        }
 
-     private handleRotate(axis: Vector3, angle: number): void {
-       // Rotate graph or adjust camera orbit
-       const graph = this.scene.getTransformNodeByName("graph-root");
-       if (graph) {
-         graph.rotate(axis, angle, Space.WORLD);
-       }
-     }
+        private handleZoom(scaleFactor: number): void {
+            // Scale the graph's root transform or adjust camera distance
+            const graph = this.scene.getTransformNodeByName("graph-root");
+            if (graph) {
+                graph.scaling.scaleInPlace(scaleFactor);
+            }
+        }
 
-     private handlePan(delta: Vector3): void {
-       // Pan graph or camera
-       const graph = this.scene.getTransformNodeByName("graph-root");
-       if (graph) {
-         graph.position.addInPlace(delta);
-       }
-     }
+        private handleRotate(axis: Vector3, angle: number): void {
+            // Rotate graph or adjust camera orbit
+            const graph = this.scene.getTransformNodeByName("graph-root");
+            if (graph) {
+                graph.rotate(axis, angle, Space.WORLD);
+            }
+        }
 
-     private processThumbstickInput(): void {
-       // Get thumbstick axes from each controller
-       this.inputSources.forEach(inputSource => {
-         const controller = inputSource.motionController;
-         if (!controller) return;
+        private handlePan(delta: Vector3): void {
+            // Pan graph or camera
+            const graph = this.scene.getTransformNodeByName("graph-root");
+            if (graph) {
+                graph.position.addInPlace(delta);
+            }
+        }
 
-         const thumbstick = controller.getComponent("xr-standard-thumbstick");
-         if (thumbstick && thumbstick.axes) {
-           const [x, y] = thumbstick.axes.getValue();
-           const panDelta = this.gestureDetector.calculatePanFromThumbstick(x, y);
-           this.handlePan(panDelta);
-         }
-       });
-     }
-   }
-   ```
+        private processThumbstickInput(): void {
+            // Get thumbstick axes from each controller
+            this.inputSources.forEach((inputSource) => {
+                const controller = inputSource.motionController;
+                if (!controller) return;
+
+                const thumbstick = controller.getComponent("xr-standard-thumbstick");
+                if (thumbstick && thumbstick.axes) {
+                    const [x, y] = thumbstick.axes.getValue();
+                    const panDelta = this.gestureDetector.calculatePanFromThumbstick(x, y);
+                    this.handlePan(panDelta);
+                }
+            });
+        }
+    }
+    ```
 
 3. **`stories/XR/AdvancedGestures.stories.ts`**: Gesture demo
-   ```typescript
-   export const ZoomPanRotate: StoryObj = {
-     render: () => html`
-       <graphty-element
-         .data=${largeGraphData}
-         .config=${{
-           layout: { type: "force", dimensions: 3 },
-           xr: {
-             enabled: true,
-             input: {
-               handTracking: true,
-               controllers: true
-             }
-           }
-         }}
-       ></graphty-element>
-       <div style="position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.7); padding: 10px;">
-         <h3>Advanced Gestures:</h3>
-         <ul>
-           <li><strong>Two-Hand Pinch:</strong> Zoom in/out</li>
-           <li><strong>Two-Hand Twist:</strong> Rotate graph</li>
-           <li><strong>Thumbstick:</strong> Pan around</li>
-         </ul>
-       </div>
-     `,
-   };
-   ```
+    ```typescript
+    export const ZoomPanRotate: StoryObj = {
+        render: () => html`
+            <graphty-element
+                .data=${largeGraphData}
+                .config=${{
+                    layout: { type: "force", dimensions: 3 },
+                    xr: {
+                        enabled: true,
+                        input: {
+                            handTracking: true,
+                            controllers: true,
+                        },
+                    },
+                }}
+            ></graphty-element>
+            <div
+                style="position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.7); padding: 10px;"
+            >
+                <h3>Advanced Gestures:</h3>
+                <ul>
+                    <li><strong>Two-Hand Pinch:</strong> Zoom in/out</li>
+                    <li><strong>Two-Hand Twist:</strong> Rotate graph</li>
+                    <li><strong>Thumbstick:</strong> Pan around</li>
+                </ul>
+            </div>
+        `,
+    };
+    ```
 
 **Dependencies**:
+
 - **External**: None
 - **Internal**: All previous phases
 
 **Verification**:
+
 1. Run: `npm run storybook`
 2. Navigate to "XR/Advanced Gestures" story
 3. Enter VR mode with hand tracking enabled
@@ -1716,290 +1746,298 @@ The existing `NodeBehavior.ts` provides:
 **Tests to Write/Complete**:
 
 1. **Comprehensive unit test coverage** (`>80%`):
-   - Complete all unit tests from previous phases
-   - Add edge case tests:
-     - XR session failure scenarios
-     - Invalid configuration handling
-     - Multi-device compatibility edge cases
-     - Memory leak tests
+    - Complete all unit tests from previous phases
+    - Add edge case tests:
+        - XR session failure scenarios
+        - Invalid configuration handling
+        - Multi-device compatibility edge cases
+        - Memory leak tests
 
 2. **`test/integration/xr-full-flow.spec.ts`**: End-to-end XR flows
-   ```typescript
-   import { test, expect } from "vitest";
-   import { chromium } from "playwright";
 
-   test("complete VR session lifecycle with interactions", async () => {
-     const browser = await chromium.launch();
-     const page = await browser.newPage();
+    ```typescript
+    import { test, expect } from "vitest";
+    import { chromium } from "playwright";
 
-     // Setup IWER
-     await setupIWER(page, "metaQuest3");
+    test("complete VR session lifecycle with interactions", async () => {
+        const browser = await chromium.launch();
+        const page = await browser.newPage();
 
-     // Navigate to full-featured story
-     await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-full-flow--complete");
+        // Setup IWER
+        await setupIWER(page, "metaQuest3");
 
-     // Enter VR
-     await page.click("[data-xr-mode='immersive-vr']");
-     await page.waitForTimeout(1000);
+        // Navigate to full-featured story
+        await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-full-flow--complete");
 
-     // Perform all interactions
-     // - Select node
-     // - Drag node
-     // - Zoom with two hands
-     // - Rotate with twist
-     // - Pan with thumbstick
+        // Enter VR
+        await page.click("[data-xr-mode='immersive-vr']");
+        await page.waitForTimeout(1000);
 
-     // Exit VR
-     await page.click("[data-xr-exit]");
+        // Perform all interactions
+        // - Select node
+        // - Drag node
+        // - Zoom with two hands
+        // - Rotate with twist
+        // - Pan with thumbstick
 
-     // Verify graph state preserved
-     const nodePositions = await page.evaluate(() => {
-       return (window as any).__graph.getNodePositions();
-     });
-     expect(nodePositions).toBeDefined();
+        // Exit VR
+        await page.click("[data-xr-exit]");
 
-     await browser.close();
-   });
+        // Verify graph state preserved
+        const nodePositions = await page.evaluate(() => {
+            return (window as any).__graph.getNodePositions();
+        });
+        expect(nodePositions).toBeDefined();
 
-   test("AR session with hit-test placement", async () => {
-     // Test AR-specific features
-   });
+        await browser.close();
+    });
 
-   test("error handling: XR fails to initialize", async () => {
-     // Mock XR failure
-     // Verify graceful degradation
-     // Verify error message displayed
-   });
-   ```
+    test("AR session with hit-test placement", async () => {
+        // Test AR-specific features
+    });
+
+    test("error handling: XR fails to initialize", async () => {
+        // Mock XR failure
+        // Verify graceful degradation
+        // Verify error message displayed
+    });
+    ```
 
 3. **`test/performance/xr-performance.spec.ts`**: Performance benchmarks
-   ```typescript
-   import { test, expect } from "vitest";
-   import { page } from "@vitest/browser/context";
 
-   test("maintains 90 FPS in VR mode with 100 nodes", async () => {
-     await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-performance--medium-graph");
+    ```typescript
+    import { test, expect } from "vitest";
+    import { page } from "@vitest/browser/context";
 
-     // Enter VR mode
-     await page.click("[data-xr-mode='immersive-vr']");
-     await page.waitForTimeout(2000);
+    test("maintains 90 FPS in VR mode with 100 nodes", async () => {
+        await page.goto("http://dev.ato.ms:9025/iframe.html?id=xr-performance--medium-graph");
 
-     // Measure frame rate
-     const fps = await page.evaluate(() => {
-       return (window as any).__graph.statsManager.getAverageFPS();
-     });
+        // Enter VR mode
+        await page.click("[data-xr-mode='immersive-vr']");
+        await page.waitForTimeout(2000);
 
-     expect(fps).toBeGreaterThan(90);
-   });
+        // Measure frame rate
+        const fps = await page.evaluate(() => {
+            return (window as any).__graph.statsManager.getAverageFPS();
+        });
 
-   test("no memory leaks after multiple XR sessions", async () => {
-     // Enter/exit XR 10 times
-     // Measure memory usage
-     // Verify no significant growth
-   });
-   ```
+        expect(fps).toBeGreaterThan(90);
+    });
+
+    test("no memory leaks after multiple XR sessions", async () => {
+        // Enter/exit XR 10 times
+        // Measure memory usage
+        // Verify no significant growth
+    });
+    ```
 
 4. **Visual regression tests** (Chromatic/Playwright):
-   - All UI button positions
-   - Custom styling variants
-   - Unavailable message states
-   - Session active/inactive states
+    - All UI button positions
+    - Custom styling variants
+    - Unavailable message states
+    - Session active/inactive states
 
 **Documentation**:
 
 1. **Update `CLAUDE.md`**:
-   ```markdown
-   ## XR Camera Usage
 
-   ### Basic Usage
+    ````markdown
+    ## XR Camera Usage
 
-   Enable XR mode in your graph visualization:
+    ### Basic Usage
 
-   ```typescript
-   const graph = new Graph(canvas, {
-     xr: {
-       enabled: true, // VR/AR buttons appear automatically
-     }
-   });
-   ```
+    Enable XR mode in your graph visualization:
 
-   ### Configuration
+    ```typescript
+    const graph = new Graph(canvas, {
+        xr: {
+            enabled: true, // VR/AR buttons appear automatically
+        },
+    });
+    ```
+    ````
 
-   Full XR configuration options:
+    ### Configuration
 
-   ```typescript
-   {
-     xr: {
-       enabled: true,
-       ui: {
-         enabled: true,
-         position: "bottom-left", // or "bottom-right", "top-left", "top-right"
-         customStyles: ".webxr-button { background: blue; }",
-         unavailableMessageDuration: 5000 // milliseconds
-       },
-       vr: {
-         enabled: true,
-         referenceSpaceType: "local-floor",
-         optionalFeatures: ["hand-tracking"]
-       },
-       ar: {
-         enabled: true,
-         referenceSpaceType: "local-floor",
-         optionalFeatures: ["hit-test"]
-       },
-       input: {
-         handTracking: true,
-         controllers: true,
-         nearInteraction: true,
-         physics: false
-       }
-     }
-   }
-   ```
+    Full XR configuration options:
 
-   ### Programmatic Control
+    ```typescript
+    {
+      xr: {
+        enabled: true,
+        ui: {
+          enabled: true,
+          position: "bottom-left", // or "bottom-right", "top-left", "top-right"
+          customStyles: ".webxr-button { background: blue; }",
+          unavailableMessageDuration: 5000 // milliseconds
+        },
+        vr: {
+          enabled: true,
+          referenceSpaceType: "local-floor",
+          optionalFeatures: ["hand-tracking"]
+        },
+        ar: {
+          enabled: true,
+          referenceSpaceType: "local-floor",
+          optionalFeatures: ["hit-test"]
+        },
+        input: {
+          handTracking: true,
+          controllers: true,
+          nearInteraction: true,
+          physics: false
+        }
+      }
+    }
+    ```
 
-   ```typescript
-   // Enter VR mode programmatically
-   await graph.enterXR("immersive-vr");
+    ### Programmatic Control
 
-   // Enter AR mode
-   await graph.enterXR("immersive-ar");
+    ```typescript
+    // Enter VR mode programmatically
+    await graph.enterXR("immersive-vr");
 
-   // Exit XR
-   await graph.exitXR();
+    // Enter AR mode
+    await graph.enterXR("immersive-ar");
 
-   // Switch camera to XR
-   graph.cameraManager.activateCamera("xr");
-   ```
+    // Exit XR
+    await graph.exitXR();
 
-   ### XR Events
+    // Switch camera to XR
+    graph.cameraManager.activateCamera("xr");
+    ```
 
-   Listen to XR lifecycle events:
+    ### XR Events
 
-   ```typescript
-   graph.on("xr-session-started", (mode) => {
-     console.log(`XR session started: ${mode}`);
-   });
+    Listen to XR lifecycle events:
 
-   graph.on("xr-session-ended", () => {
-     console.log("XR session ended");
-   });
+    ```typescript
+    graph.on("xr-session-started", (mode) => {
+        console.log(`XR session started: ${mode}`);
+    });
 
-   graph.on("xr-input-added", (inputSource) => {
-     console.log("Input source added:", inputSource.handedness);
-   });
-   ```
+    graph.on("xr-session-ended", () => {
+        console.log("XR session ended");
+    });
 
-   ### Testing XR Features
+    graph.on("xr-input-added", (inputSource) => {
+        console.log("Input source added:", inputSource.handedness);
+    });
+    ```
 
-   Use IWER for automated XR testing:
+    ### Testing XR Features
 
-   ```bash
-   npm install iwer --save-dev
-   ```
+    Use IWER for automated XR testing:
 
-   ```typescript
-   // In your Playwright test
-   await page.addScriptTag({
-     url: "https://unpkg.com/iwer/build/iwer.min.js",
-   });
-   await page.evaluate(() => {
-     const xrDevice = new IWER.XRDevice(IWER.metaQuest3);
-     xrDevice.installRuntime();
-   });
-   ```
+    ```bash
+    npm install iwer --save-dev
+    ```
 
-   ### Device Compatibility
+    ```typescript
+    // In your Playwright test
+    await page.addScriptTag({
+        url: "https://unpkg.com/iwer/build/iwer.min.js",
+    });
+    await page.evaluate(() => {
+        const xrDevice = new IWER.XRDevice(IWER.metaQuest3);
+        xrDevice.installRuntime();
+    });
+    ```
 
-   - **Meta Quest 2/3**: Full support (VR + hand tracking + controllers)
-   - **Apple Vision Pro**: VR support (AR coming in future visionOS)
-   - **Android XR**: Full support (emerging platform)
-   - **PC VR** (Valve Index, HTC Vive): Full support via SteamVR
+    ### Device Compatibility
+    - **Meta Quest 2/3**: Full support (VR + hand tracking + controllers)
+    - **Apple Vision Pro**: VR support (AR coming in future visionOS)
+    - **Android XR**: Full support (emerging platform)
+    - **PC VR** (Valve Index, HTC Vive): Full support via SteamVR
 
-   ### Troubleshooting
+    ### Troubleshooting
+    - **"VR / AR NOT AVAILABLE"**: Browser doesn't support WebXR or HTTPS required
+    - **Low FPS in XR**: Reduce graph complexity or enable LOD (future feature)
+    - **Hand tracking not working**: Ensure device supports it and feature is enabled in config
 
-   - **"VR / AR NOT AVAILABLE"**: Browser doesn't support WebXR or HTTPS required
-   - **Low FPS in XR**: Reduce graph complexity or enable LOD (future feature)
-   - **Hand tracking not working**: Ensure device supports it and feature is enabled in config
-   ```
+    ```
+
+    ```
 
 2. **JSDoc comments** in all XR classes:
-   - XRSessionManager
-   - XRUIManager
-   - XRCameraController
-   - XRInputController
-   - XRGestureDetector
+    - XRSessionManager
+    - XRUIManager
+    - XRCameraController
+    - XRInputController
+    - XRGestureDetector
 
 3. **Storybook documentation pages**:
-   - "XR/Getting Started"
-   - "XR/Configuration Guide"
-   - "XR/Interactions Reference"
-   - "XR/Testing Guide"
+    - "XR/Getting Started"
+    - "XR/Configuration Guide"
+    - "XR/Interactions Reference"
+    - "XR/Testing Guide"
 
 **Performance Optimization**:
 
 1. **Frame rate monitoring**:
-   ```typescript
-   // In XRInputController.update()
-   if (this.statsManager.getAverageFPS() < 60) {
-     console.warn("XR performance degradation detected");
-     // Consider reducing graph complexity
-   }
-   ```
+
+    ```typescript
+    // In XRInputController.update()
+    if (this.statsManager.getAverageFPS() < 60) {
+        console.warn("XR performance degradation detected");
+        // Consider reducing graph complexity
+    }
+    ```
 
 2. **Mesh instancing verification**:
-   - Ensure MeshCache is used for all node/edge meshes
-   - Profile draw calls in XR mode
+    - Ensure MeshCache is used for all node/edge meshes
+    - Profile draw calls in XR mode
 
 3. **Memory management**:
-   - Proper disposal of XR resources
-   - Remove event listeners on session end
-   - Clear gesture detector state
+    - Proper disposal of XR resources
+    - Remove event listeners on session end
+    - Clear gesture detector state
 
 4. **Mobile XR optimizations**:
-   - Test on actual Meta Quest device
-   - Profile memory usage
-   - Optimize for Quest's mobile GPU
+    - Test on actual Meta Quest device
+    - Profile memory usage
+    - Optimize for Quest's mobile GPU
 
 **Accessibility & UX Polish**:
 
 1. **Visual feedback**:
-   - Highlight nodes on ray hover
-   - Show selection indicators
-   - Hand/controller visibility indicators
+    - Highlight nodes on ray hover
+    - Show selection indicators
+    - Hand/controller visibility indicators
 
 2. **Error handling**:
-   - Clear error messages
-   - Fallback when XR fails
-   - Graceful degradation
+    - Clear error messages
+    - Fallback when XR fails
+    - Graceful degradation
 
 3. **Comfort options** (future enhancement, document as TODO):
-   - Teleportation
-   - Snap turning
-   - Vignetting during movement
+    - Teleportation
+    - Snap turning
+    - Vignetting during movement
 
 **Dependencies**:
+
 - **External**: IWER for testing (`npm install iwer --save-dev`)
 - **Internal**: All previous phases complete
 
 **Verification**:
+
 1. Run: `npm run test:all`
-   - Expected: All tests pass with >80% coverage
+    - Expected: All tests pass with >80% coverage
 2. Run: `npm run lint`
-   - Expected: No linting errors
+    - Expected: No linting errors
 3. Run: `npm run build`
-   - Expected: Clean build, no warnings
+    - Expected: Clean build, no warnings
 4. Run: `npm run storybook`
-   - Review all XR stories → All functional
-   - Check documentation pages → Clear and complete
+    - Review all XR stories → All functional
+    - Check documentation pages → Clear and complete
 5. Manual testing on Meta Quest (if available):
-   - Enter VR mode → Smooth experience
-   - Select/drag nodes → Responsive
-   - Two-hand gestures → Works correctly
-   - Exit VR → Clean return to normal mode
+    - Enter VR mode → Smooth experience
+    - Select/drag nodes → Responsive
+    - Two-hand gestures → Works correctly
+    - Exit VR → Clean return to normal mode
 6. Run: `npm run ready:commit`
-   - Expected: All checks pass
+    - Expected: All checks pass
 
 ---
 
@@ -2008,108 +2046,106 @@ The existing `NodeBehavior.ts` provides:
 ### Utilities Created During Implementation
 
 1. **`src/xr/XRSessionManager.ts`**: Session lifecycle management
-   - Used by: XRCameraController, XRInputController, Graph
-   - Purpose: Centralize WebXR session handling
+    - Used by: XRCameraController, XRInputController, Graph
+    - Purpose: Centralize WebXR session handling
 
 2. **`src/ui/XRUIManager.ts`**: UI button rendering and positioning
-   - Used by: Graph
-   - Purpose: Separate UI concerns from core XR logic
+    - Used by: Graph
+    - Purpose: Separate UI concerns from core XR logic
 
 3. **`src/cameras/XRGestureDetector.ts`**: Gesture recognition
-   - Used by: XRInputController
-   - Purpose: Reusable gesture detection logic
+    - Used by: XRInputController
+    - Purpose: Reusable gesture detection logic
 
 4. **Integration with existing `NodeBehavior.ts`** (NO new utility created)
-   - **Critical decision**: XR does NOT reimplement node interaction logic
-   - **Strategy**: Leverage existing `SixDofDragBehavior` and `ActionManager` from `NodeBehavior.ts`
-   - **Rationale**: BabylonJS WebXR emits pointer events that work with existing behaviors
-   - **Benefits**:
-     - Zero code duplication
-     - Consistent behavior between non-XR and XR modes
-     - Automatic support for `pinOnDrag`, layout engine updates, and expansion
-     - Single maintenance path for all node interactions
-   - **Fallback**: If `SixDofDragBehavior` doesn't work with XR, create `XRNodeBehavior` that **reuses the same logic** (not a reimplementation)
-   - **Implementation note**: `XRInputController` only enables XR features (hand tracking, near interaction), it does NOT handle node dragging/selection
+    - **Critical decision**: XR does NOT reimplement node interaction logic
+    - **Strategy**: Leverage existing `SixDofDragBehavior` and `ActionManager` from `NodeBehavior.ts`
+    - **Rationale**: BabylonJS WebXR emits pointer events that work with existing behaviors
+    - **Benefits**:
+        - Zero code duplication
+        - Consistent behavior between non-XR and XR modes
+        - Automatic support for `pinOnDrag`, layout engine updates, and expansion
+        - Single maintenance path for all node interactions
+    - **Fallback**: If `SixDofDragBehavior` doesn't work with XR, create `XRNodeBehavior` that **reuses the same logic** (not a reimplementation)
+    - **Implementation note**: `XRInputController` only enables XR features (hand tracking, near interaction), it does NOT handle node dragging/selection
 
 5. **`test/helpers/setup-iwer.ts`**: IWER test setup helper
-   ```typescript
-   export async function setupIWER(
-     page: Page,
-     device: "metaQuest3" | "metaQuest2" | "appleVisionPro" = "metaQuest3"
-   ): Promise<void> {
-     await page.addScriptTag({
-       url: "https://unpkg.com/iwer/build/iwer.min.js",
-     });
-     await page.evaluate((deviceName) => {
-       const xrDevice = new (window as any).IWER.XRDevice(
-         (window as any).IWER[deviceName]
-       );
-       xrDevice.installRuntime();
-       xrDevice.stereoEnabled = true;
-     }, device);
-   }
-   ```
-   - Used by: All XR integration tests
-   - Purpose: DRY test setup
 
-5. **`test/helpers/xr-test-utils.ts`**: XR testing utilities
-   ```typescript
-   export function createMockXRSessionManager(scene: Scene): XRSessionManager {
-     // Mock implementation for unit tests
-   }
+    ```typescript
+    export async function setupIWER(
+        page: Page,
+        device: "metaQuest3" | "metaQuest2" | "appleVisionPro" = "metaQuest3",
+    ): Promise<void> {
+        await page.addScriptTag({
+            url: "https://unpkg.com/iwer/build/iwer.min.js",
+        });
+        await page.evaluate((deviceName) => {
+            const xrDevice = new (window as any).IWER.XRDevice((window as any).IWER[deviceName]);
+            xrDevice.installRuntime();
+            xrDevice.stereoEnabled = true;
+        }, device);
+    }
+    ```
 
-   export function createMockInputSource(
-     handedness: "left" | "right",
-     type: "hand" | "controller"
-   ): WebXRInputSource {
-     // Mock input source for testing
-   }
-   ```
+    - Used by: All XR integration tests
+    - Purpose: DRY test setup
+
+6. **`test/helpers/xr-test-utils.ts`**: XR testing utilities
+
+    ```typescript
+    export function createMockXRSessionManager(scene: Scene): XRSessionManager {
+        // Mock implementation for unit tests
+    }
+
+    export function createMockInputSource(handedness: "left" | "right", type: "hand" | "controller"): WebXRInputSource {
+        // Mock input source for testing
+    }
+    ```
 
 ### External Libraries Assessment
 
 1. **BabylonJS WebXR Features** (already included):
-   - ✅ Use for: All WebXR functionality
-   - Reason: Official, well-maintained, handles device abstraction
-   - No additional libraries needed
+    - ✅ Use for: All WebXR functionality
+    - Reason: Official, well-maintained, handles device abstraction
+    - No additional libraries needed
 
 2. **IWER** (Meta's XR emulator):
-   - ✅ Use for: Automated XR testing
-   - Reason: Official emulator, works in CI/CD
-   - Install: `npm install iwer --save-dev`
+    - ✅ Use for: Automated XR testing
+    - Reason: Official emulator, works in CI/CD
+    - Install: `npm install iwer --save-dev`
 
 3. **WebXR Test API** (optional):
-   - ⚠️ Consider for: Advanced spec compliance testing
-   - Reason: Useful for edge case testing
-   - Decision: Defer to future if needed
+    - ⚠️ Consider for: Advanced spec compliance testing
+    - Reason: Useful for edge case testing
+    - Decision: Defer to future if needed
 
 4. **Handy.js**, **Three.js XR**, etc.:
-   - ❌ Do NOT use
-   - Reason: We use BabylonJS, not Three.js
+    - ❌ Do NOT use
+    - Reason: We use BabylonJS, not Three.js
 
 ### Code Reuse Opportunities
 
 1. **MOST IMPORTANT: Reuse existing `NodeBehavior.ts` for all node interactions**:
-   - **NO reimplementation of drag logic** - use existing `SixDofDragBehavior`
-   - **NO reimplementation of click logic** - use existing `ActionManager`
-   - **NO reimplementation of state management** - use existing `node.dragging`, `node.pinOnDrag`
-   - **Benefits**: Zero duplication, consistent behavior, single maintenance path
-   - **Testing focus**: Verify existing behaviors work with XR pointer events (Phase 2)
+    - **NO reimplementation of drag logic** - use existing `SixDofDragBehavior`
+    - **NO reimplementation of click logic** - use existing `ActionManager`
+    - **NO reimplementation of state management** - use existing `node.dragging`, `node.pinOnDrag`
+    - **Benefits**: Zero duplication, consistent behavior, single maintenance path
+    - **Testing focus**: Verify existing behaviors work with XR pointer events (Phase 2)
 
 2. **Refactor from `src/xr-button.ts`**:
-   - Button rendering logic → XRUIManager
-   - Session initialization → XRSessionManager
-   - Camera position transfer → XRCameraController
-   - Delete `src/xr-button.ts` after refactoring complete
+    - Button rendering logic → XRUIManager
+    - Session initialization → XRSessionManager
+    - Camera position transfer → XRCameraController
+    - Delete `src/xr-button.ts` after refactoring complete
 
 3. **Shared with Orbit/2D cameras**:
-   - `CameraController` interface implementation
-   - `InputHandler` interface implementation
-   - Camera registration pattern with CameraManager
+    - `CameraController` interface implementation
+    - `InputHandler` interface implementation
+    - Camera registration pattern with CameraManager
 
 4. **Shared gesture logic**:
-   - Could be extended to non-XR touch gestures (future)
-   - XRGestureDetector could be generalized
+    - Could be extended to non-XR touch gestures (future)
+    - XRGestureDetector could be generalized
 
 ---
 
@@ -2120,6 +2156,7 @@ The existing `NodeBehavior.ts` provides:
 **Probability**: Medium | **Impact**: High
 
 **Mitigation**:
+
 - Profile early on actual Quest device (Phase 6)
 - Monitor FPS continuously during XR sessions
 - Document performance expectations and graph size limits
@@ -2127,6 +2164,7 @@ The existing `NodeBehavior.ts` provides:
 - Test with realistic graph sizes (100-1000 nodes)
 
 **Fallback**:
+
 - Display warning if FPS < 60
 - Suggest reducing graph complexity
 - Provide performance tuning guide in docs
@@ -2136,12 +2174,14 @@ The existing `NodeBehavior.ts` provides:
 **Probability**: High (current visionOS limitation) | **Impact**: Medium
 
 **Mitigation**:
+
 - Detect AR support before showing AR button
 - On Vision Pro: Only show VR button or disabled AR button with tooltip
 - Document limitation clearly in CLAUDE.md
 - Monitor visionOS updates for AR support
 
 **Fallback**:
+
 - VR mode works perfectly on Vision Pro
 - Users understand AR coming in future visionOS
 
@@ -2150,6 +2190,7 @@ The existing `NodeBehavior.ts` provides:
 **Probability**: Medium | **Impact**: Medium
 
 **Mitigation**:
+
 - Support both hands and controllers (seamless switching)
 - Make hand tracking optional (enabled by default)
 - Tune interaction hitboxes for hand imprecision
@@ -2157,6 +2198,7 @@ The existing `NodeBehavior.ts` provides:
 - Document that controllers recommended for precision
 
 **Fallback**:
+
 - Users can always fall back to controllers
 - Config option to disable hand tracking entirely
 
@@ -2165,6 +2207,7 @@ The existing `NodeBehavior.ts` provides:
 **Probability**: Medium | **Impact**: Medium
 
 **Mitigation**:
+
 - Use IWER for automated testing in CI/CD
 - Comprehensive unit tests with mocked WebXR APIs
 - Manual testing protocol on real devices (documented)
@@ -2172,6 +2215,7 @@ The existing `NodeBehavior.ts` provides:
 - Beta period with community feedback
 
 **Fallback**:
+
 - Manual testing on critical paths
 - Community-driven multi-device testing
 - Issue tracking for device-specific bugs
@@ -2181,6 +2225,7 @@ The existing `NodeBehavior.ts` provides:
 **Probability**: Low | **Impact**: High
 
 **Mitigation**:
+
 - Follow existing patterns strictly (CameraController, InputHandler)
 - Keep XR code isolated (no changes to core Graph logic)
 - Extensive integration tests for camera switching
@@ -2189,6 +2234,7 @@ The existing `NodeBehavior.ts` provides:
 - Code review before merging
 
 **Fallback**:
+
 - Feature flag to disable XR entirely
 - Rollback capability if issues detected
 
@@ -2197,6 +2243,7 @@ The existing `NodeBehavior.ts` provides:
 **Probability**: Low | **Impact**: Low
 
 **Mitigation**:
+
 - Provide sensible defaults (zero-config should work)
 - Document common use cases prominently
 - Keep simple case simple: just enable XR
@@ -2204,6 +2251,7 @@ The existing `NodeBehavior.ts` provides:
 - Zod validation provides helpful error messages
 
 **Fallback**:
+
 - Minimal config example in every doc section
 - "Quick Start" guide with copy-paste config
 
@@ -2212,12 +2260,14 @@ The existing `NodeBehavior.ts` provides:
 ## Success Metrics
 
 **Phase Completion Criteria**:
+
 - ✅ Each phase must deliver working, user-testable functionality
 - ✅ All tests pass for completed phases
 - ✅ No regressions in existing features
 - ✅ Storybook stories demonstrate new features
 
 **Final Success Criteria**:
+
 - [ ] All acceptance criteria met (48 items from design doc)
 - [ ] Test coverage >80% for XR components
 - [ ] All visual regression tests pass
@@ -2228,6 +2278,7 @@ The existing `NodeBehavior.ts` provides:
 - [ ] `npm run ready:commit` passes cleanly
 
 **User Acceptance**:
+
 - [ ] Users can enter VR/AR with single button click
 - [ ] Interactions feel natural and responsive
 - [ ] Camera switching is seamless
@@ -2239,23 +2290,25 @@ The existing `NodeBehavior.ts` provides:
 
 ## Timeline Summary
 
-| Phase | Duration | Deliverable |
-|-------|----------|-------------|
-| **Phase 1** | 2-3 days | XR session lifecycle and UI buttons |
-| **Phase 2** | 2-3 days | Input handling and basic interactions |
-| **Phase 3** | 1-2 days | Camera architecture integration |
-| **Phase 4** | 1-2 days | Configuration system and polish |
-| **Phase 5** | 1-2 days | Advanced gestures and multi-hand |
-| **Phase 6** | 2-3 days | Testing, docs, production readiness |
-| **Total** | **9-15 days** | Production-ready XR camera feature |
+| Phase       | Duration      | Deliverable                           |
+| ----------- | ------------- | ------------------------------------- |
+| **Phase 1** | 2-3 days      | XR session lifecycle and UI buttons   |
+| **Phase 2** | 2-3 days      | Input handling and basic interactions |
+| **Phase 3** | 1-2 days      | Camera architecture integration       |
+| **Phase 4** | 1-2 days      | Configuration system and polish       |
+| **Phase 5** | 1-2 days      | Advanced gestures and multi-hand      |
+| **Phase 6** | 2-3 days      | Testing, docs, production readiness   |
+| **Total**   | **9-15 days** | Production-ready XR camera feature    |
 
 **Assumptions**:
+
 - One developer working full-time
 - Access to Meta Quest device for testing (Phase 6)
 - No major blockers or scope changes
 - Familiarity with BabylonJS WebXR APIs
 
 **Parallelization Opportunities**:
+
 - Documentation can be written in parallel with implementation
 - Visual tests can be created alongside Storybook stories
 - Performance profiling can happen during Phase 5-6
@@ -2267,18 +2320,21 @@ The existing `NodeBehavior.ts` provides:
 These are explicitly **out of scope** for initial implementation but documented for future work:
 
 ### Short-term (Next 3-6 months)
+
 - Teleportation system for large graph navigation
 - XR-specific UI overlays (stats, menus in 3D space)
 - Comfort options (snap turning, vignetting)
 - Hit-test support for AR object placement
 
 ### Medium-term (6-12 months)
+
 - Multi-user collaborative XR sessions
 - XR-optimized graph layouts (spatial algorithms)
 - Level of Detail (LOD) for large graphs in XR
 - Passthrough mode mixing (on capable devices)
 
 ### Long-term (12+ months)
+
 - Spatial audio for navigation cues
 - XR recording/replay for presentations
 - AI-assisted XR navigation
@@ -2303,10 +2359,10 @@ This implementation plan transforms the XR feature from a monolithic script into
 **Key Architectural Decisions**:
 
 1. **NodeBehavior Integration**: XR leverages existing `SixDofDragBehavior` and `ActionManager` instead of reimplementing node interactions. This ensures:
-   - Zero code duplication
-   - Consistent behavior between non-XR and XR modes
-   - Single maintenance path
-   - Automatic support for all existing features (pinOnDrag, layout updates, double-click expansion)
+    - Zero code duplication
+    - Consistent behavior between non-XR and XR modes
+    - Single maintenance path
+    - Automatic support for all existing features (pinOnDrag, layout updates, double-click expansion)
 
 2. **Minimal XRInputController**: The XR input controller only enables XR-specific features (hand tracking, near interaction) and does NOT handle basic interactions. This keeps XR code focused and minimal.
 

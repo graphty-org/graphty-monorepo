@@ -3,10 +3,10 @@
  * @module ai/prompt/SystemPromptBuilder
  */
 
-import type {Graph} from "../../Graph";
-import type {GraphCommand} from "../commands/types";
-import {formatSchemaForPrompt} from "../schema/SchemaFormatter";
-import type {SchemaSummary} from "../schema/types";
+import type { Graph } from "../../Graph";
+import type { GraphCommand } from "../commands/types";
+import { formatSchemaForPrompt } from "../schema/SchemaFormatter";
+import type { SchemaSummary } from "../schema/types";
 
 /**
  * Options for building system prompts.
@@ -183,9 +183,13 @@ You can help users:
     private buildCommandsSection(): string {
         const commandDescriptions = this.commands
             .map((cmd) => {
-                const examples = cmd.examples.length > 0 ?
-                    `\n  Examples: ${cmd.examples.slice(0, 2).map((e) => `"${e.input}"`).join(", ")}` :
-                    "";
+                const examples =
+                    cmd.examples.length > 0
+                        ? `\n  Examples: ${cmd.examples
+                              .slice(0, 2)
+                              .map((e) => `"${e.input}"`)
+                              .join(", ")}`
+                        : "";
                 return `- **${cmd.name}**: ${cmd.description}${examples}`;
             })
             .join("\n");

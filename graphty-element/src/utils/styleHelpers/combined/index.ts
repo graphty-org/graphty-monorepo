@@ -91,13 +91,7 @@ export function colorAndOpacity(
  * // Community nodes: same color, different importance
  * sizeAndOpacity(0.9) // { size: 4.6, opacity: 0.97 }
  */
-export function sizeAndOpacity(
-    value: number,
-    minSize = 1,
-    maxSize = 5,
-    minOpacity = 0.3,
-    maxOpacity = 1.0,
-): NodeStyle {
+export function sizeAndOpacity(value: number, minSize = 1, maxSize = 5, minOpacity = 0.3, maxOpacity = 1.0): NodeStyle {
     return {
         size: size.linear(value, minSize, maxSize),
         opacity: opacity.linear(value, minOpacity, maxOpacity),

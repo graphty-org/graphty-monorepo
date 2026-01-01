@@ -1,16 +1,16 @@
-import {chromium} from "playwright";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 
 async function main() {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
     // Navigate to ngraph story
     await page.goto(`${STORYBOOK_URL}/iframe.html?id=layout-3d--ngraph&viewMode=story`);
 
     // Wait for graphty-element
-    await page.waitForSelector("graphty-element", {timeout: 10000});
+    await page.waitForSelector("graphty-element", { timeout: 10000 });
     await page.waitForTimeout(2000);
 
     // Check node positions and layout state
@@ -26,11 +26,15 @@ async function main() {
         }
 
         // Get first few nodes
-        const nodes = Array.from(layout.ngraph.forEachNode ?
-            (() => {
-                const n = []; layout.ngraph.forEachNode((node) => n.push(node)); return n;
-            })() :
-            []);
+        const nodes = Array.from(
+            layout.ngraph.forEachNode
+                ? (() => {
+                      const n = [];
+                      layout.ngraph.forEachNode((node) => n.push(node));
+                      return n;
+                  })()
+                : [],
+        );
 
         return {
             layoutType: layout.constructor.name,
@@ -43,11 +47,9 @@ async function main() {
             })),
             layoutConfig: layout.layoutConfig,
             seed: layout.layoutConfig?.seed,
-            randomTest: layout.random ? [
-                layout.random.nextDouble(),
-                layout.random.nextDouble(),
-                layout.random.nextDouble(),
-            ] : null,
+            randomTest: layout.random
+                ? [layout.random.nextDouble(), layout.random.nextDouble(), layout.random.nextDouble()]
+                : null,
         };
     });
 

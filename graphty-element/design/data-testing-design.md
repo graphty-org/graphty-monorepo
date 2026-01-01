@@ -22,21 +22,22 @@
 Our parsers for DOT, GraphML, and other formats sometimes produce partial graphs—missing nodes or edges that exist in the source file. This is unacceptable because users expect to see their complete graph.
 
 **This testing strategy focuses on one primary goal:**
+
 > **Every node and every edge in a source file must be faithfully created in the parsed output.**
 
 We are NOT adding new features (ports, compass points, nested graphs, hyperedges, etc.). Instead, we are ensuring that what we already support works correctly and completely.
 
 ### Supported Formats
 
-| Format | Parser | Status |
-|--------|--------|--------|
-| JSON (variants) | `JsonDataSource.ts` | Stable |
-| GraphML | `GraphMLDataSource.ts` | Stable |
-| CSV | `CSVDataSource.ts` | Stable |
-| DOT | `DOTDataSource.ts` | Stable |
-| GML | `GMLDataSource.ts` | Stable |
-| GEXF | `GEXFDataSource.ts` | Stable |
-| Pajek NET | `PajekDataSource.ts` | Stable |
+| Format          | Parser                 | Status |
+| --------------- | ---------------------- | ------ |
+| JSON (variants) | `JsonDataSource.ts`    | Stable |
+| GraphML         | `GraphMLDataSource.ts` | Stable |
+| CSV             | `CSVDataSource.ts`     | Stable |
+| DOT             | `DOTDataSource.ts`     | Stable |
+| GML             | `GMLDataSource.ts`     | Stable |
+| GEXF            | `GEXFDataSource.ts`    | Stable |
+| Pajek NET       | `PajekDataSource.ts`   | Stable |
 
 ---
 
@@ -45,6 +46,7 @@ We are NOT adding new features (ports, compass points, nested graphs, hyperedges
 ### Primary Success Criteria
 
 For every file in our test corpus:
+
 1. **All nodes are parsed** - The parser extracts every node defined in the file
 2. **All edges are parsed** - The parser extracts every edge/connection defined in the file
 3. **Node IDs are correct** - Each node has the correct identifier
@@ -53,6 +55,7 @@ For every file in our test corpus:
 ### What We're NOT Doing
 
 We are explicitly **not** implementing:
+
 - Edge ports (`node:port`) - Just strip the port suffix and create the edge
 - Compass points (`node:n`, `node:se`) - Just strip the compass suffix and create the edge
 - Nested/grouped graphs - Flatten to a single graph
@@ -64,23 +67,23 @@ We are explicitly **not** implementing:
 
 These are documented limitations that users should be aware of:
 
-| Format | Limitation | Behavior |
-|--------|-----------|----------|
-| GraphML | Nested graphs flattened | All nodes/edges in single graph |
-| GEXF | Dynamic mode ignored | Uses first time slice |
-| Pajek | Matrix format unsupported | Use *Edges/*Arcs format |
+| Format  | Limitation                | Behavior                        |
+| ------- | ------------------------- | ------------------------------- |
+| GraphML | Nested graphs flattened   | All nodes/edges in single graph |
+| GEXF    | Dynamic mode ignored      | Uses first time slice           |
+| Pajek   | Matrix format unsupported | Use *Edges/*Arcs format         |
 
 ### Implemented Features (Previously Limitations)
 
 These were previously limitations but have been fixed:
 
-| Format | Feature | Status |
-|--------|---------|--------|
-| DOT | Edge chains (`a->b->c`) | ✅ Creates correct number of edges |
-| DOT | Port syntax (`node:port`) | ✅ Ports stripped, edges connect correct nodes |
-| DOT | Subgraph edge shorthand (`{A B} -> C`) | ✅ Expands to all node combinations |
-| DOT | Keyword recognition (`node [...]`) | ✅ No longer creates bogus nodes |
-| All | Error recovery | ✅ Parsers drop bad rows and continue (see Phase 5) |
+| Format | Feature                                | Status                                              |
+| ------ | -------------------------------------- | --------------------------------------------------- |
+| DOT    | Edge chains (`a->b->c`)                | ✅ Creates correct number of edges                  |
+| DOT    | Port syntax (`node:port`)              | ✅ Ports stripped, edges connect correct nodes      |
+| DOT    | Subgraph edge shorthand (`{A B} -> C`) | ✅ Expands to all node combinations                 |
+| DOT    | Keyword recognition (`node [...]`)     | ✅ No longer creates bogus nodes                    |
+| All    | Error recovery                         | ✅ Parsers drop bad rows and continue (see Phase 5) |
 
 ---
 
@@ -89,6 +92,7 @@ These were previously limitations but have been fixed:
 ### DOT Parser (`src/data/DOTDataSource.ts`)
 
 **Core Parsing (Must Work):**
+
 - [x] `graph` / `digraph` / `strict` declarations
 - [x] Node declarations with attributes
 - [x] Edge statements (`->` and `--`)
@@ -100,6 +104,7 @@ These were previously limitations but have been fixed:
 - [x] Basic attribute parsing
 
 **Fixed Issues (Phase 2):**
+
 - [x] Edge chains (`a -> b -> c`) - Now correctly creates multiple edges
 - [x] Port syntax (`node:port`) - Port suffixes are now stripped from node IDs
 - [x] Keyword recognition - `node [...]` and `edge [...]` no longer create bogus nodes
@@ -108,6 +113,7 @@ These were previously limitations but have been fixed:
 ### GraphML Parser (`src/data/GraphMLDataSource.ts`)
 
 **Core Parsing (Must Work):**
+
 - [x] Standard GraphML structure
 - [x] Key definitions with typed attributes
 - [x] All `<node>` elements extracted
@@ -118,6 +124,7 @@ These were previously limitations but have been fixed:
 ### GML Parser (`src/data/GMLDataSource.ts`)
 
 **Core Parsing (Must Work):**
+
 - [x] Basic structure (`graph [ node [...] edge [...] ]`)
 - [x] All `node [...]` blocks extracted
 - [x] All `edge [...]` blocks extracted
@@ -126,6 +133,7 @@ These were previously limitations but have been fixed:
 ### GEXF Parser (`src/data/GEXFDataSource.ts`)
 
 **Core Parsing (Must Work):**
+
 - [x] Standard GEXF structure
 - [x] All `<node>` elements extracted
 - [x] All `<edge>` elements extracted
@@ -135,6 +143,7 @@ These were previously limitations but have been fixed:
 ### CSV Parser (`src/data/CSVDataSource.ts`)
 
 **Core Parsing (Must Work):**
+
 - [x] Edge list format (source, target)
 - [x] Node list format
 - [x] Gephi format (Source, Target, Type, Weight)
@@ -146,6 +155,7 @@ These were previously limitations but have been fixed:
 ### Pajek NET Parser (`src/data/PajekDataSource.ts`)
 
 **Core Parsing (Must Work):**
+
 - [x] `*Vertices` section - all vertices extracted
 - [x] `*Arcs` section - all directed edges extracted
 - [x] `*Edges` section - all undirected edges extracted
@@ -154,6 +164,7 @@ These were previously limitations but have been fixed:
 ### JSON Parser (`src/data/JsonDataSource.ts`)
 
 **Core Parsing (Must Work):**
+
 - [x] D3.js format (`nodes`/`links`)
 - [x] Cytoscape.js format (`elements.nodes`/`elements.edges`)
 - [x] Sigma.js/Graphology format (`key`/`attributes`)
@@ -169,6 +180,7 @@ These were previously limitations but have been fixed:
 We maintain a corpus of real-world files from public datasets. Each file has documented expected node/edge counts.
 
 **Test Philosophy:**
+
 - Use 90% threshold for node/edge counts (accounts for known edge cases)
 - Every corpus file should parse without errors
 - Focus on **quantity** (complete parsing) not **features** (advanced attributes)
@@ -238,6 +250,7 @@ test/helpers/corpus/
 ### Corpus Diversity Goals
 
 Each format should have:
+
 1. **Minimal file** - Simplest valid graph (2-5 nodes)
 2. **Medium file** - Typical use case (30-100 nodes)
 3. **Large file** - Stress test (100+ nodes)
@@ -245,37 +258,37 @@ Each format should have:
 
 Current Coverage (Phase 3 Complete):
 
-| Format | Minimal | Medium | Large | Real-world |
-|--------|---------|--------|-------|------------|
-| DOT | ✅ hello.gv | ✅ cluster.gv | ✅ root.gv (1054) | ✅ fsm.gv |
-| GraphML | ✅ simple.graphml | ✅ got-network (107) | ✅ got-network | ✅ GoT dataset |
-| GML | ✅ minimal.gml | ✅ karate.gml (34) | ✅ football.gml (115) | ✅ All from Newman |
-| GEXF | ✅ minimal.gexf | ✅ lesmiserables (77) | ✅ airlines (235) | ✅ From Gephi |
-| CSV | ✅ simple-edges | ✅ dolphins-medium (31) | ✅ got-edges (107) | ✅ GoT dataset |
-| Pajek | ✅ simple.net | ✅ dolphins.net (62) | ✅ football.net (115) | ✅ dolphins, football |
-| JSON | ✅ All 5 variants | ✅ karate-d3 (34) | ✅ miserables (77) | ✅ miserables |
+| Format  | Minimal           | Medium                  | Large                 | Real-world            |
+| ------- | ----------------- | ----------------------- | --------------------- | --------------------- |
+| DOT     | ✅ hello.gv       | ✅ cluster.gv           | ✅ root.gv (1054)     | ✅ fsm.gv             |
+| GraphML | ✅ simple.graphml | ✅ got-network (107)    | ✅ got-network        | ✅ GoT dataset        |
+| GML     | ✅ minimal.gml    | ✅ karate.gml (34)      | ✅ football.gml (115) | ✅ All from Newman    |
+| GEXF    | ✅ minimal.gexf   | ✅ lesmiserables (77)   | ✅ airlines (235)     | ✅ From Gephi         |
+| CSV     | ✅ simple-edges   | ✅ dolphins-medium (31) | ✅ got-edges (107)    | ✅ GoT dataset        |
+| Pajek   | ✅ simple.net     | ✅ dolphins.net (62)    | ✅ football.net (115) | ✅ dolphins, football |
+| JSON    | ✅ All 5 variants | ✅ karate-d3 (34)       | ✅ miserables (77)    | ✅ miserables         |
 
 ### Test Runner
 
 ```typescript
 // test/helpers/corpus/corpus.test.ts
 describe("Corpus Tests", () => {
-  for (const format of formats) {
-    describe(`${format.toUpperCase()} Format`, () => {
-      for (const file of manifest.files) {
-        test(`parses ${file.path}`, async () => {
-          const content = readFileSync(filePath, "utf-8");
-          const dataSource = new DataSourceClass({ data: content });
+    for (const format of formats) {
+        describe(`${format.toUpperCase()} Format`, () => {
+            for (const file of manifest.files) {
+                test(`parses ${file.path}`, async () => {
+                    const content = readFileSync(filePath, "utf-8");
+                    const dataSource = new DataSourceClass({ data: content });
 
-          const { totalNodes, totalEdges } = await collectChunks(dataSource);
+                    const { totalNodes, totalEdges } = await collectChunks(dataSource);
 
-          // 90% threshold allows for known edge cases
-          assert.isAtLeast(totalNodes, file.expectedNodes * 0.9);
-          assert.isAtLeast(totalEdges, file.expectedEdges * 0.9);
+                    // 90% threshold allows for known edge cases
+                    assert.isAtLeast(totalNodes, file.expectedNodes * 0.9);
+                    assert.isAtLeast(totalEdges, file.expectedEdges * 0.9);
+                });
+            }
         });
-      }
-    });
-  }
+    }
 });
 ```
 
@@ -285,40 +298,40 @@ describe("Corpus Tests", () => {
 
 ### DOT Format Sources
 
-| Source | URL | License |
-|--------|-----|---------|
+| Source           | URL                           | License |
+| ---------------- | ----------------------------- | ------- |
 | Graphviz Gallery | https://graphviz.org/gallery/ | EPL-1.0 |
 
 ### GraphML Format Sources
 
-| Source | URL | License |
-|--------|-----|---------|
-| Created samples | N/A | MIT |
+| Source          | URL | License |
+| --------------- | --- | ------- |
+| Created samples | N/A | MIT     |
 
 ### GML Format Sources
 
-| Source | URL | License |
-|--------|-----|---------|
+| Source      | URL                                          | License  |
+| ----------- | -------------------------------------------- | -------- |
 | Mark Newman | http://www-personal.umich.edu/~mejn/netdata/ | Academic |
 
 ### GEXF Format Sources
 
-| Source | URL | License |
-|--------|-----|---------|
+| Source         | URL                                                           | License |
+| -------------- | ------------------------------------------------------------- | ------- |
 | Gephi Datasets | https://github.com/gephi/gephi.github.io/tree/master/datasets | Various |
 
 ### CSV Format Sources
 
-| Source | URL | License |
-|--------|-----|---------|
-| Sample Social Networks | https://github.com/melaniewalsh/sample-social-network-datasets | CC0 |
+| Source                 | URL                                                            | License |
+| ---------------------- | -------------------------------------------------------------- | ------- |
+| Sample Social Networks | https://github.com/melaniewalsh/sample-social-network-datasets | CC0     |
 
 ### JSON Format Sources
 
-| Source | URL | License |
-|--------|-----|---------|
-| D3 Examples | https://github.com/d3/d3-plugins | BSD |
-| Created samples | N/A | MIT |
+| Source          | URL                              | License |
+| --------------- | -------------------------------- | ------- |
+| D3 Examples     | https://github.com/d3/d3-plugins | BSD     |
+| Created samples | N/A                              | MIT     |
 
 ---
 
@@ -342,15 +355,18 @@ describe("Corpus Tests", () => {
 **Problem:** Edge chains like `a -> b -> c -> d` only create 2 edges instead of 3.
 
 **DOT Grammar:**
+
 ```
 edge_stmt = (node_id | subgraph) edgeRHS [attr_list]
 edgeRHS   = edgeop (node_id | subgraph) [edgeRHS]   ← RECURSIVE!
 ```
 
 **Test Case:**
+
 ```dot
 digraph G { a -> b -> c -> d; }
 ```
+
 - Expected: 3 edges (a→b, b→c, c→d)
 - Actual: 2 edges (a→b, c→d), missing b→c
 
@@ -361,6 +377,7 @@ digraph G { a -> b -> c -> d; }
 **Problem:** Port suffixes like `:f0` or `:n` are not stripped from node IDs.
 
 **DOT Grammar:**
+
 ```
 node_id = ID [port]
 port    = ':' ID [':' compass_pt] | ':' compass_pt
@@ -368,9 +385,11 @@ compass_pt = n | ne | e | se | s | sw | w | nw | c | _
 ```
 
 **Test Case:**
+
 ```dot
 digraph G { "node0":f0 -> "node1":f1; a:n -> b:s; }
 ```
+
 - Expected: 2 edges (node0→node1, a→b)
 - Actual: Edges with bogus nodes `:f0`, `a:n`, `b:s`
 
@@ -381,11 +400,13 @@ digraph G { "node0":f0 -> "node1":f1; a:n -> b:s; }
 **Problem:** `node [...]` and `edge [...]` default attribute statements create bogus nodes.
 
 **DOT Grammar:**
+
 ```
 attr_stmt = (graph | node | edge) attr_list
 ```
 
 **Test Case:**
+
 ```dot
 digraph G {
     node [shape=box];
@@ -393,6 +414,7 @@ digraph G {
     A -> B;
 }
 ```
+
 - Expected: 2 nodes (A, B)
 - Actual: 4 nodes (node, edge, A, B) - "node" and "edge" are bogus
 
@@ -403,15 +425,18 @@ digraph G {
 **Problem:** Anonymous subgraphs in edge statements don't expand to multiple edges.
 
 **DOT Grammar:**
+
 ```
 edge_stmt = (node_id | subgraph) edgeRHS [attr_list]
 subgraph  = [subgraph [ID]] '{' stmt_list '}'
 ```
 
 **Test Case:**
+
 ```dot
 digraph G { {A B} -> {C D}; }
 ```
+
 - Expected: 4 edges (A→C, A→D, B→C, B→D)
 - Actual: 0 edges, bogus nodes created
 
@@ -432,6 +457,7 @@ digraph G { {A B} -> {C D}; }
 **Goal:** Each format has minimal, medium, large, and real-world files.
 
 **Completed Tasks:**
+
 1. [x] Added root.gv (1054 nodes) - large DOT file from Graphviz gallery
 2. [x] Added got-network.graphml (107 nodes) - Game of Thrones social network
 3. [x] Added minimal.gml and minimal.gexf - minimal test files
@@ -445,6 +471,7 @@ digraph G { {A B} -> {C D}; }
 **Goal:** Corpus tests run automatically in CI.
 
 **Completed Tasks:**
+
 1. ✅ Corpus tests included in `npm test` (part of default vitest project)
 2. ✅ Tests run in CI via existing test pipeline
 3. ✅ Known limitations documented in this design document
@@ -456,35 +483,36 @@ digraph G { {A B} -> {C D}; }
 **Background:** Prior to this phase, DOT and JSON parsers used an "all-or-nothing" approach - any parsing error would abort the entire parse. Other parsers (CSV, Pajek, GraphML, GML, GEXF) already had error recovery using the ErrorAggregator pattern.
 
 **Completed Tasks:**
+
 1. ✅ Added error recovery to DOTDataSource
-   - Empty content returns empty result instead of throwing
-   - Try-catch around tokenization with error aggregation
-   - Try-catch around statement parsing with `skipToNextStatement()` recovery
-   - New `skipToNextStatement()` helper finds next `;` or `}` boundary
+    - Empty content returns empty result instead of throwing
+    - Try-catch around tokenization with error aggregation
+    - Try-catch around statement parsing with `skipToNextStatement()` recovery
+    - New `skipToNextStatement()` helper finds next `;` or `}` boundary
 
 2. ✅ Added error recovery to JsonDataSource
-   - Empty content returns empty result instead of throwing
-   - JSON.parse errors logged and return empty result
-   - Missing/wrong-type nodes/edges arrays logged and use empty arrays
-   - Per-element validation with `isValidNode()` and `isValidEdge()` helpers
-   - Invalid nodes/edges are dropped, valid ones are kept
+    - Empty content returns empty result instead of throwing
+    - JSON.parse errors logged and return empty result
+    - Missing/wrong-type nodes/edges arrays logged and use empty arrays
+    - Per-element validation with `isValidNode()` and `isValidEdge()` helpers
+    - Invalid nodes/edges are dropped, valid ones are kept
 
 3. ✅ Created malformed corpus (60 test files)
-   - 10 malformed files per format (DOT, GraphML, GML, GEXF, CSV, Pajek, JSON)
-   - Test runner with `expectedBehaviors` map defining expected behavior per file
-   - Tests verify parsers either throw meaningful errors or recover gracefully
+    - 10 malformed files per format (DOT, GraphML, GML, GEXF, CSV, Pajek, JSON)
+    - Test runner with `expectedBehaviors` map defining expected behavior per file
+    - Tests verify parsers either throw meaningful errors or recover gracefully
 
 **Error Recovery Summary:**
 
-| Parser | Drops Bad Rows? | Uses ErrorAggregator? | Returns Partial Results? |
-|--------|-----------------|----------------------|-------------------------|
-| CSV | ✅ Yes | ✅ Yes | ✅ Yes |
-| Pajek | ✅ Yes | ✅ Yes | ✅ Yes |
-| GraphML | ✅ Yes | ✅ Yes | ✅ Yes |
-| GML | ✅ Yes | ✅ Yes | ✅ Yes |
-| GEXF | ✅ Yes | ✅ Yes | ✅ Yes |
-| DOT | ✅ Yes | ✅ Yes | ✅ Yes |
-| JSON | ✅ Yes | ✅ Yes | ✅ Yes |
+| Parser  | Drops Bad Rows? | Uses ErrorAggregator? | Returns Partial Results? |
+| ------- | --------------- | --------------------- | ------------------------ |
+| CSV     | ✅ Yes          | ✅ Yes                | ✅ Yes                   |
+| Pajek   | ✅ Yes          | ✅ Yes                | ✅ Yes                   |
+| GraphML | ✅ Yes          | ✅ Yes                | ✅ Yes                   |
+| GML     | ✅ Yes          | ✅ Yes                | ✅ Yes                   |
+| GEXF    | ✅ Yes          | ✅ Yes                | ✅ Yes                   |
+| DOT     | ✅ Yes          | ✅ Yes                | ✅ Yes                   |
+| JSON    | ✅ Yes          | ✅ Yes                | ✅ Yes                   |
 
 ---
 
@@ -492,18 +520,18 @@ digraph G { {A B} -> {C D}; }
 
 ```json
 {
-  "format": "dot",
-  "description": "DOT format test files",
-  "files": [
-    {
-      "path": "hello.gv",
-      "source": "https://graphviz.org/Gallery/directed/hello.html",
-      "license": "EPL-1.0",
-      "expectedNodes": 2,
-      "expectedEdges": 1,
-      "features": ["basic", "digraph"]
-    }
-  ]
+    "format": "dot",
+    "description": "DOT format test files",
+    "files": [
+        {
+            "path": "hello.gv",
+            "source": "https://graphviz.org/Gallery/directed/hello.html",
+            "license": "EPL-1.0",
+            "expectedNodes": 2,
+            "expectedEdges": 1,
+            "features": ["basic", "digraph"]
+        }
+    ]
 }
 ```
 

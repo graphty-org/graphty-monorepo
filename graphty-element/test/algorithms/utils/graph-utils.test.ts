@@ -1,11 +1,11 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {buildAdjacencyList, buildWeightedAdjacencyList} from "../../../src/algorithms/utils";
-import type {GraphLike, MinimalEdge} from "../../../src/algorithms/utils/graphUtils";
+import { buildAdjacencyList, buildWeightedAdjacencyList } from "../../../src/algorithms/utils";
+import type { GraphLike, MinimalEdge } from "../../../src/algorithms/utils/graphUtils";
 
 interface MockGraphOpts {
-    nodes?: {id: string | number, [key: string]: unknown}[];
-    edges?: {srcId: string | number, dstId: string | number, value?: number, [key: string]: unknown}[];
+    nodes?: { id: string | number; [key: string]: unknown }[];
+    edges?: { srcId: string | number; dstId: string | number; value?: number; [key: string]: unknown }[];
 }
 
 function createMockGraph(opts: MockGraphOpts = {}): GraphLike {
@@ -26,7 +26,7 @@ function createMockGraph(opts: MockGraphOpts = {}): GraphLike {
 
     return {
         getDataManager() {
-            return {nodes, edges};
+            return { nodes, edges };
         },
     };
 }
@@ -35,11 +35,11 @@ describe("graph utilities", () => {
     describe("buildAdjacencyList", () => {
         it("builds undirected adjacency list", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
-                edges: [{srcId: "A", dstId: "B"}],
+                nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
+                edges: [{ srcId: "A", dstId: "B" }],
             });
 
-            const adj = buildAdjacencyList(graph, {directed: false});
+            const adj = buildAdjacencyList(graph, { directed: false });
 
             assert.isTrue(adj.get("A")?.has("B"), "A should have B as neighbor");
             assert.isTrue(adj.get("B")?.has("A"), "B should have A as neighbor (undirected)");
@@ -49,11 +49,11 @@ describe("graph utilities", () => {
 
         it("builds directed adjacency list", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}],
-                edges: [{srcId: "A", dstId: "B"}],
+                nodes: [{ id: "A" }, { id: "B" }],
+                edges: [{ srcId: "A", dstId: "B" }],
             });
 
-            const adj = buildAdjacencyList(graph, {directed: true});
+            const adj = buildAdjacencyList(graph, { directed: true });
 
             assert.isTrue(adj.get("A")?.has("B"), "A should have B as neighbor");
             assert.isFalse(adj.get("B")?.has("A"), "B should NOT have A as neighbor (directed)");
@@ -61,15 +61,15 @@ describe("graph utilities", () => {
 
         it("handles multiple edges", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                 edges: [
-                    {srcId: "A", dstId: "B"},
-                    {srcId: "A", dstId: "C"},
-                    {srcId: "B", dstId: "C"},
+                    { srcId: "A", dstId: "B" },
+                    { srcId: "A", dstId: "C" },
+                    { srcId: "B", dstId: "C" },
                 ],
             });
 
-            const adj = buildAdjacencyList(graph, {directed: false});
+            const adj = buildAdjacencyList(graph, { directed: false });
 
             assert.isTrue(adj.get("A")?.has("B"));
             assert.isTrue(adj.get("A")?.has("C"));
@@ -92,8 +92,8 @@ describe("graph utilities", () => {
 
         it("handles nodes with no edges", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}, {id: "isolated"}],
-                edges: [{srcId: "A", dstId: "B"}],
+                nodes: [{ id: "A" }, { id: "B" }, { id: "isolated" }],
+                edges: [{ srcId: "A", dstId: "B" }],
             });
 
             const adj = buildAdjacencyList(graph);
@@ -104,8 +104,8 @@ describe("graph utilities", () => {
 
         it("defaults to undirected when no options provided", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}],
-                edges: [{srcId: "A", dstId: "B"}],
+                nodes: [{ id: "A" }, { id: "B" }],
+                edges: [{ srcId: "A", dstId: "B" }],
             });
 
             const adj = buildAdjacencyList(graph);
@@ -116,8 +116,8 @@ describe("graph utilities", () => {
 
         it("handles numeric node IDs", () => {
             const graph = createMockGraph({
-                nodes: [{id: 1}, {id: 2}, {id: 3}],
-                edges: [{srcId: 1, dstId: 2}],
+                nodes: [{ id: 1 }, { id: 2 }, { id: 3 }],
+                edges: [{ srcId: 1, dstId: 2 }],
             });
 
             const adj = buildAdjacencyList(graph);
@@ -131,8 +131,8 @@ describe("graph utilities", () => {
     describe("buildWeightedAdjacencyList", () => {
         it("includes edge weights", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}],
-                edges: [{srcId: "A", dstId: "B", value: 5}],
+                nodes: [{ id: "A" }, { id: "B" }],
+                edges: [{ srcId: "A", dstId: "B", value: 5 }],
             });
 
             const adj = buildWeightedAdjacencyList(graph);
@@ -143,8 +143,8 @@ describe("graph utilities", () => {
 
         it("uses default weight of 1 when not specified", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}],
-                edges: [{srcId: "A", dstId: "B"}],
+                nodes: [{ id: "A" }, { id: "B" }],
+                edges: [{ srcId: "A", dstId: "B" }],
             });
 
             const adj = buildWeightedAdjacencyList(graph);
@@ -154,22 +154,22 @@ describe("graph utilities", () => {
 
         it("uses custom weight attribute", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}],
-                edges: [{srcId: "A", dstId: "B", weight: 10}],
+                nodes: [{ id: "A" }, { id: "B" }],
+                edges: [{ srcId: "A", dstId: "B", weight: 10 }],
             });
 
-            const adj = buildWeightedAdjacencyList(graph, {weightAttribute: "weight"});
+            const adj = buildWeightedAdjacencyList(graph, { weightAttribute: "weight" });
 
             assert.strictEqual(adj.get("A")?.get("B"), 10);
         });
 
         it("builds directed weighted adjacency list", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}],
-                edges: [{srcId: "A", dstId: "B", value: 3}],
+                nodes: [{ id: "A" }, { id: "B" }],
+                edges: [{ srcId: "A", dstId: "B", value: 3 }],
             });
 
-            const adj = buildWeightedAdjacencyList(graph, {directed: true});
+            const adj = buildWeightedAdjacencyList(graph, { directed: true });
 
             assert.strictEqual(adj.get("A")?.get("B"), 3);
             assert.isFalse(adj.get("B")?.has("A"), "Should not have reverse edge in directed mode");
@@ -177,11 +177,11 @@ describe("graph utilities", () => {
 
         it("handles multiple weighted edges", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                 edges: [
-                    {srcId: "A", dstId: "B", value: 2},
-                    {srcId: "A", dstId: "C", value: 4},
-                    {srcId: "B", dstId: "C", value: 6},
+                    { srcId: "A", dstId: "B", value: 2 },
+                    { srcId: "A", dstId: "C", value: 4 },
+                    { srcId: "B", dstId: "C", value: 6 },
                 ],
             });
 
@@ -205,7 +205,7 @@ describe("graph utilities", () => {
 
         it("handles nodes with no edges", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "isolated"}],
+                nodes: [{ id: "A" }, { id: "isolated" }],
                 edges: [],
             });
 

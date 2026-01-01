@@ -1,8 +1,8 @@
-import {afterEach, assert, beforeEach, describe, type MockInstance, test, vi} from "vitest";
+import { afterEach, assert, beforeEach, describe, type MockInstance, test, vi } from "vitest";
 
-import {GraphtyLogger} from "../../../src/logging/GraphtyLogger.js";
-import {resetLoggingConfig} from "../../../src/logging/LoggerConfig.js";
-import {LogLevel} from "../../../src/logging/types.js";
+import { GraphtyLogger } from "../../../src/logging/GraphtyLogger.js";
+import { resetLoggingConfig } from "../../../src/logging/LoggerConfig.js";
+import { LogLevel } from "../../../src/logging/types.js";
 
 // Empty mock function to satisfy linter
 function noop(): void {
@@ -22,7 +22,7 @@ describe("OperationQueueManager Logging", () => {
     let consoleDebugSpy: MockInstance;
     let consoleErrorSpy: MockInstance;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Reset logging config before each test
         resetLoggingConfig();
 
@@ -38,7 +38,7 @@ describe("OperationQueueManager Logging", () => {
             enabled: true,
             level: LogLevel.DEBUG,
             modules: ["operation"],
-            format: {timestamp: true, module: true},
+            format: { timestamp: true, module: true },
         });
     });
 
@@ -57,13 +57,9 @@ describe("OperationQueueManager Logging", () => {
         });
 
         // Check for log output
-        const allCalls = [... consoleInfoSpy.mock.calls, ... consoleDebugSpy.mock.calls];
+        const allCalls = [...consoleInfoSpy.mock.calls, ...consoleDebugSpy.mock.calls];
         const hasQueueMessage = allCalls.some((call) =>
-            call.some(
-                (arg: unknown) =>
-                    typeof arg === "string" &&
-                    arg.toLowerCase().includes("queue"),
-            ),
+            call.some((arg: unknown) => typeof arg === "string" && arg.toLowerCase().includes("queue")),
         );
         assert.isTrue(hasQueueMessage, "Expected log message about operation queued");
     });
@@ -79,13 +75,9 @@ describe("OperationQueueManager Logging", () => {
         });
 
         // Check for log output
-        const allCalls = [... consoleInfoSpy.mock.calls, ... consoleDebugSpy.mock.calls];
+        const allCalls = [...consoleInfoSpy.mock.calls, ...consoleDebugSpy.mock.calls];
         const hasStartMessage = allCalls.some((call) =>
-            call.some(
-                (arg: unknown) =>
-                    typeof arg === "string" &&
-                    arg.toLowerCase().includes("start"),
-            ),
+            call.some((arg: unknown) => typeof arg === "string" && arg.toLowerCase().includes("start")),
         );
         assert.isTrue(hasStartMessage, "Expected log message about operation started");
     });
@@ -101,13 +93,9 @@ describe("OperationQueueManager Logging", () => {
         });
 
         // Check for log output
-        const allCalls = [... consoleInfoSpy.mock.calls, ... consoleDebugSpy.mock.calls];
+        const allCalls = [...consoleInfoSpy.mock.calls, ...consoleDebugSpy.mock.calls];
         const hasCompleteMessage = allCalls.some((call) =>
-            call.some(
-                (arg: unknown) =>
-                    typeof arg === "string" &&
-                    arg.toLowerCase().includes("complet"),
-            ),
+            call.some((arg: unknown) => typeof arg === "string" && arg.toLowerCase().includes("complet")),
         );
         assert.isTrue(hasCompleteMessage, "Expected log message about operation completed");
     });
@@ -123,13 +111,9 @@ describe("OperationQueueManager Logging", () => {
         });
 
         // Check for error log output
-        const allCalls = [... consoleErrorSpy.mock.calls];
+        const allCalls = [...consoleErrorSpy.mock.calls];
         const hasErrorMessage = allCalls.some((call) =>
-            call.some(
-                (arg: unknown) =>
-                    typeof arg === "string" &&
-                    arg.toLowerCase().includes("fail"),
-            ),
+            call.some((arg: unknown) => typeof arg === "string" && arg.toLowerCase().includes("fail")),
         );
         assert.isTrue(hasErrorMessage, "Expected error log message about operation failure");
     });
@@ -144,24 +128,20 @@ describe("OperationQueueManager Logging", () => {
         });
 
         // Check for log output
-        const allCalls = [... consoleInfoSpy.mock.calls, ... consoleDebugSpy.mock.calls];
+        const allCalls = [...consoleInfoSpy.mock.calls, ...consoleDebugSpy.mock.calls];
         const hasBatchMessage = allCalls.some((call) =>
-            call.some(
-                (arg: unknown) =>
-                    typeof arg === "string" &&
-                    arg.toLowerCase().includes("batch"),
-            ),
+            call.some((arg: unknown) => typeof arg === "string" && arg.toLowerCase().includes("batch")),
         );
         assert.isTrue(hasBatchMessage, "Expected log message about batch execution");
     });
 
-    test("should not log when logging is disabled", async() => {
+    test("should not log when logging is disabled", async () => {
         // Disable logging
         await GraphtyLogger.configure({
             enabled: false,
             level: LogLevel.DEBUG,
             modules: "*",
-            format: {timestamp: true, module: true},
+            format: { timestamp: true, module: true },
         });
 
         const logger = GraphtyLogger.getLogger(["graphty", "operation"]);
@@ -171,31 +151,23 @@ describe("OperationQueueManager Logging", () => {
         consoleDebugSpy.mockClear();
 
         // Try to log
-        logger.debug("Operation queued", {id: "op-123"});
+        logger.debug("Operation queued", { id: "op-123" });
         logger.debug("Operation completed");
 
         // Check that no operation logging occurred
-        const operationCalls = [... consoleInfoSpy.mock.calls, ... consoleDebugSpy.mock.calls].filter(
-            (call) =>
-                call.some(
-                    (arg: unknown) =>
-                        typeof arg === "string" && arg.includes("operation"),
-                ),
+        const operationCalls = [...consoleInfoSpy.mock.calls, ...consoleDebugSpy.mock.calls].filter((call) =>
+            call.some((arg: unknown) => typeof arg === "string" && arg.includes("operation")),
         );
-        assert.strictEqual(
-            operationCalls.length,
-            0,
-            "Expected no operation logging when disabled",
-        );
+        assert.strictEqual(operationCalls.length, 0, "Expected no operation logging when disabled");
     });
 
-    test("should not log when operation module is filtered out", async() => {
+    test("should not log when operation module is filtered out", async () => {
         // Enable logging for different module only
         await GraphtyLogger.configure({
             enabled: true,
             level: LogLevel.DEBUG,
             modules: ["layout"], // Not operation
-            format: {timestamp: true, module: true},
+            format: { timestamp: true, module: true },
         });
 
         const logger = GraphtyLogger.getLogger(["graphty", "operation"]);
@@ -205,20 +177,12 @@ describe("OperationQueueManager Logging", () => {
         consoleDebugSpy.mockClear();
 
         // Try to log
-        logger.debug("Operation queued", {id: "op-123"});
+        logger.debug("Operation queued", { id: "op-123" });
 
         // Check that no operation logging occurred
-        const operationCalls = [... consoleInfoSpy.mock.calls, ... consoleDebugSpy.mock.calls].filter(
-            (call) =>
-                call.some(
-                    (arg: unknown) =>
-                        typeof arg === "string" && arg.includes("operation"),
-                ),
+        const operationCalls = [...consoleInfoSpy.mock.calls, ...consoleDebugSpy.mock.calls].filter((call) =>
+            call.some((arg: unknown) => typeof arg === "string" && arg.includes("operation")),
         );
-        assert.strictEqual(
-            operationCalls.length,
-            0,
-            "Expected no operation logging when module is filtered",
-        );
+        assert.strictEqual(operationCalls.length, 0, "Expected no operation logging when module is filtered");
     });
 });

@@ -1,9 +1,9 @@
-import {chromium} from "playwright";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 
 async function main() {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
     // Capture all messages
@@ -25,11 +25,10 @@ async function main() {
         const graphty = document.createElement("graphty-element");
 
         // Set the most basic configuration without any layout config
-        graphty.nodeData = [
-            {id: "a"}, {id: "b"}, {id: "c"},
-        ];
+        graphty.nodeData = [{ id: "a" }, { id: "b" }, { id: "c" }];
         graphty.edgeData = [
-            {src: "a", dst: "b"}, {src: "b", dst: "c"},
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
         ];
 
         // Don't set layout initially, let it use default

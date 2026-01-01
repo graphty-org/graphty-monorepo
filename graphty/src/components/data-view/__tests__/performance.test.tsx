@@ -1,11 +1,11 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {render} from "../../../test/test-utils";
-import {DataGrid} from "../DataGrid";
+import { render } from "../../../test/test-utils";
+import { DataGrid } from "../DataGrid";
 
 describe("Performance", () => {
     it("renders 1000 items in under 1 second", () => {
-        const data = Array.from({length: 1000}, (_, i) => ({
+        const data = Array.from({ length: 1000 }, (_, i) => ({
             id: i,
             name: `Item ${i}`,
             value: i * 100,
@@ -20,7 +20,7 @@ describe("Performance", () => {
         // Create nested structure 10 levels deep
         const createNested = (depth: number): object => {
             if (depth === 0) {
-                return {value: "leaf"};
+                return { value: "leaf" };
             }
 
             return {
@@ -37,7 +37,7 @@ describe("Performance", () => {
     });
 
     it("handles large array with complex objects", () => {
-        const data = Array.from({length: 500}, (_, i) => ({
+        const data = Array.from({ length: 500 }, (_, i) => ({
             id: `node-${i}`,
             label: `Node ${i}`,
             attributes: {

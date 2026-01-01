@@ -4,8 +4,8 @@
  * @module test/helpers/mock-graph-context
  */
 
-import type {Graph} from "../../src/Graph";
-import type {DataManager} from "../../src/managers";
+import type { Graph } from "../../src/Graph";
+import type { DataManager } from "../../src/managers";
 
 /**
  * Options for creating a mock graph context.
@@ -63,12 +63,7 @@ function getNodeType(index: number): string {
  * @returns A mock graph context
  */
 export function createMockGraphContext(options: MockGraphContextOptions = {}): Graph {
-    const {
-        nodeCount = 10,
-        edgeCount = 15,
-        layoutType = "ngraph",
-        twoD = false,
-    } = options;
+    const { nodeCount = 10, edgeCount = 15, layoutType = "ngraph", twoD = false } = options;
 
     // Create mock nodes
     // Data structure uses {data: {type: ...}} format to match JMESPath selectors like "data.type == 'server'"
@@ -99,14 +94,14 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
             id,
             srcId: nodeIds[srcIdx],
             dstId: nodeIds[dstIdx],
-            data: {id, weight: Math.random()},
+            data: { id, weight: Math.random() },
         });
     }
 
     // Current layout type (mutable for testing layout changes)
     let currentLayoutType = layoutType;
     let currentTwoD = twoD;
-    let currentLayoutEngine = {type: layoutType};
+    let currentLayoutEngine = { type: layoutType };
 
     // Track layout running state
     let layoutRunning = false;
@@ -141,7 +136,7 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         },
         setLayout(type: string): void {
             currentLayoutType = type;
-            currentLayoutEngine = {type};
+            currentLayoutEngine = { type };
         },
         updateLayoutDimension(is2D: boolean): void {
             currentTwoD = is2D;
@@ -150,9 +145,9 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
 
     // Create mock style layers array
     const mockStyleLayers: {
-        node?: {selector: string, style: object};
-        edge?: {selector: string, style: object};
-        metadata?: {name: string};
+        node?: { selector: string; style: object };
+        edge?: { selector: string; style: object };
+        metadata?: { name: string };
     }[] = [];
 
     // Create mock styles config
@@ -179,7 +174,7 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
             behavior: {},
         },
         layers: mockStyleLayers,
-        addLayer(layer: typeof mockStyleLayers[0]): void {
+        addLayer(layer: (typeof mockStyleLayers)[0]): void {
             mockStyleLayers.push(layer);
         },
     };
@@ -187,11 +182,11 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
     // Create mock style manager (wraps styles with cache/event handling)
     const mockStyleManager = {
         getStyles: () => mockStyles,
-        addLayer(layer: typeof mockStyleLayers[0]): void {
+        addLayer(layer: (typeof mockStyleLayers)[0]): void {
             mockStyles.addLayer(layer);
             // In the real StyleManager, this also clears cache and emits style-changed event
         },
-        insertLayer(position: number, layer: typeof mockStyleLayers[0]): void {
+        insertLayer(position: number, layer: (typeof mockStyleLayers)[0]): void {
             mockStyleLayers.splice(position, 0, layer);
         },
         removeLayersByMetadata(predicate: (metadata: unknown) => boolean): void {
@@ -250,7 +245,7 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         },
 
         // Style template method (returns Promise for compatibility with real Graph API)
-        setStyleTemplate(template: {graph?: {twoD?: boolean}}): Promise<void> {
+        setStyleTemplate(template: { graph?: { twoD?: boolean } }): Promise<void> {
             // Update twoD mode if specified
             if (template.graph?.twoD !== undefined) {
                 currentTwoD = template.graph.twoD;
@@ -263,13 +258,11 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         styles: mockStyles,
 
         // Camera methods (mock)
-        async setCameraState(
-            state: {
-                preset?: string;
-                position?: {x: number, y: number, z: number};
-                target?: {x: number, y: number, z: number};
-            },
-        ): Promise<void> {
+        async setCameraState(state: {
+            preset?: string;
+            position?: { x: number; y: number; z: number };
+            target?: { x: number; y: number; z: number };
+        }): Promise<void> {
             // Mock implementation - validates known presets
             const knownPresets = ["fitToGraph", "topView", "sideView", "frontView", "isometric"];
             if (state.preset && !knownPresets.includes(state.preset)) {
@@ -280,13 +273,13 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
             return Promise.resolve();
         },
         getCameraState: () => ({
-            position: {x: 0, y: 10, z: 10},
-            target: {x: 0, y: 0, z: 0},
+            position: { x: 0, y: 10, z: 10 },
+            target: { x: 0, y: 0, z: 0 },
         }),
 
         // Mode check
         is2D: () => currentTwoD,
-        getViewMode: () => currentTwoD ? "2d" : "3d",
+        getViewMode: () => (currentTwoD ? "2d" : "3d"),
 
         // XR methods
         getXRHelper: () => xrHelperMock,
@@ -304,7 +297,7 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         // Screenshot capture (mock)
         captureScreenshot() {
             return {
-                blob: new Blob(["mock"], {type: "image/png"}),
+                blob: new Blob(["mock"], { type: "image/png" }),
                 dataUrl: "data:image/png;base64,mock",
                 metadata: {
                     width: 800,

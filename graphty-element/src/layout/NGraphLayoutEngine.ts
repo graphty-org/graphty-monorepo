@@ -1,12 +1,12 @@
-import ngraphCreateLayout, {Layout as NGraphLayout} from "ngraph.forcelayout";
-import createGraph, {Graph as NGraph, Link as NGraphLink, Node as NGraphNode} from "ngraph.graph";
+import ngraphCreateLayout, { Layout as NGraphLayout } from "ngraph.forcelayout";
+import createGraph, { Graph as NGraph, Link as NGraphLink, Node as NGraphNode } from "ngraph.graph";
 import random from "ngraph.random";
-import {z} from "zod/v4";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema} from "../config";
-import type {Edge} from "../Edge";
-import type {Node} from "../Node";
-import {EdgePosition, LayoutEngine, Position} from "./LayoutEngine";
+import { defineOptions, type OptionsSchema } from "../config";
+import type { Edge } from "../Edge";
+import type { Node } from "../Node";
+import { EdgePosition, LayoutEngine, Position } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for NGraph Force Layout
@@ -95,7 +95,7 @@ export class NGraphEngine extends LayoutEngine {
      * @returns Options object with dim parameter
      */
     static getOptionsForDimension(dimension: 2 | 3): object {
-        return {dim: dimension};
+        return { dim: dimension };
     }
     nodeMapping = new Map<Node, NGraphNode>();
     edgeMapping = new Map<Edge, NGraphLink>();
@@ -167,7 +167,7 @@ export class NGraphEngine extends LayoutEngine {
      */
     step(): void {
         const ngraphSettled = this.ngraphLayout.step();
-        const {lastMove} = this.ngraphLayout;
+        const { lastMove } = this.ngraphLayout;
         const nodeCount = this.nodeMapping.size;
         const ratio = nodeCount > 0 ? lastMove / nodeCount : 0;
 
@@ -180,17 +180,14 @@ export class NGraphEngine extends LayoutEngine {
         }
 
         // Calculate average movement over last 10 steps
-        const avgMovement = this._lastMoves.length > 0 ?
-            this._lastMoves.reduce((a, b) => a + b, 0) / this._lastMoves.length :
-            0;
+        const avgMovement =
+            this._lastMoves.length > 0 ? this._lastMoves.reduce((a, b) => a + b, 0) / this._lastMoves.length : 0;
 
         // Use a more forgiving threshold or force settling after many steps
         const customThreshold = 0.05; // More forgiving than ngraph's 0.01
         const maxSteps = 1000; // Force settling after 1000 steps
 
-        this._settled = ngraphSettled ||
-                       avgMovement <= customThreshold ||
-                       this._stepCount >= maxSteps;
+        this._settled = ngraphSettled || avgMovement <= customThreshold || this._stepCount >= maxSteps;
     }
 
     /**
@@ -206,7 +203,7 @@ export class NGraphEngine extends LayoutEngine {
      * @param n - The node to add
      */
     addNode(n: Node): void {
-        const ngraphNode: NGraphNode = this.ngraph.addNode(n.id, {parentNode: n});
+        const ngraphNode: NGraphNode = this.ngraph.addNode(n.id, { parentNode: n });
         this.nodeMapping.set(n, ngraphNode);
         this._settled = false;
         this._stepCount = 0;
@@ -218,7 +215,7 @@ export class NGraphEngine extends LayoutEngine {
      * @param e - The edge to add
      */
     addEdge(e: Edge): void {
-        const ngraphEdge = this.ngraph.addLink(e.srcId, e.dstId, {parentEdge: this});
+        const ngraphEdge = this.ngraph.addLink(e.srcId, e.dstId, { parentEdge: this });
         this.edgeMapping.set(e, ngraphEdge);
         this._settled = false;
         this._stepCount = 0;

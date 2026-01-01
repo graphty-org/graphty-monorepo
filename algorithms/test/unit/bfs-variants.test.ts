@@ -1,4 +1,4 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
     bfsAugmentingPath,
@@ -7,7 +7,7 @@ import {
     bfsWeightedDistances,
     bfsWithPathCounting,
 } from "../../src/algorithms/traversal/bfs-variants.js";
-import {Graph} from "../../src/core/graph.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("BFS Variants", () => {
     describe("bfsWithPathCounting", () => {
@@ -55,7 +55,7 @@ describe("BFS Variants", () => {
         });
 
         it("should handle directed graphs", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
             graph.addEdge("A", "C"); // Direct path
@@ -183,8 +183,20 @@ describe("BFS Variants", () => {
     describe("bfsAugmentingPath", () => {
         it("should find augmenting path in residual graph", () => {
             const residualGraph = new Map([
-                ["s", new Map([["a", 10], ["b", 10]])],
-                ["a", new Map([["b", 2], ["t", 10]])],
+                [
+                    "s",
+                    new Map([
+                        ["a", 10],
+                        ["b", 10],
+                    ]),
+                ],
+                [
+                    "a",
+                    new Map([
+                        ["b", 2],
+                        ["t", 10],
+                    ]),
+                ],
                 ["b", new Map([["t", 10]])],
                 ["t", new Map()],
             ]);
@@ -225,7 +237,13 @@ describe("BFS Variants", () => {
 
         it("should handle multiple paths and choose first found", () => {
             const residualGraph = new Map([
-                ["s", new Map([["a", 10], ["b", 10]])],
+                [
+                    "s",
+                    new Map([
+                        ["a", 10],
+                        ["b", 10],
+                    ]),
+                ],
                 ["a", new Map([["t", 5]])],
                 ["b", new Map([["t", 15]])],
                 ["t", new Map()],
@@ -295,7 +313,7 @@ describe("BFS Variants", () => {
 
     describe("bfsWeightedDistancesCSR", () => {
         it("should use actual edge weights from CSR graph", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("A", "B", 1);
             graph.addEdge("B", "C", 5);
             graph.addEdge("A", "C", 10);
@@ -303,7 +321,7 @@ describe("BFS Variants", () => {
             // Direct route A->C: weight 10
             // Via B route A->B->C: weight 1+5=6
 
-            const distances = bfsWeightedDistances(graph, "A", undefined, {optimized: true});
+            const distances = bfsWeightedDistances(graph, "A", undefined, { optimized: true });
 
             // Should find weighted shortest path
             expect(distances.get("C")).toBe(6); // Via B, not 10 direct
@@ -311,7 +329,7 @@ describe("BFS Variants", () => {
 
         it("should use actual edge weights in large CSR graph", () => {
             // Create a large graph that triggers CSR optimization
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Add 10001 nodes to trigger CSR optimization (threshold is 10000)
             for (let i = 0; i < 10001; i++) {
@@ -330,7 +348,7 @@ describe("BFS Variants", () => {
                 graph.addEdge(i - 1, i, 1);
             }
 
-            const distances = bfsWeightedDistances(graph, 0, undefined, {optimized: true});
+            const distances = bfsWeightedDistances(graph, 0, undefined, { optimized: true });
 
             // Should find weighted shortest path via node 1
             expect(distances.get(0)).toBe(0);
@@ -358,7 +376,7 @@ describe("BFS Variants", () => {
 
         it("should use CSR optimization for bfsWithPathCounting on large graphs", () => {
             const graph = createLargeGraph(15000);
-            const result = bfsWithPathCounting(graph, 0, {optimized: true});
+            const result = bfsWithPathCounting(graph, 0, { optimized: true });
 
             expect(result.distances.get(0)).toBe(0);
             expect(result.distances.get(1)).toBe(1);
@@ -369,7 +387,7 @@ describe("BFS Variants", () => {
 
         it("should use CSR optimization for bfsDistancesOnly on large graphs", () => {
             const graph = createLargeGraph(15000);
-            const distances = bfsDistancesOnly(graph, 0, undefined, {optimized: true});
+            const distances = bfsDistancesOnly(graph, 0, undefined, { optimized: true });
 
             expect(distances.get(0)).toBe(0);
             expect(distances.get(1)).toBe(1);
@@ -378,7 +396,7 @@ describe("BFS Variants", () => {
 
         it("should respect cutoff in CSR-optimized bfsDistancesOnly", () => {
             const graph = createLargeGraph(15000);
-            const distances = bfsDistancesOnly(graph, 0, 5, {optimized: true});
+            const distances = bfsDistancesOnly(graph, 0, 5, { optimized: true });
 
             expect(distances.get(0)).toBe(0);
             expect(distances.get(5)).toBe(5);
@@ -387,7 +405,7 @@ describe("BFS Variants", () => {
 
         it("should use CSR optimization for bfsWeightedDistances on large graphs", () => {
             const graph = createLargeGraph(15000);
-            const distances = bfsWeightedDistances(graph, 0, undefined, {optimized: true});
+            const distances = bfsWeightedDistances(graph, 0, undefined, { optimized: true });
 
             expect(distances.get(0)).toBe(0);
             expect(distances.get(1)).toBe(1);
@@ -397,7 +415,7 @@ describe("BFS Variants", () => {
 
         it("should respect cutoff in CSR-optimized bfsWeightedDistances", () => {
             const graph = createLargeGraph(15000);
-            const distances = bfsWeightedDistances(graph, 0, 3, {optimized: true});
+            const distances = bfsWeightedDistances(graph, 0, 3, { optimized: true });
 
             expect(distances.get(0)).toBe(0);
             expect(distances.get(1)).toBe(1);
@@ -411,7 +429,7 @@ describe("BFS Variants", () => {
                 graph.addNode(i);
             }
 
-            const result = bfsWithPathCounting(graph, 0, {optimized: true});
+            const result = bfsWithPathCounting(graph, 0, { optimized: true });
             expect(result.distances.size).toBe(1); // Only source
             expect(result.stack).toEqual([0]);
         });
@@ -420,15 +438,15 @@ describe("BFS Variants", () => {
             const graph = createLargeGraph(15000);
 
             // Test bfsWithPathCounting
-            const resultNormal = bfsWithPathCounting(graph, 0, {optimized: false});
-            const resultOptimized = bfsWithPathCounting(graph, 0, {optimized: true});
+            const resultNormal = bfsWithPathCounting(graph, 0, { optimized: false });
+            const resultOptimized = bfsWithPathCounting(graph, 0, { optimized: true });
 
             expect(resultOptimized.distances.get(50)).toBe(resultNormal.distances.get(50));
             expect(resultOptimized.sigma.get(50)).toBe(resultNormal.sigma.get(50));
 
             // Test bfsDistancesOnly
-            const distNormal = bfsDistancesOnly(graph, 0, 10, {optimized: false});
-            const distOptimized = bfsDistancesOnly(graph, 0, 10, {optimized: true});
+            const distNormal = bfsDistancesOnly(graph, 0, 10, { optimized: false });
+            const distOptimized = bfsDistancesOnly(graph, 0, 10, { optimized: true });
 
             expect(distOptimized.size).toBe(distNormal.size);
             expect(distOptimized.get(5)).toBe(distNormal.get(5));

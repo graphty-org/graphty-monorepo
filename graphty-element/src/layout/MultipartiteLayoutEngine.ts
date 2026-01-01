@@ -1,8 +1,8 @@
-import {Edge as LayoutEdge, multipartiteLayout, Node as LayoutNode} from "@graphty/layout";
-import {z} from "zod/v4";
+import { Edge as LayoutEdge, multipartiteLayout, Node as LayoutNode } from "@graphty/layout";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema} from "../config";
-import {SimpleLayoutConfig, SimpleLayoutEngine} from "./LayoutEngine";
+import { defineOptions, type OptionsSchema } from "../config";
+import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for Multipartite Layout
@@ -33,7 +33,7 @@ export const multipartiteLayoutOptionsSchema = defineOptions({
 });
 
 export const MultipartiteLayoutConfig = z.strictObject({
-    ... SimpleLayoutConfig.shape,
+    ...SimpleLayoutConfig.shape,
     // subsetKey: z.string().or(z.record(z.number(), z.array(z.string().or(z.number())))),
     subsetKey: z.record(z.string(), z.array(z.string().or(z.number()))),
     align: z.enum(["vertical", "horizontal"]).default("vertical"),
@@ -86,7 +86,7 @@ export class MultipartiteLayout extends SimpleLayoutEngine {
         const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
 
         this.positions = multipartiteLayout(
-            {nodes, edges},
+            { nodes, edges },
             this.config.subsetKey,
             this.config.align,
             this.config.scale,

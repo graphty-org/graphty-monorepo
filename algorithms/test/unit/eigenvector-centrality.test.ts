@@ -1,7 +1,7 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {eigenvectorCentrality, nodeEigenvectorCentrality} from "../../src/algorithms/centrality/eigenvector.js";
-import {Graph} from "../../src/core/graph.js";
+import { eigenvectorCentrality, nodeEigenvectorCentrality } from "../../src/algorithms/centrality/eigenvector.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Eigenvector Centrality", () => {
     describe("eigenvectorCentrality", () => {
@@ -53,7 +53,7 @@ describe("Eigenvector Centrality", () => {
         });
 
         it("should handle directed graphs", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
             graph.addEdge("c", "a");
@@ -72,11 +72,11 @@ describe("Eigenvector Centrality", () => {
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const normalizedCentrality = eigenvectorCentrality(graph, {normalized: true});
-            const unnormalizedCentrality = eigenvectorCentrality(graph, {normalized: false});
+            const normalizedCentrality = eigenvectorCentrality(graph, { normalized: true });
+            const unnormalizedCentrality = eigenvectorCentrality(graph, { normalized: false });
 
             // Normalized should have max value of 1
-            const maxNormalized = Math.max(... Object.values(normalizedCentrality));
+            const maxNormalized = Math.max(...Object.values(normalizedCentrality));
             expect(maxNormalized).toBeCloseTo(1, 3);
 
             // Both should have same relative ordering
@@ -96,7 +96,7 @@ describe("Eigenvector Centrality", () => {
                 ["c", 0.1],
             ]);
 
-            const centrality = eigenvectorCentrality(graph, {startVector});
+            const centrality = eigenvectorCentrality(graph, { startVector });
 
             expect(Object.keys(centrality)).toHaveLength(3);
             expect(centrality.a).toBeGreaterThanOrEqual(0);
@@ -110,7 +110,7 @@ describe("Eigenvector Centrality", () => {
             graph.addEdge("b", "c");
             graph.addEdge("c", "a");
 
-            const centrality = eigenvectorCentrality(graph, {maxIterations: 5});
+            const centrality = eigenvectorCentrality(graph, { maxIterations: 5 });
 
             expect(Object.keys(centrality)).toHaveLength(3);
             expect(centrality.a).toBeGreaterThanOrEqual(0);
@@ -219,7 +219,7 @@ describe("Eigenvector Centrality", () => {
             }
 
             const start = Date.now();
-            const centrality = eigenvectorCentrality(graph, {maxIterations: 50});
+            const centrality = eigenvectorCentrality(graph, { maxIterations: 50 });
             const duration = Date.now() - start;
 
             expect(duration).toBeLessThan(5000); // Should complete within 5 seconds

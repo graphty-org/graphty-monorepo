@@ -3,11 +3,11 @@
  * @module test/ai/schema/SchemaExtractor.test
  */
 
-import {assert, beforeEach, describe, it} from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 
-import {SchemaExtractor} from "../../../src/ai/schema/SchemaExtractor";
-import type {Graph} from "../../../src/Graph";
-import {createSchemaTestGraph} from "../../helpers/schema-test-graph";
+import { SchemaExtractor } from "../../../src/ai/schema/SchemaExtractor";
+import type { Graph } from "../../../src/Graph";
+import { createSchemaTestGraph } from "../../helpers/schema-test-graph";
 
 describe("SchemaExtractor", () => {
     let graph: Graph;
@@ -65,7 +65,7 @@ describe("SchemaExtractor", () => {
     describe("type inference", () => {
         it("handles mixed types for same property", () => {
             // Create graph with mixed types for a property
-            const mixedGraph = createSchemaTestGraph({mixedTypes: true});
+            const mixedGraph = createSchemaTestGraph({ mixedTypes: true });
             const mixedExtractor = new SchemaExtractor(mixedGraph);
             const schema = mixedExtractor.extract();
 
@@ -76,9 +76,9 @@ describe("SchemaExtractor", () => {
 
         it("identifies enum-like strings (<=10 unique values)", () => {
             // Need enough samples to trigger enum detection (default requires 25)
-            const enumGraph = createSchemaTestGraph({nodeCount: 30});
+            const enumGraph = createSchemaTestGraph({ nodeCount: 30 });
             // Use lower threshold for test
-            const enumExtractor = new SchemaExtractor(enumGraph, {enumMinSampleSize: 5});
+            const enumExtractor = new SchemaExtractor(enumGraph, { enumMinSampleSize: 5 });
             const schema = enumExtractor.extract();
 
             // The 'type' property should have enumValues since there are limited unique values
@@ -90,14 +90,18 @@ describe("SchemaExtractor", () => {
 
         it("does not set enumValues for strings with >10 unique values", () => {
             // Create graph with many unique string values
-            const manyValuesGraph = createSchemaTestGraph({manyUniqueStrings: true});
+            const manyValuesGraph = createSchemaTestGraph({ manyUniqueStrings: true });
             const manyExtractor = new SchemaExtractor(manyValuesGraph);
             const schema = manyExtractor.extract();
 
             const nameProperty = schema.nodeProperties.find((p) => p.name === "uniqueName");
             assert.ok(nameProperty, "Should find 'uniqueName' property");
             assert.strictEqual(nameProperty.type, "string");
-            assert.strictEqual(nameProperty.enumValues, undefined, "Should not have enumValues for high cardinality strings");
+            assert.strictEqual(
+                nameProperty.enumValues,
+                undefined,
+                "Should not have enumValues for high cardinality strings",
+            );
         });
     });
 
@@ -114,7 +118,7 @@ describe("SchemaExtractor", () => {
 
     describe("edge cases", () => {
         it("handles empty graphs gracefully", () => {
-            const emptyGraph = createSchemaTestGraph({empty: true});
+            const emptyGraph = createSchemaTestGraph({ empty: true });
             const emptyExtractor = new SchemaExtractor(emptyGraph);
             const schema = emptyExtractor.extract();
 
@@ -125,7 +129,7 @@ describe("SchemaExtractor", () => {
         });
 
         it("handles null/undefined values", () => {
-            const nullGraph = createSchemaTestGraph({nullValues: true});
+            const nullGraph = createSchemaTestGraph({ nullValues: true });
             const nullExtractor = new SchemaExtractor(nullGraph);
             const schema = nullExtractor.extract();
 
@@ -184,10 +188,7 @@ describe("SchemaExtractor", () => {
 
             for (const prop of schema.nodeProperties) {
                 assert.ok(typeof prop.name === "string", "PropertySummary.name should be a string");
-                assert.ok(
-                    validTypes.includes(prop.type),
-                    `PropertySummary.type should be valid, got: ${prop.type}`,
-                );
+                assert.ok(validTypes.includes(prop.type), `PropertySummary.type should be valid, got: ${prop.type}`);
                 assert.strictEqual(typeof prop.nullable, "boolean", "PropertySummary.nullable should be a boolean");
             }
         });
@@ -196,8 +197,8 @@ describe("SchemaExtractor", () => {
     describe("performance constraints", () => {
         it("limits analysis to configurable sample size", () => {
             // Create a large graph
-            const largeGraph = createSchemaTestGraph({nodeCount: 100, edgeCount: 200});
-            const limitedExtractor = new SchemaExtractor(largeGraph, {maxSampleSize: 50});
+            const largeGraph = createSchemaTestGraph({ nodeCount: 100, edgeCount: 200 });
+            const limitedExtractor = new SchemaExtractor(largeGraph, { maxSampleSize: 50 });
             const schema = limitedExtractor.extract();
 
             // Schema should still be valid even with limited sampling

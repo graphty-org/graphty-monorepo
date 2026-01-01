@@ -13,6 +13,7 @@ This plan addresses the 24 issues identified in the code review (2025-11-17) of 
 **Objective**: Eliminate code duplication by extracting shared functionality into the base `DataSource` class. This phase focuses on DRY (Don't Repeat Yourself) principles and creates reusable utilities.
 
 **Success Criteria**:
+
 - ✅ All DataSources use shared `getContent()` method
 - ✅ All DataSources use shared chunking helper
 - ✅ Unified configuration interface
@@ -26,8 +27,8 @@ This plan addresses the 24 issues identified in the code review (2025-11-17) of 
 **File**: `test/data/DataSource.test.ts` (new file)
 
 ```typescript
-import {assert, describe, test} from "vitest";
-import {DataSource, DataSourceChunk} from "../../src/data/DataSource.js";
+import { assert, describe, test } from "vitest";
+import { DataSource, DataSourceChunk } from "../../src/data/DataSource.js";
 
 // Create a minimal test implementation
 class TestDataSource extends DataSource {
@@ -38,27 +39,21 @@ class TestDataSource extends DataSource {
     }
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk> {
         const content = await this.getContent();
-        yield* this.chunkData(
-            [{id: "n1"}, {id: "n2"}],
-            [{src: "n1", dst: "n2"}]
-        );
+        yield* this.chunkData([{ id: "n1" }, { id: "n2" }], [{ src: "n1", dst: "n2" }]);
     }
 }
 
 describe("DataSource base class", () => {
     describe("getContent()", () => {
         test("loads from inline data string", async () => {
-            const source = new TestDataSource({data: "test content"});
+            const source = new TestDataSource({ data: "test content" });
             const content = await source["getContent"]();
             assert.strictEqual(content, "test content");
         });
 
         test("throws when no input provided", async () => {
             const source = new TestDataSource({});
-            await assert.rejects(
-                () => source["getContent"](),
-                /TestDataSource requires data, file, or url/
-            );
+            await assert.rejects(() => source["getContent"](), /TestDataSource requires data, file, or url/);
         });
 
         // TODO: Add file and URL tests after implementing retry logic
@@ -66,10 +61,10 @@ describe("DataSource base class", () => {
 
     describe("chunkData()", () => {
         test("chunks large node arrays", async () => {
-            const nodes = Array.from({length: 2500}, (_, i) => ({id: `n${i}`}));
-            const edges = [{src: "n0", dst: "n1"}];
+            const nodes = Array.from({ length: 2500 }, (_, i) => ({ id: `n${i}` }));
+            const edges = [{ src: "n0", dst: "n1" }];
 
-            const source = new TestDataSource({data: "", chunkSize: 1000});
+            const source = new TestDataSource({ data: "", chunkSize: 1000 });
             const chunks = Array.from(source["chunkData"](nodes, edges));
 
             assert.strictEqual(chunks.length, 3);
@@ -79,8 +74,8 @@ describe("DataSource base class", () => {
         });
 
         test("yields edges-only chunk when no nodes", async () => {
-            const source = new TestDataSource({data: "", chunkSize: 1000});
-            const chunks = Array.from(source["chunkData"]([], [{src: "n1", dst: "n2"}]));
+            const source = new TestDataSource({ data: "", chunkSize: 1000 });
+            const chunks = Array.from(source["chunkData"]([], [{ src: "n1", dst: "n2" }]));
 
             assert.strictEqual(chunks.length, 1);
             assert.strictEqual(chunks[0].nodes.length, 0);
@@ -88,9 +83,9 @@ describe("DataSource base class", () => {
         });
 
         test("respects custom chunkSize", async () => {
-            const nodes = Array.from({length: 150}, (_, i) => ({id: `n${i}`}));
+            const nodes = Array.from({ length: 150 }, (_, i) => ({ id: `n${i}` }));
 
-            const source = new TestDataSource({data: "", chunkSize: 50});
+            const source = new TestDataSource({ data: "", chunkSize: 50 });
             const chunks = Array.from(source["chunkData"](nodes, []));
 
             assert.strictEqual(chunks.length, 3);
@@ -99,7 +94,7 @@ describe("DataSource base class", () => {
 
     describe("DEFAULT_CHUNK_SIZE", () => {
         test("uses default chunk size when not specified", () => {
-            const source = new TestDataSource({data: ""});
+            const source = new TestDataSource({ data: "" });
             assert.strictEqual(source["chunkSize"], 1000);
         });
     });
@@ -115,10 +110,10 @@ describe("DataSource base class", () => {
 Add shared utilities to base class:
 
 ```typescript
-import {z} from "zod/v4";
+import { z } from "zod/v4";
 import * as z4 from "zod/v4/core";
-import {AdHocData} from "../config";
-import {ErrorAggregator} from "./ErrorAggregator.js";
+import { AdHocData } from "../config";
+import { ErrorAggregator } from "./ErrorAggregator.js";
 
 // Base configuration interface
 export interface BaseDataSourceConfig {
@@ -172,9 +167,7 @@ export abstract class DataSource {
             // Will be enhanced with retry logic in Phase 2
             const response = await fetch(config.url);
             if (!response.ok) {
-                throw new Error(
-                    `Failed to fetch ${this.type} from ${config.url}: ${response.status}`
-                );
+                throw new Error(`Failed to fetch ${this.type} from ${config.url}: ${response.status}`);
             }
             return await response.text();
         }
@@ -186,20 +179,17 @@ export abstract class DataSource {
      * Shared chunking helper
      * Yields nodes in chunks, with all edges in the first chunk
      */
-    protected *chunkData(
-        nodes: AdHocData[],
-        edges: AdHocData[]
-    ): Generator<DataSourceChunk, void, unknown> {
+    protected *chunkData(nodes: AdHocData[], edges: AdHocData[]): Generator<DataSourceChunk, void, unknown> {
         // Yield nodes in chunks
         for (let i = 0; i < nodes.length; i += this.chunkSize) {
             const nodeChunk = nodes.slice(i, i + this.chunkSize);
             const edgeChunk = i === 0 ? edges : [];
-            yield {nodes: nodeChunk, edges: edgeChunk};
+            yield { nodes: nodeChunk, edges: edgeChunk };
         }
 
         // If no nodes but edges exist, yield edges-only chunk
         if (nodes.length === 0 && edges.length > 0) {
-            yield {nodes: [], edges};
+            yield { nodes: [], edges };
         }
     }
 
@@ -218,6 +208,7 @@ export abstract class DataSource {
 #### 2. Update All DataSources to Use Base Class Utilities
 
 **Files to modify**:
+
 - `src/data/GraphMLDataSource.ts`
 - `src/data/GMLDataSource.ts`
 - `src/data/DOTDataSource.ts`
@@ -306,6 +297,7 @@ Move each config interface to its respective DataSource file, but ensure all ext
 **External**: None (uses existing libraries)
 
 **Internal**:
+
 - Existing `DataSource.ts` base class
 - Existing test infrastructure
 
@@ -314,19 +306,21 @@ Move each config interface to its respective DataSource file, but ensure all ext
 ### Verification Steps
 
 1. **Run tests**: `npm test -- test/data/DataSource.test.ts`
-   - Expected: All new base class tests pass
+    - Expected: All new base class tests pass
 
 2. **Run existing tests**: `npm test -- test/data/`
-   - Expected: All existing DataSource tests still pass (no breaking changes)
+    - Expected: All existing DataSource tests still pass (no breaking changes)
 
 3. **Check line count reduction**:
-   ```bash
-   git diff --stat
-   ```
-   - Expected: ~170 lines removed across 6 files
+
+    ```bash
+    git diff --stat
+    ```
+
+    - Expected: ~170 lines removed across 6 files
 
 4. **Build**: `npm run build`
-   - Expected: No TypeScript errors
+    - Expected: No TypeScript errors
 
 ---
 
@@ -335,6 +329,7 @@ Move each config interface to its respective DataSource file, but ensure all ext
 **Objective**: Fix the 3 critical issues that affect production reliability: network retries, validation error handling, and CSV paired file validation.
 
 **Success Criteria**:
+
 - ✅ All DataSources have network retry with exponential backoff
 - ✅ All validation errors use ErrorAggregator (no thrown exceptions)
 - ✅ CSV paired files validate inputs before fetching
@@ -347,14 +342,13 @@ Move each config interface to its respective DataSource file, but ensure all ext
 **File**: `test/data/DataSource.network.test.ts` (new file)
 
 ```typescript
-import {assert, describe, test} from "vitest";
-import {GraphMLDataSource} from "../../src/data/GraphMLDataSource.js";
+import { assert, describe, test } from "vitest";
+import { GraphMLDataSource } from "../../src/data/GraphMLDataSource.js";
 
 describe("Network retry behavior", () => {
     test("retries on network failure", async () => {
         // This test requires a mock server - use MSW or similar
         // For now, document the expected behavior
-
         // Setup: Mock server that fails twice, succeeds third time
         // Action: Create DataSource with URL
         // Assert: Successfully fetches data after 2 retries
@@ -377,29 +371,29 @@ describe("Network retry behavior", () => {
 **File**: `test/data/DataSource.validation.test.ts` (new file)
 
 ```typescript
-import {assert, describe, test} from "vitest";
-import {z} from "zod/v4";
-import {JsonDataSource} from "../../src/data/JsonDataSource.js";
+import { assert, describe, test } from "vitest";
+import { z } from "zod/v4";
+import { JsonDataSource } from "../../src/data/JsonDataSource.js";
 
 describe("Validation error handling", () => {
     test("collects validation errors instead of throwing", async () => {
         const schema = z.object({
             id: z.string(),
-            value: z.number()
+            value: z.number(),
         });
 
         const data = {
             nodes: [
-                {id: "n1", value: 42},
-                {id: "n2", value: "invalid"}, // Type error
-                {id: 3, value: 10}            // Type error
+                { id: "n1", value: 42 },
+                { id: "n2", value: "invalid" }, // Type error
+                { id: 3, value: 10 }, // Type error
             ],
-            edges: []
+            edges: [],
         };
 
         const source = new JsonDataSource({
             data: JSON.stringify(data),
-            node: {schema}
+            node: { schema },
         });
 
         const chunks = [];
@@ -415,15 +409,15 @@ describe("Validation error handling", () => {
 
     test("stops processing after hitting error limit", async () => {
         // Create data with 150 validation errors, limit=100
-        const nodes = Array.from({length: 150}, (_, i) => ({
-            id: i,  // Should be string, not number
-            value: 10
+        const nodes = Array.from({ length: 150 }, (_, i) => ({
+            id: i, // Should be string, not number
+            value: 10,
         }));
 
         const source = new JsonDataSource({
-            data: JSON.stringify({nodes, edges: []}),
-            node: {schema: z.object({id: z.string(), value: z.number()})},
-            errorLimit: 100
+            data: JSON.stringify({ nodes, edges: [] }),
+            node: { schema: z.object({ id: z.string(), value: z.number() }) },
+            errorLimit: 100,
         });
 
         for await (const chunk of source.getData()) {
@@ -442,34 +436,28 @@ describe("Validation error handling", () => {
 describe("CSVDataSource paired files", () => {
     test("throws clear error when nodeURL missing", async () => {
         const source = new CSVDataSource({
-            edgeURL: "http://example.com/edges.csv"
+            edgeURL: "http://example.com/edges.csv",
             // nodeURL is missing
         });
 
-        await assert.rejects(
-            async () => {
-                for await (const chunk of source.getData()) {
-                    // Should not get here
-                }
-            },
-            /parsePairedFiles requires both nodeURL and edgeURL/
-        );
+        await assert.rejects(async () => {
+            for await (const chunk of source.getData()) {
+                // Should not get here
+            }
+        }, /parsePairedFiles requires both nodeURL and edgeURL/);
     });
 
     test("throws clear error when edgeURL missing", async () => {
         const source = new CSVDataSource({
-            nodeURL: "http://example.com/nodes.csv"
+            nodeURL: "http://example.com/nodes.csv",
             // edgeURL is missing
         });
 
-        await assert.rejects(
-            async () => {
-                for await (const chunk of source.getData()) {
-                    // Should not get here
-                }
-            },
-            /parsePairedFiles requires both nodeURL and edgeURL/
-        );
+        await assert.rejects(async () => {
+            for await (const chunk of source.getData()) {
+                // Should not get here
+            }
+        }, /parsePairedFiles requires both nodeURL and edgeURL/);
     });
 });
 ```
@@ -490,11 +478,7 @@ export abstract class DataSource {
      * Fetch with retry logic and timeout
      * Protected method for use by all DataSources
      */
-    protected async fetchWithRetry(
-        url: string,
-        retries = 3,
-        timeout = 30000
-    ): Promise<Response> {
+    protected async fetchWithRetry(url: string, retries = 3, timeout = 30000): Promise<Response> {
         for (let attempt = 0; attempt < retries; attempt++) {
             try {
                 // Create AbortController for timeout
@@ -502,7 +486,7 @@ export abstract class DataSource {
                 const timeoutId = setTimeout(() => controller.abort(), timeout);
 
                 try {
-                    const response = await fetch(url, {signal: controller.signal});
+                    const response = await fetch(url, { signal: controller.signal });
                     clearTimeout(timeoutId);
 
                     if (!response.ok) {
@@ -524,9 +508,7 @@ export abstract class DataSource {
 
                 if (isLastAttempt) {
                     const errorMsg = error instanceof Error ? error.message : String(error);
-                    throw new Error(
-                        `Failed to fetch from ${url} after ${retries} attempts: ${errorMsg}`
-                    );
+                    throw new Error(`Failed to fetch from ${url} after ${retries} attempts: ${errorMsg}`);
                 }
 
                 // Exponential backoff: wait 1s, 2s, 4s...
@@ -713,6 +695,7 @@ export class JsonDataSource extends DataSource {
 **File**: `src/data/CSVDataSource.ts`
 
 Remove lines:
+
 - 152: `console.log("CSV: Routing to parser for variant:", variantInfo.variant);`
 - 172: `console.log("CSV: Parsing adjacency list, first row:", fullParse.data[0]);`
 - 550, 554, 600: Other debug console.log statements
@@ -724,6 +707,7 @@ Remove lines:
 **External**: None
 
 **Internal**:
+
 - Phase 1 completion (base class utilities must exist)
 - ErrorAggregator class
 
@@ -732,32 +716,35 @@ Remove lines:
 ### Verification Steps
 
 1. **Run new tests**:
-   ```bash
-   npm test -- test/data/DataSource.network.test.ts
-   npm test -- test/data/DataSource.validation.test.ts
-   npm test -- test/data/CSVDataSource.paired.test.ts
-   ```
-   - Expected: All new tests pass
+
+    ```bash
+    npm test -- test/data/DataSource.network.test.ts
+    npm test -- test/data/DataSource.validation.test.ts
+    npm test -- test/data/CSVDataSource.paired.test.ts
+    ```
+
+    - Expected: All new tests pass
 
 2. **Run full test suite**: `npm test`
-   - Expected: All tests pass, no regressions
+    - Expected: All tests pass, no regressions
 
 3. **Manual verification - Validation**:
-   - Create a JSON file with intentional validation errors
-   - Load it in a Storybook story
-   - Verify errors appear in ErrorAggregator, not thrown
+    - Create a JSON file with intentional validation errors
+    - Load it in a Storybook story
+    - Verify errors appear in ErrorAggregator, not thrown
 
 4. **Manual verification - Network**:
-   - Create a Storybook story that loads from a slow/unreliable URL
-   - Verify retries occur (add temporary console.log to observe)
-   - Remove debug logging after verification
+    - Create a Storybook story that loads from a slow/unreliable URL
+    - Verify retries occur (add temporary console.log to observe)
+    - Remove debug logging after verification
 
 5. **Build and lint**:
-   ```bash
-   npm run lint
-   npm run build
-   ```
-   - Expected: No errors
+    ```bash
+    npm run lint
+    npm run build
+    ```
+
+    - Expected: No errors
 
 ---
 
@@ -766,6 +753,7 @@ Remove lines:
 **Objective**: Eliminate ~200 lines of duplicated edge creation logic in CSVDataSource by extracting a shared helper method.
 
 **Success Criteria**:
+
 - ✅ Single `createEdge()` helper used by all 4 CSV parsing methods
 - ✅ Reduced CSVDataSource.ts by ~150 lines
 - ✅ All CSV tests pass unchanged
@@ -778,15 +766,15 @@ Remove lines:
 **File**: `test/data/CSVDataSource.edge-creation.test.ts` (new file)
 
 ```typescript
-import {assert, describe, test} from "vitest";
-import {CSVDataSource} from "../../src/data/CSVDataSource.js";
+import { assert, describe, test } from "vitest";
+import { CSVDataSource } from "../../src/data/CSVDataSource.js";
 
 describe("CSVDataSource edge creation", () => {
     test("creates edge with all properties preserved", async () => {
         const csv = `source,target,weight,type,color
 n1,n2,1.5,friend,#ff0000`;
 
-        const source = new CSVDataSource({data: csv});
+        const source = new CSVDataSource({ data: csv });
         const chunks = [];
         for await (const chunk of source.getData()) {
             chunks.push(chunk);
@@ -805,7 +793,7 @@ n1,n2,1.5,friend,#ff0000`;
 ,n2
 n3,n4`;
 
-        const source = new CSVDataSource({data: csv});
+        const source = new CSVDataSource({ data: csv });
         const chunks = [];
         for await (const chunk of source.getData()) {
             chunks.push(chunk);
@@ -825,7 +813,7 @@ n3,n4`;
 n1,
 n3,n4`;
 
-        const source = new CSVDataSource({data: csv});
+        const source = new CSVDataSource({ data: csv });
         const chunks = [];
         for await (const chunk of source.getData()) {
             chunks.push(chunk);
@@ -843,7 +831,7 @@ n3,n4`;
 123,456
 true,false`;
 
-        const source = new CSVDataSource({data: csv});
+        const source = new CSVDataSource({ data: csv });
         const chunks = [];
         for await (const chunk of source.getData()) {
             chunks.push(chunk);
@@ -1034,6 +1022,7 @@ private parseAdjacencyList(
 **External**: None
 
 **Internal**:
+
 - Phase 2 completion (ErrorAggregator integration)
 
 ---
@@ -1041,27 +1030,33 @@ private parseAdjacencyList(
 ### Verification Steps
 
 1. **Run new tests**:
-   ```bash
-   npm test -- test/data/CSVDataSource.edge-creation.test.ts
-   ```
-   - Expected: All edge creation tests pass
+
+    ```bash
+    npm test -- test/data/CSVDataSource.edge-creation.test.ts
+    ```
+
+    - Expected: All edge creation tests pass
 
 2. **Run all CSV tests**:
-   ```bash
-   npm test -- test/data/CSVDataSource.test.ts
-   ```
-   - Expected: All existing tests pass unchanged
+
+    ```bash
+    npm test -- test/data/CSVDataSource.test.ts
+    ```
+
+    - Expected: All existing tests pass unchanged
 
 3. **Check line count reduction**:
-   ```bash
-   git diff --stat src/data/CSVDataSource.ts
-   ```
-   - Expected: ~150 lines removed
+
+    ```bash
+    git diff --stat src/data/CSVDataSource.ts
+    ```
+
+    - Expected: ~150 lines removed
 
 4. **Manual verification**:
-   - Open Storybook CSV stories
-   - Verify Neo4j, Gephi, Cytoscape variants all render correctly
-   - Check console for any unexpected errors
+    - Open Storybook CSV stories
+    - Verify Neo4j, Gephi, Cytoscape variants all render correctly
+    - Check console for any unexpected errors
 
 ---
 
@@ -1070,6 +1065,7 @@ private parseAdjacencyList(
 **Objective**: Implement missing features identified in the code review: JSON streaming, chunking for JSON and CSV paired files, standardized error messages, and edge property naming consistency.
 
 **Success Criteria**:
+
 - ✅ JsonDataSource uses streaming parser for memory efficiency
 - ✅ All DataSources support chunking (no single-chunk yields)
 - ✅ Standardized error message format across all DataSources
@@ -1083,22 +1079,22 @@ private parseAdjacencyList(
 **File**: `test/data/JsonDataSource.streaming.test.ts` (new file)
 
 ```typescript
-import {assert, describe, test} from "vitest";
-import {JsonDataSource} from "../../src/data/JsonDataSource.js";
+import { assert, describe, test } from "vitest";
+import { JsonDataSource } from "../../src/data/JsonDataSource.js";
 
 describe("JsonDataSource streaming", () => {
     test("yields multiple chunks for large datasets", async () => {
         // Create large dataset (2500 nodes)
-        const nodes = Array.from({length: 2500}, (_, i) => ({
+        const nodes = Array.from({ length: 2500 }, (_, i) => ({
             id: `n${i}`,
-            value: Math.random()
+            value: Math.random(),
         }));
 
-        const edges = [{src: "n0", dst: "n1"}];
+        const edges = [{ src: "n0", dst: "n1" }];
 
         const source = new JsonDataSource({
-            data: JSON.stringify({nodes, edges}),
-            chunkSize: 1000
+            data: JSON.stringify({ nodes, edges }),
+            chunkSize: 1000,
         });
 
         const chunks = [];
@@ -1120,7 +1116,6 @@ describe("JsonDataSource streaming", () => {
     test("handles streaming from URL", async () => {
         // This test requires a mock server with large JSON
         // Document expected behavior for manual testing
-
         // Setup: Mock server with 10MB JSON file
         // Action: Create JsonDataSource with URL
         // Assert: Memory usage stays under 50MB during parsing
@@ -1134,20 +1129,14 @@ describe("JsonDataSource streaming", () => {
 describe("CSVDataSource paired files chunking", () => {
     test("yields multiple chunks for large paired files", async () => {
         // Create large CSV files
-        const nodeCSV = [
-            "id,label",
-            ...Array.from({length: 2500}, (_, i) => `n${i},Node ${i}`)
-        ].join("\n");
+        const nodeCSV = ["id,label", ...Array.from({ length: 2500 }, (_, i) => `n${i},Node ${i}`)].join("\n");
 
-        const edgeCSV = [
-            "source,target",
-            ...Array.from({length: 100}, (_, i) => `n${i},n${i + 1}`)
-        ].join("\n");
+        const edgeCSV = ["source,target", ...Array.from({ length: 100 }, (_, i) => `n${i},n${i + 1}`)].join("\n");
 
         const source = new CSVDataSource({
             data: nodeCSV, // Simulating nodeFile
             // In real test, use nodeFile and edgeFile
-            chunkSize: 1000
+            chunkSize: 1000,
         });
 
         const chunks = [];
@@ -1164,9 +1153,9 @@ describe("CSVDataSource paired files chunking", () => {
 **File**: `test/data/error-messages.test.ts` (new file)
 
 ```typescript
-import {assert, describe, test} from "vitest";
-import {GraphMLDataSource} from "../../src/data/GraphMLDataSource.js";
-import {GMLDataSource} from "../../src/data/GMLDataSource.js";
+import { assert, describe, test } from "vitest";
+import { GraphMLDataSource } from "../../src/data/GraphMLDataSource.js";
+import { GMLDataSource } from "../../src/data/GMLDataSource.js";
 
 describe("Standardized error messages", () => {
     test("missing input error format", async () => {
@@ -1177,30 +1166,24 @@ describe("Standardized error messages", () => {
         ];
 
         for (const source of sources) {
-            await assert.rejects(
-                async () => {
-                    for await (const chunk of source.getData()) {
-                        // Should not get here
-                    }
-                },
-                /DataSource requires data, file, or url/
-            );
+            await assert.rejects(async () => {
+                for await (const chunk of source.getData()) {
+                    // Should not get here
+                }
+            }, /DataSource requires data, file, or url/);
         }
     });
 
     test("network error format", async () => {
         const source = new GraphMLDataSource({
-            url: "http://invalid-url-that-does-not-exist.test"
+            url: "http://invalid-url-that-does-not-exist.test",
         });
 
-        await assert.rejects(
-            async () => {
-                for await (const chunk of source.getData()) {
-                    // Should not get here
-                }
-            },
-            /Failed to fetch .* after 3 attempts/
-        );
+        await assert.rejects(async () => {
+            for await (const chunk of source.getData()) {
+                // Should not get here
+            }
+        }, /Failed to fetch .* after 3 attempts/);
     });
 });
 ```
@@ -1214,7 +1197,7 @@ describe("Standardized error messages", () => {
 **File**: `src/data/JsonDataSource.ts`
 
 ```typescript
-import {JSONParser} from "@streamparser/json";
+import { JSONParser } from "@streamparser/json";
 
 export class JsonDataSource extends DataSource {
     // ... existing code ...
@@ -1225,7 +1208,9 @@ export class JsonDataSource extends DataSource {
         try {
             response = await this.fetchWithRetry(this.url);
         } catch (error) {
-            throw new Error(`Failed to fetch JSON from ${this.url}: ${error instanceof Error ? error.message : String(error)}`);
+            throw new Error(
+                `Failed to fetch JSON from ${this.url}: ${error instanceof Error ? error.message : String(error)}`,
+            );
         }
 
         if (!response.body) {
@@ -1234,7 +1219,7 @@ export class JsonDataSource extends DataSource {
 
         // Stream parse the JSON
         const parser = new JSONParser({
-            paths: [this.opts.node.path, this.opts.edge.path]
+            paths: [this.opts.node.path, this.opts.edge.path],
         });
 
         const reader = response.body.getReader();
@@ -1245,13 +1230,13 @@ export class JsonDataSource extends DataSource {
 
         try {
             while (true) {
-                const {done, value} = await reader.read();
+                const { done, value } = await reader.read();
 
                 if (done) break;
 
-                const chunk = decoder.decode(value, {stream: true});
+                const chunk = decoder.decode(value, { stream: true });
 
-                for (const {value: parsedValue, key} of parser.write(chunk)) {
+                for (const { value: parsedValue, key } of parser.write(chunk)) {
                     if (key === this.opts.node.path) {
                         nodes = parsedValue as unknown[];
                     } else if (key === this.opts.edge.path) {
@@ -1268,7 +1253,7 @@ export class JsonDataSource extends DataSource {
                         throw new TypeError(`Expected array at path '${this.opts.node.path}'`);
                     }
 
-                    yield {nodes: nodeChunk, edges: edgeChunk};
+                    yield { nodes: nodeChunk, edges: edgeChunk };
                 }
             }
 
@@ -1339,20 +1324,16 @@ export abstract class DataSource {
      * Standardized error message templates
      */
     protected errorMessages = {
-        missingInput: () =>
-            `${this.type}DataSource requires data, file, or url`,
+        missingInput: () => `${this.type}DataSource requires data, file, or url`,
 
         fetchFailed: (url: string, attempts: number, error: string) =>
             `Failed to fetch ${this.type} from ${url} after ${attempts} attempts: ${error}`,
 
-        parseFailed: (error: string) =>
-            `Failed to parse ${this.type}: ${error}`,
+        parseFailed: (error: string) => `Failed to parse ${this.type}: ${error}`,
 
-        invalidFormat: (reason: string) =>
-            `Invalid ${this.type} format: ${reason}`,
+        invalidFormat: (reason: string) => `Invalid ${this.type} format: ${reason}`,
 
-        extractionFailed: (path: string, error: string) =>
-            `Failed to extract data using path '${path}': ${error}`
+        extractionFailed: (path: string, error: string) => `Failed to extract data using path '${path}': ${error}`,
     };
 }
 ```
@@ -1385,6 +1366,7 @@ edges.push({
 ```
 
 Apply to:
+
 - `PajekDataSource.ts` (add `src`/`dst` alongside existing properties)
 - `GraphMLDataSource.ts` (standardize to `src`/`dst`)
 - Any other formats using different conventions
@@ -1394,9 +1376,11 @@ Apply to:
 ### Dependencies
 
 **External**:
+
 - `@streamparser/json` (already in package.json, currently commented out)
 
 **Internal**:
+
 - Phase 1 (chunking helper)
 - Phase 2 (fetchWithRetry)
 
@@ -1405,26 +1389,28 @@ Apply to:
 ### Verification Steps
 
 1. **Run new tests**:
-   ```bash
-   npm test -- test/data/JsonDataSource.streaming.test.ts
-   npm test -- test/data/CSVDataSource.chunking.test.ts
-   npm test -- test/data/error-messages.test.ts
-   ```
-   - Expected: All new tests pass
+
+    ```bash
+    npm test -- test/data/JsonDataSource.streaming.test.ts
+    npm test -- test/data/CSVDataSource.chunking.test.ts
+    npm test -- test/data/error-messages.test.ts
+    ```
+
+    - Expected: All new tests pass
 
 2. **Performance benchmark** (manual):
-   - Create 100MB JSON file with 1M nodes
-   - Load in browser with memory profiling enabled
-   - Verify memory usage stays under 200MB
-   - Verify parsing completes in reasonable time (<30s)
+    - Create 100MB JSON file with 1M nodes
+    - Load in browser with memory profiling enabled
+    - Verify memory usage stays under 200MB
+    - Verify parsing completes in reasonable time (<30s)
 
 3. **Visual verification in Storybook**:
-   - Test all CSV variants still work
-   - Test JSON variants with large datasets
-   - Verify error messages are user-friendly
+    - Test all CSV variants still work
+    - Test JSON variants with large datasets
+    - Verify error messages are user-friendly
 
 4. **Run full test suite**: `npm test`
-   - Expected: All tests pass
+    - Expected: All tests pass
 
 ---
 
@@ -1433,6 +1419,7 @@ Apply to:
 **Objective**: Achieve comprehensive test coverage, remove dead code, and create documentation for extending the DataSource system.
 
 **Success Criteria**:
+
 - ✅ Test coverage > 85% for data loading code
 - ✅ All edge cases tested (empty files, network errors, error limits)
 - ✅ Zero console.log or commented code
@@ -1446,14 +1433,14 @@ Apply to:
 **File**: `test/data/edge-cases.test.ts` (new file)
 
 ```typescript
-import {assert, describe, test} from "vitest";
-import {GraphMLDataSource} from "../../src/data/GraphMLDataSource.js";
-import {CSVDataSource} from "../../src/data/CSVDataSource.js";
+import { assert, describe, test } from "vitest";
+import { GraphMLDataSource } from "../../src/data/GraphMLDataSource.js";
+import { CSVDataSource } from "../../src/data/CSVDataSource.js";
 
 describe("Edge cases", () => {
     describe("Empty files", () => {
         test("handles empty CSV gracefully", async () => {
-            const source = new CSVDataSource({data: ""});
+            const source = new CSVDataSource({ data: "" });
             const chunks = [];
 
             for await (const chunk of source.getData()) {
@@ -1464,7 +1451,7 @@ describe("Edge cases", () => {
         });
 
         test("handles CSV with headers only", async () => {
-            const source = new CSVDataSource({data: "source,target\n"});
+            const source = new CSVDataSource({ data: "source,target\n" });
             const chunks = [];
 
             for await (const chunk of source.getData()) {
@@ -1481,7 +1468,7 @@ describe("Edge cases", () => {
   </graph>
 </graphml>`;
 
-            const source = new GraphMLDataSource({data: xml});
+            const source = new GraphMLDataSource({ data: xml });
             const chunks = [];
 
             for await (const chunk of source.getData()) {
@@ -1495,10 +1482,10 @@ describe("Edge cases", () => {
     describe("Error limits", () => {
         test("stops processing at error limit", async () => {
             // Create CSV with 150 malformed rows, limit=50
-            const rows = Array.from({length: 150}, (_, i) => `invalid,row,${i}`);
+            const rows = Array.from({ length: 150 }, (_, i) => `invalid,row,${i}`);
             const csv = "source,target\n" + rows.join("\n");
 
-            const source = new CSVDataSource({data: csv, errorLimit: 50});
+            const source = new CSVDataSource({ data: csv, errorLimit: 50 });
 
             for await (const chunk of source.getData()) {
                 // Process chunks
@@ -1515,10 +1502,10 @@ describe("Edge cases", () => {
 
     describe("File and URL inputs", () => {
         test("loads from File object", async () => {
-            const blob = new Blob(["source,target\nn1,n2"], {type: "text/csv"});
+            const blob = new Blob(["source,target\nn1,n2"], { type: "text/csv" });
             const file = new File([blob], "test.csv");
 
-            const source = new CSVDataSource({file});
+            const source = new CSVDataSource({ file });
             const chunks = [];
 
             for await (const chunk of source.getData()) {
@@ -1536,18 +1523,15 @@ describe("Edge cases", () => {
             const xml = `<?xml version="1.0"?>
 <graphml>
   <graph id="G">
-    <node id="n1"`;  // Unclosed tag
+    <node id="n1"`; // Unclosed tag
 
-            const source = new GraphMLDataSource({data: xml});
+            const source = new GraphMLDataSource({ data: xml });
 
-            await assert.rejects(
-                async () => {
-                    for await (const chunk of source.getData()) {
-                        // Should not get here
-                    }
-                },
-                /Failed to parse/
-            );
+            await assert.rejects(async () => {
+                for await (const chunk of source.getData()) {
+                    // Should not get here
+                }
+            }, /Failed to parse/);
         });
 
         test("handles invalid JSON", async () => {
@@ -1555,14 +1539,11 @@ describe("Edge cases", () => {
                 data: "{invalid json}",
             });
 
-            await assert.rejects(
-                async () => {
-                    for await (const chunk of source.getData()) {
-                        // Should not get here
-                    }
-                },
-                /Failed to parse JSON/
-            );
+            await assert.rejects(async () => {
+                for await (const chunk of source.getData()) {
+                    // Should not get here
+                }
+            }, /Failed to parse JSON/);
         });
     });
 });
@@ -1571,18 +1552,18 @@ describe("Edge cases", () => {
 **File**: `test/data/large-files.test.ts` (new file)
 
 ```typescript
-import {assert, describe, test} from "vitest";
-import {JsonDataSource} from "../../src/data/JsonDataSource.js";
-import {CSVDataSource} from "../../src/data/CSVDataSource.js";
+import { assert, describe, test } from "vitest";
+import { JsonDataSource } from "../../src/data/JsonDataSource.js";
+import { CSVDataSource } from "../../src/data/CSVDataSource.js";
 
 describe("Large file handling", () => {
     test("JSON: chunks 10K nodes properly", async () => {
-        const nodes = Array.from({length: 10000}, (_, i) => ({id: `n${i}`}));
-        const data = JSON.stringify({nodes, edges: []});
+        const nodes = Array.from({ length: 10000 }, (_, i) => ({ id: `n${i}` }));
+        const data = JSON.stringify({ nodes, edges: [] });
 
         const source = new JsonDataSource({
             data,
-            chunkSize: 1000
+            chunkSize: 1000,
         });
 
         const chunks = [];
@@ -1595,12 +1576,12 @@ describe("Large file handling", () => {
     });
 
     test("CSV: chunks 10K rows properly", async () => {
-        const rows = Array.from({length: 10000}, (_, i) => `n${i},n${i + 1}`);
+        const rows = Array.from({ length: 10000 }, (_, i) => `n${i},n${i + 1}`);
         const csv = "source,target\n" + rows.join("\n");
 
         const source = new CSVDataSource({
             data: csv,
-            chunkSize: 1000
+            chunkSize: 1000,
         });
 
         const chunks = [];
@@ -1617,12 +1598,12 @@ describe("Large file handling", () => {
     });
 
     test("Memory efficient: processes 100K nodes without hanging", async () => {
-        const nodes = Array.from({length: 100000}, (_, i) => ({id: `n${i}`}));
-        const data = JSON.stringify({nodes, edges: []});
+        const nodes = Array.from({ length: 100000 }, (_, i) => ({ id: `n${i}` }));
+        const data = JSON.stringify({ nodes, edges: [] });
 
         const source = new JsonDataSource({
             data,
-            chunkSize: 5000
+            chunkSize: 5000,
         });
 
         let chunkCount = 0;
@@ -1644,6 +1625,7 @@ describe("Large file handling", () => {
 #### 1. Remove Dead Code
 
 **Files to clean**:
+
 - `src/data/JsonDataSource.ts`: Remove line 5 (`// import {JSONParser}...`) - now used
 - `src/data/DataSource.ts`: Remove line 24 (`// abstract init()`)
 - `src/data/GMLDataSource.ts`: Remove unused `nextChar` variable (line 100)
@@ -1654,7 +1636,7 @@ describe("Large file handling", () => {
 
 **File**: `docs/extending-data-sources.md` (new file)
 
-```markdown
+````markdown
 # Creating Custom DataSources
 
 This guide explains how to create custom DataSource implementations for new graph data formats.
@@ -1662,6 +1644,7 @@ This guide explains how to create custom DataSource implementations for new grap
 ## Overview
 
 A DataSource is responsible for:
+
 1. Loading data from a source (file, URL, or inline string)
 2. Parsing the data into nodes and edges
 3. Yielding data in chunks for memory efficiency
@@ -1670,8 +1653,8 @@ A DataSource is responsible for:
 ## Basic Structure
 
 ```typescript
-import {DataSource, DataSourceChunk, BaseDataSourceConfig} from "./DataSource.js";
-import {AdHocData} from "../config";
+import { DataSource, DataSourceChunk, BaseDataSourceConfig } from "./DataSource.js";
+import { AdHocData } from "../config";
 
 export interface MyFormatConfig extends BaseDataSourceConfig {
     // Add format-specific options here
@@ -1696,26 +1679,27 @@ export class MyFormatDataSource extends DataSource {
         const content = await this.getContent();
 
         // 2. Parse your format
-        const {nodes, edges} = this.parseMyFormat(content);
+        const { nodes, edges } = this.parseMyFormat(content);
 
         // 3. Yield chunks using inherited helper
         yield* this.chunkData(nodes, edges);
     }
 
-    private parseMyFormat(content: string): {nodes: AdHocData[], edges: AdHocData[]} {
+    private parseMyFormat(content: string): { nodes: AdHocData[]; edges: AdHocData[] } {
         // Your parsing logic here
         const nodes: AdHocData[] = [];
         const edges: AdHocData[] = [];
 
         // ... parse content ...
 
-        return {nodes, edges};
+        return { nodes, edges };
     }
 }
 
 // Register your DataSource
 DataSource.register(MyFormatDataSource);
 ```
+````
 
 ## Best Practices
 
@@ -1739,7 +1723,7 @@ if (!node.id) {
     this.errorAggregator.addError({
         message: `Node at index ${i} missing required 'id' field`,
         category: "missing-data",
-        severity: "error"
+        severity: "error",
     });
     continue; // Skip this node, continue processing
 }
@@ -1765,7 +1749,7 @@ Create comprehensive tests:
 describe("MyFormatDataSource", () => {
     test("parses basic format", async () => {
         const source = new MyFormatDataSource({
-            data: "... test data ..."
+            data: "... test data ...",
         });
 
         const chunks = [];
@@ -1789,6 +1773,7 @@ describe("MyFormatDataSource", () => {
 ## Examples
 
 See existing DataSources for reference:
+
 - **Simple format**: `GMLDataSource.ts` - custom parser, straightforward structure
 - **Complex format**: `CSVDataSource.ts` - variant detection, multiple parsing strategies
 - **External library**: `GraphMLDataSource.ts` - uses xml2js library
@@ -1803,10 +1788,11 @@ DataSource.register(MyFormatDataSource);
 
 // Usage
 const source = DataSource.get("myformat", {
-    url: "http://example.com/data.myformat"
+    url: "http://example.com/data.myformat",
 });
 ```
-```
+
+````
 
 **File**: `docs/data-loading-performance.md` (new file)
 
@@ -1839,7 +1825,7 @@ const source = new JsonDataSource({
     url: "large.json",
     chunkSize: 5000  // Default: 1000
 });
-```
+````
 
 ### 2. Choose the Right Format
 
@@ -1854,12 +1840,12 @@ Filter data on the server before sending to client:
 ```typescript
 // ❌ Load 1M nodes, filter to 10K in browser
 const source = new JsonDataSource({
-    url: "http://api.example.com/all-nodes"
+    url: "http://api.example.com/all-nodes",
 });
 
 // ✅ Filter on server, load only needed data
 const source = new JsonDataSource({
-    url: "http://api.example.com/nodes?filter=active&limit=10000"
+    url: "http://api.example.com/nodes?filter=active&limit=10000",
 });
 ```
 
@@ -1870,19 +1856,19 @@ JSON streaming is automatic for URLs. For inline data, consider using URLs:
 ```typescript
 // ❌ Large string in memory
 const source = new JsonDataSource({
-    data: hugeJsonString  // 100MB string in memory
+    data: hugeJsonString, // 100MB string in memory
 });
 
 // ✅ Fetch from URL for streaming
 const source = new JsonDataSource({
-    url: "/api/data"  // Streams from server
+    url: "/api/data", // Streams from server
 });
 ```
 
 ## Monitoring Performance
 
 ```typescript
-const source = new JsonDataSource({url: "data.json"});
+const source = new JsonDataSource({ url: "data.json" });
 
 let chunkCount = 0;
 const startTime = performance.now();
@@ -1901,7 +1887,8 @@ if (errors.length > 0) {
     console.warn(`Encountered ${errors.length} errors during parsing`);
 }
 ```
-```
+
+````
 
 #### 3. Add Package Documentation
 
@@ -1939,13 +1926,14 @@ for await (const chunk of source.getData()) {
 
 // Check for errors
 const errors = source.getErrorAggregator().getErrors();
-```
+````
 
 ### See Also
 
 - [Creating Custom DataSources](./docs/extending-data-sources.md)
 - [Performance Guide](./docs/data-loading-performance.md)
-```
+
+````
 
 ---
 
@@ -1964,40 +1952,47 @@ const errors = source.getErrorAggregator().getErrors();
    ```bash
    npm test -- test/data/edge-cases.test.ts
    npm test -- test/data/large-files.test.ts
-   ```
-   - Expected: All tests pass
+````
+
+- Expected: All tests pass
 
 2. **Check test coverage**:
-   ```bash
-   npm run coverage
-   ```
-   - Expected: Data loading code >85% coverage
-   - Check `coverage/index.html` for detailed report
+
+    ```bash
+    npm run coverage
+    ```
+
+    - Expected: Data loading code >85% coverage
+    - Check `coverage/index.html` for detailed report
 
 3. **Verify no dead code**:
-   ```bash
-   npm run lint
-   ```
-   - Expected: No warnings about unused variables
-   - No commented-out imports
+
+    ```bash
+    npm run lint
+    ```
+
+    - Expected: No warnings about unused variables
+    - No commented-out imports
 
 4. **Run full test suite**: `npm test`
-   - Expected: All tests pass
+    - Expected: All tests pass
 
 5. **Build and lint**:
-   ```bash
-   npm run build
-   npm run lint:all
-   ```
-   - Expected: No errors
+
+    ```bash
+    npm run build
+    npm run lint:all
+    ```
+
+    - Expected: No errors
 
 6. **Manual verification**:
-   - Review documentation for clarity
-   - Test all Storybook stories
-   - Verify performance benchmarks are accurate
+    - Review documentation for clarity
+    - Test all Storybook stories
+    - Verify performance benchmarks are accurate
 
 7. **Final check**: `npm run ready:commit`
-   - Expected: Everything passes, ready for review
+    - Expected: Everything passes, ready for review
 
 ---
 
@@ -2008,44 +2003,44 @@ Throughout the implementation, these shared utilities are created:
 ### In `DataSource.ts`
 
 1. **`DEFAULT_CHUNK_SIZE`** (constant)
-   - Default: 1000
-   - Used by all DataSources
+    - Default: 1000
+    - Used by all DataSources
 
 2. **`BaseDataSourceConfig`** (interface)
-   - Common config: data, file, url, chunkSize, errorLimit
-   - Extended by format-specific configs
+    - Common config: data, file, url, chunkSize, errorLimit
+    - Extended by format-specific configs
 
 3. **`getContent()`** (protected method)
-   - Loads from data/file/url
-   - Uses fetchWithRetry for URLs
-   - Throws standardized error if no input
+    - Loads from data/file/url
+    - Uses fetchWithRetry for URLs
+    - Throws standardized error if no input
 
 4. **`fetchWithRetry()`** (protected method)
-   - 3 retries with exponential backoff
-   - 30s timeout
-   - Abortable via AbortController
+    - 3 retries with exponential backoff
+    - 30s timeout
+    - Abortable via AbortController
 
 5. **`chunkData()`** (protected generator)
-   - Yields nodes in chunks
-   - All edges in first chunk
-   - Handles empty datasets
+    - Yields nodes in chunks
+    - All edges in first chunk
+    - Handles empty datasets
 
 6. **`errorMessages`** (templates)
-   - Standardized error message formats
-   - Consistent across all DataSources
+    - Standardized error message formats
+    - Consistent across all DataSources
 
 ---
 
 ## External Libraries Assessment
 
-| Task | Recommended Library | Reason |
-|------|-------------------|--------|
-| JSON streaming | `@streamparser/json` | Memory-efficient, already in package.json |
-| CSV parsing | `papaparse` | Already in use, feature-rich |
-| XML parsing | `xml2js` | Already in use for GraphML/GEXF |
-| DOT parsing | Custom implementation | No good library, custom parser already exists |
-| GML parsing | Custom implementation | Simple format, custom parser is sufficient |
-| Network mocking (tests) | `msw` (Mock Service Worker) | Industry standard for API mocking |
+| Task                    | Recommended Library         | Reason                                        |
+| ----------------------- | --------------------------- | --------------------------------------------- |
+| JSON streaming          | `@streamparser/json`        | Memory-efficient, already in package.json     |
+| CSV parsing             | `papaparse`                 | Already in use, feature-rich                  |
+| XML parsing             | `xml2js`                    | Already in use for GraphML/GEXF               |
+| DOT parsing             | Custom implementation       | No good library, custom parser already exists |
+| GML parsing             | Custom implementation       | Simple format, custom parser is sufficient    |
+| Network mocking (tests) | `msw` (Mock Service Worker) | Industry standard for API mocking             |
 
 ---
 
@@ -2054,6 +2049,7 @@ Throughout the implementation, these shared utilities are created:
 ### Risk: Breaking existing Storybook stories
 
 **Mitigation**:
+
 - Run `npm run test:storybook` after each phase
 - Manual review of key stories
 - Keep config interfaces backward compatible
@@ -2061,6 +2057,7 @@ Throughout the implementation, these shared utilities are created:
 ### Risk: Performance regression from streaming
 
 **Mitigation**:
+
 - Benchmark before/after Phase 4
 - Document performance characteristics
 - Allow users to opt-out via chunkSize=Infinity
@@ -2068,6 +2065,7 @@ Throughout the implementation, these shared utilities are created:
 ### Risk: Incomplete error aggregation
 
 **Mitigation**:
+
 - Comprehensive tests for error handling in Phase 2
 - Manual testing with intentionally malformed data
 - Error aggregator unit tests
@@ -2075,6 +2073,7 @@ Throughout the implementation, these shared utilities are created:
 ### Risk: Lost features during refactoring
 
 **Mitigation**:
+
 - All existing tests must pass after each phase
 - Feature checklist reviewed at end of each phase
 - No phase should delete functionality, only refactor
@@ -2086,6 +2085,7 @@ Throughout the implementation, these shared utilities are created:
 At the end of all phases:
 
 ### Functionality
+
 - ✅ All 7 data formats work unchanged
 - ✅ All Storybook stories render correctly
 - ✅ All existing tests pass
@@ -2095,6 +2095,7 @@ At the end of all phases:
 - ✅ Chunking works for all formats
 
 ### Code Quality
+
 - ✅ ~370 lines of duplicate code removed
 - ✅ Zero console.log statements
 - ✅ Zero commented-out code
@@ -2103,11 +2104,13 @@ At the end of all phases:
 - ✅ Test coverage >85%
 
 ### Documentation
+
 - ✅ Guide for creating custom DataSources
 - ✅ Performance benchmarks documented
 - ✅ README updated with data loading examples
 
 ### Performance
+
 - ✅ 10K nodes parse in <2s
 - ✅ 100MB JSON file uses <200MB memory
 - ✅ Network retries work reliably
@@ -2129,14 +2132,14 @@ After all 5 phases are complete:
 
 ## Estimated Timeline
 
-| Phase | Duration | Dependencies |
-|-------|----------|--------------|
-| Phase 1: Base Class Refactoring | 2-3 days | None |
-| Phase 2: Critical Reliability Fixes | 2-3 days | Phase 1 |
-| Phase 3: CSV Consolidation | 1-2 days | Phase 2 |
-| Phase 4: Missing Functionality | 3-4 days | Phases 1-3 |
-| Phase 5: Testing & Documentation | 2-3 days | Phases 1-4 |
-| **Total** | **10-15 days** | Sequential execution |
+| Phase                               | Duration       | Dependencies         |
+| ----------------------------------- | -------------- | -------------------- |
+| Phase 1: Base Class Refactoring     | 2-3 days       | None                 |
+| Phase 2: Critical Reliability Fixes | 2-3 days       | Phase 1              |
+| Phase 3: CSV Consolidation          | 1-2 days       | Phase 2              |
+| Phase 4: Missing Functionality      | 3-4 days       | Phases 1-3           |
+| Phase 5: Testing & Documentation    | 2-3 days       | Phases 1-4           |
+| **Total**                           | **10-15 days** | Sequential execution |
 
 **Note**: Phases should be executed sequentially, not in parallel. Each phase builds on the previous phase's work.
 

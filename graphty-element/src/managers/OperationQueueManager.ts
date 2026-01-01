@@ -1,11 +1,11 @@
 import PQueue from "p-queue";
 import toposort from "toposort";
 
-import {OBSOLESCENCE_RULES} from "../constants/obsolescence-rules";
-import {GraphtyLogger, type Logger} from "../logging/GraphtyLogger.js";
-import type {OperationMetadata, OperationProgress} from "../types/operations";
-import type {EventManager} from "./EventManager";
-import type {Manager} from "./interfaces";
+import { OBSOLESCENCE_RULES } from "../constants/obsolescence-rules";
+import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
+import type { OperationMetadata, OperationProgress } from "../types/operations";
+import type { EventManager } from "./EventManager";
+import type { Manager } from "./interfaces";
 
 // Constants for operation queue management
 const PROGRESS_CANCELLATION_THRESHOLD = 90; // Progress threshold for respecting in-progress operations
@@ -77,11 +77,14 @@ export class OperationQueueManager implements Manager {
     private batchPromises = new Map<string, Promise<void>>();
 
     // Trigger system
-    private triggers = new Map<OperationCategory, ((metadata?: OperationMetadata) => {
-        category: OperationCategory;
-        execute: (context: OperationContext) => Promise<void> | void;
-        description?: string;
-    } | null)[]>();
+    private triggers = new Map<
+        OperationCategory,
+        ((metadata?: OperationMetadata) => {
+            category: OperationCategory;
+            execute: (context: OperationContext) => Promise<void> | void;
+            description?: string;
+        } | null)[]
+    >();
 
     // Callback for when operations are queued (for testing)
     onOperationQueued?: (category: OperationCategory, description?: string) => void;
@@ -234,7 +237,7 @@ export class OperationQueueManager implements Manager {
         const operation: Operation = {
             id,
             category,
-            execute: async(ctx) => {
+            execute: async (ctx) => {
                 const result = execute(ctx);
                 if (result instanceof Promise) {
                     await result;
@@ -242,7 +245,7 @@ export class OperationQueueManager implements Manager {
             },
             abortController: controller,
             metadata: {
-                ... options,
+                ...options,
                 timestamp: Date.now(),
             },
         };
@@ -291,14 +294,16 @@ export class OperationQueueManager implements Manager {
      * @param newOperation - The new operation to check for obsolescence rules
      */
     private applyObsolescenceRules(newOperation: Operation): void {
-        const {metadata} = newOperation;
+        const { metadata } = newOperation;
         const defaultRule = OBSOLESCENCE_RULES[newOperation.category];
         // Only apply obsolescence if explicitly requested via metadata or default rules
-        if (!metadata?.obsoletes &&
+        if (
+            !metadata?.obsoletes &&
             !metadata?.shouldObsolete &&
             !metadata?.respectProgress &&
             !metadata?.skipRunning &&
-            !defaultRule?.obsoletes) {
+            !defaultRule?.obsoletes
+        ) {
             return;
         }
 
@@ -306,16 +311,16 @@ export class OperationQueueManager implements Manager {
         const customObsoletes = metadata?.obsoletes ?? [];
         const defaultObsoletes = defaultRule?.obsoletes ?? [];
 
-        const categoriesToObsolete = [... new Set([... customObsoletes, ... defaultObsoletes])];
+        const categoriesToObsolete = [...new Set([...customObsoletes, ...defaultObsoletes])];
         const shouldObsolete = metadata?.shouldObsolete;
-        const skipRunning = (metadata?.skipRunning ?? defaultRule?.skipRunning) ?? false;
-        const respectProgress = (metadata?.respectProgress ?? defaultRule?.respectProgress) ?? true;
+        const skipRunning = metadata?.skipRunning ?? defaultRule?.skipRunning ?? false;
+        const respectProgress = metadata?.respectProgress ?? defaultRule?.respectProgress ?? true;
 
         // Check all operations for obsolescence
         const allOperations = [
-            ... this.pendingOperations.values(),
-            ... this.queuedOperations.values(),
-            ... (skipRunning ? [] : this.runningOperations.values()),
+            ...this.pendingOperations.values(),
+            ...this.queuedOperations.values(),
+            ...(skipRunning ? [] : this.runningOperations.values()),
         ];
 
         for (const operation of allOperations) {
@@ -387,7 +392,7 @@ export class OperationQueueManager implements Manager {
         if (operations.length > 0) {
             this.logger.debug("Executing operation batch", {
                 operationCount: operations.length,
-                categories: [... new Set(operations.map((op) => op.category))],
+                categories: [...new Set(operations.map((op) => op.category))],
             });
         }
 
@@ -411,35 +416,37 @@ export class OperationQueueManager implements Manager {
         // Add to queue with p-queue's signal support
         for (const operation of sortedOperations) {
             // queue.add always returns a promise
-            void this.queue.add(
-                async({signal}) => {
-                    try {
-                        const context: OperationContext = {
-                            signal: signal ?? operation.abortController?.signal ?? new AbortController().signal,
-                            progress: this.createProgressContext(operation.id, operation.category),
+            void this.queue
+                .add(
+                    async ({ signal }) => {
+                        try {
+                            const context: OperationContext = {
+                                signal: signal ?? operation.abortController?.signal ?? new AbortController().signal,
+                                progress: this.createProgressContext(operation.id, operation.category),
+                                id: operation.id,
+                            };
+                            await this.executeOperation(operation, context);
+                        } finally {
+                            // Cleanup progress and controller after delay
+                            setTimeout(() => {
+                                this.operationProgress.delete(operation.id);
+                                this.activeControllers.delete(operation.id);
+                            }, CLEANUP_DELAY_MS);
+                        }
+                    },
+                    {
+                        signal: operation.abortController?.signal,
+                    },
+                )
+                .catch((error: unknown) => {
+                    if (error && (error as Error).name === "AbortError") {
+                        this.eventManager.emitGraphEvent("operation-obsoleted", {
                             id: operation.id,
-                        };
-                        await this.executeOperation(operation, context);
-                    } finally {
-                        // Cleanup progress and controller after delay
-                        setTimeout(() => {
-                            this.operationProgress.delete(operation.id);
-                            this.activeControllers.delete(operation.id);
-                        }, CLEANUP_DELAY_MS);
+                            category: operation.category,
+                            reason: "Obsoleted by newer operation",
+                        });
                     }
-                },
-                {
-                    signal: operation.abortController?.signal,
-                },
-            ).catch((error: unknown) => {
-                if (error && (error as Error).name === "AbortError") {
-                    this.eventManager.emitGraphEvent("operation-obsoleted", {
-                        id: operation.id,
-                        category: operation.category,
-                        reason: "Obsoleted by newer operation",
-                    });
-                }
-            });
+                });
         }
 
         // Emit batch complete event after all operations
@@ -499,7 +506,7 @@ export class OperationQueueManager implements Manager {
                 null,
                 error instanceof Error ? error : new Error("Circular dependency detected"),
                 "other",
-                {categories, edges},
+                { categories, edges },
             );
             sortedCategories = categories; // Fallback to original order
         }
@@ -508,7 +515,7 @@ export class OperationQueueManager implements Manager {
         const sortedOperations: Operation[] = [];
         sortedCategories.forEach((category) => {
             const categoryOps = operationsByCategory.get(category) ?? [];
-            sortedOperations.push(... categoryOps);
+            sortedOperations.push(...categoryOps);
         });
 
         return sortedOperations;
@@ -652,26 +659,17 @@ export class OperationQueueManager implements Manager {
      * @param error - The error that occurred
      */
     private handleOperationError(operation: Operation, error: unknown): void {
-        this.logger.error(
-            "Operation failed",
-            error instanceof Error ? error : new Error(String(error)),
-            {
-                id: operation.id,
-                category: operation.category,
-                description: operation.metadata?.description,
-            },
-        );
+        this.logger.error("Operation failed", error instanceof Error ? error : new Error(String(error)), {
+            id: operation.id,
+            category: operation.category,
+            description: operation.metadata?.description,
+        });
 
-        this.eventManager.emitGraphError(
-            null,
-            error instanceof Error ? error : new Error(String(error)),
-            "other",
-            {
-                operationId: operation.id,
-                category: operation.category,
-                description: operation.metadata?.description,
-            },
-        );
+        this.eventManager.emitGraphError(null, error instanceof Error ? error : new Error(String(error)), "other", {
+            operationId: operation.id,
+            category: operation.category,
+            description: operation.metadata?.description,
+        });
     }
 
     /**
@@ -845,11 +843,7 @@ export class OperationQueueManager implements Manager {
      * @param id - Operation ID to wait for
      */
     private async waitForOperation(id: string): Promise<void> {
-        while (
-            this.pendingOperations.has(id) ||
-            this.queuedOperations.has(id) ||
-            this.runningOperations.has(id)
-        ) {
+        while (this.pendingOperations.has(id) || this.queuedOperations.has(id) || this.runningOperations.has(id)) {
             await new Promise((resolve) => setTimeout(resolve, OPERATION_POLL_INTERVAL_MS));
         }
     }
@@ -1035,15 +1029,10 @@ export class OperationQueueManager implements Manager {
         }
 
         // Queue the operation
-        await this.queueOperationAsync(
-            category,
-            execute,
-            {
-                description: description ?? `Triggered ${category}`,
-                source: "trigger",
-                skipTriggers: true, // Prevent trigger loops
-            },
-        );
+        await this.queueOperationAsync(category, execute, {
+            description: description ?? `Triggered ${category}`,
+            source: "trigger",
+            skipTriggers: true, // Prevent trigger loops
+        });
     }
 }
-

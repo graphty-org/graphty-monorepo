@@ -101,10 +101,10 @@ export function truncateObjectStrings<T>(obj: T, maxLength = 100): T {
  */
 export function calculateStatistics(values: number[]): NumericStatistics {
     if (values.length === 0) {
-        return {min: 0, max: 0, avg: 0, median: 0, count: 0};
+        return { min: 0, max: 0, avg: 0, median: 0, count: 0 };
     }
 
-    const sorted = [... values].sort((a, b) => a - b);
+    const sorted = [...values].sort((a, b) => a - b);
     const sum = values.reduce((acc, val) => acc + val, 0);
 
     const min = sorted[0];
@@ -113,11 +113,9 @@ export function calculateStatistics(values: number[]): NumericStatistics {
 
     // Calculate median
     const mid = Math.floor(sorted.length / 2);
-    const median = sorted.length % 2 === 0 ?
-        (sorted[mid - 1] + sorted[mid]) / 2 :
-        sorted[mid];
+    const median = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 
-    return {min, max, avg, median, count: values.length};
+    return { min, max, avg, median, count: values.length };
 }
 
 /**
@@ -131,17 +129,19 @@ export function generateHistogram(values: number[], binCount = 5): HistogramBin[
         return [];
     }
 
-    const min = Math.min(... values);
-    const max = Math.max(... values);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
 
     // Handle case where all values are the same
     if (min === max) {
-        return [{
-            range: formatRange(min, max),
-            count: values.length,
-            min,
-            max,
-        }];
+        return [
+            {
+                range: formatRange(min, max),
+                count: values.length,
+                min,
+                max,
+            },
+        ];
     }
 
     const binSize = (max - min) / binCount;
@@ -149,8 +149,8 @@ export function generateHistogram(values: number[], binCount = 5): HistogramBin[
 
     // Create bins
     for (let i = 0; i < binCount; i++) {
-        const binMin = min + (i * binSize);
-        const binMax = i === binCount - 1 ? max : min + ((i + 1) * binSize);
+        const binMin = min + i * binSize;
+        const binMax = i === binCount - 1 ? max : min + (i + 1) * binSize;
         bins.push({
             range: formatRange(binMin, binMax),
             count: 0,
@@ -225,9 +225,9 @@ export function getValueType(value: unknown): "string" | "number" | "boolean" | 
  * @returns Array of values and null count
  */
 export function collectPropertyValues(
-    items: Iterable<{data: Record<string, unknown>}>,
+    items: Iterable<{ data: Record<string, unknown> }>,
     propertyPath: string,
-): {values: unknown[], nullCount: number} {
+): { values: unknown[]; nullCount: number } {
     const values: unknown[] = [];
     let nullCount = 0;
 
@@ -240,7 +240,7 @@ export function collectPropertyValues(
         }
     }
 
-    return {values, nullCount};
+    return { values, nullCount };
 }
 
 /**
@@ -248,7 +248,9 @@ export function collectPropertyValues(
  * @param values - Array of values to analyze
  * @returns The dominant type or "mixed" if multiple types
  */
-export function analyzeDominantType(values: unknown[]): "string" | "number" | "boolean" | "array" | "object" | "mixed" | "null" {
+export function analyzeDominantType(
+    values: unknown[],
+): "string" | "number" | "boolean" | "array" | "object" | "mixed" | "null" {
     if (values.length === 0) {
         return "null";
     }
@@ -280,10 +282,7 @@ export function analyzeDominantType(values: unknown[]): "string" | "number" | "b
  * @param maxDepth - Maximum nesting depth to explore (default 3)
  * @returns Array of property paths
  */
-export function getAvailableProperties(
-    items: Iterable<{data: Record<string, unknown>}>,
-    maxDepth = 3,
-): string[] {
+export function getAvailableProperties(items: Iterable<{ data: Record<string, unknown> }>, maxDepth = 3): string[] {
     const properties = new Set<string>();
 
     for (const item of items) {

@@ -1,8 +1,8 @@
-import {describe, expect, it, vi} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {fireEvent, render, screen} from "../../../../test/test-utils";
-import type {EdgeLineConfig} from "../../../../types/style-layer";
-import {EdgeLineControl} from "../EdgeLineControl";
+import { fireEvent, render, screen } from "../../../../test/test-utils";
+import type { EdgeLineConfig } from "../../../../types/style-layer";
+import { EdgeLineControl } from "../EdgeLineControl";
 
 describe("EdgeLineControl", () => {
     const defaultValue: EdgeLineConfig = {
@@ -46,10 +46,10 @@ describe("EdgeLineControl", () => {
         render(<EdgeLineControl value={defaultValue} onChange={onChange} />);
 
         const select = screen.getByLabelText("Line Type");
-        fireEvent.change(select, {target: {value: "dash"}});
+        fireEvent.change(select, { target: { value: "dash" } });
 
         expect(onChange).toHaveBeenCalledWith({
-            ... defaultValue,
+            ...defaultValue,
             type: "dash",
         });
     });
@@ -59,11 +59,11 @@ describe("EdgeLineControl", () => {
         render(<EdgeLineControl value={defaultValue} onChange={onChange} />);
 
         const widthInput = screen.getByLabelText("Width");
-        fireEvent.change(widthInput, {target: {value: "2"}});
+        fireEvent.change(widthInput, { target: { value: "2" } });
         fireEvent.blur(widthInput);
 
         expect(onChange).toHaveBeenCalledWith({
-            ... defaultValue,
+            ...defaultValue,
             width: 2,
         });
     });

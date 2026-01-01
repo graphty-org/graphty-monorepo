@@ -1,6 +1,6 @@
-import type {NodeId} from "../types/index.js";
-import {CompactDistanceArray, GraphBitSet} from "./bit-packed.js";
-import {CSRGraph} from "./csr-graph.js";
+import type { NodeId } from "../types/index.js";
+import { CompactDistanceArray, GraphBitSet } from "./bit-packed.js";
+import { CSRGraph } from "./csr-graph.js";
 
 /**
  * Options for Direction-Optimized BFS
@@ -40,6 +40,11 @@ export class DirectionOptimizedBFS<TNodeId = NodeId> {
     private nextFrontier: GraphBitSet; // Next level frontier
     private distances: CompactDistanceArray;
 
+    /**
+     * Creates a new DirectionOptimizedBFS instance.
+     * @param graph - The CSR graph to perform BFS on
+     * @param options - Optional configuration for switching thresholds
+     */
     constructor(graph: CSRGraph<TNodeId>, options?: DirectionOptimizedBFSOptions) {
         this.graph = graph;
         this.alpha = options?.alpha ?? 15;
@@ -53,8 +58,10 @@ export class DirectionOptimizedBFS<TNodeId = NodeId> {
     }
 
     /**
-   * Perform BFS from a single source
-   */
+     * Perform BFS from a single source node.
+     * @param source - The source node ID to start the BFS from
+     * @returns The BFS result containing distances and parent pointers
+     */
     search(source: TNodeId): BFSResult<TNodeId> {
         const sourceIndex = this.graph.nodeToIndex(source);
         this.parent[sourceIndex] = -2; // Mark as source
@@ -76,8 +83,7 @@ export class DirectionOptimizedBFS<TNodeId = NodeId> {
 
             if (useBottomUp) {
                 // Check if we should switch back to top-down
-                if (awakeCount >= oldAwakeCount ||
-            awakeCount > this.graph.nodeCount() / this.beta) {
+                if (awakeCount >= oldAwakeCount || awakeCount > this.graph.nodeCount() / this.beta) {
                     useBottomUp = false;
                 }
             } else {
@@ -106,8 +112,9 @@ export class DirectionOptimizedBFS<TNodeId = NodeId> {
     }
 
     /**
-   * Top-down BFS step - explore from frontier
-   */
+     * Top-down BFS step - explore from frontier.
+     * @returns The scout count (total degree of newly discovered nodes)
+     */
     private topDownStep(): number {
         let scoutCount = 0;
 
@@ -129,8 +136,9 @@ export class DirectionOptimizedBFS<TNodeId = NodeId> {
     }
 
     /**
-   * Bottom-up BFS step - check unvisited nodes
-   */
+     * Bottom-up BFS step - check unvisited nodes for frontier neighbors.
+     * @returns The number of newly discovered nodes
+     */
     private bottomUpStep(): number {
         const nodeCount = this.graph.nodeCount();
         let awakeCount = 0;
@@ -156,8 +164,9 @@ export class DirectionOptimizedBFS<TNodeId = NodeId> {
     }
 
     /**
-   * Calculate edges to check for switching heuristic
-   */
+     * Calculate edges to check for switching heuristic.
+     * @returns The total number of outgoing edges from frontier nodes
+     */
     private calculateEdgesToCheck(): number {
         let count = 0;
         for (const node of this.frontier) {
@@ -167,8 +176,9 @@ export class DirectionOptimizedBFS<TNodeId = NodeId> {
     }
 
     /**
-   * Build result map from internal data structures
-   */
+     * Build result map from internal data structures.
+     * @returns The BFS result containing distances and parent pointers
+     */
     private buildResult(): BFSResult<TNodeId> {
         const distances = new Map<TNodeId, number>();
         const parents = new Map<TNodeId, TNodeId | null>();
@@ -194,14 +204,16 @@ export class DirectionOptimizedBFS<TNodeId = NodeId> {
             }
         }
 
-        return {distances, parents, visitedCount};
+        return { distances, parents, visitedCount };
     }
 
     /**
-   * Perform multi-source BFS
-   */
+     * Perform multi-source BFS from multiple source nodes.
+     * @param sources - Array of source node IDs to start the BFS from
+     * @returns The BFS result containing distances and parent pointers
+     */
     searchMultiple(sources: TNodeId[]): BFSResult<TNodeId> {
-    // Initialize multiple sources
+        // Initialize multiple sources
         for (const source of sources) {
             const sourceIndex = this.graph.nodeToIndex(source);
             this.parent[sourceIndex] = -2; // Mark as source
@@ -228,8 +240,7 @@ export class DirectionOptimizedBFS<TNodeId = NodeId> {
             oldAwakeCount = awakeCount;
 
             if (useBottomUp) {
-                if (awakeCount >= oldAwakeCount ||
-            awakeCount > this.graph.nodeCount() / this.beta) {
+                if (awakeCount >= oldAwakeCount || awakeCount > this.graph.nodeCount() / this.beta) {
                     useBottomUp = false;
                 }
             } else {
@@ -256,8 +267,8 @@ export class DirectionOptimizedBFS<TNodeId = NodeId> {
     }
 
     /**
-   * Reset internal state for reuse
-   */
+     * Reset internal state for reuse
+     */
     reset(): void {
         this.parent.fill(-1);
         this.frontier.clear();
@@ -267,7 +278,11 @@ export class DirectionOptimizedBFS<TNodeId = NodeId> {
 }
 
 /**
- * Convenience function for single-source BFS
+ * Convenience function for single-source BFS.
+ * @param graph - The CSR graph to perform BFS on
+ * @param source - The source node ID to start the BFS from
+ * @param options - Optional configuration for switching thresholds
+ * @returns The BFS result containing distances and parent pointers
  */
 export function directionOptimizedBFS<TNodeId = NodeId>(
     graph: CSRGraph<TNodeId>,
@@ -279,7 +294,11 @@ export function directionOptimizedBFS<TNodeId = NodeId>(
 }
 
 /**
- * Convenience function for multi-source BFS
+ * Convenience function for multi-source BFS.
+ * @param graph - The CSR graph to perform BFS on
+ * @param sources - Array of source node IDs to start the BFS from
+ * @param options - Optional configuration for switching thresholds
+ * @returns The BFS result containing distances and parent pointers
  */
 export function directionOptimizedBFSMultiple<TNodeId = NodeId>(
     graph: CSRGraph<TNodeId>,

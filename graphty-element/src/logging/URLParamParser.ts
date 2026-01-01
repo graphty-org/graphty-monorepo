@@ -1,4 +1,4 @@
-import {LogLevel, parseLogLevel} from "./types.js";
+import { LogLevel, parseLogLevel } from "./types.js";
 
 /**
  * URL parameter names for logging configuration.
@@ -61,7 +61,10 @@ export function parseLoggingURLParams(): ParsedLoggingParams | null {
         result.modules = "*";
     } else {
         // Parse module list (potentially with level overrides)
-        const moduleSpecs = loggingValue.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+        const moduleSpecs = loggingValue
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
         const modules: string[] = [];
         const moduleOverrides = new Map<string, LogLevel>();
 

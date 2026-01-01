@@ -1,8 +1,8 @@
-import {describe, expect, it, vi} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {fireEvent, render, screen} from "../../../../test/test-utils";
-import type {LayerItem} from "../../../layout/LeftSidebar";
-import {StyleLayerPropertiesPanel} from "../StyleLayerPropertiesPanel";
+import { fireEvent, render, screen } from "../../../../test/test-utils";
+import type { LayerItem } from "../../../layout/LeftSidebar";
+import { StyleLayerPropertiesPanel } from "../StyleLayerPropertiesPanel";
 
 describe("StyleLayerPropertiesPanel", () => {
     const mockLayer: LayerItem = {
@@ -11,7 +11,7 @@ describe("StyleLayerPropertiesPanel", () => {
         styleLayer: {
             node: {
                 selector: "id == `1`",
-                style: {color: "#ff0000"},
+                style: { color: "#ff0000" },
             },
             edge: {
                 selector: "",
@@ -47,12 +47,12 @@ describe("StyleLayerPropertiesPanel", () => {
         render(<StyleLayerPropertiesPanel layer={mockLayer} onUpdate={onUpdate} />);
 
         const selectorInput = screen.getByLabelText("Node Selector");
-        fireEvent.change(selectorInput, {target: {value: "id == `2`"}});
+        fireEvent.change(selectorInput, { target: { value: "id == `2`" } });
         fireEvent.blur(selectorInput);
 
         expect(onUpdate).toHaveBeenCalledWith(mockLayer.id, {
             selector: "id == `2`",
-            style: {color: "#ff0000"},
+            style: { color: "#ff0000" },
         });
     });
 
@@ -62,15 +62,18 @@ describe("StyleLayerPropertiesPanel", () => {
 
         // First color hex input is for node color
         const colorInputs = screen.getAllByLabelText("Color hex value");
-        fireEvent.change(colorInputs[0], {target: {value: "00FF00"}});
+        fireEvent.change(colorInputs[0], { target: { value: "00FF00" } });
         fireEvent.blur(colorInputs[0]);
 
-        expect(onUpdate).toHaveBeenCalledWith(mockLayer.id, expect.objectContaining({
-            selector: "id == `1`",
-            style: expect.objectContaining({
-                texture: {color: "#00FF00"},
+        expect(onUpdate).toHaveBeenCalledWith(
+            mockLayer.id,
+            expect.objectContaining({
+                selector: "id == `1`",
+                style: expect.objectContaining({
+                    texture: { color: "#00FF00" },
+                }),
             }),
-        }));
+        );
     });
 
     it("renders shape control", () => {
@@ -85,21 +88,24 @@ describe("StyleLayerPropertiesPanel", () => {
         render(<StyleLayerPropertiesPanel layer={mockLayer} onUpdate={onUpdate} />);
 
         const shapeSelect = screen.getByLabelText("Shape Type");
-        fireEvent.change(shapeSelect, {target: {value: "box"}});
+        fireEvent.change(shapeSelect, { target: { value: "box" } });
 
-        expect(onUpdate).toHaveBeenCalledWith(mockLayer.id, expect.objectContaining({
-            selector: "id == `1`",
-            style: expect.objectContaining({
-                shape: {type: "box", size: 1.0},
+        expect(onUpdate).toHaveBeenCalledWith(
+            mockLayer.id,
+            expect.objectContaining({
+                selector: "id == `1`",
+                style: expect.objectContaining({
+                    shape: { type: "box", size: 1.0 },
+                }),
             }),
-        }));
+        );
     });
 
     it("renders color mode options", () => {
         render(<StyleLayerPropertiesPanel layer={mockLayer} />);
 
-        expect(screen.getByRole("radio", {name: "Solid"})).toBeInTheDocument();
-        expect(screen.getByRole("radio", {name: "Gradient"})).toBeInTheDocument();
-        expect(screen.getByRole("radio", {name: "Radial"})).toBeInTheDocument();
+        expect(screen.getByRole("radio", { name: "Solid" })).toBeInTheDocument();
+        expect(screen.getByRole("radio", { name: "Gradient" })).toBeInTheDocument();
+        expect(screen.getByRole("radio", { name: "Radial" })).toBeInTheDocument();
     });
 });

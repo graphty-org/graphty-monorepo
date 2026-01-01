@@ -1,7 +1,7 @@
-import type {Graph} from "../core/graph.js";
-import type {NodeId} from "../types/index.js";
-import {getCommonNeighbors, getIntermediateNodes} from "../utils/graph-utilities.js";
-import type {LinkPredictionOptions, LinkPredictionScore} from "./common-neighbors.js";
+import type { Graph } from "../core/graph.js";
+import type { NodeId } from "../types/index.js";
+import { getCommonNeighbors, getIntermediateNodes } from "../utils/graph-utilities.js";
+import type { LinkPredictionOptions, LinkPredictionScore } from "./common-neighbors.js";
 
 /**
  * Adamic-Adar Index link prediction implementation
@@ -19,6 +19,11 @@ import type {LinkPredictionOptions, LinkPredictionScore} from "./common-neighbor
 
 /**
  * Calculate Adamic-Adar index for a pair of nodes
+ * @param graph - The input graph
+ * @param source - The source node ID
+ * @param target - The target node ID
+ * @param options - Link prediction options
+ * @returns The Adamic-Adar score for the node pair
  */
 export function adamicAdarScore(
     graph: Graph,
@@ -30,20 +35,20 @@ export function adamicAdarScore(
         return 0;
     }
 
-    const {directed = false} = options;
+    const { directed = false } = options;
 
     // Use utility function to get common neighbors
     // For directed graphs, we want intermediate nodes that form paths source->X->target
-    const commonNeighborsSet = directed ?
-        getIntermediateNodes(graph, source, target) :
-        getCommonNeighbors(graph, source, target, false);
+    const commonNeighborsSet = directed
+        ? getIntermediateNodes(graph, source, target)
+        : getCommonNeighbors(graph, source, target, false);
 
     // Calculate Adamic-Adar score
     let score = 0;
     for (const neighbor of commonNeighborsSet) {
-        const degree = directed ?
-            graph.outDegree(neighbor) : // Use out-degree for directed graphs
-            graph.degree(neighbor); // Use total degree for undirected graphs
+        const degree = directed
+            ? graph.outDegree(neighbor) // Use out-degree for directed graphs
+            : graph.degree(neighbor); // Use total degree for undirected graphs
 
         if (degree > 1) {
             score += 1 / Math.log(degree);
@@ -58,16 +63,12 @@ export function adamicAdarScore(
 
 /**
  * Calculate Adamic-Adar scores for all possible node pairs
+ * @param graph - The input graph
+ * @param options - Link prediction options
+ * @returns Array of link prediction scores sorted by score descending
  */
-export function adamicAdarPrediction(
-    graph: Graph,
-    options: LinkPredictionOptions = {},
-): LinkPredictionScore[] {
-    const {
-        directed = false,
-        includeExisting = false,
-        topK,
-    } = options;
+export function adamicAdarPrediction(graph: Graph, options: LinkPredictionOptions = {}): LinkPredictionScore[] {
+    const { directed = false, includeExisting = false, topK } = options;
 
     const scores: LinkPredictionScore[] = [];
     const nodes = Array.from(graph.nodes()).map((n) => n.id);
@@ -86,14 +87,14 @@ export function adamicAdarPrediction(
                 continue;
             }
 
-            const score = adamicAdarScore(graph, source, target, {directed});
+            const score = adamicAdarScore(graph, source, target, { directed });
 
             if (score > 0) {
-                scores.push({source, target, score});
+                scores.push({ source, target, score });
 
                 // For undirected graphs, also add the reverse pair
                 if (!directed && source !== target) {
-                    scores.push({source: target, target: source, score});
+                    scores.push({ source: target, target: source, score });
                 }
             }
         }
@@ -112,6 +113,10 @@ export function adamicAdarPrediction(
 
 /**
  * Calculate Adamic-Adar scores for specific node pairs
+ * @param graph - The input graph
+ * @param pairs - Array of node ID pairs to calculate scores for
+ * @param options - Link prediction options
+ * @returns Array of link prediction scores for the specified pairs
  */
 export function adamicAdarForPairs(
     graph: Graph,
@@ -127,22 +132,21 @@ export function adamicAdarForPairs(
 
 /**
  * Get top Adamic-Adar candidates for link prediction for a specific node
+ * @param graph - The input graph
+ * @param node - The node ID to get candidates for
+ * @param options - Link prediction options with optional candidate list
+ * @returns Array of top link prediction candidates sorted by score descending
  */
 export function getTopAdamicAdarCandidatesForNode(
     graph: Graph,
     node: NodeId,
-    options: LinkPredictionOptions & {candidates?: NodeId[]} = {},
+    options: LinkPredictionOptions & { candidates?: NodeId[] } = {},
 ): LinkPredictionScore[] {
     if (!graph.hasNode(node)) {
         return [];
     }
 
-    const {
-        directed = false,
-        includeExisting = false,
-        topK = 10,
-        candidates,
-    } = options;
+    const { directed = false, includeExisting = false, topK = 10, candidates } = options;
 
     const scores: LinkPredictionScore[] = [];
     const targetNodes = candidates ?? Array.from(graph.nodes()).map((n) => n.id);
@@ -157,10 +161,10 @@ export function getTopAdamicAdarCandidatesForNode(
             continue;
         }
 
-        const score = adamicAdarScore(graph, node, target, {directed});
+        const score = adamicAdarScore(graph, node, target, { directed });
 
         if (score > 0) {
-            scores.push({source: node, target, score});
+            scores.push({ source: node, target, score });
         }
     }
 
@@ -172,6 +176,11 @@ export function getTopAdamicAdarCandidatesForNode(
 
 /**
  * Calculate precision and recall for Adamic-Adar link prediction evaluation
+ * @param trainingGraph - The training graph without test edges
+ * @param testEdges - Array of node pairs that are actual edges
+ * @param nonEdges - Array of node pairs that are not edges
+ * @param options - Link prediction options
+ * @returns Evaluation metrics including precision, recall, F1 score, and AUC
  */
 export function evaluateAdamicAdar(
     trainingGraph: Graph,
@@ -179,19 +188,19 @@ export function evaluateAdamicAdar(
     nonEdges: [NodeId, NodeId][],
     options: LinkPredictionOptions = {},
 ): {
-        precision: number;
-        recall: number;
-        f1Score: number;
-        auc: number;
-    } {
+    precision: number;
+    recall: number;
+    f1Score: number;
+    auc: number;
+} {
     // Get scores for test edges and non-edges
     const testScores = adamicAdarForPairs(trainingGraph, testEdges, options);
     const nonEdgeScores = adamicAdarForPairs(trainingGraph, nonEdges, options);
 
     // Combine and sort all scores
     const allScores = [
-        ... testScores.map((s) => ({... s, isActualEdge: true})),
-        ... nonEdgeScores.map((s) => ({... s, isActualEdge: false})),
+        ...testScores.map((s) => ({ ...s, isActualEdge: true })),
+        ...nonEdgeScores.map((s) => ({ ...s, isActualEdge: false })),
     ].sort((a, b) => b.score - a.score);
 
     // Calculate precision and recall at different thresholds
@@ -212,7 +221,7 @@ export function evaluateAdamicAdar(
 
         const precision = truePositives / (truePositives + falsePositives);
         const recall = truePositives / totalPositives;
-        const f1 = precision + recall > 0 ? 2 * (precision * recall) / (precision + recall) : 0;
+        const f1 = precision + recall > 0 ? (2 * (precision * recall)) / (precision + recall) : 0;
 
         if (f1 > bestF1) {
             bestF1 = f1;
@@ -251,6 +260,11 @@ export function evaluateAdamicAdar(
 
 /**
  * Compare Adamic-Adar with Common Neighbors for the same dataset
+ * @param graph - The input graph
+ * @param testEdges - Array of node pairs that are actual edges
+ * @param nonEdges - Array of node pairs that are not edges
+ * @param options - Link prediction options
+ * @returns Comparison of evaluation metrics for both algorithms
  */
 export function compareAdamicAdarWithCommonNeighbors(
     graph: Graph,
@@ -258,14 +272,14 @@ export function compareAdamicAdarWithCommonNeighbors(
     nonEdges: [NodeId, NodeId][],
     options: LinkPredictionOptions = {},
 ): {
-        adamicAdar: ReturnType<typeof evaluateAdamicAdar>;
-        commonNeighbors: {
-            precision: number;
-            recall: number;
-            f1Score: number;
-            auc: number;
-        };
-    } {
+    adamicAdar: ReturnType<typeof evaluateAdamicAdar>;
+    commonNeighbors: {
+        precision: number;
+        recall: number;
+        f1Score: number;
+        auc: number;
+    };
+} {
     // Import common neighbors evaluation function
     // Since we're using ES modules, we can't use require. Instead, we'll implement a simple version here
     const commonNeighborsPairs = (pairs: [NodeId, NodeId][]): LinkPredictionScore[] =>
@@ -279,8 +293,8 @@ export function compareAdamicAdarWithCommonNeighbors(
     const nonEdgeScores = commonNeighborsPairs(nonEdges);
 
     const allScores = [
-        ... testScores.map((s) => ({... s, isActualEdge: true})),
-        ... nonEdgeScores.map((s) => ({... s, isActualEdge: false})),
+        ...testScores.map((s) => ({ ...s, isActualEdge: true })),
+        ...nonEdgeScores.map((s) => ({ ...s, isActualEdge: false })),
     ].sort((a, b) => b.score - a.score);
 
     let truePositives = 0;
@@ -299,7 +313,7 @@ export function compareAdamicAdarWithCommonNeighbors(
 
         const precision = truePositives / (truePositives + falsePositives);
         const recall = truePositives / totalPositives;
-        const f1 = precision + recall > 0 ? 2 * (precision * recall) / (precision + recall) : 0;
+        const f1 = precision + recall > 0 ? (2 * (precision * recall)) / (precision + recall) : 0;
         if (f1 > bestF1) {
             bestF1 = f1;
             bestPrecision = precision;

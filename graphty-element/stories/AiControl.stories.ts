@@ -8,51 +8,51 @@
  * - Error retry functionality
  */
 
-import type {Meta, StoryObj} from "@storybook/web-components-vite";
-import {html, type TemplateResult} from "lit";
+import type { Meta, StoryObj } from "@storybook/web-components-vite";
+import { html, type TemplateResult } from "lit";
 
-import type {AiStatus} from "../src/ai/AiStatus";
-import {ApiKeyManager} from "../src/ai/keys/ApiKeyManager";
-import type {WebLlmProvider} from "../src/ai/providers/WebLlmProvider";
-import {type GraphtyElement} from "../src/graphty-element";
+import type { AiStatus } from "../src/ai/AiStatus";
+import { ApiKeyManager } from "../src/ai/keys/ApiKeyManager";
+import type { WebLlmProvider } from "../src/ai/providers/WebLlmProvider";
+import { type GraphtyElement } from "../src/graphty-element";
 
 // Sample network infrastructure graph
 const SAMPLE_NODES = [
-    {id: "lb", label: "Load Balancer", type: "loadbalancer", tier: "entry"},
-    {id: "web1", label: "Web Server 1", type: "server", tier: "frontend"},
-    {id: "web2", label: "Web Server 2", type: "server", tier: "frontend"},
-    {id: "api1", label: "API Server 1", type: "server", tier: "backend"},
-    {id: "api2", label: "API Server 2", type: "server", tier: "backend"},
-    {id: "cache", label: "Redis Cache", type: "cache", tier: "data"},
-    {id: "db1", label: "Primary DB", type: "database", tier: "data"},
-    {id: "db2", label: "Replica DB", type: "database", tier: "data"},
-    {id: "queue", label: "Message Queue", type: "queue", tier: "backend"},
-    {id: "worker1", label: "Worker 1", type: "worker", tier: "backend"},
-    {id: "worker2", label: "Worker 2", type: "worker", tier: "backend"},
-    {id: "monitor", label: "Monitoring", type: "monitor", tier: "infra"},
+    { id: "lb", label: "Load Balancer", type: "loadbalancer", tier: "entry" },
+    { id: "web1", label: "Web Server 1", type: "server", tier: "frontend" },
+    { id: "web2", label: "Web Server 2", type: "server", tier: "frontend" },
+    { id: "api1", label: "API Server 1", type: "server", tier: "backend" },
+    { id: "api2", label: "API Server 2", type: "server", tier: "backend" },
+    { id: "cache", label: "Redis Cache", type: "cache", tier: "data" },
+    { id: "db1", label: "Primary DB", type: "database", tier: "data" },
+    { id: "db2", label: "Replica DB", type: "database", tier: "data" },
+    { id: "queue", label: "Message Queue", type: "queue", tier: "backend" },
+    { id: "worker1", label: "Worker 1", type: "worker", tier: "backend" },
+    { id: "worker2", label: "Worker 2", type: "worker", tier: "backend" },
+    { id: "monitor", label: "Monitoring", type: "monitor", tier: "infra" },
 ];
 
 const SAMPLE_EDGES = [
-    {src: "lb", dst: "web1"},
-    {src: "lb", dst: "web2"},
-    {src: "web1", dst: "api1"},
-    {src: "web1", dst: "api2"},
-    {src: "web2", dst: "api1"},
-    {src: "web2", dst: "api2"},
-    {src: "api1", dst: "cache"},
-    {src: "api2", dst: "cache"},
-    {src: "api1", dst: "db1"},
-    {src: "api2", dst: "db1"},
-    {src: "db1", dst: "db2"},
-    {src: "api1", dst: "queue"},
-    {src: "api2", dst: "queue"},
-    {src: "queue", dst: "worker1"},
-    {src: "queue", dst: "worker2"},
-    {src: "worker1", dst: "db1"},
-    {src: "worker2", dst: "db1"},
-    {src: "monitor", dst: "lb"},
-    {src: "monitor", dst: "db1"},
-    {src: "monitor", dst: "cache"},
+    { src: "lb", dst: "web1" },
+    { src: "lb", dst: "web2" },
+    { src: "web1", dst: "api1" },
+    { src: "web1", dst: "api2" },
+    { src: "web2", dst: "api1" },
+    { src: "web2", dst: "api2" },
+    { src: "api1", dst: "cache" },
+    { src: "api2", dst: "cache" },
+    { src: "api1", dst: "db1" },
+    { src: "api2", dst: "db1" },
+    { src: "db1", dst: "db2" },
+    { src: "api1", dst: "queue" },
+    { src: "api2", dst: "queue" },
+    { src: "queue", dst: "worker1" },
+    { src: "queue", dst: "worker2" },
+    { src: "worker1", dst: "db1" },
+    { src: "worker2", dst: "db1" },
+    { src: "monitor", dst: "lb" },
+    { src: "monitor", dst: "db1" },
+    { src: "monitor", dst: "cache" },
 ];
 
 // Key persistence
@@ -76,18 +76,43 @@ async function checkWebGPU(): Promise<boolean> {
 // Available WebLLM models that support tool calling
 // Only Hermes models support function calling in WebLLM
 const WEBLLM_MODELS = [
-    {id: "Hermes-3-Llama-3.1-8B-q4f16_1-MLC", name: "Hermes 3 Llama 8B (q4f16)", size: "~4GB", sizeBytes: 4 * 1024 * 1024 * 1024},
-    {id: "Hermes-3-Llama-3.1-8B-q4f32_1-MLC", name: "Hermes 3 Llama 8B (q4f32)", size: "~4GB", sizeBytes: 4 * 1024 * 1024 * 1024},
-    {id: "Hermes-2-Pro-Llama-3-8B-q4f16_1-MLC", name: "Hermes 2 Pro Llama 8B (q4f16)", size: "~4GB", sizeBytes: 4 * 1024 * 1024 * 1024},
-    {id: "Hermes-2-Pro-Llama-3-8B-q4f32_1-MLC", name: "Hermes 2 Pro Llama 8B (q4f32)", size: "~4GB", sizeBytes: 4 * 1024 * 1024 * 1024},
-    {id: "Hermes-2-Pro-Mistral-7B-q4f16_1-MLC", name: "Hermes 2 Pro Mistral 7B", size: "~3.5GB", sizeBytes: 3.5 * 1024 * 1024 * 1024},
+    {
+        id: "Hermes-3-Llama-3.1-8B-q4f16_1-MLC",
+        name: "Hermes 3 Llama 8B (q4f16)",
+        size: "~4GB",
+        sizeBytes: 4 * 1024 * 1024 * 1024,
+    },
+    {
+        id: "Hermes-3-Llama-3.1-8B-q4f32_1-MLC",
+        name: "Hermes 3 Llama 8B (q4f32)",
+        size: "~4GB",
+        sizeBytes: 4 * 1024 * 1024 * 1024,
+    },
+    {
+        id: "Hermes-2-Pro-Llama-3-8B-q4f16_1-MLC",
+        name: "Hermes 2 Pro Llama 8B (q4f16)",
+        size: "~4GB",
+        sizeBytes: 4 * 1024 * 1024 * 1024,
+    },
+    {
+        id: "Hermes-2-Pro-Llama-3-8B-q4f32_1-MLC",
+        name: "Hermes 2 Pro Llama 8B (q4f32)",
+        size: "~4GB",
+        sizeBytes: 4 * 1024 * 1024 * 1024,
+    },
+    {
+        id: "Hermes-2-Pro-Mistral-7B-q4f16_1-MLC",
+        name: "Hermes 2 Pro Mistral 7B",
+        size: "~3.5GB",
+        sizeBytes: 3.5 * 1024 * 1024 * 1024,
+    },
 ];
 
 // Memory warning threshold (warn if model size > 50% of available memory)
 const MEMORY_WARNING_THRESHOLD = 0.5;
 
 // Clear WebLLM IndexedDB cache
-async function clearWebLlmCache(): Promise<{cleared: boolean, error?: string}> {
+async function clearWebLlmCache(): Promise<{ cleared: boolean; error?: string }> {
     try {
         const databases = await indexedDB.databases();
         const webllmDbs = databases.filter((db) => db.name?.includes("webllm") ?? db.name?.includes("mlc"));
@@ -98,19 +123,21 @@ async function clearWebLlmCache(): Promise<{cleared: boolean, error?: string}> {
             }
         }
 
-        return {cleared: true};
+        return { cleared: true };
     } catch (error) {
-        return {cleared: false, error: (error as Error).message};
+        return { cleared: false, error: (error as Error).message };
     }
 }
 
 // Get available memory (if supported)
-function getAvailableMemory(): {available: number | null, total: number | null} {
+function getAvailableMemory(): { available: number | null; total: number | null } {
     try {
         // Check for memory API (Chrome only)
         if ("memory" in performance) {
-            const perfWithMemory = performance as Performance & {memory?: {jsHeapSizeLimit: number, usedJSHeapSize: number}};
-            const {memory} = perfWithMemory;
+            const perfWithMemory = performance as Performance & {
+                memory?: { jsHeapSizeLimit: number; usedJSHeapSize: number };
+            };
+            const { memory } = perfWithMemory;
             if (memory) {
                 return {
                     available: memory.jsHeapSizeLimit - memory.usedJSHeapSize,
@@ -121,21 +148,21 @@ function getAvailableMemory(): {available: number | null, total: number | null} 
 
         // Try navigator.deviceMemory (gives RAM in GB, approximate)
         if ("deviceMemory" in navigator) {
-            const deviceMemoryGB = (navigator as Navigator & {deviceMemory?: number}).deviceMemory ?? 4;
+            const deviceMemoryGB = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4;
             const totalBytes = deviceMemoryGB * 1024 * 1024 * 1024;
             // Assume 50% available as a conservative estimate
-            return {available: totalBytes * 0.5, total: totalBytes};
+            return { available: totalBytes * 0.5, total: totalBytes };
         }
 
-        return {available: null, total: null};
+        return { available: null, total: null };
     } catch {
-        return {available: null, total: null};
+        return { available: null, total: null };
     }
 }
 
 // Voice graph interface
 interface VoiceGraph {
-    getVoiceAdapter: () => {isSupported: boolean};
+    getVoiceAdapter: () => { isSupported: boolean };
     startVoiceInput: (options: {
         continuous?: boolean;
         interimResults?: boolean;
@@ -179,8 +206,17 @@ async function setupShowcase(): Promise<void> {
     const memoryWarning = document.getElementById("memory-warning");
     const memoryWarningText = document.getElementById("memory-warning-text");
 
-    if (!element || !providerSelect || !connectBtn || !commandInput || !sendBtn ||
-        !responseOutput || !commandHistory || !disconnectBtn || !statusBadge) {
+    if (
+        !element ||
+        !providerSelect ||
+        !connectBtn ||
+        !commandInput ||
+        !sendBtn ||
+        !responseOutput ||
+        !commandHistory ||
+        !disconnectBtn ||
+        !statusBadge
+    ) {
         console.error("Required elements not found");
         return;
     }
@@ -229,15 +265,15 @@ async function setupShowcase(): Promise<void> {
     // Check WebGPU for WebLLM option
     const hasWebGPU = await checkWebGPU();
     if (ui.webgpuStatus) {
-        ui.webgpuStatus.innerHTML = hasWebGPU ?
-            "<span class=\"status-ok\">✓ WebGPU Available</span>" :
-            "<span class=\"status-error\">✗ WebGPU Not Available</span>";
+        ui.webgpuStatus.innerHTML = hasWebGPU
+            ? '<span class="status-ok">✓ WebGPU Available</span>'
+            : '<span class="status-error">✗ WebGPU Not Available</span>';
     }
 
     // Clear cache button handler
     if (ui.clearCacheBtn) {
         ui.clearCacheBtn.addEventListener("click", () => {
-            void (async() => {
+            void (async () => {
                 if (!ui.clearCacheBtn) {
                     return;
                 }
@@ -257,7 +293,7 @@ async function setupShowcase(): Promise<void> {
                 } else {
                     ui.clearCacheBtn.textContent = "✗";
                     if (ui.connectionStatus) {
-                        ui.connectionStatus.textContent = `Failed to clear cache: ${result.error}`;
+                        ui.connectionStatus.textContent = `Failed to clear cache: ${result.error ?? "Unknown error"}`;
                         ui.connectionStatus.className = "status-error";
                     }
                 }
@@ -286,8 +322,7 @@ async function setupShowcase(): Promise<void> {
             if (ratio > MEMORY_WARNING_THRESHOLD) {
                 const modelSizeGB = (model.sizeBytes / (1024 * 1024 * 1024)).toFixed(1);
                 const availableGB = (memory.available / (1024 * 1024 * 1024)).toFixed(1);
-                ui.memoryWarningText.textContent =
-                    `Model size (${modelSizeGB}GB) exceeds ${Math.round(MEMORY_WARNING_THRESHOLD * 100)}% of available memory (${availableGB}GB). Loading may cause browser instability.`;
+                ui.memoryWarningText.textContent = `Model size (${modelSizeGB}GB) exceeds ${Math.round(MEMORY_WARNING_THRESHOLD * 100)}% of available memory (${availableGB}GB). Loading may cause browser instability.`;
                 ui.memoryWarning.style.display = "block";
             } else {
                 ui.memoryWarning.style.display = "none";
@@ -295,8 +330,7 @@ async function setupShowcase(): Promise<void> {
         } else {
             // Can't detect memory, show generic warning for large models
             if (model.sizeBytes > 3 * 1024 * 1024 * 1024) {
-                ui.memoryWarningText.textContent =
-                    `Large model (${model.size}). Ensure you have sufficient memory available.`;
+                ui.memoryWarningText.textContent = `Large model (${model.size}). Ensure you have sufficient memory available.`;
                 ui.memoryWarning.style.display = "block";
             } else {
                 ui.memoryWarning.style.display = "none";
@@ -386,7 +420,7 @@ async function setupShowcase(): Promise<void> {
 
     // Connect handler
     ui.connectBtn.addEventListener("click", () => {
-        void (async() => {
+        void (async () => {
             const provider = ui.providerSelect.value;
 
             try {
@@ -399,11 +433,11 @@ async function setupShowcase(): Promise<void> {
 
                 if (provider === "webllm") {
                     // Dynamic import WebLlmProvider
-                    const {WebLlmProvider} = await import("../src/ai/providers/WebLlmProvider");
+                    const { WebLlmProvider } = await import("../src/ai/providers/WebLlmProvider");
                     webllmProvider = new WebLlmProvider();
 
                     const selectedModel = ui.webllmModelSelect?.value ?? WEBLLM_MODELS[0].id;
-                    webllmProvider.configure({model: selectedModel});
+                    webllmProvider.configure({ model: selectedModel });
 
                     // Show progress
                     if (ui.webllmProgress) {
@@ -433,7 +467,8 @@ async function setupShowcase(): Promise<void> {
                         let suggestClearCache = false;
 
                         if (errorMsg.includes("WebGPU") || errorMsg.includes("GPU")) {
-                            helpfulMessage = "WebGPU initialization failed. Try refreshing the page or using a different browser.";
+                            helpfulMessage =
+                                "WebGPU initialization failed. Try refreshing the page or using a different browser.";
                         } else if (errorMsg.includes("memory") || errorMsg.includes("OOM")) {
                             helpfulMessage = "Out of memory. Try a smaller model or close other browser tabs.";
                             suggestClearCache = true;
@@ -453,9 +488,9 @@ async function setupShowcase(): Promise<void> {
 
                         // Show error with helpful suggestion
                         if (ui.connectionStatus) {
-                            ui.connectionStatus.innerHTML = suggestClearCache ?
-                                `✗ ${helpfulMessage} <button id="suggest-clear-cache" style="margin-left: 8px; padding: 4px 8px; cursor: pointer;">Clear Cache</button>` :
-                                `✗ ${helpfulMessage}`;
+                            ui.connectionStatus.innerHTML = suggestClearCache
+                                ? `✗ ${helpfulMessage} <button id="suggest-clear-cache" style="margin-left: 8px; padding: 4px 8px; cursor: pointer;">Clear Cache</button>`
+                                : `✗ ${helpfulMessage}`;
                             ui.connectionStatus.className = "status-error";
 
                             // Add click handler for suggested clear cache button
@@ -465,7 +500,8 @@ async function setupShowcase(): Promise<void> {
                                     suggestBtn.addEventListener("click", () => {
                                         void clearWebLlmCache().then((result) => {
                                             if (result.cleared && ui.connectionStatus) {
-                                                ui.connectionStatus.textContent = "Cache cleared. Try connecting again.";
+                                                ui.connectionStatus.textContent =
+                                                    "Cache cleared. Try connecting again.";
                                                 ui.connectionStatus.className = "";
                                             }
                                         });
@@ -488,7 +524,7 @@ async function setupShowcase(): Promise<void> {
                         providerInstance: webllmProvider,
                     });
                 } else if (provider === "mock") {
-                    await graph.enableAiControl({provider: "mock"});
+                    await graph.enableAiControl({ provider: "mock" });
                 } else {
                     // Cloud provider
                     const apiKey = ui.apiKeyInput?.value.trim();
@@ -572,7 +608,7 @@ async function setupShowcase(): Promise<void> {
     });
 
     // Command submission
-    const handleSubmit = async(): Promise<void> => {
+    const handleSubmit = async (): Promise<void> => {
         if (!isConnected) {
             ui.responseOutput.textContent = "Please connect to a provider first.";
             return;
@@ -674,7 +710,11 @@ async function setupShowcase(): Promise<void> {
                                 // Auto-execute: send command immediately
                                 void graph.aiCommand(text).then((result) => {
                                     ui.responseOutput.textContent = result.message;
-                                    logCommand(`🎤 ${text}`, result.success ? `✓ ${result.message}` : `✗ ${result.message}`, result.success);
+                                    logCommand(
+                                        `🎤 ${text}`,
+                                        result.success ? `✓ ${result.message}` : `✗ ${result.message}`,
+                                        result.success,
+                                    );
                                 });
                             } else {
                                 // Fill input: populate the text field for review/editing
@@ -790,7 +830,10 @@ This demo integrates:
                     display: flex;
                     gap: 16px;
                     padding: 16px;
-                    font-family: system-ui, -apple-system, sans-serif;
+                    font-family:
+                        system-ui,
+                        -apple-system,
+                        sans-serif;
                     height: calc(100vh - 32px);
                     background: #f5f5f5;
                 }
@@ -835,9 +878,15 @@ This demo integrates:
                     justify-content: center;
                     font-size: 14px;
                 }
-                .section-icon.provider { background: #e3f2fd; }
-                .section-icon.command { background: #f3e5f5; }
-                .section-icon.history { background: #e8f5e9; }
+                .section-icon.provider {
+                    background: #e3f2fd;
+                }
+                .section-icon.command {
+                    background: #f3e5f5;
+                }
+                .section-icon.history {
+                    background: #e8f5e9;
+                }
                 .section-title {
                     font-size: 14px;
                     font-weight: 600;
@@ -868,13 +917,23 @@ This demo integrates:
                     cursor: pointer;
                     font-weight: 500;
                 }
-                .connect-btn:hover:not(:disabled) { background: #43a047; }
-                .connect-btn:disabled { background: #ccc; cursor: not-allowed; }
-                .connect-btn.disconnect { background: #f44336; }
-                .connect-btn.disconnect:hover:not(:disabled) { background: #e53935; }
+                .connect-btn:hover:not(:disabled) {
+                    background: #43a047;
+                }
+                .connect-btn:disabled {
+                    background: #ccc;
+                    cursor: not-allowed;
+                }
+                .connect-btn.disconnect {
+                    background: #f44336;
+                }
+                .connect-btn.disconnect:hover:not(:disabled) {
+                    background: #e53935;
+                }
 
                 /* Cloud Provider */
-                #cloud-provider-section, #webllm-section {
+                #cloud-provider-section,
+                #webllm-section {
                     margin-top: 12px;
                     padding-top: 12px;
                     border-top: 1px solid #eee;
@@ -899,7 +958,10 @@ This demo integrates:
                     font-size: 12px;
                     color: #666;
                 }
-                .remember-row input { width: 16px; height: 16px; }
+                .remember-row input {
+                    width: 16px;
+                    height: 16px;
+                }
 
                 /* WebLLM */
                 #webllm-model {
@@ -915,8 +977,12 @@ This demo integrates:
                     font-size: 12px;
                     margin-bottom: 8px;
                 }
-                .status-ok { color: #2e7d32; }
-                .status-error { color: #c62828; }
+                .status-ok {
+                    color: #2e7d32;
+                }
+                .status-error {
+                    color: #c62828;
+                }
                 .progress-bar {
                     height: 8px;
                     background: #e0e0e0;
@@ -938,9 +1004,18 @@ This demo integrates:
                     margin-top: 8px;
                     background: #f5f5f5;
                 }
-                .status-connecting { color: #1565c0; background: #e3f2fd; }
-                .status-connected { color: #2e7d32; background: #e8f5e9; }
-                .status-error { color: #c62828; background: #ffebee; }
+                .status-connecting {
+                    color: #1565c0;
+                    background: #e3f2fd;
+                }
+                .status-connected {
+                    color: #2e7d32;
+                    background: #e8f5e9;
+                }
+                .status-error {
+                    color: #c62828;
+                    background: #ffebee;
+                }
 
                 /* Command Input */
                 .command-row {
@@ -969,8 +1044,13 @@ This demo integrates:
                     cursor: pointer;
                     font-weight: 500;
                 }
-                .send-btn:hover:not(:disabled) { background: #651fff; }
-                .send-btn:disabled { background: #ccc; cursor: not-allowed; }
+                .send-btn:hover:not(:disabled) {
+                    background: #651fff;
+                }
+                .send-btn:disabled {
+                    background: #ccc;
+                    cursor: not-allowed;
+                }
 
                 /* Voice */
                 .voice-options {
@@ -1008,11 +1088,26 @@ This demo integrates:
                     font-size: 12px;
                     font-weight: 500;
                 }
-                .status-badge.ready { background: #e8f5e9; color: #2e7d32; }
-                .status-badge.submitted { background: #fff3e0; color: #e65100; }
-                .status-badge.streaming { background: #e3f2fd; color: #1565c0; }
-                .status-badge.executing { background: #f3e5f5; color: #7b1fa2; }
-                .status-badge.error { background: #ffebee; color: #c62828; }
+                .status-badge.ready {
+                    background: #e8f5e9;
+                    color: #2e7d32;
+                }
+                .status-badge.submitted {
+                    background: #fff3e0;
+                    color: #e65100;
+                }
+                .status-badge.streaming {
+                    background: #e3f2fd;
+                    color: #1565c0;
+                }
+                .status-badge.executing {
+                    background: #f3e5f5;
+                    color: #7b1fa2;
+                }
+                .status-badge.error {
+                    background: #ffebee;
+                    color: #c62828;
+                }
 
                 /* Response */
                 #response-output {
@@ -1040,10 +1135,21 @@ This demo integrates:
                     align-items: center;
                     justify-content: center;
                 }
-                .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-                .action-btn.voice { background: #e3f2fd; color: #1565c0; }
-                .action-btn.voice:hover:not(:disabled) { background: #bbdefb; }
-                .action-btn.voice.active { background: #f44336; color: white; }
+                .action-btn:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+                .action-btn.voice {
+                    background: #e3f2fd;
+                    color: #1565c0;
+                }
+                .action-btn.voice:hover:not(:disabled) {
+                    background: #bbdefb;
+                }
+                .action-btn.voice.active {
+                    background: #f44336;
+                    color: white;
+                }
 
                 /* WebLLM Model Row */
                 .webllm-model-row {
@@ -1063,8 +1169,13 @@ This demo integrates:
                     border-radius: 8px;
                     cursor: pointer;
                 }
-                .clear-cache-btn:hover { background: #f57c00; }
-                .clear-cache-btn:disabled { background: #ccc; cursor: not-allowed; }
+                .clear-cache-btn:hover {
+                    background: #f57c00;
+                }
+                .clear-cache-btn:disabled {
+                    background: #ccc;
+                    cursor: not-allowed;
+                }
 
                 /* Memory Warning */
                 .memory-warning {
@@ -1086,15 +1197,23 @@ This demo integrates:
                     border-bottom: 1px solid #f0f0f0;
                     font-size: 12px;
                 }
-                .history-entry:last-child { border-bottom: none; }
+                .history-entry:last-child {
+                    border-bottom: none;
+                }
                 .history-input {
                     color: #1976d2;
                     font-family: monospace;
                     margin-bottom: 2px;
                 }
-                .history-result { color: #555; }
-                .history-entry.success .history-result { color: #2e7d32; }
-                .history-entry.error .history-result { color: #c62828; }
+                .history-result {
+                    color: #555;
+                }
+                .history-entry.success .history-result {
+                    color: #2e7d32;
+                }
+                .history-entry.error .history-result {
+                    color: #c62828;
+                }
 
                 /* Commands Hint */
                 .commands-hint {
@@ -1105,7 +1224,9 @@ This demo integrates:
                     border-radius: 6px;
                     line-height: 1.6;
                 }
-                .commands-hint strong { color: #555; }
+                .commands-hint strong {
+                    color: #555;
+                }
             </style>
 
             <div class="showcase-layout">
@@ -1148,10 +1269,10 @@ This demo integrates:
                         <!-- Cloud Provider Options -->
                         <div id="cloud-provider-section">
                             <div class="key-row">
-                                <input id="api-key" type="password" placeholder="Enter API key...">
+                                <input id="api-key" type="password" placeholder="Enter API key..." />
                             </div>
                             <div class="remember-row">
-                                <input type="checkbox" id="remember-key">
+                                <input type="checkbox" id="remember-key" />
                                 <label for="remember-key">Remember key (encrypted)</label>
                             </div>
                         </div>
@@ -1161,13 +1282,25 @@ This demo integrates:
                             <div id="webgpu-status">Checking WebGPU...</div>
                             <div class="webllm-model-row">
                                 <select id="webllm-model">
-                                    <option value="Hermes-3-Llama-3.1-8B-q4f16_1-MLC">Hermes 3 Llama 8B (q4f16) (~4GB)</option>
-                                    <option value="Hermes-3-Llama-3.1-8B-q4f32_1-MLC">Hermes 3 Llama 8B (q4f32) (~4GB)</option>
-                                    <option value="Hermes-2-Pro-Llama-3-8B-q4f16_1-MLC">Hermes 2 Pro Llama 8B (q4f16) (~4GB)</option>
-                                    <option value="Hermes-2-Pro-Llama-3-8B-q4f32_1-MLC">Hermes 2 Pro Llama 8B (q4f32) (~4GB)</option>
-                                    <option value="Hermes-2-Pro-Mistral-7B-q4f16_1-MLC">Hermes 2 Pro Mistral 7B (~3.5GB)</option>
+                                    <option value="Hermes-3-Llama-3.1-8B-q4f16_1-MLC">
+                                        Hermes 3 Llama 8B (q4f16) (~4GB)
+                                    </option>
+                                    <option value="Hermes-3-Llama-3.1-8B-q4f32_1-MLC">
+                                        Hermes 3 Llama 8B (q4f32) (~4GB)
+                                    </option>
+                                    <option value="Hermes-2-Pro-Llama-3-8B-q4f16_1-MLC">
+                                        Hermes 2 Pro Llama 8B (q4f16) (~4GB)
+                                    </option>
+                                    <option value="Hermes-2-Pro-Llama-3-8B-q4f32_1-MLC">
+                                        Hermes 2 Pro Llama 8B (q4f32) (~4GB)
+                                    </option>
+                                    <option value="Hermes-2-Pro-Mistral-7B-q4f16_1-MLC">
+                                        Hermes 2 Pro Mistral 7B (~3.5GB)
+                                    </option>
                                 </select>
-                                <button id="clear-cache-btn" class="clear-cache-btn" title="Clear cached models">🗑️</button>
+                                <button id="clear-cache-btn" class="clear-cache-btn" title="Clear cached models">
+                                    🗑️
+                                </button>
                             </div>
                             <div id="memory-warning" class="memory-warning" style="display: none;">
                                 ⚠️ <span id="memory-warning-text">Large model may cause issues</span>
@@ -1191,12 +1324,12 @@ This demo integrates:
 
                         <div class="command-row">
                             <button id="voice-btn" class="action-btn voice" disabled title="Voice input">🎤</button>
-                            <input id="command-input" type="text" placeholder="e.g., 'Make database nodes blue'">
+                            <input id="command-input" type="text" placeholder="e.g., 'Make database nodes blue'" />
                             <button id="send-btn" class="send-btn" disabled>Send</button>
                         </div>
 
                         <div class="voice-options">
-                            <input type="checkbox" id="voice-auto-execute" checked>
+                            <input type="checkbox" id="voice-auto-execute" checked />
                             <label for="voice-auto-execute">Auto-execute voice commands</label>
                         </div>
 
@@ -1221,7 +1354,8 @@ This demo integrates:
 
                     <!-- Hints -->
                     <div class="commands-hint">
-                        <strong>Try:</strong> "highlight servers" • "circular layout" • "top view" • "how many nodes?" • "switch to 2D"
+                        <strong>Try:</strong> "highlight servers" • "circular layout" • "top view" • "how many nodes?" •
+                        "switch to 2D"
                     </div>
                 </div>
             </div>

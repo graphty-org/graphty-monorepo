@@ -1,20 +1,24 @@
-import {assert, beforeEach, describe, it} from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 
-import {EventManager} from "../../src/managers/EventManager";
-import {type OperationCategory, type OperationContext, OperationQueueManager} from "../../src/managers/OperationQueueManager";
+import { EventManager } from "../../src/managers/EventManager";
+import {
+    type OperationCategory,
+    type OperationContext,
+    OperationQueueManager,
+} from "../../src/managers/OperationQueueManager";
 
 describe("OperationQueueManager", () => {
     let eventManager: EventManager;
     let queueManager: OperationQueueManager;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         eventManager = new EventManager();
         await eventManager.init();
         queueManager = new OperationQueueManager(eventManager);
         await queueManager.init();
     });
 
-    it("should queue and execute operations in dependency order", async() => {
+    it("should queue and execute operations in dependency order", async () => {
         const executionOrder: string[] = [];
 
         // Queue operations in reverse dependency order
@@ -37,7 +41,7 @@ describe("OperationQueueManager", () => {
         assert.deepEqual(executionOrder, ["style-init", "data-add", "layout-set"]);
     });
 
-    it("should batch operations queued in same microtask", async() => {
+    it("should batch operations queued in same microtask", async () => {
         const executionOrder: string[] = [];
         let batchCount = 0;
 
@@ -69,7 +73,7 @@ describe("OperationQueueManager", () => {
         assert.equal(executionOrder[0], "style-init", "style-init should execute first");
     });
 
-    it("should handle circular dependencies gracefully", async() => {
+    it("should handle circular dependencies gracefully", async () => {
         const executionOrder: string[] = [];
 
         // Create a scenario that might have circular dependencies
@@ -88,7 +92,7 @@ describe("OperationQueueManager", () => {
         assert.isTrue(executionOrder.length > 0);
     });
 
-    it("should emit lifecycle events (start, complete, error)", async() => {
+    it("should emit lifecycle events (start, complete, error)", async () => {
         const events: string[] = [];
 
         eventManager.addListener("operation-start", () => {
@@ -123,13 +127,13 @@ describe("OperationQueueManager", () => {
         assert.include(events, "error");
     });
 
-    it("should provide queue statistics", async() => {
+    it("should provide queue statistics", async () => {
         // Queue some operations but don't wait
-        queueManager.queueOperation("data-add", async() => {
+        queueManager.queueOperation("data-add", async () => {
             await new Promise((resolve) => setTimeout(resolve, 10));
         });
 
-        queueManager.queueOperation("layout-set", async() => {
+        queueManager.queueOperation("layout-set", async () => {
             await new Promise((resolve) => setTimeout(resolve, 10));
         });
 
@@ -145,7 +149,7 @@ describe("OperationQueueManager", () => {
         await queueManager.waitForCompletion();
     });
 
-    it("should support pausing and resuming the queue", async() => {
+    it("should support pausing and resuming the queue", async () => {
         const executionOrder: string[] = [];
 
         queueManager.pause();
@@ -164,7 +168,7 @@ describe("OperationQueueManager", () => {
         assert.equal(executionOrder.length, 1);
     });
 
-    it("should clear pending operations", async() => {
+    it("should clear pending operations", async () => {
         const executionOrder: string[] = [];
 
         // Pause to prevent execution
@@ -188,7 +192,7 @@ describe("OperationQueueManager", () => {
         assert.equal(executionOrder.length, 0);
     });
 
-    it("should handle operations with no dependencies", async() => {
+    it("should handle operations with no dependencies", async () => {
         const executionOrder: string[] = [];
 
         // Queue operations that don't have dependencies defined
@@ -206,7 +210,7 @@ describe("OperationQueueManager", () => {
         assert.equal(executionOrder.length, 2);
     });
 
-    it("should execute operations with context", async() => {
+    it("should execute operations with context", async () => {
         let contextReceived: OperationContext | undefined;
 
         queueManager.queueOperation("data-add", (context: OperationContext) => {
@@ -221,7 +225,7 @@ describe("OperationQueueManager", () => {
         assert.isDefined(contextReceived.id);
     });
 
-    it("should handle async and sync operations", async() => {
+    it("should handle async and sync operations", async () => {
         const executionOrder: string[] = [];
 
         // Mix async and sync operations
@@ -229,7 +233,7 @@ describe("OperationQueueManager", () => {
             executionOrder.push("style-init-sync");
         });
 
-        queueManager.queueOperation("data-add", async() => {
+        queueManager.queueOperation("data-add", async () => {
             await new Promise((resolve) => setTimeout(resolve, 10));
             executionOrder.push("data-add-async");
         });
@@ -244,4 +248,3 @@ describe("OperationQueueManager", () => {
         assert.deepEqual(executionOrder, ["style-init-sync", "data-add-async", "layout-set-sync"]);
     });
 });
-

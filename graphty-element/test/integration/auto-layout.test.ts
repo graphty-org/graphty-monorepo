@@ -1,15 +1,19 @@
-import {assert, beforeEach, describe, it, vi} from "vitest";
+import { assert, beforeEach, describe, it, vi } from "vitest";
 
-import type {StyleSchemaV1} from "../../src/config/StyleTemplate";
-import type {Edge} from "../../src/Edge";
-import type {LayoutEngine} from "../../src/layout/LayoutEngine";
-import {DataManager} from "../../src/managers/DataManager";
-import {EventManager} from "../../src/managers/EventManager";
-import {LayoutManager} from "../../src/managers/LayoutManager";
-import {type OperationCategory, type OperationContext, OperationQueueManager} from "../../src/managers/OperationQueueManager";
-import type {Node} from "../../src/Node";
-import {Styles} from "../../src/Styles";
-import type {OperationMetadata} from "../../src/types/operations";
+import type { StyleSchemaV1 } from "../../src/config/StyleTemplate";
+import type { Edge } from "../../src/Edge";
+import type { LayoutEngine } from "../../src/layout/LayoutEngine";
+import { DataManager } from "../../src/managers/DataManager";
+import { EventManager } from "../../src/managers/EventManager";
+import { LayoutManager } from "../../src/managers/LayoutManager";
+import {
+    type OperationCategory,
+    type OperationContext,
+    OperationQueueManager,
+} from "../../src/managers/OperationQueueManager";
+import type { Node } from "../../src/Node";
+import { Styles } from "../../src/Styles";
+import type { OperationMetadata } from "../../src/types/operations";
 
 describe("Automatic Layout Updates", () => {
     let operationQueue: OperationQueueManager;
@@ -75,7 +79,7 @@ describe("Automatic Layout Updates", () => {
             isSettled: vi.fn(() => true),
             getNodes: vi.fn(() => []),
             getEdges: vi.fn(() => []),
-            getNodePosition: vi.fn(() => ({x: 0, y: 0, z: 0})),
+            getNodePosition: vi.fn(() => ({ x: 0, y: 0, z: 0 })),
             addNode: vi.fn(),
             removeNode: vi.fn(),
             addEdge: vi.fn(),
@@ -84,7 +88,7 @@ describe("Automatic Layout Updates", () => {
         } as unknown as LayoutEngine;
     });
 
-    it("should update layout when nodes added to existing layout", async() => {
+    it("should update layout when nodes added to existing layout", async () => {
         const operations: string[] = [];
 
         // Set up layout engine
@@ -94,7 +98,7 @@ describe("Automatic Layout Updates", () => {
         // Track when layout update is triggered
         let layoutUpdateCalled = false;
         const originalQueueOp = operationQueue.queueOperationAsync.bind(operationQueue);
-        operationQueue.queueOperationAsync = async function(
+        operationQueue.queueOperationAsync = async function (
             category: OperationCategory,
             execute: (context: OperationContext) => Promise<void> | void,
             options?: Partial<OperationMetadata>,
@@ -113,7 +117,7 @@ describe("Automatic Layout Updates", () => {
             () => {
                 operations.push("data-add");
                 // Simulate nodes being added
-                const mockNode = {id: "node1", getData: () => ({id: "node1"})} as unknown as Node;
+                const mockNode = { id: "node1", getData: () => ({ id: "node1" }) } as unknown as Node;
                 mockLayoutEngine.addNode(mockNode);
             },
             {
@@ -129,7 +133,7 @@ describe("Automatic Layout Updates", () => {
         assert.include(operations, "layout-update-queued", "layout-update should have been queued");
     });
 
-    it("should not update if no layout engine set", async() => {
+    it("should not update if no layout engine set", async () => {
         const operations: string[] = [];
 
         // No layout engine set
@@ -139,7 +143,7 @@ describe("Automatic Layout Updates", () => {
         // Track if layout update is triggered
         let layoutUpdateCalled = false;
         const originalQueueOp = operationQueue.queueOperationAsync.bind(operationQueue);
-        operationQueue.queueOperationAsync = async function(
+        operationQueue.queueOperationAsync = async function (
             category: OperationCategory,
             execute: (context: OperationContext) => Promise<void> | void,
             options?: Partial<OperationMetadata>,
@@ -171,7 +175,7 @@ describe("Automatic Layout Updates", () => {
         assert.notInclude(operations, "layout-update-queued", "layout-update should not have been queued");
     });
 
-    it("should batch layout updates for multiple data operations", async() => {
+    it("should batch layout updates for multiple data operations", async () => {
         const operations: string[] = [];
         let layoutUpdateCount = 0;
 
@@ -181,7 +185,7 @@ describe("Automatic Layout Updates", () => {
 
         // Track layout updates
         const originalQueueOp = operationQueue.queueOperationAsync.bind(operationQueue);
-        operationQueue.queueOperationAsync = async function(
+        operationQueue.queueOperationAsync = async function (
             category: OperationCategory,
             execute: (context: OperationContext) => Promise<void> | void,
             options?: Partial<OperationMetadata>,
@@ -204,21 +208,21 @@ describe("Automatic Layout Updates", () => {
                 () => {
                     operations.push("data-add-1");
                 },
-                {description: "Adding nodes 1"},
+                { description: "Adding nodes 1" },
             ),
             operationQueue.queueOperationAsync(
                 "data-add",
                 () => {
                     operations.push("data-add-2");
                 },
-                {description: "Adding nodes 2"},
+                { description: "Adding nodes 2" },
             ),
             operationQueue.queueOperationAsync(
                 "data-update",
                 () => {
                     operations.push("data-update");
                 },
-                {description: "Updating nodes"},
+                { description: "Updating nodes" },
             ),
         ];
 
@@ -237,7 +241,7 @@ describe("Automatic Layout Updates", () => {
         assert.include(operations, "data-update", "data-update should have executed");
     });
 
-    it("should update layout positions incrementally", async() => {
+    it("should update layout positions incrementally", async () => {
         const operations: string[] = [];
 
         // Track layout operations - use existing methods
@@ -262,8 +266,8 @@ describe("Automatic Layout Updates", () => {
 
         // Create mock nodes
         const newNodes = [
-            {id: "node1", getData: () => ({id: "node1"})} as unknown as Node,
-            {id: "node2", getData: () => ({id: "node2"})} as unknown as Node,
+            { id: "node1", getData: () => ({ id: "node1" }) } as unknown as Node,
+            { id: "node2", getData: () => ({ id: "node2" }) } as unknown as Node,
         ];
 
         // Simulate adding nodes and triggering layout update
@@ -302,10 +306,14 @@ describe("Automatic Layout Updates", () => {
         assert.include(operations, "data-add", "data-add should have executed");
         assert.include(operations, "layout-update", "layout-update should have executed");
         assert.include(operations, "add-node", "should add nodes to layout");
-        assert.equal(operations.filter((op) => op === "add-node").length, 4, "should add all nodes (2 in each operation)");
+        assert.equal(
+            operations.filter((op) => op === "add-node").length,
+            4,
+            "should add all nodes (2 in each operation)",
+        );
     });
 
-    it("should handle edge additions with layout update", async() => {
+    it("should handle edge additions with layout update", async () => {
         const operations: string[] = [];
 
         // Set up layout engine
@@ -315,7 +323,7 @@ describe("Automatic Layout Updates", () => {
         // Track layout updates
         let layoutUpdateCalled = false;
         const originalQueueOp = operationQueue.queueOperationAsync.bind(operationQueue);
-        operationQueue.queueOperationAsync = async function(
+        operationQueue.queueOperationAsync = async function (
             category: OperationCategory,
             execute: (context: OperationContext) => Promise<void> | void,
             options?: Partial<OperationMetadata>,
@@ -336,9 +344,9 @@ describe("Automatic Layout Updates", () => {
                 // Simulate edge being added
                 const mockEdge = {
                     id: "edge1",
-                    source: {id: "node1"} as unknown as Node,
-                    target: {id: "node2"} as unknown as Node,
-                    getData: () => ({id: "edge1", source: "node1", target: "node2"}),
+                    source: { id: "node1" } as unknown as Node,
+                    target: { id: "node2" } as unknown as Node,
+                    getData: () => ({ id: "edge1", source: "node1", target: "node2" }),
                 } as unknown as Edge;
                 mockLayoutEngine.addEdge(mockEdge);
             },
@@ -355,7 +363,7 @@ describe("Automatic Layout Updates", () => {
         assert.include(operations, "layout-update-queued", "layout-update should have been queued");
     });
 
-    it("should skip layout update when skipTriggers is true", async() => {
+    it("should skip layout update when skipTriggers is true", async () => {
         const operations: string[] = [];
 
         // Set up layout engine
@@ -365,7 +373,7 @@ describe("Automatic Layout Updates", () => {
         // Track layout updates
         let layoutUpdateCalled = false;
         const originalQueueOp = operationQueue.queueOperationAsync.bind(operationQueue);
-        operationQueue.queueOperationAsync = async function(
+        operationQueue.queueOperationAsync = async function (
             category: OperationCategory,
             execute: (context: OperationContext) => Promise<void> | void,
             options?: Partial<OperationMetadata>,

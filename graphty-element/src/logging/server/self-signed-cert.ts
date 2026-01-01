@@ -19,9 +19,9 @@ export interface GeneratedCert {
  */
 export function generateSelfSignedCert(hostname = "localhost"): GeneratedCert {
     const attrs = [
-        {name: "commonName", value: hostname},
-        {name: "organizationName", value: "Graphty Log Server"},
-        {name: "countryName", value: "US"},
+        { name: "commonName", value: hostname },
+        { name: "organizationName", value: "Graphty Log Server" },
+        { name: "countryName", value: "US" },
     ];
 
     const options = {
@@ -46,10 +46,10 @@ export function generateSelfSignedCert(hostname = "localhost"): GeneratedCert {
             {
                 name: "subjectAltName",
                 altNames: [
-                    {type: 2, value: hostname}, // DNS name
-                    {type: 2, value: "localhost"},
-                    {type: 7, ip: "127.0.0.1"}, // IP address
-                    {type: 7, ip: "::1"}, // IPv6 localhost
+                    { type: 2, value: hostname }, // DNS name
+                    { type: 2, value: "localhost" },
+                    { type: 7, ip: "127.0.0.1" }, // IP address
+                    { type: 7, ip: "::1" }, // IPv6 localhost
                 ],
             },
         ],

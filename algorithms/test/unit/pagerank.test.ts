@@ -1,4 +1,4 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
     pageRank,
@@ -6,12 +6,12 @@ import {
     personalizedPageRank,
     topPageRankNodes,
 } from "../../src/algorithms/centrality/pagerank.js";
-import {Graph} from "../../src/core/graph.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("PageRank Algorithm", () => {
     describe("pageRank", () => {
         it("should calculate PageRank for a simple directed graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
             graph.addEdge("C", "A");
@@ -31,7 +31,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should throw error for undirected graph", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("A", "B");
 
             expect(() => {
@@ -40,7 +40,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle dangling nodes", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
             // C is a dangling node (no outgoing edges)
@@ -53,7 +53,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle empty graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             const result = pageRank(graph);
 
@@ -63,7 +63,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle single node", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addNode("A");
 
             const result = pageRank(graph);
@@ -73,7 +73,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle self-loops", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "A");
             graph.addEdge("A", "B");
             graph.addEdge("B", "A");
@@ -86,51 +86,51 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should respect damping factor", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
 
-            const result1 = pageRank(graph, {dampingFactor: 0.85});
-            const result2 = pageRank(graph, {dampingFactor: 0.5});
+            const result1 = pageRank(graph, { dampingFactor: 0.85 });
+            const result2 = pageRank(graph, { dampingFactor: 0.5 });
 
             // Different damping factors should produce different results
             expect(result1.ranks.A).not.toBeCloseTo(result2.ranks.A ?? 0, 2);
         });
 
         it("should throw error for invalid damping factor", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
 
             expect(() => {
-                pageRank(graph, {dampingFactor: -0.1});
+                pageRank(graph, { dampingFactor: -0.1 });
             }).toThrow("Damping factor must be between 0 and 1");
 
             expect(() => {
-                pageRank(graph, {dampingFactor: 1.1});
+                pageRank(graph, { dampingFactor: 1.1 });
             }).toThrow("Damping factor must be between 0 and 1");
         });
 
         it("should respect tolerance parameter", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
             graph.addEdge("C", "A");
 
-            const result1 = pageRank(graph, {tolerance: 1e-6});
-            const result2 = pageRank(graph, {tolerance: 1e-3});
+            const result1 = pageRank(graph, { tolerance: 1e-6 });
+            const result2 = pageRank(graph, { tolerance: 1e-3 });
 
             // Looser tolerance should converge faster
             expect(result2.iterations).toBeLessThanOrEqual(result1.iterations);
         });
 
         it("should handle max iterations limit", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             // Create a simple graph
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
             graph.addEdge("C", "A");
 
-            const result = pageRank(graph, {maxIterations: 2, tolerance: 1e-10});
+            const result = pageRank(graph, { maxIterations: 2, tolerance: 1e-10 });
 
             expect(result.iterations).toBeLessThanOrEqual(2);
             // With very strict tolerance and only 2 iterations, should not converge
@@ -140,7 +140,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle initial ranks", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
             graph.addEdge("C", "A");
@@ -151,14 +151,14 @@ describe("PageRank Algorithm", () => {
                 ["C", 0.2],
             ]);
 
-            const result = pageRank(graph, {initialRanks, maxIterations: 1});
+            const result = pageRank(graph, { initialRanks, maxIterations: 1 });
 
             // After one iteration, ranks should have changed from initial
             expect(result.ranks.A).not.toBeCloseTo(0.5);
         });
 
         it("should handle weighted PageRank", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
             graph.addEdge("A", "C");
             graph.addEdge("B", "D");
@@ -173,7 +173,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle star graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             // All nodes point to center
             graph.addEdge("A", "center");
             graph.addEdge("B", "center");
@@ -188,7 +188,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle complex graph structure", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             // Create a more complex structure
             graph.addEdge("A", "B");
             graph.addEdge("A", "C");
@@ -208,7 +208,7 @@ describe("PageRank Algorithm", () => {
 
     describe("personalizedPageRank", () => {
         it("should calculate personalized PageRank", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
             graph.addEdge("C", "A");
@@ -222,7 +222,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle multiple personal nodes", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
             graph.addEdge("C", "D");
@@ -238,7 +238,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should throw error for non-existent personal node", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
 
             expect(() => {
@@ -247,7 +247,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle empty personal nodes array gracefully", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
             graph.addEdge("C", "A");
@@ -267,7 +267,7 @@ describe("PageRank Algorithm", () => {
 
     describe("pageRankCentrality", () => {
         it("should return PageRank scores as centrality", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
             graph.addEdge("C", "A");
@@ -283,7 +283,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should accept options", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             // Create a more complex graph where damping factor matters
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
@@ -292,8 +292,8 @@ describe("PageRank Algorithm", () => {
             graph.addEdge("E", "A");
             graph.addEdge("C", "A"); // Extra edge
 
-            const centrality1 = pageRankCentrality(graph, {dampingFactor: 0.9});
-            const centrality2 = pageRankCentrality(graph, {dampingFactor: 0.1});
+            const centrality1 = pageRankCentrality(graph, { dampingFactor: 0.9 });
+            const centrality2 = pageRankCentrality(graph, { dampingFactor: 0.1 });
 
             // Very different damping factors should produce different results
             // At least one node should have noticeably different centrality
@@ -308,7 +308,7 @@ describe("PageRank Algorithm", () => {
 
     describe("topPageRankNodes", () => {
         it("should return top k nodes by PageRank", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             // Create a hub-like structure
             graph.addEdge("A", "hub");
             graph.addEdge("B", "hub");
@@ -327,7 +327,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle k larger than number of nodes", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
 
@@ -337,7 +337,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle k = 0", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
 
             const top0 = topPageRankNodes(graph, 0);
@@ -346,7 +346,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle empty graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             const top3 = topPageRankNodes(graph, 3);
 
@@ -354,7 +354,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should work with weighted PageRank", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
             graph.addEdge("A", "C");
             graph.addEdge("B", "D");
@@ -369,7 +369,7 @@ describe("PageRank Algorithm", () => {
 
     describe("edge cases", () => {
         it("should handle graph with only dangling nodes", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("a");
             directedGraph.addNode("b");
             directedGraph.addNode("c");
@@ -384,7 +384,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle convergence with very low tolerance", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("a");
             directedGraph.addNode("b");
             directedGraph.addNode("c");
@@ -400,11 +400,11 @@ describe("PageRank Algorithm", () => {
 
             // Should converge to equal values for cycle
             const ranks = Object.values(result.ranks);
-            expect(Math.max(... ranks) - Math.min(... ranks)).toBeLessThan(0.001);
+            expect(Math.max(...ranks) - Math.min(...ranks)).toBeLessThan(0.001);
         });
 
         it("should handle personalized PageRank with empty personalization", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("a");
             directedGraph.addNode("b");
             directedGraph.addEdge("a", "b");
@@ -419,7 +419,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle weighted edges with missing edge data", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("a");
             directedGraph.addNode("b");
             directedGraph.addNode("c");
@@ -438,7 +438,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle graph with all edges having zero weight", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("a");
             directedGraph.addNode("b");
             directedGraph.addNode("c");
@@ -456,7 +456,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle initial ranks that don't sum to 1", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("a");
             directedGraph.addNode("b");
             directedGraph.addNode("c");
@@ -481,7 +481,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle damping factor of 0", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("a");
             directedGraph.addNode("b");
             directedGraph.addEdge("a", "b");
@@ -496,7 +496,7 @@ describe("PageRank Algorithm", () => {
         });
 
         it("should handle damping factor of 1", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("a");
             directedGraph.addNode("b");
             directedGraph.addNode("c");

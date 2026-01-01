@@ -5,16 +5,13 @@
  * in 3D camera mode. They are critical for catching direction-related regressions.
  */
 
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test, vi} from "vitest";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import type {OrbitCameraController} from "../../../src/cameras/OrbitCameraController";
-import type {OrbitInputController} from "../../../src/cameras/OrbitInputController";
-import type {Graph} from "../../../src/Graph";
-import {
-    setupTestGraph,
-    teardownTestGraph,
-} from "../helpers/interaction-helpers";
+import type { OrbitCameraController } from "../../../src/cameras/OrbitCameraController";
+import type { OrbitInputController } from "../../../src/cameras/OrbitInputController";
+import type { Graph } from "../../../src/Graph";
+import { setupTestGraph, teardownTestGraph } from "../helpers/interaction-helpers";
 
 /**
  * Helper to get the 3D camera controller and input controller from a graph
@@ -25,7 +22,7 @@ function get3DControllers(graph: Graph): {
 } {
     const controller = graph.camera.getActiveController() as OrbitCameraController;
     // Access input controller via the camera manager's internal inputs map
-    const {inputs} = graph.camera as unknown as {
+    const { inputs } = graph.camera as unknown as {
         inputs: Map<string, OrbitInputController>;
     };
     const maybeInput = inputs.get("orbit");
@@ -33,7 +30,7 @@ function get3DControllers(graph: Graph): {
         throw new Error("3D (orbit) input controller not found");
     }
 
-    return {cameraController: controller, inputController: maybeInput};
+    return { cameraController: controller, inputController: maybeInput };
 }
 
 /**
@@ -60,10 +57,10 @@ function runUpdateFrames(inputController: OrbitInputController, frames: number):
 /**
  * Helper to get pivot rotation (yaw/pitch) from the orbit camera controller
  */
-function getPivotRotation(cameraController: OrbitCameraController): {yaw: number, pitch: number, roll: number} {
-    const {pivot} = cameraController;
+function getPivotRotation(cameraController: OrbitCameraController): { yaw: number; pitch: number; roll: number } {
+    const { pivot } = cameraController;
     if (!pivot.rotationQuaternion) {
-        return {yaw: pivot.rotation.y, pitch: pivot.rotation.x, roll: pivot.rotation.z};
+        return { yaw: pivot.rotation.y, pitch: pivot.rotation.x, roll: pivot.rotation.z };
     }
 
     // Convert quaternion to Euler angles
@@ -78,8 +75,8 @@ function getPivotRotation(cameraController: OrbitCameraController): {yaw: number
 describe("3D Input Direction Verification", () => {
     let graph: Graph;
 
-    beforeEach(async() => {
-        graph = await setupTestGraph({mode: "3d"});
+    beforeEach(async () => {
+        graph = await setupTestGraph({ mode: "3d" });
     });
 
     afterEach(() => {
@@ -88,7 +85,7 @@ describe("3D Input Direction Verification", () => {
     });
 
     test("ArrowLeft rotates camera LEFT (increases yaw)", () => {
-        const {cameraController, inputController} = get3DControllers(graph);
+        const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
@@ -109,15 +106,11 @@ describe("3D Input Direction Verification", () => {
         //     cam.rotate(-this.rotationVelocityY / this.config.trackballRotationSpeed, 0);
         // So ArrowLeft adds positive velocityY, then rotate is called with -velocityY
         // This causes negative dx to rotate(), which via PivotController should increase yaw (turn left)
-        assert.isAbove(
-            finalRotation.yaw,
-            initialRotation.yaw,
-            "ArrowLeft should rotate camera LEFT (increase yaw)",
-        );
+        assert.isAbove(finalRotation.yaw, initialRotation.yaw, "ArrowLeft should rotate camera LEFT (increase yaw)");
     });
 
     test("ArrowRight rotates camera RIGHT (decreases yaw)", () => {
-        const {cameraController, inputController} = get3DControllers(graph);
+        const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
@@ -134,15 +127,11 @@ describe("3D Input Direction Verification", () => {
         // Looking at OrbitInputController.ts lines 147-148:
         // if (keys.arrowright) { this.rotationVelocityY -= this.config.keyboardRotationSpeed; }
         // Then rotate(-velocityY, 0) = rotate(positive, 0) = positive dx = turn right = decrease yaw
-        assert.isBelow(
-            finalRotation.yaw,
-            initialRotation.yaw,
-            "ArrowRight should rotate camera RIGHT (decrease yaw)",
-        );
+        assert.isBelow(finalRotation.yaw, initialRotation.yaw, "ArrowRight should rotate camera RIGHT (decrease yaw)");
     });
 
     test("ArrowUp tilts camera UP", () => {
-        const {cameraController, inputController} = get3DControllers(graph);
+        const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
@@ -163,15 +152,11 @@ describe("3D Input Direction Verification", () => {
         // So ArrowUp adds positive velocityX, then rotate is called with -velocityX = negative dy
         // Negative dy to OrbitCameraController.rotate means tilt up (looking up)
         // This should result in pitch change
-        assert.notEqual(
-            finalRotation.pitch,
-            initialRotation.pitch,
-            "ArrowUp should tilt camera UP (change pitch)",
-        );
+        assert.notEqual(finalRotation.pitch, initialRotation.pitch, "ArrowUp should tilt camera UP (change pitch)");
     });
 
     test("ArrowDown tilts camera DOWN", () => {
-        const {cameraController, inputController} = get3DControllers(graph);
+        const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
@@ -188,15 +173,11 @@ describe("3D Input Direction Verification", () => {
         // Looking at OrbitInputController.ts lines 155-156:
         // if (keys.arrowdown) { this.rotationVelocityX -= this.config.keyboardRotationSpeed; }
         // Then rotate(0, -velocityX) = rotate(0, positive) = positive dy = tilt down
-        assert.notEqual(
-            finalRotation.pitch,
-            initialRotation.pitch,
-            "ArrowDown should tilt camera DOWN (change pitch)",
-        );
+        assert.notEqual(finalRotation.pitch, initialRotation.pitch, "ArrowDown should tilt camera DOWN (change pitch)");
     });
 
     test("W key zooms IN (decreases camera distance)", () => {
-        const {cameraController, inputController} = get3DControllers(graph);
+        const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial camera distance
         const initialDistance = cameraController.cameraDistance;
@@ -213,15 +194,11 @@ describe("3D Input Direction Verification", () => {
         // Looking at OrbitInputController.ts lines 159-160:
         // if (keys.w) { cam.zoom(-this.config.keyboardZoomSpeed); }
         // zoom() with negative delta decreases cameraDistance = zoom in
-        assert.isBelow(
-            finalDistance,
-            initialDistance,
-            "W key should zoom IN (decrease camera distance)",
-        );
+        assert.isBelow(finalDistance, initialDistance, "W key should zoom IN (decrease camera distance)");
     });
 
     test("S key zooms OUT (increases camera distance)", () => {
-        const {cameraController, inputController} = get3DControllers(graph);
+        const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial camera distance
         const initialDistance = cameraController.cameraDistance;
@@ -238,15 +215,11 @@ describe("3D Input Direction Verification", () => {
         // Looking at OrbitInputController.ts lines 163-164:
         // if (keys.s) { cam.zoom(this.config.keyboardZoomSpeed); }
         // zoom() with positive delta increases cameraDistance = zoom out
-        assert.isAbove(
-            finalDistance,
-            initialDistance,
-            "S key should zoom OUT (increase camera distance)",
-        );
+        assert.isAbove(finalDistance, initialDistance, "S key should zoom OUT (increase camera distance)");
     });
 
     test("A key spins camera LEFT (yaw rotation)", () => {
-        const {cameraController, inputController} = get3DControllers(graph);
+        const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
@@ -263,15 +236,11 @@ describe("3D Input Direction Verification", () => {
         // Looking at OrbitInputController.ts lines 167-168:
         // if (keys.a) { cam.spin(this.config.keyboardYawSpeed); }
         // spin() with positive delta spins left (positive roll/z rotation)
-        assert.isAbove(
-            finalRotation.roll,
-            initialRotation.roll,
-            "A key should spin camera LEFT (increase roll)",
-        );
+        assert.isAbove(finalRotation.roll, initialRotation.roll, "A key should spin camera LEFT (increase roll)");
     });
 
     test("D key spins camera RIGHT (yaw rotation)", () => {
-        const {cameraController, inputController} = get3DControllers(graph);
+        const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
@@ -288,15 +257,11 @@ describe("3D Input Direction Verification", () => {
         // Looking at OrbitInputController.ts lines 171-172:
         // if (keys.d) { cam.spin(-this.config.keyboardYawSpeed); }
         // spin() with negative delta spins right (negative roll/z rotation)
-        assert.isBelow(
-            finalRotation.roll,
-            initialRotation.roll,
-            "D key should spin camera RIGHT (decrease roll)",
-        );
+        assert.isBelow(finalRotation.roll, initialRotation.roll, "D key should spin camera RIGHT (decrease roll)");
     });
 
     test("mouse drag RIGHT rotates camera RIGHT", () => {
-        const {cameraController} = get3DControllers(graph);
+        const { cameraController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
@@ -322,7 +287,7 @@ describe("3D Input Direction Verification", () => {
     });
 
     test("mouse drag DOWN tilts camera DOWN", () => {
-        const {cameraController} = get3DControllers(graph);
+        const { cameraController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
@@ -343,7 +308,7 @@ describe("3D Input Direction Verification", () => {
     });
 
     test("pinch spread zooms IN (smaller camera distance)", () => {
-        const {cameraController} = get3DControllers(graph);
+        const { cameraController } = get3DControllers(graph);
 
         // Record initial camera distance
         const initialDistance = cameraController.cameraDistance;
@@ -362,15 +327,11 @@ describe("3D Input Direction Verification", () => {
         const finalDistance = cameraController.cameraDistance;
 
         // Pinch spread should zoom IN (decrease distance)
-        assert.isBelow(
-            finalDistance,
-            initialDistance,
-            "Pinch spread should zoom IN (decrease camera distance)",
-        );
+        assert.isBelow(finalDistance, initialDistance, "Pinch spread should zoom IN (decrease camera distance)");
     });
 
     test("pinch squeeze zooms OUT (larger camera distance)", () => {
-        const {cameraController} = get3DControllers(graph);
+        const { cameraController } = get3DControllers(graph);
 
         // Record initial camera distance
         const initialDistance = cameraController.cameraDistance;
@@ -384,15 +345,11 @@ describe("3D Input Direction Verification", () => {
         const finalDistance = cameraController.cameraDistance;
 
         // Pinch squeeze should zoom OUT (increase distance)
-        assert.isAbove(
-            finalDistance,
-            initialDistance,
-            "Pinch squeeze should zoom OUT (increase camera distance)",
-        );
+        assert.isAbove(finalDistance, initialDistance, "Pinch squeeze should zoom OUT (increase camera distance)");
     });
 
     test("two-finger rotate clockwise spins camera CW", () => {
-        const {cameraController} = get3DControllers(graph);
+        const { cameraController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);

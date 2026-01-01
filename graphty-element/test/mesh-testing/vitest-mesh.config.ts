@@ -5,8 +5,8 @@
  * in a Node.js environment with proper polyfills.
  */
 
-import {resolve} from "path";
-import {defineConfig} from "vitest/config";
+import { resolve } from "path";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
     test: {
@@ -15,14 +15,10 @@ export default defineConfig({
         environment: "node",
 
         // Global setup for NullEngine and polyfills
-        setupFiles: [
-            resolve(__dirname, "test-setup.ts"),
-        ],
+        setupFiles: [resolve(__dirname, "test-setup.ts")],
 
         // Test file patterns
-        include: [
-            "test/mesh-testing/**/*.test.ts",
-        ],
+        include: ["test/mesh-testing/**/*.test.ts"],
 
         // Exclude patterns
         exclude: [
@@ -44,14 +40,8 @@ export default defineConfig({
             provider: "v8",
             reporter: ["text", "json", "html"],
             reportsDirectory: "coverage/mesh-testing",
-            include: [
-                "src/meshes/**/*.ts",
-            ],
-            exclude: [
-                "src/**/*.test.ts",
-                "src/**/*.d.ts",
-                "test/**/*",
-            ],
+            include: ["src/meshes/**/*.ts"],
+            exclude: ["src/**/*.test.ts", "src/**/*.d.ts", "test/**/*"],
         },
 
         // Timeout settings for mesh operations
@@ -75,16 +65,13 @@ export default defineConfig({
 
     // Define configuration for dependencies
     define: {
-    // Babylon.js expects these globals
+        // Babylon.js expects these globals
         global: "globalThis",
         window: "globalThis",
     },
 
     // Optimization for testing
     optimizeDeps: {
-        include: [
-            "@babylonjs/core",
-            "fast-check",
-        ],
+        include: ["@babylonjs/core", "fast-check"],
     },
 });

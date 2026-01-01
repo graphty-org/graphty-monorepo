@@ -5,18 +5,12 @@
  * positioning, and transformation. Uses NullEngine for headless rendering.
  */
 
-import {
-    AbstractMesh,
-    Mesh,
-    NullEngine,
-    Scene,
-    Vector3,
-} from "@babylonjs/core";
-import {assert, beforeEach, describe, test, vi} from "vitest";
+import { AbstractMesh, Mesh, NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { assert, beforeEach, describe, test, vi } from "vitest";
 
-import type {EdgeStyleConfig} from "../../src/config";
-import type {PatternedLineMesh} from "../../src/meshes/PatternedLineMesh";
-import {asData} from "../helpers/testSetup";
+import type { EdgeStyleConfig } from "../../src/config";
+import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
+import { asData } from "../helpers/testSetup";
 
 /**
  * Helper to check if a mesh is disposed, handling both AbstractMesh (method) and PatternedLineMesh (property)
@@ -32,17 +26,17 @@ function isDisposed(mesh: AbstractMesh | PatternedLineMesh): boolean {
 
     return false;
 }
-import {Edge} from "../../src/Edge";
-import {DataManager} from "../../src/managers/DataManager";
-import {EventManager} from "../../src/managers/EventManager";
-import type {GraphContext} from "../../src/managers/GraphContext";
-import {LayoutManager} from "../../src/managers/LayoutManager";
-import {StatsManager} from "../../src/managers/StatsManager";
-import {StyleManager} from "../../src/managers/StyleManager";
-import {EdgeMesh} from "../../src/meshes/EdgeMesh";
-import {MeshCache} from "../../src/meshes/MeshCache";
-import {Node} from "../../src/Node";
-import {EdgeStyleId, Styles} from "../../src/Styles";
+import { Edge } from "../../src/Edge";
+import { DataManager } from "../../src/managers/DataManager";
+import { EventManager } from "../../src/managers/EventManager";
+import type { GraphContext } from "../../src/managers/GraphContext";
+import { LayoutManager } from "../../src/managers/LayoutManager";
+import { StatsManager } from "../../src/managers/StatsManager";
+import { StyleManager } from "../../src/managers/StyleManager";
+import { EdgeMesh } from "../../src/meshes/EdgeMesh";
+import { MeshCache } from "../../src/meshes/MeshCache";
+import { Node } from "../../src/Node";
+import { EdgeStyleId, Styles } from "../../src/Styles";
 
 /**
  * Create a minimal GraphContext mock for testing Edge creation
@@ -128,11 +122,7 @@ function createMinimalStyles(): Styles {
 /**
  * Create a mock Node for testing Edge creation
  */
-function createMockNode(
-    scene: Scene,
-    id: string,
-    position: Vector3,
-): Node {
+function createMockNode(scene: Scene, id: string, position: Vector3): Node {
     // Create a minimal node mesh - use Mesh since AbstractMesh is abstract
     const mesh = new Mesh(`node-${id}`, scene);
     mesh.position = position.clone();
@@ -144,7 +134,7 @@ function createMockNode(
     const mockNode = {
         id,
         mesh,
-        data: {id},
+        data: { id },
     } as unknown as Node;
 
     return mockNode;
@@ -181,49 +171,49 @@ describe("Edge Integration", () => {
 
         // Create style IDs using the proper API
         defaultStyleId = getStyleId({
-            line: {width: 0.5, color: "#A9A9A9"},
+            line: { width: 0.5, color: "#A9A9A9" },
             enabled: true,
         });
 
         arrowHeadStyleId = getStyleId({
-            line: {width: 0.5, color: "#FF0000"},
-            arrowHead: {type: "normal", size: 1, color: "#FF0000", opacity: 1},
+            line: { width: 0.5, color: "#FF0000" },
+            arrowHead: { type: "normal", size: 1, color: "#FF0000", opacity: 1 },
             enabled: true,
         });
 
         arrowTailStyleId = getStyleId({
-            line: {width: 0.5, color: "#00FF00"},
-            arrowTail: {type: "tee", size: 1, color: "#00FF00", opacity: 1},
+            line: { width: 0.5, color: "#00FF00" },
+            arrowTail: { type: "tee", size: 1, color: "#00FF00", opacity: 1 },
             enabled: true,
         });
 
         bidirectionalStyleId = getStyleId({
-            line: {width: 0.5, color: "#0000FF"},
-            arrowHead: {type: "normal", size: 1, color: "#FF0000", opacity: 1},
-            arrowTail: {type: "inverted", size: 1, color: "#00FF00", opacity: 1},
+            line: { width: 0.5, color: "#0000FF" },
+            arrowHead: { type: "normal", size: 1, color: "#FF0000", opacity: 1 },
+            arrowTail: { type: "inverted", size: 1, color: "#00FF00", opacity: 1 },
             enabled: true,
         });
 
         initialStyleId = getStyleId({
-            line: {width: 0.5, color: "#FF0000"},
+            line: { width: 0.5, color: "#FF0000" },
             enabled: true,
         });
 
         updatedStyleId = getStyleId({
-            line: {width: 1.0, color: "#00FF00"},
-            arrowHead: {type: "diamond", size: 1.5, color: "#00FF00", opacity: 1},
+            line: { width: 1.0, color: "#00FF00" },
+            arrowHead: { type: "diamond", size: 1.5, color: "#00FF00", opacity: 1 },
             enabled: true,
         });
 
         styleAId = getStyleId({
-            line: {width: 0.5, color: "#FF0000"},
-            arrowHead: {type: "normal", size: 1, color: "#FF0000", opacity: 1},
+            line: { width: 0.5, color: "#FF0000" },
+            arrowHead: { type: "normal", size: 1, color: "#FF0000", opacity: 1 },
             enabled: true,
         });
 
         styleBId = getStyleId({
-            line: {width: 1.0, color: "#0000FF"},
-            arrowHead: {type: "box", size: 1, color: "#0000FF", opacity: 1},
+            line: { width: 1.0, color: "#0000FF" },
+            arrowHead: { type: "box", size: 1, color: "#0000FF", opacity: 1 },
             enabled: true,
         });
     });
@@ -371,12 +361,7 @@ describe("Edge Integration", () => {
             const arrowLength = 0.5;
             const geometry = EdgeMesh.getArrowGeometry("normal");
 
-            const position = EdgeMesh.calculateArrowPosition(
-                surfacePoint,
-                direction,
-                arrowLength,
-                geometry,
-            );
+            const position = EdgeMesh.calculateArrowPosition(surfacePoint, direction, arrowLength, geometry);
 
             // Tip-based arrow with offset=0: position at surface
             assert.closeTo(position.x, surfacePoint.x, 0.001);
@@ -390,15 +375,10 @@ describe("Edge Integration", () => {
             const arrowLength = 1.0;
             const geometry = EdgeMesh.getArrowGeometry("dot");
 
-            const position = EdgeMesh.calculateArrowPosition(
-                surfacePoint,
-                direction,
-                arrowLength,
-                geometry,
-            );
+            const position = EdgeMesh.calculateArrowPosition(surfacePoint, direction, arrowLength, geometry);
 
             // Center-based arrow: position center back by radius (half of length)
-            const expectedX = surfacePoint.x - (arrowLength / 2);
+            const expectedX = surfacePoint.x - arrowLength / 2;
             assert.closeTo(position.x, expectedX, 0.001);
         });
 
@@ -408,15 +388,10 @@ describe("Edge Integration", () => {
             const arrowLength = 0.5;
             const geometry = EdgeMesh.getArrowGeometry("inverted");
 
-            const position = EdgeMesh.calculateArrowPosition(
-                surfacePoint,
-                direction,
-                arrowLength,
-                geometry,
-            );
+            const position = EdgeMesh.calculateArrowPosition(surfacePoint, direction, arrowLength, geometry);
 
             // Inverted arrow: offset = 1.0 (full arrow length)
-            const expectedX = surfacePoint.x - (arrowLength * geometry.positionOffset);
+            const expectedX = surfacePoint.x - arrowLength * geometry.positionOffset;
             assert.closeTo(position.x, expectedX, 0.001);
         });
 
@@ -426,12 +401,7 @@ describe("Edge Integration", () => {
             const arrowLength = 0.5;
             const geometry = EdgeMesh.getArrowGeometry("normal");
 
-            const lineEndpoint = EdgeMesh.calculateLineEndpoint(
-                surfacePoint,
-                direction,
-                arrowLength,
-                geometry,
-            );
+            const lineEndpoint = EdgeMesh.calculateLineEndpoint(surfacePoint, direction, arrowLength, geometry);
 
             // Line should end at surface minus arrow length
             const expectedX = surfacePoint.x - arrowLength;
@@ -444,12 +414,7 @@ describe("Edge Integration", () => {
             const arrowLength = 1.0;
             const geometry = EdgeMesh.getArrowGeometry("sphere-dot");
 
-            const lineEndpoint = EdgeMesh.calculateLineEndpoint(
-                surfacePoint,
-                direction,
-                arrowLength,
-                geometry,
-            );
+            const lineEndpoint = EdgeMesh.calculateLineEndpoint(surfacePoint, direction, arrowLength, geometry);
 
             // sphere-dot has scaleFactor 0.25, so gap = arrowLength * 0.25
             const actualSize = arrowLength * (geometry.scaleFactor ?? 1.0);
@@ -463,8 +428,8 @@ describe("Edge Integration", () => {
             const srcPoint = new Vector3(0, 0, 0);
             const dstPoint = new Vector3(10, 0, 0);
 
-            const options = {styleId: "transform-test", width: 0.5, color: "#FF0000"};
-            const style = {line: {width: 0.5, color: "#FF0000"}, enabled: true};
+            const options = { styleId: "transform-test", width: 0.5, color: "#FF0000" };
+            const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
             const mesh = EdgeMesh.create(meshCache, options, style, scene);
 
             EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
@@ -479,8 +444,8 @@ describe("Edge Integration", () => {
             const srcPoint = new Vector3(0, 0, 0);
             const dstPoint = new Vector3(3, 4, 0);
 
-            const options = {styleId: "scale-test", width: 0.5, color: "#FF0000"};
-            const style = {line: {width: 0.5, color: "#FF0000"}, enabled: true};
+            const options = { styleId: "scale-test", width: 0.5, color: "#FF0000" };
+            const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
             const mesh = EdgeMesh.create(meshCache, options, style, scene);
 
             EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
@@ -493,8 +458,8 @@ describe("Edge Integration", () => {
             const srcPoint = new Vector3(0, 0, 0);
             const dstPoint = new Vector3(1, 2, 2);
 
-            const options = {styleId: "3d-test", width: 0.5, color: "#FF0000"};
-            const style = {line: {width: 0.5, color: "#FF0000"}, enabled: true};
+            const options = { styleId: "3d-test", width: 0.5, color: "#FF0000" };
+            const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
             const mesh = EdgeMesh.create(meshCache, options, style, scene);
 
             EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
@@ -512,8 +477,8 @@ describe("Edge Integration", () => {
             const srcPoint = new Vector3(-5, -5, -5);
             const dstPoint = new Vector3(5, 5, 5);
 
-            const options = {styleId: "negative-test", width: 0.5, color: "#FF0000"};
-            const style = {line: {width: 0.5, color: "#FF0000"}, enabled: true};
+            const options = { styleId: "negative-test", width: 0.5, color: "#FF0000" };
+            const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
             const mesh = EdgeMesh.create(meshCache, options, style, scene);
 
             EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
@@ -531,8 +496,8 @@ describe("Edge Integration", () => {
             const srcPoint = new Vector3(0, 0, 0);
             const dstPoint = new Vector3(5, 0, 0);
 
-            const options = {styleId: "orient-test", width: 0.5, color: "#FF0000"};
-            const style = {line: {width: 0.5, color: "#FF0000"}, enabled: true};
+            const options = { styleId: "orient-test", width: 0.5, color: "#FF0000" };
+            const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
             const mesh = EdgeMesh.create(meshCache, options, style, scene);
 
             EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);

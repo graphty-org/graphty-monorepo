@@ -1,8 +1,8 @@
-import {KeyboardEventTypes, PointerEventTypes, PointerInfo as BabylonPointerInfo, Scene} from "@babylonjs/core";
-import {Vector2} from "@babylonjs/core/Maths/math.vector";
-import {Observable} from "@babylonjs/core/Misc/observable";
+import { KeyboardEventTypes, PointerEventTypes, PointerInfo as BabylonPointerInfo, Scene } from "@babylonjs/core";
+import { Vector2 } from "@babylonjs/core/Maths/math.vector";
+import { Observable } from "@babylonjs/core/Misc/observable";
 
-import {DeviceType, KeyboardInfo, MouseButton, PointerInfo, TouchPoint, WheelInfo} from "./types";
+import { DeviceType, KeyboardInfo, MouseButton, PointerInfo, TouchPoint, WheelInfo } from "./types";
 
 /**
  * Input system that integrates with Babylon.js scene observables.
@@ -35,7 +35,7 @@ export class BabylonInputSystem {
     }
 
     private setupObservers(): void {
-    // Pointer events
+        // Pointer events
         this.scene.onPointerObservable.add((pointerInfo) => {
             const info = this.convertPointerInfo(pointerInfo);
 
@@ -115,8 +115,8 @@ export class BabylonInputSystem {
     }
 
     private convertKeyboardInfo(kbInfo: unknown): KeyboardInfo {
-        const kbInfoTyped = kbInfo as {event: KeyboardEvent};
-        const {event} = kbInfoTyped;
+        const kbInfoTyped = kbInfo as { event: KeyboardEvent };
+        const { event } = kbInfoTyped;
 
         return {
             key: event.key,
@@ -200,10 +200,10 @@ export class BabylonInputSystem {
         this.element = element;
 
         // Attach touch event listeners
-        this.element.addEventListener("touchstart", this.handleTouchStart, {passive: false});
-        this.element.addEventListener("touchmove", this.handleTouchMove, {passive: false});
-        this.element.addEventListener("touchend", this.handleTouchEnd, {passive: false});
-        this.element.addEventListener("touchcancel", this.handleTouchEnd, {passive: false});
+        this.element.addEventListener("touchstart", this.handleTouchStart, { passive: false });
+        this.element.addEventListener("touchmove", this.handleTouchMove, { passive: false });
+        this.element.addEventListener("touchend", this.handleTouchEnd, { passive: false });
+        this.element.addEventListener("touchcancel", this.handleTouchEnd, { passive: false });
     }
 
     /**

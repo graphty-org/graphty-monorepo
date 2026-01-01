@@ -1,8 +1,8 @@
-import {NullEngine, Scene, Vector3} from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import type {EdgeStyleConfig} from "../../src/config";
-import {RichTextLabel} from "../../src/meshes/RichTextLabel";
+import type { EdgeStyleConfig } from "../../src/config";
+import { RichTextLabel } from "../../src/meshes/RichTextLabel";
 
 describe("Arrow Text Labels", () => {
     let scene: Scene;
@@ -26,14 +26,14 @@ describe("Arrow Text Labels", () => {
                     size: 1,
                     opacity: 1,
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
             // Access via local variables to satisfy linter
-            const {arrowHead} = style;
+            const { arrowHead } = style;
             assert.exists(arrowHead);
-            const {text} = arrowHead;
+            const { text } = arrowHead;
             assert.exists(text);
             assert.equal(text.text, "→");
             assert.equal(text.fontSize, 12);
@@ -66,14 +66,14 @@ describe("Arrow Text Labels", () => {
                     size: 1,
                     opacity: 1,
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
             // Access via local variables to satisfy linter
-            const {arrowTail} = style;
+            const { arrowTail } = style;
             assert.exists(arrowTail);
-            const {text} = arrowTail;
+            const { text } = arrowTail;
             assert.exists(text);
             assert.equal(text.text, "←");
             assert.equal(text.fontSize, 12);
@@ -108,7 +108,13 @@ describe("Arrow Text Labels", () => {
         });
 
         test("arrow text label supports different attach positions", () => {
-            const positions: ("top" | "bottom" | "left" | "right" | "center")[] = ["top", "bottom", "left", "right", "center"];
+            const positions: ("top" | "bottom" | "left" | "right" | "center")[] = [
+                "top",
+                "bottom",
+                "left",
+                "right",
+                "center",
+            ];
 
             for (const pos of positions) {
                 const label = new RichTextLabel(scene, {
@@ -189,16 +195,16 @@ describe("Arrow Text Labels", () => {
                     size: 1,
                     opacity: 1,
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
             // Access via local variables to satisfy linter
-            const {arrowHead, arrowTail} = style;
+            const { arrowHead, arrowTail } = style;
             assert.exists(arrowHead);
             assert.exists(arrowTail);
-            const {text: headText} = arrowHead;
-            const {text: tailText} = arrowTail;
+            const { text: headText } = arrowHead;
+            const { text: tailText } = arrowTail;
             assert.exists(headText);
             assert.exists(tailText);
             assert.equal(headText.text, "Head");
@@ -240,14 +246,14 @@ describe("Arrow Text Labels", () => {
                     size: 1,
                     opacity: 1,
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
             // Access via local variables to satisfy linter
-            const {arrowHead} = style;
+            const { arrowHead } = style;
             assert.exists(arrowHead);
-            const {text} = arrowHead;
+            const { text } = arrowHead;
             assert.exists(text);
             assert.equal(text.textPath, "weight");
         });

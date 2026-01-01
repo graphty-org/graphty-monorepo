@@ -6,20 +6,15 @@
  * or where inertia doesn't decay properly.
  */
 
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test, vi} from "vitest";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import type {OrbitCameraController} from "../../../src/cameras/OrbitCameraController";
-import type {OrbitInputController} from "../../../src/cameras/OrbitInputController";
-import type {TwoDCameraController} from "../../../src/cameras/TwoDCameraController";
-import type {InputController} from "../../../src/cameras/TwoDInputController";
-import type {Graph} from "../../../src/Graph";
-import {
-    getCameraPosition,
-    getSceneScale,
-    setupTestGraph,
-    teardownTestGraph,
-} from "../helpers/interaction-helpers";
+import type { OrbitCameraController } from "../../../src/cameras/OrbitCameraController";
+import type { OrbitInputController } from "../../../src/cameras/OrbitInputController";
+import type { TwoDCameraController } from "../../../src/cameras/TwoDCameraController";
+import type { InputController } from "../../../src/cameras/TwoDInputController";
+import type { Graph } from "../../../src/Graph";
+import { getCameraPosition, getSceneScale, setupTestGraph, teardownTestGraph } from "../helpers/interaction-helpers";
 
 /**
  * Helper to get the 2D camera controller and input controller from a graph
@@ -29,7 +24,7 @@ function get2DControllers(graph: Graph): {
     inputController: InputController;
 } {
     const controller = graph.camera.getActiveController() as TwoDCameraController;
-    const {inputs} = graph.camera as unknown as {
+    const { inputs } = graph.camera as unknown as {
         inputs: Map<string, InputController>;
     };
     const maybeInput = inputs.get("2d");
@@ -37,7 +32,7 @@ function get2DControllers(graph: Graph): {
         throw new Error("2D input controller not found");
     }
 
-    return {cameraController: controller, inputController: maybeInput};
+    return { cameraController: controller, inputController: maybeInput };
 }
 
 /**
@@ -48,7 +43,7 @@ function get3DControllers(graph: Graph): {
     inputController: OrbitInputController;
 } {
     const controller = graph.camera.getActiveController() as OrbitCameraController;
-    const {inputs} = graph.camera as unknown as {
+    const { inputs } = graph.camera as unknown as {
         inputs: Map<string, OrbitInputController>;
     };
     const maybeInput = inputs.get("orbit");
@@ -56,7 +51,7 @@ function get3DControllers(graph: Graph): {
         throw new Error("3D (orbit) input controller not found");
     }
 
-    return {cameraController: controller, inputController: maybeInput};
+    return { cameraController: controller, inputController: maybeInput };
 }
 
 /**
@@ -92,8 +87,8 @@ describe("Input Speed and Sensitivity", () => {
     describe("2D Mode Keyboard Speed", () => {
         let graph: Graph;
 
-        beforeEach(async() => {
-            graph = await setupTestGraph({mode: "2d"});
+        beforeEach(async () => {
+            graph = await setupTestGraph({ mode: "2d" });
         });
 
         afterEach(() => {
@@ -102,7 +97,7 @@ describe("Input Speed and Sensitivity", () => {
         });
 
         test("keyboard pan speed is within expected range", () => {
-            const {inputController} = get2DControllers(graph);
+            const { inputController } = get2DControllers(graph);
 
             // Record initial position
             const initialPos = getCameraPosition(graph);
@@ -126,7 +121,7 @@ describe("Input Speed and Sensitivity", () => {
         });
 
         test("keyboard zoom speed is within expected range", () => {
-            const {inputController} = get2DControllers(graph);
+            const { inputController } = get2DControllers(graph);
 
             // Record initial scale
             const initialScale = getSceneScale(graph);
@@ -150,7 +145,7 @@ describe("Input Speed and Sensitivity", () => {
         });
 
         test("mouse drag sensitivity is proportional to movement", () => {
-            const {cameraController} = get2DControllers(graph);
+            const { cameraController } = get2DControllers(graph);
 
             // Record initial position
             const initialPos = getCameraPosition(graph);
@@ -172,7 +167,7 @@ describe("Input Speed and Sensitivity", () => {
         });
 
         test("wheel zoom step size is consistent", () => {
-            const {cameraController} = get2DControllers(graph);
+            const { cameraController } = get2DControllers(graph);
 
             // Record initial scale
             const initialScale = getSceneScale(graph);
@@ -189,16 +184,11 @@ describe("Input Speed and Sensitivity", () => {
             const secondChange = scaleAfterSecond / scaleAfterFirst;
 
             // Each zoom step should produce the same proportional change
-            assert.closeTo(
-                firstChange,
-                secondChange,
-                0.01,
-                "Zoom steps should be consistent",
-            );
+            assert.closeTo(firstChange, secondChange, 0.01, "Zoom steps should be consistent");
         });
 
         test("keyboard inertia decays at expected rate", () => {
-            const {cameraController} = get2DControllers(graph);
+            const { cameraController } = get2DControllers(graph);
 
             // Apply velocity directly
             cameraController.velocity.x = 1.0;
@@ -219,7 +209,7 @@ describe("Input Speed and Sensitivity", () => {
         });
 
         test("rotation velocity dampens correctly when key released", () => {
-            const {cameraController} = get2DControllers(graph);
+            const { cameraController } = get2DControllers(graph);
 
             // Apply rotation velocity
             cameraController.velocity.rotate = 0.1;
@@ -247,8 +237,8 @@ describe("Input Speed and Sensitivity", () => {
     describe("3D Mode Keyboard Speed", () => {
         let graph: Graph;
 
-        beforeEach(async() => {
-            graph = await setupTestGraph({mode: "3d"});
+        beforeEach(async () => {
+            graph = await setupTestGraph({ mode: "3d" });
         });
 
         afterEach(() => {
@@ -257,7 +247,7 @@ describe("Input Speed and Sensitivity", () => {
         });
 
         test("keyboard zoom speed is within expected range", () => {
-            const {cameraController, inputController} = get3DControllers(graph);
+            const { cameraController, inputController } = get3DControllers(graph);
 
             // Record initial distance
             const initialDistance = cameraController.cameraDistance;
@@ -280,10 +270,10 @@ describe("Input Speed and Sensitivity", () => {
         });
 
         test("keyboard rotation speed is within expected range", () => {
-            const {cameraController, inputController} = get3DControllers(graph);
+            const { cameraController, inputController } = get3DControllers(graph);
 
             // Record initial pivot rotation
-            const {pivot} = cameraController;
+            const { pivot } = cameraController;
             const initialRotation = pivot.rotationQuaternion?.toEulerAngles().y ?? 0;
 
             // Simulate ArrowLeft key press for fixed number of frames
@@ -305,12 +295,12 @@ describe("Input Speed and Sensitivity", () => {
         });
 
         test("3D rotation velocity dampens with inertia", () => {
-            const {inputController} = get3DControllers(graph);
+            const { inputController } = get3DControllers(graph);
 
             // Access private rotation velocity
             const controller = inputController as unknown as {
                 rotationVelocityY: number;
-                config: {inertiaDamping: number};
+                config: { inertiaDamping: number };
             };
 
             // Set initial velocity
@@ -334,8 +324,8 @@ describe("Input Speed and Sensitivity", () => {
     describe("Mouse Sensitivity", () => {
         let graph: Graph;
 
-        beforeEach(async() => {
-            graph = await setupTestGraph({mode: "3d"});
+        beforeEach(async () => {
+            graph = await setupTestGraph({ mode: "3d" });
         });
 
         afterEach(() => {
@@ -344,10 +334,10 @@ describe("Input Speed and Sensitivity", () => {
         });
 
         test("mouse drag rotation is proportional to pixel movement", () => {
-            const {cameraController} = get3DControllers(graph);
+            const { cameraController } = get3DControllers(graph);
 
             // Record initial rotation
-            const {pivot} = cameraController;
+            const { pivot } = cameraController;
             const initialYaw = pivot.rotationQuaternion?.toEulerAngles().y ?? 0;
 
             // Apply small rotation

@@ -1,7 +1,7 @@
-import {afterEach, assert, test} from "vitest";
+import { afterEach, assert, test } from "vitest";
 
-import type {Graph} from "../../../src/Graph";
-import {cleanupTestGraphWithData, createTestGraphWithData} from "./test-setup.js";
+import type { Graph } from "../../../src/Graph";
+import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
 
@@ -9,17 +9,17 @@ afterEach(() => {
     cleanupTestGraphWithData(graph);
 });
 
-test("enhanceQuality option is accepted", async() => {
+test("enhanceQuality option is accepted", async () => {
     graph = await createTestGraphWithData();
 
-    const result = await graph.captureScreenshot({enhanceQuality: true});
+    const result = await graph.captureScreenshot({ enhanceQuality: true });
 
     // Should complete successfully
     assert.ok(result.blob instanceof Blob);
     assert.ok(result.metadata.width > 0);
 });
 
-test("enhanceQuality fires screenshot-enhancing and screenshot-ready events", async() => {
+test("enhanceQuality fires screenshot-enhancing and screenshot-ready events", async () => {
     graph = await createTestGraphWithData();
 
     let enhancingFired = false;
@@ -33,10 +33,10 @@ test("enhanceQuality fires screenshot-enhancing and screenshot-ready events", as
     graph.addListener("screenshot-ready", (e) => {
         readyFired = true;
         // GraphGenericEvent has enhancementTime as a direct property
-        enhancementTimeFromEvent = (e as unknown as {enhancementTime?: number}).enhancementTime;
+        enhancementTimeFromEvent = (e as unknown as { enhancementTime?: number }).enhancementTime;
     });
 
-    const result = await graph.captureScreenshot({enhanceQuality: true});
+    const result = await graph.captureScreenshot({ enhanceQuality: true });
 
     // Both events should have fired
     assert.ok(enhancingFired, "screenshot-enhancing event should have fired");
@@ -48,7 +48,7 @@ test("enhanceQuality fires screenshot-enhancing and screenshot-ready events", as
     assert.ok(result.metadata.enhancementTime >= 0, "enhancementTime should be non-negative");
 });
 
-test("enhanceQuality events do not fire when option is false", async() => {
+test("enhanceQuality events do not fire when option is false", async () => {
     graph = await createTestGraphWithData();
 
     let enhancingFired = false;
@@ -62,7 +62,7 @@ test("enhanceQuality events do not fire when option is false", async() => {
         readyFired = true;
     });
 
-    const result = await graph.captureScreenshot({enhanceQuality: false});
+    const result = await graph.captureScreenshot({ enhanceQuality: false });
 
     // Neither event should fire without enhanceQuality
     assert.equal(enhancingFired, false, "screenshot-enhancing event should not fire");
@@ -72,7 +72,7 @@ test("enhanceQuality events do not fire when option is false", async() => {
     assert.equal(result.metadata.enhancementTime, undefined, "enhancementTime should not be present");
 });
 
-test("quality parameter affects JPEG compression", async() => {
+test("quality parameter affects JPEG compression", async () => {
     graph = await createTestGraphWithData();
 
     const lowQuality = await graph.captureScreenshot({

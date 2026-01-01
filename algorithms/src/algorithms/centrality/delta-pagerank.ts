@@ -1,6 +1,6 @@
-import type {Graph} from "../../core/graph.js";
-import {PriorityQueue} from "../../data-structures/priority-queue.js";
-import type {NodeId} from "../../types/index.js";
+import type { Graph } from "../../core/graph.js";
+import { PriorityQueue } from "../../data-structures/priority-queue.js";
+import type { NodeId } from "../../types/index.js";
 
 /**
  * Delta-based PageRank implementation for faster convergence
@@ -45,6 +45,10 @@ export interface DeltaPageRankOptions {
     weight?: string;
 }
 
+/**
+ * Delta-based PageRank class that tracks changes between iterations
+ * and only processes nodes with significant changes for improved performance.
+ */
 export class DeltaPageRank {
     private graph: Graph;
     private scores: Map<NodeId, number>;
@@ -55,6 +59,10 @@ export class DeltaPageRank {
     private danglingNodes: Set<NodeId>;
     private nodeCount: number;
 
+    /**
+     * Creates a new DeltaPageRank instance for the given graph.
+     * @param graph - The directed graph to compute PageRank on
+     */
     constructor(graph: Graph) {
         if (!graph.isDirected) {
             throw new Error("DeltaPageRank requires a directed graph");
@@ -101,6 +109,11 @@ export class DeltaPageRank {
         }
     }
 
+    /**
+     * Computes PageRank scores using delta-based iteration for faster convergence.
+     * @param options - Configuration options for PageRank computation
+     * @returns Map of node IDs to their PageRank scores
+     */
     public compute(options: DeltaPageRankOptions = {}): Map<NodeId, number> {
         const {
             dampingFactor = 0.85,
@@ -149,7 +162,7 @@ export class DeltaPageRank {
             }
 
             if (danglingSum > 0) {
-                const danglingContribution = dampingFactor * danglingSum / this.nodeCount;
+                const danglingContribution = (dampingFactor * danglingSum) / this.nodeCount;
                 for (const node of this.graph.nodes()) {
                     const nodeId = node.id;
                     const currentDelta = nextDeltas.get(nodeId) ?? 0;
@@ -197,7 +210,7 @@ export class DeltaPageRank {
                 const nodeId = node.id;
                 const currentDelta = nextDeltas.get(nodeId) ?? 0;
                 if (personalVector) {
-                    nextDeltas.set(nodeId, currentDelta + ((1 - dampingFactor) * (personalVector.get(nodeId) ?? 0)));
+                    nextDeltas.set(nodeId, currentDelta + (1 - dampingFactor) * (personalVector.get(nodeId) ?? 0));
                 } else {
                     nextDeltas.set(nodeId, currentDelta + randomJump);
                 }
@@ -231,13 +244,13 @@ export class DeltaPageRank {
     }
 
     /**
-     * Update PageRank scores after graph modification
-     * This is where delta-based approach really shines
+     * Update PageRank scores after graph modification.
+     * This is where delta-based approach really shines.
+     * @param modifiedNodes - Set of nodes that were modified (edges added/removed)
+     * @param options - Configuration options for PageRank computation
+     * @returns Updated PageRank scores
      */
-    public update(
-        modifiedNodes: Set<NodeId>,
-        options: DeltaPageRankOptions = {},
-    ): Map<NodeId, number> {
+    public update(modifiedNodes: Set<NodeId>, options: DeltaPageRankOptions = {}): Map<NodeId, number> {
         // Mark modified nodes and their neighbors as active
         this.activeNodes.clear();
 
@@ -286,6 +299,10 @@ export class PriorityDeltaPageRank {
     private danglingNodes: Set<NodeId>;
     private nodeCount: number;
 
+    /**
+     * Creates a new PriorityDeltaPageRank instance for the given graph.
+     * @param graph - The directed graph to compute PageRank on
+     */
     constructor(graph: Graph) {
         if (!graph.isDirected) {
             throw new Error("PriorityDeltaPageRank requires a directed graph");
@@ -332,6 +349,12 @@ export class PriorityDeltaPageRank {
         }
     }
 
+    /**
+     * Computes PageRank scores using priority queue-based delta iteration.
+     * Processes nodes in order of their delta magnitude for optimal convergence.
+     * @param options - Configuration options for PageRank computation
+     * @returns Map of node IDs to their PageRank scores
+     */
     public computeWithPriority(options: DeltaPageRankOptions = {}): Map<NodeId, number> {
         const {
             dampingFactor = 0.85,

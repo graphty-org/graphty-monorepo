@@ -1,8 +1,8 @@
-import {describe, expect, it, vi} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {fireEvent, render, screen} from "../../../../test/test-utils";
-import type {NodeEffectsConfig} from "../../../../types/style-layer";
-import {NodeEffectsControl} from "../NodeEffectsControl";
+import { fireEvent, render, screen } from "../../../../test/test-utils";
+import type { NodeEffectsConfig } from "../../../../types/style-layer";
+import { NodeEffectsControl } from "../NodeEffectsControl";
 
 describe("NodeEffectsControl", () => {
     const defaultEffects: NodeEffectsConfig = {
@@ -37,7 +37,7 @@ describe("NodeEffectsControl", () => {
     it("renders glow toggle", () => {
         render(<NodeEffectsControl value={defaultEffects} onChange={vi.fn()} />);
 
-        expect(screen.getByRole("checkbox", {name: "Glow"})).toBeInTheDocument();
+        expect(screen.getByRole("checkbox", { name: "Glow" })).toBeInTheDocument();
     });
 
     it("shows glow controls when enabled", () => {
@@ -60,7 +60,7 @@ describe("NodeEffectsControl", () => {
     it("renders outline toggle", () => {
         render(<NodeEffectsControl value={defaultEffects} onChange={vi.fn()} />);
 
-        expect(screen.getByRole("checkbox", {name: "Outline"})).toBeInTheDocument();
+        expect(screen.getByRole("checkbox", { name: "Outline" })).toBeInTheDocument();
     });
 
     it("shows outline controls when enabled", () => {
@@ -83,20 +83,20 @@ describe("NodeEffectsControl", () => {
     it("renders wireframe checkbox", () => {
         render(<NodeEffectsControl value={defaultEffects} onChange={vi.fn()} />);
 
-        expect(screen.getByRole("checkbox", {name: "Wireframe"})).toBeInTheDocument();
+        expect(screen.getByRole("checkbox", { name: "Wireframe" })).toBeInTheDocument();
     });
 
     it("renders flat shaded checkbox", () => {
         render(<NodeEffectsControl value={defaultEffects} onChange={vi.fn()} />);
 
-        expect(screen.getByRole("checkbox", {name: "Flat Shaded"})).toBeInTheDocument();
+        expect(screen.getByRole("checkbox", { name: "Flat Shaded" })).toBeInTheDocument();
     });
 
     it("calls onChange when glow is toggled on", () => {
         const onChange = vi.fn();
         render(<NodeEffectsControl value={defaultEffects} onChange={onChange} />);
 
-        const glowCheckbox = screen.getByRole("checkbox", {name: "Glow"});
+        const glowCheckbox = screen.getByRole("checkbox", { name: "Glow" });
         fireEvent.click(glowCheckbox);
 
         expect(onChange).toHaveBeenCalledWith(
@@ -112,7 +112,7 @@ describe("NodeEffectsControl", () => {
         const onChange = vi.fn();
         render(<NodeEffectsControl value={defaultEffects} onChange={onChange} />);
 
-        const outlineCheckbox = screen.getByRole("checkbox", {name: "Outline"});
+        const outlineCheckbox = screen.getByRole("checkbox", { name: "Outline" });
         fireEvent.click(outlineCheckbox);
 
         expect(onChange).toHaveBeenCalledWith(
@@ -128,7 +128,7 @@ describe("NodeEffectsControl", () => {
         const onChange = vi.fn();
         render(<NodeEffectsControl value={defaultEffects} onChange={onChange} />);
 
-        const wireframeCheckbox = screen.getByRole("checkbox", {name: "Wireframe"});
+        const wireframeCheckbox = screen.getByRole("checkbox", { name: "Wireframe" });
         fireEvent.click(wireframeCheckbox);
 
         expect(onChange).toHaveBeenCalledWith(
@@ -142,7 +142,7 @@ describe("NodeEffectsControl", () => {
         const onChange = vi.fn();
         render(<NodeEffectsControl value={defaultEffects} onChange={onChange} />);
 
-        const flatShadedCheckbox = screen.getByRole("checkbox", {name: "Flat Shaded"});
+        const flatShadedCheckbox = screen.getByRole("checkbox", { name: "Flat Shaded" });
         fireEvent.click(flatShadedCheckbox);
 
         expect(onChange).toHaveBeenCalledWith(
@@ -158,7 +158,7 @@ describe("NodeEffectsControl", () => {
 
         // CompactColorInput uses "Color hex value" for the hex input
         const colorInput = screen.getAllByLabelText("Color hex value")[0];
-        fireEvent.change(colorInput, {target: {value: "00FF00"}});
+        fireEvent.change(colorInput, { target: { value: "00FF00" } });
         fireEvent.blur(colorInput);
 
         expect(onChange).toHaveBeenCalledWith(
@@ -175,7 +175,7 @@ describe("NodeEffectsControl", () => {
         render(<NodeEffectsControl value={effectsWithGlow} onChange={onChange} />);
 
         const strengthInput = screen.getByLabelText("Glow Strength");
-        fireEvent.change(strengthInput, {target: {value: "0.8"}});
+        fireEvent.change(strengthInput, { target: { value: "0.8" } });
         fireEvent.blur(strengthInput);
 
         expect(onChange).toHaveBeenCalledWith(
@@ -193,7 +193,7 @@ describe("NodeEffectsControl", () => {
 
         // CompactColorInput uses "Color hex value" for the hex input
         const colorInput = screen.getAllByLabelText("Color hex value")[0];
-        fireEvent.change(colorInput, {target: {value: "0000FF"}});
+        fireEvent.change(colorInput, { target: { value: "0000FF" } });
         fireEvent.blur(colorInput);
 
         expect(onChange).toHaveBeenCalledWith(
@@ -210,7 +210,7 @@ describe("NodeEffectsControl", () => {
         render(<NodeEffectsControl value={effectsWithOutline} onChange={onChange} />);
 
         const widthInput = screen.getByLabelText("Outline Width");
-        fireEvent.change(widthInput, {target: {value: "4"}});
+        fireEvent.change(widthInput, { target: { value: "4" } });
         fireEvent.blur(widthInput);
 
         expect(onChange).toHaveBeenCalledWith(

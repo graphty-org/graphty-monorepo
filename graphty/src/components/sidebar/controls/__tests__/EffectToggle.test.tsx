@@ -1,7 +1,7 @@
-import {describe, expect, it, vi} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {fireEvent, render, screen} from "../../../../test/test-utils";
-import {EffectToggle} from "../EffectToggle";
+import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { EffectToggle } from "../EffectToggle";
 
 describe("EffectToggle", () => {
     it("hides children when unchecked", () => {
@@ -32,7 +32,7 @@ describe("EffectToggle", () => {
             </EffectToggle>,
         );
 
-        const checkbox = screen.getByRole("checkbox", {name: "Glow"});
+        const checkbox = screen.getByRole("checkbox", { name: "Glow" });
         fireEvent.click(checkbox);
 
         expect(onChange).toHaveBeenCalledWith(true);
@@ -46,7 +46,7 @@ describe("EffectToggle", () => {
             </EffectToggle>,
         );
 
-        const checkbox = screen.getByRole("checkbox", {name: "Glow"});
+        const checkbox = screen.getByRole("checkbox", { name: "Glow" });
         fireEvent.click(checkbox);
 
         expect(onChange).toHaveBeenCalledWith(false);
@@ -63,7 +63,7 @@ describe("EffectToggle", () => {
     });
 
     it("applies indentation to children", () => {
-        const {container} = render(
+        const { container } = render(
             <EffectToggle label="Glow" checked={true} onChange={vi.fn()}>
                 <div data-testid="child-content">Child Content</div>
             </EffectToggle>,

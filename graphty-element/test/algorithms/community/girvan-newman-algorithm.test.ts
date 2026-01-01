@@ -1,8 +1,8 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
 // Import will be created in implementation
-import {GirvanNewmanAlgorithm} from "../../../src/algorithms/GirvanNewmanAlgorithm";
+import { GirvanNewmanAlgorithm } from "../../../src/algorithms/GirvanNewmanAlgorithm";
 
 describe("GirvanNewmanAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -39,7 +39,7 @@ describe("GirvanNewmanAlgorithm", () => {
             assert.ok(layer.node);
             assert.ok(layer.node.calculatedStyle);
 
-            const {calculatedStyle} = layer.node;
+            const { calculatedStyle } = layer.node;
             assert.deepStrictEqual(calculatedStyle.inputs, ["algorithmResults.graphty.girvan-newman.communityId"]);
             assert.strictEqual(calculatedStyle.output, "style.texture.color");
         });
@@ -53,7 +53,7 @@ describe("GirvanNewmanAlgorithm", () => {
             assert.ok(layer.node);
             assert.ok(layer.node.calculatedStyle);
 
-            const {expr} = layer.node.calculatedStyle;
+            const { expr } = layer.node.calculatedStyle;
 
             // Should use StyleHelpers.color.categorical.tolVibrant
             assert.ok(expr.includes("StyleHelpers"));
@@ -89,7 +89,7 @@ describe("GirvanNewmanAlgorithm", () => {
             const layer = styles.layers[0];
             assert.ok(layer.node?.calculatedStyle);
 
-            const {expr} = layer.node.calculatedStyle;
+            const { expr } = layer.node.calculatedStyle;
             assert.ok(expr);
 
             // Should use StyleHelpers.color.categorical.tolVibrant
@@ -104,7 +104,7 @@ describe("GirvanNewmanAlgorithm", () => {
             const layer = styles.layers[0];
             assert.ok(layer.node?.calculatedStyle);
 
-            const {inputs} = layer.node.calculatedStyle;
+            const { inputs } = layer.node.calculatedStyle;
             assert.ok(inputs);
             assert.strictEqual(inputs.length, 1);
             assert.strictEqual(inputs[0], "algorithmResults.graphty.girvan-newman.communityId");
@@ -117,7 +117,7 @@ describe("GirvanNewmanAlgorithm", () => {
             const layer = styles.layers[0];
             assert.ok(layer.node?.calculatedStyle);
 
-            const {output} = layer.node.calculatedStyle;
+            const { output } = layer.node.calculatedStyle;
             assert.strictEqual(output, "style.texture.color");
         });
     });

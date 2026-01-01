@@ -1,21 +1,14 @@
-import {describe, expect, it, vi} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {render, screen} from "../../test/test-utils";
-import {ViewDataModal} from "../data-view/ViewDataModal";
-import {LoadDataModal} from "../LoadDataModal";
-import {RunLayoutsModal} from "../RunLayoutsModal";
+import { render, screen } from "../../test/test-utils";
+import { ViewDataModal } from "../data-view/ViewDataModal";
+import { LoadDataModal } from "../LoadDataModal";
+import { RunLayoutsModal } from "../RunLayoutsModal";
 
 describe("Modal styling consistency", () => {
     describe("RunLayoutsModal", () => {
         it("uses standard modal styles with semantic variables", () => {
-            render(
-                <RunLayoutsModal
-                    opened={true}
-                    onClose={vi.fn()}
-                    onApply={vi.fn()}
-                    is2DMode={false}
-                />,
-            );
+            render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
             const modal = screen.getByRole("dialog");
             expect(modal).toBeInTheDocument();
 
@@ -30,13 +23,7 @@ describe("Modal styling consistency", () => {
 
     describe("ViewDataModal", () => {
         it("uses standard modal styles with semantic variables", () => {
-            render(
-                <ViewDataModal
-                    opened={true}
-                    onClose={vi.fn()}
-                    data={{nodes: [], edges: []}}
-                />,
-            );
+            render(<ViewDataModal opened={true} onClose={vi.fn()} data={{ nodes: [], edges: [] }} />);
             const modal = screen.getByRole("dialog");
             expect(modal).toBeInTheDocument();
 
@@ -51,13 +38,7 @@ describe("Modal styling consistency", () => {
 
     describe("LoadDataModal", () => {
         it("uses standard modal styles with semantic variables", () => {
-            render(
-                <LoadDataModal
-                    opened={true}
-                    onClose={vi.fn()}
-                    onLoad={vi.fn()}
-                />,
-            );
+            render(<LoadDataModal opened={true} onClose={vi.fn()} onLoad={vi.fn()} />);
             const modal = screen.getByRole("dialog");
             expect(modal).toBeInTheDocument();
 

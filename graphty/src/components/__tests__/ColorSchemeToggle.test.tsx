@@ -1,7 +1,7 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {render, screen} from "../../test/test-utils";
-import {ColorSchemeToggle} from "../ColorSchemeToggle";
+import { render, screen } from "../../test/test-utils";
+import { ColorSchemeToggle } from "../ColorSchemeToggle";
 
 describe("ColorSchemeToggle", () => {
     it("renders a toggle button", () => {

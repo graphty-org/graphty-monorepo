@@ -8,20 +8,20 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 
 ## Available Events
 
-| Event | Trigger | Event Data |
-|-------|---------|------------|
-| `graph-settled` | Layout finished | `{ settled: boolean }` |
-| `data-loaded` | Initial data loaded | `{ nodeCount, edgeCount }` |
-| `data-added` | Incremental data added | `{ nodes, edges }` |
-| `selection-changed` | Node selected/deselected | `{ node, previousNode }` |
-| `camera-state-changed` | Camera moved | `{ state }` |
-| `style-changed` | Styles updated | `{ layers }` |
-| `node-click` | User clicked node | `{ node, data, event }` |
-| `node-hover` | Mouse entered node | `{ node, data }` |
-| `node-drag-start` | Started dragging node | `{ node, position }` |
-| `node-drag-end` | Finished dragging node | `{ node, position }` |
-| `edge-click` | User clicked edge | `{ edge, data, event }` |
-| `error` | Error occurred | `{ error, context }` |
+| Event                  | Trigger                  | Event Data                 |
+| ---------------------- | ------------------------ | -------------------------- |
+| `graph-settled`        | Layout finished          | `{ settled: boolean }`     |
+| `data-loaded`          | Initial data loaded      | `{ nodeCount, edgeCount }` |
+| `data-added`           | Incremental data added   | `{ nodes, edges }`         |
+| `selection-changed`    | Node selected/deselected | `{ node, previousNode }`   |
+| `camera-state-changed` | Camera moved             | `{ state }`                |
+| `style-changed`        | Styles updated           | `{ layers }`               |
+| `node-click`           | User clicked node        | `{ node, data, event }`    |
+| `node-hover`           | Mouse entered node       | `{ node, data }`           |
+| `node-drag-start`      | Started dragging node    | `{ node, position }`       |
+| `node-drag-end`        | Finished dragging node   | `{ node, position }`       |
+| `edge-click`           | User clicked edge        | `{ edge, data, event }`    |
+| `error`                | Error occurred           | `{ error, context }`       |
 
 ## JavaScript API
 
@@ -31,48 +31,48 @@ Subscribe using the `on()` method on the Graph instance:
 const graph = element.graph;
 
 // Layout complete
-graph.on('graph-settled', () => {
-  console.log('Layout complete!');
-  graph.zoomToFit();
+graph.on("graph-settled", () => {
+    console.log("Layout complete!");
+    graph.zoomToFit();
 });
 
 // Node clicked
-graph.on('node-click', ({ node }) => {
-  console.log('Clicked:', node.id);
-  graph.selectNode(node.id);
+graph.on("node-click", ({ node }) => {
+    console.log("Clicked:", node.id);
+    graph.selectNode(node.id);
 });
 
 // Node hover
-graph.on('node-hover', ({ node }) => {
-  console.log('Hovering:', node.id);
+graph.on("node-hover", ({ node }) => {
+    console.log("Hovering:", node.id);
 });
 
 // Node drag events
-graph.on('node-drag-start', ({ node, position }) => {
-  console.log('Started dragging:', node.id, 'at', position);
+graph.on("node-drag-start", ({ node, position }) => {
+    console.log("Started dragging:", node.id, "at", position);
 });
 
-graph.on('node-drag-end', ({ node, position }) => {
-  console.log('Finished dragging:', node.id, 'at', position);
+graph.on("node-drag-end", ({ node, position }) => {
+    console.log("Finished dragging:", node.id, "at", position);
 });
 
 // Selection changed
-graph.on('selection-changed', ({ node, previousNode }) => {
-  if (node) {
-    console.log('Selected:', node.id);
-  } else {
-    console.log('Deselected');
-  }
+graph.on("selection-changed", ({ node, previousNode }) => {
+    if (node) {
+        console.log("Selected:", node.id);
+    } else {
+        console.log("Deselected");
+    }
 });
 
 // Data loaded
-graph.on('data-loaded', ({ nodeCount, edgeCount }) => {
-  console.log(`Loaded ${nodeCount} nodes, ${edgeCount} edges`);
+graph.on("data-loaded", ({ nodeCount, edgeCount }) => {
+    console.log(`Loaded ${nodeCount} nodes, ${edgeCount} edges`);
 });
 
 // Error handling
-graph.on('error', ({ error, context }) => {
-  console.error('Graph error:', error, 'in', context);
+graph.on("error", ({ error, context }) => {
+    console.error("Graph error:", error, "in", context);
 });
 ```
 
@@ -81,19 +81,19 @@ graph.on('error', ({ error, context }) => {
 Listen via standard `addEventListener` on the Web Component:
 
 ```javascript
-const element = document.querySelector('graphty-element');
+const element = document.querySelector("graphty-element");
 
-element.addEventListener('graph-settled', (e) => {
-  console.log('Settled!', e.detail);
+element.addEventListener("graph-settled", (e) => {
+    console.log("Settled!", e.detail);
 });
 
-element.addEventListener('node-click', (e) => {
-  console.log('Clicked node:', e.detail.node);
+element.addEventListener("node-click", (e) => {
+    console.log("Clicked node:", e.detail.node);
 });
 
-element.addEventListener('selection-changed', (e) => {
-  const { node, previousNode } = e.detail;
-  console.log('Selection:', node?.id, 'Previous:', previousNode?.id);
+element.addEventListener("selection-changed", (e) => {
+    const { node, previousNode } = e.detail;
+    console.log("Selection:", node?.id, "Previous:", previousNode?.id);
 });
 ```
 
@@ -103,13 +103,13 @@ Some events fire asynchronously. Understand the order:
 
 ```typescript
 // Data loading sequence
-graph.on('data-loaded', () => console.log('1. Data loaded'));
-graph.on('graph-settled', () => console.log('2. Layout settled'));
+graph.on("data-loaded", () => console.log("1. Data loaded"));
+graph.on("graph-settled", () => console.log("2. Layout settled"));
 
 // When you add data
-await graph.addNodes(nodes);      // 'data-loaded' or 'data-added' fires
+await graph.addNodes(nodes); // 'data-loaded' or 'data-added' fires
 await graph.addEdges(edges);
-await graph.waitForSettled();     // 'graph-settled' fires
+await graph.waitForSettled(); // 'graph-settled' fires
 ```
 
 ## Removing Listeners
@@ -118,20 +118,20 @@ Clean up event listeners when done:
 
 ```typescript
 // JavaScript API
-const handler = () => console.log('Settled');
-graph.on('graph-settled', handler);
+const handler = () => console.log("Settled");
+graph.on("graph-settled", handler);
 
 // Later, remove it
-graph.off('graph-settled', handler);
+graph.off("graph-settled", handler);
 ```
 
 ```javascript
 // DOM API
-const handler = (e) => console.log('Settled', e.detail);
-element.addEventListener('graph-settled', handler);
+const handler = (e) => console.log("Settled", e.detail);
+element.addEventListener("graph-settled", handler);
 
 // Later, remove it
-element.removeEventListener('graph-settled', handler);
+element.removeEventListener("graph-settled", handler);
 ```
 
 ## Common Patterns
@@ -139,36 +139,36 @@ element.removeEventListener('graph-settled', handler);
 ### Zoom After Layout
 
 ```typescript
-graph.on('graph-settled', () => {
-  graph.zoomToFit();
+graph.on("graph-settled", () => {
+    graph.zoomToFit();
 });
 ```
 
 ### Show Node Details
 
 ```typescript
-graph.on('node-click', ({ node }) => {
-  showDetailsPanel(node);
-  graph.selectNode(node.id);
+graph.on("node-click", ({ node }) => {
+    showDetailsPanel(node);
+    graph.selectNode(node.id);
 });
 
-graph.on('selection-changed', ({ node }) => {
-  if (!node) {
-    hideDetailsPanel();
-  }
+graph.on("selection-changed", ({ node }) => {
+    if (!node) {
+        hideDetailsPanel();
+    }
 });
 ```
 
 ### Track Node Dragging
 
 ```typescript
-graph.on('node-drag-start', ({ node, position }) => {
-  console.log(`Started dragging ${node.id} at`, position);
+graph.on("node-drag-start", ({ node, position }) => {
+    console.log(`Started dragging ${node.id} at`, position);
 });
 
-graph.on('node-drag-end', ({ node, position }) => {
-  console.log(`Dropped ${node.id} at`, position);
-  // Save new position or trigger layout update
+graph.on("node-drag-end", ({ node, position }) => {
+    console.log(`Dropped ${node.id} at`, position);
+    // Save new position or trigger layout update
 });
 ```
 
@@ -177,76 +177,76 @@ graph.on('node-drag-end', ({ node, position }) => {
 ```typescript
 let isLoading = false;
 
-graph.on('data-added', () => {
-  isLoading = true;
-  showLoadingSpinner();
+graph.on("data-added", () => {
+    isLoading = true;
+    showLoadingSpinner();
 });
 
-graph.on('graph-settled', () => {
-  if (isLoading) {
-    isLoading = false;
-    hideLoadingSpinner();
-  }
+graph.on("graph-settled", () => {
+    if (isLoading) {
+        isLoading = false;
+        hideLoadingSpinner();
+    }
 });
 ```
 
 ### Error Handling
 
 ```typescript
-graph.on('error', ({ error, context }) => {
-  if (context === 'data-loading') {
-    showError('Failed to load data');
-  } else if (context === 'algorithm') {
-    showError('Algorithm failed');
-  } else {
-    showError('An error occurred');
-  }
-  console.error(error);
+graph.on("error", ({ error, context }) => {
+    if (context === "data-loading") {
+        showError("Failed to load data");
+    } else if (context === "algorithm") {
+        showError("Algorithm failed");
+    } else {
+        showError("An error occurred");
+    }
+    console.error(error);
 });
 ```
 
 ### Camera Tracking
 
 ```typescript
-graph.on('camera-state-changed', ({ state }) => {
-  // Save camera state for later restoration
-  localStorage.setItem('camera-state', JSON.stringify(state));
+graph.on("camera-state-changed", ({ state }) => {
+    // Save camera state for later restoration
+    localStorage.setItem("camera-state", JSON.stringify(state));
 });
 
 // Restore on load
-const savedState = localStorage.getItem('camera-state');
+const savedState = localStorage.getItem("camera-state");
 if (savedState) {
-  graph.setCameraState(JSON.parse(savedState));
+    graph.setCameraState(JSON.parse(savedState));
 }
 ```
 
 ## React Integration
 
 ```tsx
-import { useEffect, useRef } from 'react';
-import '@graphty/graphty-element';
+import { useEffect, useRef } from "react";
+import "@graphty/graphty-element";
 
 function GraphComponent({ onNodeClick }) {
-  const graphRef = useRef(null);
+    const graphRef = useRef(null);
 
-  useEffect(() => {
-    const element = graphRef.current;
-    if (!element) return;
+    useEffect(() => {
+        const element = graphRef.current;
+        if (!element) return;
 
-    const graph = element.graph;
+        const graph = element.graph;
 
-    const handleClick = ({ node }) => {
-      onNodeClick(node);
-    };
+        const handleClick = ({ node }) => {
+            onNodeClick(node);
+        };
 
-    graph.on('node-click', handleClick);
+        graph.on("node-click", handleClick);
 
-    return () => {
-      graph.off('node-click', handleClick);
-    };
-  }, [onNodeClick]);
+        return () => {
+            graph.off("node-click", handleClick);
+        };
+    }, [onNodeClick]);
 
-  return <graphty-element ref={graphRef} />;
+    return <graphty-element ref={graphRef} />;
 }
 ```
 
@@ -254,30 +254,30 @@ function GraphComponent({ onNodeClick }) {
 
 ```vue
 <script setup>
-import '@graphty/graphty-element';
-import { ref, onMounted, onUnmounted } from 'vue';
+import "@graphty/graphty-element";
+import { ref, onMounted, onUnmounted } from "vue";
 
 const graphRef = ref(null);
-const emit = defineEmits(['nodeClick']);
+const emit = defineEmits(["nodeClick"]);
 
 let cleanup = null;
 
 onMounted(() => {
-  const graph = graphRef.value.graph;
+    const graph = graphRef.value.graph;
 
-  const handler = ({ node }) => emit('nodeClick', node);
-  graph.on('node-click', handler);
+    const handler = ({ node }) => emit("nodeClick", node);
+    graph.on("node-click", handler);
 
-  cleanup = () => graph.off('node-click', handler);
+    cleanup = () => graph.off("node-click", handler);
 });
 
 onUnmounted(() => {
-  if (cleanup) cleanup();
+    if (cleanup) cleanup();
 });
 </script>
 
 <template>
-  <graphty-element ref="graphRef" />
+    <graphty-element ref="graphRef" />
 </template>
 ```
 

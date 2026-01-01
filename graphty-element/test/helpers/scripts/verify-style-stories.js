@@ -1,22 +1,18 @@
-import {chromium} from "playwright";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 
 async function main() {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
-    const stories = [
-        "styles-node--default",
-        "styles-edge--default",
-        "styles-graph--default",
-    ];
+    const stories = ["styles-node--default", "styles-edge--default", "styles-graph--default"];
 
     for (const storyId of stories) {
         console.log(`\nTesting ${storyId}...`);
 
         await page.goto(`${STORYBOOK_URL}/iframe.html?id=${storyId}&viewMode=story`);
-        await page.waitForSelector("graphty-element", {timeout: 10000});
+        await page.waitForSelector("graphty-element", { timeout: 10000 });
 
         // Wait longer for the graph to fully initialize
         await page.waitForTimeout(5000);

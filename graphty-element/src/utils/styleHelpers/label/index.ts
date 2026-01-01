@@ -153,11 +153,7 @@ export function levelLabel(level: number): string {
  * ifAbove(0.8, 0.5, (v) => v.toFixed(2)) // "0.80"
  * ifAbove(0.3, 0.5, (v) => v.toFixed(2)) // null
  */
-export function ifAbove(
-    value: number,
-    threshold: number,
-    formatter: (v: number) => string,
-): string | null {
+export function ifAbove(value: number, threshold: number, formatter: (v: number) => string): string | null {
     return value >= threshold ? formatter(value) : null;
 }
 
@@ -172,12 +168,7 @@ export function ifAbove(
  * topN(0.9, 3, 5, (v) => v.toFixed(2)) // "0.90"
  * topN(0.5, 6, 5, (v) => v.toFixed(2)) // null
  */
-export function topN(
-    value: number,
-    rank: number,
-    n: number,
-    formatter: (v: number) => string,
-): string | null {
+export function topN(value: number, rank: number, n: number, formatter: (v: number) => string): string | null {
     return rank <= n ? formatter(value) : null;
 }
 

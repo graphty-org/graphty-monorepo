@@ -1,10 +1,10 @@
 import "../src/data/index.ts"; // Ensure all data sources are registered
 
-import type {Meta, StoryObj} from "@storybook/web-components-vite";
+import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import isChromatic from "chromatic/isChromatic";
 
-import {Graphty} from "../src/graphty-element";
-import {eventWaitingDecorator, renderFn, templateCreator, waitForGraphSettled} from "./helpers";
+import { Graphty } from "../src/graphty-element";
+import { eventWaitingDecorator, renderFn, templateCreator, waitForGraphSettled } from "./helpers";
 
 const meta: Meta = {
     title: "Styles/Label",
@@ -13,80 +13,220 @@ const meta: Meta = {
     decorators: [eventWaitingDecorator],
     argTypes: {
         // Basic
-        labelEnabled: {control: "boolean", table: {category: "Basic"}, name: "label.enabled"},
-        labelText: {control: "text", table: {category: "Basic"}, name: "label.text"},
-        labelTextPath: {control: "text", table: {category: "Basic"}, name: "label.textPath"},
+        labelEnabled: { control: "boolean", table: { category: "Basic" }, name: "label.enabled" },
+        labelText: { control: "text", table: { category: "Basic" }, name: "label.text" },
+        labelTextPath: { control: "text", table: { category: "Basic" }, name: "label.textPath" },
 
         // Font
-        labelFont: {control: "text", table: {category: "Font"}, name: "label.font"},
-        labelFontSize: {control: {type: "range", min: 12, max: 400, step: 4}, table: {category: "Font"}, name: "label.fontSize"},
-        labelFontWeight: {control: "text", table: {category: "Font"}, name: "label.fontWeight"},
-        labelLineHeight: {control: {type: "range", min: 0.5, max: 3, step: 0.1}, table: {category: "Font"}, name: "label.lineHeight"},
+        labelFont: { control: "text", table: { category: "Font" }, name: "label.font" },
+        labelFontSize: {
+            control: { type: "range", min: 12, max: 400, step: 4 },
+            table: { category: "Font" },
+            name: "label.fontSize",
+        },
+        labelFontWeight: { control: "text", table: { category: "Font" }, name: "label.fontWeight" },
+        labelLineHeight: {
+            control: { type: "range", min: 0.5, max: 3, step: 0.1 },
+            table: { category: "Font" },
+            name: "label.lineHeight",
+        },
 
         // Colors
-        labelTextColor: {control: "color", table: {category: "Colors"}, name: "label.textColor"},
-        labelBackgroundColor: {control: "color", table: {category: "Colors"}, name: "label.backgroundColor"},
-        labelBorderColor: {control: "color", table: {category: "Colors"}, name: "label.borderColor"},
+        labelTextColor: { control: "color", table: { category: "Colors" }, name: "label.textColor" },
+        labelBackgroundColor: { control: "color", table: { category: "Colors" }, name: "label.backgroundColor" },
+        labelBorderColor: { control: "color", table: { category: "Colors" }, name: "label.borderColor" },
 
         // Position
         labelLocation: {
             control: "select",
-            options: ["top", "top-right", "top-left", "left", "center", "right", "bottom", "bottom-left", "bottom-right", "automatic"],
-            table: {category: "Position"},
+            options: [
+                "top",
+                "top-right",
+                "top-left",
+                "left",
+                "center",
+                "right",
+                "bottom",
+                "bottom-left",
+                "bottom-right",
+                "automatic",
+            ],
+            table: { category: "Position" },
             name: "label.location",
         },
-        labelMarginTop: {control: {type: "range", min: 0, max: 50, step: 1}, table: {category: "Position"}, name: "label.marginTop"},
-        labelMarginBottom: {control: {type: "range", min: 0, max: 50, step: 1}, table: {category: "Position"}, name: "label.marginBottom"},
-        labelMarginLeft: {control: {type: "range", min: 0, max: 50, step: 1}, table: {category: "Position"}, name: "label.marginLeft"},
-        labelMarginRight: {control: {type: "range", min: 0, max: 50, step: 1}, table: {category: "Position"}, name: "label.marginRight"},
-        labelAttachOffset: {control: {type: "range", min: 0, max: 5, step: 0.1}, table: {category: "Position"}, name: "label.attachOffset"},
+        labelMarginTop: {
+            control: { type: "range", min: 0, max: 50, step: 1 },
+            table: { category: "Position" },
+            name: "label.marginTop",
+        },
+        labelMarginBottom: {
+            control: { type: "range", min: 0, max: 50, step: 1 },
+            table: { category: "Position" },
+            name: "label.marginBottom",
+        },
+        labelMarginLeft: {
+            control: { type: "range", min: 0, max: 50, step: 1 },
+            table: { category: "Position" },
+            name: "label.marginLeft",
+        },
+        labelMarginRight: {
+            control: { type: "range", min: 0, max: 50, step: 1 },
+            table: { category: "Position" },
+            name: "label.marginRight",
+        },
+        labelAttachOffset: {
+            control: { type: "range", min: 0, max: 5, step: 0.1 },
+            table: { category: "Position" },
+            name: "label.attachOffset",
+        },
 
         // Style
-        labelCornerRadius: {control: {type: "range", min: 0, max: 50, step: 1}, table: {category: "Style"}, name: "label.cornerRadius"},
-        labelBorderWidth: {control: {type: "range", min: 0, max: 10, step: 1}, table: {category: "Style"}, name: "label.borderWidth"},
+        labelCornerRadius: {
+            control: { type: "range", min: 0, max: 50, step: 1 },
+            table: { category: "Style" },
+            name: "label.cornerRadius",
+        },
+        labelBorderWidth: {
+            control: { type: "range", min: 0, max: 10, step: 1 },
+            table: { category: "Style" },
+            name: "label.borderWidth",
+        },
 
         // Text Outline
-        labelTextOutline: {control: "boolean", table: {category: "Text Outline"}, name: "label.textOutline"},
-        labelTextOutlineWidth: {control: {type: "range", min: 0, max: 10, step: 1}, table: {category: "Text Outline"}, name: "label.textOutlineWidth"},
-        labelTextOutlineColor: {control: "color", table: {category: "Text Outline"}, name: "label.textOutlineColor"},
+        labelTextOutline: { control: "boolean", table: { category: "Text Outline" }, name: "label.textOutline" },
+        labelTextOutlineWidth: {
+            control: { type: "range", min: 0, max: 10, step: 1 },
+            table: { category: "Text Outline" },
+            name: "label.textOutlineWidth",
+        },
+        labelTextOutlineColor: {
+            control: "color",
+            table: { category: "Text Outline" },
+            name: "label.textOutlineColor",
+        },
 
         // Text Shadow
-        labelTextShadow: {control: "boolean", table: {category: "Text Shadow"}, name: "label.textShadow"},
-        labelTextShadowColor: {control: "color", table: {category: "Text Shadow"}, name: "label.textShadowColor"},
-        labelTextShadowBlur: {control: {type: "range", min: 0, max: 20, step: 1}, table: {category: "Text Shadow"}, name: "label.textShadowBlur"},
-        labelTextShadowOffsetX: {control: {type: "range", min: -20, max: 20, step: 1}, table: {category: "Text Shadow"}, name: "label.textShadowOffsetX"},
-        labelTextShadowOffsetY: {control: {type: "range", min: -20, max: 20, step: 1}, table: {category: "Text Shadow"}, name: "label.textShadowOffsetY"},
+        labelTextShadow: { control: "boolean", table: { category: "Text Shadow" }, name: "label.textShadow" },
+        labelTextShadowColor: { control: "color", table: { category: "Text Shadow" }, name: "label.textShadowColor" },
+        labelTextShadowBlur: {
+            control: { type: "range", min: 0, max: 20, step: 1 },
+            table: { category: "Text Shadow" },
+            name: "label.textShadowBlur",
+        },
+        labelTextShadowOffsetX: {
+            control: { type: "range", min: -20, max: 20, step: 1 },
+            table: { category: "Text Shadow" },
+            name: "label.textShadowOffsetX",
+        },
+        labelTextShadowOffsetY: {
+            control: { type: "range", min: -20, max: 20, step: 1 },
+            table: { category: "Text Shadow" },
+            name: "label.textShadowOffsetY",
+        },
 
         // Gradient
-        labelBackgroundGradient: {control: "boolean", table: {category: "Gradient"}, name: "label.backgroundGradient"},
-        labelBackgroundGradientType: {control: "select", options: ["linear", "radial"], table: {category: "Gradient"}, name: "label.backgroundGradientType"},
-        labelBackgroundGradientDirection: {control: "select", options: ["horizontal", "vertical", "diagonal"], table: {category: "Gradient"}, name: "label.backgroundGradientDirection"},
+        labelBackgroundGradient: {
+            control: "boolean",
+            table: { category: "Gradient" },
+            name: "label.backgroundGradient",
+        },
+        labelBackgroundGradientType: {
+            control: "select",
+            options: ["linear", "radial"],
+            table: { category: "Gradient" },
+            name: "label.backgroundGradientType",
+        },
+        labelBackgroundGradientDirection: {
+            control: "select",
+            options: ["horizontal", "vertical", "diagonal"],
+            table: { category: "Gradient" },
+            name: "label.backgroundGradientDirection",
+        },
 
         // Pointer
-        labelPointer: {control: "boolean", table: {category: "Pointer"}, name: "label.pointer"},
-        labelPointerDirection: {control: "select", options: ["top", "bottom", "left", "right"], table: {category: "Pointer"}, name: "label.pointerDirection"},
-        labelPointerWidth: {control: {type: "range", min: 0, max: 50, step: 1}, table: {category: "Pointer"}, name: "label.pointerWidth"},
-        labelPointerHeight: {control: {type: "range", min: 0, max: 50, step: 1}, table: {category: "Pointer"}, name: "label.pointerHeight"},
+        labelPointer: { control: "boolean", table: { category: "Pointer" }, name: "label.pointer" },
+        labelPointerDirection: {
+            control: "select",
+            options: ["top", "bottom", "left", "right"],
+            table: { category: "Pointer" },
+            name: "label.pointerDirection",
+        },
+        labelPointerWidth: {
+            control: { type: "range", min: 0, max: 50, step: 1 },
+            table: { category: "Pointer" },
+            name: "label.pointerWidth",
+        },
+        labelPointerHeight: {
+            control: { type: "range", min: 0, max: 50, step: 1 },
+            table: { category: "Pointer" },
+            name: "label.pointerHeight",
+        },
 
         // Animation
-        labelAnimation: {control: "select", options: ["none", "pulse", "bounce", "shake", "glow", "fill"], table: {category: "Animation"}, name: "label.animation"},
-        labelAnimationSpeed: {control: {type: "range", min: 0.1, max: 5, step: 0.1}, table: {category: "Animation"}, name: "label.animationSpeed"},
+        labelAnimation: {
+            control: "select",
+            options: ["none", "pulse", "bounce", "shake", "glow", "fill"],
+            table: { category: "Animation" },
+            name: "label.animation",
+        },
+        labelAnimationSpeed: {
+            control: { type: "range", min: 0.1, max: 5, step: 0.1 },
+            table: { category: "Animation" },
+            name: "label.animationSpeed",
+        },
 
         // Badge
-        labelBadge: {control: "select", options: ["none", "notification", "label", "label-success", "label-warning", "label-danger", "count", "icon", "progress", "dot"], table: {category: "Badge"}, name: "label.badge"},
+        labelBadge: {
+            control: "select",
+            options: [
+                "none",
+                "notification",
+                "label",
+                "label-success",
+                "label-warning",
+                "label-danger",
+                "count",
+                "icon",
+                "progress",
+                "dot",
+            ],
+            table: { category: "Badge" },
+            name: "label.badge",
+        },
 
         // Smart Overflow
-        labelSmartOverflow: {control: "boolean", table: {category: "Smart Overflow"}, name: "label.smartOverflow"},
-        labelMaxNumber: {control: {type: "number", min: 0, max: 99999}, table: {category: "Smart Overflow"}, name: "label.maxNumber"},
-        labelOverflowSuffix: {control: "text", table: {category: "Smart Overflow"}, name: "label.overflowSuffix"},
+        labelSmartOverflow: { control: "boolean", table: { category: "Smart Overflow" }, name: "label.smartOverflow" },
+        labelMaxNumber: {
+            control: { type: "number", min: 0, max: 99999 },
+            table: { category: "Smart Overflow" },
+            name: "label.maxNumber",
+        },
+        labelOverflowSuffix: { control: "text", table: { category: "Smart Overflow" }, name: "label.overflowSuffix" },
 
         // Text Align
-        labelTextAlign: {control: "select", options: ["left", "center", "right"], table: {category: "Text"}, name: "label.textAlign"},
+        labelTextAlign: {
+            control: "select",
+            options: ["left", "center", "right"],
+            table: { category: "Text" },
+            name: "label.textAlign",
+        },
 
         // Depth Fade
-        labelDepthFadeEnabled: {control: "boolean", table: {category: "Depth Fade"}, name: "label.depthFadeEnabled"},
-        labelDepthFadeNear: {control: {type: "range", min: 0, max: 500, step: 10}, table: {category: "Depth Fade"}, name: "label.depthFadeNear"},
-        labelDepthFadeFar: {control: {type: "range", min: 0, max: 1000, step: 10}, table: {category: "Depth Fade"}, name: "label.depthFadeFar"},
+        labelDepthFadeEnabled: {
+            control: "boolean",
+            table: { category: "Depth Fade" },
+            name: "label.depthFadeEnabled",
+        },
+        labelDepthFadeNear: {
+            control: { type: "range", min: 0, max: 500, step: 10 },
+            table: { category: "Depth Fade" },
+            name: "label.depthFadeNear",
+        },
+        labelDepthFadeFar: {
+            control: { type: "range", min: 0, max: 1000, step: 10 },
+            table: { category: "Depth Fade" },
+            name: "label.depthFadeFar",
+        },
     },
     parameters: {
         controls: {
@@ -146,7 +286,7 @@ export const Default: Story = {
             seed: 42,
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -175,7 +315,7 @@ export const Enabled: Story = {
             include: ["label.enabled"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -204,7 +344,7 @@ export const TextPath: Story = {
             include: ["label.textPath"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -233,7 +373,7 @@ export const StaticText: Story = {
             include: ["label.text"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -263,7 +403,7 @@ export const FontType: Story = {
             include: ["label.font"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -303,7 +443,7 @@ export const FontSize: Story = {
             diffThreshold: 0.3, // Reduced threshold since we wait for actual settling
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         // Wait for the graph to fully settle before taking the screenshot
         await waitForGraphSettled(canvasElement);
     },
@@ -334,7 +474,7 @@ export const FontWeight: Story = {
             include: ["label.fontWeight"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -364,7 +504,7 @@ export const TextColor: Story = {
             include: ["label.textColor"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -394,7 +534,7 @@ export const BackgroundColor: Story = {
             include: ["label.backgroundColor"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -425,7 +565,7 @@ export const CornerRadius: Story = {
             include: ["label.cornerRadius", "label.backgroundColor"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -455,7 +595,7 @@ export const Location: Story = {
             include: ["label.location"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -486,10 +626,16 @@ export const Margin: Story = {
     },
     parameters: {
         controls: {
-            include: ["label.marginTop", "label.marginBottom", "label.marginLeft", "label.marginRight", "label.backgroundColor"],
+            include: [
+                "label.marginTop",
+                "label.marginBottom",
+                "label.marginLeft",
+                "label.marginRight",
+                "label.backgroundColor",
+            ],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -519,7 +665,7 @@ export const AttachOffset: Story = {
             include: ["label.attachOffset"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -549,7 +695,7 @@ export const LineHeight: Story = {
             include: ["label.lineHeight"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -585,7 +731,7 @@ export const TextOutline: Story = {
             diffThreshold: 0.25,
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -617,14 +763,21 @@ export const TextShadow: Story = {
     },
     parameters: {
         controls: {
-            include: ["label.textShadow", "label.textShadowColor", "label.textShadowBlur", "label.textShadowOffsetX", "label.textShadowOffsetY", "label.backgroundColor"],
+            include: [
+                "label.textShadow",
+                "label.textShadowColor",
+                "label.textShadowBlur",
+                "label.textShadowOffsetX",
+                "label.textShadowOffsetY",
+                "label.backgroundColor",
+            ],
         },
         chromatic: {
             diffIncludeAntiAliasing: true,
             diffThreshold: 0.25,
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -656,7 +809,7 @@ export const Border: Story = {
             include: ["label.borderWidth", "label.borderColor", "label.backgroundColor"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -689,7 +842,7 @@ export const BackgroundGradient: Story = {
             include: ["label.backgroundGradient", "label.backgroundGradientType", "label.backgroundGradientDirection"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -722,10 +875,17 @@ export const Pointer: Story = {
     },
     parameters: {
         controls: {
-            include: ["label.pointer", "label.pointerDirection", "label.pointerWidth", "label.pointerHeight", "label.backgroundColor", "label.location"],
+            include: [
+                "label.pointer",
+                "label.pointerDirection",
+                "label.pointerWidth",
+                "label.pointerHeight",
+                "label.backgroundColor",
+                "label.location",
+            ],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -759,7 +919,7 @@ export const Animation: Story = {
             include: ["label.animation", "label.animationSpeed", "label.backgroundColor"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -793,7 +953,7 @@ export const Badge: Story = {
             diffThreshold: 0.5,
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -825,7 +985,7 @@ export const SmartOverflow: Story = {
             include: ["label.smartOverflow", "label.text"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -858,7 +1018,7 @@ export const MaxNumber: Story = {
             include: ["label.maxNumber", "label.text", "label.smartOverflow"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -892,7 +1052,7 @@ export const OverflowSuffix: Story = {
             include: ["label.overflowSuffix", "label.maxNumber", "label.text"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -922,7 +1082,7 @@ export const TextAlign: Story = {
             include: ["label.textAlign"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -954,7 +1114,7 @@ export const DepthFade: Story = {
             include: ["label.depthFadeEnabled", "label.depthFadeNear", "label.depthFadeFar"],
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -985,7 +1145,7 @@ export const EmojiLabels: Story = {
             diffThreshold: 0.25,
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -1017,7 +1177,7 @@ export const UnicodeText: Story = {
             diffThreshold: 0.25,
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };

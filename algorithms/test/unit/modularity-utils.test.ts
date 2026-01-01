@@ -1,4 +1,4 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
     calculateModularity,
@@ -6,18 +6,18 @@ import {
     getNodeDegree,
     getTotalEdgeWeight,
 } from "../../src/algorithms/community/modularity-utils.js";
-import {Graph} from "../../src/core/graph.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Modularity utilities", () => {
     describe("getTotalEdgeWeight", () => {
         it("should return 0 for empty graph", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             const total = getTotalEdgeWeight(graph);
             expect(total).toBe(0);
         });
 
         it("should sum all edge weights for unweighted graph", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
 
@@ -26,7 +26,7 @@ describe("Modularity utilities", () => {
         });
 
         it("should sum all edge weights for weighted graph", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("A", "B", 2);
             graph.addEdge("B", "C", 3);
 
@@ -35,7 +35,7 @@ describe("Modularity utilities", () => {
         });
 
         it("should handle directed graph edge weights", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B", 2);
             graph.addEdge("B", "A", 3);
             graph.addEdge("B", "C", 1);
@@ -47,7 +47,7 @@ describe("Modularity utilities", () => {
 
     describe("getNodeDegree", () => {
         it("should return 0 for isolated node", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addNode("A");
 
             const degree = getNodeDegree(graph, "A");
@@ -55,7 +55,7 @@ describe("Modularity utilities", () => {
         });
 
         it("should calculate unweighted degree", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("A", "B");
             graph.addEdge("A", "C");
 
@@ -64,7 +64,7 @@ describe("Modularity utilities", () => {
         });
 
         it("should calculate weighted degree", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("A", "B", 2);
             graph.addEdge("A", "C", 3);
 
@@ -73,7 +73,7 @@ describe("Modularity utilities", () => {
         });
 
         it("should handle mixed weighted edges", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("A", "B", 2);
             graph.addEdge("A", "C"); // Default weight 1
             graph.addEdge("A", "D", 4);
@@ -85,19 +85,17 @@ describe("Modularity utilities", () => {
 
     describe("getNeighborCommunities", () => {
         it("should return empty set for isolated node", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addNode("A");
 
-            const communities = new Map<string, number>([
-                ["A", 0],
-            ]);
+            const communities = new Map<string, number>([["A", 0]]);
 
             const neighborComms = getNeighborCommunities(graph, "A", communities);
             expect(neighborComms.size).toBe(0);
         });
 
         it("should return neighbor communities", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("A", "B");
             graph.addEdge("A", "C");
             graph.addEdge("A", "D");
@@ -116,7 +114,7 @@ describe("Modularity utilities", () => {
         });
 
         it("should not include own community if neighbor in same community", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("A", "B");
             graph.addEdge("A", "C");
 
@@ -134,7 +132,7 @@ describe("Modularity utilities", () => {
 
     describe("calculateModularity", () => {
         it("should return 0 for empty graph", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             const communities = new Map<string, number>();
 
             const modularity = calculateModularity(graph, communities, 1.0);
@@ -142,7 +140,7 @@ describe("Modularity utilities", () => {
         });
 
         it("should calculate modularity for simple partition", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("A", "B");
             graph.addEdge("C", "D");
 
@@ -160,7 +158,7 @@ describe("Modularity utilities", () => {
         });
 
         it("should calculate lower modularity for bad partition", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
             graph.addEdge("C", "A");
@@ -188,7 +186,7 @@ describe("Modularity utilities", () => {
         });
 
         it("should respect resolution parameter", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("A", "B");
             graph.addEdge("C", "D");
 
@@ -208,7 +206,7 @@ describe("Modularity utilities", () => {
         });
 
         it("should handle weighted edges", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("A", "B", 5);
             graph.addEdge("C", "D", 5);
 
@@ -226,12 +224,10 @@ describe("Modularity utilities", () => {
         });
 
         it("should handle single node community", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addNode("A");
 
-            const communities = new Map<string, number>([
-                ["A", 0],
-            ]);
+            const communities = new Map<string, number>([["A", 0]]);
 
             const modularity = calculateModularity(graph, communities, 1.0);
 

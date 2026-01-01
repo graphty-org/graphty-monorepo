@@ -1,7 +1,7 @@
-import type {Engine, Scene, WebGPUEngine} from "@babylonjs/core";
+import type { Engine, Scene, WebGPUEngine } from "@babylonjs/core";
 
-import type {EventManager} from "./EventManager";
-import type {OperationCategory} from "./OperationQueueManager";
+import type { EventManager } from "./EventManager";
+import type { OperationCategory } from "./OperationQueueManager";
 
 /**
  * Base interface for all manager classes

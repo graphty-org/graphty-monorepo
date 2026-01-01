@@ -1,4 +1,4 @@
-import {z} from "zod";
+import { z } from "zod";
 
 /**
  * Zod schema for XR configuration validation
@@ -18,10 +18,10 @@ import {z} from "zod";
 
 export const xrConfigSchema = z
     .object({
-    /**
-     * Enable/disable XR functionality globally
-     * @default true
-     */
+        /**
+         * Enable/disable XR functionality globally
+         * @default true
+         */
         enabled: z.boolean().default(true),
 
         /**
@@ -39,9 +39,7 @@ export const xrConfigSchema = z
                  * Button position on screen
                  * @default "bottom-right"
                  */
-                position: z
-                    .enum(["bottom-left", "bottom-right", "top-left", "top-right"])
-                    .default("bottom-right"),
+                position: z.enum(["bottom-left", "bottom-right", "top-left", "top-right"]).default("bottom-right"),
 
                 /**
                  * Duration to show "not available" message (ms)

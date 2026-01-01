@@ -3,6 +3,7 @@
 ## Overview
 
 **User Value**:
+
 - Fine-grained control over algorithm and layout behavior
 - Ability to tune parameters for specific use cases (damping factor for PageRank, convergence tolerance)
 - Reproducible results via seed control for stochastic algorithms
@@ -10,6 +11,7 @@
 - Professional-grade graph analysis capabilities matching dedicated tools
 
 **Technical Value**:
+
 - Type-safe options with Zod-based runtime validation
 - Schema-driven UI generation in consuming applications (graphty React app)
 - Consistent pattern across all algorithms AND layouts
@@ -21,18 +23,19 @@
 ### Architecture
 
 The system uses a **Zod-based unified schema** (`src/config/OptionsSchema.ts`) that provides:
+
 1. **Zod schemas** for robust validation with type inference
 2. **UI metadata** (labels, descriptions, advanced flags) for automatic form generation
 3. **Consistent APIs** for both algorithms and layouts
 
 ### Key Files
 
-| File | Purpose |
-|------|---------|
-| `src/config/OptionsSchema.ts` | Unified schema system (Zod + metadata) |
-| `src/algorithms/types/OptionSchema.ts` | Legacy custom schema types (deprecated) |
-| `src/algorithms/Algorithm.ts` | Base algorithm class with schema support |
-| `src/layout/LayoutEngine.ts` | Base layout class with zodOptionsSchema |
+| File                                   | Purpose                                  |
+| -------------------------------------- | ---------------------------------------- |
+| `src/config/OptionsSchema.ts`          | Unified schema system (Zod + metadata)   |
+| `src/algorithms/types/OptionSchema.ts` | Legacy custom schema types (deprecated)  |
+| `src/algorithms/Algorithm.ts`          | Base algorithm class with schema support |
+| `src/layout/LayoutEngine.ts`           | Base layout class with zodOptionsSchema  |
 
 ## Schema Definition Pattern
 
@@ -82,7 +85,9 @@ export class PageRankAlgorithm extends Algorithm<PageRankOptions> {
     static zodOptionsSchema: OptionsSchema = pageRankOptionsSchema;
 
     // LEGACY: Old-style options schema (deprecated, for backward compatibility)
-    static optionsSchema: OptionsSchema = { /* ... */ };
+    static optionsSchema: OptionsSchema = {
+        /* ... */
+    };
 
     constructor(g: Graph, options?: Partial<PageRankOptions>) {
         super(g, options);
@@ -178,17 +183,17 @@ interface OptionDefinition<T extends z.ZodType = z.ZodType> {
 
 ### Common Zod Patterns
 
-| Data Type | Zod Schema Pattern |
-|-----------|-------------------|
-| Number with range | `z.number().min(0).max(1).default(0.85)` |
-| Integer with range | `z.number().int().min(1).max(1000).default(100)` |
-| Boolean | `z.boolean().default(false)` |
-| String | `z.string().default("")` |
-| Nullable string | `z.string().nullable().default(null)` |
+| Data Type                 | Zod Schema Pattern                                           |
+| ------------------------- | ------------------------------------------------------------ |
+| Number with range         | `z.number().min(0).max(1).default(0.85)`                     |
+| Integer with range        | `z.number().int().min(1).max(1000).default(100)`             |
+| Boolean                   | `z.boolean().default(false)`                                 |
+| String                    | `z.string().default("")`                                     |
+| Nullable string           | `z.string().nullable().default(null)`                        |
 | NodeId (string or number) | `z.union([z.string(), z.number()]).nullable().default(null)` |
-| Enum/Select | `z.enum(["vertical", "horizontal"]).default("vertical")` |
-| Positive number | `z.number().positive().default(1.0)` |
-| Nullable positive int | `z.number().int().positive().nullable().default(null)` |
+| Enum/Select               | `z.enum(["vertical", "horizontal"]).default("vertical")`     |
+| Positive number           | `z.number().positive().default(1.0)`                         |
+| Nullable positive int     | `z.number().int().positive().nullable().default(null)`       |
 
 ## Utility Functions
 
@@ -248,7 +253,7 @@ Filter options by advanced flag:
 ```typescript
 import { getOptionsFiltered } from "../config";
 
-const basicOptions = getOptionsFiltered(schema, false);  // Only basic options
+const basicOptions = getOptionsFiltered(schema, false); // Only basic options
 const advancedOptions = getOptionsFiltered(schema, true); // Only advanced options
 ```
 
@@ -257,31 +262,37 @@ const advancedOptions = getOptionsFiltered(schema, true); // Only advanced optio
 ### Algorithms with zodOptionsSchema
 
 **Centrality:**
+
 - `EigenvectorCentralityAlgorithm`: maxIterations, tolerance, normalized, mode, endpoints
 - `KatzCentralityAlgorithm`: alpha, beta, maxIterations, tolerance, normalized, mode, endpoints
 - `HITSAlgorithm`: maxIterations, tolerance, normalized, mode, endpoints
 - `PageRankAlgorithm`: dampingFactor, maxIterations, tolerance, weight, useDelta
 
 **Community Detection:**
+
 - `LouvainAlgorithm`: resolution, maxIterations, tolerance, useOptimized
 - `LeidenAlgorithm`: resolution, randomSeed, maxIterations, threshold
 - `LabelPropagationAlgorithm`: maxIterations, randomSeed
 - `GirvanNewmanAlgorithm`: maxCommunities, minCommunitySize, maxIterations
 
 **Traversal:**
+
 - `BFSAlgorithm`: source, targetNode
 - `DFSAlgorithm`: source, targetNode, recursive, preOrder
 
 **Pathfinding:**
+
 - `DijkstraAlgorithm`: source, target, bidirectional
 
 **Flow:**
+
 - `MaxFlowAlgorithm`: source, sink
 - `MinCutAlgorithm`: source, sink, useGlobalMinCut, useKarger, kargerIterations
 
 ### Algorithms without configurable options
 
 These algorithms have minimal/no meaningful UI-exposed options:
+
 - DegreeAlgorithm
 - BetweennessCentralityAlgorithm
 - ClosenessCentralityAlgorithm
@@ -296,6 +307,7 @@ These algorithms have minimal/no meaningful UI-exposed options:
 ### Layouts with zodOptionsSchema
 
 **Force-Directed:**
+
 - `NGraphEngine`: dim, springLength, springCoefficient, gravity, theta, dragCoefficient, timeStep, seed
 - `D3GraphEngine`: alphaMin, alphaTarget, alphaDecay, velocityDecay
 - `ForceAtlas2Layout`: scalingFactor, maxIter, jitterTolerance, scalingRatio, gravity, distributedAction, strongGravity, dissuadeHubs, linlog, seed, dim
@@ -303,11 +315,13 @@ These algorithms have minimal/no meaningful UI-exposed options:
 - `ArfLayout`: scalingFactor, scaling, a, maxIter, seed
 
 **Hierarchical:**
+
 - `BfsLayout`: scalingFactor, start, align, scale
 - `BipartiteLayout`: scalingFactor, align, scale, aspectRatio
 - `MultipartiteLayout`: scalingFactor, align, scale
 
 **Geometric:**
+
 - `CircularLayout`: scalingFactor, scale, dim
 - `SpiralLayout`: scalingFactor, scale, dim, resolution, equidistant
 - `ShellLayout`: scalingFactor, scale, dim
@@ -317,6 +331,7 @@ These algorithms have minimal/no meaningful UI-exposed options:
 - `KamadaKawaiLayout`: scalingFactor, scale, dim, weightProperty
 
 **Utility:**
+
 - `FixedLayout`: dim
 
 ## UI Integration Pattern
@@ -363,21 +378,24 @@ The system maintains full backward compatibility:
 ## Technical Notes
 
 ### Performance
+
 - Options validation runs once at construction time
 - No runtime overhead during algorithm/layout execution
 - Schema objects are static (no per-instance allocation)
 
 ### Bundle Size
+
 - Uses Zod (already a dependency via other packages)
 - Minimal additional code (~3KB)
 
 ### Type Inference
+
 ```typescript
 // Full type inference from schema
 const algo = new PageRankAlgorithm(graph, {
-    dampingFactor: 0.9,  // ✓ Valid, typed as number
-    maxIterations: 50,   // ✓ Valid, typed as number
-    invalid: true,       // ✗ TypeScript error - not in schema
+    dampingFactor: 0.9, // ✓ Valid, typed as number
+    maxIterations: 50, // ✓ Valid, typed as number
+    invalid: true, // ✗ TypeScript error - not in schema
 });
 ```
 

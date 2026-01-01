@@ -1,7 +1,7 @@
-import {Vector2} from "@babylonjs/core/Maths/math.vector";
-import {Observable} from "@babylonjs/core/Misc/observable";
+import { Vector2 } from "@babylonjs/core/Maths/math.vector";
+import { Observable } from "@babylonjs/core/Misc/observable";
 
-import {DeviceType, KeyboardInfo, MouseButton, PointerInfo, TouchPoint, WheelInfo} from "./types";
+import { DeviceType, KeyboardInfo, MouseButton, PointerInfo, TouchPoint, WheelInfo } from "./types";
 
 /**
  * Mock input system for testing user interactions without a real browser environment.
@@ -204,7 +204,7 @@ export class MockDeviceInputSystem {
             shiftKey: false,
             altKey: false,
             metaKey: false,
-            ... modifiers,
+            ...modifiers,
         };
 
         this.onKeyDown.notifyObservers(info);
@@ -251,8 +251,8 @@ export class MockDeviceInputSystem {
 
         for (let i = 1; i <= steps; i++) {
             const t = i / steps;
-            const x = startX + ((endX - startX) * t);
-            const y = startY + ((endY - startY) * t);
+            const x = startX + (endX - startX) * t;
+            const y = startY + (endY - startY) * t;
             this.simulateMouseMove(x, y);
         }
 
@@ -267,24 +267,30 @@ export class MockDeviceInputSystem {
      * @param endDistance - Final distance between touch points
      * @param steps - Number of intermediate steps to generate
      */
-    public simulatePinch(centerX: number, centerY: number, startDistance: number, endDistance: number, steps = 10): void {
+    public simulatePinch(
+        centerX: number,
+        centerY: number,
+        startDistance: number,
+        endDistance: number,
+        steps = 10,
+    ): void {
         const startOffset = startDistance / 2;
         const endOffset = endDistance / 2;
 
         // Start touches
         this.simulateTouchStart([
-            {id: 1, x: centerX - startOffset, y: centerY},
-            {id: 2, x: centerX + startOffset, y: centerY},
+            { id: 1, x: centerX - startOffset, y: centerY },
+            { id: 2, x: centerX + startOffset, y: centerY },
         ]);
 
         // Animate pinch
         for (let i = 1; i <= steps; i++) {
             const t = i / steps;
-            const offset = startOffset + ((endOffset - startOffset) * t);
+            const offset = startOffset + (endOffset - startOffset) * t;
 
             this.simulateTouchMove([
-                {id: 1, x: centerX - offset, y: centerY},
-                {id: 2, x: centerX + offset, y: centerY},
+                { id: 1, x: centerX - offset, y: centerY },
+                { id: 2, x: centerX + offset, y: centerY },
             ]);
         }
 

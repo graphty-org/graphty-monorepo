@@ -1,4 +1,4 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
     degeneracyOrdering,
@@ -6,8 +6,9 @@ import {
     getKCoreSubgraph,
     kCoreDecomposition,
     kTruss,
-    toUndirected} from "../../src/clustering/k-core";
-import {createGraphFromAdjacencySet} from "../helpers/graph-test-utils";
+    toUndirected,
+} from "../../src/clustering/k-core";
+import { createGraphFromAdjacencySet } from "../helpers/graph-test-utils";
 
 describe("K-Core Decomposition", () => {
     describe("kCoreDecomposition", () => {
@@ -98,9 +99,7 @@ describe("K-Core Decomposition", () => {
         });
 
         it("should handle single node", () => {
-            const adjacencySet = new Map([
-                ["a", new Set<string>()],
-            ]);
+            const adjacencySet = new Map([["a", new Set<string>()]]);
             const graph = createGraphFromAdjacencySet(adjacencySet);
 
             const result = kCoreDecomposition(graph);
@@ -308,7 +307,13 @@ describe("K-Core Decomposition", () => {
     describe("toUndirected", () => {
         it("should convert directed graph to undirected", () => {
             const directed = new Map([
-                ["a", new Map([["b", 1], ["c", 2]])],
+                [
+                    "a",
+                    new Map([
+                        ["b", 1],
+                        ["c", 2],
+                    ]),
+                ],
                 ["b", new Map([["c", 3]])],
                 ["c", new Map()],
             ]);
@@ -322,7 +327,13 @@ describe("K-Core Decomposition", () => {
 
         it("should handle self-loops", () => {
             const directed = new Map([
-                ["a", new Map([["a", 1], ["b", 2]])],
+                [
+                    "a",
+                    new Map([
+                        ["a", 1],
+                        ["b", 2],
+                    ]),
+                ],
                 ["b", new Map()],
             ]);
 

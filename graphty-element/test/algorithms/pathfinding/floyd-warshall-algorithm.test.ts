@@ -1,14 +1,14 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {FloydWarshallAlgorithm} from "../../../src/algorithms/FloydWarshallAlgorithm";
-import type {AdHocData} from "../../../src/config";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { FloydWarshallAlgorithm } from "../../../src/algorithms/FloydWarshallAlgorithm";
+import type { AdHocData } from "../../../src/config";
 
 interface MockGraphOpts {
     dataPath?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
     const nodes = new Map<string | number, AdHocData>();
     const edges = new Map<string | number, AdHocData>();
@@ -45,21 +45,21 @@ async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
 }
 
 // Create a small graph for testing Floyd-Warshall (to avoid O(n³) performance issues)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function mockSmallGraph(): any {
     const nodes = new Map<string | number, AdHocData>();
     const edges = new Map<string | number, AdHocData>();
     let graphResults: AdHocData | undefined;
 
     // Create a simple 4-node graph: A -- B -- C -- D
-    nodes.set("A", {id: "A"} as unknown as AdHocData);
-    nodes.set("B", {id: "B"} as unknown as AdHocData);
-    nodes.set("C", {id: "C"} as unknown as AdHocData);
-    nodes.set("D", {id: "D"} as unknown as AdHocData);
+    nodes.set("A", { id: "A" } as unknown as AdHocData);
+    nodes.set("B", { id: "B" } as unknown as AdHocData);
+    nodes.set("C", { id: "C" } as unknown as AdHocData);
+    nodes.set("D", { id: "D" } as unknown as AdHocData);
 
-    edges.set("A:B", {srcId: "A", dstId: "B", value: 1} as unknown as AdHocData);
-    edges.set("B:C", {srcId: "B", dstId: "C", value: 2} as unknown as AdHocData);
-    edges.set("C:D", {srcId: "C", dstId: "D", value: 3} as unknown as AdHocData);
+    edges.set("A:B", { srcId: "A", dstId: "B", value: 1 } as unknown as AdHocData);
+    edges.set("B:C", { srcId: "B", dstId: "C", value: 2 } as unknown as AdHocData);
+    edges.set("C:D", { srcId: "C", dstId: "D", value: 3 } as unknown as AdHocData);
 
     return {
         nodes,
@@ -90,40 +90,40 @@ describe("FloydWarshallAlgorithm", () => {
     });
 
     describe("Algorithm Execution", () => {
-        it("exists", async() => {
+        it("exists", async () => {
             new FloydWarshallAlgorithm(await mockGraph());
         });
 
-        it("computes all-pairs shortest paths", async() => {
+        it("computes all-pairs shortest paths", async () => {
             const smallGraph = mockSmallGraph();
             const algo = new FloydWarshallAlgorithm(smallGraph);
             await algo.run();
 
-            const {results} = algo;
+            const { results } = algo;
             assert.property(results, "graph");
             assert.property(results.graph?.graphty?.["floyd-warshall"], "nodeCount");
         });
 
-        it("stores distance information on graph", async() => {
+        it("stores distance information on graph", async () => {
             const smallGraph = mockSmallGraph();
             const algo = new FloydWarshallAlgorithm(smallGraph);
             await algo.run();
 
-            const {results} = algo;
+            const { results } = algo;
             const fwResults = results.graph?.graphty?.["floyd-warshall"];
             assert.ok(fwResults);
             assert.property(fwResults, "nodeCount");
             assert.strictEqual(fwResults.nodeCount, 4);
         });
 
-        it("handles empty graph", async() => {
+        it("handles empty graph", async () => {
             const emptyGraph = await mockGraph();
             const algo = new FloydWarshallAlgorithm(emptyGraph);
             await algo.run();
             // Should not throw
         });
 
-        it("stores eccentricity on nodes", async() => {
+        it("stores eccentricity on nodes", async () => {
             const smallGraph = mockSmallGraph();
             const algo = new FloydWarshallAlgorithm(smallGraph);
             await algo.run();
@@ -136,12 +136,12 @@ describe("FloydWarshallAlgorithm", () => {
             }
         });
 
-        it("computes diameter and radius", async() => {
+        it("computes diameter and radius", async () => {
             const smallGraph = mockSmallGraph();
             const algo = new FloydWarshallAlgorithm(smallGraph);
             await algo.run();
 
-            const {results} = algo;
+            const { results } = algo;
             const fwResults = results.graph?.graphty?.["floyd-warshall"];
             assert.ok(fwResults);
             assert.property(fwResults, "diameter");
@@ -153,7 +153,7 @@ describe("FloydWarshallAlgorithm", () => {
             assert.isAtLeast(fwResults.diameter, fwResults.radius);
         });
 
-        it("identifies central nodes", async() => {
+        it("identifies central nodes", async () => {
             const smallGraph = mockSmallGraph();
             const algo = new FloydWarshallAlgorithm(smallGraph);
             await algo.run();

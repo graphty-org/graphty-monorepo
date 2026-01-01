@@ -1,5 +1,5 @@
-import {ScreenshotError, ScreenshotErrorCode} from "./ScreenshotError.js";
-import type {ClipboardStatus} from "./types.js";
+import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
+import type { ClipboardStatus } from "./types.js";
 
 export interface ClipboardResult {
     status: ClipboardStatus;
@@ -13,9 +13,7 @@ export interface ClipboardResult {
  * @param blobOrPromise - Image blob or promise that resolves to a blob
  * @returns Clipboard operation result with status and any errors
  */
-export async function copyToClipboard(
-    blobOrPromise: Blob | Promise<Blob>,
-): Promise<ClipboardResult> {
+export async function copyToClipboard(blobOrPromise: Blob | Promise<Blob>): Promise<ClipboardResult> {
     // Check if we're in a secure context
     if (!window.isSecureContext) {
         return {
@@ -28,7 +26,7 @@ export async function copyToClipboard(
     }
 
     // Check if clipboard API is available
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+     
     if (!navigator.clipboard) {
         return {
             status: "not-supported",
@@ -39,7 +37,7 @@ export async function copyToClipboard(
         };
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+     
     if (!navigator.clipboard.write) {
         return {
             status: "not-supported",
@@ -52,7 +50,7 @@ export async function copyToClipboard(
 
     // Check clipboard-write permission
     try {
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+         
         if (navigator.permissions?.query) {
             const permission = await navigator.permissions.query({
                 // @ts-expect-error - clipboard-write is not yet in TypeScript types
@@ -75,9 +73,7 @@ export async function copyToClipboard(
 
     try {
         // Resolve blob type - if it's a Promise, we need to determine the MIME type upfront
-        const blobPromise = blobOrPromise instanceof Blob ?
-            Promise.resolve(blobOrPromise) :
-            blobOrPromise;
+        const blobPromise = blobOrPromise instanceof Blob ? Promise.resolve(blobOrPromise) : blobOrPromise;
 
         // For promises, we assume PNG format (most common for screenshots)
         // The promise will provide the actual blob with correct type
@@ -92,9 +88,9 @@ export async function copyToClipboard(
         // Start clipboard write immediately (preserves user gesture context)
         await navigator.clipboard.write([clipboardItem]);
 
-        return {status: "success"};
+        return { status: "success" };
     } catch (error) {
-    // Check if it's a permission error
+        // Check if it's a permission error
         if (error instanceof Error && error.name === "NotAllowedError") {
             return {
                 status: "permission-denied",

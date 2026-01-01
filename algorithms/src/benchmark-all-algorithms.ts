@@ -8,7 +8,7 @@
  */
 
 import * as algorithms from "./algorithms/index.js";
-import {Graph} from "./core/graph.js";
+import { Graph } from "./core/graph.js";
 
 interface BenchmarkResult {
     algorithm: string;
@@ -35,8 +35,8 @@ const ALGORITHM_CATEGORIES = {
         ],
         config: {
             name: "Traversal",
-            quick: {nodes: 1000, edges: 5000, runs: 3},
-            full: {nodes: 10000, edges: 50000, runs: 10},
+            quick: { nodes: 1000, edges: 5000, runs: 3 },
+            full: { nodes: 10000, edges: 50000, runs: 10 },
         },
     },
     shortestPath: {
@@ -54,8 +54,8 @@ const ALGORITHM_CATEGORIES = {
         ],
         config: {
             name: "Shortest Path",
-            quick: {nodes: 100, edges: 500, runs: 1}, // Smaller for O(V³) algorithms
-            full: {nodes: 500, edges: 2500, runs: 3},
+            quick: { nodes: 100, edges: 500, runs: 1 }, // Smaller for O(V³) algorithms
+            full: { nodes: 500, edges: 2500, runs: 3 },
         },
     },
     centrality: {
@@ -71,8 +71,8 @@ const ALGORITHM_CATEGORIES = {
         ],
         config: {
             name: "Centrality",
-            quick: {nodes: 500, edges: 2500, runs: 1},
-            full: {nodes: 2000, edges: 10000, runs: 3},
+            quick: { nodes: 500, edges: 2500, runs: 1 },
+            full: { nodes: 2000, edges: 10000, runs: 3 },
         },
     },
     components: {
@@ -90,44 +90,48 @@ const ALGORITHM_CATEGORIES = {
         ],
         config: {
             name: "Components",
-            quick: {nodes: 2000, edges: 10000, runs: 3},
-            full: {nodes: 10000, edges: 50000, runs: 10},
+            quick: { nodes: 2000, edges: 10000, runs: 3 },
+            full: { nodes: 10000, edges: 50000, runs: 10 },
         },
     },
     mst: {
         algorithms: ["kruskalMST", "primMST", "minimumSpanningTree"],
         config: {
             name: "Minimum Spanning Tree",
-            quick: {nodes: 1000, edges: 5000, runs: 5},
-            full: {nodes: 5000, edges: 25000, runs: 10},
+            quick: { nodes: 1000, edges: 5000, runs: 5 },
+            full: { nodes: 5000, edges: 25000, runs: 10 },
         },
     },
     community: {
         algorithms: ["girvanNewman", "labelPropagation", "leiden", "louvain"],
         config: {
             name: "Community Detection",
-            quick: {nodes: 200, edges: 1000, runs: 1}, // Very expensive algorithms
-            full: {nodes: 1000, edges: 5000, runs: 2},
+            quick: { nodes: 200, edges: 1000, runs: 1 }, // Very expensive algorithms
+            full: { nodes: 1000, edges: 5000, runs: 2 },
         },
     },
     matching: {
         algorithms: ["bipartitePartition", "greedyBipartiteMatching", "maximumBipartiteMatching"],
         config: {
             name: "Matching",
-            quick: {nodes: 500, edges: 1000, runs: 3},
-            full: {nodes: 2000, edges: 4000, runs: 5},
+            quick: { nodes: 500, edges: 1000, runs: 3 },
+            full: { nodes: 2000, edges: 4000, runs: 5 },
         },
     },
 } as const;
 
 /**
  * Main benchmark runner
+ * @param mode - The benchmark mode: "quick" for fast tests or "full" for comprehensive tests
+ * @returns Array of benchmark results for all tested algorithms
  */
 export function runAllAlgorithmsBenchmark(mode: "quick" | "full" = "full"): BenchmarkResult[] {
     const startTime = Date.now();
     const timeLimit = mode === "quick" ? 2 * 60 * 1000 : 60 * 60 * 1000; // 2 min or 1 hour
 
-    console.log(`🚀 ${mode === "quick" ? "Quick" : "Comprehensive"} Benchmark - All ${String(getTotalAlgorithmCount())} Algorithms`);
+    console.log(
+        `🚀 ${mode === "quick" ? "Quick" : "Comprehensive"} Benchmark - All ${String(getTotalAlgorithmCount())} Algorithms`,
+    );
     console.log(`=${"=".repeat(60)}`);
     console.log(`Time limit: ${mode === "quick" ? "2 minutes" : "1 hour"}`);
     console.log(`Start time: ${new Date().toLocaleTimeString()}\n`);
@@ -175,7 +179,9 @@ export function runAllAlgorithmsBenchmark(mode: "quick" | "full" = "full"): Benc
     console.log("===================");
     console.log(`Total time: ${totalTime.toFixed(1)}s`);
     console.log(`Algorithms tested: ${String(totalTested)}`);
-    console.log(`Success rate: ${String(totalPassed)}/${String(totalTested)} (${(totalPassed / totalTested * 100).toFixed(1)}%)`);
+    console.log(
+        `Success rate: ${String(totalPassed)}/${String(totalTested)} (${((totalPassed / totalTested) * 100).toFixed(1)}%)`,
+    );
 
     if (mode === "full") {
         displayDetailedResults(results);
@@ -186,6 +192,12 @@ export function runAllAlgorithmsBenchmark(mode: "quick" | "full" = "full"): Benc
 
 /**
  * Benchmark a single algorithm
+ * @param algoName - The name of the algorithm to benchmark
+ * @param category - The category the algorithm belongs to
+ * @param graph - The test graph to run the algorithm on
+ * @param runs - Number of times to run the algorithm for averaging
+ * @param mode - The benchmark mode (quick or full)
+ * @returns The benchmark result containing timing and success information
  */
 function benchmarkAlgorithm(
     algoName: string,
@@ -216,7 +228,7 @@ function benchmarkAlgorithm(
             const args = getAlgorithmArgs(algoName, graph);
             const start = performance.now();
 
-            (algo as (... args: unknown[]) => unknown)(... args);
+            (algo as (...args: unknown[]) => unknown)(...args);
 
             const time = performance.now() - start;
             times.push(time);
@@ -251,6 +263,9 @@ function benchmarkAlgorithm(
 
 /**
  * Get appropriate arguments for each algorithm
+ * @param algoName - The name of the algorithm to get arguments for
+ * @param graph - The base graph to use for generating arguments
+ * @returns Array of arguments to pass to the algorithm function
  */
 function getAlgorithmArgs(algoName: string, graph: Graph): unknown[] {
     // Get random nodes for algorithms that need them
@@ -326,6 +341,10 @@ function getAlgorithmArgs(algoName: string, graph: Graph): unknown[] {
 
 /**
  * Create test graph appropriate for each algorithm category
+ * @param nodes - Number of nodes in the test graph
+ * @param edges - Target number of edges in the test graph
+ * @param category - The algorithm category to optimize the graph structure for
+ * @returns A new test graph with the specified structure
  */
 function createTestGraph(nodes: number, edges: number, category: string): Graph {
     const graph = new Graph();
@@ -362,6 +381,8 @@ function createTestGraph(nodes: number, edges: number, category: string): Graph 
 
 /**
  * Create a connected random graph
+ * @param graph - The graph to add edges to
+ * @param targetEdges - Target number of edges to create
  */
 function createConnectedGraph(graph: Graph, targetEdges: number): void {
     const nodes = graph.nodeCount;
@@ -387,6 +408,8 @@ function createConnectedGraph(graph: Graph, targetEdges: number): void {
 
 /**
  * Create small-world graph (Watts-Strogatz model)
+ * @param graph - The graph to add edges to
+ * @param avgDegree - Target average degree for each node
  */
 function createSmallWorldGraph(graph: Graph, avgDegree: number): void {
     const nodes = graph.nodeCount;
@@ -418,6 +441,8 @@ function createSmallWorldGraph(graph: Graph, avgDegree: number): void {
 
 /**
  * Create graph with community structure
+ * @param graph - The graph to add edges to
+ * @param targetEdges - Target number of edges to create
  */
 function createCommunityGraph(graph: Graph, targetEdges: number): void {
     const nodes = graph.nodeCount;
@@ -433,7 +458,8 @@ function createCommunityGraph(graph: Graph, targetEdges: number): void {
 
         for (let i = start; i < end && edgesAdded < targetEdges; i++) {
             for (let j = i + 1; j < end && edgesAdded < targetEdges; j++) {
-                if (Math.random() < 0.8) { // High probability within community
+                if (Math.random() < 0.8) {
+                    // High probability within community
                     graph.addEdge(i, j);
                     edgesAdded++;
                 }
@@ -455,9 +481,11 @@ function createCommunityGraph(graph: Graph, targetEdges: number): void {
 
 /**
  * Create directed version of graph
+ * @param undirectedGraph - The undirected graph to convert
+ * @returns A new directed graph with the same nodes and edges
  */
 function createDirectedGraph(undirectedGraph: Graph): Graph {
-    const directedGraph = new Graph({directed: true});
+    const directedGraph = new Graph({ directed: true });
 
     // Copy nodes
     for (const node of undirectedGraph.nodes()) {
@@ -474,6 +502,8 @@ function createDirectedGraph(undirectedGraph: Graph): Graph {
 
 /**
  * Create bipartite graph
+ * @param nodesPerPartition - Number of nodes in each partition
+ * @returns A new bipartite graph with sparse connections between partitions
  */
 function createBipartiteGraph(nodesPerPartition: number): Graph {
     const graph = new Graph();
@@ -486,7 +516,8 @@ function createBipartiteGraph(nodesPerPartition: number): Graph {
     // Add edges only between partitions
     for (let i = 0; i < nodesPerPartition; i++) {
         for (let j = nodesPerPartition; j < nodesPerPartition * 2; j++) {
-            if (Math.random() < 0.3) { // Sparse bipartite graph
+            if (Math.random() < 0.3) {
+                // Sparse bipartite graph
                 graph.addEdge(i, j);
             }
         }
@@ -497,14 +528,15 @@ function createBipartiteGraph(nodesPerPartition: number): Graph {
 
 /**
  * Get total algorithm count
+ * @returns The total number of algorithms across all categories
  */
 function getTotalAlgorithmCount(): number {
-    return Object.values(ALGORITHM_CATEGORIES).reduce((total, category) =>
-        total + category.algorithms.length, 0);
+    return Object.values(ALGORITHM_CATEGORIES).reduce((total, category) => total + category.algorithms.length, 0);
 }
 
 /**
  * Display detailed results for full benchmark
+ * @param results - Array of benchmark results to display
  */
 function displayDetailedResults(results: BenchmarkResult[]): void {
     console.log("\n📊 Detailed Results");
@@ -530,8 +562,8 @@ function displayDetailedResults(results: BenchmarkResult[]): void {
         if (successful.length > 0) {
             const avgTime = successful.reduce((sum, r) => sum + r.executionTime, 0) / successful.length;
             console.log(`  Average time: ${avgTime.toFixed(2)}ms`);
-            const minTime = Math.min(... successful.map((r) => r.executionTime));
-            const maxTime = Math.max(... successful.map((r) => r.executionTime));
+            const minTime = Math.min(...successful.map((r) => r.executionTime));
+            const maxTime = Math.max(...successful.map((r) => r.executionTime));
             console.log(`  Range: ${minTime.toFixed(2)}ms - ${maxTime.toFixed(2)}ms`);
         }
 

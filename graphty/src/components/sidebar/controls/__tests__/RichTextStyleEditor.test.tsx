@@ -1,64 +1,40 @@
-import {describe, expect, it, vi} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {fireEvent, render, screen} from "../../../../test/test-utils";
-import type {RichTextStyle} from "../../../../types/style-layer";
-import {DEFAULT_RICH_TEXT_STYLE} from "../../../../utils/style-defaults";
-import {RichTextStyleEditor} from "../RichTextStyleEditor";
+import { fireEvent, render, screen } from "../../../../test/test-utils";
+import type { RichTextStyle } from "../../../../types/style-layer";
+import { DEFAULT_RICH_TEXT_STYLE } from "../../../../utils/style-defaults";
+import { RichTextStyleEditor } from "../RichTextStyleEditor";
 
 describe("RichTextStyleEditor", () => {
     const defaultStyle: RichTextStyle = DEFAULT_RICH_TEXT_STYLE;
 
     const enabledStyle: RichTextStyle = {
-        ... DEFAULT_RICH_TEXT_STYLE,
+        ...DEFAULT_RICH_TEXT_STYLE,
         enabled: true,
         text: "Test Label",
     };
 
     it("renders enabled toggle", () => {
-        render(
-            <RichTextStyleEditor
-                label="Label"
-                value={defaultStyle}
-                onChange={vi.fn()}
-            />,
-        );
+        render(<RichTextStyleEditor label="Label" value={defaultStyle} onChange={vi.fn()} />);
 
-        expect(screen.getByRole("checkbox", {name: "Enabled"})).toBeInTheDocument();
+        expect(screen.getByRole("checkbox", { name: "Enabled" })).toBeInTheDocument();
     });
 
     it("hides controls when disabled", () => {
-        render(
-            <RichTextStyleEditor
-                label="Label"
-                value={defaultStyle}
-                onChange={vi.fn()}
-            />,
-        );
+        render(<RichTextStyleEditor label="Label" value={defaultStyle} onChange={vi.fn()} />);
 
         // Text input should not be visible when disabled
         expect(screen.queryByLabelText("Text")).not.toBeInTheDocument();
     });
 
     it("shows text input when enabled", () => {
-        render(
-            <RichTextStyleEditor
-                label="Label"
-                value={enabledStyle}
-                onChange={vi.fn()}
-            />,
-        );
+        render(<RichTextStyleEditor label="Label" value={enabledStyle} onChange={vi.fn()} />);
 
         expect(screen.getByLabelText("Text")).toBeInTheDocument();
     });
 
     it("shows font controls when enabled", () => {
-        render(
-            <RichTextStyleEditor
-                label="Label"
-                value={enabledStyle}
-                onChange={vi.fn()}
-            />,
-        );
+        render(<RichTextStyleEditor label="Label" value={enabledStyle} onChange={vi.fn()} />);
 
         // Font family select
         expect(screen.getByLabelText("Font Family")).toBeInTheDocument();
@@ -67,13 +43,7 @@ describe("RichTextStyleEditor", () => {
     });
 
     it("shows collapsible advanced sections", () => {
-        render(
-            <RichTextStyleEditor
-                label="Label"
-                value={enabledStyle}
-                onChange={vi.fn()}
-            />,
-        );
+        render(<RichTextStyleEditor label="Label" value={enabledStyle} onChange={vi.fn()} />);
 
         // Advanced sections should be available as collapsible groups
         expect(screen.getByText("Text Effects")).toBeInTheDocument();
@@ -83,15 +53,9 @@ describe("RichTextStyleEditor", () => {
 
     it("calls onChange when enabled is toggled", () => {
         const onChange = vi.fn();
-        render(
-            <RichTextStyleEditor
-                label="Label"
-                value={defaultStyle}
-                onChange={onChange}
-            />,
-        );
+        render(<RichTextStyleEditor label="Label" value={defaultStyle} onChange={onChange} />);
 
-        const enabledCheckbox = screen.getByRole("checkbox", {name: "Enabled"});
+        const enabledCheckbox = screen.getByRole("checkbox", { name: "Enabled" });
         fireEvent.click(enabledCheckbox);
 
         expect(onChange).toHaveBeenCalledWith(
@@ -103,16 +67,10 @@ describe("RichTextStyleEditor", () => {
 
     it("calls onChange when text changes", () => {
         const onChange = vi.fn();
-        render(
-            <RichTextStyleEditor
-                label="Label"
-                value={enabledStyle}
-                onChange={onChange}
-            />,
-        );
+        render(<RichTextStyleEditor label="Label" value={enabledStyle} onChange={onChange} />);
 
         const textInput = screen.getByLabelText("Text");
-        fireEvent.change(textInput, {target: {value: "New Label"}});
+        fireEvent.change(textInput, { target: { value: "New Label" } });
         fireEvent.blur(textInput);
 
         expect(onChange).toHaveBeenCalledWith(
@@ -124,16 +82,10 @@ describe("RichTextStyleEditor", () => {
 
     it("calls onChange when font family changes", () => {
         const onChange = vi.fn();
-        render(
-            <RichTextStyleEditor
-                label="Label"
-                value={enabledStyle}
-                onChange={onChange}
-            />,
-        );
+        render(<RichTextStyleEditor label="Label" value={enabledStyle} onChange={onChange} />);
 
         const fontSelect = screen.getByLabelText("Font Family");
-        fireEvent.change(fontSelect, {target: {value: "Helvetica"}});
+        fireEvent.change(fontSelect, { target: { value: "Helvetica" } });
 
         expect(onChange).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -146,16 +98,10 @@ describe("RichTextStyleEditor", () => {
 
     it("calls onChange when font size changes", () => {
         const onChange = vi.fn();
-        render(
-            <RichTextStyleEditor
-                label="Label"
-                value={enabledStyle}
-                onChange={onChange}
-            />,
-        );
+        render(<RichTextStyleEditor label="Label" value={enabledStyle} onChange={onChange} />);
 
         const sizeInput = screen.getByLabelText("Font Size");
-        fireEvent.change(sizeInput, {target: {value: "16"}});
+        fireEvent.change(sizeInput, { target: { value: "16" } });
         fireEvent.blur(sizeInput);
 
         expect(onChange).toHaveBeenCalledWith(
@@ -169,7 +115,7 @@ describe("RichTextStyleEditor", () => {
 
     it("shows background controls when enabled", () => {
         const styleWithBackground: RichTextStyle = {
-            ... enabledStyle,
+            ...enabledStyle,
             background: {
                 enabled: true,
                 color: "#000000",
@@ -178,63 +124,37 @@ describe("RichTextStyleEditor", () => {
             },
         };
 
-        render(
-            <RichTextStyleEditor
-                label="Label"
-                value={styleWithBackground}
-                onChange={vi.fn()}
-            />,
-        );
+        render(<RichTextStyleEditor label="Label" value={styleWithBackground} onChange={vi.fn()} />);
 
-        expect(screen.getByRole("checkbox", {name: "Background"})).toBeInTheDocument();
+        expect(screen.getByRole("checkbox", { name: "Background" })).toBeInTheDocument();
     });
 
     it("shows position controls", () => {
-        render(
-            <RichTextStyleEditor
-                label="Label"
-                value={enabledStyle}
-                onChange={vi.fn()}
-            />,
-        );
+        render(<RichTextStyleEditor label="Label" value={enabledStyle} onChange={vi.fn()} />);
 
         expect(screen.getByLabelText("Position")).toBeInTheDocument();
-        expect(screen.getByRole("checkbox", {name: "Billboard"})).toBeInTheDocument();
+        expect(screen.getByRole("checkbox", { name: "Billboard" })).toBeInTheDocument();
     });
 
     it("shows location select", () => {
-        render(
-            <RichTextStyleEditor
-                label="Label"
-                value={enabledStyle}
-                onChange={vi.fn()}
-            />,
-        );
+        render(<RichTextStyleEditor label="Label" value={enabledStyle} onChange={vi.fn()} />);
 
         expect(screen.getByLabelText("Location")).toBeInTheDocument();
     });
 
     it("uses label for data-testid", () => {
-        const {container} = render(
-            <RichTextStyleEditor
-                label="Node Label"
-                value={enabledStyle}
-                onChange={vi.fn()}
-            />,
+        const { container } = render(
+            <RichTextStyleEditor label="Node Label" value={enabledStyle} onChange={vi.fn()} />,
         );
 
-        expect(container.querySelector("[data-testid=\"rich-text-editor-Node Label\"]")).toBeInTheDocument();
+        expect(container.querySelector('[data-testid="rich-text-editor-Node Label"]')).toBeInTheDocument();
     });
 
     it("uses different label for different data-testid", () => {
-        const {container} = render(
-            <RichTextStyleEditor
-                label="Edge Tooltip"
-                value={enabledStyle}
-                onChange={vi.fn()}
-            />,
+        const { container } = render(
+            <RichTextStyleEditor label="Edge Tooltip" value={enabledStyle} onChange={vi.fn()} />,
         );
 
-        expect(container.querySelector("[data-testid=\"rich-text-editor-Edge Tooltip\"]")).toBeInTheDocument();
+        expect(container.querySelector('[data-testid="rich-text-editor-Edge Tooltip"]')).toBeInTheDocument();
     });
 });

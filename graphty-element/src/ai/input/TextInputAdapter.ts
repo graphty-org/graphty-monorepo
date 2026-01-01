@@ -3,7 +3,7 @@
  * @module ai/input/TextInputAdapter
  */
 
-import type {InputAdapter, InputCallback} from "./types";
+import type { InputAdapter, InputCallback } from "./types";
 
 /**
  * Text input adapter that wraps text input with streaming support.

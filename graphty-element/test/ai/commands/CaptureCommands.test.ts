@@ -2,10 +2,10 @@
  * Tests for Capture Commands (Phase 7)
  */
 
-import {assert, beforeEach, describe, it, vi} from "vitest";
+import { assert, beforeEach, describe, it, vi } from "vitest";
 
-import {captureScreenshot} from "../../../src/ai/commands/CaptureCommands";
-import type {CommandContext} from "../../../src/ai/commands/types";
+import { captureScreenshot } from "../../../src/ai/commands/CaptureCommands";
+import type { CommandContext } from "../../../src/ai/commands/types";
 
 // Type for the mock graph with screenshot functionality
 interface MockGraph {
@@ -46,7 +46,7 @@ function createMockGraph(): MockGraph {
     return {
         // Mock screenshot method that returns a ScreenshotResult with blob
         captureScreenshot: vi.fn().mockResolvedValue({
-            blob: new Blob(["fake-image-data"], {type: "image/png"}),
+            blob: new Blob(["fake-image-data"], { type: "image/png" }),
             downloaded: false,
             clipboardStatus: "not-supported",
             metadata: {
@@ -86,7 +86,7 @@ describe("CaptureCommands", () => {
             assert.ok(captureScreenshot.examples.length > 0);
         });
 
-        it("captures screenshot with default options", async() => {
+        it("captures screenshot with default options", async () => {
             const graph = mockGraph as unknown as CommandContext["graph"];
             const result = await captureScreenshot.execute(graph, {}, context);
 
@@ -96,21 +96,25 @@ describe("CaptureCommands", () => {
             assert.ok(result.message.includes("Screenshot"));
         });
 
-        it("captures screenshot with PNG format", async() => {
+        it("captures screenshot with PNG format", async () => {
             const graph = mockGraph as unknown as CommandContext["graph"];
-            const result = await captureScreenshot.execute(graph, {
-                format: "png",
-            }, context);
+            const result = await captureScreenshot.execute(
+                graph,
+                {
+                    format: "png",
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
             const data = result.data as ScreenshotData | undefined;
             assert.ok(data?.dataUrl?.startsWith("data:"));
         });
 
-        it("captures screenshot with JPEG format", async() => {
+        it("captures screenshot with JPEG format", async () => {
             // Mock to return JPEG data
             mockGraph.captureScreenshot.mockResolvedValueOnce({
-                blob: new Blob(["fake-jpeg-data"], {type: "image/jpeg"}),
+                blob: new Blob(["fake-jpeg-data"], { type: "image/jpeg" }),
                 downloaded: false,
                 clipboardStatus: "not-supported",
                 metadata: {
@@ -123,30 +127,38 @@ describe("CaptureCommands", () => {
             });
 
             const graph = mockGraph as unknown as CommandContext["graph"];
-            const result = await captureScreenshot.execute(graph, {
-                format: "jpeg",
-            }, context);
+            const result = await captureScreenshot.execute(
+                graph,
+                {
+                    format: "jpeg",
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
             const data = result.data as ScreenshotData | undefined;
             assert.ok(data?.dataUrl?.startsWith("data:"));
         });
 
-        it("captures screenshot with specified width and height", async() => {
+        it("captures screenshot with specified width and height", async () => {
             const graph = mockGraph as unknown as CommandContext["graph"];
-            const result = await captureScreenshot.execute(graph, {
-                width: 1920,
-                height: 1080,
-            }, context);
+            const result = await captureScreenshot.execute(
+                graph,
+                {
+                    width: 1920,
+                    height: 1080,
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
             // Verify screenshot was called with size parameters
             assert.ok(mockGraph.captureScreenshot.mock.calls.length > 0);
         });
 
-        it("captures screenshot with quality option for JPEG", async() => {
+        it("captures screenshot with quality option for JPEG", async () => {
             mockGraph.captureScreenshot.mockResolvedValueOnce({
-                blob: new Blob(["fake-jpeg-data"], {type: "image/jpeg"}),
+                blob: new Blob(["fake-jpeg-data"], { type: "image/jpeg" }),
                 downloaded: false,
                 clipboardStatus: "not-supported",
                 metadata: {
@@ -159,30 +171,37 @@ describe("CaptureCommands", () => {
             });
 
             const graph = mockGraph as unknown as CommandContext["graph"];
-            const result = await captureScreenshot.execute(graph, {
-                format: "jpeg",
-                quality: 0.8,
-            }, context);
+            const result = await captureScreenshot.execute(
+                graph,
+                {
+                    format: "jpeg",
+                    quality: 0.8,
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
         });
 
-        it("handles screenshot failure gracefully", async() => {
+        it("handles screenshot failure gracefully", async () => {
             mockGraph.captureScreenshot.mockRejectedValueOnce(new Error("Screenshot failed"));
 
             const graph = mockGraph as unknown as CommandContext["graph"];
             const result = await captureScreenshot.execute(graph, {}, context);
 
             assert.strictEqual(result.success, false);
-            assert.ok(result.message.toLowerCase().includes("fail") ||
-                      result.message.toLowerCase().includes("error"));
+            assert.ok(result.message.toLowerCase().includes("fail") || result.message.toLowerCase().includes("error"));
         });
 
-        it("returns appropriate message with download:false", async() => {
+        it("returns appropriate message with download:false", async () => {
             const graph = mockGraph as unknown as CommandContext["graph"];
-            const result = await captureScreenshot.execute(graph, {
-                download: false,
-            }, context);
+            const result = await captureScreenshot.execute(
+                graph,
+                {
+                    download: false,
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
             const data = result.data as ScreenshotData | undefined;
@@ -192,14 +211,14 @@ describe("CaptureCommands", () => {
 
         it("parameter schema validates format correctly", () => {
             // Valid formats
-            const validPng = captureScreenshot.parameters.safeParse({format: "png"});
+            const validPng = captureScreenshot.parameters.safeParse({ format: "png" });
             assert.ok(validPng.success);
 
-            const validJpeg = captureScreenshot.parameters.safeParse({format: "jpeg"});
+            const validJpeg = captureScreenshot.parameters.safeParse({ format: "jpeg" });
             assert.ok(validJpeg.success);
 
             // Invalid format
-            const invalid = captureScreenshot.parameters.safeParse({format: "gif"});
+            const invalid = captureScreenshot.parameters.safeParse({ format: "gif" });
             assert.ok(!invalid.success);
         });
 
@@ -216,28 +235,28 @@ describe("CaptureCommands", () => {
             assert.ok(valid.success);
 
             // Negative numbers should fail
-            const negativeWidth = captureScreenshot.parameters.safeParse({width: -100});
+            const negativeWidth = captureScreenshot.parameters.safeParse({ width: -100 });
             assert.ok(!negativeWidth.success);
 
-            const negativeHeight = captureScreenshot.parameters.safeParse({height: -100});
+            const negativeHeight = captureScreenshot.parameters.safeParse({ height: -100 });
             assert.ok(!negativeHeight.success);
         });
 
         it("parameter schema validates quality range 0-1", () => {
-            const valid = captureScreenshot.parameters.safeParse({quality: 0.8});
+            const valid = captureScreenshot.parameters.safeParse({ quality: 0.8 });
             assert.ok(valid.success);
 
-            const validZero = captureScreenshot.parameters.safeParse({quality: 0});
+            const validZero = captureScreenshot.parameters.safeParse({ quality: 0 });
             assert.ok(validZero.success);
 
-            const validOne = captureScreenshot.parameters.safeParse({quality: 1});
+            const validOne = captureScreenshot.parameters.safeParse({ quality: 1 });
             assert.ok(validOne.success);
 
             // Out of range
-            const tooHigh = captureScreenshot.parameters.safeParse({quality: 1.5});
+            const tooHigh = captureScreenshot.parameters.safeParse({ quality: 1.5 });
             assert.ok(!tooHigh.success);
 
-            const tooLow = captureScreenshot.parameters.safeParse({quality: -0.5});
+            const tooLow = captureScreenshot.parameters.safeParse({ quality: -0.5 });
             assert.ok(!tooLow.success);
         });
     });

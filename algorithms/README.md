@@ -35,6 +35,7 @@ const result = breadthFirstSearch(largeGraph, startNode);
 ```
 
 All BFS-based algorithms benefit from these optimizations:
+
 - `breadthFirstSearch`, `shortestPathBFS`, `singleSourceShortestPathBFS`
 - `betweennessCentrality`, `closenessCentrality`
 - Connected component algorithms
@@ -42,12 +43,12 @@ All BFS-based algorithms benefit from these optimizations:
 ### Performance Benchmarks
 
 | Graph Size | Standard BFS | Optimized BFS | Speedup |
-|------------|--------------|---------------|---------|
-| 10K nodes  | 4.40ms      | 6.34ms        | 0.69x   |
-| 50K nodes  | 158.64ms    | 44.27ms       | 3.58x   |
-| 100K nodes | 5,370ms     | 126ms         | 42.58x  |
+| ---------- | ------------ | ------------- | ------- |
+| 10K nodes  | 4.40ms       | 6.34ms        | 0.69x   |
+| 50K nodes  | 158.64ms     | 44.27ms       | 3.58x   |
+| 100K nodes | 5,370ms      | 126ms         | 42.58x  |
 
-*Note: Optimizations activate automatically for graphs ≥10K nodes to avoid conversion overhead on smaller graphs.*
+_Note: Optimizations activate automatically for graphs ≥10K nodes to avoid conversion overhead on smaller graphs._
 
 ### Learn More
 
@@ -64,31 +65,31 @@ npm install @graphty/algorithms
 ## Quick Start
 
 ```typescript
-import { Graph, breadthFirstSearch, dijkstra } from '@graphty/algorithms'
+import { Graph, breadthFirstSearch, dijkstra } from "@graphty/algorithms";
 
 // Create a new graph
-const graph = new Graph()
+const graph = new Graph();
 
 // Add nodes and edges
-graph.addNode('A')
-graph.addNode('B')
-graph.addNode('C')
-graph.addEdge('A', 'B', 1) // source, target, weight
-graph.addEdge('B', 'C', 2)
+graph.addNode("A");
+graph.addNode("B");
+graph.addNode("C");
+graph.addEdge("A", "B", 1); // source, target, weight
+graph.addEdge("B", "C", 2);
 
 // Basic graph operations
-console.log(graph.nodeCount) // 3
-console.log(graph.totalEdgeCount) // 2
-console.log(graph.hasEdge('A', 'B')) // true
+console.log(graph.nodeCount); // 3
+console.log(graph.totalEdgeCount); // 2
+console.log(graph.hasEdge("A", "B")); // true
 
 // Run algorithms
-const traversal = breadthFirstSearch(graph, 'A')
-console.log(traversal.order) // ['A', 'B', 'C']
+const traversal = breadthFirstSearch(graph, "A");
+console.log(traversal.order); // ['A', 'B', 'C']
 
-const shortestPaths = dijkstra(graph, 'A')
+const shortestPaths = dijkstra(graph, "A");
 // Get distance to C
-const pathToC = shortestPaths.get('C')
-console.log(pathToC?.distance) // 3
+const pathToC = shortestPaths.get("C");
+console.log(pathToC?.distance); // 3
 ```
 
 ## API Reference
@@ -99,7 +100,7 @@ The core data structure for representing graphs.
 
 ```typescript
 class Graph {
-  constructor(config?: Partial<GraphConfig>)
+    constructor(config?: Partial<GraphConfig>);
 }
 ```
 
@@ -107,9 +108,9 @@ class Graph {
 
 ```typescript
 interface GraphConfig {
-  directed: boolean // Default: false
-  allowSelfLoops: boolean // Default: false
-  allowParallelEdges: boolean // Default: false
+    directed: boolean; // Default: false
+    allowSelfLoops: boolean; // Default: false
+    allowParallelEdges: boolean; // Default: false
 }
 ```
 
@@ -306,14 +307,10 @@ const allPairs = allPairsShortestPath(graph)
 #### Bellman-Ford Algorithm
 
 ```typescript
-import {
-  bellmanFord,
-  bellmanFordPath,
-  hasNegativeCycle
-} from '@graphty/algorithms'
+import { bellmanFord, bellmanFordPath, hasNegativeCycle } from "@graphty/algorithms";
 
 // Single-source shortest paths (handles negative weights)
-const result = bellmanFord(graph, source)
+const result = bellmanFord(graph, source);
 // Returns: BellmanFordResult {
 //   distances: Map<NodeId, number>,
 //   predecessors: Map<NodeId, NodeId | null>,
@@ -322,33 +319,29 @@ const result = bellmanFord(graph, source)
 // }
 
 // Get specific path
-const path = bellmanFordPath(graph, source, target)
+const path = bellmanFordPath(graph, source, target);
 // Returns: ShortestPathResult | null
 
 // Check for negative cycles
-const result = hasNegativeCycle(graph)
+const result = hasNegativeCycle(graph);
 // Returns: BellmanFordResult with hasNegativeCycle boolean
 ```
 
 #### Floyd-Warshall Algorithm
 
 ```typescript
-import {
-  floydWarshall,
-  floydWarshallPath,
-  transitiveClosure
-} from '@graphty/algorithms'
+import { floydWarshall, floydWarshallPath, transitiveClosure } from "@graphty/algorithms";
 
 // All pairs shortest paths
-const result = floydWarshall(graph)
+const result = floydWarshall(graph);
 // Returns: { distances: Map<NodeId, Map<NodeId, number>>, next: Map<NodeId, Map<NodeId, NodeId | null>> }
 
 // Get specific path between any pair
-const path = floydWarshallPath(result, source, target)
+const path = floydWarshallPath(result, source, target);
 // Returns: NodeId[] | null
 
 // Compute transitive closure
-const closure = transitiveClosure(graph)
+const closure = transitiveClosure(graph);
 // Returns: Map<NodeId, Set<NodeId>>
 ```
 
@@ -357,169 +350,154 @@ const closure = transitiveClosure(graph)
 #### Degree Centrality
 
 ```typescript
-import { degreeCentrality, nodeDegreeCentrality } from '@graphty/algorithms'
+import { degreeCentrality, nodeDegreeCentrality } from "@graphty/algorithms";
 
 // Calculate for all nodes
 const centralities = degreeCentrality(graph, {
-  normalized: boolean, // Default: false
-  weight: string // Optional: edge property for weighted degree
-})
+    normalized: boolean, // Default: false
+    weight: string, // Optional: edge property for weighted degree
+});
 // Returns: CentralityResult (Record<string, number>)
 
 // Calculate for single node
-const centrality = nodeDegreeCentrality(graph, nodeId, { normalized: boolean })
+const centrality = nodeDegreeCentrality(graph, nodeId, { normalized: boolean });
 // Returns: number
 ```
 
 #### Betweenness Centrality
 
 ```typescript
-import {
-  betweennessCentrality,
-  nodeBetweennessCentrality,
-  edgeBetweennessCentrality
-} from '@graphty/algorithms'
+import { betweennessCentrality, nodeBetweennessCentrality, edgeBetweennessCentrality } from "@graphty/algorithms";
 
 // Node betweenness for all nodes
 const centralities = betweennessCentrality(graph, {
-  normalized: boolean, // Default: false
-  weight: string, // Optional: use weighted shortest paths
-  endpoints: boolean // Default: false, include endpoints in paths
-})
+    normalized: boolean, // Default: false
+    weight: string, // Optional: use weighted shortest paths
+    endpoints: boolean, // Default: false, include endpoints in paths
+});
 // Returns: CentralityResult (Record<string, number>)
 
 // Single node betweenness
-const centrality = nodeBetweennessCentrality(graph, nodeId, options)
+const centrality = nodeBetweennessCentrality(graph, nodeId, options);
 // Returns: number
 
 // Edge betweenness
-const edgeCentralities = edgeBetweennessCentrality(graph, options)
+const edgeCentralities = edgeBetweennessCentrality(graph, options);
 // Returns: Map<string, number> (edge ID to centrality)
 ```
 
 #### Closeness Centrality
 
 ```typescript
-import {
-  closenessCentrality,
-  nodeClosenessCentrality,
-  weightedClosenessCentrality
-} from '@graphty/algorithms'
+import { closenessCentrality, nodeClosenessCentrality, weightedClosenessCentrality } from "@graphty/algorithms";
 
 // Closeness for all nodes
 const centralities = closenessCentrality(graph, {
-  normalized: boolean // Default: false
-})
+    normalized: boolean, // Default: false
+});
 // Returns: CentralityResult (Record<string, number>)
 
 // Single node closeness
 const centrality = nodeClosenessCentrality(graph, nodeId, {
-  normalized: boolean
-})
+    normalized: boolean,
+});
 // Returns: number
 
 // Weighted closeness
 const centralities = weightedClosenessCentrality(graph, {
-  normalized: boolean,
-  weight: string // Edge property for weights
-})
+    normalized: boolean,
+    weight: string, // Edge property for weights
+});
 // Returns: CentralityResult (Record<string, number>)
 
 // Single node weighted closeness
 const centrality = nodeWeightedClosenessCentrality(graph, nodeId, {
-  normalized: boolean,
-  weight: string // Edge property for weights
-})
+    normalized: boolean,
+    weight: string, // Edge property for weights
+});
 // Returns: number
 ```
 
 #### PageRank
 
 ```typescript
-import {
-  pageRank,
-  personalizedPageRank,
-  topPageRankNodes
-} from '@graphty/algorithms'
+import { pageRank, personalizedPageRank, topPageRankNodes } from "@graphty/algorithms";
 
 // Standard PageRank
 const result = pageRank(graph, {
-  dampingFactor: number, // Default: 0.85
-  maxIterations: number, // Default: 100
-  tolerance: number, // Default: 1e-6
-  initialRanks: Record<string, number>,
-  personalization: Record<string, number>
-})
+    dampingFactor: number, // Default: 0.85
+    maxIterations: number, // Default: 100
+    tolerance: number, // Default: 1e-6
+    initialRanks: Record<string, number>,
+    personalization: Record<string, number>,
+});
 // Returns: { ranks: Record<string, number>, iterations: number, converged: boolean }
 
 // Personalized PageRank (with bias)
-const ranks = personalizedPageRank(graph, personalization, options)
+const ranks = personalizedPageRank(graph, personalization, options);
 // personalization: Map<NodeId, number> - restart probabilities
 // Returns: CentralityResult (Record<string, number>)
 
 // Get top N nodes by PageRank
-const topNodes = topPageRankNodes(graph, n, options)
+const topNodes = topPageRankNodes(graph, n, options);
 // Returns: Array<{ node: NodeId, rank: number }>
 
 // Alternative PageRank that returns CentralityResult format
-const centralities = pageRankCentrality(graph, options)
+const centralities = pageRankCentrality(graph, options);
 // Returns: CentralityResult (Record<string, number>)
 ```
 
 #### Eigenvector Centrality
 
 ```typescript
-import {
-  eigenvectorCentrality,
-  nodeEigenvectorCentrality
-} from '@graphty/algorithms'
+import { eigenvectorCentrality, nodeEigenvectorCentrality } from "@graphty/algorithms";
 
 // Calculate eigenvector centrality for all nodes
 const centralities = eigenvectorCentrality(graph, {
-  maxIterations: number, // Default: 100
-  tolerance: number // Default: 1e-6
-})
+    maxIterations: number, // Default: 100
+    tolerance: number, // Default: 1e-6
+});
 // Returns: CentralityResult (Record<string, number>)
 
 // Single node eigenvector centrality
-const centrality = nodeEigenvectorCentrality(graph, nodeId, options)
+const centrality = nodeEigenvectorCentrality(graph, nodeId, options);
 // Returns: number
 ```
 
 #### Katz Centrality
 
 ```typescript
-import { katzCentrality, nodeKatzCentrality } from '@graphty/algorithms'
+import { katzCentrality, nodeKatzCentrality } from "@graphty/algorithms";
 
 // Calculate Katz centrality for all nodes
 const centralities = katzCentrality(graph, {
-  alpha: number, // Attenuation factor (default: 0.1)
-  beta: number, // Weight for direct connections (default: 1.0)
-  maxIterations: number, // Default: 100
-  tolerance: number, // Default: 1e-6
-  normalized: boolean // Default: true
-})
+    alpha: number, // Attenuation factor (default: 0.1)
+    beta: number, // Weight for direct connections (default: 1.0)
+    maxIterations: number, // Default: 100
+    tolerance: number, // Default: 1e-6
+    normalized: boolean, // Default: true
+});
 // Returns: CentralityResult (Record<string, number>)
 
 // Single node Katz centrality
-const centrality = nodeKatzCentrality(graph, nodeId, options)
+const centrality = nodeKatzCentrality(graph, nodeId, options);
 // Returns: number
 ```
 
 #### HITS Algorithm
 
 ```typescript
-import { hits, nodeHITS } from '@graphty/algorithms'
+import { hits, nodeHITS } from "@graphty/algorithms";
 
 // Calculate hub and authority scores
 const result = hits(graph, {
-  maxIterations: number, // Default: 100
-  tolerance: number // Default: 1e-6
-})
+    maxIterations: number, // Default: 100
+    tolerance: number, // Default: 1e-6
+});
 // Returns: HITSResult { hubs: CentralityResult, authorities: CentralityResult }
 
 // Single node HITS scores
-const scores = nodeHITS(graph, nodeId, options)
+const scores = nodeHITS(graph, nodeId, options);
 // Returns: { hub: number, authority: number }
 ```
 
@@ -529,31 +507,31 @@ const scores = nodeHITS(graph, nodeId, options)
 
 ```typescript
 import {
-  connectedComponents,
-  isConnected,
-  numberOfConnectedComponents,
-  largestConnectedComponent,
-  getConnectedComponent
-} from '@graphty/algorithms'
+    connectedComponents,
+    isConnected,
+    numberOfConnectedComponents,
+    largestConnectedComponent,
+    getConnectedComponent,
+} from "@graphty/algorithms";
 
 // Find all components
-const components = connectedComponents(graph)
+const components = connectedComponents(graph);
 // Returns: NodeId[][] (array of component arrays)
 
 // Check if graph is connected
-const connected = isConnected(graph)
+const connected = isConnected(graph);
 // Returns: boolean
 
 // Count components
-const count = numberOfConnectedComponents(graph)
+const count = numberOfConnectedComponents(graph);
 // Returns: number
 
 // Get largest component
-const largest = largestConnectedComponent(graph)
+const largest = largestConnectedComponent(graph);
 // Returns: NodeId[]
 
 // Get component containing a specific node
-const component = getConnectedComponent(graph, nodeId)
+const component = getConnectedComponent(graph, nodeId);
 // Returns: Set<NodeId>
 ```
 
@@ -561,47 +539,44 @@ const component = getConnectedComponent(graph, nodeId)
 
 ```typescript
 import {
-  stronglyConnectedComponents,
-  findStronglyConnectedComponents,
-  isStronglyConnected,
-  condensationGraph
-} from '@graphty/algorithms'
+    stronglyConnectedComponents,
+    findStronglyConnectedComponents,
+    isStronglyConnected,
+    condensationGraph,
+} from "@graphty/algorithms";
 
 // Find SCCs using Tarjan's algorithm
-const sccs = stronglyConnectedComponents(graph)
+const sccs = stronglyConnectedComponents(graph);
 // Returns: ComponentResult
 
 // Alternative: using DFS
-const sccs = findStronglyConnectedComponents(graph)
+const sccs = findStronglyConnectedComponents(graph);
 // Returns: NodeId[][]
 
 // Check if directed graph is strongly connected
-const stronglyConnected = isStronglyConnected(graph)
+const stronglyConnected = isStronglyConnected(graph);
 // Returns: boolean
 
 // Create condensation graph (DAG of SCCs)
-const condensation = condensationGraph(graph)
+const condensation = condensationGraph(graph);
 // Returns: { graph: Graph, componentMap: Map<NodeId, number> }
 
 // Alternative DFS-based connected components
-const components = connectedComponentsDFS(graph)
+const components = connectedComponentsDFS(graph);
 // Returns: ComponentResult
 ```
 
 #### Weakly Connected Components
 
 ```typescript
-import {
-  weaklyConnectedComponents,
-  isWeaklyConnected
-} from '@graphty/algorithms'
+import { weaklyConnectedComponents, isWeaklyConnected } from "@graphty/algorithms";
 
 // Find WCCs (ignoring edge direction)
-const wccs = weaklyConnectedComponents(graph)
+const wccs = weaklyConnectedComponents(graph);
 // Returns: ComponentResult
 
 // Check if directed graph is weakly connected
-const weaklyConnected = isWeaklyConnected(graph)
+const weaklyConnected = isWeaklyConnected(graph);
 // Returns: boolean
 ```
 
@@ -612,16 +587,16 @@ const weaklyConnected = isWeaklyConnected(graph)
 Min-heap implementation used internally by algorithms.
 
 ```typescript
-import { PriorityQueue } from '@graphty/algorithms'
+import { PriorityQueue } from "@graphty/algorithms";
 
-const pq = new PriorityQueue<T>((a, b) => a.priority - b.priority)
+const pq = new PriorityQueue<T>((a, b) => a.priority - b.priority);
 
-pq.enqueue(item)
-pq.dequeue()
-pq.peek()
-pq.isEmpty()
-pq.size
-pq.clear()
+pq.enqueue(item);
+pq.dequeue();
+pq.peek();
+pq.isEmpty();
+pq.size;
+pq.clear();
 ```
 
 #### Union-Find (Disjoint Set)
@@ -629,16 +604,16 @@ pq.clear()
 Efficient data structure for tracking connected components.
 
 ```typescript
-import { UnionFind } from '@graphty/algorithms'
+import { UnionFind } from "@graphty/algorithms";
 
-const uf = new UnionFind<T>()
+const uf = new UnionFind<T>();
 
-uf.makeSet(item)
-uf.find(item)
-uf.union(item1, item2)
-uf.connected(item1, item2)
-uf.getSetSize(item)
-uf.numberOfSets
+uf.makeSet(item);
+uf.find(item);
+uf.union(item1, item2);
+uf.connected(item1, item2);
+uf.getSetSize(item);
+uf.numberOfSets;
 ```
 
 ### Minimum Spanning Tree Algorithms
@@ -646,14 +621,14 @@ uf.numberOfSets
 #### Kruskal's Algorithm
 
 ```typescript
-import { kruskalMST, minimumSpanningTree } from '@graphty/algorithms'
+import { kruskalMST, minimumSpanningTree } from "@graphty/algorithms";
 
 // Find MST using Kruskal's algorithm
-const mst = kruskalMST(graph)
+const mst = kruskalMST(graph);
 // Returns: { edges: Edge[], weight: number }
 
 // Alternative alias
-const mst = minimumSpanningTree(graph)
+const mst = minimumSpanningTree(graph);
 ```
 
 #### Prim's Algorithm
@@ -671,61 +646,57 @@ const mst = primMST(graph, startNode?);
 #### Louvain Method
 
 ```typescript
-import { louvain } from '@graphty/algorithms'
+import { louvain } from "@graphty/algorithms";
 
 // Detect communities using Louvain method
 const communities = louvain(graph, {
-  resolution: number, // Default: 1.0
-  randomSeed: number
-})
+    resolution: number, // Default: 1.0
+    randomSeed: number,
+});
 // Returns: { communities: Map<NodeId, number>, modularity: number }
 ```
 
 #### Leiden Algorithm
 
 ```typescript
-import { leiden } from '@graphty/algorithms'
+import { leiden } from "@graphty/algorithms";
 
 // Improved community detection
 const communities = leiden(graph, {
-  resolution: number, // Default: 1.0
-  iterations: number, // Default: 10
-  randomSeed: number
-})
+    resolution: number, // Default: 1.0
+    iterations: number, // Default: 10
+    randomSeed: number,
+});
 // Returns: { communities: Map<NodeId, number>, modularity: number }
 ```
 
 #### Label Propagation
 
 ```typescript
-import {
-  labelPropagation,
-  labelPropagationAsync,
-  labelPropagationSemiSupervised
-} from '@graphty/algorithms'
+import { labelPropagation, labelPropagationAsync, labelPropagationSemiSupervised } from "@graphty/algorithms";
 
 // Basic label propagation
 const labels = labelPropagation(graph, {
-  maxIterations: number // Default: 100
-})
+    maxIterations: number, // Default: 100
+});
 // Returns: Map<NodeId, number>
 
 // Asynchronous version
-const labels = labelPropagationAsync(graph, options)
+const labels = labelPropagationAsync(graph, options);
 
 // Semi-supervised with seed communities
-const labels = labelPropagationSemiSupervised(graph, seedLabels, options)
+const labels = labelPropagationSemiSupervised(graph, seedLabels, options);
 ```
 
 #### Girvan-Newman Algorithm
 
 ```typescript
-import { girvanNewman } from '@graphty/algorithms'
+import { girvanNewman } from "@graphty/algorithms";
 
 // Edge betweenness based community detection
 const dendrogram = girvanNewman(graph, {
-  targetCommunities: number // Stop at this many communities
-})
+    targetCommunities: number, // Stop at this many communities
+});
 // Returns: { levels: Array<{ modularity: number, communities: NodeId[][] }> }
 ```
 
@@ -734,15 +705,15 @@ const dendrogram = girvanNewman(graph, {
 #### A\* Algorithm
 
 ```typescript
-import { astar } from '@graphty/algorithms'
+import { astar } from "@graphty/algorithms";
 
 // A* pathfinding with heuristic
 const path = astar(
-  graph, // Map<T, Map<T, number>> adjacency list
-  start,
-  goal,
-  heuristic // (node: T, goal: T) => number
-)
+    graph, // Map<T, Map<T, number>> adjacency list
+    start,
+    goal,
+    heuristic, // (node: T, goal: T) => number
+);
 // Returns: { path: T[], cost: number } | null
 ```
 
@@ -790,86 +761,77 @@ const cut = kargerMinCut(graph, iterations?);
 #### Hierarchical Clustering
 
 ```typescript
-import {
-  hierarchicalClustering,
-  cutDendrogram,
-  cutDendrogramKClusters
-} from '@graphty/algorithms'
+import { hierarchicalClustering, cutDendrogram, cutDendrogramKClusters } from "@graphty/algorithms";
 
 // Agglomerative clustering
-const result = hierarchicalClustering(graph, linkage)
+const result = hierarchicalClustering(graph, linkage);
 // graph: Map<NodeId, Set<NodeId>>
 // linkage: 'single' | 'complete' | 'average' | 'ward' (default: 'single')
 // Returns: HierarchicalClusteringResult { root: ClusterNode, dendrogram: ClusterNode[], clusters: Map<number, Set<NodeId>[]> }
 
 // Cut at specific height
-const clusters = cutDendrogram(result.root, height)
+const clusters = cutDendrogram(result.root, height);
 // Returns: Set<NodeId>[]
 
 // Get exactly k clusters
-const clusters = cutDendrogramKClusters(result.root, k)
+const clusters = cutDendrogramKClusters(result.root, k);
 // Returns: Set<NodeId>[]
 ```
 
 #### K-Core Decomposition
 
 ```typescript
-import {
-  kCoreDecomposition,
-  getKCore,
-  kTruss,
-  degeneracyOrdering
-} from '@graphty/algorithms'
+import { kCoreDecomposition, getKCore, kTruss, degeneracyOrdering } from "@graphty/algorithms";
 
 // Find all k-cores
-const result = kCoreDecomposition(graph)
+const result = kCoreDecomposition(graph);
 // graph: Map<NodeId, Set<NodeId>>
 // Returns: KCoreResult { cores: Map<number, Set<NodeId>>, coreness: Map<NodeId, number>, maxCore: number }
 
 // Extract specific k-core subgraph
-const kCore = getKCore(graph, k)
+const kCore = getKCore(graph, k);
 // Returns: Set<NodeId>
 
 // Find k-truss (triangular cores)
-const truss = kTruss(graph, k)
+const truss = kTruss(graph, k);
 // Returns: Set<string> (edge strings)
 
 // Degeneracy ordering
-const ordering = degeneracyOrdering(graph)
+const ordering = degeneracyOrdering(graph);
 // Returns: NodeId[]
 ```
 
 #### Spectral Clustering
 
 ```typescript
-import { spectralClustering } from '@graphty/algorithms'
+import { spectralClustering } from "@graphty/algorithms";
 
 // Spectral clustering using graph Laplacian
 const result = spectralClustering(graph, {
-  k: number, // Number of clusters
-  laplacianType: 'unnormalized' | 'normalized' | 'randomWalk', // Default: 'normalized'
-  maxIterations: number, // Default: 100
-  tolerance: number // Default: 1e-4
-})
+    k: number, // Number of clusters
+    laplacianType: "unnormalized" | "normalized" | "randomWalk", // Default: 'normalized'
+    maxIterations: number, // Default: 100
+    tolerance: number, // Default: 1e-4
+});
 // Returns: SpectralClusteringResult { communities: NodeId[][], clusterAssignments: Map<NodeId, number> }
 ```
 
 #### Markov Clustering (MCL)
 
 ```typescript
-import { markovClustering, calculateMCLModularity } from '@graphty/algorithms'
+import { markovClustering, calculateMCLModularity } from "@graphty/algorithms";
 
 // MCL algorithm for network clustering
 const result = markovClustering(graph, {
-  expansion: number, // Expansion parameter (default: 2)
-  inflation: number, // Inflation parameter (default: 2)
-  maxIterations: number, // Default: 100
-  tolerance: number // Default: 1e-6
-})
+    expansion: number, // Expansion parameter (default: 2)
+    inflation: number, // Inflation parameter (default: 2)
+    maxIterations: number, // Default: 100
+    tolerance: number, // Default: 1e-6
+});
 // Returns: MCLResult { communities: NodeId[][], attractors: Set<NodeId>, iterations: number, converged: boolean }
 
 // Calculate modularity of MCL clustering result
-const modularity = calculateMCLModularity(graph, result.communities)
+const modularity = calculateMCLModularity(graph, result.communities);
 // Returns: number
 ```
 
@@ -878,47 +840,38 @@ const modularity = calculateMCLModularity(graph, result.communities)
 #### Bipartite Matching
 
 ```typescript
-import {
-  maximumBipartiteMatching,
-  greedyBipartiteMatching,
-  bipartitePartition
-} from '@graphty/algorithms'
+import { maximumBipartiteMatching, greedyBipartiteMatching, bipartitePartition } from "@graphty/algorithms";
 
 // Maximum bipartite matching (Hungarian algorithm)
 const matching = maximumBipartiteMatching(graph, {
-  leftNodes: Set<NodeId>, // Optional: specify left partition
-  rightNodes: Set<NodeId> // Optional: specify right partition
-})
+    leftNodes: Set<NodeId>, // Optional: specify left partition
+    rightNodes: Set<NodeId>, // Optional: specify right partition
+});
 // Returns: BipartiteMatchingResult { matching: Map<NodeId, NodeId>, size: number }
 
 // Greedy bipartite matching (faster, approximate)
-const matching = greedyBipartiteMatching(graph, options)
+const matching = greedyBipartiteMatching(graph, options);
 
 // Partition graph into bipartite sets
-const partition = bipartitePartition(graph)
+const partition = bipartitePartition(graph);
 // Returns: { left: Set<NodeId>, right: Set<NodeId> } | null
 ```
 
 #### Graph Isomorphism
 
 ```typescript
-import { isGraphIsomorphic, findAllIsomorphisms } from '@graphty/algorithms'
+import { isGraphIsomorphic, findAllIsomorphisms } from "@graphty/algorithms";
 
 // Check if two graphs are isomorphic
 const result = isGraphIsomorphic(graph1, graph2, {
-  nodeMatch: (node1: NodeId, node2: NodeId, g1: Graph, g2: Graph) => boolean,
-  edgeMatch: (
-    edge1: [NodeId, NodeId],
-    edge2: [NodeId, NodeId],
-    g1: Graph,
-    g2: Graph
-  ) => boolean,
-  findAllMappings: boolean // Find all possible isomorphisms
-})
+    nodeMatch: (node1: NodeId, node2: NodeId, g1: Graph, g2: Graph) => boolean,
+    edgeMatch: (edge1: [NodeId, NodeId], edge2: [NodeId, NodeId], g1: Graph, g2: Graph) => boolean,
+    findAllMappings: boolean, // Find all possible isomorphisms
+});
 // Returns: IsomorphismResult { isIsomorphic: boolean, mapping?: Map<NodeId, NodeId> }
 
 // Find all isomorphism mappings
-const mappings = findAllIsomorphisms(graph1, graph2, options)
+const mappings = findAllIsomorphisms(graph1, graph2, options);
 // Returns: Array<Map<NodeId, NodeId>>
 ```
 
@@ -927,74 +880,66 @@ const mappings = findAllIsomorphisms(graph1, graph2, options)
 #### Common Neighbors
 
 ```typescript
-import {
-  commonNeighborsScore,
-  commonNeighborsPrediction,
-  commonNeighborsForPairs
-} from '@graphty/algorithms'
+import { commonNeighborsScore, commonNeighborsPrediction, commonNeighborsForPairs } from "@graphty/algorithms";
 
 // Score for a specific pair
-const score = commonNeighborsScore(graph, node1, node2)
+const score = commonNeighborsScore(graph, node1, node2);
 // Returns: number
 
 // Predict links for all non-connected pairs
 const predictions = commonNeighborsPrediction(graph, {
-  directed: boolean, // Consider direction
-  includeExisting: boolean, // Include existing edges
-  topK: number // Return only top K predictions
-})
+    directed: boolean, // Consider direction
+    includeExisting: boolean, // Include existing edges
+    topK: number, // Return only top K predictions
+});
 // Returns: LinkPredictionScore[]
 
 // Score multiple specific pairs
-const scores = commonNeighborsForPairs(graph, pairs, options)
+const scores = commonNeighborsForPairs(graph, pairs, options);
 // Returns: LinkPredictionScore[]
 
 // Evaluate prediction performance
-const evaluation = evaluateCommonNeighbors(graph, testEdges)
+const evaluation = evaluateCommonNeighbors(graph, testEdges);
 // Returns: { precision, recall, f1Score }
 
 // Get top candidates for a node
-const candidates = getTopCandidatesForNode(graph, nodeId, { topK: number })
+const candidates = getTopCandidatesForNode(graph, nodeId, { topK: number });
 // Returns: LinkPredictionScore[]
 ```
 
 #### Adamic-Adar Index
 
 ```typescript
-import {
-  adamicAdarScore,
-  adamicAdarPrediction,
-  adamicAdarForPairs
-} from '@graphty/algorithms'
+import { adamicAdarScore, adamicAdarPrediction, adamicAdarForPairs } from "@graphty/algorithms";
 
 // Adamic-Adar score for a pair (weighted by neighbor degrees)
-const score = adamicAdarScore(graph, node1, node2)
+const score = adamicAdarScore(graph, node1, node2);
 // Returns: number
 
 // Predict links using Adamic-Adar
 const predictions = adamicAdarPrediction(graph, {
-  directed: boolean,
-  includeExisting: boolean,
-  topK: number
-})
+    directed: boolean,
+    includeExisting: boolean,
+    topK: number,
+});
 // Returns: LinkPredictionScore[]
 
 // Score multiple pairs
-const scores = adamicAdarForPairs(graph, pairs, options)
+const scores = adamicAdarForPairs(graph, pairs, options);
 // Returns: LinkPredictionScore[]
 
 // Compare Adamic-Adar with Common Neighbors
-const comparison = compareAdamicAdarWithCommonNeighbors(graph, pairs)
+const comparison = compareAdamicAdarWithCommonNeighbors(graph, pairs);
 // Returns: Array<{ source, target, adamicAdar, commonNeighbors }>
 
 // Evaluate prediction performance
-const evaluation = evaluateAdamicAdar(graph, testEdges)
+const evaluation = evaluateAdamicAdar(graph, testEdges);
 // Returns: { precision, recall, f1Score }
 
 // Get top candidates for a node
 const candidates = getTopAdamicAdarCandidatesForNode(graph, nodeId, {
-  topK: number
-})
+    topK: number,
+});
 // Returns: LinkPredictionScore[]
 ```
 
@@ -1005,16 +950,16 @@ Cutting-edge graph algorithms based on recent research.
 #### SynC - Synergistic Deep Graph Clustering
 
 ```typescript
-import { syncClustering } from '@graphty/algorithms'
+import { syncClustering } from "@graphty/algorithms";
 
 // Deep learning based clustering
 const result = syncClustering(graph, {
-  k: number, // Number of clusters
-  maxIterations: number, // Default: 100
-  learningRate: number, // Default: 0.01
-  hiddenDim: number, // Default: 64
-  randomSeed: number
-})
+    k: number, // Number of clusters
+    maxIterations: number, // Default: 100
+    learningRate: number, // Default: 0.01
+    hiddenDim: number, // Default: 64
+    randomSeed: number,
+});
 // Returns: SynCResult {
 //   communities: NodeId[][],
 //   clusterAssignments: Map<NodeId, number>,
@@ -1027,16 +972,16 @@ const result = syncClustering(graph, {
 #### TeraHAC - Scalable Hierarchical Agglomerative Clustering
 
 ```typescript
-import { teraHAC } from '@graphty/algorithms'
+import { teraHAC } from "@graphty/algorithms";
 
 // Scalable hierarchical clustering
 const result = teraHAC(graph, {
-  linkage: 'single' | 'complete' | 'average', // Default: 'average'
-  k: number, // Target number of clusters
-  threshold: number, // Distance threshold for merging
-  sampleSize: number, // Default: 1000
-  randomSeed: number
-})
+    linkage: "single" | "complete" | "average", // Default: 'average'
+    k: number, // Target number of clusters
+    threshold: number, // Distance threshold for merging
+    sampleSize: number, // Default: 1000
+    randomSeed: number,
+});
 // Returns: TeraHACResult {
 //   root: TeraHACClusterNode,
 //   dendrogram: TeraHACClusterNode[],
@@ -1048,15 +993,15 @@ const result = teraHAC(graph, {
 #### GRSBM - Greedy Recursive Spectral Bisection with Modularity
 
 ```typescript
-import { grsbm } from '@graphty/algorithms'
+import { grsbm } from "@graphty/algorithms";
 
 // Explainable community detection
 const result = grsbm(graph, {
-  minClusterSize: number, // Default: 5
-  maxDepth: number, // Default: 10
-  modularityThreshold: number, // Default: 0.1
-  explainClusters: boolean // Default: true
-})
+    minClusterSize: number, // Default: 5
+    maxDepth: number, // Default: 10
+    modularityThreshold: number, // Default: 0.1
+    explainClusters: boolean, // Default: true
+});
 // Returns: GRSBMResult {
 //   clusters: GRSBMCluster[],   // Each cluster has id, nodes, modularity, explanation
 //   hierarchy: Map<number, number[]>,
@@ -1156,97 +1101,97 @@ The library includes comprehensive examples demonstrating each algorithm. You ca
 ### Working with Weighted Graphs
 
 ```typescript
-const graph = new Graph()
+const graph = new Graph();
 
 // Add weighted edges
-graph.addEdge('A', 'B', 5)
-graph.addEdge('B', 'C', 3)
-graph.addEdge('A', 'C', 10)
+graph.addEdge("A", "B", 5);
+graph.addEdge("B", "C", 3);
+graph.addEdge("A", "C", 10);
 
 // Find shortest path considering weights
-const result = dijkstra(graph, 'A')
-const pathToC = dijkstraPath(graph, 'A', 'C')
-console.log(pathToC) // { path: ['A', 'B', 'C'], distance: 8 }
+const result = dijkstra(graph, "A");
+const pathToC = dijkstraPath(graph, "A", "C");
+console.log(pathToC); // { path: ['A', 'B', 'C'], distance: 8 }
 ```
 
 ### Directed Graphs
 
 ```typescript
-const directedGraph = new Graph({ directed: true })
+const directedGraph = new Graph({ directed: true });
 
-directedGraph.addEdge('A', 'B')
-directedGraph.addEdge('B', 'C')
-directedGraph.addEdge('C', 'A')
+directedGraph.addEdge("A", "B");
+directedGraph.addEdge("B", "C");
+directedGraph.addEdge("C", "A");
 
 // Check for cycles
-console.log(hasCycleDFS(directedGraph)) // true
+console.log(hasCycleDFS(directedGraph)); // true
 
 // Find strongly connected components
-const sccs = stronglyConnectedComponents(directedGraph)
-console.log(sccs.components) // [['A', 'B', 'C']]
+const sccs = stronglyConnectedComponents(directedGraph);
+console.log(sccs.components); // [['A', 'B', 'C']]
 ```
 
 ### Network Analysis
 
 ```typescript
 // Identify important nodes
-const graph = createSocialNetwork() // Your graph
+const graph = createSocialNetwork(); // Your graph
 
 // Find influencers (high PageRank)
-const influencers = topPageRankNodes(graph, 10)
+const influencers = topPageRankNodes(graph, 10);
 
 // Find bridges (high betweenness)
 const bridgers = Array.from(betweennessCentrality(graph).entries())
-  .sort((a, b) => b[1] - a[1])
-  .slice(0, 10)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
 
 // Find communities (connected components)
-const communities = connectedComponents(graph)
-console.log(`Found ${communities.components.length} communities`)
+const communities = connectedComponents(graph);
+console.log(`Found ${communities.components.length} communities`);
 ```
 
 ### Custom Edge Properties
 
 ```typescript
-const graph = new Graph()
+const graph = new Graph();
 
 // Add edges with custom data
-graph.addEdge('A', 'B', 1, {
-  type: 'road',
-  distance: 100,
-  traffic: 'heavy'
-})
+graph.addEdge("A", "B", 1, {
+    type: "road",
+    distance: 100,
+    traffic: "heavy",
+});
 
 // Use custom weight in algorithms
-const result = dijkstra(graph, 'A', {
-  weightKey: 'distance' // Use 'distance' property as weight
-})
+const result = dijkstra(graph, "A", {
+    weightKey: "distance", // Use 'distance' property as weight
+});
 ```
 
 ### Graph Visualization Preparation
 
 ```typescript
 // Prepare data for visualization
-const graph = loadGraph()
+const graph = loadGraph();
 
 // Calculate layout metrics
-const centralities = degreeCentrality(graph, { normalized: true })
-const ranks = pageRank(graph)
+const centralities = degreeCentrality(graph, { normalized: true });
+const ranks = pageRank(graph);
 
 // Export for visualization
-const nodes = Array.from(graph.nodes()).map(node => ({
-  id: node.id,
-  data: node.data,
-  size: centralities.get(node.id) || 0,
-  importance: ranks.get(node.id) || 0
-}))
+const nodes = Array.from(graph.nodes()).map((node) => ({
+    id: node.id,
+    data: node.data,
+    size: centralities.get(node.id) || 0,
+    importance: ranks.get(node.id) || 0,
+}));
 
-const edges = Array.from(graph.edges()).map(edge => ({
-  source: edge.source,
-  target: edge.target,
-  weight: edge.weight || 1,
-  data: edge.data
-}))
+const edges = Array.from(graph.edges()).map((edge) => ({
+    source: edge.source,
+    target: edge.target,
+    weight: edge.weight || 1,
+    data: edge.data,
+}));
 ```
 
 ## Type Definitions
@@ -1254,19 +1199,19 @@ const edges = Array.from(graph.edges()).map(edge => ({
 ### Core Types
 
 ```typescript
-type NodeId = string | number
+type NodeId = string | number;
 
 interface Node {
-  id: NodeId
-  data?: Record<string, unknown>
+    id: NodeId;
+    data?: Record<string, unknown>;
 }
 
 interface Edge {
-  source: NodeId
-  target: NodeId
-  weight?: number
-  id?: string
-  data?: Record<string, unknown>
+    source: NodeId;
+    target: NodeId;
+    weight?: number;
+    id?: string;
+    data?: Record<string, unknown>;
 }
 ```
 
@@ -1274,106 +1219,106 @@ interface Edge {
 
 ```typescript
 interface TraversalResult {
-  visited: Set<NodeId>
-  order: NodeId[]
-  tree?: Map<NodeId, NodeId | null>
+    visited: Set<NodeId>;
+    order: NodeId[];
+    tree?: Map<NodeId, NodeId | null>;
 }
 
 interface ShortestPathResult {
-  distance: number
-  path: NodeId[]
-  predecessor: Map<NodeId, NodeId | null>
+    distance: number;
+    path: NodeId[];
+    predecessor: Map<NodeId, NodeId | null>;
 }
 
 interface BellmanFordResult {
-  distances: Map<NodeId, number>
-  previous: Map<NodeId, NodeId | null>
-  hasNegativeCycle: boolean
-  negativeCycleNodes?: NodeId[]
+    distances: Map<NodeId, number>;
+    previous: Map<NodeId, NodeId | null>;
+    hasNegativeCycle: boolean;
+    negativeCycleNodes?: NodeId[];
 }
 
-type CentralityResult = Record<string, number>
+type CentralityResult = Record<string, number>;
 
 interface PageRankResult {
-  ranks: Record<string, number>
-  iterations: number
-  converged: boolean
+    ranks: Record<string, number>;
+    iterations: number;
+    converged: boolean;
 }
 
 interface CommunityResult {
-  communities: Map<NodeId, number>
-  modularity: number
+    communities: Map<NodeId, number>;
+    modularity: number;
 }
 
 interface ComponentResult {
-  components: NodeId[][]
-  componentMap: Map<NodeId, number>
+    components: NodeId[][];
+    componentMap: Map<NodeId, number>;
 }
 
 interface HITSResult {
-  hubs: CentralityResult
-  authorities: CentralityResult
+    hubs: CentralityResult;
+    authorities: CentralityResult;
 }
 
 interface SpectralClusteringResult {
-  communities: NodeId[][]
-  clusterAssignments: Map<NodeId, number>
+    communities: NodeId[][];
+    clusterAssignments: Map<NodeId, number>;
 }
 
 interface MCLResult {
-  communities: NodeId[][]
-  attractors: Set<NodeId>
-  iterations: number
-  converged: boolean
+    communities: NodeId[][];
+    attractors: Set<NodeId>;
+    iterations: number;
+    converged: boolean;
 }
 
 interface BipartiteMatchingResult {
-  matching: Map<NodeId, NodeId>
-  size: number
+    matching: Map<NodeId, NodeId>;
+    size: number;
 }
 
 interface LinkPredictionScore {
-  source: NodeId
-  target: NodeId
-  score: number
+    source: NodeId;
+    target: NodeId;
+    score: number;
 }
 
 interface HierarchicalClusteringResult<T> {
-  root: ClusterNode<T>
-  dendrogram: ClusterNode<T>[]
-  clusters: Map<number, Set<T>[]>
+    root: ClusterNode<T>;
+    dendrogram: ClusterNode<T>[];
+    clusters: Map<number, Set<T>[]>;
 }
 
 interface KCoreResult<T> {
-  cores: Map<number, Set<T>>
-  coreness: Map<T, number>
-  maxCore: number
+    cores: Map<number, Set<T>>;
+    coreness: Map<T, number>;
+    maxCore: number;
 }
 
 interface IsomorphismResult {
-  isIsomorphic: boolean
-  mapping?: Map<NodeId, NodeId>
+    isIsomorphic: boolean;
+    mapping?: Map<NodeId, NodeId>;
 }
 
 interface SynCResult {
-  communities: NodeId[][]
-  clusterAssignments: Map<NodeId, number>
-  embeddings: Map<NodeId, number[]>
-  iterations: number
-  converged: boolean
+    communities: NodeId[][];
+    clusterAssignments: Map<NodeId, number>;
+    embeddings: Map<NodeId, number[]>;
+    iterations: number;
+    converged: boolean;
 }
 
 interface TeraHACResult {
-  root: TeraHACClusterNode
-  dendrogram: TeraHACClusterNode[]
-  clusters: NodeId[][]
-  mergeDistances: number[]
+    root: TeraHACClusterNode;
+    dendrogram: TeraHACClusterNode[];
+    clusters: NodeId[][];
+    mergeDistances: number[];
 }
 
 interface GRSBMResult {
-  clusters: GRSBMCluster[]
-  hierarchy: Map<number, number[]>
-  totalModularity: number
+    clusters: GRSBMCluster[];
+    hierarchy: Map<number, number[]>;
+    totalModularity: number;
 }
 ```
 
@@ -1381,22 +1326,22 @@ interface GRSBMResult {
 
 - **Graph Representation**: Uses adjacency lists for O(1) neighbor access
 - **Algorithm Complexity**:
-  - BFS/DFS: O(V + E)
-  - Dijkstra: O((V + E) log V) with binary heap
-  - Bellman-Ford: O(VE)
-  - Floyd-Warshall: O(V³)
-  - PageRank: O(k(V + E)) where k is iterations
-  - Connected Components: O(V + E)
-  - Kruskal's MST: O(E log E)
-  - Prim's MST: O((V + E) log V)
-  - A\*: O((V + E) log V) - depends on heuristic quality
-  - Ford-Fulkerson: O(E \* f) where f is max flow
-  - Edmonds-Karp: O(VE²)
-  - Louvain/Leiden: O(n log n) average case
-  - Hierarchical Clustering: O(n² log n)
-  - SynC: O(kni) where k is clusters, n is nodes, i is iterations
-  - TeraHAC: O(n log n) with sampling
-  - GRSBM: O(m log n) where m is edges
+    - BFS/DFS: O(V + E)
+    - Dijkstra: O((V + E) log V) with binary heap
+    - Bellman-Ford: O(VE)
+    - Floyd-Warshall: O(V³)
+    - PageRank: O(k(V + E)) where k is iterations
+    - Connected Components: O(V + E)
+    - Kruskal's MST: O(E log E)
+    - Prim's MST: O((V + E) log V)
+    - A\*: O((V + E) log V) - depends on heuristic quality
+    - Ford-Fulkerson: O(E \* f) where f is max flow
+    - Edmonds-Karp: O(VE²)
+    - Louvain/Leiden: O(n log n) average case
+    - Hierarchical Clustering: O(n² log n)
+    - SynC: O(kni) where k is clusters, n is nodes, i is iterations
+    - TeraHAC: O(n log n) with sampling
+    - GRSBM: O(m log n) where m is edges
 - **Memory Usage**: O(V + E) for graph storage
 - **Browser Optimization**: Algorithms use iterative approaches where possible to avoid stack overflow
 - **Performance Benchmarks**: View detailed performance comparisons at [https://graphty-org.github.io/algorithms/benchmarks/](https://graphty-org.github.io/algorithms/benchmarks/)
@@ -1461,28 +1406,28 @@ The project includes interactive HTML examples demonstrating each algorithm. To 
 
 1. **Copy the environment configuration:**
 
-   ```bash
-   cp .env.example .env
-   ```
+    ```bash
+    cp .env.example .env
+    ```
 
 2. **Configure the server (optional):**
    Edit `.env` to set your preferred host and port:
 
-   ```bash
-   # Server host (defaults to true for network exposure)
-   HOST=localhost       # For local-only access
-   # HOST=0.0.0.0       # For network access
-   # HOST=my.server.com # Custom domain
+    ```bash
+    # Server host (defaults to true for network exposure)
+    HOST=localhost       # For local-only access
+    # HOST=0.0.0.0       # For network access
+    # HOST=my.server.com # Custom domain
 
-   # Server port (defaults to 9000)
-   PORT=9000           # Must be between 9000-9099
-   ```
+    # Server port (defaults to 9000)
+    PORT=9000           # Must be between 9000-9099
+    ```
 
 3. **Start the development server:**
 
-   ```bash
-   npm run examples:html
-   ```
+    ```bash
+    npm run examples:html
+    ```
 
 4. **Open your browser** to `http://localhost:9000` (or your configured host/port)
 

@@ -5,7 +5,9 @@
  */
 
 export function CreateMLCEngine(): Promise<never> {
-    return Promise.reject(new Error("WebLLM is not available in test environment. Use mock mode or a different provider."));
+    return Promise.reject(
+        new Error("WebLLM is not available in test environment. Use mock mode or a different provider."),
+    );
 }
 
 export function hasModelInCache(): Promise<boolean> {

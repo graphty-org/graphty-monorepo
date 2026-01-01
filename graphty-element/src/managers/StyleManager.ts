@@ -1,8 +1,8 @@
-import type {CalculatedValue} from "../CalculatedValue";
-import type {AdHocData, EdgeStyleConfig, NodeStyleConfig, StyleLayerType} from "../config";
-import {type EdgeStyleId, type NodeStyleId, Styles} from "../Styles";
-import type {EventManager} from "./EventManager";
-import type {Manager} from "./interfaces";
+import type { CalculatedValue } from "../CalculatedValue";
+import type { AdHocData, EdgeStyleConfig, NodeStyleConfig, StyleLayerType } from "../config";
+import { type EdgeStyleId, type NodeStyleId, Styles } from "../Styles";
+import type { EventManager } from "./EventManager";
+import type { Manager } from "./interfaces";
 
 /**
  * Manages graph styling, wrapping the Styles class with additional caching
@@ -218,7 +218,7 @@ export class StyleManager implements Manager {
     private createCacheKey(data: AdHocData, algorithmResults?: AdHocData): string {
         // Use JSON stringify for now - could be optimized with a hash function
         if (algorithmResults) {
-            return JSON.stringify({data, algorithmResults});
+            return JSON.stringify({ data, algorithmResults });
         }
 
         return JSON.stringify(data);

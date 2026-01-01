@@ -7,69 +7,70 @@
  */
 import "../index.ts";
 
-import type {Meta, StoryObj} from "@storybook/web-components-vite";
+import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import {type StyleSchema, StyleTemplate, type ViewMode} from "../src/config";
-import {Graphty} from "../src/graphty-element";
-import {eventWaitingDecorator, waitForGraphSettled} from "./helpers";
+import { type StyleSchema, StyleTemplate, type ViewMode } from "../src/config";
+import { Graphty } from "../src/graphty-element";
+import { eventWaitingDecorator, waitForGraphSettled } from "./helpers";
 
 // Sample data with named nodes for clarity
 const selectionNodeData = [
-    {id: "alpha", label: "Alpha"},
-    {id: "beta", label: "Beta"},
-    {id: "gamma", label: "Gamma"},
-    {id: "delta", label: "Delta"},
-    {id: "epsilon", label: "Epsilon"},
+    { id: "alpha", label: "Alpha" },
+    { id: "beta", label: "Beta" },
+    { id: "gamma", label: "Gamma" },
+    { id: "delta", label: "Delta" },
+    { id: "epsilon", label: "Epsilon" },
 ];
 
 const selectionEdgeData = [
-    {src: "alpha", dst: "beta"},
-    {src: "alpha", dst: "gamma"},
-    {src: "beta", dst: "delta"},
-    {src: "gamma", dst: "delta"},
-    {src: "delta", dst: "epsilon"},
+    { src: "alpha", dst: "beta" },
+    { src: "alpha", dst: "gamma" },
+    { src: "beta", dst: "delta" },
+    { src: "gamma", dst: "delta" },
+    { src: "delta", dst: "epsilon" },
 ];
 
 // Create a style template with node labels
-const createStyleTemplate = (viewMode: ViewMode): StyleSchema => StyleTemplate.parse({
-    graphtyTemplate: true,
-    majorVersion: "1",
-    graph: {
-        viewMode,
-        addDefaultStyle: true,
-        startingCameraDistance: 20,
-    },
-    layers: [
-        {
-            node: {
-                selector: "",
-                style: {
-                    shape: {
-                        type: "sphere",
-                        size: 1.5,
-                    },
-                    texture: {
-                        color: "#4A90D9",
-                    },
-                    label: {
-                        enabled: true,
-                        textPath: "label",
-                        fontSize: 14,
-                        textColor: "#FFFFFF",
-                        backgroundColor: "transparent",
-                        location: "top",
+const createStyleTemplate = (viewMode: ViewMode): StyleSchema =>
+    StyleTemplate.parse({
+        graphtyTemplate: true,
+        majorVersion: "1",
+        graph: {
+            viewMode,
+            addDefaultStyle: true,
+            startingCameraDistance: 20,
+        },
+        layers: [
+            {
+                node: {
+                    selector: "",
+                    style: {
+                        shape: {
+                            type: "sphere",
+                            size: 1.5,
+                        },
+                        texture: {
+                            color: "#4A90D9",
+                        },
+                        label: {
+                            enabled: true,
+                            textPath: "label",
+                            fontSize: 14,
+                            textColor: "#FFFFFF",
+                            backgroundColor: "transparent",
+                            location: "top",
+                        },
                     },
                 },
             },
+        ],
+        behavior: {
+            layout: {
+                type: "ngraph",
+                preSteps: 2000,
+            },
         },
-    ],
-    behavior: {
-        layout: {
-            type: "ngraph",
-            preSteps: 2000,
-        },
-    },
-});
+    });
 
 /**
  * Render function that creates a selection demo with status display
@@ -86,7 +87,8 @@ const renderSelectionDemo = (viewMode: ViewMode): HTMLDivElement => {
 
     // Create container - use position: fixed to be independent of document scroll
     const container = document.createElement("div");
-    container.style.cssText = "position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; overflow: hidden;";
+    container.style.cssText =
+        "position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; overflow: hidden;";
 
     // Create status bar
     const statusBar = document.createElement("div");
@@ -119,14 +121,14 @@ const renderSelectionDemo = (viewMode: ViewMode): HTMLDivElement => {
     graphEl.nodeData = selectionNodeData;
     graphEl.edgeData = selectionEdgeData;
     graphEl.styleTemplate = createStyleTemplate(viewMode);
-    graphEl.layoutConfig = {seed: 42};
+    graphEl.layoutConfig = { seed: 42 };
     container.appendChild(graphEl);
 
     // Set up selection change listener
     graphEl.addEventListener("selection-changed", (event) => {
         const display = container.querySelector("#selected-node-display");
         if (display) {
-            const customEvent = event as CustomEvent<{currentNode: {id: string, data: {label?: string}} | null}>;
+            const customEvent = event as CustomEvent<{ currentNode: { id: string; data: { label?: string } } | null }>;
             const node = customEvent.detail.currentNode;
             if (node) {
                 const label = node.data.label ?? node.id;
@@ -163,7 +165,7 @@ type Story = StoryObj<Graphty>;
 export const Mode2D: Story = {
     name: "2D Mode",
     render: () => renderSelectionDemo("2d"),
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -177,7 +179,7 @@ export const Mode2D: Story = {
 export const Mode3D: Story = {
     name: "3D Mode",
     render: () => renderSelectionDemo("3d"),
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -206,7 +208,7 @@ export const ModeVR: Story = {
 
         return container;
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -233,8 +235,7 @@ export const ModeAR: Story = {
 
         return container;
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
-

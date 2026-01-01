@@ -63,62 +63,62 @@ Import the library in your TypeScript/JavaScript project:
 
 ```typescript
 import {
-  // Layout algorithms
-  randomLayout,
-  circularLayout,
-  springLayout,
-  fruchtermanReingoldLayout,
-  spectralLayout,
-  spiralLayout,
-  bipartiteLayout,
-  multipartiteLayout,
-  bfsLayout,
-  planarLayout,
-  kamadaKawaiLayout,
-  forceatlas2Layout,
-  arfLayout,
-  rescaleLayout,
+    // Layout algorithms
+    randomLayout,
+    circularLayout,
+    springLayout,
+    fruchtermanReingoldLayout,
+    spectralLayout,
+    spiralLayout,
+    bipartiteLayout,
+    multipartiteLayout,
+    bfsLayout,
+    planarLayout,
+    kamadaKawaiLayout,
+    forceatlas2Layout,
+    arfLayout,
+    rescaleLayout,
 
-  // Graph generators
-  completeGraph,
-  cycleGraph,
-  starGraph,
-  wheelGraph,
-  gridGraph,
-  randomGraph,
-  bipartiteGraph,
-  scaleFreeGraph,
+    // Graph generators
+    completeGraph,
+    cycleGraph,
+    starGraph,
+    wheelGraph,
+    gridGraph,
+    randomGraph,
+    bipartiteGraph,
+    scaleFreeGraph,
 
-  // Layout helpers
-  groupNodes,
-  detectBipartite,
-  findBestRoot,
-  autoConfigureForce,
-  layoutQuality,
-  combineLayouts,
-  interpolateLayouts
-} from '@graphty/layout'
+    // Layout helpers
+    groupNodes,
+    detectBipartite,
+    findBestRoot,
+    autoConfigureForce,
+    layoutQuality,
+    combineLayouts,
+    interpolateLayouts,
+} from "@graphty/layout";
 ```
 
 ## Quick Start
 
 ```typescript
 // Generate a graph
-const graph = scaleFreeGraph(30, 2, 42)
+const graph = scaleFreeGraph(30, 2, 42);
 
 // Auto-configure and layout
-const config = autoConfigureForce(graph)
-const positions = springLayout(graph, config.k, null, null, config.iterations)
+const config = autoConfigureForce(graph);
+const positions = springLayout(graph, config.k, null, null, config.iterations);
 
 // Or use specialized layouts
-const bipartite = detectBipartite(graph)
+const bipartite = detectBipartite(graph);
 if (bipartite) {
-  const positions = bipartiteLayout(graph, bipartite.setA)
+    const positions = bipartiteLayout(graph, bipartite.setA);
 }
 
 // Or use shell layout with automatic grouping
-const shells = groupNodes(graph, 'degree', 3)
-const positions = shellLayout(graph, shells)
+const shells = groupNodes(graph, "degree", 3);
+const positions = shellLayout(graph, shells);
 ```
 
 ## Graph Structure
@@ -129,21 +129,21 @@ The module accepts graphs in two formats:
 
 ```typescript
 const graph = {
-  nodes: () => [0, 1, 2, 3],
-  edges: () => [
-    [0, 1],
-    [1, 2],
-    [2, 3],
-    [3, 0]
-  ],
-  getEdgeData: (source, target, attr) => number // optional for edge weights
-}
+    nodes: () => [0, 1, 2, 3],
+    edges: () => [
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [3, 0],
+    ],
+    getEdgeData: (source, target, attr) => number, // optional for edge weights
+};
 ```
 
 ### 2. Simple array of nodes
 
 ```typescript
-const nodes = [0, 1, 2, 3]
+const nodes = [0, 1, 2, 3];
 ```
 
 ## Graph Generation
@@ -155,7 +155,7 @@ The library includes utilities to generate common graph types for testing and de
 Creates a complete graph with all possible edges between nodes.
 
 ```typescript
-const graph = completeGraph(5)
+const graph = completeGraph(5);
 // Creates a graph with 5 nodes (0-4) and 10 edges (all pairs connected)
 ```
 
@@ -164,7 +164,7 @@ const graph = completeGraph(5)
 Creates a cycle graph where nodes form a closed loop.
 
 ```typescript
-const graph = cycleGraph(6)
+const graph = cycleGraph(6);
 // Creates a graph with 6 nodes (0-5) connected in a cycle: 0-1-2-3-4-5-0
 ```
 
@@ -173,7 +173,7 @@ const graph = cycleGraph(6)
 Creates a star graph with one central hub connected to all other nodes.
 
 ```typescript
-const graph = starGraph(7)
+const graph = starGraph(7);
 // Creates a graph with 7 nodes where node 0 is connected to all others (1-6)
 ```
 
@@ -182,7 +182,7 @@ const graph = starGraph(7)
 Creates a wheel graph - a hub connected to all nodes of a rim cycle.
 
 ```typescript
-const graph = wheelGraph(6)
+const graph = wheelGraph(6);
 // Creates a graph with 6 nodes: hub (0) connected to rim cycle (1-2-3-4-5-1)
 ```
 
@@ -191,7 +191,7 @@ const graph = wheelGraph(6)
 Creates a 2D grid graph with specified rows and columns.
 
 ```typescript
-const graph = gridGraph(3, 4)
+const graph = gridGraph(3, 4);
 // Creates a 3x4 grid with nodes named "row,col" (e.g., "0,0", "0,1", etc.)
 // Nodes are connected to their horizontal and vertical neighbors
 ```
@@ -201,7 +201,7 @@ const graph = gridGraph(3, 4)
 Creates a random graph with specified edge probability.
 
 ```typescript
-const graph = randomGraph(10, 0.3, 42)
+const graph = randomGraph(10, 0.3, 42);
 // Creates a graph with 10 nodes (0-9)
 // Each possible edge has 30% chance of existing
 // Seed 42 ensures reproducible results
@@ -212,7 +212,7 @@ const graph = randomGraph(10, 0.3, 42)
 Creates a bipartite graph with two sets of nodes.
 
 ```typescript
-const graph = bipartiteGraph(3, 4, 0.5, 123)
+const graph = bipartiteGraph(3, 4, 0.5, 123);
 // Creates two sets: A0,A1,A2 and B0,B1,B2,B3
 // Each edge between sets has 50% chance of existing
 // Returns graph with additional setA and setB properties
@@ -223,7 +223,7 @@ const graph = bipartiteGraph(3, 4, 0.5, 123)
 Creates a scale-free graph using the Barabási-Albert preferential attachment model.
 
 ```typescript
-const graph = scaleFreeGraph(20, 2, 456)
+const graph = scaleFreeGraph(20, 2, 456);
 // Creates a graph with 20 nodes
 // Each new node connects to 2 existing nodes (preferential attachment)
 // Results in a power-law degree distribution with some high-degree hubs
@@ -235,35 +235,29 @@ All generated graphs work seamlessly with the layout algorithms:
 
 ```typescript
 // Generate a complete graph and apply circular layout
-const graph = completeGraph(8)
-const positions = circularLayout(graph)
+const graph = completeGraph(8);
+const positions = circularLayout(graph);
 
 // Generate a grid with auto-configured spring layout
-const grid = gridGraph(5, 5)
-const config = autoConfigureForce(grid)
-const gridPositions = springLayout(
-  grid,
-  config.k,
-  null,
-  null,
-  config.iterations
-)
+const grid = gridGraph(5, 5);
+const config = autoConfigureForce(grid);
+const gridPositions = springLayout(grid, config.k, null, null, config.iterations);
 
 // Generate a scale-free network with optimized ForceAtlas2
-const network = scaleFreeGraph(50, 3, 42)
-const networkConfig = autoConfigureForce(network)
+const network = scaleFreeGraph(50, 3, 42);
+const networkConfig = autoConfigureForce(network);
 const networkPositions = forceatlas2Layout(
-  network,
-  null,
-  networkConfig.iterations,
-  1.0,
-  networkConfig.scalingRatio,
-  networkConfig.gravity
-)
+    network,
+    null,
+    networkConfig.iterations,
+    1.0,
+    networkConfig.scalingRatio,
+    networkConfig.gravity,
+);
 
 // Use bipartite graph with automatic detection
-const bipartite = bipartiteGraph(5, 7, 0.4, 123)
-const bipartitePositions = bipartiteLayout(bipartite, bipartite.setA)
+const bipartite = bipartiteGraph(5, 7, 0.4, 123);
+const bipartitePositions = bipartiteLayout(bipartite, bipartite.setA);
 ```
 
 ## Layout Helpers
@@ -276,19 +270,19 @@ Groups nodes for shell, multipartite, or custom layouts based on various metrics
 
 ```typescript
 // Group by degree (connectivity) - great for shell layouts
-const shells = groupNodes(graph, 'degree', 3)
-const positions = shellLayout(graph, shells)
+const shells = groupNodes(graph, "degree", 3);
+const positions = shellLayout(graph, shells);
 
 // Group by distance from root - perfect for hierarchical layouts
-const layers = groupNodes(graph, 'bfs', 0, { root: 'A' })
-const positions = multipartiteLayout(graph, layers)
+const layers = groupNodes(graph, "bfs", 0, { root: "A" });
+const positions = multipartiteLayout(graph, layers);
 
 // Group by k-core (dense subgraphs) - ideal for social networks
-const cores = groupNodes(graph, 'k-core')
-const positions = shellLayout(graph, cores)
+const cores = groupNodes(graph, "k-core");
+const positions = shellLayout(graph, cores);
 
 // Group by community detection - useful for modular networks
-const communities = groupNodes(graph, 'community', 5)
+const communities = groupNodes(graph, "community", 5);
 ```
 
 ### `detectBipartite()` - Automatic Bipartite Detection
@@ -296,13 +290,13 @@ const communities = groupNodes(graph, 'community', 5)
 Automatically detects if a graph is bipartite and finds the two sets:
 
 ```typescript
-const result = detectBipartite(graph)
+const result = detectBipartite(graph);
 if (result) {
-  // Graph is bipartite! Use specialized layout
-  const positions = bipartiteLayout(graph, result.setA)
+    // Graph is bipartite! Use specialized layout
+    const positions = bipartiteLayout(graph, result.setA);
 } else {
-  // Not bipartite, use general layout
-  const positions = springLayout(graph)
+    // Not bipartite, use general layout
+    const positions = springLayout(graph);
 }
 ```
 
@@ -311,8 +305,8 @@ if (result) {
 Finds the best starting node for tree-like layouts (BFS, hierarchical):
 
 ```typescript
-const root = findBestRoot(graph)
-const positions = bfsLayout(graph, root)
+const root = findBestRoot(graph);
+const positions = bfsLayout(graph, root);
 ```
 
 ### `autoConfigureForce()` - Smart Force Layout Configuration
@@ -320,20 +314,13 @@ const positions = bfsLayout(graph, root)
 Automatically configures parameters based on graph properties:
 
 ```typescript
-const config = autoConfigureForce(graph)
+const config = autoConfigureForce(graph);
 
 // Use with Fruchterman-Reingold
-const positions = springLayout(graph, config.k, null, null, config.iterations)
+const positions = springLayout(graph, config.k, null, null, config.iterations);
 
 // Use with ForceAtlas2
-const positions = forceatlas2Layout(
-  graph,
-  null,
-  config.iterations,
-  1.0,
-  config.scalingRatio,
-  config.gravity
-)
+const positions = forceatlas2Layout(graph, null, config.iterations, 1.0, config.scalingRatio, config.gravity);
 ```
 
 ### `layoutQuality()` - Layout Quality Metrics
@@ -341,15 +328,15 @@ const positions = forceatlas2Layout(
 Measure and compare layout quality:
 
 ```typescript
-const circular = circularLayout(graph)
-const spring = springLayout(graph)
+const circular = circularLayout(graph);
+const spring = springLayout(graph);
 
-const metricsC = layoutQuality(graph, circular)
-const metricsS = layoutQuality(graph, spring)
+const metricsC = layoutQuality(graph, circular);
+const metricsS = layoutQuality(graph, spring);
 
-console.log('Circular layout - avg edge length:', metricsC.avgEdgeLength)
-console.log('Spring layout - avg edge length:', metricsS.avgEdgeLength)
-console.log('Spring layout - min node distance:', metricsS.minNodeDistance)
+console.log("Circular layout - avg edge length:", metricsC.avgEdgeLength);
+console.log("Spring layout - avg edge length:", metricsS.avgEdgeLength);
+console.log("Spring layout - min node distance:", metricsS.minNodeDistance);
 ```
 
 ### `combineLayouts()` - Blend Multiple Layouts
@@ -357,11 +344,11 @@ console.log('Spring layout - min node distance:', metricsS.minNodeDistance)
 Create hybrid layouts by combining different algorithms:
 
 ```typescript
-const circular = circularLayout(graph)
-const spring = springLayout(graph)
+const circular = circularLayout(graph);
+const spring = springLayout(graph);
 
 // 30% circular structure, 70% force-directed
-const hybrid = combineLayouts([circular, spring], [0.3, 0.7])
+const hybrid = combineLayouts([circular, spring], [0.3, 0.7]);
 ```
 
 ### `interpolateLayouts()` - Smooth Layout Transitions
@@ -369,11 +356,11 @@ const hybrid = combineLayouts([circular, spring], [0.3, 0.7])
 Create animation frames between different layouts:
 
 ```typescript
-const startLayout = circularLayout(graph)
-const endLayout = springLayout(graph)
+const startLayout = circularLayout(graph);
+const endLayout = springLayout(graph);
 
 // Generate 30 frames for smooth animation
-const frames = interpolateLayouts(startLayout, endLayout, 30)
+const frames = interpolateLayouts(startLayout, endLayout, 30);
 // Use frames[0] through frames[30] for animation
 ```
 
@@ -383,31 +370,31 @@ const frames = interpolateLayouts(startLayout, endLayout, 30)
 
 ```typescript
 // Automatically choose best grouping method based on graph density
-const n = graph.nodes().length
-const m = graph.edges().length
-const density = (2 * m) / (n * (n - 1))
+const n = graph.nodes().length;
+const m = graph.edges().length;
+const density = (2 * m) / (n * (n - 1));
 
-const method = density < 0.1 ? 'bfs' : density > 0.5 ? 'k-core' : 'degree'
-const shells = groupNodes(graph, method)
-const positions = shellLayout(graph, shells)
+const method = density < 0.1 ? "bfs" : density > 0.5 ? "k-core" : "degree";
+const shells = groupNodes(graph, method);
+const positions = shellLayout(graph, shells);
 ```
 
 #### Adaptive Layout Selection
 
 ```typescript
 // Choose layout based on graph properties
-let positions
+let positions;
 
 if (detectBipartite(graph)) {
-  const { setA } = detectBipartite(graph)
-  positions = bipartiteLayout(graph, setA)
+    const { setA } = detectBipartite(graph);
+    positions = bipartiteLayout(graph, setA);
 } else if (graph.nodes().length > 100) {
-  // Large graph - use fast layout
-  positions = circularLayout(graph)
+    // Large graph - use fast layout
+    positions = circularLayout(graph);
 } else {
-  // Default to auto-configured force layout
-  const config = autoConfigureForce(graph)
-  positions = springLayout(graph, config.k, null, null, config.iterations)
+    // Default to auto-configured force layout
+    const config = autoConfigureForce(graph);
+    positions = springLayout(graph, config.k, null, null, config.iterations);
 }
 ```
 
@@ -415,9 +402,9 @@ if (detectBipartite(graph)) {
 
 ```typescript
 // Start with fast layout, progressively refine
-const initial = circularLayout(graph)
-const refined = springLayout(graph, null, initial, null, 50)
-const final = kamadaKawaiLayout(graph, null, refined)
+const initial = circularLayout(graph);
+const refined = springLayout(graph, null, initial, null, 50);
+const final = kamadaKawaiLayout(graph, null, refined);
 ```
 
 ### Layout Helper Quick Reference
@@ -441,9 +428,9 @@ const final = kamadaKawaiLayout(graph, null, refined)
 
 ```typescript
 // Use our graph generator instead of manual construction
-const graph = cycleGraph(8)
+const graph = cycleGraph(8);
 
-const positions = circularLayout(graph)
+const positions = circularLayout(graph);
 // Nodes arranged in a perfect circle
 ```
 
@@ -451,34 +438,34 @@ const positions = circularLayout(graph)
 
 ```typescript
 // Generate a grid and apply force-directed layout with auto-configured parameters
-const graph = gridGraph(5, 5)
-const config = autoConfigureForce(graph)
+const graph = gridGraph(5, 5);
+const config = autoConfigureForce(graph);
 
 const positions = springLayout(
-  graph,
-  config.k, // optimal distance
-  null, // initial positions
-  null, // fixed nodes
-  config.iterations // iterations
-)
+    graph,
+    config.k, // optimal distance
+    null, // initial positions
+    null, // fixed nodes
+    config.iterations, // iterations
+);
 
 // Or use fruchtermanReingoldLayout (same function)
-const positions2 = fruchtermanReingoldLayout(graph, config.k)
+const positions2 = fruchtermanReingoldLayout(graph, config.k);
 ```
 
 ### Bipartite graph layout
 
 ```typescript
 // Generate a bipartite graph and detect sets automatically
-const graph = bipartiteGraph(4, 6, 0.5, 42)
+const graph = bipartiteGraph(4, 6, 0.5, 42);
 
 // Option 1: Use the built-in sets
-const positions = bipartiteLayout(graph, graph.setA, 'vertical')
+const positions = bipartiteLayout(graph, graph.setA, "vertical");
 
 // Option 2: Auto-detect bipartite structure
-const detected = detectBipartite(graph)
+const detected = detectBipartite(graph);
 if (detected) {
-  const positions2 = bipartiteLayout(graph, detected.setA, 'horizontal')
+    const positions2 = bipartiteLayout(graph, detected.setA, "horizontal");
 }
 ```
 
@@ -488,14 +475,14 @@ All layout algorithms support 3D positioning by setting the `dim` parameter to 3
 
 ```typescript
 // Any layout algorithm in 3D
-const positions3D = springLayout(graph, null, null, null, 50, 1, [0, 0, 0], 3)
+const positions3D = springLayout(graph, null, null, null, 50, 1, [0, 0, 0], 3);
 // Returns: { node1: [x, y, z], node2: [x, y, z], ... }
 
 // ForceAtlas2 in 3D
-const fa3D = forceatlas2Layout(graph, null, 100, 1, 2, 1, false, false, null, null, null, false, false, 42, 3)
+const fa3D = forceatlas2Layout(graph, null, 100, 1, 2, 1, false, false, null, null, null, false, false, 42, 3);
 
 // Circular layout in 3D (creates a sphere)
-const circular3D = circularLayout(graph, 1, [0, 0, 0], 3)
+const circular3D = circularLayout(graph, 1, [0, 0, 0], 3);
 ```
 
 When using 3D layouts, positions will have three coordinates `[x, y, z]` instead of two.
@@ -512,14 +499,14 @@ Most layout functions share these parameters:
 ## TypeScript Types
 
 ```typescript
-type Node = string | number
-type Edge = [Node, Node]
-type PositionMap = Record<Node, number[]>
+type Node = string | number;
+type Edge = [Node, Node];
+type PositionMap = Record<Node, number[]>;
 
 interface Graph {
-  nodes?: () => Node[]
-  edges?: () => Edge[]
-  getEdgeData?: (source: Node, target: Node, attr: string) => any
+    nodes?: () => Node[];
+    edges?: () => Edge[];
+    getEdgeData?: (source: Node, target: Node, attr: string) => any;
 }
 ```
 
@@ -528,10 +515,10 @@ interface Graph {
 ### Layout Rescaling
 
 ```typescript
-import { rescaleLayout } from './layout.js'
+import { rescaleLayout } from "./layout.js";
 
 // Rescale existing positions
-const scaledPositions = rescaleLayout(positions, 2.0, [10, 10])
+const scaledPositions = rescaleLayout(positions, 2.0, [10, 10]);
 ```
 
 ## Available Algorithms
@@ -569,8 +556,8 @@ const scaledPositions = rescaleLayout(positions, 2.0, [10, 10])
 
 ```typescript
 // Generate any graph and apply random layout
-const graph = completeGraph(10)
-const positions = randomLayout(graph, [0, 0], 2, 42)
+const graph = completeGraph(10);
+const positions = randomLayout(graph, [0, 0], 2, 42);
 // Nodes randomly placed in unit square with seed 42
 ```
 
@@ -578,8 +565,8 @@ const positions = randomLayout(graph, [0, 0], 2, 42)
 
 ```typescript
 // Perfect for cyclic or complete graphs
-const graph = cycleGraph(12)
-const positions = circularLayout(graph)
+const graph = cycleGraph(12);
+const positions = circularLayout(graph);
 // 12 nodes evenly spaced on a circle
 ```
 
@@ -587,39 +574,39 @@ const positions = circularLayout(graph)
 
 ```typescript
 // Use automatic node grouping for shell layout
-const graph = scaleFreeGraph(30, 2, 42)
+const graph = scaleFreeGraph(30, 2, 42);
 
 // Group nodes by degree (hubs in center)
-const shells = groupNodes(graph, 'degree', 3)
-const positions = shellLayout(graph, shells)
+const shells = groupNodes(graph, "degree", 3);
+const positions = shellLayout(graph, shells);
 
 // Or group by k-core for social networks
-const kCoreShells = groupNodes(graph, 'k-core')
-const positions2 = shellLayout(graph, kCoreShells)
+const kCoreShells = groupNodes(graph, "k-core");
+const positions2 = shellLayout(graph, kCoreShells);
 ```
 
 ### Spring Layout (Fruchterman-Reingold)
 
 ```typescript
 // Auto-configure parameters based on graph size
-const graph = randomGraph(20, 0.2, 42)
-const config = autoConfigureForce(graph)
+const graph = randomGraph(20, 0.2, 42);
+const config = autoConfigureForce(graph);
 
 const positions = springLayout(
-  graph,
-  config.k, // optimal distance
-  null, // initial positions
-  null, // fixed nodes
-  config.iterations // iterations
-)
+    graph,
+    config.k, // optimal distance
+    null, // initial positions
+    null, // fixed nodes
+    config.iterations, // iterations
+);
 ```
 
 ### Spectral Layout
 
 ```typescript
 // Great for revealing graph structure
-const graph = gridGraph(6, 6)
-const positions = spectralLayout(graph)
+const graph = gridGraph(6, 6);
+const positions = spectralLayout(graph);
 // Grid structure preserved in spectral embedding
 ```
 
@@ -627,84 +614,84 @@ const positions = spectralLayout(graph)
 
 ```typescript
 // Perfect for sequential or time-based data
-const graph = cycleGraph(50)
+const graph = cycleGraph(50);
 const positions = spiralLayout(
-  graph,
-  1, // scale
-  [0, 0], // center
-  2, // dim
-  0.35, // resolution
-  true // equidistant points
-)
+    graph,
+    1, // scale
+    [0, 0], // center
+    2, // dim
+    0.35, // resolution
+    true, // equidistant points
+);
 ```
 
 ### Bipartite Layout
 
 ```typescript
 // Generate bipartite graph and layout automatically
-const graph = bipartiteGraph(5, 7, 0.4, 42)
+const graph = bipartiteGraph(5, 7, 0.4, 42);
 const positions = bipartiteLayout(
-  graph,
-  graph.setA, // first group nodes (auto-generated)
-  'vertical', // align: 'vertical' or 'horizontal'
-  1, // scale
-  [0, 0], // center
-  4 / 3 // aspectRatio
-)
+    graph,
+    graph.setA, // first group nodes (auto-generated)
+    "vertical", // align: 'vertical' or 'horizontal'
+    1, // scale
+    [0, 0], // center
+    4 / 3, // aspectRatio
+);
 ```
 
 ### Multipartite Layout
 
 ```typescript
 // Use automatic layer detection with groupNodes
-const graph = scaleFreeGraph(20, 2, 42)
-const layers = groupNodes(graph, 'bfs', 0, { root: findBestRoot(graph) })
+const graph = scaleFreeGraph(20, 2, 42);
+const layers = groupNodes(graph, "bfs", 0, { root: findBestRoot(graph) });
 
 // Convert to multipartite format
-const layerMap = {}
+const layerMap = {};
 layers.forEach((nodes, i) => {
-  layerMap[i] = nodes
-})
+    layerMap[i] = nodes;
+});
 
 const positions = multipartiteLayout(
-  graph,
-  layerMap, // subsetKey: layer mapping
-  'vertical', // align
-  1, // scale
-  [0, 0] // center
-)
+    graph,
+    layerMap, // subsetKey: layer mapping
+    "vertical", // align
+    1, // scale
+    [0, 0], // center
+);
 ```
 
 ### BFS Layout
 
 ```typescript
 // Use automatic root detection for tree-like graphs
-const graph = starGraph(10)
-const root = findBestRoot(graph) // Automatically finds node 0 (hub)
+const graph = starGraph(10);
+const root = findBestRoot(graph); // Automatically finds node 0 (hub)
 
 const positions = bfsLayout(
-  graph,
-  root, // start: best root node
-  'vertical', // align
-  1, // scale
-  [0, 0] // center
-)
+    graph,
+    root, // start: best root node
+    "vertical", // align
+    1, // scale
+    [0, 0], // center
+);
 ```
 
 ### Planar Layout
 
 ```typescript
 // Create a planar graph (grid is always planar)
-const graph = gridGraph(4, 4)
-const positions = planarLayout(graph, 1, [0, 0], 2)
+const graph = gridGraph(4, 4);
+const positions = planarLayout(graph, 1, [0, 0], 2);
 // Note: throws error if graph is not planar
 
 // For unknown graphs, check planarity first
 if (isPlanar(graph)) {
-  const positions = planarLayout(graph)
+    const positions = planarLayout(graph);
 } else {
-  // Fall back to non-planar layout
-  const positions = springLayout(graph)
+    // Fall back to non-planar layout
+    const positions = springLayout(graph);
 }
 ```
 
@@ -712,76 +699,76 @@ if (isPlanar(graph)) {
 
 ```typescript
 // Great for small to medium graphs
-const graph = wheelGraph(8)
+const graph = wheelGraph(8);
 const positions = kamadaKawaiLayout(
-  graph,
-  null, // dist: distance matrix (auto)
-  null, // pos: initial positions (auto)
-  'weight', // weight: edge weight attribute
-  1, // scale
-  [0, 0], // center
-  2 // dim
-)
+    graph,
+    null, // dist: distance matrix (auto)
+    null, // pos: initial positions (auto)
+    "weight", // weight: edge weight attribute
+    1, // scale
+    [0, 0], // center
+    2, // dim
+);
 ```
 
 ### ForceAtlas2 Layout
 
 ```typescript
 // Auto-configure for your graph type
-const graph = scaleFreeGraph(50, 3, 42)
-const config = autoConfigureForce(graph)
+const graph = scaleFreeGraph(50, 3, 42);
+const config = autoConfigureForce(graph);
 
 const positions = forceatlas2Layout(
-  graph,
-  null, // pos: initial positions
-  config.iterations, // maxIter: auto-configured
-  1.0, // jitterTolerance
-  config.scalingRatio, // scalingRatio: auto-configured
-  config.gravity, // gravity: auto-configured
-  false, // distributedAction
-  false, // strongGravity
-  null, // nodeMass: node masses
-  null, // nodeSize: node sizes
-  null, // weight: weight attribute
-  true, // dissuadeHubs: good for scale-free
-  false, // linlog: logarithmic attraction
-  42, // seed
-  2 // dim: 2 for 2D, 3 for 3D
-)
+    graph,
+    null, // pos: initial positions
+    config.iterations, // maxIter: auto-configured
+    1.0, // jitterTolerance
+    config.scalingRatio, // scalingRatio: auto-configured
+    config.gravity, // gravity: auto-configured
+    false, // distributedAction
+    false, // strongGravity
+    null, // nodeMass: node masses
+    null, // nodeSize: node sizes
+    null, // weight: weight attribute
+    true, // dissuadeHubs: good for scale-free
+    false, // linlog: logarithmic attraction
+    42, // seed
+    2, // dim: 2 for 2D, 3 for 3D
+);
 
 // 3D layout example
 const positions3D = forceatlas2Layout(
-  graph,
-  null,
-  100,
-  1.0,
-  2.0,
-  1.0,
-  false,
-  false,
-  null,
-  null,
-  null,
-  false,
-  false,
-  42,
-  3 // 3D mode - returns [x, y, z] coordinates
-)
+    graph,
+    null,
+    100,
+    1.0,
+    2.0,
+    1.0,
+    false,
+    false,
+    null,
+    null,
+    null,
+    false,
+    false,
+    42,
+    3, // 3D mode - returns [x, y, z] coordinates
+);
 ```
 
 ### ARF Layout
 
 ```typescript
 // Layout with attractive and repulsive forces
-const graph = completeGraph(10)
+const graph = completeGraph(10);
 const positions = arfLayout(
-  graph,
-  null, // pos: initial positions
-  1, // scaling
-  1.1, // a: spring force (must be > 1)
-  1000, // maxIter
-  42 // seed
-)
+    graph,
+    null, // pos: initial positions
+    1, // scaling
+    1.1, // a: spring force (must be > 1)
+    1000, // maxIter
+    42, // seed
+);
 ```
 
 ## Advanced Examples: Combining Generators and Helpers
@@ -790,70 +777,70 @@ const positions = arfLayout(
 
 ```typescript
 // Generate a scale-free network (hubs and communities)
-const graph = scaleFreeGraph(100, 3, 42)
+const graph = scaleFreeGraph(100, 3, 42);
 
 // Detect communities and use them for shell layout
-const communities = groupNodes(graph, 'community', 4)
-const positions = shellLayout(graph, communities)
+const communities = groupNodes(graph, "community", 4);
+const positions = shellLayout(graph, communities);
 
 // Or use communities for coloring in your visualization
-const communityMap = new Map()
+const communityMap = new Map();
 communities.forEach((nodes, idx) => {
-  nodes.forEach(node => communityMap.set(node, idx))
-})
+    nodes.forEach((node) => communityMap.set(node, idx));
+});
 ```
 
 ### Example 2: Adaptive Layout Selection
 
 ```typescript
 function chooseOptimalLayout(graph) {
-  const n = graph.nodes().length
-  const m = graph.edges().length
-  const density = (2 * m) / (n * (n - 1))
+    const n = graph.nodes().length;
+    const m = graph.edges().length;
+    const density = (2 * m) / (n * (n - 1));
 
-  // Check for special graph types
-  const bipartite = detectBipartite(graph)
-  if (bipartite) {
-    return bipartiteLayout(graph, bipartite.setA)
-  }
+    // Check for special graph types
+    const bipartite = detectBipartite(graph);
+    if (bipartite) {
+        return bipartiteLayout(graph, bipartite.setA);
+    }
 
-  // Choose based on graph properties
-  if (n > 100) {
-    // Large graph - use fast circular layout
-    return circularLayout(graph)
-  } else if (density < 0.1) {
-    // Sparse graph - use spring layout
-    const config = autoConfigureForce(graph)
-    return springLayout(graph, config.k, null, null, config.iterations)
-  } else {
-    // Dense graph - use spectral or kamada-kawai
-    return n < 50 ? kamadaKawaiLayout(graph) : spectralLayout(graph)
-  }
+    // Choose based on graph properties
+    if (n > 100) {
+        // Large graph - use fast circular layout
+        return circularLayout(graph);
+    } else if (density < 0.1) {
+        // Sparse graph - use spring layout
+        const config = autoConfigureForce(graph);
+        return springLayout(graph, config.k, null, null, config.iterations);
+    } else {
+        // Dense graph - use spectral or kamada-kawai
+        return n < 50 ? kamadaKawaiLayout(graph) : spectralLayout(graph);
+    }
 }
 
 // Usage
-const graph = randomGraph(30, 0.3, 42)
-const positions = chooseOptimalLayout(graph)
+const graph = randomGraph(30, 0.3, 42);
+const positions = chooseOptimalLayout(graph);
 ```
 
 ### Example 3: Animated Layout Transitions
 
 ```typescript
 // Start with circular layout
-const graph = completeGraph(15)
-const startLayout = circularLayout(graph)
+const graph = completeGraph(15);
+const startLayout = circularLayout(graph);
 
 // Optimize with force-directed
-const config = autoConfigureForce(graph)
-const endLayout = springLayout(graph, config.k, null, null, config.iterations)
+const config = autoConfigureForce(graph);
+const endLayout = springLayout(graph, config.k, null, null, config.iterations);
 
 // Create smooth animation frames
-const frames = interpolateLayouts(startLayout, endLayout, 60)
+const frames = interpolateLayouts(startLayout, endLayout, 60);
 
 // Use frames[0] through frames[60] for animation
 function animate(frameIndex) {
-  const positions = frames[frameIndex]
-  // Update your visualization with these positions
+    const positions = frames[frameIndex];
+    // Update your visualization with these positions
 }
 ```
 
@@ -861,17 +848,17 @@ function animate(frameIndex) {
 
 ```typescript
 // Generate a preferential attachment network
-const graph = scaleFreeGraph(50, 2, 42)
+const graph = scaleFreeGraph(50, 2, 42);
 
 // Find natural hierarchy using k-core decomposition
-const kCores = groupNodes(graph, 'k-core')
+const kCores = groupNodes(graph, "k-core");
 
 // Layout with most connected nodes in center
-const positions = shellLayout(graph, kCores)
+const positions = shellLayout(graph, kCores);
 
 // Or create a tree-like view
-const root = findBestRoot(graph)
-const bfsPositions = bfsLayout(graph, root)
+const root = findBestRoot(graph);
+const bfsPositions = bfsLayout(graph, root);
 ```
 
 ### Example 5: Quality-Driven Layout
@@ -879,27 +866,27 @@ const bfsPositions = bfsLayout(graph, root)
 ```typescript
 // Try multiple layouts and pick the best
 function findBestLayout(graph) {
-  const candidates = [
-    { name: 'circular', positions: circularLayout(graph) },
-    { name: 'spectral', positions: spectralLayout(graph) },
-    { name: 'spring', positions: springLayout(graph) }
-  ]
+    const candidates = [
+        { name: "circular", positions: circularLayout(graph) },
+        { name: "spectral", positions: spectralLayout(graph) },
+        { name: "spring", positions: springLayout(graph) },
+    ];
 
-  let best = candidates[0]
-  let bestScore = Infinity
+    let best = candidates[0];
+    let bestScore = Infinity;
 
-  candidates.forEach(candidate => {
-    const quality = layoutQuality(graph, candidate.positions)
-    const score = quality.edgeLengthStdDev / quality.avgEdgeLength
+    candidates.forEach((candidate) => {
+        const quality = layoutQuality(graph, candidate.positions);
+        const score = quality.edgeLengthStdDev / quality.avgEdgeLength;
 
-    if (score < bestScore) {
-      bestScore = score
-      best = candidate
-    }
-  })
+        if (score < bestScore) {
+            bestScore = score;
+            best = candidate;
+        }
+    });
 
-  console.log(`Best layout: ${best.name} (score: ${bestScore.toFixed(3)})`)
-  return best.positions
+    console.log(`Best layout: ${best.name} (score: ${bestScore.toFixed(3)})`);
+    return best.positions;
 }
 ```
 
@@ -907,14 +894,14 @@ function findBestLayout(graph) {
 
 ```typescript
 // Create a graph with clear structure
-const graph = gridGraph(6, 6)
+const graph = gridGraph(6, 6);
 
 // Get geometric and force-based layouts
-const grid = circularLayout(graph)
-const force = springLayout(graph)
+const grid = circularLayout(graph);
+const force = springLayout(graph);
 
 // Blend them: 40% geometric structure, 60% force optimization
-const hybrid = combineLayouts([grid, force], [0.4, 0.6])
+const hybrid = combineLayouts([grid, force], [0.4, 0.6]);
 
 // The result preserves some grid structure while optimizing edge lengths
 ```
@@ -923,15 +910,15 @@ const hybrid = combineLayouts([grid, force], [0.4, 0.6])
 
 ```typescript
 try {
-  const positions = planarLayout(nonPlanarGraph)
+    const positions = planarLayout(nonPlanarGraph);
 } catch (error) {
-  console.error('Graph is not planar:', error.message)
+    console.error("Graph is not planar:", error.message);
 }
 
 try {
-  const positions = arfLayout(graph, null, 1, 0.5) // a <= 1
+    const positions = arfLayout(graph, null, 1, 0.5); // a <= 1
 } catch (error) {
-  console.error('Invalid parameter a:', error.message)
+    console.error("Invalid parameter a:", error.message);
 }
 ```
 
@@ -947,32 +934,32 @@ If you want to build the TypeScript module from source:
 
 1. **Clone the repository:**
 
-   ```bash
-   git clone https://github.com/graphty-org/layout.git
-   cd layout
-   ```
+    ```bash
+    git clone https://github.com/graphty-org/layout.git
+    cd layout
+    ```
 
 2. **Install dependencies:**
 
-   ```bash
-   npm install
-   ```
+    ```bash
+    npm install
+    ```
 
 3. **Compile TypeScript to JavaScript:**
 
-   ```bash
-   npm run build
-   ```
+    ```bash
+    npm run build
+    ```
 
-   This will compile the `layout.ts` file to JavaScript and generate type declarations in the `dist/` directory.
+    This will compile the `layout.ts` file to JavaScript and generate type declarations in the `dist/` directory.
 
 4. **For development with automatic compilation:**
 
-   ```bash
-   npm run dev
-   ```
+    ```bash
+    npm run dev
+    ```
 
-   This will watch for changes and automatically recompile the TypeScript files.
+    This will watch for changes and automatically recompile the TypeScript files.
 
 ## Development Server
 
@@ -996,27 +983,27 @@ You can customize the server configuration using environment variables:
 
 1. **Create a `.env` file** (copy from `.env.example`):
 
-   ```bash
-   cp .env.example .env
-   ```
+    ```bash
+    cp .env.example .env
+    ```
 
 2. **Configure server options in `.env`:**
 
-   ```bash
-   # Server host (defaults to true for network exposure)
-   HOST=localhost    # For local-only access
-   HOST=0.0.0.0     # For network access
-   HOST=my.server.com # For custom domain
+    ```bash
+    # Server host (defaults to true for network exposure)
+    HOST=localhost    # For local-only access
+    HOST=0.0.0.0     # For network access
+    HOST=my.server.com # For custom domain
 
-   # Server port (defaults to 3000)
-   PORT=3000
-   PORT=8080        # Custom port
-   ```
+    # Server port (defaults to 3000)
+    PORT=3000
+    PORT=8080        # Custom port
+    ```
 
 3. **Start the server with your configuration:**
-   ```bash
-   npm run serve
-   ```
+    ```bash
+    npm run serve
+    ```
 
 ### Alternative: Build and Serve
 
@@ -1047,44 +1034,44 @@ The module includes complete implementations of:
 
 1. **Large Graphs (>1000 nodes)**:
 
-   ```typescript
-   // Use fast layouts first
-   const initial = circularLayout(graph)
-   // Then refine with limited iterations
-   const refined = springLayout(graph, null, initial, null, 50)
-   ```
+    ```typescript
+    // Use fast layouts first
+    const initial = circularLayout(graph);
+    // Then refine with limited iterations
+    const refined = springLayout(graph, null, initial, null, 50);
+    ```
 
 2. **Dense Graphs**:
 
-   ```typescript
-   // Use spectral layout for dense graphs
-   const density = (2 * m) / (n * (n - 1))
-   if (density > 0.5) {
-     const positions = spectralLayout(graph)
-   }
-   ```
+    ```typescript
+    // Use spectral layout for dense graphs
+    const density = (2 * m) / (n * (n - 1));
+    if (density > 0.5) {
+        const positions = spectralLayout(graph);
+    }
+    ```
 
 3. **Real-time Updates**:
 
-   ```typescript
-   // Pre-calculate layout quality
-   const quality = layoutQuality(graph, positions)
-   // Use interpolation for smooth updates
-   const frames = interpolateLayouts(oldPositions, newPositions, 30)
-   ```
+    ```typescript
+    // Pre-calculate layout quality
+    const quality = layoutQuality(graph, positions);
+    // Use interpolation for smooth updates
+    const frames = interpolateLayouts(oldPositions, newPositions, 30);
+    ```
 
 4. **Memory Optimization**:
-   ```typescript
-   // For very large graphs, use generators
-   function* layoutInChunks(graph, chunkSize = 100) {
-     const nodes = graph.nodes()
-     for (let i = 0; i < nodes.length; i += chunkSize) {
-       const chunk = nodes.slice(i, i + chunkSize)
-       // Process chunk...
-       yield chunk
-     }
-   }
-   ```
+    ```typescript
+    // For very large graphs, use generators
+    function* layoutInChunks(graph, chunkSize = 100) {
+        const nodes = graph.nodes();
+        for (let i = 0; i < nodes.length; i += chunkSize) {
+            const chunk = nodes.slice(i, i + chunkSize);
+            // Process chunk...
+            yield chunk;
+        }
+    }
+    ```
 
 ## Development
 
@@ -1113,6 +1100,7 @@ npm run serve
 ```
 
 This will:
+
 1. Build the bundled `dist/layout.js`
 2. Start a Vite dev server at http://localhost:3000
 3. Automatically redirect imports to use the bundled version
@@ -1127,6 +1115,7 @@ npm run build:gh-pages
 ```
 
 This creates a `gh-pages/` directory with:
+
 - All example HTML files
 - The bundled `layout.js`
 - All necessary assets
@@ -1144,6 +1133,7 @@ To deploy to GitHub Pages, see `gh-pages/DEPLOY.md` after building.
 ## Recent Updates
 
 ### Version 1.2.7 (Latest)
+
 - **Fixed**: ForceAtlas2 now correctly returns numeric Z coordinates in 3D mode (previously returned NaN)
 - **Fixed**: NPM package now uses the correct bundled entry point (`dist/layout.js`)
 - **Added**: Full 3D support documentation and examples

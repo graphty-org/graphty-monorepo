@@ -1,8 +1,8 @@
-import {describe, expect, it, vi} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {fireEvent, render, screen} from "../../../../test/test-utils";
-import type {ArrowConfig} from "../../../../types/style-layer";
-import {EdgeArrowControl} from "../EdgeArrowControl";
+import { fireEvent, render, screen } from "../../../../test/test-utils";
+import type { ArrowConfig } from "../../../../types/style-layer";
+import { EdgeArrowControl } from "../EdgeArrowControl";
 
 describe("EdgeArrowControl", () => {
     const defaultValue: ArrowConfig = {
@@ -45,10 +45,10 @@ describe("EdgeArrowControl", () => {
         render(<EdgeArrowControl label="Arrow Head" value={defaultValue} onChange={onChange} />);
 
         const select = screen.getByLabelText("Arrow Head Type");
-        fireEvent.change(select, {target: {value: "normal"}});
+        fireEvent.change(select, { target: { value: "normal" } });
 
         expect(onChange).toHaveBeenCalledWith({
-            ... defaultValue,
+            ...defaultValue,
             type: "normal",
         });
     });
@@ -58,11 +58,11 @@ describe("EdgeArrowControl", () => {
         render(<EdgeArrowControl label="Arrow Head" value={arrowValue} onChange={onChange} />);
 
         const sizeInput = screen.getByLabelText("Arrow Head Size");
-        fireEvent.change(sizeInput, {target: {value: "2"}});
+        fireEvent.change(sizeInput, { target: { value: "2" } });
         fireEvent.blur(sizeInput);
 
         expect(onChange).toHaveBeenCalledWith({
-            ... arrowValue,
+            ...arrowValue,
             size: 2,
         });
     });

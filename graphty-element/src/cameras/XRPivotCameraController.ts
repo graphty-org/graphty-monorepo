@@ -1,8 +1,8 @@
 /* eslint-disable no-console -- XR debugging requires console logging for development */
-import {type Scene, type TransformNode, type WebXRDefaultExperience, WebXRState} from "@babylonjs/core";
+import { type Scene, type TransformNode, type WebXRDefaultExperience, WebXRState } from "@babylonjs/core";
 
-import {PivotController} from "./PivotController";
-import {XRInputHandler} from "./XRInputHandler";
+import { PivotController } from "./PivotController";
+import { XRInputHandler } from "./XRInputHandler";
 
 /**
  * XRPivotCameraController manages XR camera interactions using a pivot-based system.
@@ -82,7 +82,7 @@ export class XRPivotCameraController {
      */
     private enableXRMode(): void {
         // Parent XR camera to pivot
-        const {camera} = this.xr.baseExperience;
+        const { camera } = this.xr.baseExperience;
         camera.parent = this.pivotController.pivot;
         console.log("📷 [XRPivotCameraController] XR camera parented to pivot:", {
             pivotName: this.pivotController.pivot.name,
@@ -105,7 +105,7 @@ export class XRPivotCameraController {
      */
     private parentHandMeshesToPivot(): void {
         try {
-            const {featuresManager} = this.xr.baseExperience;
+            const { featuresManager } = this.xr.baseExperience;
             const handTracking = featuresManager.getEnabledFeature("xr-hand-tracking") as unknown;
 
             if (!handTracking) {
@@ -114,8 +114,8 @@ export class XRPivotCameraController {
             }
 
             const htFeature = handTracking as {
-                leftHand?: {handMesh?: {parent: unknown}};
-                rightHand?: {handMesh?: {parent: unknown}};
+                leftHand?: { handMesh?: { parent: unknown } };
+                rightHand?: { handMesh?: { parent: unknown } };
             };
 
             // Parent left hand mesh if exists
@@ -165,8 +165,8 @@ export class XRPivotCameraController {
 
         // Heartbeat logging every 5 seconds (assuming ~60fps)
         if (this.frameCount % 300 === 0) {
-            const {camera} = this.xr.baseExperience;
-            const {pivot} = this.pivotController;
+            const { camera } = this.xr.baseExperience;
+            const { pivot } = this.pivotController;
             console.log(`💓 [XRPivotCameraController] Heartbeat frame ${this.frameCount}:`, {
                 inputEnabled: this.inputHandler.isEnabled(),
                 cameraParent: camera.parent ? camera.parent.name : "null",

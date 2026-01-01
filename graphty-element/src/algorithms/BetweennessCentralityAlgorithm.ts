@@ -1,8 +1,8 @@
-import {betweennessCentrality} from "@graphty/algorithms";
+import { betweennessCentrality } from "@graphty/algorithms";
 
-import type {SuggestedStylesConfig} from "../config";
-import {Algorithm} from "./Algorithm";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import type { SuggestedStylesConfig } from "../config";
+import { Algorithm } from "./Algorithm";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Betweenness Centrality Algorithm

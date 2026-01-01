@@ -1,8 +1,8 @@
-import {NullEngine, Scene, TransformNode, Vector3, WebXRState} from "@babylonjs/core";
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test, vi} from "vitest";
+import { NullEngine, Scene, TransformNode, Vector3, WebXRState } from "@babylonjs/core";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import {XRPivotCameraController} from "../../src/cameras/XRPivotCameraController";
+import { XRPivotCameraController } from "../../src/cameras/XRPivotCameraController";
 
 describe("XRPivotCameraController", () => {
     let engine: NullEngine;
@@ -227,7 +227,7 @@ describe("XRPivotCameraController", () => {
                 mockXRExperience as unknown as import("@babylonjs/core").WebXRDefaultExperience,
             );
 
-            const {pivot} = controller;
+            const { pivot } = controller;
             assert.isDefined(pivot);
             assert.instanceOf(pivot, TransformNode);
         });
@@ -260,7 +260,7 @@ describe("XRPivotCameraController", () => {
             controller.reset();
 
             // Verify reset to initial state
-            const {pivot} = controller;
+            const { pivot } = controller;
             assert.approximately(pivot.position.x, 0, 0.0001);
             assert.approximately(pivot.position.y, 0, 0.0001);
             assert.approximately(pivot.position.z, 0, 0.0001);
@@ -305,7 +305,7 @@ describe("XRPivotCameraController", () => {
                 mockXRExperience as unknown as import("@babylonjs/core").WebXRDefaultExperience,
             );
 
-            const {pivot} = controller;
+            const { pivot } = controller;
             controller.dispose();
 
             // After dispose, pivot should be disposed

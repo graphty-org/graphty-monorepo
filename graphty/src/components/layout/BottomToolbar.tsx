@@ -1,8 +1,8 @@
-import {ActionIcon, Divider, Group, Menu, Paper, ScrollArea, Text} from "@mantine/core";
-import {ArrowRight, Box, Hand, MousePointer, Plus, Square, Trash2, Video, ZoomIn} from "lucide-react";
-import React, {useState} from "react";
+import { ActionIcon, Divider, Group, Menu, Paper, ScrollArea, Text } from "@mantine/core";
+import { ArrowRight, Box, Hand, MousePointer, Plus, Square, Trash2, Video, ZoomIn } from "lucide-react";
+import React, { useState } from "react";
 
-import {AiActionButton} from "../ai";
+import { AiActionButton } from "../ai";
 
 export type ViewMode = "2d" | "3d";
 
@@ -18,6 +18,19 @@ interface BottomToolbarProps {
     onAiButtonClick?: () => void;
 }
 
+/**
+ * Floating toolbar at the bottom of the screen with graph tools and view options.
+ * @param root0 - Component props
+ * @param root0.className - Optional CSS class name
+ * @param root0.style - Optional inline styles
+ * @param root0.viewMode - Current 2D or 3D view mode
+ * @param root0.onViewModeChange - Called when view mode changes
+ * @param root0.aiIsConfigured - Whether AI is configured
+ * @param root0.aiIsProcessing - Whether AI is processing
+ * @param root0.aiIsReady - Whether AI is ready
+ * @param root0.onAiButtonClick - Called when AI button is clicked
+ * @returns The bottom toolbar component
+ */
 export function BottomToolbar({
     className,
     style,
@@ -41,11 +54,11 @@ export function BottomToolbar({
                 border: "1px solid var(--mantine-color-default-border)",
                 padding: "4px 8px",
                 maxWidth: "90vw",
-                ... style,
+                ...style,
             }}
         >
-            <ScrollArea type="never" style={{width: "100%"}}>
-                <Group gap="md" wrap="nowrap" style={{minWidth: "max-content"}}>
+            <ScrollArea type="never" style={{ width: "100%" }}>
+                <Group gap="md" wrap="nowrap" style={{ minWidth: "max-content" }}>
                     {/* Selection Tools */}
                     <Group gap={4}>
                         <ActionIcon

@@ -3,23 +3,23 @@
 // Post-process generated TypeDoc markdown to escape angle brackets
 // that would otherwise break VitePress Vue template parsing.
 
-import { readdir, readFile, writeFile } from 'fs/promises';
-import { join, extname } from 'path';
+import { readdir, readFile, writeFile } from "fs/promises";
+import { join, extname } from "path";
 
-const DOCS_API_DIR = './docs/api/generated';
+const DOCS_API_DIR = "./docs/api/generated";
 
 async function processFile(filePath) {
-    const content = await readFile(filePath, 'utf-8');
+    const content = await readFile(filePath, "utf-8");
 
     // Escape angle brackets that appear outside of code blocks and backticks
     // Pattern: Match lines that have <TypeName> patterns outside of backticks
     let modified = content;
 
     // Split by code blocks first to avoid modifying code
-    const lines = modified.split('\n');
-    const processedLines = lines.map(line => {
+    const lines = modified.split("\n");
+    const processedLines = lines.map((line) => {
         // Skip lines that are inside code blocks (start with ``` or are indented code)
-        if (line.startsWith('```') || line.startsWith('    ')) {
+        if (line.startsWith("```") || line.startsWith("    ")) {
             return line;
         }
 
@@ -39,19 +39,19 @@ async function processFile(filePath) {
                 // Replace angle brackets in type annotations like Promise<Type>
                 // but be careful not to affect markdown links [text](url)
                 return part
-                    .replace(/([A-Z][a-zA-Z0-9]*)<([A-Za-z][A-Za-z0-9\[\]., ]*?)>/g, '$1\\<$2\\>')
-                    .replace(/<([A-Z][a-zA-Z0-9]*)>/g, '\\<$1\\>');
+                    .replace(/([A-Z][a-zA-Z0-9]*)<([A-Za-z][A-Za-z0-9\[\]., ]*?)>/g, "$1\\<$2\\>")
+                    .replace(/<([A-Z][a-zA-Z0-9]*)>/g, "\\<$1\\>");
             }
             return part;
         });
 
-        return processedParts.join('');
+        return processedParts.join("");
     });
 
-    modified = processedLines.join('\n');
+    modified = processedLines.join("\n");
 
     if (modified !== content) {
-        await writeFile(filePath, modified, 'utf-8');
+        await writeFile(filePath, modified, "utf-8");
         return true;
     }
     return false;
@@ -66,7 +66,7 @@ async function processDirectory(dirPath) {
 
         if (entry.isDirectory()) {
             filesModified += await processDirectory(fullPath);
-        } else if (entry.isFile() && extname(entry.name) === '.md') {
+        } else if (entry.isFile() && extname(entry.name) === ".md") {
             if (await processFile(fullPath)) {
                 filesModified++;
             }
@@ -77,12 +77,12 @@ async function processDirectory(dirPath) {
 }
 
 async function main() {
-    console.log('Sanitizing API documentation...');
+    console.log("Sanitizing API documentation...");
     const filesModified = await processDirectory(DOCS_API_DIR);
     console.log(`Modified ${filesModified} files.`);
 }
 
-main().catch(err => {
+main().catch((err) => {
     console.error(err);
     process.exit(1);
 });

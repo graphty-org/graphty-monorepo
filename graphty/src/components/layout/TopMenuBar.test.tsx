@@ -1,7 +1,7 @@
-import {describe, expect, it, vi} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {fireEvent, render, screen, waitFor} from "../../test/test-utils";
-import {TopMenuBar} from "./TopMenuBar";
+import { fireEvent, render, screen, waitFor } from "../../test/test-utils";
+import { TopMenuBar } from "./TopMenuBar";
 
 describe("TopMenuBar", () => {
     it("renders the main menu button", () => {
@@ -9,7 +9,7 @@ describe("TopMenuBar", () => {
         expect(screen.getByLabelText("Main menu")).toBeInTheDocument();
     });
 
-    it("renders Send feedback menu item under Help section", async() => {
+    it("renders Send feedback menu item under Help section", async () => {
         render(<TopMenuBar />);
         fireEvent.click(screen.getByLabelText("Main menu"));
         await waitFor(() => {
@@ -18,7 +18,7 @@ describe("TopMenuBar", () => {
         expect(screen.getByText("Send feedback...")).toBeInTheDocument();
     });
 
-    it("calls onSendFeedback when clicked", async() => {
+    it("calls onSendFeedback when clicked", async () => {
         const onSendFeedback = vi.fn();
         render(<TopMenuBar onSendFeedback={onSendFeedback} />);
         fireEvent.click(screen.getByLabelText("Main menu"));
@@ -29,7 +29,7 @@ describe("TopMenuBar", () => {
         expect(onSendFeedback).toHaveBeenCalled();
     });
 
-    it("renders File section with Load Data menu item", async() => {
+    it("renders File section with Load Data menu item", async () => {
         render(<TopMenuBar />);
         fireEvent.click(screen.getByLabelText("Main menu"));
         await waitFor(() => {
@@ -38,7 +38,7 @@ describe("TopMenuBar", () => {
         expect(screen.getByText("Load Data...")).toBeInTheDocument();
     });
 
-    it("renders View section with toggle options", async() => {
+    it("renders View section with toggle options", async () => {
         render(<TopMenuBar />);
         fireEvent.click(screen.getByLabelText("Main menu"));
         await waitFor(() => {

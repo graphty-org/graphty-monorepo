@@ -1,53 +1,53 @@
-import * as fs from 'fs'
-import * as path from 'path'
-import { BenchmarkResult, BenchmarkSession } from './benchmark-result'
+import * as fs from "fs";
+import * as path from "path";
+import { BenchmarkResult, BenchmarkSession } from "./benchmark-result";
 
 export interface HtmlReportOptions {
-  title?: string
-  outputDir?: string
-  includeCharts?: boolean
-  includeSummary?: boolean
+    title?: string;
+    outputDir?: string;
+    includeCharts?: boolean;
+    includeSummary?: boolean;
 }
 
 export class HtmlReportGenerator {
-  private readonly defaultOptions: Required<HtmlReportOptions> = {
-    title: 'Graph Algorithm Performance Report',
-    outputDir: './reports',
-    includeCharts: true,
-    includeSummary: true
-  }
+    private readonly defaultOptions: Required<HtmlReportOptions> = {
+        title: "Graph Algorithm Performance Report",
+        outputDir: "./reports",
+        includeCharts: true,
+        includeSummary: true,
+    };
 
-  constructor(private options: HtmlReportOptions = {}) {
-    this.options = { ...this.defaultOptions, ...options }
-  }
-
-  generateReport(sessions: BenchmarkSession[]): void {
-    if (!sessions || sessions.length === 0) {
-      throw new Error('No benchmark sessions provided')
+    constructor(private options: HtmlReportOptions = {}) {
+        this.options = { ...this.defaultOptions, ...options };
     }
 
-    // Ensure output directory exists
-    const outputDir = this.options.outputDir!
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true })
+    generateReport(sessions: BenchmarkSession[]): void {
+        if (!sessions || sessions.length === 0) {
+            throw new Error("No benchmark sessions provided");
+        }
+
+        // Ensure output directory exists
+        const outputDir = this.options.outputDir!;
+        if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
+        }
+
+        // Generate main report
+        const html = this.generateHtml(sessions);
+        const outputPath = path.join(outputDir, "index.html");
+        fs.writeFileSync(outputPath, html);
+
+        // Copy assets
+        this.copyAssets(outputDir);
+
+        console.log(`Report generated at: ${outputPath}`);
     }
 
-    // Generate main report
-    const html = this.generateHtml(sessions)
-    const outputPath = path.join(outputDir, 'index.html')
-    fs.writeFileSync(outputPath, html)
+    private generateHtml(sessions: BenchmarkSession[]): string {
+        const latestSession = sessions[sessions.length - 1];
+        const systemInfo = latestSession.systemInfo;
 
-    // Copy assets
-    this.copyAssets(outputDir)
-
-    console.log(`Report generated at: ${outputPath}`)
-  }
-
-  private generateHtml(sessions: BenchmarkSession[]): string {
-    const latestSession = sessions[sessions.length - 1]
-    const systemInfo = latestSession.systemInfo
-
-    return `<!DOCTYPE html>
+        return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -83,14 +83,14 @@ export class HtmlReportGenerator {
             </div>
         </header>
 
-        ${this.options.includeSummary ? this.generateSummary(sessions) : ''}
+        ${this.options.includeSummary ? this.generateSummary(sessions) : ""}
         
         <section class="results">
             <h2>Performance Results</h2>
             ${this.generateResultsTables(sessions)}
         </section>
 
-        ${this.options.includeCharts ? this.generateCharts(sessions) : ''}
+        ${this.options.includeCharts ? this.generateCharts(sessions) : ""}
 
         <section class="comparison">
             <h2>Algorithm Comparison</h2>
@@ -106,11 +106,11 @@ export class HtmlReportGenerator {
         ${this.generateScripts(sessions)}
     </script>
 </body>
-</html>`
-  }
+</html>`;
+    }
 
-  private generateStyles(): string {
-    return `
+    private generateStyles(): string {
+        return `
         * {
             margin: 0;
             padding: 0;
@@ -298,19 +298,19 @@ export class HtmlReportGenerator {
             background-color: #27ae60;
             color: white;
         }
-    `
-  }
+    `;
+    }
 
-  private generateSummary(sessions: BenchmarkSession[]): string {
-    const allResults = sessions.flatMap(s => s.results)
-    
-    // Calculate summary statistics
-    const totalTests = allResults.length
-    const algorithms = [...new Set(allResults.map(r => r.algorithm))]
-    const avgExecutionTime = allResults.reduce((sum, r) => sum + r.executionTime, 0) / totalTests
-    const totalMemoryUsed = allResults.reduce((sum, r) => sum + r.memoryUsage, 0)
+    private generateSummary(sessions: BenchmarkSession[]): string {
+        const allResults = sessions.flatMap((s) => s.results);
 
-    return `
+        // Calculate summary statistics
+        const totalTests = allResults.length;
+        const algorithms = [...new Set(allResults.map((r) => r.algorithm))];
+        const avgExecutionTime = allResults.reduce((sum, r) => sum + r.executionTime, 0) / totalTests;
+        const totalMemoryUsed = allResults.reduce((sum, r) => sum + r.memoryUsage, 0);
+
+        return `
         <section class="summary">
             <h2>Summary</h2>
             <div class="summary-grid">
@@ -332,13 +332,15 @@ export class HtmlReportGenerator {
                 </div>
             </div>
         </section>
-    `
-  }
+    `;
+    }
 
-  private generateResultsTables(sessions: BenchmarkSession[]): string {
-    const resultsByAlgorithm = this.groupResultsByAlgorithm(sessions)
-    
-    return Object.entries(resultsByAlgorithm).map(([algorithm, results]) => `
+    private generateResultsTables(sessions: BenchmarkSession[]): string {
+        const resultsByAlgorithm = this.groupResultsByAlgorithm(sessions);
+
+        return Object.entries(resultsByAlgorithm)
+            .map(
+                ([algorithm, results]) => `
         <div class="algorithm-results">
             <h3>${algorithm} Performance</h3>
             <table>
@@ -355,26 +357,32 @@ export class HtmlReportGenerator {
                     </tr>
                 </thead>
                 <tbody>
-                    ${results.map(r => `
+                    ${results
+                        .map(
+                            (r) => `
                         <tr>
                             <td>${r.graphType}</td>
-                            <td>${r.graphGenerationAlgorithm || 'Unknown'}</td>
+                            <td>${r.graphGenerationAlgorithm || "Unknown"}</td>
                             <td class="metric">${r.graphSize.toLocaleString()}</td>
                             <td class="metric">${r.edges.toLocaleString()}</td>
                             <td class="metric">${r.executionTime.toFixed(2)}</td>
                             <td class="metric">${(r.memoryUsage / 1024 / 1024).toFixed(2)}</td>
                             <td class="metric">${(r.memoryPerVertex / 1024).toFixed(2)}</td>
-                            <td class="metric">${r.metrics?.teps ? r.metrics.teps.toFixed(0) : 'N/A'}</td>
+                            <td class="metric">${r.metrics?.teps ? r.metrics.teps.toFixed(0) : "N/A"}</td>
                         </tr>
-                    `).join('')}
+                    `,
+                        )
+                        .join("")}
                 </tbody>
             </table>
         </div>
-    `).join('')
-  }
+    `,
+            )
+            .join("");
+    }
 
-  private generateCharts(sessions: BenchmarkSession[]): string {
-    return `
+    private generateCharts(sessions: BenchmarkSession[]): string {
+        return `
         <section class="charts">
             <h2>Performance Charts</h2>
             <div class="chart-grid">
@@ -392,13 +400,13 @@ export class HtmlReportGenerator {
                 </div>
             </div>
         </section>
-    `
-  }
+    `;
+    }
 
-  private generateComparisonTable(sessions: BenchmarkSession[]): string {
-    const algorithms = this.getAlgorithmComparison(sessions)
-    
-    return `
+    private generateComparisonTable(sessions: BenchmarkSession[]): string {
+        const algorithms = this.getAlgorithmComparison(sessions);
+
+        return `
         <table>
             <thead>
                 <tr>
@@ -410,7 +418,9 @@ export class HtmlReportGenerator {
                 </tr>
             </thead>
             <tbody>
-                ${algorithms.map(a => `
+                ${algorithms
+                    .map(
+                        (a) => `
                     <tr>
                         <td>${a.algorithm}</td>
                         <td class="metric">${a.avgExecutionTime.toFixed(2)}</td>
@@ -421,32 +431,40 @@ export class HtmlReportGenerator {
                             ${a.scalability}
                         </td>
                     </tr>
-                `).join('')}
+                `,
+                    )
+                    .join("")}
             </tbody>
         </table>
-    `
-  }
+    `;
+    }
 
-  private generateScripts(sessions: BenchmarkSession[]): string {
-    const resultsByAlgorithm = this.groupResultsByAlgorithm(sessions)
-    
-    return `
+    private generateScripts(sessions: BenchmarkSession[]): string {
+        const resultsByAlgorithm = this.groupResultsByAlgorithm(sessions);
+
+        return `
         // Execution Time Chart
         const executionCtx = document.getElementById('executionTimeChart').getContext('2d');
         new Chart(executionCtx, {
             type: 'line',
             data: {
                 datasets: [
-                    ${Object.entries(resultsByAlgorithm).map(([algorithm, results]) => `{
+                    ${Object.entries(resultsByAlgorithm)
+                        .map(
+                            ([algorithm, results]) => `{
                         label: '${algorithm}',
-                        data: ${JSON.stringify(results.map(r => ({
-                            x: r.graphSize,
-                            y: r.executionTime
-                        })))},
+                        data: ${JSON.stringify(
+                            results.map((r) => ({
+                                x: r.graphSize,
+                                y: r.executionTime,
+                            })),
+                        )},
                         borderColor: '${this.getColor(algorithm)}',
                         backgroundColor: '${this.getColor(algorithm)}33',
                         tension: 0.1
-                    }`).join(',')}
+                    }`,
+                        )
+                        .join(",")}
                 ]
             },
             options: {
@@ -491,16 +509,22 @@ export class HtmlReportGenerator {
             type: 'line',
             data: {
                 datasets: [
-                    ${Object.entries(resultsByAlgorithm).map(([algorithm, results]) => `{
+                    ${Object.entries(resultsByAlgorithm)
+                        .map(
+                            ([algorithm, results]) => `{
                         label: '${algorithm}',
-                        data: ${JSON.stringify(results.map(r => ({
-                            x: r.graphSize,
-                            y: r.memoryUsage / 1024 / 1024
-                        })))},
+                        data: ${JSON.stringify(
+                            results.map((r) => ({
+                                x: r.graphSize,
+                                y: r.memoryUsage / 1024 / 1024,
+                            })),
+                        )},
                         borderColor: '${this.getColor(algorithm)}',
                         backgroundColor: '${this.getColor(algorithm)}33',
                         tension: 0.1
-                    }`).join(',')}
+                    }`,
+                        )
+                        .join(",")}
                 ]
             },
             options: {
@@ -547,12 +571,14 @@ export class HtmlReportGenerator {
                 labels: ${JSON.stringify(Object.keys(resultsByAlgorithm))},
                 datasets: [{
                     label: 'Time Complexity Growth Rate',
-                    data: ${JSON.stringify(Object.entries(resultsByAlgorithm).map(([_, results]) => {
-                        if (results.length < 2) return 0;
-                        const first = results[0];
-                        const last = results[results.length - 1];
-                        return (last.executionTime / first.executionTime) / (last.graphSize / first.graphSize);
-                    }))},
+                    data: ${JSON.stringify(
+                        Object.entries(resultsByAlgorithm).map(([_, results]) => {
+                            if (results.length < 2) return 0;
+                            const first = results[0];
+                            const last = results[results.length - 1];
+                            return last.executionTime / first.executionTime / (last.graphSize / first.graphSize);
+                        }),
+                    )},
                     backgroundColor: [
                         'rgba(255, 99, 132, 0.8)',
                         'rgba(54, 162, 235, 0.8)',
@@ -598,17 +624,23 @@ export class HtmlReportGenerator {
             type: 'scatter',
             data: {
                 datasets: [
-                    ${Object.entries(resultsByAlgorithm).map(([algorithm, results]) => `{
+                    ${Object.entries(resultsByAlgorithm)
+                        .map(
+                            ([algorithm, results]) => `{
                         label: '${algorithm}',
-                        data: ${JSON.stringify(results
-                            .filter(r => r.metrics?.teps)
-                            .map(r => ({
-                                x: r.edges,
-                                y: r.metrics.teps
-                            })))},
+                        data: ${JSON.stringify(
+                            results
+                                .filter((r) => r.metrics?.teps)
+                                .map((r) => ({
+                                    x: r.edges,
+                                    y: r.metrics.teps,
+                                })),
+                        )},
                         backgroundColor: '${this.getColor(algorithm)}',
                         pointRadius: 6
-                    }`).join(',')}
+                    }`,
+                        )
+                        .join(",")}
                 ]
             },
             options: {
@@ -647,97 +679,97 @@ export class HtmlReportGenerator {
                 }
             }
         });
-    `
-  }
-
-  private groupResultsByAlgorithm(sessions: BenchmarkSession[]): Record<string, BenchmarkResult[]> {
-    const grouped: Record<string, BenchmarkResult[]> = {}
-    
-    sessions.forEach(session => {
-      session.results.forEach(result => {
-        if (!grouped[result.algorithm]) {
-          grouped[result.algorithm] = []
-        }
-        grouped[result.algorithm].push(result)
-      })
-    })
-    
-    // Sort results by graph size
-    Object.values(grouped).forEach(results => {
-      results.sort((a, b) => a.graphSize - b.graphSize)
-    })
-    
-    return grouped
-  }
-
-  private getAlgorithmComparison(sessions: BenchmarkSession[]) {
-    const resultsByAlgorithm = this.groupResultsByAlgorithm(sessions)
-    
-    return Object.entries(resultsByAlgorithm).map(([algorithm, results]) => {
-      const avgExecutionTime = results.reduce((sum, r) => sum + r.executionTime, 0) / results.length
-      const avgMemory = results.reduce((sum, r) => sum + r.memoryUsage, 0) / results.length / 1024 / 1024
-      const bestTeps = Math.max(...results.map(r => r.metrics?.teps || 0))
-      
-      // Calculate scalability
-      let scalability = 'good'
-      if (results.length >= 2) {
-        const first = results[0]
-        const last = results[results.length - 1]
-        const growthRate = (last.executionTime / first.executionTime) / (last.graphSize / first.graphSize)
-        
-        if (growthRate > 2) scalability = 'poor'
-        else if (growthRate > 1.5) scalability = 'medium'
-      }
-      
-      return {
-        algorithm,
-        avgExecutionTime,
-        avgMemory,
-        bestTeps,
-        scalability
-      }
-    })
-  }
-
-  private getColor(algorithm: string): string {
-    const colors: Record<string, string> = {
-      'BFS': '#3498db',
-      'DFS': '#2ecc71',
-      'Dijkstra': '#e74c3c',
-      'PageRank': '#f39c12',
-      'Bellman-Ford': '#9b59b6',
-      'Floyd-Warshall': '#1abc9c'
+    `;
     }
-    return colors[algorithm] || '#95a5a6'
-  }
 
-  private copyAssets(outputDir: string): void {
-    // Create a simple CSS file for additional styling if needed
-    const cssContent = `
+    private groupResultsByAlgorithm(sessions: BenchmarkSession[]): Record<string, BenchmarkResult[]> {
+        const grouped: Record<string, BenchmarkResult[]> = {};
+
+        sessions.forEach((session) => {
+            session.results.forEach((result) => {
+                if (!grouped[result.algorithm]) {
+                    grouped[result.algorithm] = [];
+                }
+                grouped[result.algorithm].push(result);
+            });
+        });
+
+        // Sort results by graph size
+        Object.values(grouped).forEach((results) => {
+            results.sort((a, b) => a.graphSize - b.graphSize);
+        });
+
+        return grouped;
+    }
+
+    private getAlgorithmComparison(sessions: BenchmarkSession[]) {
+        const resultsByAlgorithm = this.groupResultsByAlgorithm(sessions);
+
+        return Object.entries(resultsByAlgorithm).map(([algorithm, results]) => {
+            const avgExecutionTime = results.reduce((sum, r) => sum + r.executionTime, 0) / results.length;
+            const avgMemory = results.reduce((sum, r) => sum + r.memoryUsage, 0) / results.length / 1024 / 1024;
+            const bestTeps = Math.max(...results.map((r) => r.metrics?.teps || 0));
+
+            // Calculate scalability
+            let scalability = "good";
+            if (results.length >= 2) {
+                const first = results[0];
+                const last = results[results.length - 1];
+                const growthRate = last.executionTime / first.executionTime / (last.graphSize / first.graphSize);
+
+                if (growthRate > 2) scalability = "poor";
+                else if (growthRate > 1.5) scalability = "medium";
+            }
+
+            return {
+                algorithm,
+                avgExecutionTime,
+                avgMemory,
+                bestTeps,
+                scalability,
+            };
+        });
+    }
+
+    private getColor(algorithm: string): string {
+        const colors: Record<string, string> = {
+            BFS: "#3498db",
+            DFS: "#2ecc71",
+            Dijkstra: "#e74c3c",
+            PageRank: "#f39c12",
+            "Bellman-Ford": "#9b59b6",
+            "Floyd-Warshall": "#1abc9c",
+        };
+        return colors[algorithm] || "#95a5a6";
+    }
+
+    private copyAssets(outputDir: string): void {
+        // Create a simple CSS file for additional styling if needed
+        const cssContent = `
 /* Additional styles for print media */
 @media print {
     .chart-container {
         page-break-inside: avoid;
     }
 }
-`
-    fs.writeFileSync(path.join(outputDir, 'styles.css'), cssContent)
-  }
+`;
+        fs.writeFileSync(path.join(outputDir, "styles.css"), cssContent);
+    }
 }
 
 // Export convenience function
 export function generateHtmlReport(
-  sessionsFile: string = './benchmark-sessions.json',
-  options?: HtmlReportOptions
+    sessionsFile: string = "./benchmark-sessions.json",
+    options?: HtmlReportOptions,
 ): void {
-  try {
-    const sessionsData = fs.readFileSync(sessionsFile, 'utf-8')
-    const sessions: BenchmarkSession[] = JSON.parse(sessionsData)
-    
-    const generator = new HtmlReportGenerator(options)
-    generator.generateReport(sessions)
-  } catch (error) {
-    console.error('Error generating report:', error)
-    throw error
-  }
+    try {
+        const sessionsData = fs.readFileSync(sessionsFile, "utf-8");
+        const sessions: BenchmarkSession[] = JSON.parse(sessionsData);
+
+        const generator = new HtmlReportGenerator(options);
+        generator.generateReport(sessions);
+    } catch (error) {
+        console.error("Error generating report:", error);
+        throw error;
+    }
 }

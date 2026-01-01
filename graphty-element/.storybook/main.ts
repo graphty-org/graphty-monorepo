@@ -1,15 +1,8 @@
-import type {StorybookConfig} from "@storybook/web-components-vite";
+import type { StorybookConfig } from "@storybook/web-components-vite";
 
 const config: StorybookConfig = {
-    stories: [
-        "../stories/**/*.stories.@(js|jsx|mjs|ts|tsx)",
-        "../stories/**/*.mdx",
-    ],
-    addons: [
-        "@chromatic-com/storybook",
-        "@storybook/addon-vitest",
-        "@storybook/addon-docs",
-    ],
+    stories: ["../stories/**/*.stories.@(js|jsx|mjs|ts|tsx)", "../stories/**/*.mdx"],
+    addons: ["@chromatic-com/storybook", "@storybook/addon-vitest", "@storybook/addon-docs"],
     framework: {
         name: "@storybook/web-components-vite",
         options: {},
@@ -17,9 +10,9 @@ const config: StorybookConfig = {
     core: {
         disableTelemetry: true,
     },
-    async viteFinal(config, {configType}) {
+    async viteFinal(config, { configType }) {
         const path = await import("path");
-        const {mergeConfig} = await import("vite");
+        const { mergeConfig } = await import("vite");
 
         if (configType === "DEVELOPMENT") {
             // Your development configuration goes here

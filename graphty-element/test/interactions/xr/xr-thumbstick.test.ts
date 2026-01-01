@@ -12,22 +12,22 @@
  * - Deadzone filtering should work correctly
  */
 
-import {Quaternion, Vector3} from "@babylonjs/core";
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test, vi} from "vitest";
+import { Quaternion, Vector3 } from "@babylonjs/core";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import {applyDeadzone} from "../../../src/cameras/InputUtils";
-import {PivotController} from "../../../src/cameras/PivotController";
-import type {Graph} from "../../../src/Graph";
-import {cleanupTestGraph, createTestGraph} from "../../helpers/testSetup";
+import { applyDeadzone } from "../../../src/cameras/InputUtils";
+import { PivotController } from "../../../src/cameras/PivotController";
+import type { Graph } from "../../../src/Graph";
+import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
 
 /**
  * Helper to get pivot rotation as Euler angles for verification
  */
-function getPivotEuler(pivot: PivotController): {x: number, y: number, z: number} {
+function getPivotEuler(pivot: PivotController): { x: number; y: number; z: number } {
     const quat = pivot.pivot.rotationQuaternion ?? Quaternion.Identity();
     const euler = quat.toEulerAngles();
-    return {x: euler.x, y: euler.y, z: euler.z};
+    return { x: euler.x, y: euler.y, z: euler.z };
 }
 
 /**
@@ -55,8 +55,8 @@ class MockXRInputProcessor {
     private pivotController: PivotController;
 
     // Thumbstick values (mimics what IWER would provide)
-    public leftStick = {x: 0, y: 0};
-    public rightStick = {x: 0, y: 0};
+    public leftStick = { x: 0, y: 0 };
+    public rightStick = { x: 0, y: 0 };
 
     // Sensitivity settings (matching XRInputHandler constants)
     private readonly DEADZONE = 0.15;
@@ -103,7 +103,7 @@ class MockXRInputProcessor {
         // RIGHT STICK: Zoom and Pan
         // Y = zoom (push forward = zoom in = scale up)
         if (Math.abs(rightY) > 0.0001) {
-            const zoomFactor = 1.0 + (rightY * this.ZOOM_SPEED);
+            const zoomFactor = 1.0 + rightY * this.ZOOM_SPEED;
             this.pivotController.zoom(zoomFactor);
         }
 
@@ -120,7 +120,7 @@ describe("XR Thumbstick Controls", () => {
     let pivotController: PivotController;
     let processor: MockXRInputProcessor;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Create a test graph to get a valid scene
         graph = await createTestGraph();
 
@@ -141,7 +141,7 @@ describe("XR Thumbstick Controls", () => {
         const initialEuler = getPivotEuler(pivotController);
 
         // Set left stick to right (X+)
-        processor.leftStick = {x: 0.8, y: 0};
+        processor.leftStick = { x: 0.8, y: 0 };
 
         // Process several frames of input
         for (let i = 0; i < 10; i++) {
@@ -152,11 +152,7 @@ describe("XR Thumbstick Controls", () => {
         const finalEuler = getPivotEuler(pivotController);
 
         // X+ should produce positive yaw (rotate RIGHT around Y axis)
-        assert.isAbove(
-            finalEuler.y,
-            initialEuler.y,
-            "Left stick X+ should rotate scene RIGHT (positive yaw)",
-        );
+        assert.isAbove(finalEuler.y, initialEuler.y, "Left stick X+ should rotate scene RIGHT (positive yaw)");
     });
 
     test("left stick Y+ pitches scene UP", () => {
@@ -166,7 +162,7 @@ describe("XR Thumbstick Controls", () => {
         // Set left stick forward (Y+)
         // Note: In XR controller space, Y+ is typically "forward" which
         // corresponds to the user pushing the stick away from themselves
-        processor.leftStick = {x: 0, y: 0.8};
+        processor.leftStick = { x: 0, y: 0.8 };
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
@@ -191,7 +187,7 @@ describe("XR Thumbstick Controls", () => {
         const initialPos = getPivotPosition(pivotController);
 
         // Set right stick to right (X+)
-        processor.rightStick = {x: 0.8, y: 0};
+        processor.rightStick = { x: 0.8, y: 0 };
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
@@ -202,11 +198,7 @@ describe("XR Thumbstick Controls", () => {
         const finalPos = getPivotPosition(pivotController);
 
         // X+ should pan RIGHT (positive X)
-        assert.isAbove(
-            finalPos.x,
-            initialPos.x,
-            "Right stick X+ should pan scene RIGHT (positive X)",
-        );
+        assert.isAbove(finalPos.x, initialPos.x, "Right stick X+ should pan scene RIGHT (positive X)");
     });
 
     test("right stick Y+ zooms IN", () => {
@@ -214,7 +206,7 @@ describe("XR Thumbstick Controls", () => {
         const initialScale = getPivotScale(pivotController);
 
         // Set right stick forward (Y+)
-        processor.rightStick = {x: 0, y: 0.8};
+        processor.rightStick = { x: 0, y: 0.8 };
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
@@ -226,11 +218,7 @@ describe("XR Thumbstick Controls", () => {
 
         // Y+ (forward push) should zoom IN (larger scale)
         // zoomFactor = 1.0 + rightY * ZOOM_SPEED > 1.0 when rightY > 0
-        assert.isAbove(
-            finalScale,
-            initialScale,
-            "Right stick Y+ (forward) should zoom IN (larger scale)",
-        );
+        assert.isAbove(finalScale, initialScale, "Right stick Y+ (forward) should zoom IN (larger scale)");
     });
 
     test("deadzone filtering works in XR", () => {
@@ -240,8 +228,8 @@ describe("XR Thumbstick Controls", () => {
         const initialPos = getPivotPosition(pivotController);
 
         // Set thumbstick values below deadzone (0.15)
-        processor.leftStick = {x: 0.1, y: 0.1};
-        processor.rightStick = {x: 0.1, y: 0.1};
+        processor.leftStick = { x: 0.1, y: 0.1 };
+        processor.rightStick = { x: 0.1, y: 0.1 };
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
@@ -254,37 +242,17 @@ describe("XR Thumbstick Controls", () => {
         const finalPos = getPivotPosition(pivotController);
 
         // Nothing should have changed - inputs were below deadzone
-        assert.closeTo(
-            finalEuler.y,
-            initialEuler.y,
-            0.0001,
-            "Deadzone should filter yaw inputs below 0.15",
-        );
-        assert.closeTo(
-            finalEuler.x,
-            initialEuler.x,
-            0.0001,
-            "Deadzone should filter pitch inputs below 0.15",
-        );
-        assert.closeTo(
-            finalScale,
-            initialScale,
-            0.0001,
-            "Deadzone should filter zoom inputs below 0.15",
-        );
-        assert.closeTo(
-            finalPos.x,
-            initialPos.x,
-            0.0001,
-            "Deadzone should filter pan inputs below 0.15",
-        );
+        assert.closeTo(finalEuler.y, initialEuler.y, 0.0001, "Deadzone should filter yaw inputs below 0.15");
+        assert.closeTo(finalEuler.x, initialEuler.x, 0.0001, "Deadzone should filter pitch inputs below 0.15");
+        assert.closeTo(finalScale, initialScale, 0.0001, "Deadzone should filter zoom inputs below 0.15");
+        assert.closeTo(finalPos.x, initialPos.x, 0.0001, "Deadzone should filter pan inputs below 0.15");
     });
 
     // Additional direction verification tests
     test("left stick X- rotates scene LEFT", () => {
         const initialEuler = getPivotEuler(pivotController);
 
-        processor.leftStick = {x: -0.8, y: 0};
+        processor.leftStick = { x: -0.8, y: 0 };
 
         for (let i = 0; i < 10; i++) {
             processor.processThumbsticks();
@@ -292,18 +260,14 @@ describe("XR Thumbstick Controls", () => {
 
         const finalEuler = getPivotEuler(pivotController);
 
-        assert.isBelow(
-            finalEuler.y,
-            initialEuler.y,
-            "Left stick X- should rotate scene LEFT (negative yaw)",
-        );
+        assert.isBelow(finalEuler.y, initialEuler.y, "Left stick X- should rotate scene LEFT (negative yaw)");
     });
 
     test("left stick Y- pitches scene DOWN (from user's perspective)", () => {
         const initialEuler = getPivotEuler(pivotController);
 
         // Y- = pulling stick toward yourself
-        processor.leftStick = {x: 0, y: -0.8};
+        processor.leftStick = { x: 0, y: -0.8 };
 
         for (let i = 0; i < 10; i++) {
             processor.processThumbsticks();
@@ -312,17 +276,13 @@ describe("XR Thumbstick Controls", () => {
         const finalEuler = getPivotEuler(pivotController);
 
         // Y- produces positive pitch (scene tilts up, user looks down at it)
-        assert.isAbove(
-            finalEuler.x,
-            initialEuler.x,
-            "Left stick Y- should pitch scene UP (positive pitch)",
-        );
+        assert.isAbove(finalEuler.x, initialEuler.x, "Left stick Y- should pitch scene UP (positive pitch)");
     });
 
     test("right stick X- pans scene LEFT", () => {
         const initialPos = getPivotPosition(pivotController);
 
-        processor.rightStick = {x: -0.8, y: 0};
+        processor.rightStick = { x: -0.8, y: 0 };
 
         for (let i = 0; i < 10; i++) {
             processor.processThumbsticks();
@@ -330,17 +290,13 @@ describe("XR Thumbstick Controls", () => {
 
         const finalPos = getPivotPosition(pivotController);
 
-        assert.isBelow(
-            finalPos.x,
-            initialPos.x,
-            "Right stick X- should pan scene LEFT (negative X)",
-        );
+        assert.isBelow(finalPos.x, initialPos.x, "Right stick X- should pan scene LEFT (negative X)");
     });
 
     test("right stick Y- zooms OUT", () => {
         const initialScale = getPivotScale(pivotController);
 
-        processor.rightStick = {x: 0, y: -0.8};
+        processor.rightStick = { x: 0, y: -0.8 };
 
         for (let i = 0; i < 10; i++) {
             processor.processThumbsticks();
@@ -348,11 +304,7 @@ describe("XR Thumbstick Controls", () => {
 
         const finalScale = getPivotScale(pivotController);
 
-        assert.isBelow(
-            finalScale,
-            initialScale,
-            "Right stick Y- should zoom OUT (smaller scale)",
-        );
+        assert.isBelow(finalScale, initialScale, "Right stick Y- should zoom OUT (smaller scale)");
     });
 
     test("both thumbsticks can be used simultaneously", () => {
@@ -360,8 +312,8 @@ describe("XR Thumbstick Controls", () => {
         const initialScale = getPivotScale(pivotController);
 
         // Set both thumbsticks
-        processor.leftStick = {x: 0.5, y: 0}; // Yaw
-        processor.rightStick = {x: 0, y: 0.5}; // Zoom
+        processor.leftStick = { x: 0.5, y: 0 }; // Yaw
+        processor.rightStick = { x: 0, y: 0.5 }; // Zoom
 
         for (let i = 0; i < 10; i++) {
             processor.processThumbsticks();
@@ -374,22 +326,14 @@ describe("XR Thumbstick Controls", () => {
         const yawDiff = Math.abs(finalEuler.y - initialEuler.y);
         const scaleDiff = Math.abs(finalScale - initialScale);
 
-        assert.isAbove(
-            yawDiff,
-            0.0001,
-            "Simultaneous input: yaw should change",
-        );
-        assert.isAbove(
-            scaleDiff,
-            0.0001,
-            "Simultaneous input: scale should change",
-        );
+        assert.isAbove(yawDiff, 0.0001, "Simultaneous input: yaw should change");
+        assert.isAbove(scaleDiff, 0.0001, "Simultaneous input: scale should change");
     });
 
     test("diagonal left stick input produces combined yaw and pitch", () => {
         const initialEuler = getPivotEuler(pivotController);
 
-        processor.leftStick = {x: 0.5, y: 0.5};
+        processor.leftStick = { x: 0.5, y: 0.5 };
 
         for (let i = 0; i < 10; i++) {
             processor.processThumbsticks();
@@ -408,7 +352,7 @@ describe("XR Thumbstick Controls", () => {
         const initialPos = getPivotPosition(pivotController);
         const initialScale = getPivotScale(pivotController);
 
-        processor.rightStick = {x: 0.5, y: 0.5};
+        processor.rightStick = { x: 0.5, y: 0.5 };
 
         for (let i = 0; i < 10; i++) {
             processor.processThumbsticks();

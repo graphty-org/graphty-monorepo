@@ -1,5 +1,5 @@
-import type {Graph} from "../core/graph.js";
-import type {NodeId} from "../types/index.js";
+import type { Graph } from "../core/graph.js";
+import type { NodeId } from "../types/index.js";
 
 /**
  * Markov Clustering (MCL) algorithm implementation
@@ -31,11 +31,11 @@ export interface MCLResult {
 
 /**
  * Perform Markov Clustering on a graph
+ * @param graph - The input graph to cluster
+ * @param options - MCL algorithm options (expansion, inflation, iterations, etc.)
+ * @returns MCL clustering result with communities, attractors, and convergence info
  */
-export function markovClustering(
-    graph: Graph,
-    options: MCLOptions = {},
-): MCLResult {
+export function markovClustering(graph: Graph, options: MCLOptions = {}): MCLResult {
     const {
         expansion = 2,
         inflation = 2,
@@ -65,7 +65,7 @@ export function markovClustering(
     let iteration = 0;
 
     for (iteration = 0; iteration < maxIterations; iteration++) {
-        const oldMatrix = matrix.map((row) => [... row]);
+        const oldMatrix = matrix.map((row) => [...row]);
 
         // Expansion step (matrix multiplication)
         matrix = matrixPower(matrix, expansion);
@@ -84,7 +84,7 @@ export function markovClustering(
     }
 
     // Extract clusters from final matrix
-    const {communities, attractors} = extractClusters(matrix, nodeIds);
+    const { communities, attractors } = extractClusters(matrix, nodeIds);
 
     return {
         communities,
@@ -96,10 +96,14 @@ export function markovClustering(
 
 /**
  * Build initial transition matrix from graph
+ * @param graph - The input graph
+ * @param nodeIds - Array of node IDs in the graph
+ * @param selfLoops - Whether to add self-loops to the matrix
+ * @returns Column-normalized transition matrix
  */
 function buildTransitionMatrix(graph: Graph, nodeIds: NodeId[], selfLoops: boolean): number[][] {
     const n = nodeIds.length;
-    const matrix = Array.from({length: n}, (): number[] => Array(n).fill(0) as number[]);
+    const matrix = Array.from({ length: n }, (): number[] => Array(n).fill(0) as number[]);
     const nodeToIndex = new Map<NodeId, number>();
 
     nodeIds.forEach((id, index) => nodeToIndex.set(id, index));
@@ -168,6 +172,9 @@ function buildTransitionMatrix(graph: Graph, nodeIds: NodeId[], selfLoops: boole
 
 /**
  * Raise matrix to a power (for expansion step)
+ * @param matrix - Input square matrix
+ * @param power - Power to raise the matrix to
+ * @returns Matrix raised to the specified power
  */
 function matrixPower(matrix: number[][], power: number): number[][] {
     if (power === 1) {
@@ -187,13 +194,16 @@ function matrixPower(matrix: number[][], power: number): number[][] {
 
 /**
  * Multiply two matrices
+ * @param a - First matrix
+ * @param b - Second matrix
+ * @returns Product matrix a * b
  */
 function matrixMultiply(a: number[][], b: number[][]): number[][] {
     const n = a.length;
     const m = b[0]?.length ?? 0;
     const p = b.length;
 
-    const result: number[][] = Array.from({length: n}, () => Array(m).fill(0) as number[]);
+    const result: number[][] = Array.from({ length: n }, () => Array(m).fill(0) as number[]);
 
     for (let i = 0; i < n; i++) {
         for (let j = 0; j < m; j++) {
@@ -207,7 +217,7 @@ function matrixMultiply(a: number[][], b: number[][]): number[][] {
 
                 const prevVal = resultRow[j];
                 if (prevVal !== undefined) {
-                    resultRow[j] = prevVal + (aVal * bVal);
+                    resultRow[j] = prevVal + aVal * bVal;
                 }
             }
         }
@@ -218,10 +228,13 @@ function matrixMultiply(a: number[][], b: number[][]): number[][] {
 
 /**
  * Inflation step: element-wise powering and column normalization
+ * @param matrix - Input matrix to inflate
+ * @param inflation - Inflation parameter for element-wise powering
+ * @returns Inflated and column-normalized matrix
  */
 function inflate(matrix: number[][], inflation: number): number[][] {
     const n = matrix.length;
-    const result: number[][] = Array.from({length: n}, () => Array(n).fill(0) as number[]);
+    const result: number[][] = Array.from({ length: n }, () => Array(n).fill(0) as number[]);
 
     // Element-wise powering
     for (let i = 0; i < n; i++) {
@@ -266,10 +279,13 @@ function inflate(matrix: number[][], inflation: number): number[][] {
 
 /**
  * Pruning step: remove small values
+ * @param matrix - Input matrix to prune
+ * @param threshold - Values below this threshold are set to zero
+ * @returns Pruned and re-normalized matrix
  */
 function prune(matrix: number[][], threshold: number): number[][] {
     const n = matrix.length;
-    const result: number[][] = Array.from({length: n}, () => Array(n).fill(0) as number[]);
+    const result: number[][] = Array.from({ length: n }, () => Array(n).fill(0) as number[]);
 
     for (let i = 0; i < n; i++) {
         for (let j = 0; j < n; j++) {
@@ -323,6 +339,10 @@ function prune(matrix: number[][], threshold: number): number[][] {
 
 /**
  * Check if the algorithm has converged
+ * @param oldMatrix - Matrix from previous iteration
+ * @param newMatrix - Matrix from current iteration
+ * @param tolerance - Convergence tolerance threshold
+ * @returns True if the maximum difference between matrices is below tolerance
  */
 function hasConverged(oldMatrix: number[][], newMatrix: number[][], tolerance: number): boolean {
     const n = oldMatrix.length;
@@ -348,8 +368,14 @@ function hasConverged(oldMatrix: number[][], newMatrix: number[][], tolerance: n
 
 /**
  * Extract clusters from the final matrix
+ * @param matrix - Final converged MCL matrix
+ * @param nodeIds - Array of node IDs corresponding to matrix indices
+ * @returns Object containing communities and attractor nodes
  */
-function extractClusters(matrix: number[][], nodeIds: NodeId[]): {
+function extractClusters(
+    matrix: number[][],
+    nodeIds: NodeId[],
+): {
     communities: NodeId[][];
     attractors: Set<NodeId>;
 } {
@@ -391,10 +417,14 @@ function extractClusters(matrix: number[][], nodeIds: NodeId[]): {
         }
 
         if (clusterNodes.length > 0) {
-            communities.push(clusterNodes.map((idx) => {
-                const nodeId = nodeIds[idx];
-                return nodeId;
-            }).filter((node): node is NodeId => node !== undefined));
+            communities.push(
+                clusterNodes
+                    .map((idx) => {
+                        const nodeId = nodeIds[idx];
+                        return nodeId;
+                    })
+                    .filter((node): node is NodeId => node !== undefined),
+            );
             clusterIndex++;
         }
     }
@@ -411,16 +441,16 @@ function extractClusters(matrix: number[][], nodeIds: NodeId[]): {
         }
     }
 
-    return {communities, attractors};
+    return { communities, attractors };
 }
 
 /**
  * Calculate modularity of MCL clustering result
+ * @param graph - The original graph that was clustered
+ * @param communities - Array of communities (each community is an array of node IDs)
+ * @returns Modularity score between -0.5 and 1.0
  */
-export function calculateMCLModularity(
-    graph: Graph,
-    communities: NodeId[][],
-): number {
+export function calculateMCLModularity(graph: Graph, communities: NodeId[][]): number {
     const m = graph.totalEdgeCount;
     if (m === 0) {
         return 0;

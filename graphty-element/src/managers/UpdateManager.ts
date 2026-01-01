@@ -1,14 +1,14 @@
-import type {Mesh, Vector3} from "@babylonjs/core";
+import type { Mesh, Vector3 } from "@babylonjs/core";
 
-import type {CameraManager} from "../cameras/CameraManager";
-import {Edge} from "../Edge";
-import type {DataManager} from "./DataManager";
-import type {EventManager} from "./EventManager";
-import type {GraphContext} from "./GraphContext";
-import type {Manager} from "./interfaces";
-import type {LayoutManager} from "./LayoutManager";
-import type {StatsManager} from "./StatsManager";
-import type {StyleManager} from "./StyleManager";
+import type { CameraManager } from "../cameras/CameraManager";
+import { Edge } from "../Edge";
+import type { DataManager } from "./DataManager";
+import type { EventManager } from "./EventManager";
+import type { GraphContext } from "./GraphContext";
+import type { Manager } from "./interfaces";
+import type { LayoutManager } from "./LayoutManager";
+import type { StatsManager } from "./StatsManager";
+import type { StyleManager } from "./StyleManager";
 
 /**
  * Configuration for the UpdateManager
@@ -165,7 +165,7 @@ export class UpdateManager implements Manager {
                 const nodeCount = Array.from(this.layoutManager.nodes).length;
                 if (nodeCount > 0) {
                     // Calculate bounding box and update nodes
-                    const {boundingBoxMin, boundingBoxMax} = this.updateNodes();
+                    const { boundingBoxMin, boundingBoxMax } = this.updateNodes();
 
                     // Update edges (also expands bounding box for edge labels)
                     this.updateEdges(boundingBoxMin, boundingBoxMax);
@@ -185,7 +185,7 @@ export class UpdateManager implements Manager {
         this.updateLayout();
 
         // Update nodes and edges
-        const {boundingBoxMin, boundingBoxMax} = this.updateNodes();
+        const { boundingBoxMin, boundingBoxMax } = this.updateNodes();
 
         // Update edges (also expands bounding box for edge labels)
         this.updateEdges(boundingBoxMin, boundingBoxMax);
@@ -204,7 +204,7 @@ export class UpdateManager implements Manager {
         this.statsManager.step();
         this.statsManager.graphStep.beginMonitoring();
 
-        const {stepMultiplier} = this.styleManager.getStyles().config.behavior.layout;
+        const { stepMultiplier } = this.styleManager.getStyles().config.behavior.layout;
         for (let i = 0; i < stepMultiplier; i++) {
             this.layoutManager.step();
             this.layoutStepCount++;
@@ -217,7 +217,7 @@ export class UpdateManager implements Manager {
      * Update all nodes and calculate bounding box
      * @returns Object containing minimum and maximum bounding box vectors
      */
-    private updateNodes(): {boundingBoxMin?: Vector3, boundingBoxMax?: Vector3} {
+    private updateNodes(): { boundingBoxMin?: Vector3; boundingBoxMax?: Vector3 } {
         let boundingBoxMin: Vector3 | undefined;
         let boundingBoxMax: Vector3 | undefined;
 
@@ -249,7 +249,7 @@ export class UpdateManager implements Manager {
 
         this.statsManager.nodeUpdate.endMonitoring();
 
-        return {boundingBoxMin, boundingBoxMax};
+        return { boundingBoxMin, boundingBoxMax };
     }
 
     /**
@@ -260,13 +260,7 @@ export class UpdateManager implements Manager {
      * @param size - Node size
      * @param axis - Axis to update (x, y, or z)
      */
-    private updateBoundingBoxAxis(
-        pos: Vector3,
-        min: Vector3,
-        max: Vector3,
-        size: number,
-        axis: "x" | "y" | "z",
-    ): void {
+    private updateBoundingBoxAxis(pos: Vector3, min: Vector3, max: Vector3, size: number, axis: "x" | "y" | "z"): void {
         const value = pos[axis];
         const halfSize = size / 2;
 
@@ -349,12 +343,16 @@ export class UpdateManager implements Manager {
         // 2. Zoom every N steps during layout (based on zoomStepInterval)
         // 3. Zoom when layout settles
         const isSettled = this.layoutManager.layoutEngine?.isSettled ?? false;
-        const {zoomStepInterval} = this.styleManager.getStyles().config.behavior.layout;
-        const shouldZoomPeriodically = this.layoutStepCount > 0 &&
-                                      this.layoutStepCount >= this.lastZoomStep + zoomStepInterval;
+        const { zoomStepInterval } = this.styleManager.getStyles().config.behavior.layout;
+        const shouldZoomPeriodically =
+            this.layoutStepCount > 0 && this.layoutStepCount >= this.lastZoomStep + zoomStepInterval;
         const justSettled = isSettled && !this.wasSettled && this.layoutStepCount > 0;
 
-        if (!this.hasZoomedToFit && this.layoutManager.running && this.layoutStepCount < this.minLayoutStepsBeforeZoom) {
+        if (
+            !this.hasZoomedToFit &&
+            this.layoutManager.running &&
+            this.layoutStepCount < this.minLayoutStepsBeforeZoom
+        ) {
             // First zoom - wait for minimum steps
             return;
         } else if (!this.layoutManager.running && !this.hasZoomedToFit && this.layoutStepCount === 0) {
@@ -392,10 +390,7 @@ export class UpdateManager implements Manager {
      * Update statistics
      */
     private updateStatistics(): void {
-        this.statsManager.updateCounts(
-            this.dataManager.nodeCache.size,
-            this.dataManager.edgeCache.size,
-        );
+        this.statsManager.updateCounts(this.dataManager.nodeCache.size, this.dataManager.edgeCache.size);
 
         // Update mesh cache stats
         const meshCache = this.graphContext.getMeshCache();

@@ -1,14 +1,14 @@
-import {Box, SegmentedControl, Stack, Text} from "@mantine/core";
+import { Box, SegmentedControl, Stack, Text } from "@mantine/core";
 import React from "react";
 
-import type {ColorConfig, ColorMode, ColorStop} from "../../../types/style-layer";
-import {createColorStop} from "../../../utils/color-stops";
-import {CompactColorInput} from "../controls/CompactColorInput";
-import {GradientEditor} from "../controls/GradientEditor";
+import type { ColorConfig, ColorMode, ColorStop } from "../../../types/style-layer";
+import { createColorStop } from "../../../utils/color-stops";
+import { CompactColorInput } from "../controls/CompactColorInput";
+import { GradientEditor } from "../controls/GradientEditor";
 
 // Re-export types for backwards compatibility
-export type {ColorConfig, ColorMode, ColorStop} from "../../../types/style-layer";
-export type {GradientColorConfig, RadialColorConfig, SolidColorConfig} from "../../../types/style-layer";
+export type { ColorConfig, ColorMode, ColorStop } from "../../../types/style-layer";
+export type { GradientColorConfig, RadialColorConfig, SolidColorConfig } from "../../../types/style-layer";
 
 interface NodeColorControlProps {
     value: ColorConfig;
@@ -18,8 +18,12 @@ interface NodeColorControlProps {
 /**
  * Control for node color with solid, gradient, and radial modes.
  * Figma-style layout with color swatch + hex + opacity on same line.
+ * @param root0 - Component props
+ * @param root0.value - The current color configuration
+ * @param root0.onChange - Called when the color configuration changes
+ * @returns The node color control component
  */
-export function NodeColorControl({value, onChange}: NodeColorControlProps): React.JSX.Element {
+export function NodeColorControl({ value, onChange }: NodeColorControlProps): React.JSX.Element {
     const handleModeChange = (newMode: string): void => {
         const mode = newMode as ColorMode;
 
@@ -36,9 +40,7 @@ export function NodeColorControl({value, onChange}: NodeColorControlProps): Reac
             });
         } else if (mode === "gradient") {
             const stops =
-                value.mode === "solid" ?
-                    [createColorStop(0, value.color), createColorStop(1, "#ffffff")] :
-                    value.stops;
+                value.mode === "solid" ? [createColorStop(0, value.color), createColorStop(1, "#ffffff")] : value.stops;
             onChange({
                 mode: "gradient",
                 stops,
@@ -47,9 +49,7 @@ export function NodeColorControl({value, onChange}: NodeColorControlProps): Reac
             });
         } else {
             const stops =
-                value.mode === "solid" ?
-                    [createColorStop(0, value.color), createColorStop(1, "#ffffff")] :
-                    value.stops;
+                value.mode === "solid" ? [createColorStop(0, value.color), createColorStop(1, "#ffffff")] : value.stops;
             onChange({
                 mode: "radial",
                 stops,
@@ -60,19 +60,19 @@ export function NodeColorControl({value, onChange}: NodeColorControlProps): Reac
 
     const handleColorChange = (color: string): void => {
         if (value.mode === "solid") {
-            onChange({... value, color});
+            onChange({ ...value, color });
         }
     };
 
     const handleOpacityChange = (opacityPercent: number): void => {
-        onChange({... value, opacity: opacityPercent / 100});
+        onChange({ ...value, opacity: opacityPercent / 100 });
     };
 
     // Combined handler for color picker to update both color and opacity atomically
     const handleColorAndOpacityChange = (color: string, opacityPercent: number): void => {
         if (value.mode === "solid") {
             onChange({
-                ... value,
+                ...value,
                 color,
                 opacity: opacityPercent / 100,
             });
@@ -82,13 +82,13 @@ export function NodeColorControl({value, onChange}: NodeColorControlProps): Reac
     const handleGradientChange = (stops: ColorStop[], direction?: number): void => {
         if (value.mode === "gradient") {
             onChange({
-                ... value,
+                ...value,
                 stops,
                 direction: direction ?? value.direction,
             });
         } else if (value.mode === "radial") {
             onChange({
-                ... value,
+                ...value,
                 stops,
             });
         }
@@ -98,14 +98,16 @@ export function NodeColorControl({value, onChange}: NodeColorControlProps): Reac
         <Stack gap={4}>
             {/* Color Mode selector */}
             <Box>
-                <Text size="xs" c="dimmed" mb={1} lh={1.2}>Color Mode</Text>
+                <Text size="xs" c="dimmed" mb={1} lh={1.2}>
+                    Color Mode
+                </Text>
                 <SegmentedControl
                     value={value.mode}
                     onChange={handleModeChange}
                     data={[
-                        {value: "solid", label: "Solid"},
-                        {value: "gradient", label: "Gradient"},
-                        {value: "radial", label: "Radial"},
+                        { value: "solid", label: "Solid" },
+                        { value: "gradient", label: "Gradient" },
+                        { value: "radial", label: "Radial" },
                     ]}
                     size="compact"
                     fullWidth

@@ -1,7 +1,7 @@
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test} from "vitest";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test } from "vitest";
 
-import {XRUIManager} from "../../src/ui/XRUIManager";
+import { XRUIManager } from "../../src/ui/XRUIManager";
 
 describe("XRUIManager", () => {
     let container: HTMLElement;
@@ -28,7 +28,7 @@ describe("XRUIManager", () => {
 
         const message = container.querySelector(".webxr-not-available");
         assert.exists(message);
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+         
         if (message?.textContent) {
             assert.include(message.textContent, "NOT AVAILABLE");
         }
@@ -54,12 +54,8 @@ describe("XRUIManager", () => {
             showAvailabilityWarning: false,
         });
 
-        const vrButton = container.querySelector(
-            "[data-xr-mode='immersive-vr']",
-        );
-        const arButton = container.querySelector(
-            "[data-xr-mode='immersive-ar']",
-        );
+        const vrButton = container.querySelector("[data-xr-mode='immersive-vr']");
+        const arButton = container.querySelector("[data-xr-mode='immersive-ar']");
         assert.exists(vrButton);
         assert.exists(arButton);
     });
@@ -72,12 +68,8 @@ describe("XRUIManager", () => {
             showAvailabilityWarning: false,
         });
 
-        const vrButton = container.querySelector(
-            "[data-xr-mode='immersive-vr']",
-        );
-        const arButton = container.querySelector(
-            "[data-xr-mode='immersive-ar']",
-        );
+        const vrButton = container.querySelector("[data-xr-mode='immersive-vr']");
+        const arButton = container.querySelector("[data-xr-mode='immersive-ar']");
         assert.exists(vrButton);
         assert.notExists(arButton);
     });
@@ -90,12 +82,8 @@ describe("XRUIManager", () => {
             showAvailabilityWarning: false,
         });
 
-        const vrButton = container.querySelector(
-            "[data-xr-mode='immersive-vr']",
-        );
-        const arButton = container.querySelector(
-            "[data-xr-mode='immersive-ar']",
-        );
+        const vrButton = container.querySelector("[data-xr-mode='immersive-vr']");
+        const arButton = container.querySelector("[data-xr-mode='immersive-ar']");
         assert.notExists(vrButton);
         assert.exists(arButton);
     });
@@ -114,8 +102,8 @@ describe("XRUIManager", () => {
 
         const styles = window.getComputedStyle(overlay);
         assert.equal(styles.position, "absolute");
-    // Note: actual position values might be 'auto' in test environment
-    // We'll verify the CSS classes are applied correctly
+        // Note: actual position values might be 'auto' in test environment
+        // We'll verify the CSS classes are applied correctly
     });
 
     test("should position buttons in top-right corner when configured", () => {
@@ -310,9 +298,7 @@ describe("XRUIManager", () => {
             callbackMode = mode;
         };
 
-        const vrButton = container.querySelector<HTMLElement>(
-            "[data-xr-mode='immersive-vr']",
-        );
+        const vrButton = container.querySelector<HTMLElement>("[data-xr-mode='immersive-vr']");
         assert.exists(vrButton, "VR button should exist");
         vrButton.click();
 

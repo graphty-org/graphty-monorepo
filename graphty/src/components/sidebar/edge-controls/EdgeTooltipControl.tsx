@@ -1,7 +1,7 @@
 import React from "react";
 
-import type {RichTextStyle} from "../../../types/style-layer";
-import {RichTextStyleEditor} from "../controls/RichTextStyleEditor";
+import type { RichTextStyle } from "../../../types/style-layer";
+import { RichTextStyleEditor } from "../controls/RichTextStyleEditor";
 
 interface EdgeTooltipControlProps {
     value: RichTextStyle;
@@ -18,13 +18,11 @@ interface EdgeTooltipControlProps {
  * - Edge relationship data display in tooltip
  * - Edge metadata interpolation (source, target, weight)
  * - Click-to-reveal detailed edge information
+ * @param root0 - Component props
+ * @param root0.value - The current tooltip style configuration
+ * @param root0.onChange - Called when the tooltip style changes
+ * @returns The edge tooltip control component
  */
-export function EdgeTooltipControl({value, onChange}: EdgeTooltipControlProps): React.JSX.Element {
-    return (
-        <RichTextStyleEditor
-            label="Edge Tooltip"
-            value={value}
-            onChange={onChange}
-        />
-    );
+export function EdgeTooltipControl({ value, onChange }: EdgeTooltipControlProps): React.JSX.Element {
+    return <RichTextStyleEditor label="Edge Tooltip" value={value} onChange={onChange} />;
 }

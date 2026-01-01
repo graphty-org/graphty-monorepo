@@ -17,29 +17,33 @@ npm install @graphty/graphty-element @babylonjs/core lit
 ```html
 <!DOCTYPE html>
 <html>
-<head>
-  <style>
-    graphty-element { width: 100vw; height: 100vh; display: block; }
-  </style>
-</head>
-<body>
-  <graphty-element id="graph"></graphty-element>
-  <script type="module">
-    import '@graphty/graphty-element';
+    <head>
+        <style>
+            graphty-element {
+                width: 100vw;
+                height: 100vh;
+                display: block;
+            }
+        </style>
+    </head>
+    <body>
+        <graphty-element id="graph"></graphty-element>
+        <script type="module">
+            import "@graphty/graphty-element";
 
-    const graph = document.getElementById('graph');
-    graph.nodeData = [
-      { id: 1, label: 'Node 1' },
-      { id: 2, label: 'Node 2' },
-      { id: 3, label: 'Node 3' }
-    ];
-    graph.edgeData = [
-      { src: 1, dst: 2 },
-      { src: 2, dst: 3 },
-      { src: 3, dst: 1 }
-    ];
-  </script>
-</body>
+            const graph = document.getElementById("graph");
+            graph.nodeData = [
+                { id: 1, label: "Node 1" },
+                { id: 2, label: "Node 2" },
+                { id: 3, label: "Node 3" },
+            ];
+            graph.edgeData = [
+                { src: 1, dst: 2 },
+                { src: 2, dst: 3 },
+                { src: 3, dst: 1 },
+            ];
+        </script>
+    </body>
 </html>
 ```
 
@@ -63,6 +67,7 @@ npm install @graphty/graphty-element @babylonjs/core lit
 ## Browser Support
 
 Graphty works in all modern browsers that support Web Components:
+
 - Chrome/Edge 88+
 - Firefox 78+
 - Safari 14+

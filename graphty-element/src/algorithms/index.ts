@@ -1,36 +1,36 @@
-import type {OptionsSchema as ZodOptionsSchema} from "../config";
-import {Algorithm} from "./Algorithm";
+import type { OptionsSchema as ZodOptionsSchema } from "../config";
+import { Algorithm } from "./Algorithm";
 // Phase 4 shortest path algorithms
-import {BellmanFordAlgorithm} from "./BellmanFordAlgorithm";
+import { BellmanFordAlgorithm } from "./BellmanFordAlgorithm";
 // Phase 2 centrality algorithms
-import {BetweennessCentralityAlgorithm} from "./BetweennessCentralityAlgorithm";
+import { BetweennessCentralityAlgorithm } from "./BetweennessCentralityAlgorithm";
 // Phase 5 traversal algorithms
-import {BFSAlgorithm} from "./BFSAlgorithm";
+import { BFSAlgorithm } from "./BFSAlgorithm";
 // Phase 8 advanced algorithms
-import {BipartiteMatchingAlgorithm} from "./BipartiteMatchingAlgorithm";
-import {ClosenessCentralityAlgorithm} from "./ClosenessCentralityAlgorithm";
+import { BipartiteMatchingAlgorithm } from "./BipartiteMatchingAlgorithm";
+import { ClosenessCentralityAlgorithm } from "./ClosenessCentralityAlgorithm";
 // Phase 6 component algorithms
-import {ConnectedComponentsAlgorithm} from "./ConnectedComponentsAlgorithm";
+import { ConnectedComponentsAlgorithm } from "./ConnectedComponentsAlgorithm";
 // Phase 1 algorithms
-import {DegreeAlgorithm} from "./DegreeAlgorithm";
-import {DFSAlgorithm} from "./DFSAlgorithm";
-import {DijkstraAlgorithm} from "./DijkstraAlgorithm";
-import {EigenvectorCentralityAlgorithm} from "./EigenvectorCentralityAlgorithm";
-import {FloydWarshallAlgorithm} from "./FloydWarshallAlgorithm";
+import { DegreeAlgorithm } from "./DegreeAlgorithm";
+import { DFSAlgorithm } from "./DFSAlgorithm";
+import { DijkstraAlgorithm } from "./DijkstraAlgorithm";
+import { EigenvectorCentralityAlgorithm } from "./EigenvectorCentralityAlgorithm";
+import { FloydWarshallAlgorithm } from "./FloydWarshallAlgorithm";
 // Phase 3 community detection algorithms
-import {GirvanNewmanAlgorithm} from "./GirvanNewmanAlgorithm";
-import {HITSAlgorithm} from "./HITSAlgorithm";
-import {KatzCentralityAlgorithm} from "./KatzCentralityAlgorithm";
+import { GirvanNewmanAlgorithm } from "./GirvanNewmanAlgorithm";
+import { HITSAlgorithm } from "./HITSAlgorithm";
+import { KatzCentralityAlgorithm } from "./KatzCentralityAlgorithm";
 // Phase 7 minimum spanning tree algorithms
-import {KruskalAlgorithm} from "./KruskalAlgorithm";
-import {LabelPropagationAlgorithm} from "./LabelPropagationAlgorithm";
-import {LeidenAlgorithm} from "./LeidenAlgorithm";
-import {LouvainAlgorithm} from "./LouvainAlgorithm";
-import {MaxFlowAlgorithm} from "./MaxFlowAlgorithm";
-import {MinCutAlgorithm} from "./MinCutAlgorithm";
-import {PageRankAlgorithm} from "./PageRankAlgorithm";
-import {PrimAlgorithm} from "./PrimAlgorithm";
-import {StronglyConnectedComponentsAlgorithm} from "./StronglyConnectedComponentsAlgorithm";
+import { KruskalAlgorithm } from "./KruskalAlgorithm";
+import { LabelPropagationAlgorithm } from "./LabelPropagationAlgorithm";
+import { LeidenAlgorithm } from "./LeidenAlgorithm";
+import { LouvainAlgorithm } from "./LouvainAlgorithm";
+import { MaxFlowAlgorithm } from "./MaxFlowAlgorithm";
+import { MinCutAlgorithm } from "./MinCutAlgorithm";
+import { PageRankAlgorithm } from "./PageRankAlgorithm";
+import { PrimAlgorithm } from "./PrimAlgorithm";
+import { StronglyConnectedComponentsAlgorithm } from "./StronglyConnectedComponentsAlgorithm";
 
 // Phase 1 registrations
 Algorithm.register(DegreeAlgorithm);
@@ -72,7 +72,7 @@ Algorithm.register(MaxFlowAlgorithm);
 Algorithm.register(MinCutAlgorithm);
 
 // Export base class and types
-export {Algorithm} from "./Algorithm";
+export { Algorithm } from "./Algorithm";
 
 // Export option schema types and utilities
 export type {
@@ -84,29 +84,24 @@ export type {
 } from "./types/OptionSchema";
 
 // Export algorithm option types for Phase 2: Community Detection
-export type {GirvanNewmanOptions} from "./GirvanNewmanAlgorithm";
-export type {LabelPropagationOptions} from "./LabelPropagationAlgorithm";
-export type {LeidenOptions} from "./LeidenAlgorithm";
-export type {LouvainOptions} from "./LouvainAlgorithm";
-export type {PageRankOptions} from "./PageRankAlgorithm";
+export type { GirvanNewmanOptions } from "./GirvanNewmanAlgorithm";
+export type { LabelPropagationOptions } from "./LabelPropagationAlgorithm";
+export type { LeidenOptions } from "./LeidenAlgorithm";
+export type { LouvainOptions } from "./LouvainAlgorithm";
+export type { PageRankOptions } from "./PageRankAlgorithm";
 
 // Export algorithm option types for Phase 3: Centrality
-export type {EigenvectorCentralityOptions} from "./EigenvectorCentralityAlgorithm";
-export type {HITSOptions} from "./HITSAlgorithm";
-export type {KatzCentralityOptions} from "./KatzCentralityAlgorithm";
+export type { EigenvectorCentralityOptions } from "./EigenvectorCentralityAlgorithm";
+export type { HITSOptions } from "./HITSAlgorithm";
+export type { KatzCentralityOptions } from "./KatzCentralityAlgorithm";
 
 // Export algorithm option types for Phase 4: Traversal & Path
-export type {BFSOptions} from "./BFSAlgorithm";
-export type {DFSOptions} from "./DFSAlgorithm";
-export type {DijkstraOptions} from "./DijkstraAlgorithm";
-export type {MaxFlowOptions} from "./MaxFlowAlgorithm";
-export type {MinCutOptions} from "./MinCutAlgorithm";
-export {
-    defineOptionsSchema,
-    OptionValidationError,
-    resolveOptions,
-    validateOption,
-} from "./types/OptionSchema";
+export type { BFSOptions } from "./BFSAlgorithm";
+export type { DFSOptions } from "./DFSAlgorithm";
+export type { DijkstraOptions } from "./DijkstraAlgorithm";
+export type { MaxFlowOptions } from "./MaxFlowAlgorithm";
+export type { MinCutOptions } from "./MinCutAlgorithm";
+export { defineOptionsSchema, OptionValidationError, resolveOptions, validateOption } from "./types/OptionSchema";
 
 /**
  * Information about a registered algorithm

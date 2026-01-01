@@ -27,6 +27,7 @@ This document provides comprehensive information about graph data formats discov
 ### Format Selection Criteria
 
 For each format, the following information is provided:
+
 - **Priority ranking** based on tool support
 - **Official specifications** with URLs
 - **Tool compatibility** listing
@@ -40,29 +41,29 @@ For each format, the following information is provided:
 
 Formats are ranked by the number of tools supporting them:
 
-| Rank | Format | Tools | Category | Priority |
-|------|--------|-------|----------|----------|
-| 1 | JSON (Various) | 30+ | JSON | Essential |
-| 2 | GraphML | 25+ | XML | Essential |
-| 3 | CSV/Edge Lists | 22+ | Text | Essential |
-| 4 | GML | 18+ | Text | High |
-| 5 | GEXF | 15+ | XML | High |
-| 6 | Pajek NET | 14+ | Text | High |
-| 7 | DOT | 12+ | Text | High |
-| 8 | UCINET DL | 11+ | Text | Medium |
-| 9 | Excel/XLSX | 11+ | Spreadsheet | Medium |
-| 10 | GraphSON | 10+ | JSON | Medium |
-| 11 | XGMML | 9+ | XML | Medium |
-| 12 | SIF | 8+ | Text | Medium |
-| 13 | GDF | 7+ | Text | Low |
-| 14 | VNA | 6+ | Text | Low |
-| 15 | CX/CX2 | 6+ | JSON | Low |
-| 16 | TGF | 6+ | Text | Low |
-| 17 | BioPAX | 6+ | RDF/OWL | Specialized |
-| 18 | RDF/Turtle/N-Triples | 6+ | RDF | Specialized |
-| 19 | SBML | 5+ | XML | Specialized |
-| 20 | Matrix Market | 4+ | Text | Low |
-| 21+ | Other formats | 2-4 | Various | Niche |
+| Rank | Format               | Tools | Category    | Priority    |
+| ---- | -------------------- | ----- | ----------- | ----------- |
+| 1    | JSON (Various)       | 30+   | JSON        | Essential   |
+| 2    | GraphML              | 25+   | XML         | Essential   |
+| 3    | CSV/Edge Lists       | 22+   | Text        | Essential   |
+| 4    | GML                  | 18+   | Text        | High        |
+| 5    | GEXF                 | 15+   | XML         | High        |
+| 6    | Pajek NET            | 14+   | Text        | High        |
+| 7    | DOT                  | 12+   | Text        | High        |
+| 8    | UCINET DL            | 11+   | Text        | Medium      |
+| 9    | Excel/XLSX           | 11+   | Spreadsheet | Medium      |
+| 10   | GraphSON             | 10+   | JSON        | Medium      |
+| 11   | XGMML                | 9+    | XML         | Medium      |
+| 12   | SIF                  | 8+    | Text        | Medium      |
+| 13   | GDF                  | 7+    | Text        | Low         |
+| 14   | VNA                  | 6+    | Text        | Low         |
+| 15   | CX/CX2               | 6+    | JSON        | Low         |
+| 16   | TGF                  | 6+    | Text        | Low         |
+| 17   | BioPAX               | 6+    | RDF/OWL     | Specialized |
+| 18   | RDF/Turtle/N-Triples | 6+    | RDF         | Specialized |
+| 19   | SBML                 | 5+    | XML         | Specialized |
+| 20   | Matrix Market        | 4+    | Text        | Low         |
+| 21+  | Other formats        | 2-4   | Various     | Niche       |
 
 ---
 
@@ -93,19 +94,19 @@ JSON is the most widely supported format across modern graph visualization tools
 **Documentation:** https://d3-graph-gallery.com/graph/network_data_format.html
 
 **Structure:**
+
 ```json
 {
-  "nodes": [
-    {"id": "node1", "group": 1, "name": "Node 1"},
-    {"id": "node2", "group": 1, "name": "Node 2"}
-  ],
-  "links": [
-    {"source": "node1", "target": "node2", "value": 1}
-  ]
+    "nodes": [
+        { "id": "node1", "group": 1, "name": "Node 1" },
+        { "id": "node2", "group": 1, "name": "Node 2" }
+    ],
+    "links": [{ "source": "node1", "target": "node2", "value": 1 }]
 }
 ```
 
 **Key Features:**
+
 - Uses `links` instead of `edges`
 - `source` and `target` can be node IDs or indices
 - D3 modifies the data structure in-place during simulation
@@ -120,6 +121,7 @@ JSON is the most widely supported format across modern graph visualization tools
 **JSON Schema:** https://github.com/cytoscape/cytoscape.js/blob/master/documentation/md/notation/elements-json.md
 
 **Structure:**
+
 ```json
 {
   "elements": {
@@ -142,6 +144,7 @@ JSON is the most widely supported format across modern graph visualization tools
 ```
 
 **Key Features:**
+
 - Separates `data`, `position`, and `style` properties
 - Supports nested data attributes
 - Can include layout and style definitions
@@ -155,27 +158,29 @@ JSON is the most widely supported format across modern graph visualization tools
 **GitHub:** https://github.com/graphology/graphology
 
 **Structure:**
+
 ```json
 {
-  "attributes": {"name": "My Graph"},
-  "nodes": [
-    {
-      "key": "node1",
-      "attributes": {"label": "Node 1", "x": 0, "y": 0, "size": 10, "color": "#f00"}
-    }
-  ],
-  "edges": [
-    {
-      "key": "edge1",
-      "source": "node1",
-      "target": "node2",
-      "attributes": {"weight": 1, "color": "#ccc"}
-    }
-  ]
+    "attributes": { "name": "My Graph" },
+    "nodes": [
+        {
+            "key": "node1",
+            "attributes": { "label": "Node 1", "x": 0, "y": 0, "size": 10, "color": "#f00" }
+        }
+    ],
+    "edges": [
+        {
+            "key": "edge1",
+            "source": "node1",
+            "target": "node2",
+            "attributes": { "weight": 1, "color": "#ccc" }
+        }
+    ]
 }
 ```
 
 **Key Features:**
+
 - Uses `key` for node/edge identifiers
 - Separate `attributes` object for all properties
 - Supports x, y, z coordinates in attributes
@@ -189,19 +194,19 @@ JSON is the most widely supported format across modern graph visualization tools
 **Examples:** https://visjs.github.io/vis-network/examples/
 
 **Structure:**
+
 ```json
 {
-  "nodes": [
-    {"id": 1, "label": "Node 1", "group": "A"},
-    {"id": 2, "label": "Node 2", "group": "B"}
-  ],
-  "edges": [
-    {"from": 1, "to": 2, "label": "Edge 1-2"}
-  ]
+    "nodes": [
+        { "id": 1, "label": "Node 1", "group": "A" },
+        { "id": 2, "label": "Node 2", "group": "B" }
+    ],
+    "edges": [{ "from": 1, "to": 2, "label": "Edge 1-2" }]
 }
 ```
 
 **Key Features:**
+
 - Uses `from` and `to` instead of `source` and `target`
 - Numeric or string IDs
 - Direct property assignment (no nested data object)
@@ -215,27 +220,26 @@ JSON is the most widely supported format across modern graph visualization tools
 **Module:** `networkx.readwrite.json_graph`
 
 **Structure (node-link):**
+
 ```json
 {
-  "directed": false,
-  "multigraph": false,
-  "graph": {},
-  "nodes": [
-    {"id": "node1", "attr1": "value1"}
-  ],
-  "links": [
-    {"source": "node1", "target": "node2", "weight": 1}
-  ]
+    "directed": false,
+    "multigraph": false,
+    "graph": {},
+    "nodes": [{ "id": "node1", "attr1": "value1" }],
+    "links": [{ "source": "node1", "target": "node2", "weight": 1 }]
 }
 ```
 
 **Variants:**
+
 - **node-link:** Default format (shown above)
 - **adjacency:** Adjacency list representation
 - **tree:** Tree data structure
 - **cytoscape:** Compatible with Cytoscape.js
 
 **Key Features:**
+
 - Includes graph type metadata (`directed`, `multigraph`)
 - Preserves all node and edge attributes
 - Multiple format options for different use cases
@@ -248,6 +252,7 @@ JSON is the most widely supported format across modern graph visualization tools
 **GitHub:** https://github.com/graphology/graphology
 
 **Structure:**
+
 ```json
 {
   "attributes": {"name": "My Graph", "description": "Example"},
@@ -266,6 +271,7 @@ JSON is the most widely supported format across modern graph visualization tools
 ```
 
 **Key Features:**
+
 - Rich metadata in `options`
 - Explicit `undirected` flag per edge for mixed graphs
 - Comprehensive attribute preservation
@@ -278,6 +284,7 @@ JSON is the most widely supported format across modern graph visualization tools
 **GitHub:** https://github.com/antvis/G6
 
 **Structure:**
+
 ```json
 {
   "nodes": [
@@ -300,6 +307,7 @@ JSON is the most widely supported format across modern graph visualization tools
 ```
 
 **Key Features:**
+
 - Includes x, y coordinates directly
 - Optional `style` object for visual properties
 - Supports `combos` for grouped nodes
@@ -312,18 +320,16 @@ JSON is the most widely supported format across modern graph visualization tools
 **Documentation:** https://github.com/vasturiano/3d-force-graph#input-json-syntax
 
 **Structure:**
+
 ```json
 {
-  "nodes": [
-    {"id": "node1", "name": "Node 1", "val": 1, "color": "#ff0000"}
-  ],
-  "links": [
-    {"source": "node1", "target": "node2", "value": 1}
-  ]
+    "nodes": [{ "id": "node1", "name": "Node 1", "val": 1, "color": "#ff0000" }],
+    "links": [{ "source": "node1", "target": "node2", "value": 1 }]
 }
 ```
 
 **Key Features:**
+
 - Uses `links` like D3.js
 - `val` for node size
 - Supports 3D coordinates (x, y, z)
@@ -337,34 +343,36 @@ JSON is the most widely supported format across modern graph visualization tools
 **GitHub:** https://github.com/jsongraph/json-graph-specification
 
 **Structure:**
+
 ```json
 {
-  "graph": {
-    "directed": true,
-    "type": "graph type",
-    "label": "graph label",
-    "metadata": {},
-    "nodes": [
-      {
-        "id": "node1",
-        "label": "Node 1",
-        "metadata": {}
-      }
-    ],
-    "edges": [
-      {
-        "source": "node1",
-        "target": "node2",
-        "relation": "edge relationship",
+    "graph": {
         "directed": true,
-        "metadata": {}
-      }
-    ]
-  }
+        "type": "graph type",
+        "label": "graph label",
+        "metadata": {},
+        "nodes": [
+            {
+                "id": "node1",
+                "label": "Node 1",
+                "metadata": {}
+            }
+        ],
+        "edges": [
+            {
+                "source": "node1",
+                "target": "node2",
+                "relation": "edge relationship",
+                "directed": true,
+                "metadata": {}
+            }
+        ]
+    }
 }
 ```
 
 **Key Features:**
+
 - Formal specification attempting to standardize JSON graphs
 - Rich metadata support
 - Per-edge `directed` flag
@@ -448,6 +456,7 @@ GraphML is an XML-based file format for graphs. It's a comprehensive, well-docum
 **Namespace:** `http://www.yworks.com/xml/graphml`
 
 Used by yEd for visual properties:
+
 ```xml
 <key id="d6" for="node" yfiles.type="nodegraphics"/>
 <node id="n0">
@@ -501,6 +510,7 @@ CSV and edge list formats are the simplest and most universal way to represent g
 **Used by:** Most tools as basic import format
 
 **Structure:**
+
 ```csv
 source,target
 node1,node2
@@ -509,6 +519,7 @@ node1,node3
 ```
 
 or space/tab delimited:
+
 ```
 node1 node2
 node2 node3
@@ -516,6 +527,7 @@ node1 node3
 ```
 
 **Features:**
+
 - Minimal format
 - No headers (sometimes)
 - Assumes unweighted, unlabeled edges
@@ -526,6 +538,7 @@ node1 node3
 **Used by:** NetworkX, igraph, most analysis tools
 
 **Structure:**
+
 ```csv
 source,target,weight
 node1,node2,1.0
@@ -534,6 +547,7 @@ node1,node3,0.8
 ```
 
 **Features:**
+
 - Third column for edge weight
 - Can add more columns for additional edge attributes
 
@@ -542,6 +556,7 @@ node1,node3,0.8
 **Used by:** Gephi, Cytoscape, custom importers
 
 **Structure:**
+
 ```csv
 source,target,weight,type,color
 node1,node2,1.0,friend,#ff0000
@@ -549,6 +564,7 @@ node2,node3,2.5,colleague,#00ff00
 ```
 
 **Features:**
+
 - Multiple attribute columns
 - Attribute types inferred or specified separately
 
@@ -559,12 +575,14 @@ node2,node3,2.5,colleague,#00ff00
 **Documentation:** https://gephi.org/users/supported-graph-formats/csv-format/
 
 **Edge List (edges.csv):**
+
 ```csv
 Source,Target,Type,Id,Label,Weight
 node1,node2,Undirected,edge1,Friend,1.0
 ```
 
 **Node List (nodes.csv):**
+
 ```csv
 Id,Label,Color,Size
 node1,Node 1,#ff0000,10
@@ -572,6 +590,7 @@ node2,Node 2,#00ff00,15
 ```
 
 **Features:**
+
 - Separate files for nodes and edges
 - Specific column names (case-sensitive)
 - `Type` column for directed/undirected
@@ -584,6 +603,7 @@ node2,Node 2,#00ff00,15
 **Documentation:** https://manual.cytoscape.org/en/stable/Creating_Networks.html#import-data-table-files
 
 **Structure:**
+
 ```csv
 source,target,interaction,sourceType,targetType
 A,B,pp,protein,protein
@@ -591,6 +611,7 @@ B,C,pd,protein,drug
 ```
 
 **Features:**
+
 - `interaction` column for edge type
 - Type annotations for nodes
 - Can import attributes separately
@@ -602,6 +623,7 @@ B,C,pd,protein,drug
 **Documentation:** https://neo4j.com/docs/operations-manual/current/tools/neo4j-admin/neo4j-admin-import/
 
 **Nodes CSV:**
+
 ```csv
 personId:ID,name,:LABEL
 1,John,Person
@@ -609,12 +631,14 @@ personId:ID,name,:LABEL
 ```
 
 **Relationships CSV:**
+
 ```csv
 :START_ID,:END_ID,:TYPE
 1,2,KNOWS
 ```
 
 **Features:**
+
 - Special header syntax (`:ID`, `:LABEL`, `:TYPE`)
 - Type annotations with colon prefix
 - Optimized for bulk import
@@ -624,6 +648,7 @@ personId:ID,name,:LABEL
 **Used by:** Many tools for rich attributes
 
 **Nodes (nodes.csv):**
+
 ```csv
 id,label,type,x,y,size,color
 1,Node 1,A,100,200,10,#ff0000
@@ -631,6 +656,7 @@ id,label,type,x,y,size,color
 ```
 
 **Edges (edges.csv):**
+
 ```csv
 source,target,weight,type
 1,2,1.0,friend
@@ -638,6 +664,7 @@ source,target,weight,type
 ```
 
 **Features:**
+
 - Separate files allow different attribute sets
 - More flexible than single-file format
 - Better for large graphs with many attributes
@@ -647,6 +674,7 @@ source,target,weight,type
 **Used by:** NetworkX, graph-tool, academic datasets
 
 **Structure:**
+
 ```
 # Each line: node followed by its neighbors
 node1 node2 node3
@@ -656,6 +684,7 @@ node4 node2
 ```
 
 With labels:
+
 ```
 0 1 2
 1 0 3
@@ -664,6 +693,7 @@ With labels:
 ```
 
 **Features:**
+
 - Space-efficient for sparse graphs
 - Natural representation of adjacency
 - Can include weights: `node1 node2:1.0 node3:2.5`
@@ -976,6 +1006,7 @@ id "label" x y z shape x_fact y_fact color [attributes]
 ```
 
 Where:
+
 - `n` = number of vertices
 - `id` = vertex number (1-indexed)
 - `label` = vertex label in quotes
@@ -991,6 +1022,7 @@ source target weight
 ```
 
 or with labels:
+
 ```
 *Arcslist
 source target1 target2 target3
@@ -1269,40 +1301,41 @@ Excel files are widely used for graph data due to their familiarity and ease of 
 
 ###### Single Sheet Edge List
 
-| Source | Target | Weight | Type |
-|--------|--------|--------|------|
-| Node A | Node B | 1.0 | friend |
-| Node B | Node C | 2.5 | colleague |
+| Source | Target | Weight | Type      |
+| ------ | ------ | ------ | --------- |
+| Node A | Node B | 1.0    | friend    |
+| Node B | Node C | 2.5    | colleague |
 
 ###### Multiple Sheets (Nodes + Edges)
 
 **Nodes sheet:**
 
-| ID | Label | Type | Color |
-|----|-------|------|-------|
-| 1 | Node A | Person | #FF0000 |
-| 2 | Node B | Person | #00FF00 |
+| ID  | Label  | Type   | Color   |
+| --- | ------ | ------ | ------- |
+| 1   | Node A | Person | #FF0000 |
+| 2   | Node B | Person | #00FF00 |
 
 **Edges sheet:**
 
-| Source | Target | Weight | Type |
-|--------|--------|--------|------|
-| 1 | 2 | 1.0 | knows |
+| Source | Target | Weight | Type  |
+| ------ | ------ | ------ | ----- |
+| 1      | 2      | 1.0    | knows |
 
 ###### Adjacency Matrix
 
-|   | A | B | C | D |
-|---|---|---|---|---|
-| A | 0 | 1 | 1 | 0 |
-| B | 1 | 0 | 1 | 0 |
-| C | 1 | 1 | 0 | 1 |
-| D | 0 | 0 | 1 | 0 |
+|     | A   | B   | C   | D   |
+| --- | --- | --- | --- | --- |
+| A   | 0   | 1   | 1   | 0   |
+| B   | 1   | 0   | 1   | 0   |
+| C   | 1   | 1   | 0   | 1   |
+| D   | 0   | 0   | 1   | 0   |
 
 ##### Tool-Specific Formats
 
 ###### NodeXL Format
 
 Uses specific worksheet names:
+
 - "Vertices" sheet with columns: Vertex, Color, Shape, Size, etc.
 - "Edges" sheet with columns: Vertex 1, Vertex 2, Relationship, etc.
 
@@ -1345,6 +1378,7 @@ GraphSON is a JSON-based format for TinkerPop-enabled graph databases. It has th
 **GraphSON 3.0 Spec:** https://tinkerpop.apache.org/docs/current/dev/io/#graphson-3d0
 
 **Versions:**
+
 - **1.0:** Original version (legacy)
 - **2.0:** Added type information
 - **3.0:** Current version (default since TinkerPop 3.3.0)
@@ -1355,44 +1389,44 @@ GraphSON is a JSON-based format for TinkerPop-enabled graph databases. It has th
 
 ```json
 {
-  "@type": "g:Graph",
-  "@value": {
-    "vertices": [
-      {
-        "@type": "g:Vertex",
-        "@value": {
-          "id": {"@type": "g:Int32", "@value": 1},
-          "label": "person",
-          "properties": {
-            "name": [
-              {
-                "@type": "g:VertexProperty",
+    "@type": "g:Graph",
+    "@value": {
+        "vertices": [
+            {
+                "@type": "g:Vertex",
                 "@value": {
-                  "id": {"@type": "g:Int64", "@value": 0},
-                  "value": "John",
-                  "label": "name"
+                    "id": { "@type": "g:Int32", "@value": 1 },
+                    "label": "person",
+                    "properties": {
+                        "name": [
+                            {
+                                "@type": "g:VertexProperty",
+                                "@value": {
+                                    "id": { "@type": "g:Int64", "@value": 0 },
+                                    "value": "John",
+                                    "label": "name"
+                                }
+                            }
+                        ]
+                    }
                 }
-              }
-            ]
-          }
-        }
-      }
-    ],
-    "edges": [
-      {
-        "@type": "g:Edge",
-        "@value": {
-          "id": {"@type": "g:Int32", "@value": 7},
-          "label": "knows",
-          "inV": {"@type": "g:Int32", "@value": 2},
-          "outV": {"@type": "g:Int32", "@value": 1},
-          "properties": {
-            "weight": {"@type": "g:Double", "@value": 0.5}
-          }
-        }
-      }
-    ]
-  }
+            }
+        ],
+        "edges": [
+            {
+                "@type": "g:Edge",
+                "@value": {
+                    "id": { "@type": "g:Int32", "@value": 7 },
+                    "label": "knows",
+                    "inV": { "@type": "g:Int32", "@value": 2 },
+                    "outV": { "@type": "g:Int32", "@value": 1 },
+                    "properties": {
+                        "weight": { "@type": "g:Double", "@value": 0.5 }
+                    }
+                }
+            }
+        ]
+    }
 }
 ```
 
@@ -1400,26 +1434,26 @@ GraphSON is a JSON-based format for TinkerPop-enabled graph databases. It has th
 
 ```json
 {
-  "vertices": [
-    {
-      "id": 1,
-      "label": "person",
-      "type": "vertex",
-      "properties": {
-        "name": [{"id": 0, "value": "John"}]
-      }
-    }
-  ],
-  "edges": [
-    {
-      "id": 7,
-      "label": "knows",
-      "type": "edge",
-      "inV": 2,
-      "outV": 1,
-      "properties": {"weight": 0.5}
-    }
-  ]
+    "vertices": [
+        {
+            "id": 1,
+            "label": "person",
+            "type": "vertex",
+            "properties": {
+                "name": [{ "id": 0, "value": "John" }]
+            }
+        }
+    ],
+    "edges": [
+        {
+            "id": 7,
+            "label": "knows",
+            "type": "edge",
+            "inV": 2,
+            "outV": 1,
+            "properties": { "weight": 0.5 }
+        }
+    ]
 }
 ```
 
@@ -1546,6 +1580,7 @@ nodeB otherType nodeE
 ```
 
 Example:
+
 ```
 ProteinA pp ProteinB
 ProteinA pd DrugX DrugY
@@ -1564,6 +1599,7 @@ GeneC reg GeneD
 ###### Extended SIF
 
 Includes additional columns for attributes:
+
 ```
 nodeA interactionType nodeB attribute1 attribute2
 ```
@@ -1734,46 +1770,44 @@ CX and CX2 are JSON-based formats for the Cytoscape ecosystem. CX2 is the curren
 
 ```json
 {
-  "CXVersion": "2.0",
-  "hasFragments": false,
+    "CXVersion": "2.0",
+    "hasFragments": false,
 
-  "attributeDeclarations": [
-    {"nodes": {"name": {"d": "string"}, "score": {"d": "double"}}}
-  ],
+    "attributeDeclarations": [{ "nodes": { "name": { "d": "string" }, "score": { "d": "double" } } }],
 
-  "nodes": [
-    {"id": 0, "v": {"name": "Node 1", "score": 0.95}},
-    {"id": 1, "v": {"name": "Node 2", "score": 0.87}}
-  ],
+    "nodes": [
+        { "id": 0, "v": { "name": "Node 1", "score": 0.95 } },
+        { "id": 1, "v": { "name": "Node 2", "score": 0.87 } }
+    ],
 
-  "edges": [
-    {"id": 0, "s": 0, "t": 1, "v": {"interaction": "pp", "weight": 1.0}}
-  ],
+    "edges": [{ "id": 0, "s": 0, "t": 1, "v": { "interaction": "pp", "weight": 1.0 } }],
 
-  "visualProperties": {
-    "nodes": {
-      "0": {"NODE_FILL_COLOR": "#FF0000", "NODE_SIZE": 40}
+    "visualProperties": {
+        "nodes": {
+            "0": { "NODE_FILL_COLOR": "#FF0000", "NODE_SIZE": 40 }
+        },
+        "edges": {
+            "0": { "EDGE_WIDTH": 2.0, "EDGE_LINE_COLOR": "#000000" }
+        }
     },
-    "edges": {
-      "0": {"EDGE_WIDTH": 2.0, "EDGE_LINE_COLOR": "#000000"}
-    }
-  },
 
-  "networkAttributes": {
-    "name": "Example Network",
-    "description": "A simple example"
-  }
+    "networkAttributes": {
+        "name": "Example Network",
+        "description": "A simple example"
+    }
 }
 ```
 
 ##### Key Differences: CX vs CX2
 
 **CX (Legacy):**
+
 - Aspect-oriented structure
 - More verbose
 - Streaming-friendly but complex
 
 **CX2 (Current):**
+
 - Simplified structure
 - More compact
 - Better performance
@@ -1834,6 +1868,7 @@ TGF is an extremely simple format with nodes and edges separated by a `#` delimi
 ```
 
 Format:
+
 ```
 [node_id] [node_label]
 ...
@@ -2160,6 +2195,7 @@ Matrix Market is an ASCII format for sparse matrices. Used in graph contexts to 
 ```
 
 Format explanation:
+
 - Line 1: Header (`%%MatrixMarket matrix <format> <field> <symmetry>`)
 - Lines starting with `%`: Comments
 - First data line: `rows cols entries`
@@ -2168,12 +2204,14 @@ Format explanation:
 ##### Variants
 
 **Coordinate formats:**
+
 - `pattern`: No values (just structure)
 - `real`: Real numbers
 - `complex`: Complex numbers
 - `integer`: Integers
 
 **Symmetry:**
+
 - `general`: No symmetry
 - `symmetric`: Symmetric matrix
 - `skew-symmetric`: Skew-symmetric
@@ -2203,18 +2241,21 @@ NetworkX, igraph, scipy (Python), MATLAB, Network Repository tools
 For completeness, here are other formats with lower priority:
 
 ##### 21. Adjacency Matrix (Various text formats)
+
 - **Priority:** Low (4+ tools)
 - **Extensions:** `.txt`, `.csv`, `.mat`
 - **Tools:** NetworkX, igraph, MATLAB, R, most analysis tools
 - **Sample:** Generated from other formats
 
 ##### 22. LEDA Format
+
 - **Priority:** Low (3+ tools)
 - **Extension:** `.gw`, `.lgr`
 - **Tools:** NetworkX, igraph, LEDA library
 - **Specification:** LEDA library documentation
 
 ##### 23. Graph6/Sparse6/Digraph6
+
 - **Priority:** Low (2+ tools)
 - **Extension:** `.g6`, `.s6`, `.d6`
 - **Tools:** NetworkX, graph theory tools
@@ -2222,36 +2263,42 @@ For completeness, here are other formats with lower priority:
 - **Sample:** https://houseofgraphs.org/
 
 ##### 24. GT (graph-tool binary)
+
 - **Priority:** Low (2+ tools)
 - **Extension:** `.gt`, `.xml.gz`
 - **Tools:** graph-tool (native)
 - **Features:** Fast binary format with compression
 
 ##### 25. JSON-LD (JSON for Linked Data)
+
 - **Priority:** Low (3+ tools)
 - **Extension:** `.jsonld`
 - **Specification:** https://json-ld.org/
 - **Tools:** Semantic web tools, knowledge graphs
 
 ##### 26. Gryo (TinkerPop binary)
+
 - **Priority:** Low (2+ tools)
 - **Extension:** `.kryo`
 - **Tools:** TinkerPop, JanusGraph
 - **Features:** Binary serialization
 
 ##### 27. GEDCOM (Genealogical Data)
+
 - **Priority:** Specialized (2+ tools)
 - **Extension:** `.ged`
 - **Tools:** yEd, genealogy software
 - **Sample:** https://www.familysearch.org/
 
 ##### 28. PSI-MI (Proteomics Standard Initiative)
+
 - **Priority:** Specialized (2+ tools)
 - **Extension:** `.xml`
 - **Tools:** Cytoscape, molecular interaction databases
 - **Sample:** https://www.ebi.ac.uk/intact/
 
 ##### 29. NeuroML
+
 - **Priority:** Specialized (2+ tools)
 - **Extension:** `.nml`, `.xml`
 - **Tools:** Blender addons, neuroscience tools
@@ -2259,6 +2306,7 @@ For completeness, here are other formats with lower priority:
 - **Sample:** https://github.com/NeuroML/
 
 ##### 30. Mermaid Syntax
+
 - **Priority:** Low (2+ tools)
 - **Extension:** `.mmd`, `.md`
 - **Tools:** Mermaid.js, documentation tools
@@ -2266,6 +2314,7 @@ For completeness, here are other formats with lower priority:
 - **Sample:** https://mermaid.live/
 
 ##### 31. PlantUML Syntax
+
 - **Priority:** Low (2+ tools)
 - **Extension:** `.puml`, `.plantuml`
 - **Tools:** PlantUML, documentation tools
@@ -2273,24 +2322,28 @@ For completeness, here are other formats with lower priority:
 - **Sample:** https://github.com/joelparkerhenderson/plantuml-examples
 
 ##### 32. TLP/TLPB/TLPZ (Tulip formats)
+
 - **Priority:** Low (3+ tools)
 - **Extensions:** `.tlp` (text), `.tlpb` (binary), `.tlp.gz` (compressed)
 - **Tools:** Tulip (native), Gephi
 - **Features:** Text, binary, and compressed variants
 
 ##### 33. GraphML-BZ2 (Compressed GraphML)
+
 - **Priority:** Low
 - **Extension:** `.graphml.bz2`, `.graphmlz`
 - **Tools:** yEd, tools supporting GraphML
 - **Notes:** BZip2 or GZip compressed GraphML
 
 ##### 34. AGE agtype (PostgreSQL AGE)
+
 - **Priority:** Low (2+ tools)
 - **Extension:** `.json`
 - **Tools:** Apache AGE, PostgreSQL
 - **Features:** JSON-like format for graph data in PostgreSQL
 
 ##### 35. Custom Binary Formats
+
 Various tools have proprietary binary formats (e.g., Gephi .gephi, Cytoscape .cys). These are typically session files rather than pure data formats.
 
 ---
@@ -2300,6 +2353,7 @@ Various tools have proprietary binary formats (e.g., Gephi .gephi, Cytoscape .cy
 ### Comprehensive Collections
 
 #### 1. Network Repository
+
 **URL:** https://networkrepository.com/
 **Formats:** MTX, GraphML, XML, JSON, MAT, edge lists
 **Size:** 3,000+ networks
@@ -2307,6 +2361,7 @@ Various tools have proprietary binary formats (e.g., Gephi .gephi, Cytoscape .cy
 **Quality:** High-quality, documented datasets
 
 #### 2. SNAP Stanford
+
 **URL:** https://snap.stanford.edu/data/
 **Formats:** Edge lists, binary, text formats
 **Size:** 50+ large networks
@@ -2314,6 +2369,7 @@ Various tools have proprietary binary formats (e.g., Gephi .gephi, Cytoscape .cy
 **Quality:** Well-maintained, widely cited
 
 #### 3. Gephi Datasets
+
 **URL:** https://github.com/gephi/gephi/wiki/Datasets
 **Formats:** GEXF, GDF, GML, NET, GraphML, DL, DOT
 **Size:** Curated collection of classic networks
@@ -2321,6 +2377,7 @@ Various tools have proprietary binary formats (e.g., Gephi .gephi, Cytoscape .cy
 **Quality:** Excellent for testing and tutorials
 
 #### 4. Mark Newman's Collection
+
 **URL:** http://www-personal.umich.edu/~mejn/netdata/
 **Formats:** GML, Pajek NET
 **Size:** ~20 classic networks
@@ -2328,12 +2385,14 @@ Various tools have proprietary binary formats (e.g., Gephi .gephi, Cytoscape .cy
 **Quality:** Academic standard datasets
 
 #### 5. KONECT
+
 **URL:** http://konect.cc/
 **Formats:** TSV (unified format), N3 (RDF), original formats
 **Size:** 1,300+ networks in 24 categories
 **Quality:** Comprehensive, well-documented
 
 #### 6. Melanie Walsh's Sample Networks
+
 **URL:** https://github.com/melaniewalsh/sample-social-network-datasets
 **Formats:** CSV (nodes/edges), GraphML
 **Size:** 10+ curated small networks
@@ -2341,6 +2400,7 @@ Various tools have proprietary binary formats (e.g., Gephi .gephi, Cytoscape .cy
 **Quality:** Perfect for teaching and small examples
 
 #### 7. NDEx (Network Data Exchange)
+
 **URL:** https://home.ndexbio.org/
 **Formats:** CX/CX2
 **Size:** 70,000+ biological networks
@@ -2350,6 +2410,7 @@ Various tools have proprietary binary formats (e.g., Gephi .gephi, Cytoscape .cy
 ### Specialized Repositories
 
 #### 8. Pathway Commons
+
 **URL:** https://www.pathwaycommons.org/
 **Formats:** BioPAX, SIF, SBGN, GMT
 **Size:** 7,000+ pathways from 22 databases
@@ -2357,6 +2418,7 @@ Various tools have proprietary binary formats (e.g., Gephi .gephi, Cytoscape .cy
 **Quality:** Integrated biological pathway data
 
 #### 9. BioModels
+
 **URL:** https://www.ebi.ac.uk/biomodels/
 **Formats:** SBML
 **Size:** 1,000+ curated models
@@ -2364,6 +2426,7 @@ Various tools have proprietary binary formats (e.g., Gephi .gephi, Cytoscape .cy
 **Quality:** Peer-reviewed, annotated
 
 #### 10. SuiteSparse Matrix Collection
+
 **URL:** https://sparse.tamu.edu/
 **Formats:** Matrix Market (MTX), MATLAB
 **Size:** 3,000+ sparse matrices
@@ -2371,6 +2434,7 @@ Various tools have proprietary binary formats (e.g., Gephi .gephi, Cytoscape .cy
 **Quality:** High-quality, performance benchmarks
 
 #### 11. GraphChallenge
+
 **URL:** https://graphchallenge.mit.edu/data-sets/
 **Formats:** TSV, MMIO (Matrix Market)
 **Size:** Benchmark datasets
@@ -2378,6 +2442,7 @@ Various tools have proprietary binary formats (e.g., Gephi .gephi, Cytoscape .cy
 **Quality:** Standard benchmarks
 
 #### 12. House of Graphs
+
 **URL:** https://houseofgraphs.org/
 **Formats:** graph6, sparse6, GraphML
 **Size:** 100,000+ small graphs
@@ -2387,11 +2452,13 @@ Various tools have proprietary binary formats (e.g., Gephi .gephi, Cytoscape .cy
 ### Quick Reference: Small Sample Files
 
 **< 10KB, < 50 nodes:**
+
 - Karate Club (34 nodes): GML, GraphML
 - Dolphins (62 nodes): GML
 - Simple examples: Various formats
 
 **10-100KB, 50-500 nodes:**
+
 - Les Misérables (77 nodes): GEXF, GraphML, JSON
 - Game of Thrones (various sizes): GraphML, CSV
 - Football (115 nodes): GML
@@ -2405,39 +2472,39 @@ Various tools have proprietary binary formats (e.g., Gephi .gephi, Cytoscape .cy
 Implement these first for maximum compatibility:
 
 1. **JSON variants**
-   - D3.js node-link format (most common)
-   - Cytoscape.js (CYJS)
-   - Generic {nodes, edges} structure
-   - **Rationale:** 30+ tools, web-friendly, flexible
+    - D3.js node-link format (most common)
+    - Cytoscape.js (CYJS)
+    - Generic {nodes, edges} structure
+    - **Rationale:** 30+ tools, web-friendly, flexible
 
 2. **GraphML**
-   - Full spec with attributes
-   - Basic yFiles extension support
-   - **Rationale:** 25+ tools, excellent interoperability
+    - Full spec with attributes
+    - Basic yFiles extension support
+    - **Rationale:** 25+ tools, excellent interoperability
 
 3. **CSV/Edge Lists**
-   - Simple edge list
-   - Weighted edge list
-   - Separate node+edge files
-   - **Rationale:** 22+ tools, user-friendly, universal
+    - Simple edge list
+    - Weighted edge list
+    - Separate node+edge files
+    - **Rationale:** 22+ tools, user-friendly, universal
 
 ### Phase 2: High Priority Formats
 
 Add these for broad ecosystem support:
 
 4. **GML**
-   - With visual attributes
-   - **Rationale:** 18+ tools, simple, widely used
+    - With visual attributes
+    - **Rationale:** 18+ tools, simple, widely used
 
 5. **GEXF**
-   - Focus on GEXF 1.3
-   - Support viz namespace
-   - **Rationale:** 15+ tools, Gephi ecosystem
+    - Focus on GEXF 1.3
+    - Support viz namespace
+    - **Rationale:** 15+ tools, Gephi ecosystem
 
 6. **DOT**
-   - Basic graph/digraph support
-   - Common attributes
-   - **Rationale:** 12+ tools, Graphviz integration
+    - Basic graph/digraph support
+    - Common attributes
+    - **Rationale:** 12+ tools, Graphviz integration
 
 ### Phase 3: Medium Priority Formats
 
@@ -2461,61 +2528,58 @@ Implement based on user needs:
 
 ```typescript
 interface GraphDataParser<T = unknown> {
-  readonly format: string;
-  readonly extensions: string[];
-  readonly mimeTypes: string[];
+    readonly format: string;
+    readonly extensions: string[];
+    readonly mimeTypes: string[];
 
-  canParse(data: string | ArrayBuffer): boolean;
-  parse(data: string | ArrayBuffer): GraphData<T>;
-  stringify(graph: GraphData<T>): string;
+    canParse(data: string | ArrayBuffer): boolean;
+    parse(data: string | ArrayBuffer): GraphData<T>;
+    stringify(graph: GraphData<T>): string;
 }
 
 interface GraphData<T = unknown> {
-  nodes: Node<T>[];
-  edges: Edge<T>[];
-  metadata?: GraphMetadata;
+    nodes: Node<T>[];
+    edges: Edge<T>[];
+    metadata?: GraphMetadata;
 }
 ```
 
 #### Format Detection
 
 ```typescript
-function detectFormat(
-  data: string | ArrayBuffer,
-  filename?: string
-): string | null {
-  // 1. Check file extension
-  if (filename) {
-    const ext = getExtension(filename);
-    if (ext) return formatByExtension[ext];
-  }
-
-  // 2. Check content signatures
-  if (typeof data === 'string') {
-    // XML formats
-    if (data.trim().startsWith('<?xml')) {
-      if (data.includes('xmlns="http://graphml.graphdrawing.org')) {
-        return 'graphml';
-      }
-      if (data.includes('xmlns="http://gexf.net')) {
-        return 'gexf';
-      }
-      // ... other XML formats
+function detectFormat(data: string | ArrayBuffer, filename?: string): string | null {
+    // 1. Check file extension
+    if (filename) {
+        const ext = getExtension(filename);
+        if (ext) return formatByExtension[ext];
     }
 
-    // JSON formats
-    if (data.trim().startsWith('{') || data.trim().startsWith('[')) {
-      const obj = JSON.parse(data);
-      return detectJSONFormat(obj);
+    // 2. Check content signatures
+    if (typeof data === "string") {
+        // XML formats
+        if (data.trim().startsWith("<?xml")) {
+            if (data.includes('xmlns="http://graphml.graphdrawing.org')) {
+                return "graphml";
+            }
+            if (data.includes('xmlns="http://gexf.net')) {
+                return "gexf";
+            }
+            // ... other XML formats
+        }
+
+        // JSON formats
+        if (data.trim().startsWith("{") || data.trim().startsWith("[")) {
+            const obj = JSON.parse(data);
+            return detectJSONFormat(obj);
+        }
+
+        // Text formats
+        if (data.includes("graph [")) return "gml";
+        if (data.includes("*Vertices")) return "pajek";
+        if (data.includes("%%MatrixMarket")) return "mtx";
     }
 
-    // Text formats
-    if (data.includes('graph [')) return 'gml';
-    if (data.includes('*Vertices')) return 'pajek';
-    if (data.includes('%%MatrixMarket')) return 'mtx';
-  }
-
-  return null;
+    return null;
 }
 ```
 
@@ -2525,19 +2589,19 @@ Implement a conversion layer to normalize different formats to a common internal
 
 ```typescript
 interface InternalGraph {
-  nodes: Map<string, InternalNode>;
-  edges: InternalEdge[];
-  directed: boolean;
-  multigraph: boolean;
-  attributes: Record<string, unknown>;
+    nodes: Map<string, InternalNode>;
+    edges: InternalEdge[];
+    directed: boolean;
+    multigraph: boolean;
+    attributes: Record<string, unknown>;
 }
 
 function toInternal(graph: GraphData, format: string): InternalGraph {
-  // Convert from any format to internal representation
+    // Convert from any format to internal representation
 }
 
 function fromInternal(graph: InternalGraph, format: string): GraphData {
-  // Convert from internal representation to any format
+    // Convert from internal representation to any format
 }
 ```
 
@@ -2613,6 +2677,7 @@ Are you building a web application?
 ## References
 
 ### Format Specifications
+
 - GraphML: http://graphml.graphdrawing.org/
 - GEXF: https://gexf.net/
 - GML: http://www.infosun.fim.uni-passau.de/Graphlet/GML/
@@ -2623,6 +2688,7 @@ Are you building a web application?
 - SBML: http://sbml.org/
 
 ### Tools Documentation
+
 - Gephi: https://gephi.org/
 - Cytoscape: https://cytoscape.org/
 - NetworkX: https://networkx.org/
@@ -2630,6 +2696,7 @@ Are you building a web application?
 - Graphviz: https://graphviz.org/
 
 ### Data Repositories
+
 - Network Repository: https://networkrepository.com/
 - SNAP: https://snap.stanford.edu/data/
 - KONECT: http://konect.cc/

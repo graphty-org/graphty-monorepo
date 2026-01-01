@@ -4,21 +4,20 @@
  * Various algorithms for finding minimum cuts in graphs
  */
 
-import type {Graph} from "../core/graph.js";
-import {graphToMap} from "../utils/graph-converters.js";
-import {fordFulkerson} from "./ford-fulkerson.js";
+import type { Graph } from "../core/graph.js";
+import { graphToMap } from "../utils/graph-converters.js";
+import { fordFulkerson } from "./ford-fulkerson.js";
 
 export interface MinCutResult {
     cutValue: number;
     partition1: Set<string>;
     partition2: Set<string>;
-    cutEdges: {from: string, to: string, weight: number}[];
+    cutEdges: { from: string; to: string; weight: number }[];
 }
 
 /**
  * Find minimum s-t cut using max flow
  * The minimum cut value equals the maximum flow value (max-flow min-cut theorem)
- *
  * @param graph - Weighted graph
  * @param source - Source node
  * @param sink - Sink node
@@ -26,11 +25,7 @@ export interface MinCutResult {
  *
  * Time Complexity: Same as max flow algorithm used
  */
-export function minSTCut(
-    graph: Graph,
-    source: string,
-    sink: string,
-): MinCutResult {
+export function minSTCut(graph: Graph, source: string, sink: string): MinCutResult {
     const flowResult = fordFulkerson(graph, source, sink);
 
     if (!flowResult.minCut) {
@@ -42,14 +37,14 @@ export function minSTCut(
         };
     }
 
-    const cutEdges: {from: string, to: string, weight: number}[] = [];
+    const cutEdges: { from: string; to: string; weight: number }[] = [];
 
     // Find actual cut edges and their weights
     for (const [u, v] of flowResult.minCut.edges) {
         const edge = graph.getEdge(u, v);
         const weight = edge?.weight ?? 0;
         if (weight > 0) {
-            cutEdges.push({from: u, to: v, weight});
+            cutEdges.push({ from: u, to: v, weight });
         }
     }
 
@@ -64,15 +59,12 @@ export function minSTCut(
 /**
  * Stoer-Wagner algorithm for finding global minimum cut
  * Finds the minimum cut that separates the graph into two parts
- *
  * @param graph - Undirected weighted graph - accepts Graph class or Map representation
  * @returns Global minimum cut
  *
  * Time Complexity: O(V³) or O(VE + V² log V) with heap
  */
-export function stoerWagner(
-    graph: Graph | Map<string, Map<string, number>>,
-): MinCutResult {
+export function stoerWagner(graph: Graph | Map<string, Map<string, number>>): MinCutResult {
     // Convert Graph to Map representation if needed
     const graphMap = graph instanceof Map ? graph : graphToMap(graph);
     // Convert to undirected if necessary
@@ -140,13 +132,13 @@ export function stoerWagner(
     }
 
     // Find cut edges
-    const cutEdges: {from: string, to: string, weight: number}[] = [];
+    const cutEdges: { from: string; to: string; weight: number }[] = [];
     for (const u of partition1) {
         const neighbors = originalGraph.get(u);
         if (neighbors) {
             for (const [v, weight] of neighbors) {
                 if (partition2.has(v)) {
-                    cutEdges.push({from: u, to: v, weight});
+                    cutEdges.push({ from: u, to: v, weight });
                 }
             }
         }
@@ -162,11 +154,14 @@ export function stoerWagner(
 
 /**
  * Minimum cut phase of Stoer-Wagner algorithm
+ * @param graph - The undirected weighted graph
+ * @param nodes - Array of remaining nodes in the graph
+ * @returns The cut result with last two nodes, cut value, and partition
  */
 function minimumCutPhase(
     graph: Map<string, Map<string, number>>,
     nodes: string[],
-): {s: string, t: string, value: number, partition: string[]} {
+): { s: string; t: string; value: number; partition: string[] } {
     const n = nodes.length;
     const weight = new Map<string, number>();
     const added = new Set<string>();
@@ -180,7 +175,7 @@ function minimumCutPhase(
     // Start with arbitrary node
     let lastAdded = nodes[0];
     if (!lastAdded) {
-        return {s: "", t: "", value: 0, partition: []};
+        return { s: "", t: "", value: 0, partition: [] };
     }
 
     added.add(lastAdded);
@@ -188,7 +183,7 @@ function minimumCutPhase(
 
     // Add remaining nodes
     for (let i = 1; i < n; i++) {
-    // Update weights
+        // Update weights
         if (!lastAdded) {
             continue;
         }
@@ -225,7 +220,7 @@ function minimumCutPhase(
     const s = order[order.length - 2];
     const t = order[order.length - 1];
     if (!s || !t) {
-        return {s: "", t: "", value: 0, partition: []};
+        return { s: "", t: "", value: 0, partition: [] };
     }
 
     const cutValue = weight.get(t) ?? 0;
@@ -233,18 +228,17 @@ function minimumCutPhase(
     // Partition is all nodes except t
     const partition = order.slice(0, -1);
 
-    return {s, t, value: cutValue, partition};
+    return { s, t, value: cutValue, partition };
 }
 
 /**
  * Contract two nodes in the graph
+ * @param graph - The graph to modify by contracting nodes
+ * @param nodes - Array of nodes to update after contraction
+ * @param s - The node to keep after contraction
+ * @param t - The node to merge into s
  */
-function contractNodes(
-    graph: Map<string, Map<string, number>>,
-    nodes: string[],
-    s: string,
-    t: string,
-): void {
+function contractNodes(graph: Map<string, Map<string, number>>, nodes: string[], s: string, t: string): void {
     // Merge t into s
     const sNeighbors = graph.get(s);
     const tNeighbors = graph.get(t);
@@ -279,10 +273,10 @@ function contractNodes(
 
 /**
  * Convert directed graph to undirected
+ * @param graph - The directed graph to convert
+ * @returns An undirected graph with edges in both directions
  */
-function makeUndirected(
-    graph: Map<string, Map<string, number>>,
-): Map<string, Map<string, number>> {
+function makeUndirected(graph: Map<string, Map<string, number>>): Map<string, Map<string, number>> {
     const undirected = new Map<string, Map<string, number>>();
 
     // Initialize all nodes
@@ -315,17 +309,13 @@ function makeUndirected(
 /**
  * Karger's randomized min-cut algorithm
  * Probabilistic algorithm that finds min cut with high probability
- *
  * @param graph - Undirected graph - accepts Graph class or Map representation
  * @param iterations - Number of iterations (higher = better accuracy)
  * @returns Minimum cut found
  *
  * Time Complexity: O(V² * iterations)
  */
-export function kargerMinCut(
-    graph: Graph | Map<string, Map<string, number>>,
-    iterations = 100,
-): MinCutResult {
+export function kargerMinCut(graph: Graph | Map<string, Map<string, number>>, iterations = 100): MinCutResult {
     // Convert Graph to Map representation if needed
     const graphMap = graph instanceof Map ? graph : graphToMap(graph);
     let minCutValue = Infinity;
@@ -343,13 +333,13 @@ export function kargerMinCut(
     }
 
     // Find cut edges
-    const cutEdges: {from: string, to: string, weight: number}[] = [];
+    const cutEdges: { from: string; to: string; weight: number }[] = [];
     for (const u of bestPartition1) {
         const neighbors = graphMap.get(u);
         if (neighbors) {
             for (const [v, weight] of neighbors) {
                 if (bestPartition2.has(v)) {
-                    cutEdges.push({from: u, to: v, weight});
+                    cutEdges.push({ from: u, to: v, weight });
                 }
             }
         }
@@ -365,10 +355,14 @@ export function kargerMinCut(
 
 /**
  * Single run of Karger's algorithm
+ * @param graph - The undirected weighted graph
+ * @returns The cut result with cut value and two partitions
  */
-function kargerSingleRun(
-    graph: Map<string, Map<string, number>>,
-): {cutValue: number, partition1: Set<string>, partition2: Set<string>} {
+function kargerSingleRun(graph: Map<string, Map<string, number>>): {
+    cutValue: number;
+    partition1: Set<string>;
+    partition2: Set<string>;
+} {
     // Create a copy of the graph
     const workGraph = new Map<string, Map<string, number>>();
     const superNodes = new Map<string, Set<string>>();
@@ -381,11 +375,12 @@ function kargerSingleRun(
 
     // Contract until 2 nodes remain
     while (workGraph.size > 2) {
-    // Pick random edge
+        // Pick random edge
         const edges: [string, string, number][] = [];
         for (const [u, neighbors] of workGraph) {
             for (const [v, weight] of neighbors) {
-                if (u < v) { // Avoid duplicates
+                if (u < v) {
+                    // Avoid duplicates
                     edges.push([u, v, weight]);
                 }
             }
@@ -440,6 +435,10 @@ function kargerSingleRun(
 
 /**
  * Contract edge in Karger's algorithm
+ * @param graph - The working graph to modify
+ * @param superNodes - Map tracking which original nodes are in each super node
+ * @param u - First endpoint of the edge to contract
+ * @param v - Second endpoint of the edge to contract (merged into u)
  */
 function contractKarger(
     graph: Map<string, Map<string, number>>,
@@ -489,4 +488,3 @@ function contractKarger(
     graph.delete(v);
     superNodes.delete(v);
 }
-

@@ -1,12 +1,12 @@
-import {assert, beforeEach, describe, it} from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 
-import {EventManager} from "../../src/managers/EventManager";
-import {type OperationContext, OperationQueueManager} from "../../src/managers/OperationQueueManager";
+import { EventManager } from "../../src/managers/EventManager";
+import { type OperationContext, OperationQueueManager } from "../../src/managers/OperationQueueManager";
 
 describe("Progress Tracking", () => {
     let eventManager: EventManager;
     let queueManager: OperationQueueManager;
-    let progressEvents: {id: string, progress: number, message?: string, phase?: string}[];
+    let progressEvents: { id: string; progress: number; message?: string; phase?: string }[];
 
     beforeEach(() => {
         eventManager = new EventManager();
@@ -26,12 +26,12 @@ describe("Progress Tracking", () => {
         });
     });
 
-    it("should track operation progress with percent, message, and phase", async() => {
+    it("should track operation progress with percent, message, and phase", async () => {
         let capturedContext: OperationContext | null = null;
 
         queueManager.queueOperation(
             "data-add",
-            async(context) => {
+            async (context) => {
                 capturedContext = context;
 
                 // Simulate progress updates
@@ -56,7 +56,7 @@ describe("Progress Tracking", () => {
                 context.progress.setMessage("Complete");
                 context.progress.setPhase("finalization");
             },
-            {description: "Test operation with progress"},
+            { description: "Test operation with progress" },
         );
 
         await queueManager.waitForCompletion();
@@ -70,8 +70,13 @@ describe("Progress Tracking", () => {
 
         // Check that we have progress values
         const progressValues = progressEvents.map((e) => e.progress);
-        assert.isTrue(progressValues.includes(25) || progressValues.includes(50) || progressValues.includes(75) || progressValues.includes(100),
-            "Should have some progress values");
+        assert.isTrue(
+            progressValues.includes(25) ||
+                progressValues.includes(50) ||
+                progressValues.includes(75) ||
+                progressValues.includes(100),
+            "Should have some progress values",
+        );
 
         // Check that at least one event has a message
         const hasMessage = progressEvents.some((e) => e.message !== undefined);
@@ -82,17 +87,17 @@ describe("Progress Tracking", () => {
         assert.isTrue(hasPhase, "Should have at least one event with a phase");
     });
 
-    it("should emit progress events during execution", async() => {
+    it("should emit progress events during execution", async () => {
         const opId = queueManager.queueOperation(
             "layout-update",
-            async(context) => {
+            async (context) => {
                 for (let i = 0; i <= 100; i += 10) {
                     context.progress.setProgress(i);
                     context.progress.setMessage(`Processing: ${i}%`);
                     await new Promise((resolve) => setTimeout(resolve, 5));
                 }
             },
-            {description: "Progressive operation"},
+            { description: "Progressive operation" },
         );
 
         await queueManager.waitForCompletion();
@@ -103,10 +108,7 @@ describe("Progress Tracking", () => {
         // Verify events have increasing progress values
         const progressValues = progressEvents.map((e) => e.progress);
         for (let i = 1; i < progressValues.length; i++) {
-            assert.isTrue(
-                progressValues[i] >= progressValues[i - 1],
-                "Progress should be non-decreasing",
-            );
+            assert.isTrue(progressValues[i] >= progressValues[i - 1], "Progress should be non-decreasing");
         }
 
         // Verify all events have the same operation ID
@@ -115,19 +117,16 @@ describe("Progress Tracking", () => {
         assert.equal(progressEvents[0].id, opId);
     });
 
-    it("should cleanup progress after completion", async() => {
+    it("should cleanup progress after completion", async () => {
         const stats = queueManager.getStats();
         assert.equal(stats.pending, 0);
 
-        queueManager.queueOperation(
-            "style-apply",
-            async(context) => {
-                context.progress.setProgress(50);
-                context.progress.setMessage("Applying styles");
-                await new Promise((resolve) => setTimeout(resolve, 10));
-                context.progress.setProgress(100);
-            },
-        );
+        queueManager.queueOperation("style-apply", async (context) => {
+            context.progress.setProgress(50);
+            context.progress.setMessage("Applying styles");
+            await new Promise((resolve) => setTimeout(resolve, 10));
+            context.progress.setProgress(100);
+        });
 
         await queueManager.waitForCompletion();
 
@@ -140,12 +139,9 @@ describe("Progress Tracking", () => {
         // This would happen if progress wasn't cleaned up
         // Since we can't directly access private operationProgress,
         // we verify cleanup by checking no new events after operation
-        const opId2 = queueManager.queueOperation(
-            "style-apply",
-            (context) => {
-                context.progress.setProgress(50);
-            },
-        );
+        const opId2 = queueManager.queueOperation("style-apply", (context) => {
+            context.progress.setProgress(50);
+        });
 
         await queueManager.waitForCompletion();
 
@@ -157,44 +153,41 @@ describe("Progress Tracking", () => {
         assert.isTrue(newEvents.every((e) => e.id === opId2));
     });
 
-    it("should handle progress for cancelled operations", async() => {
+    it("should handle progress for cancelled operations", async () => {
         let operationStarted = false;
 
-        queueManager.queueOperation(
-            "algorithm-run",
-            async(context) => {
-                operationStarted = true;
+        queueManager.queueOperation("algorithm-run", async (context) => {
+            operationStarted = true;
 
-                try {
-                    context.progress.setProgress(10);
-                    context.progress.setMessage("Starting algorithm");
+            try {
+                context.progress.setProgress(10);
+                context.progress.setMessage("Starting algorithm");
 
-                    // Check if already aborted
-                    if (context.signal.aborted) {
-                        throw new Error("AbortError");
-                    }
-
-                    await new Promise<void>((resolve, reject) => {
-                        const timeout = setTimeout(resolve, 1000);
-
-                        // Listen for abort
-                        context.signal.addEventListener("abort", () => {
-                            clearTimeout(timeout);
-                            const error = new Error("Operation aborted");
-                            error.name = "AbortError";
-                            reject(error);
-                        });
-                    });
-
-                    context.progress.setProgress(100);
-                } catch (error) {
-                    if ((error as Error).name === "AbortError") {
-                        context.progress.setProgress(0);
-                        context.progress.setMessage("Cancelled");
-                    }
+                // Check if already aborted
+                if (context.signal.aborted) {
+                    throw new Error("AbortError");
                 }
-            },
-        );
+
+                await new Promise<void>((resolve, reject) => {
+                    const timeout = setTimeout(resolve, 1000);
+
+                    // Listen for abort
+                    context.signal.addEventListener("abort", () => {
+                        clearTimeout(timeout);
+                        const error = new Error("Operation aborted");
+                        error.name = "AbortError";
+                        reject(error);
+                    });
+                });
+
+                context.progress.setProgress(100);
+            } catch (error) {
+                if ((error as Error).name === "AbortError") {
+                    context.progress.setProgress(0);
+                    context.progress.setMessage("Cancelled");
+                }
+            }
+        });
 
         // Cancel the operation after a short delay
         setTimeout(() => {
@@ -219,31 +212,25 @@ describe("Progress Tracking", () => {
         assert.isTrue(operationStarted);
     });
 
-    it("should handle multiple concurrent operations with separate progress", async() => {
+    it("should handle multiple concurrent operations with separate progress", async () => {
         const op1Events: typeof progressEvents = [];
         const op2Events: typeof progressEvents = [];
 
-        const op1Id = queueManager.queueOperation(
-            "data-add",
-            async(context) => {
-                for (let i = 0; i <= 100; i += 25) {
-                    context.progress.setProgress(i);
-                    context.progress.setMessage(`Operation 1: ${i}%`);
-                    await new Promise((resolve) => setTimeout(resolve, 10));
-                }
-            },
-        );
+        const op1Id = queueManager.queueOperation("data-add", async (context) => {
+            for (let i = 0; i <= 100; i += 25) {
+                context.progress.setProgress(i);
+                context.progress.setMessage(`Operation 1: ${i}%`);
+                await new Promise((resolve) => setTimeout(resolve, 10));
+            }
+        });
 
-        const op2Id = queueManager.queueOperation(
-            "camera-update",
-            async(context) => {
-                for (let i = 0; i <= 100; i += 33) {
-                    context.progress.setProgress(i);
-                    context.progress.setMessage(`Operation 2: ${i}%`);
-                    await new Promise((resolve) => setTimeout(resolve, 10));
-                }
-            },
-        );
+        const op2Id = queueManager.queueOperation("camera-update", async (context) => {
+            for (let i = 0; i <= 100; i += 33) {
+                context.progress.setProgress(i);
+                context.progress.setMessage(`Operation 2: ${i}%`);
+                await new Promise((resolve) => setTimeout(resolve, 10));
+            }
+        });
 
         await queueManager.waitForCompletion();
 
@@ -267,25 +254,22 @@ describe("Progress Tracking", () => {
         assert.isTrue(op2HasMessages, "Op2 should have some messages");
     });
 
-    it("should include duration in progress events", async() => {
-        const capturedEvents: {duration?: number}[] = [];
+    it("should include duration in progress events", async () => {
+        const capturedEvents: { duration?: number }[] = [];
 
         eventManager.onGraphEvent.add((event) => {
             if (event.type === "operation-progress") {
-                capturedEvents.push({duration: (event as Record<string, unknown>).duration as number | undefined});
+                capturedEvents.push({ duration: (event as Record<string, unknown>).duration as number | undefined });
             }
         });
 
-        queueManager.queueOperation(
-            "render-update",
-            async(context) => {
-                context.progress.setProgress(25);
-                await new Promise((resolve) => setTimeout(resolve, 50));
-                context.progress.setProgress(75);
-                await new Promise((resolve) => setTimeout(resolve, 50));
-                context.progress.setProgress(100);
-            },
-        );
+        queueManager.queueOperation("render-update", async (context) => {
+            context.progress.setProgress(25);
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            context.progress.setProgress(75);
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            context.progress.setProgress(100);
+        });
 
         await queueManager.waitForCompletion();
 
@@ -304,4 +288,3 @@ describe("Progress Tracking", () => {
         }
     });
 });
-

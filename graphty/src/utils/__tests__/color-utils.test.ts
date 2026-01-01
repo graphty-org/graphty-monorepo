@@ -1,11 +1,6 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-    MAX_ALPHA_HEX,
-    MAX_OPACITY_PERCENT,
-    opacityToAlphaHex,
-    parseAlphaFromHexa,
-} from "../color-utils";
+import { MAX_ALPHA_HEX, MAX_OPACITY_PERCENT, opacityToAlphaHex, parseAlphaFromHexa } from "../color-utils";
 
 describe("color-utils", () => {
     describe("constants", () => {

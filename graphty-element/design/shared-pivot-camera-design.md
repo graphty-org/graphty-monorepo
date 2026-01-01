@@ -14,6 +14,7 @@ The graphty-element codebase currently has **two separate approaches** for camer
 2. **XR Camera**: Uses `XRReferenceSpace.getOffsetReferenceSpace()` to manipulate the virtual world
 
 This leads to:
+
 - Duplicate implementations of zoom, rotate, and pan logic
 - Different behavior between 3D and XR modes
 - More code to maintain and test
@@ -22,6 +23,7 @@ This leads to:
 ### Goal
 
 Unify camera manipulation under a single **pivot-based architecture** where:
+
 - All cameras (Orbit, 2D, XR) are parented to a shared pivot `TransformNode`
 - Zoom, rotate, and pan operations transform the pivot
 - Camera-specific code is minimized to input handling only
@@ -38,6 +40,7 @@ currentRig.parent = this.parent;
 ```
 
 This means:
+
 1. When you set `xrCamera.parent = pivotNode`, the rig cameras (left/right eye) automatically inherit this parent
 2. The XR frame pose is applied relative to the parent's transform
 3. Transforming the parent affects the entire XR view
@@ -183,6 +186,7 @@ public rotate(yawDelta: number, pitchDelta: number): void {
 ```
 
 **Why view-relative pitch?**
+
 - Standard Euler angles suffer from gimbal lock at ±90° pitch
 - By rotating the pitch axis along with yaw, we maintain full rotation freedom
 - The pitch axis is always horizontal, just pointing in different directions
@@ -211,6 +215,7 @@ public zoom(factor: number): void {
 ```
 
 **Why scaling instead of camera distance?**
+
 - Works identically for all camera types (including orthographic)
 - In XR, user's head position is fixed; scaling is the only way to "zoom"
 - Avoids near/far plane issues with extreme distances
@@ -275,7 +280,7 @@ Input handlers remain camera-specific but call shared pivot methods:
 class OrbitInputHandler implements InputHandler {
     constructor(
         private controller: CameraPivotController,
-        private canvas: HTMLCanvasElement
+        private canvas: HTMLCanvasElement,
     ) {}
 
     private onPointerMove(event: PointerEvent): void {
@@ -301,7 +306,7 @@ class XRInputHandler implements InputHandler {
 
     constructor(
         private controller: CameraPivotController,
-        private xrHelper: WebXRDefaultExperience
+        private xrHelper: WebXRDefaultExperience,
     ) {
         this.gestureDetector = new XRGestureDetector();
     }
@@ -392,26 +397,26 @@ class XRInputHandler implements InputHandler {
 
 ### New Files
 
-| File | Description |
-|------|-------------|
+| File                                   | Description                        |
+| -------------------------------------- | ---------------------------------- |
 | `src/cameras/CameraPivotController.ts` | Base class with shared pivot logic |
 
 ### Modified Files
 
-| File | Changes |
-|------|---------|
-| `src/cameras/OrbitCameraController.ts` | Extend CameraPivotController, use inherited methods |
-| `src/cameras/XRCameraController.ts` | Extend CameraPivotController, parent XR camera to pivot |
-| `src/cameras/XRInputController.ts` | Call pivot methods instead of reference space manipulation |
-| `src/cameras/CameraManager.ts` | Pass shared pivot to camera controllers |
+| File                                   | Changes                                                    |
+| -------------------------------------- | ---------------------------------------------------------- |
+| `src/cameras/OrbitCameraController.ts` | Extend CameraPivotController, use inherited methods        |
+| `src/cameras/XRCameraController.ts`    | Extend CameraPivotController, parent XR camera to pivot    |
+| `src/cameras/XRInputController.ts`     | Call pivot methods instead of reference space manipulation |
+| `src/cameras/CameraManager.ts`         | Pass shared pivot to camera controllers                    |
 
 ### Removed Code
 
-| Location | Code to Remove |
-|----------|----------------|
-| `XRInputController.ts` | `getOffsetReferenceSpace()` calls |
+| Location               | Code to Remove                             |
+| ---------------------- | ------------------------------------------ |
+| `XRInputController.ts` | `getOffsetReferenceSpace()` calls          |
 | `XRInputController.ts` | `XRRigidTransform` creation for locomotion |
-| `XRInputController.ts` | Reference space rotation logic |
+| `XRInputController.ts` | Reference space rotation logic             |
 
 ## API Reference
 
@@ -501,16 +506,13 @@ class XRInputController {
     applyRotation(angle: number): void {
         const rotationTransform = new XRRigidTransform(
             { x: 0, y: 0, z: 0, w: 1 },
-            quaternionFromAxisAngle(yAxis, angle)
+            quaternionFromAxisAngle(yAxis, angle),
         );
         xrSession.referenceSpace = baseRefSpace.getOffsetReferenceSpace(rotationTransform);
     }
 
     applyZoom(factor: number): void {
-        const scaleTransform = new XRRigidTransform(
-            scaledPosition,
-            { x: 0, y: 0, z: 0, w: 1 }
-        );
+        const scaleTransform = new XRRigidTransform(scaledPosition, { x: 0, y: 0, z: 0, w: 1 });
         xrSession.referenceSpace = baseRefSpace.getOffsetReferenceSpace(scaleTransform);
     }
 }

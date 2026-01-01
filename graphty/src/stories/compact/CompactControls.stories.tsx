@@ -1,15 +1,5 @@
-import {
-    Box,
-    Checkbox,
-    Group,
-    Radio,
-    SegmentedControl,
-    Slider,
-    Stack,
-    Switch,
-    Text,
-} from "@mantine/core";
-import type {Meta, StoryObj} from "@storybook/react";
+import { Box, Checkbox, Group, Radio, SegmentedControl, Slider, Stack, Switch, Text } from "@mantine/core";
+import type { Meta, StoryObj } from "@storybook/react";
 
 /**
  * Compact Control Components
@@ -24,7 +14,7 @@ const meta: Meta = {
     },
     decorators: [
         (Story) => (
-            <Box p="md" style={{minWidth: 400, backgroundColor: "var(--mantine-color-body)"}}>
+            <Box p="md" style={{ minWidth: 400, backgroundColor: "var(--mantine-color-body)" }}>
                 <Story />
             </Box>
         ),
@@ -40,28 +30,27 @@ export const SegmentedControlBasic: Story = {
     render: () => (
         <Stack gap="md">
             <Box>
-                <Text size="xs" c="dimmed" mb={4}>Basic</Text>
-                <SegmentedControl
-                    size="compact"
-                    data={["Solid", "Gradient", "Radial"]}
-                />
+                <Text size="xs" c="dimmed" mb={4}>
+                    Basic
+                </Text>
+                <SegmentedControl size="compact" data={["Solid", "Gradient", "Radial"]} />
             </Box>
             <Box>
-                <Text size="xs" c="dimmed" mb={4}>Full Width</Text>
-                <SegmentedControl
-                    size="compact"
-                    data={["2D", "3D"]}
-                    fullWidth
-                />
+                <Text size="xs" c="dimmed" mb={4}>
+                    Full Width
+                </Text>
+                <SegmentedControl size="compact" data={["2D", "3D"]} fullWidth />
             </Box>
             <Box>
-                <Text size="xs" c="dimmed" mb={4}>With Values</Text>
+                <Text size="xs" c="dimmed" mb={4}>
+                    With Values
+                </Text>
                 <SegmentedControl
                     size="compact"
                     data={[
-                        {value: "sphere", label: "Sphere"},
-                        {value: "cube", label: "Cube"},
-                        {value: "cylinder", label: "Cylinder"},
+                        { value: "sphere", label: "Sphere" },
+                        { value: "cube", label: "Cube" },
+                        { value: "cylinder", label: "Cylinder" },
                     ]}
                     defaultValue="sphere"
                 />
@@ -75,19 +64,35 @@ export const SegmentedControlSizeComparison: Story = {
     render: () => (
         <Stack gap="xs">
             <Group gap="md" align="center">
-                <Box w={80}><Text size="xs" c="dimmed">xs</Text></Box>
+                <Box w={80}>
+                    <Text size="xs" c="dimmed">
+                        xs
+                    </Text>
+                </Box>
                 <SegmentedControl size="xs" data={["A", "B", "C"]} />
             </Group>
             <Group gap="md" align="center">
-                <Box w={80}><Text size="xs" c="dimmed">compact</Text></Box>
+                <Box w={80}>
+                    <Text size="xs" c="dimmed">
+                        compact
+                    </Text>
+                </Box>
                 <SegmentedControl size="compact" data={["A", "B", "C"]} />
             </Group>
             <Group gap="md" align="center">
-                <Box w={80}><Text size="xs" c="dimmed">sm</Text></Box>
+                <Box w={80}>
+                    <Text size="xs" c="dimmed">
+                        sm
+                    </Text>
+                </Box>
                 <SegmentedControl size="sm" data={["A", "B", "C"]} />
             </Group>
             <Group gap="md" align="center">
-                <Box w={80}><Text size="xs" c="dimmed">md</Text></Box>
+                <Box w={80}>
+                    <Text size="xs" c="dimmed">
+                        md
+                    </Text>
+                </Box>
                 <SegmentedControl size="md" data={["A", "B", "C"]} />
             </Group>
         </Stack>
@@ -110,7 +115,9 @@ export const CheckboxGroup: Story = {
     name: "Checkbox - Group",
     render: () => (
         <Stack gap="md">
-            <Text size="xs" c="dimmed">Select options:</Text>
+            <Text size="xs" c="dimmed">
+                Select options:
+            </Text>
             <Group gap="lg">
                 <Checkbox size="compact" label="Visible" defaultChecked />
                 <Checkbox size="compact" label="Selectable" defaultChecked />
@@ -125,19 +132,35 @@ export const CheckboxSizeComparison: Story = {
     render: () => (
         <Stack gap="xs">
             <Group gap="md" align="center">
-                <Box w={80}><Text size="xs" c="dimmed">xs</Text></Box>
+                <Box w={80}>
+                    <Text size="xs" c="dimmed">
+                        xs
+                    </Text>
+                </Box>
                 <Checkbox size="xs" label="Size xs" />
             </Group>
             <Group gap="md" align="center">
-                <Box w={80}><Text size="xs" c="dimmed">compact</Text></Box>
+                <Box w={80}>
+                    <Text size="xs" c="dimmed">
+                        compact
+                    </Text>
+                </Box>
                 <Checkbox size="compact" label="Size compact" />
             </Group>
             <Group gap="md" align="center">
-                <Box w={80}><Text size="xs" c="dimmed">sm</Text></Box>
+                <Box w={80}>
+                    <Text size="xs" c="dimmed">
+                        sm
+                    </Text>
+                </Box>
                 <Checkbox size="sm" label="Size sm" />
             </Group>
             <Group gap="md" align="center">
-                <Box w={80}><Text size="xs" c="dimmed">md</Text></Box>
+                <Box w={80}>
+                    <Text size="xs" c="dimmed">
+                        md
+                    </Text>
+                </Box>
                 <Checkbox size="md" label="Size md" />
             </Group>
         </Stack>
@@ -161,19 +184,35 @@ export const SwitchSizeComparison: Story = {
     render: () => (
         <Stack gap="xs">
             <Group gap="md" align="center">
-                <Box w={80}><Text size="xs" c="dimmed">xs</Text></Box>
+                <Box w={80}>
+                    <Text size="xs" c="dimmed">
+                        xs
+                    </Text>
+                </Box>
                 <Switch size="xs" label="Size xs" />
             </Group>
             <Group gap="md" align="center">
-                <Box w={80}><Text size="xs" c="dimmed">compact</Text></Box>
+                <Box w={80}>
+                    <Text size="xs" c="dimmed">
+                        compact
+                    </Text>
+                </Box>
                 <Switch size="compact" label="Size compact" />
             </Group>
             <Group gap="md" align="center">
-                <Box w={80}><Text size="xs" c="dimmed">sm</Text></Box>
+                <Box w={80}>
+                    <Text size="xs" c="dimmed">
+                        sm
+                    </Text>
+                </Box>
                 <Switch size="sm" label="Size sm" />
             </Group>
             <Group gap="md" align="center">
-                <Box w={80}><Text size="xs" c="dimmed">md</Text></Box>
+                <Box w={80}>
+                    <Text size="xs" c="dimmed">
+                        md
+                    </Text>
+                </Box>
                 <Switch size="md" label="Size md" />
             </Group>
         </Stack>
@@ -212,19 +251,35 @@ export const RadioSizeComparison: Story = {
     render: () => (
         <Stack gap="xs">
             <Group gap="md" align="center">
-                <Box w={80}><Text size="xs" c="dimmed">xs</Text></Box>
+                <Box w={80}>
+                    <Text size="xs" c="dimmed">
+                        xs
+                    </Text>
+                </Box>
                 <Radio size="xs" label="Size xs" value="xs" />
             </Group>
             <Group gap="md" align="center">
-                <Box w={80}><Text size="xs" c="dimmed">compact</Text></Box>
+                <Box w={80}>
+                    <Text size="xs" c="dimmed">
+                        compact
+                    </Text>
+                </Box>
                 <Radio size="compact" label="Size compact" value="compact" />
             </Group>
             <Group gap="md" align="center">
-                <Box w={80}><Text size="xs" c="dimmed">sm</Text></Box>
+                <Box w={80}>
+                    <Text size="xs" c="dimmed">
+                        sm
+                    </Text>
+                </Box>
                 <Radio size="sm" label="Size sm" value="sm" />
             </Group>
             <Group gap="md" align="center">
-                <Box w={80}><Text size="xs" c="dimmed">md</Text></Box>
+                <Box w={80}>
+                    <Text size="xs" c="dimmed">
+                        md
+                    </Text>
+                </Box>
                 <Radio size="md" label="Size md" value="md" />
             </Group>
         </Stack>
@@ -237,26 +292,28 @@ export const SliderBasic: Story = {
     render: () => (
         <Stack gap="lg">
             <Box>
-                <Text size="xs" c="dimmed" mb={4}>Basic slider</Text>
+                <Text size="xs" c="dimmed" mb={4}>
+                    Basic slider
+                </Text>
                 <Slider size="compact" defaultValue={50} />
             </Box>
             <Box>
-                <Text size="xs" c="dimmed" mb={4}>With label</Text>
-                <Slider
-                    size="compact"
-                    defaultValue={75}
-                    label={(val) => `${val}%`}
-                />
+                <Text size="xs" c="dimmed" mb={4}>
+                    With label
+                </Text>
+                <Slider size="compact" defaultValue={75} label={(val) => `${val}%`} />
             </Box>
             <Box>
-                <Text size="xs" c="dimmed" mb={4}>With marks</Text>
+                <Text size="xs" c="dimmed" mb={4}>
+                    With marks
+                </Text>
                 <Slider
                     size="compact"
                     defaultValue={50}
                     marks={[
-                        {value: 0, label: "0%"},
-                        {value: 50, label: "50%"},
-                        {value: 100, label: "100%"},
+                        { value: 0, label: "0%" },
+                        { value: 50, label: "50%" },
+                        { value: 100, label: "100%" },
                     ]}
                 />
             </Box>
@@ -269,19 +326,27 @@ export const SliderSizeComparison: Story = {
     render: () => (
         <Stack gap="lg">
             <Box>
-                <Text size="xs" c="dimmed" mb={4}>xs</Text>
+                <Text size="xs" c="dimmed" mb={4}>
+                    xs
+                </Text>
                 <Slider size="xs" defaultValue={50} />
             </Box>
             <Box>
-                <Text size="xs" c="dimmed" mb={4}>compact</Text>
+                <Text size="xs" c="dimmed" mb={4}>
+                    compact
+                </Text>
                 <Slider size="compact" defaultValue={50} />
             </Box>
             <Box>
-                <Text size="xs" c="dimmed" mb={4}>sm</Text>
+                <Text size="xs" c="dimmed" mb={4}>
+                    sm
+                </Text>
                 <Slider size="sm" defaultValue={50} />
             </Box>
             <Box>
-                <Text size="xs" c="dimmed" mb={4}>md</Text>
+                <Text size="xs" c="dimmed" mb={4}>
+                    md
+                </Text>
                 <Slider size="md" defaultValue={50} />
             </Box>
         </Stack>
@@ -294,15 +359,16 @@ export const AllControls: Story = {
     render: () => (
         <Stack gap="lg">
             <Box>
-                <Text fw={500} mb="xs">SegmentedControl</Text>
-                <SegmentedControl
-                    size="compact"
-                    data={["Solid", "Gradient", "Radial"]}
-                />
+                <Text fw={500} mb="xs">
+                    SegmentedControl
+                </Text>
+                <SegmentedControl size="compact" data={["Solid", "Gradient", "Radial"]} />
             </Box>
 
             <Box>
-                <Text fw={500} mb="xs">Checkboxes</Text>
+                <Text fw={500} mb="xs">
+                    Checkboxes
+                </Text>
                 <Group gap="lg">
                     <Checkbox size="compact" label="Visible" defaultChecked />
                     <Checkbox size="compact" label="Selectable" defaultChecked />
@@ -310,7 +376,9 @@ export const AllControls: Story = {
             </Box>
 
             <Box>
-                <Text fw={500} mb="xs">Switches</Text>
+                <Text fw={500} mb="xs">
+                    Switches
+                </Text>
                 <Group gap="lg">
                     <Switch size="compact" label="Auto-save" defaultChecked />
                     <Switch size="compact" label="Notifications" />
@@ -318,7 +386,9 @@ export const AllControls: Story = {
             </Box>
 
             <Box>
-                <Text fw={500} mb="xs">Radio Group</Text>
+                <Text fw={500} mb="xs">
+                    Radio Group
+                </Text>
                 <Radio.Group name="all-controls" defaultValue="opt1">
                     <Group gap="lg">
                         <Radio size="compact" value="opt1" label="Option 1" />
@@ -329,12 +399,10 @@ export const AllControls: Story = {
             </Box>
 
             <Box>
-                <Text fw={500} mb="xs">Slider</Text>
-                <Slider
-                    size="compact"
-                    defaultValue={75}
-                    label={(val) => `${val}%`}
-                />
+                <Text fw={500} mb="xs">
+                    Slider
+                </Text>
+                <Slider size="compact" defaultValue={75} label={(val) => `${val}%`} />
             </Box>
         </Stack>
     ),

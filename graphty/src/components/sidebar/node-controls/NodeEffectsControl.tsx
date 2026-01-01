@@ -1,11 +1,11 @@
-import {Group, NumberInput, Stack, Text} from "@mantine/core";
+import { Group, NumberInput, Stack, Text } from "@mantine/core";
 import React from "react";
 
-import type {GlowConfig, NodeEffectsConfig, OutlineConfig} from "../../../types/style-layer";
-import {DEFAULT_GLOW, DEFAULT_OUTLINE} from "../../../utils/style-defaults";
-import {CompactCheckbox} from "../controls/CompactCheckbox";
-import {CompactColorInput} from "../controls/CompactColorInput";
-import {EffectToggle} from "../controls/EffectToggle";
+import type { GlowConfig, NodeEffectsConfig, OutlineConfig } from "../../../types/style-layer";
+import { DEFAULT_GLOW, DEFAULT_OUTLINE } from "../../../utils/style-defaults";
+import { CompactCheckbox } from "../controls/CompactCheckbox";
+import { CompactColorInput } from "../controls/CompactColorInput";
+import { EffectToggle } from "../controls/EffectToggle";
 
 interface NodeEffectsControlProps {
     value: NodeEffectsConfig;
@@ -14,23 +14,27 @@ interface NodeEffectsControlProps {
 
 /**
  * Controls for node visual effects including glow, outline, wireframe, and flat shading.
+ * @param root0 - Component props
+ * @param root0.value - The current effects configuration
+ * @param root0.onChange - Called when the effects configuration changes
+ * @returns The node effects control component
  */
-export function NodeEffectsControl({value, onChange}: NodeEffectsControlProps): React.JSX.Element {
+export function NodeEffectsControl({ value, onChange }: NodeEffectsControlProps): React.JSX.Element {
     const glowEnabled = value.glow?.enabled ?? false;
     const outlineEnabled = value.outline?.enabled ?? false;
 
     const handleGlowToggle = (enabled: boolean): void => {
         if (enabled) {
             onChange({
-                ... value,
+                ...value,
                 glow: {
-                    ... DEFAULT_GLOW,
+                    ...DEFAULT_GLOW,
                     enabled: true,
                 },
             });
         } else {
             onChange({
-                ... value,
+                ...value,
                 glow: undefined,
             });
         }
@@ -39,9 +43,9 @@ export function NodeEffectsControl({value, onChange}: NodeEffectsControlProps): 
     const handleGlowColorChange = (color: string): void => {
         if (value.glow) {
             onChange({
-                ... value,
+                ...value,
                 glow: {
-                    ... value.glow,
+                    ...value.glow,
                     color,
                 },
             });
@@ -51,9 +55,9 @@ export function NodeEffectsControl({value, onChange}: NodeEffectsControlProps): 
     const handleGlowStrengthChange = (strength: number): void => {
         if (value.glow) {
             onChange({
-                ... value,
+                ...value,
                 glow: {
-                    ... value.glow,
+                    ...value.glow,
                     strength,
                 },
             });
@@ -63,15 +67,15 @@ export function NodeEffectsControl({value, onChange}: NodeEffectsControlProps): 
     const handleOutlineToggle = (enabled: boolean): void => {
         if (enabled) {
             onChange({
-                ... value,
+                ...value,
                 outline: {
-                    ... DEFAULT_OUTLINE,
+                    ...DEFAULT_OUTLINE,
                     enabled: true,
                 },
             });
         } else {
             onChange({
-                ... value,
+                ...value,
                 outline: undefined,
             });
         }
@@ -80,9 +84,9 @@ export function NodeEffectsControl({value, onChange}: NodeEffectsControlProps): 
     const handleOutlineColorChange = (color: string): void => {
         if (value.outline) {
             onChange({
-                ... value,
+                ...value,
                 outline: {
-                    ... value.outline,
+                    ...value.outline,
                     color,
                 },
             });
@@ -92,9 +96,9 @@ export function NodeEffectsControl({value, onChange}: NodeEffectsControlProps): 
     const handleOutlineWidthChange = (width: number): void => {
         if (value.outline) {
             onChange({
-                ... value,
+                ...value,
                 outline: {
-                    ... value.outline,
+                    ...value.outline,
                     width,
                 },
             });
@@ -103,14 +107,14 @@ export function NodeEffectsControl({value, onChange}: NodeEffectsControlProps): 
 
     const handleWireframeToggle = (e: React.ChangeEvent<HTMLInputElement>): void => {
         onChange({
-            ... value,
+            ...value,
             wireframe: e.currentTarget.checked,
         });
     };
 
     const handleFlatShadedToggle = (e: React.ChangeEvent<HTMLInputElement>): void => {
         onChange({
-            ... value,
+            ...value,
             flatShaded: e.currentTarget.checked,
         });
     };
@@ -118,11 +122,7 @@ export function NodeEffectsControl({value, onChange}: NodeEffectsControlProps): 
     return (
         <Stack gap={8}>
             {/* Glow Effect */}
-            <EffectToggle
-                label="Glow"
-                checked={glowEnabled}
-                onChange={handleGlowToggle}
-            >
+            <EffectToggle label="Glow" checked={glowEnabled} onChange={handleGlowToggle}>
                 {value.glow && (
                     <GlowControls
                         glow={value.glow}
@@ -133,11 +133,7 @@ export function NodeEffectsControl({value, onChange}: NodeEffectsControlProps): 
             </EffectToggle>
 
             {/* Outline Effect */}
-            <EffectToggle
-                label="Outline"
-                checked={outlineEnabled}
-                onChange={handleOutlineToggle}
-            >
+            <EffectToggle label="Outline" checked={outlineEnabled} onChange={handleOutlineToggle}>
                 {value.outline && (
                     <OutlineControls
                         outline={value.outline}
@@ -148,17 +144,9 @@ export function NodeEffectsControl({value, onChange}: NodeEffectsControlProps): 
             </EffectToggle>
 
             {/* Simple checkboxes for wireframe and flat shaded */}
-            <CompactCheckbox
-                label="Wireframe"
-                checked={value.wireframe}
-                onChange={handleWireframeToggle}
-            />
+            <CompactCheckbox label="Wireframe" checked={value.wireframe} onChange={handleWireframeToggle} />
 
-            <CompactCheckbox
-                label="Flat Shaded"
-                checked={value.flatShaded}
-                onChange={handleFlatShadedToggle}
-            />
+            <CompactCheckbox label="Flat Shaded" checked={value.flatShaded} onChange={handleFlatShadedToggle} />
         </Stack>
     );
 }
@@ -169,7 +157,7 @@ interface GlowControlsProps {
     onStrengthChange: (strength: number) => void;
 }
 
-function GlowControls({glow, onColorChange, onStrengthChange}: GlowControlsProps): React.JSX.Element {
+function GlowControls({ glow, onColorChange, onStrengthChange }: GlowControlsProps): React.JSX.Element {
     const [localStrength, setLocalStrength] = React.useState<string | number>(glow.strength);
 
     React.useEffect(() => {
@@ -178,15 +166,12 @@ function GlowControls({glow, onColorChange, onStrengthChange}: GlowControlsProps
 
     return (
         <Stack gap={4}>
-            <CompactColorInput
-                label="Color"
-                color={glow.color}
-                opacity={100}
-                onColorChange={onColorChange}
-            />
+            <CompactColorInput label="Color" color={glow.color} opacity={100} onColorChange={onColorChange} />
             <Group gap={8} align="flex-end">
-                <Stack gap={0} style={{flex: 1}}>
-                    <Text size="xs" c="dimmed" lh={1.2}>Strength</Text>
+                <Stack gap={0} style={{ flex: 1 }}>
+                    <Text size="xs" c="dimmed" lh={1.2}>
+                        Strength
+                    </Text>
                     <NumberInput
                         size="compact"
                         value={localStrength}
@@ -216,7 +201,7 @@ interface OutlineControlsProps {
     onWidthChange: (width: number) => void;
 }
 
-function OutlineControls({outline, onColorChange, onWidthChange}: OutlineControlsProps): React.JSX.Element {
+function OutlineControls({ outline, onColorChange, onWidthChange }: OutlineControlsProps): React.JSX.Element {
     const [localWidth, setLocalWidth] = React.useState<string | number>(outline.width);
 
     React.useEffect(() => {
@@ -225,15 +210,12 @@ function OutlineControls({outline, onColorChange, onWidthChange}: OutlineControl
 
     return (
         <Stack gap={4}>
-            <CompactColorInput
-                label="Color"
-                color={outline.color}
-                opacity={100}
-                onColorChange={onColorChange}
-            />
+            <CompactColorInput label="Color" color={outline.color} opacity={100} onColorChange={onColorChange} />
             <Group gap={8} align="flex-end">
-                <Stack gap={0} style={{flex: 1}}>
-                    <Text size="xs" c="dimmed" lh={1.2}>Width</Text>
+                <Stack gap={0} style={{ flex: 1 }}>
+                    <Text size="xs" c="dimmed" lh={1.2}>
+                        Width
+                    </Text>
                     <NumberInput
                         size="compact"
                         value={localWidth}

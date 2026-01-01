@@ -1,10 +1,10 @@
-import type {StyleLayerType} from "../config";
-import type {Node} from "../Node";
-import {Styles} from "../Styles";
-import type {DataManager} from "./DataManager";
-import type {EventManager} from "./EventManager";
-import type {Manager} from "./interfaces";
-import type {StyleManager} from "./StyleManager";
+import type { StyleLayerType } from "../config";
+import type { Node } from "../Node";
+import { Styles } from "../Styles";
+import type { DataManager } from "./DataManager";
+import type { EventManager } from "./EventManager";
+import type { Manager } from "./interfaces";
+import type { StyleManager } from "./StyleManager";
 
 /**
  * Selection layer metadata type.
@@ -203,7 +203,7 @@ export class SelectionManager implements Manager {
             isSelectionLayer: true,
         };
         this.selectionStyleLayer = {
-            ... layer,
+            ...layer,
             metadata: newMetadata as StyleLayerType["metadata"],
         };
     }

@@ -1,7 +1,7 @@
 import jmespath from "jmespath";
-import {defaultsDeep, isEqual} from "lodash";
+import { defaultsDeep, isEqual } from "lodash";
 
-import {CalculatedValue} from "./CalculatedValue";
+import { CalculatedValue } from "./CalculatedValue";
 import {
     AdHocData,
     AppliedNodeStyleConfig,
@@ -21,8 +21,8 @@ export interface StylesOpts {
     addDefaultStyle?: boolean;
 }
 
-export type NodeStyleId = number & {__brand: "NodeStyleId"};
-export type EdgeStyleId = number & {__brand: "EdgeStyleId"};
+export type NodeStyleId = number & { __brand: "NodeStyleId" };
+export type EdgeStyleId = number & { __brand: "EdgeStyleId" };
 
 /**
  * Manages style layers and computes styles for nodes and edges.
@@ -160,13 +160,11 @@ export class Styles {
      */
     getStyleForNode(data: AdHocData, algorithmResults?: AdHocData): NodeStyleId {
         // Combine data and algorithmResults for selector matching
-        const combinedData = algorithmResults ?
-            {... data, algorithmResults} :
-            data;
+        const combinedData = algorithmResults ? { ...data, algorithmResults } : data;
 
         const styles: NodeStyleConfig[] = [];
         for (const layer of this.layers) {
-            const {node} = layer;
+            const { node } = layer;
 
             const nodeMatch = selectorMatchesNode(node, combinedData);
 
@@ -175,7 +173,7 @@ export class Styles {
             }
         }
 
-        const mergedStyle: NodeStyleConfig = defaultsDeep({}, ... styles, this.#emptyNodeStyle);
+        const mergedStyle: NodeStyleConfig = defaultsDeep({}, ...styles, this.#emptyNodeStyle);
         if (styles.length === 0) {
             mergedStyle.enabled = false;
         }
@@ -191,12 +189,12 @@ export class Styles {
     getCalculatedStylesForNode(data: AdHocData): CalculatedValue[] {
         const ret: CalculatedValue[] = [];
         for (const layer of this.layers) {
-            const {node} = layer;
+            const { node } = layer;
 
             const nodeMatch = selectorMatchesNode(node, data);
 
             if (nodeMatch && node?.calculatedStyle) {
-                const {inputs, output, expr} = node.calculatedStyle;
+                const { inputs, output, expr } = node.calculatedStyle;
                 const cv = new CalculatedValue(inputs, output, expr);
                 ret.unshift(cv);
             }
@@ -213,7 +211,7 @@ export class Styles {
     getCalculatedStylesForEdge(data: AdHocData): CalculatedValue[] {
         const ret: CalculatedValue[] = [];
         for (const layer of this.layers) {
-            const {edge} = layer;
+            const { edge } = layer;
 
             // Check if edge selector matches (empty selector matches all)
             let edgeMatch = edge?.selector === "";
@@ -226,7 +224,7 @@ export class Styles {
             }
 
             if (edgeMatch && edge?.calculatedStyle) {
-                const {inputs, output, expr} = edge.calculatedStyle;
+                const { inputs, output, expr } = edge.calculatedStyle;
                 const cv = new CalculatedValue(inputs, output, expr);
                 ret.unshift(cv);
             }
@@ -243,17 +241,15 @@ export class Styles {
      */
     getStyleForEdge(data: AdHocData, algorithmResults?: AdHocData): EdgeStyleId {
         // Combine data and algorithmResults for selector matching
-        const combinedData = algorithmResults ?
-            {... data, algorithmResults} :
-            data;
+        const combinedData = algorithmResults ? { ...data, algorithmResults } : data;
 
         const styles: EdgeStyleConfig[] = [];
         for (const layer of this.layers) {
-            const {edge} = layer;
+            const { edge } = layer;
             let edgeMatch = edge?.selector === "";
             if (!edgeMatch) {
                 // try JMES match
-                const searchResult = jmespath.search(combinedData, `[${edge?.selector}]`);
+                const searchResult = jmespath.search(combinedData, `[${edge?.selector ?? ""}]`);
                 if (Array.isArray(searchResult) && typeof searchResult[0] === "boolean") {
                     edgeMatch = searchResult[0];
                 }
@@ -264,7 +260,7 @@ export class Styles {
             }
         }
 
-        const mergedStyle: EdgeStyleConfig = defaultsDeep({}, ... styles, this.#emptyEdgeStyle);
+        const mergedStyle: EdgeStyleConfig = defaultsDeep({}, ...styles, this.#emptyEdgeStyle);
         if (styles.length === 0) {
             mergedStyle.enabled = false;
         }

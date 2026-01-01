@@ -4,11 +4,11 @@
  * Tests verify node pinning behavior during drag operations.
  */
 
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test, vi} from "vitest";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import type {StyleSchema} from "../../../src/config";
-import {Graph} from "../../../src/Graph";
+import type { StyleSchema } from "../../../src/config";
+import { Graph } from "../../../src/Graph";
 
 function createStyleTemplate(pinOnDrag: boolean): StyleSchema {
     return {
@@ -18,7 +18,7 @@ function createStyleTemplate(pinOnDrag: boolean): StyleSchema {
             addDefaultStyle: true,
             twoD: false,
             layout: "ngraph",
-            layoutOptions: {dim: 3},
+            layoutOptions: { dim: 3 },
         },
         layers: [],
         data: {
@@ -33,21 +33,24 @@ function createStyleTemplate(pinOnDrag: boolean): StyleSchema {
             },
         },
         behavior: {
-            layout: {type: "ngraph", preSteps: 0, stepMultiplier: 1, minDelta: 0.001, zoomStepInterval: 5},
-            node: {pinOnDrag},
+            layout: { type: "ngraph", preSteps: 0, stepMultiplier: 1, minDelta: 0.001, zoomStepInterval: 5 },
+            node: { pinOnDrag },
         },
     } as unknown as StyleSchema;
 }
 
-const TEST_NODES = [{id: "node1"}, {id: "node2"}, {id: "node3"}];
-const TEST_EDGES = [{src: "node1", dst: "node2"}, {src: "node2", dst: "node3"}];
+const TEST_NODES = [{ id: "node1" }, { id: "node2" }, { id: "node3" }];
+const TEST_EDGES = [
+    { src: "node1", dst: "node2" },
+    { src: "node2", dst: "node3" },
+];
 
 describe("pinOnDrag Behavior", () => {
     let graph: Graph;
     let container: HTMLDivElement;
 
     describe("pinOnDrag=true", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             container = document.createElement("div");
             container.style.width = "800px";
             container.style.height = "600px";
@@ -68,7 +71,7 @@ describe("pinOnDrag Behavior", () => {
             document.body.removeChild(container);
         });
 
-        test("pinOnDrag=true pins node after drag", async() => {
+        test("pinOnDrag=true pins node after drag", async () => {
             const node1 = graph.getNode("node1");
             assert.isDefined(node1, "Node 1 should exist");
             assert.isNotNull(node1);
@@ -84,7 +87,7 @@ describe("pinOnDrag Behavior", () => {
 
             await new Promise((resolve) => setTimeout(resolve, 100));
 
-            const graphInternal = graph as unknown as {layoutManager: {step: () => void}};
+            const graphInternal = graph as unknown as { layoutManager: { step: () => void } };
             for (let i = 0; i < 10; i++) {
                 graphInternal.layoutManager.step();
             }
@@ -96,18 +99,18 @@ describe("pinOnDrag Behavior", () => {
             assert.closeTo(node1.mesh.position.z, newZ, 0.5, "Pinned node Z should stay");
         });
 
-        test("pinned node stays at position during layout", async() => {
+        test("pinned node stays at position during layout", async () => {
             const node1 = graph.getNode("node1");
             assert.isDefined(node1, "Node 1 should exist");
             assert.isNotNull(node1);
 
-            const pinnedPos = {x: 10, y: 10, z: 10};
+            const pinnedPos = { x: 10, y: 10, z: 10 };
             node1.mesh.position.x = pinnedPos.x;
             node1.mesh.position.y = pinnedPos.y;
             node1.mesh.position.z = pinnedPos.z;
             node1.pin();
 
-            const graphInternal = graph as unknown as {layoutManager: {step: () => void}};
+            const graphInternal = graph as unknown as { layoutManager: { step: () => void } };
             for (let i = 0; i < 50; i++) {
                 graphInternal.layoutManager.step();
                 await new Promise((resolve) => setTimeout(resolve, 10));
@@ -120,7 +123,7 @@ describe("pinOnDrag Behavior", () => {
     });
 
     describe("pinOnDrag=false", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             container = document.createElement("div");
             container.style.width = "800px";
             container.style.height = "600px";
@@ -141,18 +144,18 @@ describe("pinOnDrag Behavior", () => {
             document.body.removeChild(container);
         });
 
-        test("explicit pin() works even with pinOnDrag=false", async() => {
+        test("explicit pin() works even with pinOnDrag=false", async () => {
             const node1 = graph.getNode("node1");
             assert.isDefined(node1, "Node 1 should exist");
             assert.isNotNull(node1);
 
-            const pinnedPos = {x: 15, y: 15, z: 15};
+            const pinnedPos = { x: 15, y: 15, z: 15 };
             node1.mesh.position.x = pinnedPos.x;
             node1.mesh.position.y = pinnedPos.y;
             node1.mesh.position.z = pinnedPos.z;
             node1.pin();
 
-            const graphInternal = graph as unknown as {layoutManager: {step: () => void}};
+            const graphInternal = graph as unknown as { layoutManager: { step: () => void } };
             for (let i = 0; i < 30; i++) {
                 graphInternal.layoutManager.step();
             }
@@ -164,12 +167,12 @@ describe("pinOnDrag Behavior", () => {
             assert.closeTo(node1.mesh.position.z, pinnedPos.z, 0.5, "Z should stay in place");
         });
 
-        test("unpin() releases node to layout", async() => {
+        test("unpin() releases node to layout", async () => {
             const node1 = graph.getNode("node1");
             assert.isDefined(node1, "Node 1 should exist");
             assert.isNotNull(node1);
 
-            const pinnedPos = {x: 25, y: 25, z: 25};
+            const pinnedPos = { x: 25, y: 25, z: 25 };
             node1.mesh.position.x = pinnedPos.x;
             node1.mesh.position.y = pinnedPos.y;
             node1.mesh.position.z = pinnedPos.z;
@@ -177,7 +180,7 @@ describe("pinOnDrag Behavior", () => {
 
             node1.unpin();
 
-            const graphInternal = graph as unknown as {layoutManager: {step: () => void}};
+            const graphInternal = graph as unknown as { layoutManager: { step: () => void } };
             for (let i = 0; i < 30; i++) {
                 graphInternal.layoutManager.step();
             }

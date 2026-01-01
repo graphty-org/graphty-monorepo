@@ -1,8 +1,8 @@
-import {ActionIcon, Box, Group, Paper, Text, Tooltip} from "@mantine/core";
-import {AlertCircle, RefreshCw} from "lucide-react";
+import { ActionIcon, Box, Group, Paper, Text, Tooltip } from "@mantine/core";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import React from "react";
 
-import type {AiStatus} from "../../types/ai";
+import type { AiStatus } from "../../types/ai";
 
 /** Chat message structure */
 export interface ChatMessage {
@@ -22,11 +22,11 @@ interface AiMessageBubbleProps {
 }
 
 /**
- * A single message bubble in the AI chat dialog.
- * Displays user messages on the right, assistant messages on the left.
- * Error messages show a retry button.
+ * Get background color based on message role and error state.
+ * @param isUser - Whether this is a user message
+ * @param isError - Whether this is an error message
+ * @returns The CSS color value for the background
  */
-/** Get background color based on message role and error state */
 function getBackgroundColor(isUser: boolean, isError: boolean): string {
     if (isUser) {
         return "var(--mantine-color-violet-light)";
@@ -39,7 +39,16 @@ function getBackgroundColor(isUser: boolean, isError: boolean): string {
     return "var(--mantine-color-default)";
 }
 
-export function AiMessageBubble({message, onRetry}: AiMessageBubbleProps): React.JSX.Element {
+/**
+ * A single message bubble in the AI chat dialog.
+ * Displays user messages on the right, assistant messages on the left.
+ * Error messages show a retry button.
+ * @param root0 - Component props
+ * @param root0.message - The message to display
+ * @param root0.onRetry - Callback to retry a failed message
+ * @returns The message bubble component
+ */
+export function AiMessageBubble({ message, onRetry }: AiMessageBubbleProps): React.JSX.Element {
     const isUser = message.role === "user";
     const isError = message.isError ?? message.content.startsWith("Error:");
 
@@ -60,7 +69,9 @@ export function AiMessageBubble({message, onRetry}: AiMessageBubbleProps): React
                 {isError && !isUser ? (
                     <Group gap="xs" wrap="nowrap">
                         <AlertCircle size={16} color="var(--mantine-color-red-6)" />
-                        <Text size="sm" style={{flex: 1}}>{message.content}</Text>
+                        <Text size="sm" style={{ flex: 1 }}>
+                            {message.content}
+                        </Text>
                         {onRetry && (
                             <Tooltip label="Retry">
                                 <ActionIcon
@@ -81,7 +92,7 @@ export function AiMessageBubble({message, onRetry}: AiMessageBubbleProps): React
                 )}
             </Paper>
             <Text size="xs" c="dimmed" mt={2} ta={isUser ? "right" : "left"}>
-                {new Date(message.timestamp).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})}
+                {new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </Text>
         </Box>
     );

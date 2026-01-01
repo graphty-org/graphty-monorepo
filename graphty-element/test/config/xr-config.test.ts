@@ -1,12 +1,12 @@
-import {assert} from "chai";
-import {describe, test} from "vitest";
+import { assert } from "chai";
+import { describe, test } from "vitest";
 
-import {xrConfigSchema} from "../../src/config/xr-config-schema";
+import { xrConfigSchema } from "../../src/config/xr-config-schema";
 
 describe("XR Configuration Schema", () => {
     describe("Valid configurations", () => {
         test("should accept valid minimal config", () => {
-            const config = {enabled: true};
+            const config = { enabled: true };
             const result = xrConfigSchema.safeParse(config);
             assert.isTrue(result.success);
         });
@@ -57,7 +57,7 @@ describe("XR Configuration Schema", () => {
 
     describe("Default values", () => {
         test("should apply defaults for missing fields", () => {
-            const config = {enabled: true};
+            const config = { enabled: true };
             const parsed = xrConfigSchema.parse(config);
 
             assert.equal(parsed.enabled, true);
@@ -82,8 +82,8 @@ describe("XR Configuration Schema", () => {
         test("should preserve user-provided values", () => {
             const config = {
                 enabled: false,
-                ui: {position: "top-left" as const},
-                input: {zAxisAmplification: 5.0},
+                ui: { position: "top-left" as const },
+                input: { zAxisAmplification: 5.0 },
             };
             const parsed = xrConfigSchema.parse(config);
 
@@ -96,7 +96,7 @@ describe("XR Configuration Schema", () => {
     describe("Validation rules", () => {
         test("should reject negative zAxisAmplification", () => {
             const config = {
-                input: {zAxisAmplification: -5},
+                input: { zAxisAmplification: -5 },
             };
             const result = xrConfigSchema.safeParse(config);
             assert.isFalse(result.success);
@@ -104,7 +104,7 @@ describe("XR Configuration Schema", () => {
 
         test("should reject zero zAxisAmplification", () => {
             const config = {
-                input: {zAxisAmplification: 0},
+                input: { zAxisAmplification: 0 },
             };
             const result = xrConfigSchema.safeParse(config);
             assert.isFalse(result.success);
@@ -112,7 +112,7 @@ describe("XR Configuration Schema", () => {
 
         test("should accept positive zAxisAmplification", () => {
             const config = {
-                input: {zAxisAmplification: 15.5},
+                input: { zAxisAmplification: 15.5 },
             };
             const result = xrConfigSchema.safeParse(config);
             assert.isTrue(result.success);
@@ -120,7 +120,7 @@ describe("XR Configuration Schema", () => {
 
         test("should reject negative unavailableMessageDuration", () => {
             const config = {
-                ui: {unavailableMessageDuration: -1000},
+                ui: { unavailableMessageDuration: -1000 },
             };
             const result = xrConfigSchema.safeParse(config);
             assert.isFalse(result.success);
@@ -128,7 +128,7 @@ describe("XR Configuration Schema", () => {
 
         test("should reject zero unavailableMessageDuration", () => {
             const config = {
-                ui: {unavailableMessageDuration: 0},
+                ui: { unavailableMessageDuration: 0 },
             };
             const result = xrConfigSchema.safeParse(config);
             assert.isFalse(result.success);
@@ -136,7 +136,7 @@ describe("XR Configuration Schema", () => {
 
         test("should reject negative easeTime", () => {
             const config = {
-                teleportation: {easeTime: -100},
+                teleportation: { easeTime: -100 },
             };
             const result = xrConfigSchema.safeParse(config);
             assert.isFalse(result.success);
@@ -144,7 +144,7 @@ describe("XR Configuration Schema", () => {
 
         test("should reject invalid UI position", () => {
             const config = {
-                ui: {position: "center"},
+                ui: { position: "center" },
             };
             const result = xrConfigSchema.safeParse(config);
             assert.isFalse(result.success);
@@ -154,7 +154,7 @@ describe("XR Configuration Schema", () => {
             const positions = ["bottom-left", "bottom-right", "top-left", "top-right"];
 
             positions.forEach((position) => {
-                const config = {ui: {position}};
+                const config = { ui: { position } };
                 const result = xrConfigSchema.safeParse(config);
                 assert.isTrue(result.success, `Position ${position} should be valid`);
             });
@@ -162,7 +162,7 @@ describe("XR Configuration Schema", () => {
 
         test("should reject invalid referenceSpaceType", () => {
             const config = {
-                vr: {referenceSpaceType: "invalid"},
+                vr: { referenceSpaceType: "invalid" },
             };
             const result = xrConfigSchema.safeParse(config);
             assert.isFalse(result.success);
@@ -172,7 +172,7 @@ describe("XR Configuration Schema", () => {
             const types = ["local", "local-floor", "bounded-floor", "unbounded"];
 
             types.forEach((type) => {
-                const config = {vr: {referenceSpaceType: type}};
+                const config = { vr: { referenceSpaceType: type } };
                 const result = xrConfigSchema.safeParse(config);
                 assert.isTrue(result.success, `Type ${type} should be valid`);
             });
@@ -185,9 +185,9 @@ describe("XR Configuration Schema", () => {
             const parsed = xrConfigSchema.parse(config);
 
             // Type checks (these will fail at compile time if types are wrong)
-            const {enabled} = parsed;
-            const {position} = parsed.ui;
-            const {zAxisAmplification} = parsed.input;
+            const { enabled } = parsed;
+            const { position } = parsed.ui;
+            const { zAxisAmplification } = parsed.input;
 
             assert.exists(enabled);
             assert.exists(position);
@@ -197,7 +197,7 @@ describe("XR Configuration Schema", () => {
 
     describe("Nested defaults", () => {
         test("should apply defaults for nested ui config", () => {
-            const config = {ui: {}};
+            const config = { ui: {} };
             const parsed = xrConfigSchema.parse(config);
 
             assert.equal(parsed.ui.enabled, true);
@@ -207,7 +207,7 @@ describe("XR Configuration Schema", () => {
         });
 
         test("should apply defaults for nested input config", () => {
-            const config = {input: {}};
+            const config = { input: {} };
             const parsed = xrConfigSchema.parse(config);
 
             assert.equal(parsed.input.handTracking, true);
@@ -219,7 +219,7 @@ describe("XR Configuration Schema", () => {
         });
 
         test("should apply defaults for nested teleportation config", () => {
-            const config = {teleportation: {}};
+            const config = { teleportation: {} };
             const parsed = xrConfigSchema.parse(config);
 
             assert.equal(parsed.teleportation.enabled, false);
@@ -238,7 +238,7 @@ describe("XR Configuration Schema", () => {
 
         test("should allow overriding AR optional features", () => {
             const config = {
-                ar: {optionalFeatures: ["custom-feature"]},
+                ar: { optionalFeatures: ["custom-feature"] },
             };
             const parsed = xrConfigSchema.parse(config);
 

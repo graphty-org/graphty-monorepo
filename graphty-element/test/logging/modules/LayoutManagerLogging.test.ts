@@ -1,8 +1,8 @@
-import {afterEach, assert, beforeEach, describe, type MockInstance, test, vi} from "vitest";
+import { afterEach, assert, beforeEach, describe, type MockInstance, test, vi } from "vitest";
 
-import {GraphtyLogger} from "../../../src/logging/GraphtyLogger.js";
-import {resetLoggingConfig} from "../../../src/logging/LoggerConfig.js";
-import {LogLevel} from "../../../src/logging/types.js";
+import { GraphtyLogger } from "../../../src/logging/GraphtyLogger.js";
+import { resetLoggingConfig } from "../../../src/logging/LoggerConfig.js";
+import { LogLevel } from "../../../src/logging/types.js";
 
 // Empty mock function to satisfy linter
 function noop(): void {
@@ -23,7 +23,7 @@ describe("LayoutManager Logging", () => {
     let consoleDebugSpy: MockInstance;
     let consoleErrorSpy: MockInstance;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Reset logging config before each test
         resetLoggingConfig();
 
@@ -39,7 +39,7 @@ describe("LayoutManager Logging", () => {
             enabled: true,
             level: LogLevel.DEBUG,
             modules: ["layout"],
-            format: {timestamp: true, module: true},
+            format: { timestamp: true, module: true },
         });
     });
 
@@ -53,16 +53,12 @@ describe("LayoutManager Logging", () => {
         const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 
         // Simulate what LayoutManager should log when setting layout
-        logger.info("Setting layout", {type: "ngraph", options: {seed: 42}});
+        logger.info("Setting layout", { type: "ngraph", options: { seed: 42 } });
 
         // Check that info was logged
-        const allCalls = [... consoleInfoSpy.mock.calls, ... consoleDebugSpy.mock.calls];
+        const allCalls = [...consoleInfoSpy.mock.calls, ...consoleDebugSpy.mock.calls];
         const hasLayoutMessage = allCalls.some((call) =>
-            call.some(
-                (arg: unknown) =>
-                    typeof arg === "string" &&
-                    arg.toLowerCase().includes("layout"),
-            ),
+            call.some((arg: unknown) => typeof arg === "string" && arg.toLowerCase().includes("layout")),
         );
         assert.isTrue(hasLayoutMessage, "Expected log message about layout");
     });
@@ -71,16 +67,12 @@ describe("LayoutManager Logging", () => {
         const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 
         // Simulate layout settled logging
-        logger.debug("Layout settled", {nodeCount: 100, iterations: 50});
+        logger.debug("Layout settled", { nodeCount: 100, iterations: 50 });
 
         // Check for log output
-        const allCalls = [... consoleInfoSpy.mock.calls, ... consoleDebugSpy.mock.calls];
+        const allCalls = [...consoleInfoSpy.mock.calls, ...consoleDebugSpy.mock.calls];
         const hasSettledMessage = allCalls.some((call) =>
-            call.some(
-                (arg: unknown) =>
-                    typeof arg === "string" &&
-                    arg.toLowerCase().includes("settled"),
-            ),
+            call.some((arg: unknown) => typeof arg === "string" && arg.toLowerCase().includes("settled")),
         );
         assert.isTrue(hasSettledMessage, "Expected log message about layout settling");
     });
@@ -107,12 +99,11 @@ describe("LayoutManager Logging", () => {
         logger.debug("After step"); // Should log
 
         // Verify we got 2 log calls (before and after, but not during step)
-        const allCalls = [... consoleDebugSpy.mock.calls];
+        const allCalls = [...consoleDebugSpy.mock.calls];
         const logCount = allCalls.filter((call) =>
             call.some(
                 (arg: unknown) =>
-                    typeof arg === "string" &&
-                    (arg.includes("Before step") || arg.includes("After step")),
+                    typeof arg === "string" && (arg.includes("Before step") || arg.includes("After step")),
             ),
         ).length;
 
@@ -129,28 +120,27 @@ describe("LayoutManager Logging", () => {
 
         // Simulate layout init failure logging
         const error = new Error("Failed to create layout engine");
-        logger.error("Layout initialization failed", error, {layoutType: "invalid"});
+        logger.error("Layout initialization failed", error, { layoutType: "invalid" });
 
         // Check for error log output
-        const allCalls = [... consoleErrorSpy.mock.calls];
+        const allCalls = [...consoleErrorSpy.mock.calls];
         const hasErrorMessage = allCalls.some((call) =>
             call.some(
                 (arg: unknown) =>
                     typeof arg === "string" &&
-                    (arg.toLowerCase().includes("layout") ||
-                        arg.toLowerCase().includes("fail")),
+                    (arg.toLowerCase().includes("layout") || arg.toLowerCase().includes("fail")),
             ),
         );
         assert.isTrue(hasErrorMessage, "Expected error log message about layout failure");
     });
 
-    test("should not log when logging is disabled", async() => {
+    test("should not log when logging is disabled", async () => {
         // Disable logging
         await GraphtyLogger.configure({
             enabled: false,
             level: LogLevel.DEBUG,
             modules: "*",
-            format: {timestamp: true, module: true},
+            format: { timestamp: true, module: true },
         });
 
         const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
@@ -160,31 +150,23 @@ describe("LayoutManager Logging", () => {
         consoleDebugSpy.mockClear();
 
         // Try to log
-        logger.info("Setting layout", {type: "ngraph"});
+        logger.info("Setting layout", { type: "ngraph" });
         logger.debug("Layout settled");
 
         // Check that no layout logging occurred
-        const layoutCalls = [... consoleInfoSpy.mock.calls, ... consoleDebugSpy.mock.calls].filter(
-            (call) =>
-                call.some(
-                    (arg: unknown) =>
-                        typeof arg === "string" && arg.includes("layout"),
-                ),
+        const layoutCalls = [...consoleInfoSpy.mock.calls, ...consoleDebugSpy.mock.calls].filter((call) =>
+            call.some((arg: unknown) => typeof arg === "string" && arg.includes("layout")),
         );
-        assert.strictEqual(
-            layoutCalls.length,
-            0,
-            "Expected no layout logging when disabled",
-        );
+        assert.strictEqual(layoutCalls.length, 0, "Expected no layout logging when disabled");
     });
 
-    test("should not log when layout module is filtered out", async() => {
+    test("should not log when layout module is filtered out", async () => {
         // Enable logging for different module only
         await GraphtyLogger.configure({
             enabled: true,
             level: LogLevel.DEBUG,
             modules: ["lifecycle"], // Not layout
-            format: {timestamp: true, module: true},
+            format: { timestamp: true, module: true },
         });
 
         const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
@@ -194,20 +176,12 @@ describe("LayoutManager Logging", () => {
         consoleDebugSpy.mockClear();
 
         // Try to log
-        logger.info("Setting layout", {type: "ngraph"});
+        logger.info("Setting layout", { type: "ngraph" });
 
         // Check that no layout logging occurred
-        const layoutCalls = [... consoleInfoSpy.mock.calls, ... consoleDebugSpy.mock.calls].filter(
-            (call) =>
-                call.some(
-                    (arg: unknown) =>
-                        typeof arg === "string" && arg.includes("layout"),
-                ),
+        const layoutCalls = [...consoleInfoSpy.mock.calls, ...consoleDebugSpy.mock.calls].filter((call) =>
+            call.some((arg: unknown) => typeof arg === "string" && arg.includes("layout")),
         );
-        assert.strictEqual(
-            layoutCalls.length,
-            0,
-            "Expected no layout logging when module is filtered",
-        );
+        assert.strictEqual(layoutCalls.length, 0, "Expected no layout logging when module is filtered");
     });
 });

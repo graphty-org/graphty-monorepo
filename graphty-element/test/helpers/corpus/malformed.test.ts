@@ -10,21 +10,30 @@
  * Each test verifies that the parser doesn't crash unexpectedly and handles
  * errors in a user-friendly way.
  */
-import {readdirSync, readFileSync} from "node:fs";
-import {join} from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {CSVDataSource} from "../../../src/data/CSVDataSource.js";
-import {DOTDataSource} from "../../../src/data/DOTDataSource.js";
-import {GEXFDataSource} from "../../../src/data/GEXFDataSource.js";
-import {GMLDataSource} from "../../../src/data/GMLDataSource.js";
-import {GraphMLDataSource} from "../../../src/data/GraphMLDataSource.js";
-import {JsonDataSource} from "../../../src/data/JsonDataSource.js";
-import {PajekDataSource} from "../../../src/data/PajekDataSource.js";
+import { CSVDataSource } from "../../../src/data/CSVDataSource.js";
+import { DOTDataSource } from "../../../src/data/DOTDataSource.js";
+import { GEXFDataSource } from "../../../src/data/GEXFDataSource.js";
+import { GMLDataSource } from "../../../src/data/GMLDataSource.js";
+import { GraphMLDataSource } from "../../../src/data/GraphMLDataSource.js";
+import { JsonDataSource } from "../../../src/data/JsonDataSource.js";
+import { PajekDataSource } from "../../../src/data/PajekDataSource.js";
 
 // Map format names to DataSource classes
-const formatToDataSource: Record<string, typeof DOTDataSource | typeof GraphMLDataSource | typeof GMLDataSource | typeof GEXFDataSource | typeof CSVDataSource | typeof PajekDataSource | typeof JsonDataSource> = {
+const formatToDataSource: Record<
+    string,
+    | typeof DOTDataSource
+    | typeof GraphMLDataSource
+    | typeof GMLDataSource
+    | typeof GEXFDataSource
+    | typeof CSVDataSource
+    | typeof PajekDataSource
+    | typeof JsonDataSource
+> = {
     dot: DOTDataSource,
     graphml: GraphMLDataSource,
     gml: GMLDataSource,
@@ -46,7 +55,14 @@ const formatToExtension: Record<string, string> = {
 };
 
 // DataSource type union
-type AnyDataSource = DOTDataSource | GraphMLDataSource | GMLDataSource | GEXFDataSource | CSVDataSource | PajekDataSource | JsonDataSource;
+type AnyDataSource =
+    | DOTDataSource
+    | GraphMLDataSource
+    | GMLDataSource
+    | GEXFDataSource
+    | CSVDataSource
+    | PajekDataSource
+    | JsonDataSource;
 
 // Expected behaviors for malformed files
 interface MalformedBehavior {
@@ -59,83 +75,83 @@ interface MalformedBehavior {
 // Define expected behaviors for specific malformed files
 const expectedBehaviors: Record<string, Record<string, MalformedBehavior>> = {
     dot: {
-        "empty-file.gv": {shouldRecover: true, description: "Empty file should return empty graph"},
-        "garbage-content.gv": {shouldRecover: true, description: "Garbage should be handled gracefully"},
-        "unclosed-brace.gv": {shouldRecover: true, description: "Unclosed brace should recover partial data"},
-        "unclosed-string.gv": {shouldRecover: true, description: "Unclosed string should recover partial data"},
-        "invalid-keyword.gv": {shouldRecover: true, description: "Invalid keywords should be skipped"},
-        "missing-arrow.gv": {shouldRecover: true, description: "Missing arrow should create nodes only"},
-        "nested-unclosed.gv": {shouldRecover: true, description: "Nested unclosed should recover partial data"},
-        "invalid-attributes.gv": {shouldRecover: true, description: "Invalid attributes should be handled"},
+        "empty-file.gv": { shouldRecover: true, description: "Empty file should return empty graph" },
+        "garbage-content.gv": { shouldRecover: true, description: "Garbage should be handled gracefully" },
+        "unclosed-brace.gv": { shouldRecover: true, description: "Unclosed brace should recover partial data" },
+        "unclosed-string.gv": { shouldRecover: true, description: "Unclosed string should recover partial data" },
+        "invalid-keyword.gv": { shouldRecover: true, description: "Invalid keywords should be skipped" },
+        "missing-arrow.gv": { shouldRecover: true, description: "Missing arrow should create nodes only" },
+        "nested-unclosed.gv": { shouldRecover: true, description: "Nested unclosed should recover partial data" },
+        "invalid-attributes.gv": { shouldRecover: true, description: "Invalid attributes should be handled" },
     },
     graphml: {
-        "empty-file.graphml": {shouldThrow: true, description: "Empty file should throw"},
-        "not-xml.graphml": {shouldThrow: true, description: "Non-XML should throw"},
-        "invalid-xml.graphml": {shouldRecover: true, description: "Invalid XML recovers partial data"},
-        "missing-graph.graphml": {shouldRecover: true, description: "Missing graph should return empty"},
-        "missing-node-id.graphml": {shouldRecover: true, description: "Missing node ID should skip node"},
-        "missing-edge-source.graphml": {shouldRecover: true, description: "Missing edge source should skip edge"},
-        "unclosed-tag.graphml": {shouldRecover: true, description: "Unclosed tag recovers partial data"},
-        "invalid-edge-reference.graphml": {shouldRecover: true, description: "Invalid edge refs should be kept"},
+        "empty-file.graphml": { shouldThrow: true, description: "Empty file should throw" },
+        "not-xml.graphml": { shouldThrow: true, description: "Non-XML should throw" },
+        "invalid-xml.graphml": { shouldRecover: true, description: "Invalid XML recovers partial data" },
+        "missing-graph.graphml": { shouldRecover: true, description: "Missing graph should return empty" },
+        "missing-node-id.graphml": { shouldRecover: true, description: "Missing node ID should skip node" },
+        "missing-edge-source.graphml": { shouldRecover: true, description: "Missing edge source should skip edge" },
+        "unclosed-tag.graphml": { shouldRecover: true, description: "Unclosed tag recovers partial data" },
+        "invalid-edge-reference.graphml": { shouldRecover: true, description: "Invalid edge refs should be kept" },
     },
     gml: {
-        "empty-file.gml": {shouldThrow: true, description: "Empty file throws missing graph element"},
-        "garbage-content.gml": {shouldThrow: true, description: "Garbage throws missing graph element"},
-        "unclosed-bracket.gml": {shouldRecover: true, description: "Unclosed bracket should recover"},
-        "unclosed-string.gml": {shouldRecover: true, description: "Unclosed string should recover"},
-        "missing-id.gml": {shouldRecover: true, description: "Missing ID should skip node"},
-        "missing-edge-target.gml": {shouldRecover: true, description: "Missing target should skip edge"},
-        "invalid-value-type.gml": {shouldRecover: true, description: "Invalid value type should be handled"},
-        "no-graph-wrapper.gml": {shouldThrow: true, description: "No wrapper throws missing graph element"},
+        "empty-file.gml": { shouldThrow: true, description: "Empty file throws missing graph element" },
+        "garbage-content.gml": { shouldThrow: true, description: "Garbage throws missing graph element" },
+        "unclosed-bracket.gml": { shouldRecover: true, description: "Unclosed bracket should recover" },
+        "unclosed-string.gml": { shouldRecover: true, description: "Unclosed string should recover" },
+        "missing-id.gml": { shouldRecover: true, description: "Missing ID should skip node" },
+        "missing-edge-target.gml": { shouldRecover: true, description: "Missing target should skip edge" },
+        "invalid-value-type.gml": { shouldRecover: true, description: "Invalid value type should be handled" },
+        "no-graph-wrapper.gml": { shouldThrow: true, description: "No wrapper throws missing graph element" },
     },
     gexf: {
-        "empty-file.gexf": {shouldThrow: true, description: "Empty file should throw"},
-        "not-xml.gexf": {shouldThrow: true, description: "Non-XML should throw"},
-        "invalid-xml.gexf": {shouldRecover: true, description: "Invalid XML recovers partial data"},
-        "missing-nodes-section.gexf": {shouldRecover: true, description: "Missing nodes should return empty nodes"},
-        "missing-node-id.gexf": {shouldRecover: true, description: "Missing node ID should skip node"},
-        "missing-edge-source.gexf": {shouldRecover: true, description: "Missing edge source should skip edge"},
-        "no-graph-element.gexf": {shouldThrow: true, description: "No graph element throws error"},
-        "invalid-edge-reference.gexf": {shouldRecover: true, description: "Invalid edge refs should be kept"},
+        "empty-file.gexf": { shouldThrow: true, description: "Empty file should throw" },
+        "not-xml.gexf": { shouldThrow: true, description: "Non-XML should throw" },
+        "invalid-xml.gexf": { shouldRecover: true, description: "Invalid XML recovers partial data" },
+        "missing-nodes-section.gexf": { shouldRecover: true, description: "Missing nodes should return empty nodes" },
+        "missing-node-id.gexf": { shouldRecover: true, description: "Missing node ID should skip node" },
+        "missing-edge-source.gexf": { shouldRecover: true, description: "Missing edge source should skip edge" },
+        "no-graph-element.gexf": { shouldThrow: true, description: "No graph element throws error" },
+        "invalid-edge-reference.gexf": { shouldRecover: true, description: "Invalid edge refs should be kept" },
     },
     csv: {
-        "empty-file.csv": {shouldRecover: true, description: "Empty file should return empty"},
-        "header-only.csv": {shouldRecover: true, description: "Header only should return empty"},
-        "missing-source-column.csv": {shouldRecover: true, description: "Missing Source should recover"},
-        "missing-target-column.csv": {shouldRecover: true, description: "Missing Target should recover"},
-        "inconsistent-columns.csv": {shouldRecover: true, description: "Inconsistent columns should recover"},
-        "unclosed-quote.csv": {shouldRecover: true, description: "Unclosed quote should recover"},
-        "garbage-content.csv": {shouldRecover: true, description: "Garbage should create nodes from values"},
-        "empty-values.csv": {shouldRecover: true, description: "Empty values should be handled"},
-        "wrong-delimiter.csv": {shouldRecover: true, description: "Wrong delimiter should create single-column rows"},
-        "binary-content.csv": {shouldRecover: true, description: "Binary content should be handled"},
+        "empty-file.csv": { shouldRecover: true, description: "Empty file should return empty" },
+        "header-only.csv": { shouldRecover: true, description: "Header only should return empty" },
+        "missing-source-column.csv": { shouldRecover: true, description: "Missing Source should recover" },
+        "missing-target-column.csv": { shouldRecover: true, description: "Missing Target should recover" },
+        "inconsistent-columns.csv": { shouldRecover: true, description: "Inconsistent columns should recover" },
+        "unclosed-quote.csv": { shouldRecover: true, description: "Unclosed quote should recover" },
+        "garbage-content.csv": { shouldRecover: true, description: "Garbage should create nodes from values" },
+        "empty-values.csv": { shouldRecover: true, description: "Empty values should be handled" },
+        "wrong-delimiter.csv": { shouldRecover: true, description: "Wrong delimiter should create single-column rows" },
+        "binary-content.csv": { shouldRecover: true, description: "Binary content should be handled" },
     },
     pajek: {
-        "empty-file.net": {shouldRecover: true, description: "Empty file should return empty"},
-        "no-vertices-header.net": {shouldRecover: true, description: "No header should try to parse"},
-        "wrong-vertex-count.net": {shouldRecover: true, description: "Wrong count should parse available"},
-        "malformed-vertex.net": {shouldRecover: true, description: "Malformed vertex should skip line"},
-        "malformed-edge.net": {shouldRecover: true, description: "Malformed edge should skip line"},
-        "garbage-content.net": {shouldRecover: true, description: "Garbage should return empty"},
-        "invalid-edge-reference.net": {shouldRecover: true, description: "Invalid refs should be kept"},
-        "missing-edges-section.net": {shouldRecover: true, description: "Missing edges should return nodes only"},
+        "empty-file.net": { shouldRecover: true, description: "Empty file should return empty" },
+        "no-vertices-header.net": { shouldRecover: true, description: "No header should try to parse" },
+        "wrong-vertex-count.net": { shouldRecover: true, description: "Wrong count should parse available" },
+        "malformed-vertex.net": { shouldRecover: true, description: "Malformed vertex should skip line" },
+        "malformed-edge.net": { shouldRecover: true, description: "Malformed edge should skip line" },
+        "garbage-content.net": { shouldRecover: true, description: "Garbage should return empty" },
+        "invalid-edge-reference.net": { shouldRecover: true, description: "Invalid refs should be kept" },
+        "missing-edges-section.net": { shouldRecover: true, description: "Missing edges should return nodes only" },
     },
     json: {
-        "empty-file.json": {shouldRecover: true, description: "Empty file returns empty result"},
-        "invalid-json.json": {shouldRecover: true, description: "Invalid JSON recovers with empty result"},
-        "not-json.json": {shouldRecover: true, description: "Non-JSON recovers with empty result"},
-        "missing-nodes.json": {shouldRecover: true, description: "Missing nodes returns empty nodes"},
-        "missing-edges.json": {shouldRecover: true, description: "Missing edges returns empty edges"},
-        "wrong-structure.json": {shouldRecover: true, description: "Wrong structure returns empty"},
-        "nodes-not-array.json": {shouldRecover: true, description: "Nodes not array returns empty nodes"},
-        "edges-not-array.json": {shouldRecover: true, description: "Edges not array returns empty edges"},
-        "missing-node-id.json": {shouldRecover: true, description: "Missing node ID should skip node"},
-        "missing-edge-source.json": {shouldRecover: true, description: "Missing edge source should skip edge"},
+        "empty-file.json": { shouldRecover: true, description: "Empty file returns empty result" },
+        "invalid-json.json": { shouldRecover: true, description: "Invalid JSON recovers with empty result" },
+        "not-json.json": { shouldRecover: true, description: "Non-JSON recovers with empty result" },
+        "missing-nodes.json": { shouldRecover: true, description: "Missing nodes returns empty nodes" },
+        "missing-edges.json": { shouldRecover: true, description: "Missing edges returns empty edges" },
+        "wrong-structure.json": { shouldRecover: true, description: "Wrong structure returns empty" },
+        "nodes-not-array.json": { shouldRecover: true, description: "Nodes not array returns empty nodes" },
+        "edges-not-array.json": { shouldRecover: true, description: "Edges not array returns empty edges" },
+        "missing-node-id.json": { shouldRecover: true, description: "Missing node ID should skip node" },
+        "missing-edge-source.json": { shouldRecover: true, description: "Missing edge source should skip edge" },
     },
 };
 
 // Helper function to collect all chunks from a data source
-async function collectChunks(dataSource: AnyDataSource): Promise<{totalNodes: number, totalEdges: number}> {
+async function collectChunks(dataSource: AnyDataSource): Promise<{ totalNodes: number; totalEdges: number }> {
     let totalNodes = 0;
     let totalEdges = 0;
 
@@ -144,7 +160,7 @@ async function collectChunks(dataSource: AnyDataSource): Promise<{totalNodes: nu
         totalEdges += chunk.edges.length;
     }
 
-    return {totalNodes, totalEdges};
+    return { totalNodes, totalEdges };
 }
 
 // Discover malformed files in a directory
@@ -176,19 +192,19 @@ describe("Malformed Corpus Tests", () => {
 
             for (const fileName of files) {
                 const formatBehaviors = expectedBehaviors[format];
-                const behavior = formatBehaviors[fileName] as MalformedBehavior | undefined ?? {
+                const behavior = (formatBehaviors[fileName] as MalformedBehavior | undefined) ?? {
                     shouldRecover: true,
                     description: "Should handle gracefully (default)",
                 };
 
-                test(`${fileName}: ${behavior.description}`, async() => {
+                test(`${fileName}: ${behavior.description}`, async () => {
                     const filePath = join(__dirname, "malformed", format, fileName);
                     const content = readFileSync(filePath, "utf-8");
 
                     const DataSourceClass = formatToDataSource[format];
                     assert.ok(DataSourceClass, `No DataSource for format: ${format}`);
 
-                    const dataSource: AnyDataSource = new DataSourceClass({data: content});
+                    const dataSource: AnyDataSource = new DataSourceClass({ data: content });
 
                     if (behavior.shouldThrow) {
                         // Expect the parser to throw an error
@@ -214,7 +230,7 @@ describe("Malformed Corpus Tests", () => {
                     } else {
                         // Expect the parser to recover gracefully (no throw)
                         try {
-                            const {totalNodes, totalEdges} = await collectChunks(dataSource);
+                            const { totalNodes, totalEdges } = await collectChunks(dataSource);
                             // Success - parser handled the file without throwing
                             // The counts can be 0 or more - we just care that it didn't crash
                             assert.isAtLeast(totalNodes, 0, "Node count should be non-negative");

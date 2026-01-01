@@ -20,9 +20,9 @@ import {
     WebXRDefaultExperience,
 } from "@babylonjs/core";
 
-import {VoiceInputAdapter} from "./ai/input/VoiceInputAdapter";
-import {ApiKeyManager} from "./ai/keys";
-import {Algorithm} from "./algorithms/Algorithm";
+import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
+import { ApiKeyManager } from "./ai/keys";
+import { Algorithm } from "./algorithms/Algorithm";
 import {
     BUILTIN_PRESETS,
     calculateFitToGraph,
@@ -31,7 +31,7 @@ import {
     calculateSideView,
     calculateTopView,
 } from "./camera/presets.js";
-import {type CameraController, type CameraKey, CameraManager} from "./cameras/CameraManager";
+import { type CameraController, type CameraKey, CameraManager } from "./cameras/CameraManager";
 import {
     AdHocData,
     ApplySuggestedStylesOptions,
@@ -43,23 +43,39 @@ import {
     type ViewMode,
     type XRConfig,
 } from "./config";
-import {type PartialXRConfig, xrConfigSchema} from "./config/xr-config-schema";
-import {Edge} from "./Edge";
+import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
+import { Edge } from "./Edge";
+import { EventCallbackType, EventType } from "./events";
 import {
-    EventCallbackType,
-    EventType,
-} from "./events";
-import {AlgorithmManager, DataManager, DefaultGraphContext, EventManager, type GraphContext, type GraphContextConfig, InputManager, type InputManagerConfig, LayoutManager, LifecycleManager, type Manager, OperationQueueManager, type RecordedInputEvent, RenderManager, SelectionManager, StatsManager, StyleManager, UpdateManager} from "./managers";
-import {MeshCache} from "./meshes/MeshCache";
-import {PatternedLineMesh} from "./meshes/PatternedLineMesh";
-import {Node, type NodeIdType} from "./Node";
-import {ScreenshotCapture} from "./screenshot/ScreenshotCapture.js";
-import {ScreenshotError, ScreenshotErrorCode} from "./screenshot/ScreenshotError.js";
-import type {ScreenshotOptions, ScreenshotResult} from "./screenshot/types.js";
-import {Styles} from "./Styles";
-import {XRUIManager} from "./ui/XRUIManager";
-import type {QueueableOptions, RunAlgorithmOptions} from "./utils/queue-migration";
-import {XRSessionManager} from "./xr/XRSessionManager";
+    AlgorithmManager,
+    DataManager,
+    DefaultGraphContext,
+    EventManager,
+    type GraphContext,
+    type GraphContextConfig,
+    InputManager,
+    type InputManagerConfig,
+    LayoutManager,
+    LifecycleManager,
+    type Manager,
+    OperationQueueManager,
+    type RecordedInputEvent,
+    RenderManager,
+    SelectionManager,
+    StatsManager,
+    StyleManager,
+    UpdateManager,
+} from "./managers";
+import { MeshCache } from "./meshes/MeshCache";
+import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
+import { Node, type NodeIdType } from "./Node";
+import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
+import { ScreenshotError, ScreenshotErrorCode } from "./screenshot/ScreenshotError.js";
+import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
+import { Styles } from "./Styles";
+import { XRUIManager } from "./ui/XRUIManager";
+import type { QueueableOptions, RunAlgorithmOptions } from "./utils/queue-migration";
+import { XRSessionManager } from "./xr/XRSessionManager";
 // import {createXrButton} from "./xr-button";
 
 /**
@@ -145,7 +161,7 @@ export class Graph implements GraphContext {
         this.styles = this.styleManager.getStyles();
 
         // get the element that we are going to use for placing our canvas
-        if (typeof (element) === "string") {
+        if (typeof element === "string") {
             const e: Element | null = document.getElementById(element);
             if (!e) {
                 throw new Error(`getElementById() could not find element '${element}'`);
@@ -155,7 +171,9 @@ export class Graph implements GraphContext {
         } else if (element instanceof Element) {
             this.element = element;
         } else {
-            throw new TypeError("Graph constructor requires 'element' argument that is either a string specifying the ID of the HTML element or an Element");
+            throw new TypeError(
+                "Graph constructor requires 'element' argument that is either a string specifying the ID of the HTML element or an Element",
+            );
         }
 
         this.element.innerHTML = "";
@@ -192,7 +210,7 @@ export class Graph implements GraphContext {
         // Register layout-update trigger to handle positioning nodes when data is added
         this.operationQueue.registerTrigger("data-add", () => ({
             category: "layout-update",
-            execute: async() => {
+            execute: async () => {
                 // Get all nodes for positioning
                 const nodes = Array.from(this.dataManager.nodes.values());
                 if (nodes.length > 0 && this.layoutManager.layoutEngine) {
@@ -281,26 +299,31 @@ export class Graph implements GraphContext {
             ["input", this.inputManager],
             ["selection", this.selectionManager],
         ]);
-        this.lifecycleManager = new LifecycleManager(
-            managers,
-            this.eventManager,
-            ["event", "queue", "style", "stats", "render", "data", "layout", "update", "algorithm", "input", "selection"],
-        );
+        this.lifecycleManager = new LifecycleManager(managers, this.eventManager, [
+            "event",
+            "queue",
+            "style",
+            "stats",
+            "render",
+            "data",
+            "layout",
+            "update",
+            "algorithm",
+            "input",
+            "selection",
+        ]);
 
         // Queue default layout early so user-specified layouts can obsolete it
         // This is queued now (in constructor) rather than in init() to ensure
         // it's the FIRST layout operation queued, allowing user operations to cancel it
-        void this.setLayout("ngraph")
-            .catch((e: unknown) => {
-                console.error("ERROR setting default layout:", e);
-                // Emit error event for default layout failure
-                this.eventManager.emitGraphError(
-                    this,
-                    e instanceof Error ? e : new Error(String(e)),
-                    "layout",
-                    {layoutType: "ngraph", isDefault: true},
-                );
+        void this.setLayout("ngraph").catch((e: unknown) => {
+            console.error("ERROR setting default layout:", e);
+            // Emit error event for default layout failure
+            this.eventManager.emitGraphError(this, e instanceof Error ? e : new Error(String(e)), "layout", {
+                layoutType: "ngraph",
+                isDefault: true,
             });
+        });
 
         // Note: Algorithm running is handled in the data-added event listener below
         // rather than through operation queue triggers, because data sources bypass
@@ -321,7 +344,7 @@ export class Graph implements GraphContext {
 
                 // Run algorithms if runAlgorithmsOnLoad is true
                 // Queue algorithms instead of running them directly
-                const {algorithms} = this.styles.config.data;
+                const { algorithms } = this.styles.config.data;
                 if (this.runAlgorithmsOnLoad && algorithms && algorithms.length > 0) {
                     // Parse and queue each algorithm through the public API
                     for (const algName of algorithms) {
@@ -330,10 +353,9 @@ export class Graph implements GraphContext {
 
                         if (namespace && type) {
                             // Queue through public API which handles queueing
-                            void this.runAlgorithm(namespace.trim(), type.trim())
-                                .catch((error: unknown) => {
-                                    console.error(`[Graph] Error running algorithm ${trimmedName}:`, error);
-                                });
+                            void this.runAlgorithm(namespace.trim(), type.trim()).catch((error: unknown) => {
+                                console.error(`[Graph] Error running algorithm ${trimmedName}:`, error);
+                            });
                         }
                     }
                 }
@@ -401,7 +423,7 @@ export class Graph implements GraphContext {
         try {
             const controller = this.camera.getActiveController();
             if (controller && "pivot" in controller) {
-                this.scene.stopAnimation((controller as {pivot: unknown}).pivot);
+                this.scene.stopAnimation((controller as { pivot: unknown }).pivot);
             }
             // Note: 2D animations use direct animation on dummy objects
             // and will be cleaned up when the scene is disposed
@@ -486,12 +508,9 @@ export class Graph implements GraphContext {
             }, 100);
         } catch (error) {
             // Emit error event for user handling
-            this.eventManager.emitGraphError(
-                this,
-                error instanceof Error ? error : new Error(String(error)),
-                "init",
-                {component: "Graph"},
-            );
+            this.eventManager.emitGraphError(this, error instanceof Error ? error : new Error(String(error)), "init", {
+                component: "Graph",
+            });
 
             // Clean up any partially initialized resources
             this.cleanup();
@@ -548,7 +567,9 @@ export class Graph implements GraphContext {
                         this.statsManager.endLayoutSession();
                         const snapshot = this.statsManager.getSnapshot();
                         // eslint-disable-next-line no-console
-                        console.log(`🎯 Layout settled! (${snapshot.cpu.find((m) => m.label === "Graph.update")?.count ?? 0} update calls)`);
+                        console.log(
+                            `🎯 Layout settled! (${snapshot.cpu.find((m) => m.label === "Graph.update")?.count ?? 0} update calls)`,
+                        );
                         this.statsManager.reportDetailed();
                         // Reset measurements after reporting so next settlement shows fresh data
                         this.statsManager.resetMeasurements();
@@ -587,20 +608,22 @@ export class Graph implements GraphContext {
         this.operationQueue.clearCategoryCompleted("style-init");
 
         // Queue the operation using queueOperationAsync to properly handle batch mode
-        return this.operationQueue.queueOperationAsync(
-            "style-init",
-            async(context) => {
-                if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
-                }
+        return this.operationQueue
+            .queueOperationAsync(
+                "style-init",
+                async (context) => {
+                    if (context.signal.aborted) {
+                        throw new Error("Operation cancelled");
+                    }
 
-                await this._setStyleTemplateInternal(t);
-            },
-            {
-                description: "Setting style template",
-                ... options,
-            },
-        ).then(() => this.styles);
+                    await this._setStyleTemplateInternal(t);
+                },
+                {
+                    description: "Setting style template",
+                    ...options,
+                },
+            )
+            .then(() => this.styles);
     }
 
     private async _setStyleTemplateInternal(t: StyleSchema): Promise<Styles> {
@@ -626,7 +649,7 @@ export class Graph implements GraphContext {
             if (targetTwoD !== previousTwoD) {
                 console.warn(
                     "[Graph] graph.twoD is deprecated. Use graph.viewMode instead. " +
-                    "twoD: true → viewMode: \"2d\", twoD: false → viewMode: \"3d\"",
+                        'twoD: true → viewMode: "2d", twoD: false → viewMode: "3d"',
                 );
             }
         } else {
@@ -707,8 +730,10 @@ export class Graph implements GraphContext {
         }
 
         // setup PhotoDome Skybox
-        if (this.styles.config.graph.background.backgroundType === "skybox" &&
-                typeof this.styles.config.graph.background.data === "string") {
+        if (
+            this.styles.config.graph.background.backgroundType === "skybox" &&
+            typeof this.styles.config.graph.background.data === "string"
+        ) {
             const skyboxUrl = this.styles.config.graph.background.data;
             const photoDome = new PhotoDome(
                 "testdome",
@@ -719,7 +744,7 @@ export class Graph implements GraphContext {
                 },
                 this.scene,
             );
-                // Emit event when skybox texture is loaded
+            // Emit event when skybox texture is loaded
             photoDome.texture.onLoadObservable.addOnce(() => {
                 this.eventManager.emitGraphEvent("skybox-loaded", {
                     graph: this,
@@ -731,8 +756,10 @@ export class Graph implements GraphContext {
         // background color - always set a default
         const DEFAULT_BACKGROUND = "#F5F5F5"; // whitesmoke
 
-        if (this.styles.config.graph.background.backgroundType === "color" &&
-            this.styles.config.graph.background.color) {
+        if (
+            this.styles.config.graph.background.backgroundType === "color" &&
+            this.styles.config.graph.background.color
+        ) {
             this.scene.clearColor = Color4.FromHexString(this.styles.config.graph.background.color);
         } else {
             // Apply default background color when no background is specified
@@ -793,7 +820,7 @@ export class Graph implements GraphContext {
             edgeDstIdPath?: string;
         },
     ): Promise<void> {
-        const {detectFormat} = await import("./data/format-detection.js");
+        const { detectFormat } = await import("./data/format-detection.js");
 
         // Detect format if not explicitly provided
         let format = options?.format;
@@ -806,8 +833,8 @@ export class Graph implements GraphContext {
             if (!detected) {
                 throw new Error(
                     `Could not detect file format from '${file.name}'. ` +
-                    "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek. " +
-                    "Try specifying format explicitly: loadFromFile(file, { format: \"graphml\" })",
+                        "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek. " +
+                        'Try specifying format explicitly: loadFromFile(file, { format: "graphml" })',
                 );
             }
 
@@ -822,7 +849,7 @@ export class Graph implements GraphContext {
             data: content,
             filename: file.name,
             size: file.size,
-            ... options,
+            ...options,
         });
     }
 
@@ -860,7 +887,7 @@ export class Graph implements GraphContext {
             edgeDstIdPath?: string;
         },
     ): Promise<void> {
-        const {detectFormat} = await import("./data/format-detection.js");
+        const { detectFormat } = await import("./data/format-detection.js");
 
         let format = options?.format;
         let fetchedContent: string | undefined;
@@ -875,9 +902,7 @@ export class Graph implements GraphContext {
                 // Extension didn't match - fetch content for detection
                 const response = await fetch(url);
                 if (!response.ok) {
-                    throw new Error(
-                        `Failed to fetch URL '${url}': ${response.status} ${response.statusText}`,
-                    );
+                    throw new Error(`Failed to fetch URL '${url}': ${response.status} ${response.statusText}`);
                 }
 
                 fetchedContent = await response.text();
@@ -888,8 +913,8 @@ export class Graph implements GraphContext {
                 if (!detectedFromContent) {
                     throw new Error(
                         `Could not detect file format from '${url}'. ` +
-                        "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek. " +
-                        "Try specifying format explicitly: loadFromUrl(url, { format: \"graphml\" })",
+                            "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek. " +
+                            'Try specifying format explicitly: loadFromUrl(url, { format: "graphml" })',
                     );
                 }
 
@@ -909,12 +934,12 @@ export class Graph implements GraphContext {
         if (fetchedContent !== undefined) {
             await this.addDataFromSource(format, {
                 data: fetchedContent,
-                ... mergedOptions,
+                ...mergedOptions,
             });
         } else {
             await this.addDataFromSource(format, {
                 url,
-                ... mergedOptions,
+                ...mergedOptions,
             });
         }
     }
@@ -964,7 +989,11 @@ export class Graph implements GraphContext {
      * graph.zoomToFit();
      * ```
      */
-    async addNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void> {
+    async addNodes(
+        nodes: Record<string | number, unknown>[],
+        idPath?: string,
+        options?: QueueableOptions,
+    ): Promise<void> {
         if (options?.skipQueue) {
             this.dataManager.addNodes(nodes, idPath);
             return;
@@ -981,7 +1010,7 @@ export class Graph implements GraphContext {
             },
             {
                 description: `Adding ${nodes.length} nodes`,
-                ... options,
+                ...options,
             },
         );
     }
@@ -1034,7 +1063,12 @@ export class Graph implements GraphContext {
      * await graph.addEdges([{source: 'a', target: 'b'}]);
      * ```
      */
-    async addEdges(edges: Record<string | number, unknown>[], srcIdPath?: string, dstIdPath?: string, options?: QueueableOptions): Promise<void> {
+    async addEdges(
+        edges: Record<string | number, unknown>[],
+        srcIdPath?: string,
+        dstIdPath?: string,
+        options?: QueueableOptions,
+    ): Promise<void> {
         if (options?.skipQueue) {
             this.dataManager.addEdges(edges, srcIdPath, dstIdPath);
             return;
@@ -1051,7 +1085,7 @@ export class Graph implements GraphContext {
             },
             {
                 description: `Adding ${edges.length} edges`,
-                ... options,
+                ...options,
             },
         );
     }
@@ -1104,7 +1138,7 @@ export class Graph implements GraphContext {
 
         await this.operationQueue.queueOperationAsync(
             "layout-set",
-            async(context) => {
+            async (context) => {
                 if (context.signal.aborted) {
                     throw new Error("Operation cancelled");
                 }
@@ -1113,7 +1147,7 @@ export class Graph implements GraphContext {
             },
             {
                 description: `Setting layout to ${type}`,
-                ... options,
+                ...options,
             },
         );
     }
@@ -1176,7 +1210,7 @@ export class Graph implements GraphContext {
 
         await this.operationQueue.queueOperationAsync(
             "algorithm-run",
-            async(context) => {
+            async (context) => {
                 if (context.signal.aborted) {
                     throw new Error("Operation cancelled");
                 }
@@ -1188,7 +1222,7 @@ export class Graph implements GraphContext {
             },
             {
                 description: `Running ${namespace}:${type} algorithm`,
-                ... options,
+                ...options,
             },
         );
     }
@@ -1199,10 +1233,7 @@ export class Graph implements GraphContext {
      * @param options - Options for applying suggested styles
      * @returns true if any styles were applied, false otherwise
      */
-    applySuggestedStyles(
-        algorithmKey: string | string[],
-        options?: ApplySuggestedStylesOptions,
-    ): boolean {
+    applySuggestedStyles(algorithmKey: string | string[], options?: ApplySuggestedStylesOptions): boolean {
         const keys = Array.isArray(algorithmKey) ? algorithmKey : [algorithmKey];
         let applied = false;
 
@@ -1246,35 +1277,30 @@ export class Graph implements GraphContext {
         algorithmKey: string,
         options?: ApplySuggestedStylesOptions,
     ): void {
-        const {layers} = suggestedStyles;
-        const {
-            position = "append",
-            mode = "merge",
-            layerPrefix = "",
-            enabledStyles,
-        } = options ?? {};
+        const { layers } = suggestedStyles;
+        const { position = "append", mode = "merge", layerPrefix = "", enabledStyles } = options ?? {};
 
         // If mode is replace, remove existing algorithm-sourced layers
         if (mode === "replace") {
             this.styleManager.removeLayersByMetadata((metadata) => {
-                const typedMetadata = metadata as {algorithmSource?: string} | undefined;
+                const typedMetadata = metadata as { algorithmSource?: string } | undefined;
                 return typedMetadata?.algorithmSource === algorithmKey;
             });
         }
 
         // Filter layers by enabledStyles if provided
-        const filteredLayers = enabledStyles ?
-            layers.filter((layer) => {
-                const name = layer.metadata?.name;
-                return name && enabledStyles.includes(name);
-            }) :
-            layers;
+        const filteredLayers = enabledStyles
+            ? layers.filter((layer) => {
+                  const name = layer.metadata?.name;
+                  return name && enabledStyles.includes(name);
+              })
+            : layers;
 
         // Add metadata to track algorithm source
         const enhancedLayers = filteredLayers.map((layer) => ({
-            ... layer,
+            ...layer,
             metadata: {
-                ... layer.metadata,
+                ...layer.metadata,
                 name: layerPrefix + (layer.metadata?.name ?? ""),
                 algorithmSource: algorithmKey,
             },
@@ -1336,7 +1362,7 @@ export class Graph implements GraphContext {
             },
             {
                 description: `Removing ${nodeIds.length} nodes`,
-                ... options,
+                ...options,
             },
         );
     }
@@ -1346,7 +1372,10 @@ export class Graph implements GraphContext {
      * @param updates - Array of update objects containing node ID and properties to update
      * @param options - Queue options for operation ordering
      */
-    async updateNodes(updates: {id: string | number, [key: string]: unknown}[], options?: QueueableOptions): Promise<void> {
+    async updateNodes(
+        updates: { id: string | number; [key: string]: unknown }[],
+        options?: QueueableOptions,
+    ): Promise<void> {
         if (options?.skipQueue) {
             updates.forEach((update) => {
                 const node = this.dataManager.getNode(update.id);
@@ -1379,7 +1408,7 @@ export class Graph implements GraphContext {
             },
             {
                 description: `Updating ${updates.length} nodes`,
-                ... options,
+                ...options,
             },
         );
     }
@@ -1406,7 +1435,7 @@ export class Graph implements GraphContext {
             },
             {
                 description: `Setting camera mode to ${mode}`,
-                ... options,
+                ...options,
             },
         );
     }
@@ -1434,7 +1463,7 @@ export class Graph implements GraphContext {
             },
             {
                 description: "Updating render settings",
-                ... options,
+                ...options,
             },
         );
     }
@@ -1704,14 +1733,15 @@ export class Graph implements GraphContext {
     private setupBackgroundClickHandler(): void {
         // Track click state to distinguish from drags
         let clickStartTime = 0;
-        let clickStartPos = {x: 0, y: 0};
+        let clickStartPos = { x: 0, y: 0 };
         const CLICK_MAX_DURATION_MS = 300;
         const CLICK_MAX_MOVEMENT_PX = 5;
 
         this.scene.onPrePointerObservable.add((pointerInfo) => {
             // Skip in XR mode - XR has its own input handling
             const xrHelper = this.scene.metadata?.xrHelper;
-            if (xrHelper?.baseExperience?.state === 2) { // WebXRState.IN_XR
+            if (xrHelper?.baseExperience?.state === 2) {
+                // WebXRState.IN_XR
                 return;
             }
 
@@ -1726,7 +1756,7 @@ export class Graph implements GraphContext {
                 const duration = Date.now() - clickStartTime;
                 const dx = this.scene.pointerX - clickStartPos.x;
                 const dy = this.scene.pointerY - clickStartPos.y;
-                const distance = Math.sqrt((dx * dx) + (dy * dy));
+                const distance = Math.sqrt(dx * dx + dy * dy);
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
                     // This was a click - check if we hit anything
@@ -1778,7 +1808,7 @@ export class Graph implements GraphContext {
     async setViewMode(mode: ViewMode, options?: QueueableOptions): Promise<void> {
         return this.operationQueue.queueOperationAsync(
             "camera-update",
-            async(context) => {
+            async (context) => {
                 if (context.signal.aborted) {
                     throw new Error("Operation cancelled");
                 }
@@ -1787,7 +1817,7 @@ export class Graph implements GraphContext {
             },
             {
                 description: `Setting view mode to ${mode}`,
-                ... options,
+                ...options,
             },
         );
     }
@@ -2013,7 +2043,7 @@ export class Graph implements GraphContext {
     setXRConfig(config: PartialXRConfig): void {
         // Parse through zod schema to apply defaults
         const fullConfig = xrConfigSchema.parse(config);
-        this.graphContext.updateConfig({xr: fullConfig});
+        this.graphContext.updateConfig({ xr: fullConfig });
     }
 
     /**
@@ -2104,14 +2134,14 @@ export class Graph implements GraphContext {
      * @param worldPos.z - Z coordinate in world space
      * @returns Screen coordinates {x, y}
      */
-    worldToScreen(worldPos: {x: number, y: number, z: number}): {x: number, y: number} {
+    worldToScreen(worldPos: { x: number; y: number; z: number }): { x: number; y: number } {
         const engine = this.scene.getEngine();
         const viewport = this.scene.activeCamera?.viewport;
         const view = this.scene.getViewMatrix();
         const projection = this.scene.getProjectionMatrix();
 
         if (!viewport) {
-            return {x: 0, y: 0};
+            return { x: 0, y: 0 };
         }
 
         // Create transformation matrix manually
@@ -2125,7 +2155,7 @@ export class Graph implements GraphContext {
         const screenX = (clipSpace.x + 1) * 0.5 * engine.getRenderWidth();
         const screenY = (1 - clipSpace.y) * 0.5 * engine.getRenderHeight();
 
-        return {x: screenX, y: screenY};
+        return { x: screenX, y: screenY };
     }
 
     /**
@@ -2135,9 +2165,9 @@ export class Graph implements GraphContext {
      * @param screenPos.y - Y coordinate in screen space
      * @returns World coordinates {x, y, z} or null if no intersection
      */
-    screenToWorld(screenPos: {x: number, y: number}): {x: number, y: number, z: number} | null {
+    screenToWorld(screenPos: { x: number; y: number }): { x: number; y: number; z: number } | null {
         const pickInfo = this.scene.pick(screenPos.x, screenPos.y);
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+         
         if (pickInfo?.pickedPoint) {
             return {
                 x: pickInfo.pickedPoint.x,
@@ -2228,12 +2258,7 @@ export class Graph implements GraphContext {
      * ```
      */
     async captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult> {
-        const screenshotCapture = new ScreenshotCapture(
-            this.engine,
-            this.scene,
-            this.canvas,
-            this,
-        );
+        const screenshotCapture = new ScreenshotCapture(this.engine, this.scene, this.canvas, this);
         return screenshotCapture.captureScreenshot(options);
     }
 
@@ -2259,8 +2284,10 @@ export class Graph implements GraphContext {
      * console.log(`Memory: ${check8k.estimatedMemoryMB.toFixed(0)}MB`);
      * ```
      */
-    async canCaptureScreenshot(options?: ScreenshotOptions): Promise<import("./screenshot/capability-check.js").CapabilityCheck> {
-        const {canCaptureScreenshot} = await import("./screenshot/capability-check.js");
+    async canCaptureScreenshot(
+        options?: ScreenshotOptions,
+    ): Promise<import("./screenshot/capability-check.js").CapabilityCheck> {
+        const { canCaptureScreenshot } = await import("./screenshot/capability-check.js");
         return canCaptureScreenshot(this.canvas, options ?? {});
     }
 
@@ -2301,8 +2328,10 @@ export class Graph implements GraphContext {
      * });
      * ```
      */
-    async captureAnimation(options: import("./video/VideoCapture.js").AnimationOptions): Promise<import("./video/VideoCapture.js").AnimationResult> {
-        const {MediaRecorderCapture} = await import("./video/MediaRecorderCapture.js");
+    async captureAnimation(
+        options: import("./video/VideoCapture.js").AnimationOptions,
+    ): Promise<import("./video/VideoCapture.js").AnimationResult> {
+        const { MediaRecorderCapture } = await import("./video/MediaRecorderCapture.js");
 
         const capture = new MediaRecorderCapture();
 
@@ -2311,7 +2340,7 @@ export class Graph implements GraphContext {
 
         // Set up progress event handler
         const onProgress = (progress: number): void => {
-            this.eventManager.emitGraphEvent("animation-progress", {progress});
+            this.eventManager.emitGraphEvent("animation-progress", { progress });
         };
 
         try {
@@ -2321,11 +2350,7 @@ export class Graph implements GraphContext {
             }
 
             // Capture stationary video
-            const result = await capture.captureRealtime(
-                this.canvas,
-                options,
-                onProgress,
-            );
+            const result = await capture.captureRealtime(this.canvas, options, onProgress);
 
             // Handle download if requested
             this.handleVideoDownload(result, options);
@@ -2349,7 +2374,7 @@ export class Graph implements GraphContext {
         capture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture,
         onProgress: (progress: number) => void,
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
-        const {CameraPathAnimator} = await import("./video/CameraPathAnimator.js");
+        const { CameraPathAnimator } = await import("./video/CameraPathAnimator.js");
 
         // Validate cameraPath is provided
         if (!options.cameraPath || options.cameraPath.length < 2) {
@@ -2374,11 +2399,7 @@ export class Graph implements GraphContext {
         animator.createCameraAnimations(options.cameraPath);
 
         // Start recording and animation simultaneously
-        const recordingPromise = capture.captureRealtime(
-            this.canvas,
-            options,
-            onProgress,
-        );
+        const recordingPromise = capture.captureRealtime(this.canvas, options, onProgress);
 
         // Start camera animation (will run concurrently with recording)
         const animationPromise = animator.startRealtimeAnimation();
@@ -2495,8 +2516,10 @@ export class Graph implements GraphContext {
      * }
      * ```
      */
-    async estimateAnimationCapture(options: Pick<import("./video/VideoCapture.js").AnimationOptions, "duration" | "fps" | "width" | "height">): Promise<import("./video/estimation.js").CaptureEstimate> {
-        const {estimateAnimationCapture} = await import("./video/estimation.js");
+    async estimateAnimationCapture(
+        options: Pick<import("./video/VideoCapture.js").AnimationOptions, "duration" | "fps" | "width" | "height">,
+    ): Promise<import("./video/estimation.js").CaptureEstimate> {
+        const { estimateAnimationCapture } = await import("./video/estimation.js");
         return estimateAnimationCapture(options);
     }
 
@@ -2525,7 +2548,7 @@ export class Graph implements GraphContext {
                     computeWorldMatrix: (force: boolean) => void;
                 };
                 cameraDistance: number;
-                camera: {position: Vector3, parent: unknown, computeWorldMatrix: (force: boolean) => void};
+                camera: { position: Vector3; parent: unknown; computeWorldMatrix: (force: boolean) => void };
             };
 
             // Get camera's world position
@@ -2620,7 +2643,7 @@ export class Graph implements GraphContext {
      * @param options - Optional animation configuration
      */
     async setCameraState(
-        state: import("./screenshot/types.js").CameraState | {preset: string},
+        state: import("./screenshot/types.js").CameraState | { preset: string },
         options?: import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         const camera = this.scene.activeCamera;
@@ -2629,15 +2652,13 @@ export class Graph implements GraphContext {
         }
 
         // Resolve preset if needed
-        const resolvedState = "preset" in state ?
-            this.resolveCameraPreset(state.preset) :
-            state;
+        const resolvedState = "preset" in state ? this.resolveCameraPreset(state.preset) : state;
 
         // For immediate (non-animated) updates or skipQueue, apply directly
         if (!options || !options.animate || options.skipQueue) {
             this.applyCameraStateImmediate(resolvedState);
             // Emit event
-            this.eventManager.emitGraphEvent("camera-state-changed", {state: resolvedState});
+            this.eventManager.emitGraphEvent("camera-state-changed", { state: resolvedState });
 
             return;
         }
@@ -2645,7 +2666,7 @@ export class Graph implements GraphContext {
         // Queue animated camera transitions through operation queue
         await this.operationQueue.queueOperationAsync(
             "camera-update",
-            async(context) => {
+            async (context) => {
                 if (context.signal.aborted) {
                     throw new Error("Operation cancelled");
                 }
@@ -2657,13 +2678,17 @@ export class Graph implements GraphContext {
                     if (controller && "pivot" in controller && "cameraDistance" in controller) {
                         // OrbitCameraController (3D)
                         await this.animateOrbitCamera(resolvedState, options, context.signal);
-                    } else if (controller && "velocity" in controller && typeof (controller as {velocity?: unknown}).velocity === "object") {
+                    } else if (
+                        controller &&
+                        "velocity" in controller &&
+                        typeof (controller as { velocity?: unknown }).velocity === "object"
+                    ) {
                         // TwoDCameraController (2D) - has velocity object
                         await this.animate2DCamera(resolvedState, options, context.signal);
                     } else {
                         // Unknown controller, apply immediately
                         this.applyCameraStateImmediate(resolvedState);
-                        this.eventManager.emitGraphEvent("camera-state-changed", {state: resolvedState});
+                        this.eventManager.emitGraphEvent("camera-state-changed", { state: resolvedState });
                     }
                 } catch (error) {
                     // Check if error is due to cancellation
@@ -2674,11 +2699,12 @@ export class Graph implements GraphContext {
                     console.error("Camera animation failed:", error);
                     // Fallback to immediate
                     this.applyCameraStateImmediate(resolvedState);
-                    this.eventManager.emitGraphEvent("camera-state-changed", {state: resolvedState});
+                    this.eventManager.emitGraphEvent("camera-state-changed", { state: resolvedState });
                 }
             },
             {
-                description: options.description ?? `Animating camera to ${resolvedState.position ? "position" : "state"}`,
+                description:
+                    options.description ?? `Animating camera to ${resolvedState.position ? "position" : "state"}`,
             },
         );
     }
@@ -2711,11 +2737,7 @@ export class Graph implements GraphContext {
 
             // Set pivot position (target)
             if (state.target) {
-                orbitController.pivot.position.set(
-                    state.target.x,
-                    state.target.y,
-                    state.target.z,
-                );
+                orbitController.pivot.position.set(state.target.x, state.target.y, state.target.z);
             }
 
             // Set pivot rotation if provided (for exact state restoration)
@@ -2757,7 +2779,7 @@ export class Graph implements GraphContext {
                 const dx = state.position.x - state.target.x;
                 const dy = state.position.y - state.target.y;
                 const dz = state.position.z - state.target.z;
-                orbitController.cameraDistance = Math.sqrt((dx * dx) + (dy * dy) + (dz * dz));
+                orbitController.cameraDistance = Math.sqrt(dx * dx + dy * dy + dz * dz);
             }
 
             // Update the pivot's world matrix and camera position
@@ -2793,7 +2815,7 @@ export class Graph implements GraphContext {
                 const dy = state.pan.y - twoDController.camera.position.y;
 
                 // Use controller's pan method (adds delta)
-                const panMethod = twoDController as unknown as {pan: (dx: number, dy: number) => void};
+                const panMethod = twoDController as unknown as { pan: (dx: number, dy: number) => void };
                 panMethod.pan(dx, dy);
             }
         } else {
@@ -2862,7 +2884,7 @@ export class Graph implements GraphContext {
         easing?: string,
     ): Promise<void> {
         // Create dummy object to animate
-        const dummy = {value: orbitController.cameraDistance};
+        const dummy = { value: orbitController.cameraDistance };
 
         const distAnim = new Animation(
             "camera_distance",
@@ -2873,8 +2895,8 @@ export class Graph implements GraphContext {
         );
 
         distAnim.setKeys([
-            {frame: 0, value: orbitController.cameraDistance},
-            {frame: frameCount, value: targetDistance},
+            { frame: 0, value: orbitController.cameraDistance },
+            { frame: frameCount, value: targetDistance },
         ]);
 
         this.applyEasing(distAnim, easing);
@@ -2887,24 +2909,16 @@ export class Graph implements GraphContext {
             });
 
             // Animate the dummy object
-            this.scene.beginDirectAnimation(
-                dummy,
-                [distAnim],
-                0,
-                frameCount,
-                false,
-                1.0,
-                () => {
-                    // Cleanup observer
-                    this.scene.onBeforeRenderObservable.remove(observer);
+            this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1.0, () => {
+                // Cleanup observer
+                this.scene.onBeforeRenderObservable.remove(observer);
 
-                    // Ensure final value
-                    orbitController.cameraDistance = targetDistance;
-                    orbitController.updateCameraPosition();
+                // Ensure final value
+                orbitController.cameraDistance = targetDistance;
+                orbitController.updateCameraPosition();
 
-                    resolve();
-                },
-            );
+                resolve();
+            });
         });
     }
 
@@ -2962,11 +2976,7 @@ export class Graph implements GraphContext {
                 },
                 {
                     frame: frameCount,
-                    value: new Vector3(
-                        targetState.target.x,
-                        targetState.target.y,
-                        targetState.target.z,
-                    ),
+                    value: new Vector3(targetState.target.x, targetState.target.y, targetState.target.z),
                 },
             ]);
 
@@ -3050,7 +3060,7 @@ export class Graph implements GraphContext {
             const dx = targetState.position.x - targetState.target.x;
             const dy = targetState.position.y - targetState.target.y;
             const dz = targetState.position.z - targetState.target.z;
-            const calculatedDistance = Math.sqrt((dx * dx) + (dy * dy) + (dz * dz));
+            const calculatedDistance = Math.sqrt(dx * dx + dy * dy + dz * dz);
             distanceAnimation = this.animateCameraDistance(
                 orbitController,
                 calculatedDistance,
@@ -3074,71 +3084,68 @@ export class Graph implements GraphContext {
                     }
                 };
 
-                this.scene.beginAnimation(
-                    orbitController.pivot,
-                    0,
-                    frameCount,
-                    false,
-                    1.0,
-                    () => {
-                        // Wait for distance animation to complete
-                        const finalize = async(): Promise<void> => {
-                            if (distanceAnimation) {
-                                await distanceAnimation;
-                            }
+                this.scene.beginAnimation(orbitController.pivot, 0, frameCount, false, 1.0, () => {
+                    // Wait for distance animation to complete
+                    const finalize = async (): Promise<void> => {
+                        if (distanceAnimation) {
+                            await distanceAnimation;
+                        }
 
-                            // Ensure final state is applied exactly
-                            if (targetState.target) {
-                                orbitController.pivot.position.set(
-                                    targetState.target.x,
-                                    targetState.target.y,
-                                    targetState.target.z,
-                                );
-                            }
+                        // Ensure final state is applied exactly
+                        if (targetState.target) {
+                            orbitController.pivot.position.set(
+                                targetState.target.x,
+                                targetState.target.y,
+                                targetState.target.z,
+                            );
+                        }
 
-                            if (targetState.pivotRotation) {
-                                orbitController.pivot.rotation.set(
-                                    targetState.pivotRotation.x,
-                                    targetState.pivotRotation.y,
-                                    targetState.pivotRotation.z,
-                                );
-                            } else if (targetState.position && targetState.target) {
-                                const direction = new Vector3(
-                                    targetState.position.x - targetState.target.x,
-                                    targetState.position.y - targetState.target.y,
-                                    targetState.position.z - targetState.target.z,
-                                );
-                                const distance = direction.length();
-                                const yaw = Math.atan2(direction.x, direction.z) + Math.PI;
-                                const pitch = Math.asin(direction.y / distance);
-                                orbitController.pivot.rotation.set(pitch, yaw, 0);
-                            }
+                        if (targetState.pivotRotation) {
+                            orbitController.pivot.rotation.set(
+                                targetState.pivotRotation.x,
+                                targetState.pivotRotation.y,
+                                targetState.pivotRotation.z,
+                            );
+                        } else if (targetState.position && targetState.target) {
+                            const direction = new Vector3(
+                                targetState.position.x - targetState.target.x,
+                                targetState.position.y - targetState.target.y,
+                                targetState.position.z - targetState.target.z,
+                            );
+                            const distance = direction.length();
+                            const yaw = Math.atan2(direction.x, direction.z) + Math.PI;
+                            const pitch = Math.asin(direction.y / distance);
+                            orbitController.pivot.rotation.set(pitch, yaw, 0);
+                        }
 
-                            orbitController.pivot.computeWorldMatrix(true);
-                            orbitController.updateCameraPosition();
+                        orbitController.pivot.computeWorldMatrix(true);
+                        orbitController.updateCameraPosition();
 
-                            // Emit completion event
-                            this.eventManager.emitGraphEvent("camera-state-changed", {
-                                state: targetState,
-                            });
+                        // Emit completion event
+                        this.eventManager.emitGraphEvent("camera-state-changed", {
+                            state: targetState,
+                        });
 
-                            safeSettle();
-                        };
+                        safeSettle();
+                    };
 
-                        void finalize();
-                    },
-                );
+                    void finalize();
+                });
 
                 // Handle cancellation via AbortSignal - just resolve (don't reject)
                 // to avoid unhandled promise rejections during cleanup
                 if (signal) {
-                    signal.addEventListener("abort", () => {
-                        // Stop the animation
-                        this.scene.stopAnimation(orbitController.pivot);
-                        // Resolve instead of reject to prevent unhandled rejection during cleanup
-                        // The operation queue will handle the abort signal separately
-                        safeSettle();
-                    }, {once: true});
+                    signal.addEventListener(
+                        "abort",
+                        () => {
+                            // Stop the animation
+                            this.scene.stopAnimation(orbitController.pivot);
+                            // Resolve instead of reject to prevent unhandled rejection during cleanup
+                            // The operation queue will handle the abort signal separately
+                            safeSettle();
+                        },
+                        { once: true },
+                    );
                 }
             });
         } else if (distanceAnimation) {
@@ -3213,8 +3220,8 @@ export class Graph implements GraphContext {
                 Animation.ANIMATIONLOOPMODE_CONSTANT,
             );
             orthoLeftAnim.setKeys([
-                {frame: 0, value: dummy.orthoLeft},
-                {frame: frameCount, value: -targetSize},
+                { frame: 0, value: dummy.orthoLeft },
+                { frame: frameCount, value: -targetSize },
             ]);
             this.applyEasing(orthoLeftAnim, options.easing);
             animations.push(orthoLeftAnim);
@@ -3227,8 +3234,8 @@ export class Graph implements GraphContext {
                 Animation.ANIMATIONLOOPMODE_CONSTANT,
             );
             orthoRightAnim.setKeys([
-                {frame: 0, value: dummy.orthoRight},
-                {frame: frameCount, value: targetSize},
+                { frame: 0, value: dummy.orthoRight },
+                { frame: frameCount, value: targetSize },
             ]);
             this.applyEasing(orthoRightAnim, options.easing);
             animations.push(orthoRightAnim);
@@ -3243,8 +3250,8 @@ export class Graph implements GraphContext {
                 Animation.ANIMATIONLOOPMODE_CONSTANT,
             );
             orthoTopAnim.setKeys([
-                {frame: 0, value: dummy.orthoTop},
-                {frame: frameCount, value: targetSize * aspect},
+                { frame: 0, value: dummy.orthoTop },
+                { frame: frameCount, value: targetSize * aspect },
             ]);
             this.applyEasing(orthoTopAnim, options.easing);
             animations.push(orthoTopAnim);
@@ -3257,8 +3264,8 @@ export class Graph implements GraphContext {
                 Animation.ANIMATIONLOOPMODE_CONSTANT,
             );
             orthoBottomAnim.setKeys([
-                {frame: 0, value: dummy.orthoBottom},
-                {frame: frameCount, value: -targetSize * aspect},
+                { frame: 0, value: dummy.orthoBottom },
+                { frame: frameCount, value: -targetSize * aspect },
             ]);
             this.applyEasing(orthoBottomAnim, options.easing);
             animations.push(orthoBottomAnim);
@@ -3275,8 +3282,8 @@ export class Graph implements GraphContext {
             );
 
             panXAnim.setKeys([
-                {frame: 0, value: twoDController.camera.position.x},
-                {frame: frameCount, value: targetState.pan.x},
+                { frame: 0, value: twoDController.camera.position.x },
+                { frame: frameCount, value: targetState.pan.x },
             ]);
 
             this.applyEasing(panXAnim, options.easing);
@@ -3293,8 +3300,8 @@ export class Graph implements GraphContext {
             );
 
             panYAnim.setKeys([
-                {frame: 0, value: twoDController.camera.position.y},
-                {frame: frameCount, value: targetState.pan.y},
+                { frame: 0, value: twoDController.camera.position.y },
+                { frame: frameCount, value: targetState.pan.y },
             ]);
 
             this.applyEasing(panYAnim, options.easing);
@@ -3332,45 +3339,41 @@ export class Graph implements GraphContext {
             });
 
             // Animate dummy object
-            const animatable = this.scene.beginDirectAnimation(
-                dummy,
-                animations,
-                0,
-                frameCount,
-                false,
-                1.0,
-                () => {
-                    // Apply final values exactly from dummy (already calculated during animation)
-                    if (targetState.pan) {
-                        twoDController.camera.position.x = dummy.posX;
-                        twoDController.camera.position.y = dummy.posY;
-                    }
+            const animatable = this.scene.beginDirectAnimation(dummy, animations, 0, frameCount, false, 1.0, () => {
+                // Apply final values exactly from dummy (already calculated during animation)
+                if (targetState.pan) {
+                    twoDController.camera.position.x = dummy.posX;
+                    twoDController.camera.position.y = dummy.posY;
+                }
 
-                    if (targetState.zoom !== undefined) {
-                        twoDController.camera.orthoLeft = dummy.orthoLeft;
-                        twoDController.camera.orthoRight = dummy.orthoRight;
-                        twoDController.camera.orthoTop = dummy.orthoTop;
-                        twoDController.camera.orthoBottom = dummy.orthoBottom;
-                    }
+                if (targetState.zoom !== undefined) {
+                    twoDController.camera.orthoLeft = dummy.orthoLeft;
+                    twoDController.camera.orthoRight = dummy.orthoRight;
+                    twoDController.camera.orthoTop = dummy.orthoTop;
+                    twoDController.camera.orthoBottom = dummy.orthoBottom;
+                }
 
-                    this.eventManager.emitGraphEvent("camera-state-changed", {
-                        state: targetState,
-                    });
+                this.eventManager.emitGraphEvent("camera-state-changed", {
+                    state: targetState,
+                });
 
-                    safeSettle();
-                },
-            );
+                safeSettle();
+            });
 
             // Handle cancellation via AbortSignal - just resolve (don't reject)
             // to avoid unhandled promise rejections during cleanup
             if (signal) {
-                signal.addEventListener("abort", () => {
-                    // Stop the animation
-                    animatable.stop();
-                    // Resolve instead of reject to prevent unhandled rejection during cleanup
-                    // The operation queue will handle the abort signal separately
-                    safeSettle();
-                }, {once: true});
+                signal.addEventListener(
+                    "abort",
+                    () => {
+                        // Stop the animation
+                        animatable.stop();
+                        // Resolve instead of reject to prevent unhandled rejection during cleanup
+                        // The operation queue will handle the abort signal separately
+                        safeSettle();
+                    },
+                    { once: true },
+                );
             }
         });
     }
@@ -3389,13 +3392,13 @@ export class Graph implements GraphContext {
      * @returns Promise that resolves when camera position is set
      */
     async setCameraPosition(
-        position: {x: number, y: number, z: number},
+        position: { x: number; y: number; z: number },
         options?: import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         // Get current state to preserve target only
         // Don't copy pivotRotation/cameraDistance - let them be recalculated
         const currentState = this.getCameraState();
-        return this.setCameraState({position, target: currentState.target}, options);
+        return this.setCameraState({ position, target: currentState.target }, options);
     }
 
     /**
@@ -3408,13 +3411,13 @@ export class Graph implements GraphContext {
      * @returns Promise that resolves when camera target is set
      */
     async setCameraTarget(
-        target: {x: number, y: number, z: number},
+        target: { x: number; y: number; z: number },
         options?: import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         // Get current state to preserve position only
         // Don't copy pivotRotation/cameraDistance - let them be recalculated
         const currentState = this.getCameraState();
-        return this.setCameraState({position: currentState.position, target}, options);
+        return this.setCameraState({ position: currentState.position, target }, options);
     }
 
     /**
@@ -3423,11 +3426,8 @@ export class Graph implements GraphContext {
      * @param options - Optional animation configuration
      * @returns Promise that resolves when zoom is set
      */
-    async setCameraZoom(
-        zoom: number,
-        options?: import("./screenshot/types.js").CameraAnimationOptions,
-    ): Promise<void> {
-        return this.setCameraState({zoom}, options);
+    async setCameraZoom(zoom: number, options?: import("./screenshot/types.js").CameraAnimationOptions): Promise<void> {
+        return this.setCameraState({ zoom }, options);
     }
 
     /**
@@ -3439,10 +3439,10 @@ export class Graph implements GraphContext {
      * @returns Promise that resolves when pan is set
      */
     async setCameraPan(
-        pan: {x: number, y: number},
+        pan: { x: number; y: number },
         options?: import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
-        return this.setCameraState({pan}, options);
+        return this.setCameraState({ pan }, options);
     }
 
     /**
@@ -3540,7 +3540,7 @@ export class Graph implements GraphContext {
      * @param name - Name for the camera preset
      */
     saveCameraPreset(name: string): void {
-        if (BUILTIN_PRESETS.includes(name as typeof BUILTIN_PRESETS[number])) {
+        if (BUILTIN_PRESETS.includes(name as (typeof BUILTIN_PRESETS)[number])) {
             throw new ScreenshotError(
                 `Cannot overwrite built-in preset: ${name}`,
                 ScreenshotErrorCode.CANNOT_OVERWRITE_BUILTIN_PRESET,
@@ -3557,20 +3557,23 @@ export class Graph implements GraphContext {
      * @param options - Optional animation configuration
      * @returns Promise that resolves when camera state is applied
      */
-    async loadCameraPreset(name: string, options?: import("./screenshot/types.js").CameraAnimationOptions): Promise<void> {
-        return this.setCameraState({preset: name} as {preset: string}, options);
+    async loadCameraPreset(
+        name: string,
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        return this.setCameraState({ preset: name } as { preset: string }, options);
     }
 
     /**
      * Get all camera presets (built-in + user-defined)
      * @returns Object mapping preset names to camera states or builtin marker
      */
-    getCameraPresets(): Record<string, import("./screenshot/types.js").CameraState | {builtin: true}> {
-        const presets: Record<string, import("./screenshot/types.js").CameraState | {builtin: true}> = {};
+    getCameraPresets(): Record<string, import("./screenshot/types.js").CameraState | { builtin: true }> {
+        const presets: Record<string, import("./screenshot/types.js").CameraState | { builtin: true }> = {};
 
         // Built-in presets (marked as builtin)
         for (const name of BUILTIN_PRESETS) {
-            presets[name] = {builtin: true};
+            presets[name] = { builtin: true };
         }
 
         // User-defined presets
@@ -3599,7 +3602,7 @@ export class Graph implements GraphContext {
      */
     importCameraPresets(presets: Record<string, import("./screenshot/types.js").CameraState>): void {
         for (const [name, state] of Object.entries(presets)) {
-            if (BUILTIN_PRESETS.includes(name as typeof BUILTIN_PRESETS[number])) {
+            if (BUILTIN_PRESETS.includes(name as (typeof BUILTIN_PRESETS)[number])) {
                 console.warn(`Skipping import of built-in preset: ${name}`);
                 continue;
             }
@@ -3614,21 +3617,19 @@ export class Graph implements GraphContext {
      * @param data.nodes - Array of node data objects
      * @param data.edges - Array of edge data objects
      */
-    setData(data: {nodes: Record<string, unknown>[], edges: Record<string, unknown>[]}): void {
+    setData(data: { nodes: Record<string, unknown>[]; edges: Record<string, unknown>[] }): void {
         // Add nodes
         for (const nodeData of data.nodes) {
-            this.addNode(nodeData as AdHocData)
-                .catch((e: unknown) => {
-                    console.error("Error adding node:", e);
-                });
+            this.addNode(nodeData as AdHocData).catch((e: unknown) => {
+                console.error("Error adding node:", e);
+            });
         }
 
         // Add edges
         for (const edgeData of data.edges) {
-            this.addEdge(edgeData as AdHocData)
-                .catch((e: unknown) => {
-                    console.error("Error adding edge:", e);
-                });
+            this.addEdge(edgeData as AdHocData).catch((e: unknown) => {
+                console.error("Error adding edge:", e);
+            });
         }
     }
 
@@ -3684,7 +3685,7 @@ export class Graph implements GraphContext {
      */
     async enableAiControl(config: import("./ai/AiManager").AiManagerConfig): Promise<void> {
         // Dynamically import to avoid loading AI code when not needed
-        const {AiManager} = await import("./ai/AiManager");
+        const { AiManager } = await import("./ai/AiManager");
 
         // Create and initialize AI manager
         this.aiManager = new AiManager();
@@ -3723,9 +3724,7 @@ export class Graph implements GraphContext {
      * await graph.aiCommand('Show in 2D');
      * ```
      */
-    async aiCommand(
-        input: string,
-    ): Promise<import("./ai/AiController").ExecutionResult> {
+    async aiCommand(input: string): Promise<import("./ai/AiController").ExecutionResult> {
         if (!this.aiManager) {
             return {
                 success: false,
@@ -4001,20 +4000,15 @@ export class Graph implements GraphContext {
         });
 
         // Determine which modes are available by actually checking device support
-        const vrAvailable = xrConfig.vr.enabled && await this.xrSessionManager.isVRSupported();
-        const arAvailable = xrConfig.ar.enabled && await this.xrSessionManager.isARSupported();
+        const vrAvailable = xrConfig.vr.enabled && (await this.xrSessionManager.isVRSupported());
+        const arAvailable = xrConfig.ar.enabled && (await this.xrSessionManager.isARSupported());
 
         // Create XR UI manager
-        this.xrUIManager = new XRUIManager(
-            this.element as HTMLElement,
-            vrAvailable,
-            arAvailable,
-            xrConfig.ui,
-        );
+        this.xrUIManager = new XRUIManager(this.element as HTMLElement, vrAvailable, arAvailable, xrConfig.ui);
 
         // Wire up button click handlers
         this.xrUIManager.onEnterXR = (mode) => {
-            void (async() => {
+            void (async () => {
                 try {
                     await this.enterXR(mode);
                 } catch (error) {
@@ -4029,7 +4023,7 @@ export class Graph implements GraphContext {
                         this,
                         error instanceof Error ? error : new Error(String(error)),
                         "xr",
-                        {mode},
+                        { mode },
                     );
                 }
             })();
@@ -4064,7 +4058,7 @@ export class Graph implements GraphContext {
         this.scene.metadata.xrHelper = xrHelper;
 
         // Create XR pivot camera controller (handles input via pivot-based system)
-        const {XRPivotCameraController} = await import("./cameras/XRPivotCameraController");
+        const { XRPivotCameraController } = await import("./cameras/XRPivotCameraController");
         const xrCameraController = new XRPivotCameraController(this.scene, xrHelper);
 
         // Note: XRPivotCameraController automatically enables input when XR state changes

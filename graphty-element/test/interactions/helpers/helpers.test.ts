@@ -5,9 +5,9 @@
  * providing confidence that subsequent interaction tests have a solid foundation.
  */
 
-import {afterEach, assert, beforeEach, describe, test} from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
-import type {Graph} from "../../../src/Graph";
+import type { Graph } from "../../../src/Graph";
 import {
     DEFAULT_TEST_EDGES,
     DEFAULT_TEST_NODES,
@@ -21,12 +21,7 @@ import {
     teardownTestGraph,
     waitForGraphReady,
 } from "./interaction-helpers";
-import {
-    createMockController,
-    createMockHand,
-    createPinchingHand,
-    isIWERAvailable,
-} from "./iwer-setup";
+import { createMockController, createMockHand, createPinchingHand, isIWERAvailable } from "./iwer-setup";
 
 describe("Interaction Test Helpers", () => {
     let graph: Graph | undefined;
@@ -39,7 +34,7 @@ describe("Interaction Test Helpers", () => {
     });
 
     describe("waitForGraphReady", () => {
-        test("resolves when graph is initialized", async() => {
+        test("resolves when graph is initialized", async () => {
             graph = await setupTestGraph();
 
             // Should already be ready since setupTestGraph waits
@@ -50,7 +45,7 @@ describe("Interaction Test Helpers", () => {
             assert.isDefined(graph.camera, "Camera should be defined");
         });
 
-        test("throws error if graph does not initialize within timeout", async() => {
+        test("throws error if graph does not initialize within timeout", async () => {
             // Create a graph but don't initialize it properly
             const container = document.createElement("div");
             document.body.appendChild(container);
@@ -78,7 +73,7 @@ describe("Interaction Test Helpers", () => {
     });
 
     describe("getNodeScreenPosition", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             graph = await setupTestGraph({
                 mode: "3d",
                 nodes: DEFAULT_TEST_NODES,
@@ -110,8 +105,8 @@ describe("Interaction Test Helpers", () => {
     });
 
     describe("getCameraState", () => {
-        test("returns 2D state for 2D mode", async() => {
-            graph = await setupTestGraph({mode: "2d"});
+        test("returns 2D state for 2D mode", async () => {
+            graph = await setupTestGraph({ mode: "2d" });
 
             const state = getCameraState(graph);
 
@@ -123,8 +118,8 @@ describe("Interaction Test Helpers", () => {
             assert.isDefined(state.orthoRange, "Ortho range should be defined for 2D mode");
         });
 
-        test("returns 3D state for 3D mode", async() => {
-            graph = await setupTestGraph({mode: "3d"});
+        test("returns 3D state for 3D mode", async () => {
+            graph = await setupTestGraph({ mode: "3d" });
 
             const state = getCameraState(graph);
 
@@ -140,19 +135,19 @@ describe("Interaction Test Helpers", () => {
     });
 
     describe("setupTestGraph", () => {
-        test("creates graph with default 3D mode", async() => {
+        test("creates graph with default 3D mode", async () => {
             graph = await setupTestGraph();
 
             assert.equal(graph.getViewMode(), "3d", "Default mode should be 3D");
         });
 
-        test("creates graph with specified 2D mode", async() => {
-            graph = await setupTestGraph({mode: "2d"});
+        test("creates graph with specified 2D mode", async () => {
+            graph = await setupTestGraph({ mode: "2d" });
 
             assert.equal(graph.getViewMode(), "2d", "Should be in 2D mode");
         });
 
-        test("creates graph with initial nodes", async() => {
+        test("creates graph with initial nodes", async () => {
             graph = await setupTestGraph({
                 nodes: DEFAULT_TEST_NODES,
             });
@@ -160,7 +155,7 @@ describe("Interaction Test Helpers", () => {
             assert.equal(graph.getNodes().length, 3, "Should have 3 nodes");
         });
 
-        test("creates graph with initial edges", async() => {
+        test("creates graph with initial edges", async () => {
             graph = await setupTestGraph({
                 nodes: DEFAULT_TEST_NODES,
                 edges: DEFAULT_TEST_EDGES,
@@ -170,27 +165,24 @@ describe("Interaction Test Helpers", () => {
             assert.equal(graph.getNodes().length, 3, "Should have 3 nodes");
         });
 
-        test("applies pinOnDrag setting", async() => {
-            graph = await setupTestGraph({pinOnDrag: false});
+        test("applies pinOnDrag setting", async () => {
+            graph = await setupTestGraph({ pinOnDrag: false });
             assert.isDefined(graph, "Graph should be defined");
 
             // The setting is stored in the styles config
-            assert.isFalse(
-                graph.styles.config.behavior.node.pinOnDrag,
-                "pinOnDrag should be false",
-            );
+            assert.isFalse(graph.styles.config.behavior.node.pinOnDrag, "pinOnDrag should be false");
         });
     });
 
     describe("dragNode", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             graph = await setupTestGraph({
                 mode: "3d",
-                nodes: [{id: "test-node", x: 0, y: 0, z: 0}],
+                nodes: [{ id: "test-node", x: 0, y: 0, z: 0 }],
             });
         });
 
-        test("performs complete drag operation", async() => {
+        test("performs complete drag operation", async () => {
             if (!graph) {
                 throw new Error("Graph should be defined");
             }
@@ -200,34 +192,30 @@ describe("Interaction Test Helpers", () => {
 
             // Note: Due to NullEngine limitations, the actual drag may not
             // produce visible position changes, but the operation should complete
-            await dragNode(graph, "test-node", {dx: 50, dy: 50});
+            await dragNode(graph, "test-node", { dx: 50, dy: 50 });
 
             // The test passes if no errors are thrown during the drag operation
             const node = graph.getNode("test-node");
             assert.isDefined(node, "Node should still exist after drag");
         });
 
-        test("throws error for non-existent node", async() => {
+        test("throws error for non-existent node", async () => {
             if (!graph) {
                 throw new Error("Graph should be defined");
             }
 
             try {
-                await dragNode(graph, "non-existent", {dx: 10, dy: 10});
+                await dragNode(graph, "non-existent", { dx: 10, dy: 10 });
                 assert.fail("Should throw error for non-existent node");
             } catch (error) {
-                assert.include(
-                    (error as Error).message,
-                    "not found",
-                    "Error should mention node not found",
-                );
+                assert.include((error as Error).message, "not found", "Error should mention node not found");
             }
         });
     });
 
     describe("getSceneScale", () => {
-        test("returns 1.0 for default scale in 3D mode", async() => {
-            graph = await setupTestGraph({mode: "3d"});
+        test("returns 1.0 for default scale in 3D mode", async () => {
+            graph = await setupTestGraph({ mode: "3d" });
 
             const scale = getSceneScale(graph);
 
@@ -236,8 +224,8 @@ describe("Interaction Test Helpers", () => {
             assert.isAbove(scale, 0, "Scale should be positive");
         });
 
-        test("returns valid scale in 2D mode", async() => {
-            graph = await setupTestGraph({mode: "2d"});
+        test("returns valid scale in 2D mode", async () => {
+            graph = await setupTestGraph({ mode: "2d" });
 
             const scale = getSceneScale(graph);
 
@@ -247,8 +235,8 @@ describe("Interaction Test Helpers", () => {
     });
 
     describe("getSceneRotation", () => {
-        test("returns rotation values in 3D mode", async() => {
-            graph = await setupTestGraph({mode: "3d"});
+        test("returns rotation values in 3D mode", async () => {
+            graph = await setupTestGraph({ mode: "3d" });
 
             const rotation = getSceneRotation(graph);
 
@@ -257,8 +245,8 @@ describe("Interaction Test Helpers", () => {
             assert.isNumber(rotation.z, "Z rotation should be a number");
         });
 
-        test("returns rotation values in 2D mode", async() => {
-            graph = await setupTestGraph({mode: "2d"});
+        test("returns rotation values in 2D mode", async () => {
+            graph = await setupTestGraph({ mode: "2d" });
 
             const rotation = getSceneRotation(graph);
 
@@ -269,8 +257,8 @@ describe("Interaction Test Helpers", () => {
     });
 
     describe("getCameraPosition", () => {
-        test("returns position and mode", async() => {
-            graph = await setupTestGraph({mode: "3d"});
+        test("returns position and mode", async () => {
+            graph = await setupTestGraph({ mode: "3d" });
 
             const pos = getCameraPosition(graph);
 
@@ -326,8 +314,8 @@ describe("IWER Setup Helpers", () => {
             // Calculate distance between tips
             const distance = Math.sqrt(
                 Math.pow(thumbTip.x - indexTip.x, 2) +
-                Math.pow(thumbTip.y - indexTip.y, 2) +
-                Math.pow(thumbTip.z - indexTip.z, 2),
+                    Math.pow(thumbTip.y - indexTip.y, 2) +
+                    Math.pow(thumbTip.z - indexTip.z, 2),
             );
 
             // Should be close together (< 5cm) for pinching
@@ -370,7 +358,7 @@ describe("IWER Setup Helpers", () => {
     });
 
     describe("isIWERAvailable", () => {
-        test("returns boolean indicating IWER availability", async() => {
+        test("returns boolean indicating IWER availability", async () => {
             const available = await isIWERAvailable();
 
             // The result depends on whether iwer is installed

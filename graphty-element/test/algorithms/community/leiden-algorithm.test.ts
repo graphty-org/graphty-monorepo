@@ -1,7 +1,7 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {LeidenAlgorithm} from "../../../src/algorithms/LeidenAlgorithm";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { LeidenAlgorithm } from "../../../src/algorithms/LeidenAlgorithm";
 
 describe("LeidenAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -38,7 +38,7 @@ describe("LeidenAlgorithm", () => {
             assert.ok(layer.node);
             assert.ok(layer.node.calculatedStyle);
 
-            const {calculatedStyle} = layer.node;
+            const { calculatedStyle } = layer.node;
             assert.deepStrictEqual(calculatedStyle.inputs, ["algorithmResults.graphty.leiden.communityId"]);
             assert.strictEqual(calculatedStyle.output, "style.texture.color");
         });
@@ -52,7 +52,7 @@ describe("LeidenAlgorithm", () => {
             assert.ok(layer.node);
             assert.ok(layer.node.calculatedStyle);
 
-            const {expr} = layer.node.calculatedStyle;
+            const { expr } = layer.node.calculatedStyle;
 
             // Should use StyleHelpers.color.categorical.tolMuted
             assert.ok(expr.includes("StyleHelpers"));
@@ -88,7 +88,7 @@ describe("LeidenAlgorithm", () => {
             const layer = styles.layers[0];
             assert.ok(layer.node?.calculatedStyle);
 
-            const {expr} = layer.node.calculatedStyle;
+            const { expr } = layer.node.calculatedStyle;
             assert.ok(expr);
 
             // Should use StyleHelpers.color.categorical.tolMuted
@@ -103,7 +103,7 @@ describe("LeidenAlgorithm", () => {
             const layer = styles.layers[0];
             assert.ok(layer.node?.calculatedStyle);
 
-            const {inputs} = layer.node.calculatedStyle;
+            const { inputs } = layer.node.calculatedStyle;
             assert.ok(inputs);
             assert.strictEqual(inputs.length, 1);
             assert.strictEqual(inputs[0], "algorithmResults.graphty.leiden.communityId");
@@ -116,7 +116,7 @@ describe("LeidenAlgorithm", () => {
             const layer = styles.layers[0];
             assert.ok(layer.node?.calculatedStyle);
 
-            const {output} = layer.node.calculatedStyle;
+            const { output } = layer.node.calculatedStyle;
             assert.strictEqual(output, "style.texture.color");
         });
     });

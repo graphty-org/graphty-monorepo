@@ -7,37 +7,39 @@
 
 ## Requirements
 
-| Requirement | Description |
-|-------------|-------------|
-| **Enable/Disable** | Logging is off by default, enabled via `?graphty-element-logging=true` |
-| **Per-Module Control** | Enable specific modules: `?graphty-element-logging=xr,layout` |
-| **Extensible Transports** | Support remote logging (existing), Sentry, custom transports |
-| **Configurable Format** | Timestamps, module prefixes, structured data |
-| **Log Levels** | debug, info, warn, error (trace optional) |
+| Requirement               | Description                                                            |
+| ------------------------- | ---------------------------------------------------------------------- |
+| **Enable/Disable**        | Logging is off by default, enabled via `?graphty-element-logging=true` |
+| **Per-Module Control**    | Enable specific modules: `?graphty-element-logging=xr,layout`          |
+| **Extensible Transports** | Support remote logging (existing), Sentry, custom transports           |
+| **Configurable Format**   | Timestamps, module prefixes, structured data                           |
+| **Log Levels**            | debug, info, warn, error (trace optional)                              |
 
 ## Logging Library Analysis
 
 ### Library Comparison
 
-| Library | Weekly Downloads | Size | Browser Support | TypeScript | Zero Deps | Key Strengths |
-|---------|------------------|------|-----------------|------------|-----------|---------------|
-| [**Winston**](https://github.com/winstonjs/winston) | 12M+ | ~110KB | Partial (needs polyfills) | ✅ | ❌ | Feature-rich, many transports |
-| [**Pino**](https://github.com/pinojs/pino) | 5M+ | ~50KB | Via pino-browser | ✅ | ❌ | Fastest, JSON-native |
-| [**loglevel**](https://github.com/pimterry/loglevel) | 9M+ | 1.4KB | ✅ Native | ✅ | ✅ | Lightweight, plugin API |
-| [**LogTape**](https://github.com/dahlia/logtape) | 50K+ | 5.3KB | ✅ Native | ✅ | ✅ | Modern, hierarchical categories |
-| [**debug**](https://github.com/debug-js/debug) | 200M+ | 3KB | ✅ Native | ✅ | ❌ | Namespace-based, simple |
+| Library                                              | Weekly Downloads | Size   | Browser Support           | TypeScript | Zero Deps | Key Strengths                   |
+| ---------------------------------------------------- | ---------------- | ------ | ------------------------- | ---------- | --------- | ------------------------------- |
+| [**Winston**](https://github.com/winstonjs/winston)  | 12M+             | ~110KB | Partial (needs polyfills) | ✅         | ❌        | Feature-rich, many transports   |
+| [**Pino**](https://github.com/pinojs/pino)           | 5M+              | ~50KB  | Via pino-browser          | ✅         | ❌        | Fastest, JSON-native            |
+| [**loglevel**](https://github.com/pimterry/loglevel) | 9M+              | 1.4KB  | ✅ Native                 | ✅         | ✅        | Lightweight, plugin API         |
+| [**LogTape**](https://github.com/dahlia/logtape)     | 50K+             | 5.3KB  | ✅ Native                 | ✅         | ✅        | Modern, hierarchical categories |
+| [**debug**](https://github.com/debug-js/debug)       | 200M+            | 3KB    | ✅ Native                 | ✅         | ❌        | Namespace-based, simple         |
 
 ### Detailed Library Analysis
 
 #### 1. Winston - The Feature-Rich Choice
 
 **Pros:**
+
 - Most comprehensive feature set
 - Extensive transport ecosystem (file, HTTP, Sentry, CloudWatch, etc.)
 - Query API for log filtering
 - Multiple format options (JSON, printf, colorize)
 
 **Cons:**
+
 - Heavy for browser usage (~110KB)
 - Requires polyfills for browser environment
 - No timestamp by default (configuration required)
@@ -50,6 +52,7 @@
 #### 2. Pino - The Performance Champion
 
 **Pros:**
+
 - 5-10x faster than Winston in benchmarks
 - Low CPU overhead
 - Native JSON structured logging
@@ -57,6 +60,7 @@
 - OpenTelemetry integration
 
 **Cons:**
+
 - Browser support requires separate bundle (pino-browser)
 - Less intuitive API than alternatives
 - Fewer built-in transports
@@ -68,6 +72,7 @@
 #### 3. loglevel - The Lightweight Champion
 
 **Pros:**
+
 - Smallest footprint (1.4KB gzipped)
 - Zero dependencies
 - Native browser support
@@ -76,6 +81,7 @@
 - Drop-in console.log replacement
 
 **Cons:**
+
 - No native JSON/structured logging
 - Limited built-in formatting
 - Plugins required for advanced features
@@ -88,6 +94,7 @@
 #### 4. LogTape - The Modern Choice
 
 **Pros:**
+
 - TypeScript-first design with excellent types
 - Zero dependencies (5.3KB gzipped)
 - Hierarchical categories (perfect for modules)
@@ -98,6 +105,7 @@
 - Non-blocking option for production
 
 **Cons:**
+
 - Newer library (less proven in production)
 - Smaller community
 - Fewer direct resources/tutorials
@@ -109,6 +117,7 @@
 #### 5. debug - The Namespace Pioneer
 
 **Pros:**
+
 - Simple namespace-based filtering
 - Widely adopted (200M+ downloads)
 - Works in browser and Node.js
@@ -116,6 +125,7 @@
 - Enable via DEBUG env var or localStorage
 
 **Cons:**
+
 - Not designed for production logging
 - No log levels (all or nothing per namespace)
 - No structured logging
@@ -130,6 +140,7 @@
 **Primary Recommendation: LogTape**
 
 Reasons:
+
 1. **Hierarchical Categories** - Perfect match for graphty-element's module structure (e.g., `["graphty", "layout", "ngraph"]`)
 2. **TypeScript-First** - Aligns with project's strict TypeScript usage
 3. **Zero Dependencies** - Matches project's philosophy
@@ -141,21 +152,22 @@ Reasons:
 **Alternative: loglevel**
 
 If you prefer maximum maturity and minimal risk:
+
 - More proven in production
 - Simpler API
 - Plugin ecosystem for extensions (loglevel-plugin-prefix, loglevel-plugin-remote)
 
 ### Decision Matrix
 
-| Criteria | Winston | Pino | loglevel | LogTape | debug |
-|----------|---------|------|----------|---------|-------|
-| Browser-native | ⚠️ | ⚠️ | ✅ | ✅ | ✅ |
-| TypeScript-first | ⚠️ | ✅ | ⚠️ | ✅ | ⚠️ |
-| Zero deps | ❌ | ❌ | ✅ | ✅ | ❌ |
-| Hierarchical | ✅ | ⚠️ | ❌ | ✅ | ✅ |
-| Sentry support | ✅ | ✅ | ⚠️ | ✅ | ❌ |
-| Size (gzipped) | 110KB | 50KB | 1.4KB | 5.3KB | 3KB |
-| Maturity | ✅ | ✅ | ✅ | ⚠️ | ✅ |
+| Criteria         | Winston | Pino | loglevel | LogTape | debug |
+| ---------------- | ------- | ---- | -------- | ------- | ----- |
+| Browser-native   | ⚠️      | ⚠️   | ✅       | ✅      | ✅    |
+| TypeScript-first | ⚠️      | ✅   | ⚠️       | ✅      | ⚠️    |
+| Zero deps        | ❌      | ❌   | ✅       | ✅      | ❌    |
+| Hierarchical     | ✅      | ⚠️   | ❌       | ✅      | ✅    |
+| Sentry support   | ✅      | ✅   | ⚠️       | ✅      | ❌    |
+| Size (gzipped)   | 110KB   | 50KB | 1.4KB    | 5.3KB   | 3KB   |
+| Maturity         | ✅      | ✅   | ✅       | ⚠️      | ✅    |
 
 ✅ = Excellent, ⚠️ = Partial/Limited, ❌ = Not supported
 
@@ -209,20 +221,20 @@ logger.error("Layout failed", new Error("Invalid node positions"));
 
 Based on codebase exploration, these modules would be loggable:
 
-| Module | Description |
-|--------|-------------|
-| `lifecycle` | Manager initialization/disposal |
-| `render` | Babylon.js render loop |
-| `layout` | Layout engine operations |
-| `data` | Node/edge data operations |
-| `style` | Style computation and application |
-| `input` | Mouse/touch/keyboard input |
-| `camera` | Camera movements and animations |
-| `xr` | XR/VR session and controllers |
-| `algorithm` | Algorithm execution |
-| `operation` | Operation queue management |
-| `mesh` | Mesh creation and caching |
-| `event` | Event emission |
+| Module      | Description                       |
+| ----------- | --------------------------------- |
+| `lifecycle` | Manager initialization/disposal   |
+| `render`    | Babylon.js render loop            |
+| `layout`    | Layout engine operations          |
+| `data`      | Node/edge data operations         |
+| `style`     | Style computation and application |
+| `input`     | Mouse/touch/keyboard input        |
+| `camera`    | Camera movements and animations   |
+| `xr`        | XR/VR session and controllers     |
+| `algorithm` | Algorithm execution               |
+| `operation` | Operation queue management        |
+| `mesh`      | Mesh creation and caching         |
+| `event`     | Event emission                    |
 
 ### Technical Architecture
 
@@ -282,7 +294,7 @@ interface Sink {
 interface LogRecord {
     timestamp: Date;
     level: LogLevel;
-    category: string[];  // Hierarchical: ["graphty", "layout", "ngraph"]
+    category: string[]; // Hierarchical: ["graphty", "layout", "ngraph"]
     message: string;
     data?: Record<string, unknown>;
     error?: Error;
@@ -299,6 +311,7 @@ interface LogRecord {
 ### Implementation Approach
 
 #### Phase 1: Core Infrastructure (2-3 days)
+
 1. Create `src/logging/` directory structure
 2. Implement `LoggerConfig` with Zod schema validation
 3. Implement `GraphtyLogger` facade class
@@ -306,20 +319,23 @@ interface LogRecord {
 5. Add URL parameter parsing to `graphty-element.ts`
 
 #### Phase 2: Module Integration (1-2 days)
+
 1. Add logger to GraphContext interface
 2. Inject logger into managers via context
-3. Replace console.* calls in high-priority modules:
-   - LayoutManager
-   - XRSessionManager
-   - CameraManager
-   - RenderManager
+3. Replace console.\* calls in high-priority modules:
+    - LayoutManager
+    - XRSessionManager
+    - CameraManager
+    - RenderManager
 
 #### Phase 3: Transport Extensions (1 day)
+
 1. Wrap existing `remote-logging.ts` as RemoteSink
 2. Add Sentry sink (optional, documented)
 3. Document custom sink creation
 
 #### Phase 4: Testing & Documentation (1 day)
+
 1. Unit tests for logger configuration
 2. Integration tests for URL parameters
 3. Update documentation
@@ -337,7 +353,7 @@ export class LayoutManager implements Manager {
         this.logger.debug("Initializing LayoutManager");
         // ...
         this.logger.info("LayoutManager initialized", {
-            engine: this.engineName
+            engine: this.engineName,
         });
     }
 
@@ -377,42 +393,42 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 ### Module Inventory
 
-| Category | Module | Files | Priority | Hot Path Risk |
-|----------|--------|-------|----------|---------------|
-| **Core** | Graph | `Graph.ts` | High | Medium |
-| **Core** | graphty-element | `graphty-element.ts` | Medium | Low |
-| **Managers** | LifecycleManager | `managers/LifecycleManager.ts` | High | None |
-| **Managers** | OperationQueueManager | `managers/OperationQueueManager.ts` | High | Low |
-| **Managers** | LayoutManager | `managers/LayoutManager.ts` | High | Medium |
-| **Managers** | DataManager | `managers/DataManager.ts` | High | Low |
-| **Managers** | RenderManager | `managers/RenderManager.ts` | Medium | **HIGH** |
-| **Managers** | StyleManager | `managers/StyleManager.ts` | Medium | Medium |
-| **Managers** | InputManager | `managers/InputManager.ts` | Medium | Medium |
-| **Managers** | EventManager | `managers/EventManager.ts` | Low | Medium |
-| **Managers** | UpdateManager | `managers/UpdateManager.ts` | Low | **HIGH** |
-| **Managers** | StatsManager | `managers/StatsManager.ts` | Low | **HIGH** |
-| **Managers** | AlgorithmManager | `managers/AlgorithmManager.ts` | Medium | Low |
-| **Layout** | LayoutEngine (base) | `layout/LayoutEngine.ts` | Medium | Medium |
-| **Layout** | NGraphLayoutEngine | `layout/NGraphLayoutEngine.ts` | High | **HIGH** |
-| **Layout** | Other engines | `layout/*.ts` (15+ files) | Medium | Medium |
-| **Data** | DataSource (base) | `data/DataSource.ts` | High | Low |
-| **Data** | Format sources | `data/*.ts` (8 files) | Medium | Low |
-| **Camera** | CameraManager | `cameras/CameraManager.ts` | Medium | Medium |
-| **Camera** | OrbitCameraController | `cameras/OrbitCameraController.ts` | Low | **HIGH** |
-| **Camera** | TwoDCameraController | `cameras/TwoDCameraController.ts` | Low | **HIGH** |
-| **Camera** | XRInputHandler | `cameras/XRInputHandler.ts` | High | Medium |
-| **XR** | XRSessionManager | `xr/XRSessionManager.ts` | High | Low |
-| **XR** | XRUIManager | `ui/XRUIManager.ts` | Medium | Low |
-| **Mesh** | EdgeMesh | `meshes/EdgeMesh.ts` | Low | **HIGH** |
-| **Mesh** | NodeMesh | `meshes/NodeMesh.ts` | Low | **HIGH** |
-| **Mesh** | MeshCache | `meshes/MeshCache.ts` | Medium | Medium |
-| **Elements** | Node | `Node.ts` | Medium | **HIGH** |
-| **Elements** | Edge | `Edge.ts` | Medium | **HIGH** |
-| **Elements** | NodeBehavior | `NodeBehavior.ts` | Medium | Medium |
-| **Algorithm** | Algorithm (base) | `algorithms/Algorithm.ts` | Medium | Low |
-| **Algorithm** | Specific algorithms | `algorithms/*.ts` (20+ files) | Low | Low |
-| **Screenshot** | ScreenshotCapture | `screenshot/ScreenshotCapture.ts` | Medium | Low |
-| **Video** | MediaRecorderCapture | `video/MediaRecorderCapture.ts` | Medium | Low |
+| Category       | Module                | Files                               | Priority | Hot Path Risk |
+| -------------- | --------------------- | ----------------------------------- | -------- | ------------- |
+| **Core**       | Graph                 | `Graph.ts`                          | High     | Medium        |
+| **Core**       | graphty-element       | `graphty-element.ts`                | Medium   | Low           |
+| **Managers**   | LifecycleManager      | `managers/LifecycleManager.ts`      | High     | None          |
+| **Managers**   | OperationQueueManager | `managers/OperationQueueManager.ts` | High     | Low           |
+| **Managers**   | LayoutManager         | `managers/LayoutManager.ts`         | High     | Medium        |
+| **Managers**   | DataManager           | `managers/DataManager.ts`           | High     | Low           |
+| **Managers**   | RenderManager         | `managers/RenderManager.ts`         | Medium   | **HIGH**      |
+| **Managers**   | StyleManager          | `managers/StyleManager.ts`          | Medium   | Medium        |
+| **Managers**   | InputManager          | `managers/InputManager.ts`          | Medium   | Medium        |
+| **Managers**   | EventManager          | `managers/EventManager.ts`          | Low      | Medium        |
+| **Managers**   | UpdateManager         | `managers/UpdateManager.ts`         | Low      | **HIGH**      |
+| **Managers**   | StatsManager          | `managers/StatsManager.ts`          | Low      | **HIGH**      |
+| **Managers**   | AlgorithmManager      | `managers/AlgorithmManager.ts`      | Medium   | Low           |
+| **Layout**     | LayoutEngine (base)   | `layout/LayoutEngine.ts`            | Medium   | Medium        |
+| **Layout**     | NGraphLayoutEngine    | `layout/NGraphLayoutEngine.ts`      | High     | **HIGH**      |
+| **Layout**     | Other engines         | `layout/*.ts` (15+ files)           | Medium   | Medium        |
+| **Data**       | DataSource (base)     | `data/DataSource.ts`                | High     | Low           |
+| **Data**       | Format sources        | `data/*.ts` (8 files)               | Medium   | Low           |
+| **Camera**     | CameraManager         | `cameras/CameraManager.ts`          | Medium   | Medium        |
+| **Camera**     | OrbitCameraController | `cameras/OrbitCameraController.ts`  | Low      | **HIGH**      |
+| **Camera**     | TwoDCameraController  | `cameras/TwoDCameraController.ts`   | Low      | **HIGH**      |
+| **Camera**     | XRInputHandler        | `cameras/XRInputHandler.ts`         | High     | Medium        |
+| **XR**         | XRSessionManager      | `xr/XRSessionManager.ts`            | High     | Low           |
+| **XR**         | XRUIManager           | `ui/XRUIManager.ts`                 | Medium   | Low           |
+| **Mesh**       | EdgeMesh              | `meshes/EdgeMesh.ts`                | Low      | **HIGH**      |
+| **Mesh**       | NodeMesh              | `meshes/NodeMesh.ts`                | Low      | **HIGH**      |
+| **Mesh**       | MeshCache             | `meshes/MeshCache.ts`               | Medium   | Medium        |
+| **Elements**   | Node                  | `Node.ts`                           | Medium   | **HIGH**      |
+| **Elements**   | Edge                  | `Edge.ts`                           | Medium   | **HIGH**      |
+| **Elements**   | NodeBehavior          | `NodeBehavior.ts`                   | Medium   | Medium        |
+| **Algorithm**  | Algorithm (base)      | `algorithms/Algorithm.ts`           | Medium   | Low           |
+| **Algorithm**  | Specific algorithms   | `algorithms/*.ts` (20+ files)       | Low      | Low           |
+| **Screenshot** | ScreenshotCapture     | `screenshot/ScreenshotCapture.ts`   | Medium   | Low           |
+| **Video**      | MediaRecorderCapture  | `video/MediaRecorderCapture.ts`     | Medium   | Low           |
 
 ---
 
@@ -424,17 +440,17 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 **Purpose**: Orchestrates initialization and disposal of all managers in correct order.
 
-| Event | Level | When to Log | Data to Include |
-|-------|-------|-------------|-----------------|
-| Init started | INFO | `init()` entry | `{managerCount, initOrder}` |
-| Manager initializing | DEBUG | Before each manager.init() | `{managerName}` |
-| Manager initialized | DEBUG | After each manager.init() | `{managerName, elapsedMs}` |
-| Manager init failed | ERROR | On manager.init() error | `{managerName, error}` |
-| All managers initialized | INFO | After all init complete | `{totalMs, managerCount}` |
-| Dispose started | INFO | `dispose()` entry | `{managerCount}` |
-| Manager disposed | DEBUG | After each manager.dispose() | `{managerName}` |
-| Dispose error | WARN | On manager.dispose() error | `{managerName, error}` |
-| All disposed | INFO | After all dispose complete | `{}` |
+| Event                    | Level | When to Log                  | Data to Include             |
+| ------------------------ | ----- | ---------------------------- | --------------------------- |
+| Init started             | INFO  | `init()` entry               | `{managerCount, initOrder}` |
+| Manager initializing     | DEBUG | Before each manager.init()   | `{managerName}`             |
+| Manager initialized      | DEBUG | After each manager.init()    | `{managerName, elapsedMs}`  |
+| Manager init failed      | ERROR | On manager.init() error      | `{managerName, error}`      |
+| All managers initialized | INFO  | After all init complete      | `{totalMs, managerCount}`   |
+| Dispose started          | INFO  | `dispose()` entry            | `{managerCount}`            |
+| Manager disposed         | DEBUG | After each manager.dispose() | `{managerName}`             |
+| Dispose error            | WARN  | On manager.dispose() error   | `{managerName, error}`      |
+| All disposed             | INFO  | After all dispose complete   | `{}`                        |
 
 **Hot Path Considerations**: None - init/dispose are one-time operations.
 
@@ -446,20 +462,21 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 **Purpose**: Manages operation queue with dependencies, obsolescence, and progress tracking.
 
-| Event | Level | When to Log | Data to Include |
-|-------|-------|-------------|-----------------|
-| Operation queued | DEBUG | `queueOperation()` | `{id, category, description}` |
-| Operation started | DEBUG | When execution begins | `{id, category, queueSize}` |
-| Operation completed | DEBUG | After successful execution | `{id, category, elapsedMs}` |
-| Operation failed | ERROR | On execution error | `{id, category, error}` |
-| Operation obsoleted | DEBUG | When made obsolete | `{id, category, reason, byId}` |
-| Operation cancelled | WARN | When aborted | `{id, category, progress}` |
-| Batch started | DEBUG | `startBatch()` | `{batchId}` |
-| Batch committed | DEBUG | `commitBatch()` | `{batchId, operationCount}` |
-| Queue idle | DEBUG | When queue becomes empty | `{completedCount}` |
-| Trigger fired | TRACE | When post-trigger runs | `{sourceCategory, triggeredCategory}` |
+| Event               | Level | When to Log                | Data to Include                       |
+| ------------------- | ----- | -------------------------- | ------------------------------------- |
+| Operation queued    | DEBUG | `queueOperation()`         | `{id, category, description}`         |
+| Operation started   | DEBUG | When execution begins      | `{id, category, queueSize}`           |
+| Operation completed | DEBUG | After successful execution | `{id, category, elapsedMs}`           |
+| Operation failed    | ERROR | On execution error         | `{id, category, error}`               |
+| Operation obsoleted | DEBUG | When made obsolete         | `{id, category, reason, byId}`        |
+| Operation cancelled | WARN  | When aborted               | `{id, category, progress}`            |
+| Batch started       | DEBUG | `startBatch()`             | `{batchId}`                           |
+| Batch committed     | DEBUG | `commitBatch()`            | `{batchId, operationCount}`           |
+| Queue idle          | DEBUG | When queue becomes empty   | `{completedCount}`                    |
+| Trigger fired       | TRACE | When post-trigger runs     | `{sourceCategory, triggeredCategory}` |
 
 **Hot Path Considerations**:
+
 - Queue polling is on a timer (`OPERATION_POLL_INTERVAL_MS = 10ms`) - use TRACE level sparingly
 - Avoid logging in `waitForCompletion` polling loop
 
@@ -471,18 +488,19 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 **Purpose**: Manages layout engine lifecycle and layout updates.
 
-| Event | Level | When to Log | Data to Include |
-|-------|-------|-------------|-----------------|
-| Layout set started | INFO | `setLayout()` entry | `{type, options}` |
-| Layout engine created | DEBUG | After engine instantiation | `{type, nodeCount, edgeCount}` |
-| Layout initialized | INFO | After `engine.init()` | `{type, preStepsRun}` |
-| Layout set failed | ERROR | On initialization error | `{type, error}` |
-| Layout dimension update | DEBUG | `updateLayoutDimension()` | `{twoD, layoutType}` |
-| Layout running | DEBUG | When `running` set to true | `{type}` |
-| Layout settled | INFO | When `isSettled` becomes true | `{type, stepCount}` |
-| Position update | TRACE | `updatePositions()` | `{nodeCount}` |
+| Event                   | Level | When to Log                   | Data to Include                |
+| ----------------------- | ----- | ----------------------------- | ------------------------------ |
+| Layout set started      | INFO  | `setLayout()` entry           | `{type, options}`              |
+| Layout engine created   | DEBUG | After engine instantiation    | `{type, nodeCount, edgeCount}` |
+| Layout initialized      | INFO  | After `engine.init()`         | `{type, preStepsRun}`          |
+| Layout set failed       | ERROR | On initialization error       | `{type, error}`                |
+| Layout dimension update | DEBUG | `updateLayoutDimension()`     | `{twoD, layoutType}`           |
+| Layout running          | DEBUG | When `running` set to true    | `{type}`                       |
+| Layout settled          | INFO  | When `isSettled` becomes true | `{type, stepCount}`            |
+| Position update         | TRACE | `updatePositions()`           | `{nodeCount}`                  |
 
 **Hot Path Considerations**:
+
 - **AVOID**: Do NOT log in `step()` method - called every frame during layout
 - **AVOID**: Do NOT log in `getNodePosition()` or `getEdgePosition()` - called per node/edge per frame
 - Use TRACE only for batch operations like `updatePositions()`
@@ -495,22 +513,23 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 **Purpose**: Manages node/edge collections, caching, and data source loading.
 
-| Event | Level | When to Log | Data to Include |
-|-------|-------|-------------|-----------------|
-| Nodes added | DEBUG | `addNodes()` completion | `{count, totalNodes}` |
-| Edges added | DEBUG | `addEdges()` completion | `{count, totalEdges, bufferedCount}` |
-| Edge buffered | TRACE | When edge buffered (missing nodes) | `{srcId, dstId}` |
-| Buffered edges processed | DEBUG | After processing buffered edges | `{processedCount, remainingCount}` |
-| Node removed | DEBUG | `removeNode()` | `{nodeId}` |
-| Edge removed | DEBUG | `removeEdge()` | `{edgeId}` |
-| Data source loading | INFO | `addDataFromSource()` start | `{type, url}` |
-| Data chunk loaded | DEBUG | After each chunk | `{chunkNum, nodesInChunk, edgesInChunk}` |
-| Data source complete | INFO | After all chunks loaded | `{type, totalNodes, totalEdges, elapsedMs}` |
-| Data source error | ERROR | On loading failure | `{type, error, chunksLoaded}` |
-| Validation errors | WARN | When validation fails | `{errorCount, errorSummary}` |
-| Clear data | DEBUG | `clear()` | `{clearedNodes, clearedEdges}` |
+| Event                    | Level | When to Log                        | Data to Include                             |
+| ------------------------ | ----- | ---------------------------------- | ------------------------------------------- |
+| Nodes added              | DEBUG | `addNodes()` completion            | `{count, totalNodes}`                       |
+| Edges added              | DEBUG | `addEdges()` completion            | `{count, totalEdges, bufferedCount}`        |
+| Edge buffered            | TRACE | When edge buffered (missing nodes) | `{srcId, dstId}`                            |
+| Buffered edges processed | DEBUG | After processing buffered edges    | `{processedCount, remainingCount}`          |
+| Node removed             | DEBUG | `removeNode()`                     | `{nodeId}`                                  |
+| Edge removed             | DEBUG | `removeEdge()`                     | `{edgeId}`                                  |
+| Data source loading      | INFO  | `addDataFromSource()` start        | `{type, url}`                               |
+| Data chunk loaded        | DEBUG | After each chunk                   | `{chunkNum, nodesInChunk, edgesInChunk}`    |
+| Data source complete     | INFO  | After all chunks loaded            | `{type, totalNodes, totalEdges, elapsedMs}` |
+| Data source error        | ERROR | On loading failure                 | `{type, error, chunksLoaded}`               |
+| Validation errors        | WARN  | When validation fails              | `{errorCount, errorSummary}`                |
+| Clear data               | DEBUG | `clear()`                          | `{clearedNodes, clearedEdges}`              |
 
 **Hot Path Considerations**:
+
 - Node/edge iteration in `applyStylesToExistingNodes/Edges` could be expensive with large graphs
 - Use batch logging (log summary at end, not per-item)
 
@@ -522,22 +541,23 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 **Purpose**: Manages Babylon.js engine, scene, and render loop.
 
-| Event | Level | When to Log | Data to Include |
-|-------|-------|-------------|-----------------|
-| Engine created | DEBUG | Constructor | `{useWebGPU}` |
-| Scene created | DEBUG | Constructor | `{backgroundColor}` |
-| Cameras setup | DEBUG | `setupCameras()` | `{registeredCameras}` |
-| Render init started | DEBUG | `init()` entry | `{}` |
-| WebGPU initialized | INFO | After `engine.initAsync()` | `{capabilities}` |
-| Scene ready | DEBUG | After `scene.whenReadyAsync()` | `{}` |
-| Render init complete | INFO | After all init | `{elapsedMs}` |
-| Render loop started | INFO | `startRenderLoop()` | `{}` |
-| Render loop stopped | INFO | `stopRenderLoop()` | `{}` |
-| Background color changed | DEBUG | `setBackgroundColor()` | `{color}` |
-| Render error | ERROR | In render loop catch | `{error}` |
-| Dispose | DEBUG | `dispose()` | `{}` |
+| Event                    | Level | When to Log                    | Data to Include       |
+| ------------------------ | ----- | ------------------------------ | --------------------- |
+| Engine created           | DEBUG | Constructor                    | `{useWebGPU}`         |
+| Scene created            | DEBUG | Constructor                    | `{backgroundColor}`   |
+| Cameras setup            | DEBUG | `setupCameras()`               | `{registeredCameras}` |
+| Render init started      | DEBUG | `init()` entry                 | `{}`                  |
+| WebGPU initialized       | INFO  | After `engine.initAsync()`     | `{capabilities}`      |
+| Scene ready              | DEBUG | After `scene.whenReadyAsync()` | `{}`                  |
+| Render init complete     | INFO  | After all init                 | `{elapsedMs}`         |
+| Render loop started      | INFO  | `startRenderLoop()`            | `{}`                  |
+| Render loop stopped      | INFO  | `stopRenderLoop()`             | `{}`                  |
+| Background color changed | DEBUG | `setBackgroundColor()`         | `{color}`             |
+| Render error             | ERROR | In render loop catch           | `{error}`             |
+| Dispose                  | DEBUG | `dispose()`                    | `{}`                  |
 
 **Hot Path Considerations**:
+
 - **CRITICAL**: NEVER log inside the render loop callback in `startRenderLoop()`
 - The render loop runs 60+ times per second
 - Only log errors with rate limiting in render loop (existing pattern)
@@ -550,18 +570,19 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 **Purpose**: Manages graph styling with caching and layer operations.
 
-| Event | Level | When to Log | Data to Include |
-|-------|-------|-------------|-----------------|
-| Style template loaded | INFO | `loadStylesFromObject/Url()` | `{source, layerCount}` |
-| Layer added | DEBUG | `addLayer()` | `{layerSelector, layerIndex}` |
-| Layer inserted | DEBUG | `insertLayer()` | `{position, layerSelector}` |
-| Layers removed | DEBUG | `removeLayersByMetadata()` | `{removedCount}` |
-| Cache cleared | DEBUG | `clearCache()` | `{nodeEntries, edgeEntries}` |
-| Cache hit | TRACE | On cache hit (guarded) | `{type, cacheKey}` |
-| Cache miss | TRACE | On cache miss | `{type, cacheKey}` |
-| Style computed | TRACE | First style computation | `{nodeId/edgeId, styleId}` |
+| Event                 | Level | When to Log                  | Data to Include               |
+| --------------------- | ----- | ---------------------------- | ----------------------------- |
+| Style template loaded | INFO  | `loadStylesFromObject/Url()` | `{source, layerCount}`        |
+| Layer added           | DEBUG | `addLayer()`                 | `{layerSelector, layerIndex}` |
+| Layer inserted        | DEBUG | `insertLayer()`              | `{position, layerSelector}`   |
+| Layers removed        | DEBUG | `removeLayersByMetadata()`   | `{removedCount}`              |
+| Cache cleared         | DEBUG | `clearCache()`               | `{nodeEntries, edgeEntries}`  |
+| Cache hit             | TRACE | On cache hit (guarded)       | `{type, cacheKey}`            |
+| Cache miss            | TRACE | On cache miss                | `{type, cacheKey}`            |
+| Style computed        | TRACE | First style computation      | `{nodeId/edgeId, styleId}`    |
 
 **Hot Path Considerations**:
+
 - `getStyleForNode/Edge` is called frequently during data loading
 - TRACE level only; cache hit/miss logging should be behind `isTraceEnabled()` guard
 - Don't log during style re-application loops
@@ -574,23 +595,24 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 **Purpose**: Manages WebXR VR/AR session lifecycle.
 
-| Event | Level | When to Log | Data to Include |
-|-------|-------|-------------|-----------------|
-| XR support check | DEBUG | `isXRSupported()` | `{hasXR, isSecureContext, userAgent}` |
-| VR support check | DEBUG | `isVRSupported()` result | `{supported}` |
-| AR support check | DEBUG | `isARSupported()` result | `{supported}` |
-| VR enter started | INFO | `enterVR()` entry | `{}` |
-| XR experience created | DEBUG | After `CreateAsync()` | `{mode}` |
-| Hand tracking enabled | DEBUG | After feature enable | `{success, config}` |
-| VR session entered | INFO | After `enterXRAsync()` | `{mode, enabledFeatures}` |
-| Camera transferred | DEBUG | After position transfer | `{fromCamera}` |
-| VR enter failed | ERROR | On enterVR error | `{error}` |
-| AR enter started | INFO | `enterAR()` entry | `{}` |
-| AR session entered | INFO | After `enterXRAsync()` | `{mode}` |
-| XR exited | INFO | `exitXR()` | `{mode}` |
-| XR disposed | DEBUG | `dispose()` | `{}` |
+| Event                 | Level | When to Log              | Data to Include                       |
+| --------------------- | ----- | ------------------------ | ------------------------------------- |
+| XR support check      | DEBUG | `isXRSupported()`        | `{hasXR, isSecureContext, userAgent}` |
+| VR support check      | DEBUG | `isVRSupported()` result | `{supported}`                         |
+| AR support check      | DEBUG | `isARSupported()` result | `{supported}`                         |
+| VR enter started      | INFO  | `enterVR()` entry        | `{}`                                  |
+| XR experience created | DEBUG | After `CreateAsync()`    | `{mode}`                              |
+| Hand tracking enabled | DEBUG | After feature enable     | `{success, config}`                   |
+| VR session entered    | INFO  | After `enterXRAsync()`   | `{mode, enabledFeatures}`             |
+| Camera transferred    | DEBUG | After position transfer  | `{fromCamera}`                        |
+| VR enter failed       | ERROR | On enterVR error         | `{error}`                             |
+| AR enter started      | INFO  | `enterAR()` entry        | `{}`                                  |
+| AR session entered    | INFO  | After `enterXRAsync()`   | `{mode}`                              |
+| XR exited             | INFO  | `exitXR()`               | `{mode}`                              |
+| XR disposed           | DEBUG | `dispose()`              | `{}`                                  |
 
 **Hot Path Considerations**:
+
 - XR session events are infrequent (user-initiated)
 - No hot path concerns in this module
 
@@ -602,16 +624,17 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 **Purpose**: Manages multiple camera controllers and input handlers.
 
-| Event | Level | When to Log | Data to Include |
-|-------|-------|-------------|-----------------|
-| Camera registered | DEBUG | `registerCamera()` | `{key}` |
-| Camera activated | INFO | `activateCamera()` | `{key, previousKey}` |
-| Camera not found | WARN | On missing camera | `{key}` |
-| Zoom to fit | DEBUG | `zoomToBoundingBox()` | `{min, max}` |
-| Input disabled | DEBUG | `temporarilyDisableInput()` | `{reason}` |
-| Input enabled | DEBUG | `temporarilyEnableInput()` | `{}` |
+| Event             | Level | When to Log                 | Data to Include      |
+| ----------------- | ----- | --------------------------- | -------------------- |
+| Camera registered | DEBUG | `registerCamera()`          | `{key}`              |
+| Camera activated  | INFO  | `activateCamera()`          | `{key, previousKey}` |
+| Camera not found  | WARN  | On missing camera           | `{key}`              |
+| Zoom to fit       | DEBUG | `zoomToBoundingBox()`       | `{min, max}`         |
+| Input disabled    | DEBUG | `temporarilyDisableInput()` | `{reason}`           |
+| Input enabled     | DEBUG | `temporarilyEnableInput()`  | `{}`                 |
 
 **Hot Path Considerations**:
+
 - `update()` is called every frame - DO NOT LOG
 - Only log camera switches and zoom operations
 
@@ -623,17 +646,18 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 **Purpose**: Handles XR controller input for gestures and interactions.
 
-| Event | Level | When to Log | Data to Include |
-|-------|-------|-------------|-----------------|
-| Handler initialized | DEBUG | Constructor | `{controllerTypes}` |
-| Controller connected | INFO | On connection | `{controllerId, type, hand}` |
-| Controller disconnected | INFO | On disconnection | `{controllerId}` |
-| Gesture started | DEBUG | Pinch/grab start | `{gestureType, controllerId}` |
-| Gesture ended | DEBUG | Pinch/grab end | `{gestureType, controllerId}` |
-| Node selected | DEBUG | On node pick | `{nodeId, controllerId}` |
-| Node deselected | DEBUG | On release | `{nodeId}` |
+| Event                   | Level | When to Log      | Data to Include               |
+| ----------------------- | ----- | ---------------- | ----------------------------- |
+| Handler initialized     | DEBUG | Constructor      | `{controllerTypes}`           |
+| Controller connected    | INFO  | On connection    | `{controllerId, type, hand}`  |
+| Controller disconnected | INFO  | On disconnection | `{controllerId}`              |
+| Gesture started         | DEBUG | Pinch/grab start | `{gestureType, controllerId}` |
+| Gesture ended           | DEBUG | Pinch/grab end   | `{gestureType, controllerId}` |
+| Node selected           | DEBUG | On node pick     | `{nodeId, controllerId}`      |
+| Node deselected         | DEBUG | On release       | `{nodeId}`                    |
 
 **Hot Path Considerations**:
+
 - Controller position updates happen every frame - DO NOT LOG
 - Only log gesture start/end events
 - Avoid logging during continuous pinch/grab movements
@@ -646,13 +670,14 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 **Purpose**: Handles node dragging for desktop and XR.
 
-| Event | Level | When to Log | Data to Include |
-|-------|-------|-------------|-----------------|
-| Drag started | DEBUG | `onDragStart()` | `{nodeId, isXRMode, position}` |
-| Drag ended | DEBUG | `onDragEnd()` | `{nodeId, finalPosition, pinned}` |
-| Node pinned | DEBUG | After pin during drag | `{nodeId}` |
+| Event        | Level | When to Log           | Data to Include                   |
+| ------------ | ----- | --------------------- | --------------------------------- |
+| Drag started | DEBUG | `onDragStart()`       | `{nodeId, isXRMode, position}`    |
+| Drag ended   | DEBUG | `onDragEnd()`         | `{nodeId, finalPosition, pinned}` |
+| Node pinned  | DEBUG | After pin during drag | `{nodeId}`                        |
 
 **Hot Path Considerations**:
+
 - **AVOID**: Do NOT log in `onDragUpdate()` - called continuously during drag
 - Only log drag start/end events
 
@@ -664,17 +689,18 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 **Purpose**: Layout computation engines (ngraph, d3, circular, etc.)
 
-| Event | Level | When to Log | Data to Include |
-|-------|-------|-------------|-----------------|
-| Engine created | DEBUG | Constructor | `{type, config}` |
-| Engine initialized | DEBUG | `init()` | `{nodeCount, edgeCount}` |
-| Node added | TRACE | `addNode()` (batch only) | `{count}` |
-| Edge added | TRACE | `addEdge()` (batch only) | `{count}` |
-| Layout settled | INFO | When `isSettled` → true | `{stepCount, avgMovement}` |
-| Layout reset | DEBUG | When nodes added unsettles | `{stepCount: 0}` |
-| Dispose | DEBUG | `dispose()` | `{}` |
+| Event              | Level | When to Log                | Data to Include            |
+| ------------------ | ----- | -------------------------- | -------------------------- |
+| Engine created     | DEBUG | Constructor                | `{type, config}`           |
+| Engine initialized | DEBUG | `init()`                   | `{nodeCount, edgeCount}`   |
+| Node added         | TRACE | `addNode()` (batch only)   | `{count}`                  |
+| Edge added         | TRACE | `addEdge()` (batch only)   | `{count}`                  |
+| Layout settled     | INFO  | When `isSettled` → true    | `{stepCount, avgMovement}` |
+| Layout reset       | DEBUG | When nodes added unsettles | `{stepCount: 0}`           |
+| Dispose            | DEBUG | `dispose()`                | `{}`                       |
 
 **Hot Path Considerations**:
+
 - **CRITICAL**: `step()` runs every frame during layout animation - NEVER LOG
 - **CRITICAL**: `getNodePosition()` and `getEdgePosition()` called per-element per-frame - NEVER LOG
 - Only log batch operations and state transitions
@@ -688,19 +714,20 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 **Purpose**: Load graph data from various formats (JSON, CSV, GEXF, etc.)
 
-| Event | Level | When to Log | Data to Include |
-|-------|-------|-------------|-----------------|
-| Source created | DEBUG | Constructor | `{type, chunkSize}` |
-| Fetch started | DEBUG | `fetchWithRetry()` entry | `{url}` |
-| Fetch retry | DEBUG | On retry | `{url, attempt, delay}` |
-| Fetch failed | ERROR | After all retries | `{url, attempts, error}` |
-| Parse started | DEBUG | Parsing entry | `{type}` |
-| Chunk yielded | TRACE | Each `yield` | `{nodeCount, edgeCount, chunkNum}` |
-| Parse complete | DEBUG | Generator complete | `{totalNodes, totalEdges}` |
-| Parse error | ERROR | On parse failure | `{error, position}` |
-| Validation error | WARN | On schema validation fail | `{field, expected, actual}` |
+| Event            | Level | When to Log               | Data to Include                    |
+| ---------------- | ----- | ------------------------- | ---------------------------------- |
+| Source created   | DEBUG | Constructor               | `{type, chunkSize}`                |
+| Fetch started    | DEBUG | `fetchWithRetry()` entry  | `{url}`                            |
+| Fetch retry      | DEBUG | On retry                  | `{url, attempt, delay}`            |
+| Fetch failed     | ERROR | After all retries         | `{url, attempts, error}`           |
+| Parse started    | DEBUG | Parsing entry             | `{type}`                           |
+| Chunk yielded    | TRACE | Each `yield`              | `{nodeCount, edgeCount, chunkNum}` |
+| Parse complete   | DEBUG | Generator complete        | `{totalNodes, totalEdges}`         |
+| Parse error      | ERROR | On parse failure          | `{error, position}`                |
+| Validation error | WARN  | On schema validation fail | `{field, expected, actual}`        |
 
 **Hot Path Considerations**:
+
 - Chunk iteration can be frequent for large files - use TRACE
 - Batch validation error reporting (summary at end)
 
@@ -712,15 +739,16 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 **Purpose**: Graph algorithms (PageRank, betweenness, community detection, etc.)
 
-| Event | Level | When to Log | Data to Include |
-|-------|-------|-------------|-----------------|
-| Algorithm started | INFO | `run()` entry | `{namespace, type, nodeCount, edgeCount}` |
-| Algorithm completed | INFO | `run()` exit | `{namespace, type, elapsedMs}` |
-| Algorithm failed | ERROR | On error | `{namespace, type, error}` |
-| Node result added | TRACE | `addNodeResult()` (if enabled) | `{nodeId, resultName}` |
-| Graph result added | DEBUG | `addGraphResult()` | `{resultName, resultPreview}` |
+| Event               | Level | When to Log                    | Data to Include                           |
+| ------------------- | ----- | ------------------------------ | ----------------------------------------- |
+| Algorithm started   | INFO  | `run()` entry                  | `{namespace, type, nodeCount, edgeCount}` |
+| Algorithm completed | INFO  | `run()` exit                   | `{namespace, type, elapsedMs}`            |
+| Algorithm failed    | ERROR | On error                       | `{namespace, type, error}`                |
+| Node result added   | TRACE | `addNodeResult()` (if enabled) | `{nodeId, resultName}`                    |
+| Graph result added  | DEBUG | `addGraphResult()`             | `{resultName, resultPreview}`             |
 
 **Hot Path Considerations**:
+
 - Algorithm internals (loops, iterations) should not be logged
 - Only log entry/exit and final results
 - TRACE level for per-node results is expensive - guard carefully
@@ -733,15 +761,16 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 **Purpose**: Graph node and edge instances with mesh management.
 
-| Event | Level | When to Log | Data to Include |
-|-------|-------|-------------|-----------------|
-| Node created | TRACE | Constructor | `{id, styleId}` |
-| Edge created | TRACE | Constructor | `{srcId, dstId, styleId}` |
+| Event         | Level | When to Log     | Data to Include                |
+| ------------- | ----- | --------------- | ------------------------------ |
+| Node created  | TRACE | Constructor     | `{id, styleId}`                |
+| Edge created  | TRACE | Constructor     | `{srcId, dstId, styleId}`      |
 | Style updated | TRACE | `updateStyle()` | `{id, oldStyleId, newStyleId}` |
-| Node disposed | TRACE | `dispose()` | `{id}` |
-| Edge disposed | TRACE | `dispose()` | `{srcId, dstId}` |
+| Node disposed | TRACE | `dispose()`     | `{id}`                         |
+| Edge disposed | TRACE | `dispose()`     | `{srcId, dstId}`               |
 
 **Hot Path Considerations**:
+
 - **CRITICAL**: `update()` is called every frame for position/style updates - NEVER LOG
 - **CRITICAL**: Mesh position updates happen every frame - NEVER LOG
 - TRACE level only, and primarily for debugging creation/disposal issues
@@ -755,16 +784,17 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 **Purpose**: Caches mesh instances for performance.
 
-| Event | Level | When to Log | Data to Include |
-|-------|-------|-------------|-----------------|
-| Cache hit | TRACE | On successful lookup | `{key, instanceCount}` |
-| Cache miss | TRACE | On miss | `{key}` |
-| Instance created | TRACE | New instance from master | `{key, totalInstances}` |
-| Master mesh created | DEBUG | New mesh type | `{key}` |
-| Cache cleared | DEBUG | `clear()` | `{entryCount}` |
-| Cache stats | DEBUG | Periodic or on request | `{size, hitRate}` |
+| Event               | Level | When to Log              | Data to Include         |
+| ------------------- | ----- | ------------------------ | ----------------------- |
+| Cache hit           | TRACE | On successful lookup     | `{key, instanceCount}`  |
+| Cache miss          | TRACE | On miss                  | `{key}`                 |
+| Instance created    | TRACE | New instance from master | `{key, totalInstances}` |
+| Master mesh created | DEBUG | New mesh type            | `{key}`                 |
+| Cache cleared       | DEBUG | `clear()`                | `{entryCount}`          |
+| Cache stats         | DEBUG | Periodic or on request   | `{size, hitRate}`       |
 
 **Hot Path Considerations**:
+
 - Cache lookups happen frequently - TRACE only
 - Consider sampling (log every Nth lookup) if needed
 
@@ -776,17 +806,18 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 **Purpose**: Unified input handling for mouse, keyboard, touch.
 
-| Event | Level | When to Log | Data to Include |
-|-------|-------|-------------|-----------------|
-| Input initialized | DEBUG | `init()` | `{config}` |
-| Input enabled/disabled | DEBUG | `setEnabled()` | `{enabled}` |
-| Recording started | INFO | `startRecording()` | `{}` |
-| Recording stopped | INFO | `stopRecording()` | `{eventCount}` |
-| Playback started | INFO | `startPlayback()` | `{eventCount}` |
-| Playback completed | INFO | On complete | `{}` |
-| Pointer lock changed | DEBUG | On lock/unlock | `{locked}` |
+| Event                  | Level | When to Log        | Data to Include |
+| ---------------------- | ----- | ------------------ | --------------- |
+| Input initialized      | DEBUG | `init()`           | `{config}`      |
+| Input enabled/disabled | DEBUG | `setEnabled()`     | `{enabled}`     |
+| Recording started      | INFO  | `startRecording()` | `{}`            |
+| Recording stopped      | INFO  | `stopRecording()`  | `{eventCount}`  |
+| Playback started       | INFO  | `startPlayback()`  | `{eventCount}`  |
+| Playback completed     | INFO  | On complete        | `{}`            |
+| Pointer lock changed   | DEBUG | On lock/unlock     | `{locked}`      |
 
 **Hot Path Considerations**:
+
 - **AVOID**: Do not log individual pointer move, touch move events
 - Event bridges fire on every input - only log in debug scenarios
 - Use event sampling if continuous input logging is needed
@@ -797,18 +828,18 @@ This section provides a comprehensive analysis of all modules in graphty-element
 
 The following methods are called at high frequency (30-60+ times per second) and should **never** contain logging:
 
-| Module | Method | Frequency | Impact |
-|--------|--------|-----------|--------|
-| RenderManager | `runRenderLoop` callback | 60 FPS | Would flood logs |
-| LayoutEngine | `step()` | Every frame | Layout iteration |
-| LayoutEngine | `getNodePosition()` | N nodes × 60 FPS | Position lookup |
-| LayoutEngine | `getEdgePosition()` | E edges × 60 FPS | Position lookup |
-| CameraManager | `update()` | 60 FPS | Camera update |
-| OrbitCameraController | Internal update | 60 FPS | Rotation/zoom |
-| Node | `update()` | 60 FPS per node | Position sync |
-| Edge | `update()` | 60 FPS per edge | Position sync |
-| NodeDragHandler | `onDragUpdate()` | During drag | Continuous update |
-| XRInputHandler | Controller position | 90 FPS (XR) | Hand tracking |
+| Module                | Method                   | Frequency        | Impact            |
+| --------------------- | ------------------------ | ---------------- | ----------------- |
+| RenderManager         | `runRenderLoop` callback | 60 FPS           | Would flood logs  |
+| LayoutEngine          | `step()`                 | Every frame      | Layout iteration  |
+| LayoutEngine          | `getNodePosition()`      | N nodes × 60 FPS | Position lookup   |
+| LayoutEngine          | `getEdgePosition()`      | E edges × 60 FPS | Position lookup   |
+| CameraManager         | `update()`               | 60 FPS           | Camera update     |
+| OrbitCameraController | Internal update          | 60 FPS           | Rotation/zoom     |
+| Node                  | `update()`               | 60 FPS per node  | Position sync     |
+| Edge                  | `update()`               | 60 FPS per edge  | Position sync     |
+| NodeDragHandler       | `onDragUpdate()`         | During drag      | Continuous update |
+| XRInputHandler        | Controller position      | 90 FPS (XR)      | Hand tracking     |
 
 ### Summary: High-Value Debug Points
 
@@ -845,11 +876,13 @@ The following are the most valuable logging points for debugging common issues:
 ### Performance
 
 **Impact:**
+
 - Logger lookup: O(1) via Map cache
 - Level check: Single integer comparison before any work
 - Message construction: Only when level passes filter
 
 **Mitigation:**
+
 ```typescript
 // Lazy message construction pattern
 if (logger.isDebugEnabled()) {
@@ -883,13 +916,13 @@ logger.debug`Layout energy: ${() => computeEnergy()}`;
 
 ## Risks and Mitigation
 
-| Risk | Mitigation |
-|------|------------|
-| **LogTape is newer library** | Fallback: Use loglevel with plugins; LogTape has stable 1.0 release |
-| **Logging overhead in production** | Guards before message construction; disable by default |
-| **Migration effort for existing console calls** | Gradual replacement; coexistence period |
-| **URL parameter conflicts** | Unique prefix: `graphty-element-logging` |
-| **Bundle size increase** | LogTape is only 5.3KB gzipped; minimal impact |
+| Risk                                            | Mitigation                                                          |
+| ----------------------------------------------- | ------------------------------------------------------------------- |
+| **LogTape is newer library**                    | Fallback: Use loglevel with plugins; LogTape has stable 1.0 release |
+| **Logging overhead in production**              | Guards before message construction; disable by default              |
+| **Migration effort for existing console calls** | Gradual replacement; coexistence period                             |
+| **URL parameter conflicts**                     | Unique prefix: `graphty-element-logging`                            |
+| **Bundle size increase**                        | LogTape is only 5.3KB gzipped; minimal impact                       |
 
 ---
 
@@ -906,13 +939,13 @@ logger.debug`Layout energy: ${() => computeEnergy()}`;
 
 ## Implementation Estimate
 
-| Phase | Effort |
-|-------|--------|
-| Phase 1: Core Infrastructure | 2-3 days |
-| Phase 2: Module Integration | 1-2 days |
-| Phase 3: Transport Extensions | 1 day |
-| Phase 4: Testing & Documentation | 1 day |
-| **Total** | **5-7 days** |
+| Phase                            | Effort       |
+| -------------------------------- | ------------ |
+| Phase 1: Core Infrastructure     | 2-3 days     |
+| Phase 2: Module Integration      | 1-2 days     |
+| Phase 3: Transport Extensions    | 1 day        |
+| Phase 4: Testing & Documentation | 1 day        |
+| **Total**                        | **5-7 days** |
 
 ---
 
@@ -942,7 +975,7 @@ export async function setupLogging(options: LoggerOptions): Promise<void> {
                 level: options.level,
             },
             // Per-module overrides
-            ...options.modules.map(mod => ({
+            ...options.modules.map((mod) => ({
                 category: ["graphty", mod],
                 sinks: ["console"],
                 level: options.moduleLevel ?? options.level,

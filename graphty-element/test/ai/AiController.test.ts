@@ -1,11 +1,11 @@
-import {assert, beforeEach, describe, it} from "vitest";
-import {z} from "zod";
+import { assert, beforeEach, describe, it } from "vitest";
+import { z } from "zod";
 
-import {AiController} from "../../src/ai/AiController";
-import type {AiStatus} from "../../src/ai/AiStatus";
-import {CommandRegistry} from "../../src/ai/commands";
-import type {CommandContext, CommandResult} from "../../src/ai/commands/types";
-import {MockLlmProvider} from "../../src/ai/providers/MockLlmProvider";
+import { AiController } from "../../src/ai/AiController";
+import type { AiStatus } from "../../src/ai/AiStatus";
+import { CommandRegistry } from "../../src/ai/commands";
+import type { CommandContext, CommandResult } from "../../src/ai/commands/types";
+import { MockLlmProvider } from "../../src/ai/providers/MockLlmProvider";
 
 // Helper to create a mock graph for testing
 function createMockGraph(): CommandContext["graph"] {
@@ -41,7 +41,7 @@ describe("AiController", () => {
     });
 
     describe("execute - text-only response", () => {
-        it("processes text-only response", async() => {
+        it("processes text-only response", async () => {
             mockProvider.setResponse("hello", {
                 text: "Hello! How can I help you with the graph?",
                 toolCalls: [],
@@ -52,7 +52,7 @@ describe("AiController", () => {
             assert.ok(result.message.includes("Hello"));
         });
 
-        it("returns message from LLM when no tool calls", async() => {
+        it("returns message from LLM when no tool calls", async () => {
             mockProvider.setResponse("what", {
                 text: "I can help you with various graph operations.",
                 toolCalls: [],
@@ -64,55 +64,56 @@ describe("AiController", () => {
     });
 
     describe("execute - tool calls", () => {
-        it("executes tool calls from LLM", async() => {
+        it("executes tool calls from LLM", async () => {
             let executedWith: unknown = null;
             registry.register({
                 name: "sayHello",
                 description: "Say hello",
-                parameters: z.object({name: z.string()}),
+                parameters: z.object({ name: z.string() }),
                 examples: [],
                 execute: (_graph, params) => {
                     executedWith = params;
 
-                    return Promise.resolve({success: true, message: `Hello, ${params.name}!`});
+                    return Promise.resolve({ success: true, message: `Hello, ${params.name}!` });
                 },
             });
 
             mockProvider.setResponse("greet", {
                 text: "",
-                toolCalls: [{id: "1", name: "sayHello", arguments: {name: "World"}}],
+                toolCalls: [{ id: "1", name: "sayHello", arguments: { name: "World" } }],
             });
 
             const result = await controller.execute("greet someone");
-            assert.deepStrictEqual(executedWith, {name: "World"});
+            assert.deepStrictEqual(executedWith, { name: "World" });
             assert.strictEqual(result.success, true);
         });
 
-        it("returns command result when tool call succeeds", async() => {
+        it("returns command result when tool call succeeds", async () => {
             registry.register({
                 name: "getCount",
                 description: "Get count",
                 parameters: z.object({}),
                 examples: [],
-                execute: (): Promise<CommandResult> => Promise.resolve({
-                    success: true,
-                    message: "Found 42 nodes",
-                    data: {count: 42},
-                }),
+                execute: (): Promise<CommandResult> =>
+                    Promise.resolve({
+                        success: true,
+                        message: "Found 42 nodes",
+                        data: { count: 42 },
+                    }),
             });
 
             mockProvider.setResponse("how many", {
                 text: "",
-                toolCalls: [{id: "1", name: "getCount", arguments: {}}],
+                toolCalls: [{ id: "1", name: "getCount", arguments: {} }],
             });
 
             const result = await controller.execute("how many?");
             assert.strictEqual(result.success, true);
             assert.ok(result.message.includes("42"));
-            assert.deepStrictEqual(result.data, {count: 42});
+            assert.deepStrictEqual(result.data, { count: 42 });
         });
 
-        it("executes multiple tool calls in sequence", async() => {
+        it("executes multiple tool calls in sequence", async () => {
             const executionOrder: string[] = [];
 
             registry.register({
@@ -123,7 +124,7 @@ describe("AiController", () => {
                 execute: () => {
                     executionOrder.push("first");
 
-                    return Promise.resolve({success: true, message: "First done"});
+                    return Promise.resolve({ success: true, message: "First done" });
                 },
             });
 
@@ -135,15 +136,15 @@ describe("AiController", () => {
                 execute: () => {
                     executionOrder.push("second");
 
-                    return Promise.resolve({success: true, message: "Second done"});
+                    return Promise.resolve({ success: true, message: "Second done" });
                 },
             });
 
             mockProvider.setResponse("both", {
                 text: "",
                 toolCalls: [
-                    {id: "1", name: "first", arguments: {}},
-                    {id: "2", name: "second", arguments: {}},
+                    { id: "1", name: "first", arguments: {} },
+                    { id: "2", name: "second", arguments: {} },
                 ],
             });
 
@@ -151,33 +152,35 @@ describe("AiController", () => {
             assert.deepStrictEqual(executionOrder, ["first", "second"]);
         });
 
-        it("handles unknown command gracefully", async() => {
+        it("handles unknown command gracefully", async () => {
             mockProvider.setResponse("unknown", {
                 text: "",
-                toolCalls: [{id: "1", name: "nonExistent", arguments: {}}],
+                toolCalls: [{ id: "1", name: "nonExistent", arguments: {} }],
             });
 
             const result = await controller.execute("unknown command");
             assert.strictEqual(result.success, false);
-            assert.ok(result.message.toLowerCase().includes("unknown") ||
-                      result.message.toLowerCase().includes("not found"));
+            assert.ok(
+                result.message.toLowerCase().includes("unknown") || result.message.toLowerCase().includes("not found"),
+            );
         });
 
-        it("handles command execution failure", async() => {
+        it("handles command execution failure", async () => {
             registry.register({
                 name: "failing",
                 description: "Fails",
                 parameters: z.object({}),
                 examples: [],
-                execute: (): Promise<CommandResult> => Promise.resolve({
-                    success: false,
-                    message: "Command failed for reasons",
-                }),
+                execute: (): Promise<CommandResult> =>
+                    Promise.resolve({
+                        success: false,
+                        message: "Command failed for reasons",
+                    }),
             });
 
             mockProvider.setResponse("fail", {
                 text: "",
-                toolCalls: [{id: "1", name: "failing", arguments: {}}],
+                toolCalls: [{ id: "1", name: "failing", arguments: {} }],
             });
 
             const result = await controller.execute("make it fail");
@@ -185,7 +188,7 @@ describe("AiController", () => {
             assert.ok(result.message.includes("failed"));
         });
 
-        it("handles command execution throwing an error", async() => {
+        it("handles command execution throwing an error", async () => {
             registry.register({
                 name: "throwing",
                 description: "Throws",
@@ -198,7 +201,7 @@ describe("AiController", () => {
 
             mockProvider.setResponse("throw", {
                 text: "",
-                toolCalls: [{id: "1", name: "throwing", arguments: {}}],
+                toolCalls: [{ id: "1", name: "throwing", arguments: {} }],
             });
 
             const result = await controller.execute("make it throw");
@@ -208,29 +211,29 @@ describe("AiController", () => {
     });
 
     describe("status changes", () => {
-        it("emits status changes during execution", async() => {
+        it("emits status changes during execution", async () => {
             const states: string[] = [];
             controller.onStatusChange((status) => states.push(status.state));
 
-            mockProvider.setResponse("test", {text: "Done", toolCalls: []});
+            mockProvider.setResponse("test", { text: "Done", toolCalls: [] });
             await controller.execute("test");
 
             assert.ok(states.includes("submitted"));
             assert.ok(states.includes("ready"));
         });
 
-        it("transitions through streaming state", async() => {
+        it("transitions through streaming state", async () => {
             const states: string[] = [];
             controller.onStatusChange((status) => states.push(status.state));
 
-            mockProvider.setResponse("test", {text: "Response", toolCalls: []});
+            mockProvider.setResponse("test", { text: "Response", toolCalls: [] });
             await controller.execute("test");
 
             // Should have gone through streaming state
             assert.ok(states.includes("streaming"));
         });
 
-        it("transitions through executing state when tools are called", async() => {
+        it("transitions through executing state when tools are called", async () => {
             const states: string[] = [];
             controller.onStatusChange((status) => states.push(status.state));
 
@@ -239,12 +242,12 @@ describe("AiController", () => {
                 description: "Test",
                 parameters: z.object({}),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             });
 
             mockProvider.setResponse("test", {
                 text: "",
-                toolCalls: [{id: "1", name: "testCommand", arguments: {}}],
+                toolCalls: [{ id: "1", name: "testCommand", arguments: {} }],
             });
 
             await controller.execute("test");
@@ -260,7 +263,7 @@ describe("AiController", () => {
     });
 
     describe("error handling", () => {
-        it("handles provider errors gracefully", async() => {
+        it("handles provider errors gracefully", async () => {
             mockProvider.setError(new Error("Network error"));
 
             const result = await controller.execute("test");
@@ -268,7 +271,7 @@ describe("AiController", () => {
             assert.ok(result.message.toLowerCase().includes("error"));
         });
 
-        it("transitions to error state on provider failure", async() => {
+        it("transitions to error state on provider failure", async () => {
             const states: string[] = [];
             controller.onStatusChange((status) => states.push(status.state));
 
@@ -278,7 +281,7 @@ describe("AiController", () => {
             assert.ok(states.includes("error"));
         });
 
-        it("status includes error details", async() => {
+        it("status includes error details", async () => {
             let errorStatus: AiStatus | null = null;
             controller.onStatusChange((status) => {
                 if (status.state === "error") {
@@ -294,13 +297,13 @@ describe("AiController", () => {
             assert.strictEqual(capturedStatus.error?.message, "Test error message");
         });
 
-        it("can recover from error state", async() => {
+        it("can recover from error state", async () => {
             mockProvider.setError(new Error("Temporary error"));
             await controller.execute("test");
 
             // Clear error and try again
             mockProvider.clearError();
-            mockProvider.setResponse("retry", {text: "Success!", toolCalls: []});
+            mockProvider.setResponse("retry", { text: "Success!", toolCalls: [] });
 
             const result = await controller.execute("retry");
             assert.strictEqual(result.success, true);
@@ -308,17 +311,17 @@ describe("AiController", () => {
     });
 
     describe("unsubscribe", () => {
-        it("unsubscribe stops receiving updates", async() => {
+        it("unsubscribe stops receiving updates", async () => {
             const states: string[] = [];
             const unsubscribe = controller.onStatusChange((status) => states.push(status.state));
 
-            mockProvider.setResponse("first", {text: "First", toolCalls: []});
+            mockProvider.setResponse("first", { text: "First", toolCalls: [] });
             await controller.execute("first");
             const statesAfterFirst = states.length;
 
             unsubscribe();
 
-            mockProvider.setResponse("second", {text: "Second", toolCalls: []});
+            mockProvider.setResponse("second", { text: "Second", toolCalls: [] });
             await controller.execute("second");
 
             // Should not have received any new states
@@ -327,7 +330,7 @@ describe("AiController", () => {
     });
 
     describe("command context", () => {
-        it("passes graph to command execution", async() => {
+        it("passes graph to command execution", async () => {
             let receivedGraph: unknown = null;
 
             registry.register({
@@ -338,20 +341,20 @@ describe("AiController", () => {
                 execute: (graph) => {
                     receivedGraph = graph;
 
-                    return Promise.resolve({success: true, message: "done"});
+                    return Promise.resolve({ success: true, message: "done" });
                 },
             });
 
             mockProvider.setResponse("check", {
                 text: "",
-                toolCalls: [{id: "1", name: "checkGraph", arguments: {}}],
+                toolCalls: [{ id: "1", name: "checkGraph", arguments: {} }],
             });
 
             await controller.execute("check graph");
             assert.strictEqual(receivedGraph, mockGraph);
         });
 
-        it("provides abort signal to commands", async() => {
+        it("provides abort signal to commands", async () => {
             let receivedSignal: AbortSignal | undefined;
 
             registry.register({
@@ -362,13 +365,13 @@ describe("AiController", () => {
                 execute: (_graph, _params, context) => {
                     receivedSignal = context?.abortSignal;
 
-                    return Promise.resolve({success: true, message: "done"});
+                    return Promise.resolve({ success: true, message: "done" });
                 },
             });
 
             mockProvider.setResponse("signal", {
                 text: "",
-                toolCalls: [{id: "1", name: "checkSignal", arguments: {}}],
+                toolCalls: [{ id: "1", name: "checkSignal", arguments: {} }],
             });
 
             await controller.execute("check signal");
@@ -378,25 +381,24 @@ describe("AiController", () => {
     });
 
     describe("text and tool calls combined", () => {
-        it("handles response with both text and tool calls", async() => {
+        it("handles response with both text and tool calls", async () => {
             registry.register({
                 name: "doAction",
                 description: "Do action",
                 parameters: z.object({}),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "Action done"}),
+                execute: () => Promise.resolve({ success: true, message: "Action done" }),
             });
 
             mockProvider.setResponse("mixed", {
                 text: "Let me help you with that.",
-                toolCalls: [{id: "1", name: "doAction", arguments: {}}],
+                toolCalls: [{ id: "1", name: "doAction", arguments: {} }],
             });
 
             const result = await controller.execute("mixed response");
             assert.strictEqual(result.success, true);
             // Should include both the LLM text and action result
-            assert.ok(result.message.includes("Action done") ||
-                      result.message.includes("help you"));
+            assert.ok(result.message.includes("Action done") || result.message.includes("help you"));
         });
     });
 
@@ -406,13 +408,13 @@ describe("AiController", () => {
             // Should not throw
         });
 
-        it("clears listeners on dispose", async() => {
+        it("clears listeners on dispose", async () => {
             const states: string[] = [];
             controller.onStatusChange((status) => states.push(status.state));
 
             controller.dispose();
 
-            mockProvider.setResponse("after", {text: "After", toolCalls: []});
+            mockProvider.setResponse("after", { text: "After", toolCalls: [] });
             // This might throw or not work after dispose
             try {
                 await controller.execute("after dispose");

@@ -1,11 +1,11 @@
 import "../index.ts";
 
-import type {Meta, StoryObj} from "@storybook/web-components-vite";
-import {html} from "lit";
+import type { Meta, StoryObj } from "@storybook/web-components-vite";
+import { html } from "lit";
 
-import {StyleTemplate} from "../src/config";
-import {Graphty} from "../src/graphty-element";
-import {edgeData, eventWaitingDecorator, nodeData, waitForGraphSettled} from "./helpers";
+import { StyleTemplate } from "../src/config";
+import { Graphty } from "../src/graphty-element";
+import { edgeData, eventWaitingDecorator, nodeData, waitForGraphSettled } from "./helpers";
 
 const meta: Meta = {
     title: "Screenshot",
@@ -28,12 +28,12 @@ type Story = StoryObj<Graphty>;
  */
 export const Image: Story = {
     args: {
-        layoutConfig: {seed: 42},
+        layoutConfig: { seed: 42 },
         styleTemplate: StyleTemplate.parse({
             graphtyTemplate: true,
             majorVersion: "1",
             behavior: {
-                layout: {preSteps: 2000},
+                layout: { preSteps: 2000 },
             },
         }),
     },
@@ -50,11 +50,13 @@ export const Image: Story = {
                 ></graphty-element>
             </div>
 
-            <div style="padding: 16px; background: #f5f5f5; border-top: 1px solid #ddd; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <div
+                style="padding: 16px; background: #f5f5f5; border-top: 1px solid #ddd; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;"
+            >
                 <span style="font-weight: 600; margin-right: 8px;">Download:</span>
 
                 <button
-                    @click=${async() => {
+                    @click=${async () => {
                         const el = document.querySelector("#graph-screenshot");
                         if (!(el instanceof Graphty)) {
                             return;
@@ -62,7 +64,7 @@ export const Image: Story = {
 
                         await el.captureScreenshot({
                             format: "png",
-                            destination: {download: true},
+                            destination: { download: true },
                         });
                     }}
                     style="padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -71,7 +73,7 @@ export const Image: Story = {
                 </button>
 
                 <button
-                    @click=${async() => {
+                    @click=${async () => {
                         const el = document.querySelector("#graph-screenshot");
                         if (!(el instanceof Graphty)) {
                             return;
@@ -79,7 +81,7 @@ export const Image: Story = {
 
                         await el.captureScreenshot({
                             format: "jpeg",
-                            destination: {download: true},
+                            destination: { download: true },
                         });
                     }}
                     style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -88,7 +90,7 @@ export const Image: Story = {
                 </button>
 
                 <button
-                    @click=${async() => {
+                    @click=${async () => {
                         const el = document.querySelector("#graph-screenshot");
                         if (!(el instanceof Graphty)) {
                             return;
@@ -96,7 +98,7 @@ export const Image: Story = {
 
                         await el.captureScreenshot({
                             format: "webp",
-                            destination: {download: true},
+                            destination: { download: true },
                         });
                     }}
                     style="padding: 8px 16px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -107,7 +109,7 @@ export const Image: Story = {
                 <span style="border-left: 1px solid #ccc; height: 24px; margin: 0 8px;"></span>
 
                 <button
-                    @click=${async() => {
+                    @click=${async () => {
                         const el = document.querySelector("#graph-screenshot");
                         if (!(el instanceof Graphty)) {
                             return;
@@ -115,7 +117,7 @@ export const Image: Story = {
 
                         await el.captureScreenshot({
                             multiplier: 2,
-                            destination: {download: true},
+                            destination: { download: true },
                         });
                     }}
                     style="padding: 8px 16px; background: #fd7e14; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -124,7 +126,7 @@ export const Image: Story = {
                 </button>
 
                 <button
-                    @click=${async() => {
+                    @click=${async () => {
                         const el = document.querySelector("#graph-screenshot");
                         if (!(el instanceof Graphty)) {
                             return;
@@ -133,7 +135,7 @@ export const Image: Story = {
                         await el.captureScreenshot({
                             transparentBackground: true,
                             format: "png",
-                            destination: {download: true},
+                            destination: { download: true },
                         });
                     }}
                     style="padding: 8px 16px; background: #20c997; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -144,14 +146,14 @@ export const Image: Story = {
                 <span style="border-left: 1px solid #ccc; height: 24px; margin: 0 8px;"></span>
 
                 <button
-                    @click=${async() => {
+                    @click=${async () => {
                         const el = document.querySelector("#graph-screenshot");
                         if (!(el instanceof Graphty)) {
                             return;
                         }
 
                         const result = await el.captureScreenshot({
-                            destination: {clipboard: true},
+                            destination: { clipboard: true },
                         });
 
                         if (result.clipboardStatus === "success") {
@@ -167,7 +169,7 @@ export const Image: Story = {
             </div>
         </div>
     `,
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -177,12 +179,12 @@ export const Image: Story = {
  */
 export const Video: Story = {
     args: {
-        layoutConfig: {seed: 42},
+        layoutConfig: { seed: 42 },
         styleTemplate: StyleTemplate.parse({
             graphtyTemplate: true,
             majorVersion: "1",
             behavior: {
-                layout: {preSteps: 2000},
+                layout: { preSteps: 2000 },
             },
         }),
     },
@@ -204,7 +206,7 @@ export const Video: Story = {
                     <span style="font-weight: 600; margin-right: 8px;">Stationary Camera:</span>
 
                     <button
-                        @click=${async() => {
+                        @click=${async () => {
                             const el = document.querySelector("#graph-video");
                             if (!(el instanceof Graphty)) {
                                 return;
@@ -225,7 +227,7 @@ export const Video: Story = {
                     </button>
 
                     <button
-                        @click=${async() => {
+                        @click=${async () => {
                             const el = document.querySelector("#graph-video");
                             if (!(el instanceof Graphty)) {
                                 return;
@@ -250,7 +252,7 @@ export const Video: Story = {
                     <span style="font-weight: 600; margin-right: 8px;">Animated Camera:</span>
 
                     <button
-                        @click=${async() => {
+                        @click=${async () => {
                             const el = document.querySelector("#graph-video");
                             if (!(el instanceof Graphty)) {
                                 return;
@@ -262,9 +264,17 @@ export const Video: Story = {
                                 format: "auto",
                                 cameraMode: "animated",
                                 cameraPath: [
-                                    {position: {x: 20, y: 10, z: 20}, target: {x: 0, y: 0, z: 0}},
-                                    {position: {x: -20, y: 10, z: 20}, target: {x: 0, y: 0, z: 0}, duration: 2500},
-                                    {position: {x: -20, y: 10, z: -20}, target: {x: 0, y: 0, z: 0}, duration: 2500},
+                                    { position: { x: 20, y: 10, z: 20 }, target: { x: 0, y: 0, z: 0 } },
+                                    {
+                                        position: { x: -20, y: 10, z: 20 },
+                                        target: { x: 0, y: 0, z: 0 },
+                                        duration: 2500,
+                                    },
+                                    {
+                                        position: { x: -20, y: 10, z: -20 },
+                                        target: { x: 0, y: 0, z: 0 },
+                                        duration: 2500,
+                                    },
                                 ],
                                 easing: "easeInOut",
                                 download: true,
@@ -277,7 +287,7 @@ export const Video: Story = {
                     </button>
 
                     <button
-                        @click=${async() => {
+                        @click=${async () => {
                             const el = document.querySelector("#graph-video");
                             if (!(el instanceof Graphty)) {
                                 return;
@@ -289,9 +299,9 @@ export const Video: Story = {
                                 format: "auto",
                                 cameraMode: "animated",
                                 cameraPath: [
-                                    {position: {x: 30, y: 30, z: 30}, target: {x: 0, y: 0, z: 0}},
-                                    {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 2000},
-                                    {position: {x: 30, y: 30, z: 30}, target: {x: 0, y: 0, z: 0}, duration: 2000},
+                                    { position: { x: 30, y: 30, z: 30 }, target: { x: 0, y: 0, z: 0 } },
+                                    { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 2000 },
+                                    { position: { x: 30, y: 30, z: 30 }, target: { x: 0, y: 0, z: 0 }, duration: 2000 },
                                 ],
                                 easing: "easeInOut",
                                 download: true,
@@ -304,7 +314,7 @@ export const Video: Story = {
                     </button>
 
                     <button
-                        @click=${async() => {
+                        @click=${async () => {
                             const el = document.querySelector("#graph-video");
                             if (!(el instanceof Graphty)) {
                                 return;
@@ -316,10 +326,18 @@ export const Video: Story = {
                                 format: "auto",
                                 cameraMode: "animated",
                                 cameraPath: [
-                                    {position: {x: 40, y: 5, z: 0}, target: {x: 0, y: 0, z: 0}},
-                                    {position: {x: 0, y: 5, z: 0}, target: {x: 0, y: 0, z: 0}, duration: 2000},
-                                    {position: {x: -20, y: 5, z: 0}, target: {x: -40, y: 0, z: 0}, duration: 2000},
-                                    {position: {x: -40, y: 20, z: 20}, target: {x: 0, y: 0, z: 0}, duration: 2000},
+                                    { position: { x: 40, y: 5, z: 0 }, target: { x: 0, y: 0, z: 0 } },
+                                    { position: { x: 0, y: 5, z: 0 }, target: { x: 0, y: 0, z: 0 }, duration: 2000 },
+                                    {
+                                        position: { x: -20, y: 5, z: 0 },
+                                        target: { x: -40, y: 0, z: 0 },
+                                        duration: 2000,
+                                    },
+                                    {
+                                        position: { x: -40, y: 20, z: 20 },
+                                        target: { x: 0, y: 0, z: 0 },
+                                        duration: 2000,
+                                    },
                                 ],
                                 easing: "linear",
                                 download: true,
@@ -332,7 +350,7 @@ export const Video: Story = {
                     </button>
 
                     <button
-                        @click=${async() => {
+                        @click=${async () => {
                             const el = document.querySelector("#graph-video");
                             if (!(el instanceof Graphty)) {
                                 return;
@@ -344,9 +362,13 @@ export const Video: Story = {
                                 format: "auto",
                                 cameraMode: "animated",
                                 cameraPath: [
-                                    {position: {x: 20, y: 40, z: 20}, target: {x: 0, y: 0, z: 0}},
-                                    {position: {x: 0, y: 50, z: 0}, target: {x: 0, y: 0, z: 0}, duration: 2500},
-                                    {position: {x: -20, y: 40, z: -20}, target: {x: 0, y: 0, z: 0}, duration: 2500},
+                                    { position: { x: 20, y: 40, z: 20 }, target: { x: 0, y: 0, z: 0 } },
+                                    { position: { x: 0, y: 50, z: 0 }, target: { x: 0, y: 0, z: 0 }, duration: 2500 },
+                                    {
+                                        position: { x: -20, y: 40, z: -20 },
+                                        target: { x: 0, y: 0, z: 0 },
+                                        duration: 2500,
+                                    },
                                 ],
                                 easing: "easeOut",
                                 download: true,
@@ -361,7 +383,7 @@ export const Video: Story = {
             </div>
         </div>
     `,
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };

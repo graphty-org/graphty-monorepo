@@ -1,7 +1,15 @@
-import {assert, describe, it} from "vitest";
-import {z} from "zod";
+import { assert, describe, it } from "vitest";
+import { z } from "zod";
 
-import type {LlmProvider, LlmResponse, Message, ProviderOptions, StreamCallbacks, ToolCall, ToolDefinition} from "../../../src/ai/providers/types";
+import type {
+    LlmProvider,
+    LlmResponse,
+    Message,
+    ProviderOptions,
+    StreamCallbacks,
+    ToolCall,
+    ToolDefinition,
+} from "../../../src/ai/providers/types";
 
 describe("Provider Types", () => {
     describe("Message", () => {
@@ -48,7 +56,7 @@ describe("Provider Types", () => {
                     {
                         id: "call_1",
                         name: "testTool",
-                        arguments: {key: "value"},
+                        arguments: { key: "value" },
                     },
                 ],
             };
@@ -62,11 +70,11 @@ describe("Provider Types", () => {
             const call: ToolCall = {
                 id: "call_123",
                 name: "testTool",
-                arguments: {foo: "bar"},
+                arguments: { foo: "bar" },
             };
             assert.strictEqual(call.id, "call_123");
             assert.strictEqual(call.name, "testTool");
-            assert.deepStrictEqual(call.arguments, {foo: "bar"});
+            assert.deepStrictEqual(call.arguments, { foo: "bar" });
         });
 
         it("supports complex arguments", () => {
@@ -75,13 +83,13 @@ describe("Provider Types", () => {
                 name: "findAndStyleNodes",
                 arguments: {
                     selector: "data.type == 'server'",
-                    style: {color: "#ff0000", size: 2},
+                    style: { color: "#ff0000", size: 2 },
                 },
             };
             assert.strictEqual(call.name, "findAndStyleNodes");
             assert.deepStrictEqual(call.arguments, {
                 selector: "data.type == 'server'",
-                style: {color: "#ff0000", size: 2},
+                style: { color: "#ff0000", size: 2 },
             });
         });
     });
@@ -132,7 +140,7 @@ describe("Provider Types", () => {
                     {
                         id: "call_1",
                         name: "setLayout",
-                        arguments: {type: "circular"},
+                        arguments: { type: "circular" },
                     },
                 ],
             };

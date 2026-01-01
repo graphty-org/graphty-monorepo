@@ -125,7 +125,7 @@ export class AiStatusManager {
     updateElapsed(): void {
         if (this.status.startTime !== undefined) {
             this.status = {
-                ... this.status,
+                ...this.status,
                 elapsed: Date.now() - this.status.startTime,
             };
             // Note: We don't notify for elapsed updates to avoid excessive callbacks
@@ -140,7 +140,7 @@ export class AiStatusManager {
      */
     setStage(stage: AiStage, message: string): void {
         this.status = {
-            ... this.status,
+            ...this.status,
             stage,
             stageMessage: message,
         };
@@ -152,7 +152,7 @@ export class AiStatusManager {
      */
     startStreaming(): void {
         this.status = {
-            ... this.status,
+            ...this.status,
             state: "streaming",
             streamedText: "",
             canCancel: true,
@@ -166,7 +166,7 @@ export class AiStatusManager {
      */
     appendStreamedText(text: string): void {
         this.status = {
-            ... this.status,
+            ...this.status,
             streamedText: (this.status.streamedText ?? "") + text,
         };
         this.notify();
@@ -180,8 +180,8 @@ export class AiStatusManager {
         const toolCalls = this.status.toolCalls ?? [];
 
         this.status = {
-            ... this.status,
-            toolCalls: [... toolCalls, {name, status: "pending"}],
+            ...this.status,
+            toolCalls: [...toolCalls, { name, status: "pending" }],
         };
         this.notify();
     }
@@ -193,7 +193,7 @@ export class AiStatusManager {
      * @param result - Optional result data
      */
     updateToolCallStatus(name: string, status: ToolCallStatusType, result?: unknown): void {
-        const {toolCalls} = this.status;
+        const { toolCalls } = this.status;
 
         if (!toolCalls) {
             return;
@@ -205,16 +205,16 @@ export class AiStatusManager {
             return;
         }
 
-        const updatedToolCalls = [... toolCalls];
+        const updatedToolCalls = [...toolCalls];
 
         updatedToolCalls[index] = {
-            ... updatedToolCalls[index],
+            ...updatedToolCalls[index],
             status,
             result,
         };
 
         this.status = {
-            ... this.status,
+            ...this.status,
             toolCalls: updatedToolCalls,
         };
         this.notify();
@@ -225,7 +225,7 @@ export class AiStatusManager {
      */
     startExecuting(): void {
         this.status = {
-            ... this.status,
+            ...this.status,
             state: "executing",
             canCancel: true,
         };
@@ -237,7 +237,7 @@ export class AiStatusManager {
      */
     complete(): void {
         this.status = {
-            ... this.status,
+            ...this.status,
             state: "ready",
             canCancel: false,
         };
@@ -251,7 +251,7 @@ export class AiStatusManager {
      */
     setError(error: Error, canRetry: boolean): void {
         this.status = {
-            ... this.status,
+            ...this.status,
             state: "error",
             error,
             canRetry,
@@ -273,7 +273,7 @@ export class AiStatusManager {
      * @returns Copy of current status
      */
     getSnapshot(): AiStatus {
-        return {... this.status};
+        return { ...this.status };
     }
 
     /**

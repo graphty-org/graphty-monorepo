@@ -3,19 +3,19 @@
  * @module test/ai/AiManager.keyPersistence.test
  */
 
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import {AiManager} from "../../../src/ai/AiManager";
-import {ApiKeyManager} from "../../../src/ai/keys";
-import type {Graph} from "../../../src/Graph";
-import {createMockGraphContext} from "../../helpers/mock-graph-context";
+import { AiManager } from "../../../src/ai/AiManager";
+import { ApiKeyManager } from "../../../src/ai/keys";
+import type { Graph } from "../../../src/Graph";
+import { createMockGraphContext } from "../../helpers/mock-graph-context";
 
 describe("AiManager key persistence", () => {
     let mockGraph: Graph;
     let testPrefix: string;
 
     beforeEach(() => {
-        mockGraph = createMockGraphContext({nodeCount: 10, edgeCount: 15});
+        mockGraph = createMockGraphContext({ nodeCount: 10, edgeCount: 15 });
         // Generate unique prefix for each test
         testPrefix = `@graphty-test-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         // Clear any existing test data
@@ -32,7 +32,7 @@ describe("AiManager key persistence", () => {
     describe("default behavior", () => {
         it("should not enable persistence by default", () => {
             const manager = new AiManager();
-            manager.init(mockGraph, {provider: "mock"});
+            manager.init(mockGraph, { provider: "mock" });
 
             const keyManager = manager.getApiKeyManager();
             assert.strictEqual(keyManager.isPersistenceEnabled(), false);
@@ -209,7 +209,7 @@ describe("AiManager key persistence", () => {
     describe("getApiKeyManager method", () => {
         it("should expose ApiKeyManager via getter", () => {
             const manager = new AiManager();
-            manager.init(mockGraph, {provider: "mock"});
+            manager.init(mockGraph, { provider: "mock" });
 
             const keyManager = manager.getApiKeyManager();
             assert.ok(keyManager instanceof ApiKeyManager);
@@ -219,7 +219,7 @@ describe("AiManager key persistence", () => {
 
         it("should return the same instance on multiple calls", () => {
             const manager = new AiManager();
-            manager.init(mockGraph, {provider: "mock"});
+            manager.init(mockGraph, { provider: "mock" });
 
             const keyManager1 = manager.getApiKeyManager();
             const keyManager2 = manager.getApiKeyManager();

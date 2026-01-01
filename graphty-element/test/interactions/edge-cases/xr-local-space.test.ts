@@ -5,12 +5,12 @@
  * for XR interactions (world space, view space, local space).
  */
 
-import {Matrix, Quaternion, Vector3} from "@babylonjs/core";
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test, vi} from "vitest";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import type {StyleSchema} from "../../../src/config";
-import {Graph} from "../../../src/Graph";
+import type { StyleSchema } from "../../../src/config";
+import { Graph } from "../../../src/Graph";
 
 function createStyleTemplate(): StyleSchema {
     return {
@@ -20,7 +20,7 @@ function createStyleTemplate(): StyleSchema {
             addDefaultStyle: true,
             twoD: false,
             layout: "fixed",
-            layoutOptions: {dim: 3},
+            layoutOptions: { dim: 3 },
         },
         layers: [],
         data: {
@@ -35,20 +35,23 @@ function createStyleTemplate(): StyleSchema {
             },
         },
         behavior: {
-            layout: {type: "fixed", preSteps: 0, stepMultiplier: 1, minDelta: 0.001, zoomStepInterval: 5},
-            node: {pinOnDrag: true},
+            layout: { type: "fixed", preSteps: 0, stepMultiplier: 1, minDelta: 0.001, zoomStepInterval: 5 },
+            node: { pinOnDrag: true },
         },
     } as unknown as StyleSchema;
 }
 
-const TEST_NODES = [{id: "node1", x: 0, y: 0, z: 0}, {id: "node2", x: 5, y: 0, z: 0}];
-const TEST_EDGES = [{src: "node1", dst: "node2"}];
+const TEST_NODES = [
+    { id: "node1", x: 0, y: 0, z: 0 },
+    { id: "node2", x: 5, y: 0, z: 0 },
+];
+const TEST_EDGES = [{ src: "node1", dst: "node2" }];
 
 describe("XR Local Space Transformations", () => {
     let graph: Graph;
     let container: HTMLDivElement;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         container = document.createElement("div");
         container.style.width = "800px";
         container.style.height = "600px";
@@ -106,7 +109,7 @@ describe("XR Local Space Transformations", () => {
                 return;
             }
 
-            const {camera} = controller;
+            const { camera } = controller;
             const viewMatrix = camera.getViewMatrix();
 
             // View matrix should be valid
@@ -128,7 +131,7 @@ describe("XR Local Space Transformations", () => {
                 return;
             }
 
-            const {camera} = controller;
+            const { camera } = controller;
             const viewMatrix = camera.getViewMatrix();
             const viewInverse = viewMatrix.clone();
             viewInverse.invert();
@@ -205,7 +208,7 @@ describe("XR Local Space Transformations", () => {
     });
 
     describe("Coordinate System Consistency", () => {
-        test("2D mode uses correct coordinate plane", async() => {
+        test("2D mode uses correct coordinate plane", async () => {
             await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();
             await new Promise((resolve) => setTimeout(resolve, 100));
@@ -219,7 +222,7 @@ describe("XR Local Space Transformations", () => {
             assert.closeTo(node1.mesh.position.z, 0, 0.01, "Z should be 0 in 2D mode");
         });
 
-        test("3D mode preserves Z coordinates", async() => {
+        test("3D mode preserves Z coordinates", async () => {
             const node1 = graph.getNode("node1");
             if (!node1) {
                 return;

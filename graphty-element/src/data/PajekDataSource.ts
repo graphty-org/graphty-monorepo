@@ -1,5 +1,5 @@
-import type {AdHocData} from "../config/common.js";
-import {BaseDataSourceConfig, DataSource, DataSourceChunk} from "./DataSource.js";
+import type { AdHocData } from "../config/common.js";
+import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 
 // Pajek has no additional config currently, so just use the base config
 export type PajekDataSourceConfig = BaseDataSourceConfig;
@@ -50,7 +50,7 @@ export class PajekDataSource extends DataSource {
         const content = await this.getContent();
 
         // Parse Pajek NET format
-        const {vertices, edges} = this.parsePajek(content);
+        const { vertices, edges } = this.parsePajek(content);
 
         // Convert to AdHocData
         const nodes = vertices.map((v) => this.vertexToNode(v));
@@ -60,7 +60,7 @@ export class PajekDataSource extends DataSource {
         yield* this.chunkData(nodes, edgeData);
     }
 
-    private parsePajek(content: string): {vertices: ParsedVertex[], edges: ParsedEdge[]} {
+    private parsePajek(content: string): { vertices: ParsedVertex[]; edges: ParsedEdge[] } {
         const lines = content.split("\n").map((line) => line.trim());
         const vertices: ParsedVertex[] = [];
         const edges: ParsedEdge[] = [];
@@ -110,7 +110,7 @@ export class PajekDataSource extends DataSource {
             }
         }
 
-        return {vertices, edges};
+        return { vertices, edges };
     }
 
     private parseVertexLine(line: string, lineNum: number): ParsedVertex | null {
@@ -121,7 +121,7 @@ export class PajekDataSource extends DataSource {
             // Or: id
 
             // Extract vertex ID (first token)
-            const {tokens, quotedIndices} = this.tokenizeLine(line);
+            const { tokens, quotedIndices } = this.tokenizeLine(line);
             if (tokens.length === 0) {
                 return null;
             }
@@ -161,7 +161,7 @@ export class PajekDataSource extends DataSource {
                 }
             }
 
-            return {id, label, x, y, z};
+            return { id, label, x, y, z };
         } catch (error) {
             const canContinue = this.errorAggregator.addError({
                 message: `Failed to parse vertex line ${lineNum + 1}: ${error instanceof Error ? error.message : String(error)}`,
@@ -181,7 +181,7 @@ export class PajekDataSource extends DataSource {
         try {
             // Edge format: src dst weight
             // Or: src dst
-            const {tokens} = this.tokenizeLine(line);
+            const { tokens } = this.tokenizeLine(line);
 
             if (tokens.length < 2) {
                 throw new Error("Edge must have at least source and target");
@@ -198,7 +198,7 @@ export class PajekDataSource extends DataSource {
                 }
             }
 
-            return {src, dst, weight, directed};
+            return { src, dst, weight, directed };
         } catch (error) {
             const canContinue = this.errorAggregator.addError({
                 message: `Failed to parse edge line ${lineNum + 1}: ${error instanceof Error ? error.message : String(error)}`,
@@ -214,14 +214,14 @@ export class PajekDataSource extends DataSource {
         }
     }
 
-    private tokenizeLine(line: string): {tokens: string[], quotedIndices: Set<number>} {
+    private tokenizeLine(line: string): { tokens: string[]; quotedIndices: Set<number> } {
         const tokens: string[] = [];
         const quotedIndices = new Set<number>();
         let current = "";
         let inQuotes = false;
 
         for (const char of line) {
-            if (char === "\"") {
+            if (char === '"') {
                 if (inQuotes) {
                     // End of quoted string
                     quotedIndices.add(tokens.length);
@@ -257,7 +257,7 @@ export class PajekDataSource extends DataSource {
             tokens.push(current.trim());
         }
 
-        return {tokens, quotedIndices};
+        return { tokens, quotedIndices };
     }
 
     private vertexToNode(vertex: ParsedVertex): AdHocData {

@@ -23,9 +23,11 @@ This document outlines the design for screenshot and video capture capabilities 
 ## Key Design Decisions
 
 ### 1. Unified Screenshot API with Consistent Return Type
+
 Instead of separate `captureScreenshot()` and `copyScreenshotToClipboard()` methods, we use a single API with a `destination` option that supports multiple outputs (blob, download, clipboard) simultaneously. The method always returns a consistent `ScreenshotResult` object.
 
 **Benefits:**
+
 - Simpler API surface (one method vs two)
 - Eliminates parameter duplication
 - Enables multi-destination capture (e.g., download AND clipboard)
@@ -33,9 +35,11 @@ Instead of separate `captureScreenshot()` and `copyScreenshotToClipboard()` meth
 - Partial failure handling (e.g., screenshot succeeds but clipboard fails)
 
 ### 2. OperationQueueManager Integration
+
 All screenshot and animated camera operations integrate with the OperationQueueManager to prevent race conditions and ensure consistent state.
 
 **Benefits:**
+
 - Prevents concurrent operations from interfering
 - Screenshots always capture complete/settled state
 - Predictable operation sequencing
@@ -43,9 +47,11 @@ All screenshot and animated camera operations integrate with the OperationQueueM
 - Camera animations and screenshots naturally coordinate through the queue
 
 ### 3. Built-in Camera Presets for 2D and 3D
+
 Common camera positions (fitToGraph, topView, etc.) are built-in presets that auto-calculate based on current graph state **after** waiting for operations to complete, rather than requiring manual implementation. Presets automatically adapt to the current camera mode (2D orthographic or 3D perspective).
 
 **Benefits:**
+
 - Makes common use cases trivial (e.g., "fit entire graph in view")
 - Eliminates duplicate "zoom to fit" features
 - Works consistently across 2D and 3D rendering modes
@@ -54,9 +60,11 @@ Common camera positions (fitToGraph, topView, etc.) are built-in presets that au
 - Presets calculated at the right time (after layout settles)
 
 ### 4. Flexible Timing Control
+
 Screenshot operations provide explicit control over timing behavior through `timing` options (waitForSettle, waitForOperations).
 
 **Benefits:**
+
 - Default behavior is safe (waits for everything)
 - Power users can optimize for speed when immediate capture is needed
 - Clear semantics for different use cases
@@ -71,8 +79,8 @@ Screenshot operations provide explicit control over timing behavior through `tim
 
 ```typescript
 const engine = new Engine(canvas, antialiasing, {
-  preserveDrawingBuffer: true,  // REQUIRED for screenshots
-  stencil: true                  // Also recommended
+    preserveDrawingBuffer: true, // REQUIRED for screenshots
+    stencil: true, // Also recommended
 });
 ```
 
@@ -87,96 +95,101 @@ Without this configuration, screenshots will be blank or black. The implementati
 #### 1. Screenshot Capture
 
 **Basic Usage:**
+
 ```typescript
 // Simple capture
 const result = await graph.captureScreenshot();
 
 // With options
 const result = await graph.captureScreenshot({
-  // Format & Quality
-  format: 'png',              // 'png' | 'jpeg' | 'webp'
-  quality: 0.95,              // 0-1, for jpeg/webp (defaults: 0.92 jpeg, 0.80 webp)
+    // Format & Quality
+    format: "png", // 'png' | 'jpeg' | 'webp'
+    quality: 0.95, // 0-1, for jpeg/webp (defaults: 0.92 jpeg, 0.80 webp)
 
-  // Resolution (multiplier takes precedence, explicit dims override)
-  multiplier: 2,              // Resolution multiplier (1x, 2x, 4x, etc.)
-  width: 1920,                // Optional: explicit width (overrides multiplier)
-  height: 1080,               // Optional: explicit height (overrides multiplier)
-  strictAspectRatio: false,   // If true, error when width+height don't match canvas ratio
+    // Resolution (multiplier takes precedence, explicit dims override)
+    multiplier: 2, // Resolution multiplier (1x, 2x, 4x, etc.)
+    width: 1920, // Optional: explicit width (overrides multiplier)
+    height: 1080, // Optional: explicit height (overrides multiplier)
+    strictAspectRatio: false, // If true, error when width+height don't match canvas ratio
 
-  // Visual Options
-  transparentBackground: true, // Replace ALL background layers with transparency
-  enhanceQuality: true,       // Temporarily boost anti-aliasing (slow, use sparingly)
+    // Visual Options
+    transparentBackground: true, // Replace ALL background layers with transparency
+    enhanceQuality: true, // Temporarily boost anti-aliasing (slow, use sparingly)
 
-  // Destination (can specify multiple)
-  destination: {
-    blob: true,               // Include blob in result (default: true)
-    download: true,           // Auto-trigger download
-    clipboard: true,          // Copy to clipboard (may fail due to permissions)
-  },
-  downloadFilename: 'graph.png', // Filename for download (if download: true)
+    // Destination (can specify multiple)
+    destination: {
+        blob: true, // Include blob in result (default: true)
+        download: true, // Auto-trigger download
+        clipboard: true, // Copy to clipboard (may fail due to permissions)
+    },
+    downloadFilename: "graph.png", // Filename for download (if download: true)
 
-  // Screenshot Preset (convenience bundles)
-  preset: 'print',            // 'print' | 'web-share' | 'thumbnail' | 'documentation'
+    // Screenshot Preset (convenience bundles)
+    preset: "print", // 'print' | 'web-share' | 'thumbnail' | 'documentation'
 
-  // Camera Override
-  camera: {                   // Optional: override camera for this screenshot
-    preset: 'fitToGraph',     // Use built-in preset, OR
-    position: { x: 10, y: 10, z: 10 },
-    target: { x: 0, y: 0, z: 0 }
-  },
+    // Camera Override
+    camera: {
+        // Optional: override camera for this screenshot
+        preset: "fitToGraph", // Use built-in preset, OR
+        position: { x: 10, y: 10, z: 10 },
+        target: { x: 0, y: 0, z: 0 },
+    },
 
-  // Operation Timing
-  timing: {
-    waitForSettle: true,      // Wait for layout to settle (default: true)
-    waitForOperations: true,  // Wait for pending operations (default: true)
-  }
+    // Operation Timing
+    timing: {
+        waitForSettle: true, // Wait for layout to settle (default: true)
+        waitForOperations: true, // Wait for pending operations (default: true)
+    },
 });
 ```
 
 **Return Value:**
+
 ```typescript
 interface ScreenshotResult {
-  /** The captured screenshot blob (always present) */
-  blob: Blob;
+    /** The captured screenshot blob (always present) */
+    blob: Blob;
 
-  /** Whether download was triggered successfully */
-  downloaded: boolean;
+    /** Whether download was triggered successfully */
+    downloaded: boolean;
 
-  /** Clipboard copy status */
-  clipboardStatus: 'success' | 'not-supported' | 'permission-denied' | 'not-secure-context' | 'failed';
+    /** Clipboard copy status */
+    clipboardStatus: "success" | "not-supported" | "permission-denied" | "not-secure-context" | "failed";
 
-  /** Clipboard error if copy failed */
-  clipboardError?: Error;
+    /** Clipboard error if copy failed */
+    clipboardError?: Error;
 
-  /** Partial failure errors (non-fatal) */
-  errors?: ScreenshotError[];
+    /** Partial failure errors (non-fatal) */
+    errors?: ScreenshotError[];
 
-  /** Metadata about the capture */
-  metadata: {
-    width: number;
-    height: number;
-    format: string;
-    byteSize: number;
-    captureTime: number; // milliseconds
-  };
+    /** Metadata about the capture */
+    metadata: {
+        width: number;
+        height: number;
+        format: string;
+        byteSize: number;
+        captureTime: number; // milliseconds
+    };
 }
 ```
 
 **Events:**
+
 ```typescript
 // Always fires after capture
-element.addEventListener('screenshot-captured', (event) => {
-  console.log(event.detail.result); // ScreenshotResult
+element.addEventListener("screenshot-captured", (event) => {
+    console.log(event.detail.result); // ScreenshotResult
 });
 
 // Clipboard-specific events
-element.addEventListener('screenshot-clipboard-success', handler);
-element.addEventListener('screenshot-clipboard-permission-denied', handler);
-element.addEventListener('screenshot-clipboard-not-supported', handler);
-element.addEventListener('screenshot-clipboard-failed', handler);
+element.addEventListener("screenshot-clipboard-success", handler);
+element.addEventListener("screenshot-clipboard-permission-denied", handler);
+element.addEventListener("screenshot-clipboard-not-supported", handler);
+element.addEventListener("screenshot-clipboard-failed", handler);
 ```
 
 **Implementation Details:**
+
 - Use Babylon.js `CreateScreenshotAsync` (uses canvas.toBlob internally for best performance)
 - Check engine `preserveDrawingBuffer` configuration, throw error if not set
 - For transparent background, disable ALL background layers (clearColor, skybox, environment, etc.)
@@ -196,42 +209,42 @@ Common screenshot configurations as convenient presets:
 
 ```typescript
 const SCREENSHOT_PRESETS = {
-  'print': {
-    format: 'png',
-    multiplier: 4,
-    enhanceQuality: true,
-    camera: { preset: 'fitToGraph' }
-  },
+    print: {
+        format: "png",
+        multiplier: 4,
+        enhanceQuality: true,
+        camera: { preset: "fitToGraph" },
+    },
 
-  'web-share': {
-    format: 'png',
-    multiplier: 2,
-    destination: { clipboard: true },
-    camera: { preset: 'fitToGraph' }
-  },
+    "web-share": {
+        format: "png",
+        multiplier: 2,
+        destination: { clipboard: true },
+        camera: { preset: "fitToGraph" },
+    },
 
-  'thumbnail': {
-    format: 'jpeg',
-    width: 400,
-    height: 300,
-    quality: 0.85
-  },
+    thumbnail: {
+        format: "jpeg",
+        width: 400,
+        height: 300,
+        quality: 0.85,
+    },
 
-  'documentation': {
-    format: 'png',
-    multiplier: 2,
-    transparentBackground: true,
-    destination: { download: true }
-  }
+    documentation: {
+        format: "png",
+        multiplier: 2,
+        transparentBackground: true,
+        destination: { download: true },
+    },
 };
 
 // Usage
-await graph.captureScreenshot({ preset: 'print' });
+await graph.captureScreenshot({ preset: "print" });
 
 // Override specific options
 await graph.captureScreenshot({
-  preset: 'print',
-  width: 7680  // 8K override
+    preset: "print",
+    width: 7680, // 8K override
 });
 ```
 
@@ -240,61 +253,60 @@ await graph.captureScreenshot({
 When `transparentBackground: true`:
 
 **Comprehensive Background Handling:**
+
 ```typescript
 // Disable ALL background layers
 interface BackgroundState {
-  clearColor: Color4;
-  skyboxEnabled: boolean;
-  environmentTexture: BaseTexture | null;
-  imageProcessingEnabled: boolean;
-  // ... other relevant state
+    clearColor: Color4;
+    skyboxEnabled: boolean;
+    environmentTexture: BaseTexture | null;
+    imageProcessingEnabled: boolean;
+    // ... other relevant state
 }
 
 async function enableTransparentBackground(): Promise<BackgroundState> {
-  const original = {
-    clearColor: this.scene.clearColor.clone(),
-    skyboxEnabled: this.skybox?.isEnabled() ?? false,
-    environmentTexture: this.scene.environmentTexture,
-    imageProcessingEnabled: this.scene.imageProcessingConfiguration.isEnabled
-  };
+    const original = {
+        clearColor: this.scene.clearColor.clone(),
+        skyboxEnabled: this.skybox?.isEnabled() ?? false,
+        environmentTexture: this.scene.environmentTexture,
+        imageProcessingEnabled: this.scene.imageProcessingConfiguration.isEnabled,
+    };
 
-  // Disable ALL background layers
-  this.scene.clearColor = new Color4(0, 0, 0, 0);
+    // Disable ALL background layers
+    this.scene.clearColor = new Color4(0, 0, 0, 0);
 
-  if (this.skybox) {
-    this.skybox.setEnabled(false);
-  }
+    if (this.skybox) {
+        this.skybox.setEnabled(false);
+    }
 
-  this.scene.environmentTexture = null;
-  this.scene.imageProcessingConfiguration.vignetteEnabled = false;
+    this.scene.environmentTexture = null;
+    this.scene.imageProcessingConfiguration.vignetteEnabled = false;
 
-  await this.waitForRender(); // Apply changes
+    await this.waitForRender(); // Apply changes
 
-  return original;
+    return original;
 }
 
 function restoreBackground(state: BackgroundState): void {
-  // Restore all layers
-  this.scene.clearColor = state.clearColor;
-  if (this.skybox) {
-    this.skybox.setEnabled(state.skyboxEnabled);
-  }
-  this.scene.environmentTexture = state.environmentTexture;
-  this.scene.imageProcessingConfiguration.isEnabled = state.imageProcessingEnabled;
+    // Restore all layers
+    this.scene.clearColor = state.clearColor;
+    if (this.skybox) {
+        this.skybox.setEnabled(state.skyboxEnabled);
+    }
+    this.scene.environmentTexture = state.environmentTexture;
+    this.scene.imageProcessingConfiguration.isEnabled = state.imageProcessingEnabled;
 }
 ```
 
 **Format Requirements:**
+
 - Ensure alpha channel is preserved in output
 - Works with PNG and WebP
 - **Error if used with JPEG** (doesn't support transparency)
 
 ```typescript
-if (options.transparentBackground && options.format === 'jpeg') {
-  throw new ScreenshotError(
-    'Transparent background requires PNG or WebP format',
-    'TRANSPARENT_REQUIRES_PNG'
-  );
+if (options.transparentBackground && options.format === "jpeg") {
+    throw new ScreenshotError("Transparent background requires PNG or WebP format", "TRANSPARENT_REQUIRES_PNG");
 }
 ```
 
@@ -337,78 +349,80 @@ strictAspectRatio?: boolean;
 ```
 
 **Implementation:**
+
 ```typescript
-function calculateDimensions(canvas, options): { width, height } {
-  const canvasAspect = canvas.width / canvas.height;
+function calculateDimensions(canvas, options): { width; height } {
+    const canvasAspect = canvas.width / canvas.height;
 
-  // Explicit dimensions
-  if (options.width && options.height) {
-    const requestedAspect = options.width / options.height;
-    if (options.strictAspectRatio && Math.abs(requestedAspect - canvasAspect) > 0.01) {
-      throw new ScreenshotError(
-        `Requested ${options.width}×${options.height} doesn't match canvas aspect ratio`,
-        'ASPECT_RATIO_MISMATCH'
-      );
+    // Explicit dimensions
+    if (options.width && options.height) {
+        const requestedAspect = options.width / options.height;
+        if (options.strictAspectRatio && Math.abs(requestedAspect - canvasAspect) > 0.01) {
+            throw new ScreenshotError(
+                `Requested ${options.width}×${options.height} doesn't match canvas aspect ratio`,
+                "ASPECT_RATIO_MISMATCH",
+            );
+        }
+        return { width: options.width, height: options.height };
     }
-    return { width: options.width, height: options.height };
-  }
 
-  // Only width: maintain aspect ratio
-  if (options.width) {
+    // Only width: maintain aspect ratio
+    if (options.width) {
+        return {
+            width: options.width,
+            height: Math.round(options.width / canvasAspect),
+        };
+    }
+
+    // Only height: maintain aspect ratio
+    if (options.height) {
+        return {
+            width: Math.round(options.height * canvasAspect),
+            height: options.height,
+        };
+    }
+
+    // Multiplier (default: 1x)
+    const mult = options.multiplier ?? 1;
     return {
-      width: options.width,
-      height: Math.round(options.width / canvasAspect)
+        width: Math.round(canvas.width * mult),
+        height: Math.round(canvas.height * mult),
     };
-  }
-
-  // Only height: maintain aspect ratio
-  if (options.height) {
-    return {
-      width: Math.round(options.height * canvasAspect),
-      height: options.height
-    };
-  }
-
-  // Multiplier (default: 1x)
-  const mult = options.multiplier ?? 1;
-  return {
-    width: Math.round(canvas.width * mult),
-    height: Math.round(canvas.height * mult)
-  };
 }
 ```
 
 **Sanity Checks:**
+
 ```typescript
 const BROWSER_LIMITS = {
-  MAX_DIMENSION: 16384,     // Conservative browser canvas limit
-  MAX_PIXELS: 33_177_600,   // 8K resolution (7680×4320)
-  WARN_PIXELS: 8_294_400,   // 4K resolution (3840×2160)
+    MAX_DIMENSION: 16384, // Conservative browser canvas limit
+    MAX_PIXELS: 33_177_600, // 8K resolution (7680×4320)
+    WARN_PIXELS: 8_294_400, // 4K resolution (3840×2160)
 };
 
 function validateDimensions(width: number, height: number): void {
-  // Hard limits
-  if (width > BROWSER_LIMITS.MAX_DIMENSION || height > BROWSER_LIMITS.MAX_DIMENSION) {
-    throw new ScreenshotError(
-      `Dimension ${width}×${height} exceeds browser canvas limit (${BROWSER_LIMITS.MAX_DIMENSION}px)`,
-      'DIMENSION_TOO_LARGE'
-    );
-  }
+    // Hard limits
+    if (width > BROWSER_LIMITS.MAX_DIMENSION || height > BROWSER_LIMITS.MAX_DIMENSION) {
+        throw new ScreenshotError(
+            `Dimension ${width}×${height} exceeds browser canvas limit (${BROWSER_LIMITS.MAX_DIMENSION}px)`,
+            "DIMENSION_TOO_LARGE",
+        );
+    }
 
-  const pixels = width * height;
-  if (pixels > BROWSER_LIMITS.MAX_PIXELS) {
-    throw new ScreenshotError(
-      `Resolution ${width}×${height} (${(pixels/1e6).toFixed(1)}MP) exceeds recommended maximum`,
-      'RESOLUTION_TOO_HIGH'
-    );
-  }
+    const pixels = width * height;
+    if (pixels > BROWSER_LIMITS.MAX_PIXELS) {
+        throw new ScreenshotError(
+            `Resolution ${width}×${height} (${(pixels / 1e6).toFixed(1)}MP) exceeds recommended maximum`,
+            "RESOLUTION_TOO_HIGH",
+        );
+    }
 
-  // Warnings (non-fatal)
-  if (pixels > BROWSER_LIMITS.WARN_PIXELS) {
-    console.warn(
-      `Large screenshot ${width}×${height} (${(pixels/1e6).toFixed(1)}MP) may fail on devices with limited memory`
-    );
-  }
+    // Warnings (non-fatal)
+    if (pixels > BROWSER_LIMITS.WARN_PIXELS) {
+        console.warn(
+            `Large screenshot ${width}×${height} (${(pixels / 1e6).toFixed(1)}MP) may fail on devices with limited memory`,
+        );
+    }
 }
 ```
 
@@ -430,6 +444,7 @@ enhanceQuality?: boolean;
 ```
 
 **Implementation:**
+
 - Temporarily increase MSAA samples (e.g., from 4 to 16)
 - Capture screenshot with enhanced quality
 - Restore original settings
@@ -437,13 +452,14 @@ enhanceQuality?: boolean;
 - **Document performance cost prominently**
 
 **Events:**
+
 ```typescript
-graph.addEventListener('screenshot-enhancing', (event) => {
-  console.log('Recreating render targets with higher anti-aliasing...');
+graph.addEventListener("screenshot-enhancing", (event) => {
+    console.log("Recreating render targets with higher anti-aliasing...");
 });
 
-graph.addEventListener('screenshot-ready', (event) => {
-  console.log(`Quality enhancement took ${event.detail.enhancementTime}ms`);
+graph.addEventListener("screenshot-ready", (event) => {
+    console.log(`Quality enhancement took ${event.detail.enhancementTime}ms`);
 });
 ```
 
@@ -453,38 +469,38 @@ Comprehensive clipboard error handling:
 
 ```typescript
 async function copyToClipboard(blob: Blob): Promise<ClipboardStatus> {
-  // Check if clipboard API is available
-  if (!navigator.clipboard || !navigator.clipboard.write) {
-    return {
-      status: 'not-supported',
-      error: new Error('Clipboard API not supported in this browser')
-    };
-  }
-
-  // Check for secure context (HTTPS)
-  if (!window.isSecureContext) {
-    return {
-      status: 'not-secure-context',
-      error: new Error('Clipboard API requires HTTPS')
-    };
-  }
-
-  try {
-    const item = new ClipboardItem({ [blob.type]: blob });
-    await navigator.clipboard.write([item]);
-    return { status: 'success' };
-  } catch (err) {
-    if (err.name === 'NotAllowedError') {
-      return {
-        status: 'permission-denied',
-        error: err
-      };
+    // Check if clipboard API is available
+    if (!navigator.clipboard || !navigator.clipboard.write) {
+        return {
+            status: "not-supported",
+            error: new Error("Clipboard API not supported in this browser"),
+        };
     }
-    return {
-      status: 'failed',
-      error: err
-    };
-  }
+
+    // Check for secure context (HTTPS)
+    if (!window.isSecureContext) {
+        return {
+            status: "not-secure-context",
+            error: new Error("Clipboard API requires HTTPS"),
+        };
+    }
+
+    try {
+        const item = new ClipboardItem({ [blob.type]: blob });
+        await navigator.clipboard.write([item]);
+        return { status: "success" };
+    } catch (err) {
+        if (err.name === "NotAllowedError") {
+            return {
+                status: "permission-denied",
+                error: err,
+            };
+        }
+        return {
+            status: "failed",
+            error: err,
+        };
+    }
 }
 ```
 
@@ -495,6 +511,7 @@ async function copyToClipboard(blob: Blob): Promise<ClipboardStatus> {
 ### Overview
 
 Provides programmatic control over camera position, target, and orientation for both **2D orthographic** and **3D perspective** cameras. Essential for:
+
 - Taking screenshots from consistent viewpoints
 - Creating camera presets
 - Animating camera movement
@@ -507,27 +524,27 @@ Provides programmatic control over camera position, target, and orientation for 
 
 ```typescript
 interface CameraState {
-  // Camera type (determines which properties are used)
-  type: 'arcRotate' | 'free' | 'universal' | 'orthographic';
+    // Camera type (determines which properties are used)
+    type: "arcRotate" | "free" | "universal" | "orthographic";
 
-  // 3D Camera Properties (used when type is arcRotate/free/universal)
-  position?: { x: number; y: number; z: number };  // 3D position
-  target?: { x: number; y: number; z: number };    // 3D look-at target
-  alpha?: number;   // ArcRotateCamera: horizontal rotation
-  beta?: number;    // ArcRotateCamera: vertical rotation
-  radius?: number;  // ArcRotateCamera: distance from target
-  fov?: number;     // Perspective field of view (degrees)
+    // 3D Camera Properties (used when type is arcRotate/free/universal)
+    position?: { x: number; y: number; z: number }; // 3D position
+    target?: { x: number; y: number; z: number }; // 3D look-at target
+    alpha?: number; // ArcRotateCamera: horizontal rotation
+    beta?: number; // ArcRotateCamera: vertical rotation
+    radius?: number; // ArcRotateCamera: distance from target
+    fov?: number; // Perspective field of view (degrees)
 
-  // 2D Camera Properties (used when type is orthographic)
-  zoom?: number;    // Orthographic zoom level (1 = default, >1 = zoomed in)
-  pan?: { x: number; y: number };  // 2D pan position (world coordinates)
-  rotation?: number;  // Optional: 2D rotation angle in radians
+    // 2D Camera Properties (used when type is orthographic)
+    zoom?: number; // Orthographic zoom level (1 = default, >1 = zoomed in)
+    pan?: { x: number; y: number }; // 2D pan position (world coordinates)
+    rotation?: number; // Optional: 2D rotation angle in radians
 
-  // Orthographic frustum (advanced, usually auto-calculated from zoom)
-  orthoLeft?: number;
-  orthoRight?: number;
-  orthoTop?: number;
-  orthoBottom?: number;
+    // Orthographic frustum (advanced, usually auto-calculated from zoom)
+    orthoLeft?: number;
+    orthoRight?: number;
+    orthoTop?: number;
+    orthoBottom?: number;
 }
 
 const state = graph.getCameraState();
@@ -572,6 +589,7 @@ graph.setCameraState({
 ```
 
 **Behavior:**
+
 - Partial updates allowed (e.g., only change position or zoom)
 - If `animate: true`, smoothly transition to new state using OperationQueueManager
 - Fires `camera-state-changed` event when complete
@@ -584,16 +602,10 @@ graph.setCameraState({
 
 ```typescript
 // 3D: Set just position
-graph.setCameraPosition(
-  { x: 10, y: 10, z: 10 },
-  { animate: true }
-);
+graph.setCameraPosition({ x: 10, y: 10, z: 10 }, { animate: true });
 
 // 3D: Set just target
-graph.setCameraTarget(
-  { x: 0, y: 0, z: 0 },
-  { animate: true }
-);
+graph.setCameraTarget({ x: 0, y: 0, z: 0 }, { animate: true });
 
 // 2D: Set zoom level
 graph.setCameraZoom(2.0, { animate: true });
@@ -613,17 +625,17 @@ The following presets are available by default and **automatically adapt** to th
 
 ```typescript
 // Fit entire graph in view with padding (works for both 2D and 3D)
-graph.setCameraState({ preset: 'fitToGraph' }, { animate: true });
+graph.setCameraState({ preset: "fitToGraph" }, { animate: true });
 
 // Top-down view (2D: standard view, 3D: look down from above)
-graph.setCameraState({ preset: 'topView' }, { animate: true });
+graph.setCameraState({ preset: "topView" }, { animate: true });
 
 // 3D only: Side and front views
-graph.setCameraState({ preset: 'sideView' }, { animate: true });
-graph.setCameraState({ preset: 'frontView' }, { animate: true });
+graph.setCameraState({ preset: "sideView" }, { animate: true });
+graph.setCameraState({ preset: "frontView" }, { animate: true });
 
 // 3D only: Isometric view
-graph.setCameraState({ preset: 'isometric' }, { animate: true });
+graph.setCameraState({ preset: "isometric" }, { animate: true });
 ```
 
 **Built-in Preset Implementations:**
@@ -631,58 +643,58 @@ graph.setCameraState({ preset: 'isometric' }, { animate: true });
 ```typescript
 // 'fitToGraph' - Calculates optimal camera to fit all nodes
 function calculateFitToGraph(graph: Graph): CameraState {
-  const bounds = graph.getNodeBoundingBox();
-  const center = { x: bounds.center.x, y: bounds.center.y, z: bounds.center.z };
+    const bounds = graph.getNodeBoundingBox();
+    const center = { x: bounds.center.x, y: bounds.center.y, z: bounds.center.z };
 
-  if (this.camera.mode === '2d') {
-    // 2D: Calculate zoom to fit all nodes with padding
-    const size = Math.max(bounds.width, bounds.height);
-    const zoom = this.canvas.width / (size * 1.2); // 20% padding
+    if (this.camera.mode === "2d") {
+        // 2D: Calculate zoom to fit all nodes with padding
+        const size = Math.max(bounds.width, bounds.height);
+        const zoom = this.canvas.width / (size * 1.2); // 20% padding
 
-    return {
-      type: 'orthographic',
-      zoom,
-      pan: { x: center.x, y: center.y }
-    };
-  } else {
-    // 3D: Calculate distance to fit all nodes with padding
-    const size = bounds.getSize();
-    const maxDim = Math.max(size.x, size.y, size.z);
-    const distance = maxDim / Math.tan(camera.fov / 2) * 1.2; // 20% padding
+        return {
+            type: "orthographic",
+            zoom,
+            pan: { x: center.x, y: center.y },
+        };
+    } else {
+        // 3D: Calculate distance to fit all nodes with padding
+        const size = bounds.getSize();
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const distance = (maxDim / Math.tan(camera.fov / 2)) * 1.2; // 20% padding
 
-    return {
-      type: 'arcRotate',
-      position: {
-        x: center.x + distance,
-        y: center.y + distance,
-        z: center.z + distance
-      },
-      target: center
-    };
-  }
+        return {
+            type: "arcRotate",
+            position: {
+                x: center.x + distance,
+                y: center.y + distance,
+                z: center.z + distance,
+            },
+            target: center,
+        };
+    }
 }
 
 // 'topView' - Top-down view
 function calculateTopView(graph: Graph): CameraState {
-  const bounds = graph.getNodeBoundingBox();
-  const center = { x: bounds.center.x, y: bounds.center.y };
+    const bounds = graph.getNodeBoundingBox();
+    const center = { x: bounds.center.x, y: bounds.center.y };
 
-  if (this.camera.mode === '2d') {
-    // 2D: Standard top-down view (default for 2D)
-    return {
-      type: 'orthographic',
-      zoom: 1.0,
-      pan: center
-    };
-  } else {
-    // 3D: Look down from above
-    const distance = bounds.getSize().maxDimension * 1.5;
-    return {
-      type: 'arcRotate',
-      position: { x: center.x, y: center.y + distance, z: bounds.center.z },
-      target: { x: center.x, y: center.y, z: bounds.center.z }
-    };
-  }
+    if (this.camera.mode === "2d") {
+        // 2D: Standard top-down view (default for 2D)
+        return {
+            type: "orthographic",
+            zoom: 1.0,
+            pan: center,
+        };
+    } else {
+        // 3D: Look down from above
+        const distance = bounds.getSize().maxDimension * 1.5;
+        return {
+            type: "arcRotate",
+            position: { x: center.x, y: center.y + distance, z: bounds.center.z },
+            target: { x: center.x, y: center.y, z: bounds.center.z },
+        };
+    }
 }
 
 // 'sideView' - 3D only: Look from the side
@@ -694,10 +706,10 @@ function calculateTopView(graph: Graph): CameraState {
 
 ```typescript
 // Save current camera as named preset
-graph.saveCameraPreset('myCustomView');
+graph.saveCameraPreset("myCustomView");
 
 // Restore user-defined preset
-graph.loadCameraPreset('myCustomView', { animate: true });
+graph.loadCameraPreset("myCustomView", { animate: true });
 
 // Get all presets (built-in + user-defined)
 const presets = graph.getCameraPresets();
@@ -717,13 +729,13 @@ graph.importCameraPresets(json);
 
 ```typescript
 // Fired when camera state changes (manually or programmatically)
-graph.addEventListener('camera-state-changed', (event) => {
-  console.log(event.detail.state); // New CameraState
+graph.addEventListener("camera-state-changed", (event) => {
+    console.log(event.detail.state); // New CameraState
 });
 
 // Fired during camera animation (for progress tracking)
-graph.addEventListener('camera-animating', (event) => {
-  console.log(event.detail.progress); // 0-1
+graph.addEventListener("camera-animating", (event) => {
+    console.log(event.detail.progress); // 0-1
 });
 ```
 
@@ -830,81 +842,74 @@ class Graph {
 
 ```typescript
 class Graph {
-  async setCameraState(
-    state: Partial<CameraState> | { preset: string },
-    options?: CameraAnimationOptions
-  ): Promise<void> {
-    // Immediate updates don't need queueing
-    if (!options?.animate) {
-      const cameraState = 'preset' in state
-        ? this.resolveCameraPreset(state.preset)
-        : state;
-      this.applyCameraStateImmediate(cameraState);
-      this.dispatchEvent('camera-state-changed', { state: cameraState });
-      return;
+    async setCameraState(
+        state: Partial<CameraState> | { preset: string },
+        options?: CameraAnimationOptions,
+    ): Promise<void> {
+        // Immediate updates don't need queueing
+        if (!options?.animate) {
+            const cameraState = "preset" in state ? this.resolveCameraPreset(state.preset) : state;
+            this.applyCameraStateImmediate(cameraState);
+            this.dispatchEvent("camera-state-changed", { state: cameraState });
+            return;
+        }
+
+        // Animated transitions must be queued
+        return this.operationQueue.enqueue(async () => {
+            const cameraState = "preset" in state ? this.resolveCameraPreset(state.preset) : state;
+
+            await this.animateCameraTo(cameraState, {
+                duration: options.duration ?? 1000,
+                easing: options.easing ?? "easeInOut",
+            });
+
+            this.dispatchEvent("camera-state-changed", { state: cameraState });
+        });
     }
 
-    // Animated transitions must be queued
-    return this.operationQueue.enqueue(async () => {
-      const cameraState = 'preset' in state
-        ? this.resolveCameraPreset(state.preset)
-        : state;
+    private resolveCameraPreset(preset: string): CameraState {
+        // Detect if using 2D or 3D camera
+        const is2D = this.camera.mode === "2d" || this.camera instanceof OrthographicCamera;
 
-      await this.animateCameraTo(cameraState, {
-        duration: options.duration ?? 1000,
-        easing: options.easing ?? 'easeInOut'
-      });
-
-      this.dispatchEvent('camera-state-changed', { state: cameraState });
-    });
-  }
-
-  private resolveCameraPreset(preset: string): CameraState {
-    // Detect if using 2D or 3D camera
-    const is2D = this.camera.mode === '2d' || this.camera instanceof OrthographicCamera;
-
-    // Check built-in presets first (auto-adapt to 2D vs 3D)
-    switch (preset) {
-      case 'fitToGraph':
-        return is2D ? this.calculateFitToGraph2D() : this.calculateFitToGraph3D();
-      case 'topView':
-        return is2D ? this.calculateTopView2D() : this.calculateTopView3D();
-      case 'sideView':
-        if (is2D) {
-          throw new ScreenshotError(
-            'sideView preset is only available for 3D cameras',
-            'CAMERA_PRESET_NOT_AVAILABLE_IN_2D'
-          );
+        // Check built-in presets first (auto-adapt to 2D vs 3D)
+        switch (preset) {
+            case "fitToGraph":
+                return is2D ? this.calculateFitToGraph2D() : this.calculateFitToGraph3D();
+            case "topView":
+                return is2D ? this.calculateTopView2D() : this.calculateTopView3D();
+            case "sideView":
+                if (is2D) {
+                    throw new ScreenshotError(
+                        "sideView preset is only available for 3D cameras",
+                        "CAMERA_PRESET_NOT_AVAILABLE_IN_2D",
+                    );
+                }
+                return this.calculateSideView3D();
+            case "frontView":
+                if (is2D) {
+                    throw new ScreenshotError(
+                        "frontView preset is only available for 3D cameras",
+                        "CAMERA_PRESET_NOT_AVAILABLE_IN_2D",
+                    );
+                }
+                return this.calculateFrontView3D();
+            case "isometric":
+                if (is2D) {
+                    throw new ScreenshotError(
+                        "isometric preset is only available for 3D cameras",
+                        "CAMERA_PRESET_NOT_AVAILABLE_IN_2D",
+                    );
+                }
+                return this.calculateIsometric3D();
+            default:
+                // Check user-defined presets
+                const userPreset = this.cameraPresets.get(preset);
+                if (!userPreset) {
+                    throw new ScreenshotError(`Unknown camera preset: ${preset}`, "CAMERA_PRESET_NOT_FOUND");
+                }
+                return userPreset;
         }
-        return this.calculateSideView3D();
-      case 'frontView':
-        if (is2D) {
-          throw new ScreenshotError(
-            'frontView preset is only available for 3D cameras',
-            'CAMERA_PRESET_NOT_AVAILABLE_IN_2D'
-          );
-        }
-        return this.calculateFrontView3D();
-      case 'isometric':
-        if (is2D) {
-          throw new ScreenshotError(
-            'isometric preset is only available for 3D cameras',
-            'CAMERA_PRESET_NOT_AVAILABLE_IN_2D'
-          );
-        }
-        return this.calculateIsometric3D();
-      default:
-        // Check user-defined presets
-        const userPreset = this.cameraPresets.get(preset);
-        if (!userPreset) {
-          throw new ScreenshotError(
-            `Unknown camera preset: ${preset}`,
-            'CAMERA_PRESET_NOT_FOUND'
-          );
-        }
-        return userPreset;
     }
-  }
 }
 ```
 
@@ -913,26 +918,26 @@ class Graph {
 ```typescript
 // Capture immediately without waiting
 await graph.captureScreenshot({
-  timing: {
-    waitForSettle: false,
-    waitForOperations: false
-  }
+    timing: {
+        waitForSettle: false,
+        waitForOperations: false,
+    },
 });
 
 // Wait for layout but not other operations
 await graph.captureScreenshot({
-  timing: {
-    waitForSettle: true,
-    waitForOperations: false
-  }
+    timing: {
+        waitForSettle: true,
+        waitForOperations: false,
+    },
 });
 
 // Wait for everything (default, safest)
 await graph.captureScreenshot({
-  timing: {
-    waitForSettle: true,
-    waitForOperations: true
-  }
+    timing: {
+        waitForSettle: true,
+        waitForOperations: true,
+    },
 });
 ```
 
@@ -940,41 +945,38 @@ await graph.captureScreenshot({
 
 ```typescript
 class Graph {
-  private async waitForLayoutSettle(): Promise<void> {
-    if (!this.layoutEngine) {
-      return; // No layout running
-    }
-
-    // Check if layout reports settled state
-    if (this.layoutEngine.isSettled()) {
-      return;
-    }
-
-    // Wait for layout to settle (with timeout)
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        cleanup();
-        reject(new ScreenshotError(
-          'Layout did not settle within timeout',
-          'LAYOUT_SETTLE_TIMEOUT'
-        ));
-      }, 30000); // 30 second timeout
-
-      const handler = () => {
-        if (this.layoutEngine?.isSettled()) {
-          cleanup();
-          resolve();
+    private async waitForLayoutSettle(): Promise<void> {
+        if (!this.layoutEngine) {
+            return; // No layout running
         }
-      };
 
-      const cleanup = () => {
-        clearTimeout(timeout);
-        this.removeEventListener('layout-updated', handler);
-      };
+        // Check if layout reports settled state
+        if (this.layoutEngine.isSettled()) {
+            return;
+        }
 
-      this.addEventListener('layout-updated', handler);
-    });
-  }
+        // Wait for layout to settle (with timeout)
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                cleanup();
+                reject(new ScreenshotError("Layout did not settle within timeout", "LAYOUT_SETTLE_TIMEOUT"));
+            }, 30000); // 30 second timeout
+
+            const handler = () => {
+                if (this.layoutEngine?.isSettled()) {
+                    cleanup();
+                    resolve();
+                }
+            };
+
+            const cleanup = () => {
+                clearTimeout(timeout);
+                this.removeEventListener("layout-updated", handler);
+            };
+
+            this.addEventListener("layout-updated", handler);
+        });
+    }
 }
 ```
 
@@ -995,55 +997,55 @@ class Graph {
 
 ```typescript
 enum ScreenshotErrorCode {
-  // Engine/Configuration
-  ENGINE_NOT_CONFIGURED = 'ENGINE_NOT_CONFIGURED',
-  PRESERVING_BUFFER_REQUIRED = 'PRESERVING_BUFFER_REQUIRED',
+    // Engine/Configuration
+    ENGINE_NOT_CONFIGURED = "ENGINE_NOT_CONFIGURED",
+    PRESERVING_BUFFER_REQUIRED = "PRESERVING_BUFFER_REQUIRED",
 
-  // Dimensions
-  DIMENSION_TOO_LARGE = 'DIMENSION_TOO_LARGE',
-  INVALID_DIMENSIONS = 'INVALID_DIMENSIONS',
-  ASPECT_RATIO_MISMATCH = 'ASPECT_RATIO_MISMATCH',
+    // Dimensions
+    DIMENSION_TOO_LARGE = "DIMENSION_TOO_LARGE",
+    INVALID_DIMENSIONS = "INVALID_DIMENSIONS",
+    ASPECT_RATIO_MISMATCH = "ASPECT_RATIO_MISMATCH",
 
-  // Memory
-  OUT_OF_MEMORY = 'OUT_OF_MEMORY',
-  CANVAS_ALLOCATION_FAILED = 'CANVAS_ALLOCATION_FAILED',
+    // Memory
+    OUT_OF_MEMORY = "OUT_OF_MEMORY",
+    CANVAS_ALLOCATION_FAILED = "CANVAS_ALLOCATION_FAILED",
 
-  // Format
-  UNSUPPORTED_FORMAT = 'UNSUPPORTED_FORMAT',
-  WEBP_NOT_SUPPORTED = 'WEBP_NOT_SUPPORTED',
-  TRANSPARENT_REQUIRES_PNG = 'TRANSPARENT_REQUIRES_PNG',
+    // Format
+    UNSUPPORTED_FORMAT = "UNSUPPORTED_FORMAT",
+    WEBP_NOT_SUPPORTED = "WEBP_NOT_SUPPORTED",
+    TRANSPARENT_REQUIRES_PNG = "TRANSPARENT_REQUIRES_PNG",
 
-  // Clipboard
-  CLIPBOARD_NOT_SUPPORTED = 'CLIPBOARD_NOT_SUPPORTED',
-  CLIPBOARD_PERMISSION_DENIED = 'CLIPBOARD_PERMISSION_DENIED',
-  CLIPBOARD_NOT_SECURE_CONTEXT = 'CLIPBOARD_NOT_SECURE_CONTEXT',
-  CLIPBOARD_FAILED = 'CLIPBOARD_FAILED',
+    // Clipboard
+    CLIPBOARD_NOT_SUPPORTED = "CLIPBOARD_NOT_SUPPORTED",
+    CLIPBOARD_PERMISSION_DENIED = "CLIPBOARD_PERMISSION_DENIED",
+    CLIPBOARD_NOT_SECURE_CONTEXT = "CLIPBOARD_NOT_SECURE_CONTEXT",
+    CLIPBOARD_FAILED = "CLIPBOARD_FAILED",
 
-  // Camera
-  CAMERA_PRESET_NOT_FOUND = 'CAMERA_PRESET_NOT_FOUND',
-  CAMERA_PRESET_NOT_AVAILABLE_IN_2D = 'CAMERA_PRESET_NOT_AVAILABLE_IN_2D',
-  CAMERA_PRESET_NOT_AVAILABLE_IN_3D = 'CAMERA_PRESET_NOT_AVAILABLE_IN_3D',
-  CAMERA_STATE_INVALID = 'CAMERA_STATE_INVALID',
-  CAMERA_TYPE_MISMATCH = 'CAMERA_TYPE_MISMATCH',
+    // Camera
+    CAMERA_PRESET_NOT_FOUND = "CAMERA_PRESET_NOT_FOUND",
+    CAMERA_PRESET_NOT_AVAILABLE_IN_2D = "CAMERA_PRESET_NOT_AVAILABLE_IN_2D",
+    CAMERA_PRESET_NOT_AVAILABLE_IN_3D = "CAMERA_PRESET_NOT_AVAILABLE_IN_3D",
+    CAMERA_STATE_INVALID = "CAMERA_STATE_INVALID",
+    CAMERA_TYPE_MISMATCH = "CAMERA_TYPE_MISMATCH",
 
-  // Timing
-  LAYOUT_SETTLE_TIMEOUT = 'LAYOUT_SETTLE_TIMEOUT',
-  OPERATION_TIMEOUT = 'OPERATION_TIMEOUT',
+    // Timing
+    LAYOUT_SETTLE_TIMEOUT = "LAYOUT_SETTLE_TIMEOUT",
+    OPERATION_TIMEOUT = "OPERATION_TIMEOUT",
 
-  // Capture
-  CAPTURE_FAILED = 'CAPTURE_FAILED',
-  RENDER_FAILED = 'RENDER_FAILED',
+    // Capture
+    CAPTURE_FAILED = "CAPTURE_FAILED",
+    RENDER_FAILED = "RENDER_FAILED",
 }
 
 class ScreenshotError extends Error {
-  constructor(
-    message: string,
-    public code: ScreenshotErrorCode,
-    public details?: unknown
-  ) {
-    super(message);
-    this.name = 'ScreenshotError';
-  }
+    constructor(
+        message: string,
+        public code: ScreenshotErrorCode,
+        public details?: unknown,
+    ) {
+        super(message);
+        this.name = "ScreenshotError";
+    }
 }
 ```
 
@@ -1051,43 +1053,43 @@ class ScreenshotError extends Error {
 
 ```typescript
 try {
-  const result = await graph.captureScreenshot(options);
+    const result = await graph.captureScreenshot(options);
 } catch (err) {
-  if (err instanceof ScreenshotError) {
-    switch (err.code) {
-      case 'ENGINE_NOT_CONFIGURED':
-        console.error('Please create Engine with preserveDrawingBuffer: true');
-        break;
+    if (err instanceof ScreenshotError) {
+        switch (err.code) {
+            case "ENGINE_NOT_CONFIGURED":
+                console.error("Please create Engine with preserveDrawingBuffer: true");
+                break;
 
-      case 'DIMENSION_TOO_LARGE':
-        console.error('Resolution too high for browser:', err.message);
-        break;
+            case "DIMENSION_TOO_LARGE":
+                console.error("Resolution too high for browser:", err.message);
+                break;
 
-      case 'OUT_OF_MEMORY':
-        console.error('Not enough memory for screenshot:', err.message);
-        break;
+            case "OUT_OF_MEMORY":
+                console.error("Not enough memory for screenshot:", err.message);
+                break;
 
-      case 'LAYOUT_SETTLE_TIMEOUT':
-        console.warn('Layout did not settle, capturing anyway');
-        // Could retry with waitForSettle: false
-        break;
+            case "LAYOUT_SETTLE_TIMEOUT":
+                console.warn("Layout did not settle, capturing anyway");
+                // Could retry with waitForSettle: false
+                break;
 
-      default:
-        console.error('Screenshot failed:', err.message);
+            default:
+                console.error("Screenshot failed:", err.message);
+        }
     }
-  }
 }
 
 // Partial failures (non-fatal)
 const result = await graph.captureScreenshot({
-  destination: { download: true, clipboard: true }
+    destination: { download: true, clipboard: true },
 });
 
-if (result.clipboardStatus !== 'success') {
-  console.warn('Could not copy to clipboard:', result.clipboardStatus);
-  if (result.clipboardStatus === 'permission-denied') {
-    showPermissionPrompt();
-  }
+if (result.clipboardStatus !== "success") {
+    console.warn("Could not copy to clipboard:", result.clipboardStatus);
+    if (result.clipboardStatus === "permission-denied") {
+        showPermissionPrompt();
+    }
 }
 ```
 
@@ -1098,10 +1100,12 @@ if (result.clipboardStatus !== 'success') {
 ### Overview
 
 Capture animated sequences as WebM video. Two primary modes:
+
 1. **Stationary Camera**: Watch layout/simulation unfold
 2. **Animated Camera**: Move camera through waypoints
 
 **IMPORTANT: MediaRecorder Limitations**
+
 - MediaRecorder operates in **real-time** based on wall clock
 - If encoding can't keep up with requested FPS, **frames are dropped**
 - Cannot "slow down" capture to avoid drops
@@ -1113,26 +1117,26 @@ Capture animated sequences as WebM video. Two primary modes:
 
 ```typescript
 const blob = await graph.captureAnimation({
-  // Duration & Quality
-  duration: 5000,              // Total duration in ms
-  fps: 30,                     // Frames per second (default: 30, max recommended: 30)
-  format: 'webm',              // 'webm' only (Phase 2)
-  videoBitrate: 2500000,       // Bits per second (optional)
+    // Duration & Quality
+    duration: 5000, // Total duration in ms
+    fps: 30, // Frames per second (default: 30, max recommended: 30)
+    format: "webm", // 'webm' only (Phase 2)
+    videoBitrate: 2500000, // Bits per second (optional)
 
-  // Canvas Settings
-  width: 1920,                 // Video resolution (default: 1920, max recommended: 1920)
-  height: 1080,                // (default: 1080)
-  transparentBackground: false, // WebM supports alpha
+    // Canvas Settings
+    width: 1920, // Video resolution (default: 1920, max recommended: 1920)
+    height: 1080, // (default: 1080)
+    transparentBackground: false, // WebM supports alpha
 
-  // Capture Mode
-  captureMode: 'realtime',     // 'realtime' | 'manual' (default: 'realtime')
+    // Capture Mode
+    captureMode: "realtime", // 'realtime' | 'manual' (default: 'realtime')
 
-  // Camera Mode (choose one)
-  cameraMode: 'stationary',    // 'stationary' | 'animated'
+    // Camera Mode (choose one)
+    cameraMode: "stationary", // 'stationary' | 'animated'
 
-  // Download
-  download: true,
-  downloadFilename: 'graph-animation.webm'
+    // Download
+    download: true,
+    downloadFilename: "graph-animation.webm",
 });
 ```
 
@@ -1152,47 +1156,47 @@ const blob = await graph.captureAnimation({
  *   - Slower, but guarantees all frames
  *   - Good for: High-quality exports, complex scenes, guaranteed quality
  */
-captureMode: 'realtime' | 'manual'
+captureMode: "realtime" | "manual";
 ```
 
 **Return Value:**
+
 ```typescript
 interface AnimationResult {
-  blob: Blob;
-  metadata: {
-    duration: number;
-    fps: number;
-    width: number;
-    height: number;
-    framesCaptured: number;
-    framesDropped: number;      // > 0 indicates quality degradation
-    dropRate: number;            // Percentage of frames dropped
-  };
+    blob: Blob;
+    metadata: {
+        duration: number;
+        fps: number;
+        width: number;
+        height: number;
+        framesCaptured: number;
+        framesDropped: number; // > 0 indicates quality degradation
+        dropRate: number; // Percentage of frames dropped
+    };
 }
 ```
 
 **Events:**
+
 ```typescript
 // Progress tracking
-graph.addEventListener('animation-progress', (event) => {
-  console.log(`${event.detail.progress}% complete`);
-  console.log(`Frame ${event.detail.frame} of ${event.detail.totalFrames}`);
+graph.addEventListener("animation-progress", (event) => {
+    console.log(`${event.detail.progress}% complete`);
+    console.log(`Frame ${event.detail.frame} of ${event.detail.totalFrames}`);
 });
 
 // Frame drops (realtime mode only)
-graph.addEventListener('animation-frame-dropped', (event) => {
-  console.warn(`Frame ${event.detail.frameNumber} dropped`);
-  console.log(`Total dropped: ${event.detail.totalDropped}/${event.detail.totalFrames}`);
+graph.addEventListener("animation-frame-dropped", (event) => {
+    console.warn(`Frame ${event.detail.frameNumber} dropped`);
+    console.log(`Total dropped: ${event.detail.totalDropped}/${event.detail.totalFrames}`);
 });
 
 // Completion
-graph.addEventListener('animation-captured', (event) => {
-  console.log('Video ready:', event.detail.result);
-  if (event.detail.result.metadata.framesDropped > 0) {
-    console.warn(
-      `Video quality degraded: ${event.detail.result.metadata.framesDropped} frames dropped`
-    );
-  }
+graph.addEventListener("animation-captured", (event) => {
+    console.log("Video ready:", event.detail.result);
+    if (event.detail.result.metadata.framesDropped > 0) {
+        console.warn(`Video quality degraded: ${event.detail.result.metadata.framesDropped} frames dropped`);
+    }
 });
 ```
 
@@ -1202,19 +1206,19 @@ Check if requested capture is likely to succeed:
 
 ```typescript
 const estimate = await graph.estimateAnimationCapture({
-  width: 1920,
-  height: 1080,
-  fps: 60
+    width: 1920,
+    height: 1080,
+    fps: 60,
 });
 
 if (estimate.likelyToDropFrames) {
-  console.warn(`Warning: ${estimate.expectedDropRate}% frame drop rate predicted`);
-  console.log(`Recommendation: Use ${estimate.recommendedResolution} or ${estimate.recommendedFps} fps`);
+    console.warn(`Warning: ${estimate.expectedDropRate}% frame drop rate predicted`);
+    console.log(`Recommendation: Use ${estimate.recommendedResolution} or ${estimate.recommendedFps} fps`);
 }
 
 // Proceed with adjusted settings
 await graph.captureAnimation({
-  ...estimate.recommendedSettings
+    ...estimate.recommendedSettings,
 });
 ```
 
@@ -1224,23 +1228,26 @@ Capture graph evolution with fixed camera:
 
 ```typescript
 await graph.captureAnimation({
-  duration: 5000,
-  fps: 30,
-  cameraMode: 'stationary',
-  camera: {                    // Optional: specific viewpoint
-    position: { x: 10, y: 10, z: 10 },
-    target: { x: 0, y: 0, z: 0 }
-  }
+    duration: 5000,
+    fps: 30,
+    cameraMode: "stationary",
+    camera: {
+        // Optional: specific viewpoint
+        position: { x: 10, y: 10, z: 10 },
+        target: { x: 0, y: 0, z: 0 },
+    },
 });
 ```
 
 **Use Cases:**
+
 - Physics-based layout settling
 - Graph data updates/transitions
 - Algorithm visualizations
 - Time-series data evolution
 
 **Implementation:**
+
 - Capture frames at regular intervals (1000/fps ms)
 - Use MediaRecorder API for WebM encoding (realtime mode)
 - Scene continues normal updates between frames
@@ -1252,31 +1259,32 @@ Move camera through waypoints:
 
 ```typescript
 await graph.captureAnimation({
-  duration: 5000,
-  fps: 30,
-  cameraMode: 'animated',
-  cameraPath: [
-    {
-      position: { x: 10, y: 10, z: 10 },
-      target: { x: 0, y: 0, z: 0 },
-      timestamp: 0        // Start position
-    },
-    {
-      position: { x: 0, y: 20, z: 0 },
-      target: { x: 0, y: 0, z: 0 },
-      timestamp: 2500     // Midpoint
-    },
-    {
-      position: { x: -10, y: 10, z: 10 },
-      target: { x: 0, y: 0, z: 0 },
-      timestamp: 5000     // End position
-    }
-  ],
-  easing: 'easeInOut'    // Interpolation between waypoints
+    duration: 5000,
+    fps: 30,
+    cameraMode: "animated",
+    cameraPath: [
+        {
+            position: { x: 10, y: 10, z: 10 },
+            target: { x: 0, y: 0, z: 0 },
+            timestamp: 0, // Start position
+        },
+        {
+            position: { x: 0, y: 20, z: 0 },
+            target: { x: 0, y: 0, z: 0 },
+            timestamp: 2500, // Midpoint
+        },
+        {
+            position: { x: -10, y: 10, z: 10 },
+            target: { x: 0, y: 0, z: 0 },
+            timestamp: 5000, // End position
+        },
+    ],
+    easing: "easeInOut", // Interpolation between waypoints
 });
 ```
 
 **Waypoint Interpolation:**
+
 - User provides intuitive waypoint API with timestamps
 - Waypoints converted to Babylon.js Animation objects internally
 - `easing` option applies to all animation segments
@@ -1285,12 +1293,14 @@ await graph.captureAnimation({
 - **Implementation uses Babylon.js animation system** for smooth, optimized interpolation
 
 **Use Cases:**
+
 - Cinematic graph tours
 - Multi-angle presentations
 - Marketing materials
 - Interactive graph exploration recordings
 
 **Implementation Strategy:**
+
 - **Hybrid approach:** Waypoint API + Babylon.js animations
 - Convert user waypoints to Babylon.js Animation keys
 - Apply user-selected easing to animations
@@ -1325,15 +1335,15 @@ try {
 ```typescript
 const stream = canvas.captureStream(fps);
 const recorder = new MediaRecorder(stream, {
-  mimeType: 'video/webm;codecs=vp9',  // Auto-detect VP9/VP8
-  videoBitsPerSecond: 2500000
+    mimeType: "video/webm;codecs=vp9", // Auto-detect VP9/VP8
+    videoBitsPerSecond: 2500000,
 });
 
 const chunks: Blob[] = [];
 recorder.ondataavailable = (e) => chunks.push(e.data);
 recorder.onstop = () => {
-  const blob = new Blob(chunks, { type: 'video/webm' });
-  // Return or download blob
+    const blob = new Blob(chunks, { type: "video/webm" });
+    // Return or download blob
 };
 
 recorder.start();
@@ -1342,27 +1352,30 @@ recorder.stop();
 ```
 
 **Codec Auto-detection:**
+
 ```typescript
 function getSupportedCodec(): string {
-  // Try VP9 first (best quality/compression)
-  if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
-    return 'video/webm;codecs=vp9';
-  }
-  // Fall back to VP8
-  if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
-    return 'video/webm;codecs=vp8';
-  }
-  throw new Error('WebM video capture not supported in this browser');
+    // Try VP9 first (best quality/compression)
+    if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) {
+        return "video/webm;codecs=vp9";
+    }
+    // Fall back to VP8
+    if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8")) {
+        return "video/webm;codecs=vp8";
+    }
+    throw new Error("WebM video capture not supported in this browser");
 }
 ```
 
 **Advantages:**
+
 - Native browser API, no dependencies
 - Hardware acceleration available
 - Good compression (VP9 codec)
 - Supports transparency (alpha channel)
 
 **Limitations:**
+
 - WebM only (MP4 requires polyfill/library)
 - Browser support varies (good in Chrome/Firefox, limited Safari)
 - **Real-time encoding** - drops frames if browser can't keep up
@@ -1376,193 +1389,190 @@ User-facing API uses waypoints, but implementation leverages Babylon.js's robust
 
 ```typescript
 class CameraPathAnimator {
-  /**
-   * Convert user waypoints to Babylon.js Animation objects
-   * Works for both 2D (zoom, pan) and 3D (position, target) cameras
-   */
-  createCameraAnimations(
-    waypoints: CameraWaypoint[],
-    fps: number,
-    easing: string
-  ): Animation[] {
-    const animations: Animation[] = [];
-    const is2D = this.camera.mode === '2d';
+    /**
+     * Convert user waypoints to Babylon.js Animation objects
+     * Works for both 2D (zoom, pan) and 3D (position, target) cameras
+     */
+    createCameraAnimations(waypoints: CameraWaypoint[], fps: number, easing: string): Animation[] {
+        const animations: Animation[] = [];
+        const is2D = this.camera.mode === "2d";
 
-    if (is2D) {
-      // 2D: Animate zoom and pan
-      animations.push(
-        this.createAnimation('zoom', waypoints, fps, easing, Animation.ANIMATIONTYPE_FLOAT),
-        this.createAnimation('pan.x', waypoints, fps, easing, Animation.ANIMATIONTYPE_FLOAT),
-        this.createAnimation('pan.y', waypoints, fps, easing, Animation.ANIMATIONTYPE_FLOAT)
-      );
-    } else {
-      // 3D: Animate position and target
-      animations.push(
-        this.createAnimation('position', waypoints, fps, easing, Animation.ANIMATIONTYPE_VECTOR3),
-        this.createAnimation('target', waypoints, fps, easing, Animation.ANIMATIONTYPE_VECTOR3)
-      );
-    }
-
-    return animations;
-  }
-
-  private createAnimation(
-    property: string,
-    waypoints: CameraWaypoint[],
-    fps: number,
-    easing: string,
-    type: number
-  ): Animation {
-    const animation = new Animation(
-      `camera_${property}`,
-      property,
-      fps,
-      type,
-      Animation.ANIMATIONLOOPMODE_CONSTANT
-    );
-
-    // Convert waypoints to animation keys
-    const keys = waypoints.map(wp => ({
-      frame: this.timestampToFrame(wp.timestamp, fps),
-      value: this.getPropertyValue(wp, property)
-    }));
-
-    animation.setKeys(keys);
-    this.applyEasing(animation, easing);
-
-    return animation;
-  }
-
-  private applyEasing(animation: Animation, easing: string): void {
-    const easingFunction = this.getEasingFunction(easing);
-    if (easingFunction) {
-      animation.setEasingFunction(easingFunction);
-    }
-  }
-
-  private getEasingFunction(easing: string): IEasingFunction | null {
-    switch (easing) {
-      case 'linear':
-        return null; // No easing
-      case 'easeInOut':
-        return new CubicEase();
-      case 'easeIn':
-        const easeIn = new CubicEase();
-        easeIn.setEasingMode(EasingFunction.EASINGMODE_EASEIN);
-        return easeIn;
-      case 'easeOut':
-        const easeOut = new CubicEase();
-        easeOut.setEasingMode(EasingFunction.EASINGMODE_EASEOUT);
-        return easeOut;
-      default:
-        return null;
-    }
-  }
-
-  /**
-   * Realtime mode: Start Babylon.js animation
-   * Animation runs naturally in the render loop
-   */
-  async startRealtimeAnimation(animations: Animation[]): Promise<void> {
-    this.camera.animations = animations;
-    const totalFrames = this.durationToFrames(this.duration, this.fps);
-
-    return new Promise((resolve) => {
-      const animatable = this.scene.beginAnimation(
-        this.camera,
-        0,
-        totalFrames,
-        false, // Don't loop
-        1.0,   // Speed
-        () => resolve() // onAnimationEnd
-      );
-
-      this.currentAnimatable = animatable;
-    });
-  }
-
-  /**
-   * Manual mode: Query animation at specific frames
-   * For guaranteed quality, capture each frame individually
-   */
-  getCameraStateAtFrame(animations: Animation[], frame: number): CameraState {
-    const is2D = this.camera.mode === '2d';
-
-    if (is2D) {
-      return {
-        type: 'orthographic',
-        zoom: this.evaluateAnimation(animations, 'zoom', frame),
-        pan: {
-          x: this.evaluateAnimation(animations, 'pan.x', frame),
-          y: this.evaluateAnimation(animations, 'pan.y', frame)
+        if (is2D) {
+            // 2D: Animate zoom and pan
+            animations.push(
+                this.createAnimation("zoom", waypoints, fps, easing, Animation.ANIMATIONTYPE_FLOAT),
+                this.createAnimation("pan.x", waypoints, fps, easing, Animation.ANIMATIONTYPE_FLOAT),
+                this.createAnimation("pan.y", waypoints, fps, easing, Animation.ANIMATIONTYPE_FLOAT),
+            );
+        } else {
+            // 3D: Animate position and target
+            animations.push(
+                this.createAnimation("position", waypoints, fps, easing, Animation.ANIMATIONTYPE_VECTOR3),
+                this.createAnimation("target", waypoints, fps, easing, Animation.ANIMATIONTYPE_VECTOR3),
+            );
         }
-      };
-    } else {
-      return {
-        type: 'arcRotate',
-        position: this.evaluateAnimation(animations, 'position', frame),
-        target: this.evaluateAnimation(animations, 'target', frame)
-      };
-    }
-  }
 
-  private evaluateAnimation(animations: Animation[], propertyName: string, frame: number): any {
-    const animation = animations.find(a => a.targetProperty === propertyName);
-    if (!animation) return undefined;
-
-    // Babylon.js Animation.evaluate() returns interpolated value at frame
-    return animation.evaluate(frame);
-  }
-
-  /**
-   * Manual capture implementation
-   */
-  async captureManualMode(animations: Animation[]): Promise<Blob> {
-    const frames: Blob[] = [];
-    const totalFrames = this.durationToFrames(this.duration, this.fps);
-
-    for (let frame = 0; frame < totalFrames; frame++) {
-      // Get exact camera state at this frame
-      const cameraState = this.getCameraStateAtFrame(animations, frame);
-
-      // Apply camera state
-      this.applyCameraStateImmediate(cameraState);
-
-      // Wait for render
-      await this.waitForRender();
-
-      // Capture frame
-      const blob = await this.captureCurrentFrame();
-      frames.push(blob);
-
-      // Emit progress
-      this.dispatchEvent('animation-progress', {
-        frame,
-        totalFrames,
-        progress: (frame / totalFrames) * 100
-      });
+        return animations;
     }
 
-    // Encode frames to video (e.g., using ffmpeg.wasm)
-    return this.encodeFramesToVideo(frames);
-  }
+    private createAnimation(
+        property: string,
+        waypoints: CameraWaypoint[],
+        fps: number,
+        easing: string,
+        type: number,
+    ): Animation {
+        const animation = new Animation(
+            `camera_${property}`,
+            property,
+            fps,
+            type,
+            Animation.ANIMATIONLOOPMODE_CONSTANT,
+        );
 
-  private timestampToFrame(timestamp: number, fps: number): number {
-    return Math.round((timestamp / 1000) * fps);
-  }
+        // Convert waypoints to animation keys
+        const keys = waypoints.map((wp) => ({
+            frame: this.timestampToFrame(wp.timestamp, fps),
+            value: this.getPropertyValue(wp, property),
+        }));
 
-  private durationToFrames(duration: number, fps: number): number {
-    return Math.round((duration / 1000) * fps);
-  }
+        animation.setKeys(keys);
+        this.applyEasing(animation, easing);
+
+        return animation;
+    }
+
+    private applyEasing(animation: Animation, easing: string): void {
+        const easingFunction = this.getEasingFunction(easing);
+        if (easingFunction) {
+            animation.setEasingFunction(easingFunction);
+        }
+    }
+
+    private getEasingFunction(easing: string): IEasingFunction | null {
+        switch (easing) {
+            case "linear":
+                return null; // No easing
+            case "easeInOut":
+                return new CubicEase();
+            case "easeIn":
+                const easeIn = new CubicEase();
+                easeIn.setEasingMode(EasingFunction.EASINGMODE_EASEIN);
+                return easeIn;
+            case "easeOut":
+                const easeOut = new CubicEase();
+                easeOut.setEasingMode(EasingFunction.EASINGMODE_EASEOUT);
+                return easeOut;
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Realtime mode: Start Babylon.js animation
+     * Animation runs naturally in the render loop
+     */
+    async startRealtimeAnimation(animations: Animation[]): Promise<void> {
+        this.camera.animations = animations;
+        const totalFrames = this.durationToFrames(this.duration, this.fps);
+
+        return new Promise((resolve) => {
+            const animatable = this.scene.beginAnimation(
+                this.camera,
+                0,
+                totalFrames,
+                false, // Don't loop
+                1.0, // Speed
+                () => resolve(), // onAnimationEnd
+            );
+
+            this.currentAnimatable = animatable;
+        });
+    }
+
+    /**
+     * Manual mode: Query animation at specific frames
+     * For guaranteed quality, capture each frame individually
+     */
+    getCameraStateAtFrame(animations: Animation[], frame: number): CameraState {
+        const is2D = this.camera.mode === "2d";
+
+        if (is2D) {
+            return {
+                type: "orthographic",
+                zoom: this.evaluateAnimation(animations, "zoom", frame),
+                pan: {
+                    x: this.evaluateAnimation(animations, "pan.x", frame),
+                    y: this.evaluateAnimation(animations, "pan.y", frame),
+                },
+            };
+        } else {
+            return {
+                type: "arcRotate",
+                position: this.evaluateAnimation(animations, "position", frame),
+                target: this.evaluateAnimation(animations, "target", frame),
+            };
+        }
+    }
+
+    private evaluateAnimation(animations: Animation[], propertyName: string, frame: number): any {
+        const animation = animations.find((a) => a.targetProperty === propertyName);
+        if (!animation) return undefined;
+
+        // Babylon.js Animation.evaluate() returns interpolated value at frame
+        return animation.evaluate(frame);
+    }
+
+    /**
+     * Manual capture implementation
+     */
+    async captureManualMode(animations: Animation[]): Promise<Blob> {
+        const frames: Blob[] = [];
+        const totalFrames = this.durationToFrames(this.duration, this.fps);
+
+        for (let frame = 0; frame < totalFrames; frame++) {
+            // Get exact camera state at this frame
+            const cameraState = this.getCameraStateAtFrame(animations, frame);
+
+            // Apply camera state
+            this.applyCameraStateImmediate(cameraState);
+
+            // Wait for render
+            await this.waitForRender();
+
+            // Capture frame
+            const blob = await this.captureCurrentFrame();
+            frames.push(blob);
+
+            // Emit progress
+            this.dispatchEvent("animation-progress", {
+                frame,
+                totalFrames,
+                progress: (frame / totalFrames) * 100,
+            });
+        }
+
+        // Encode frames to video (e.g., using ffmpeg.wasm)
+        return this.encodeFramesToVideo(frames);
+    }
+
+    private timestampToFrame(timestamp: number, fps: number): number {
+        return Math.round((timestamp / 1000) * fps);
+    }
+
+    private durationToFrames(duration: number, fps: number): number {
+        return Math.round((duration / 1000) * fps);
+    }
 }
 ```
 
 **Why This Approach:**
+
 - ✅ **Clean user API** - Waypoints are intuitive and simple
 - ✅ **Babylon.js handles interpolation** - Battle-tested, smooth, optimized
 - ✅ **Works for both capture modes:**
-  - Realtime: Babylon animates naturally
-  - Manual: Query animation for exact frame state
+    - Realtime: Babylon animates naturally
+    - Manual: Query animation for exact frame state
 - ✅ **Supports 2D and 3D** - Same pattern, different properties
 - ✅ **Less code to maintain** - Leverage Babylon's animation system
 - ✅ **Rich easing options** - Built-in easing functions
@@ -1575,11 +1585,11 @@ class CameraPathAnimator {
 ### Advanced Features
 
 1. **PNG Metadata Embedding**
-   - Embed graph information in PNG metadata (tEXt chunks)
-   - Requires external library (png-metadata-ts, png-chunk-text)
-   - Adds ~50KB to bundle size
-   - Binary PNG manipulation complexity
-   - May slow down screenshot capture
+    - Embed graph information in PNG metadata (tEXt chunks)
+    - Requires external library (png-metadata-ts, png-chunk-text)
+    - Adds ~50KB to bundle size
+    - Binary PNG manipulation complexity
+    - May slow down screenshot capture
 
 ```typescript
 // Phase 3 API (if implemented)
@@ -1595,34 +1605,34 @@ class CameraPathAnimator {
 ```
 
 2. **GIF Export**
-   - Requires library (gif.js, gifshot)
-   - Larger file sizes than WebM
-   - Universal compatibility
-   - No audio support
+    - Requires library (gif.js, gifshot)
+    - Larger file sizes than WebM
+    - Universal compatibility
+    - No audio support
 
 3. **Bezier Camera Paths**
-   - Smooth curved camera movement using Babylon.js bezier interpolation
-   - Control points for path shape
-   - More cinematic results than linear waypoints
-   - Builds naturally on existing Babylon.js Animation approach
-   - Would use Animation.setKeys() with bezier tangents
+    - Smooth curved camera movement using Babylon.js bezier interpolation
+    - Control points for path shape
+    - More cinematic results than linear waypoints
+    - Builds naturally on existing Babylon.js Animation approach
+    - Would use Animation.setKeys() with bezier tangents
 
 4. **Advanced Animation Curves**
-   - Custom easing functions beyond built-in options
-   - Per-waypoint easing control (different easing per segment)
-   - Babylon.js animation curves and spline support
-   - Could leverage Animation class's full capabilities
-   - IAnimationKey with inTangent/outTangent for smooth curves
+    - Custom easing functions beyond built-in options
+    - Per-waypoint easing control (different easing per segment)
+    - Babylon.js animation curves and spline support
+    - Could leverage Animation class's full capabilities
+    - IAnimationKey with inTangent/outTangent for smooth curves
 
 5. **MP4 Export**
-   - Requires transcoding (ffmpeg.wasm)
-   - Better compatibility than WebM
-   - Larger dependencies
+    - Requires transcoding (ffmpeg.wasm)
+    - Better compatibility than WebM
+    - Larger dependencies
 
 6. **Audio Track Support**
-   - Background music for videos
-   - Voiceover narration
-   - MediaRecorder supports audio streams
+    - Background music for videos
+    - Voiceover narration
+    - MediaRecorder supports audio streams
 
 ---
 
@@ -1665,6 +1675,7 @@ await element.estimateAnimationCapture(options): Promise<CaptureEstimate>;
 ### On `Graph` Class
 
 Same methods available on Graph instance:
+
 ```typescript
 const graph = new Graph(/* ... */);
 await graph.captureScreenshot(options);
@@ -1675,23 +1686,23 @@ await graph.captureScreenshot(options);
 
 ```typescript
 // Screenshot events
-element.addEventListener('screenshot-captured', handler);  // Always fires
-element.addEventListener('screenshot-clipboard-success', handler);
-element.addEventListener('screenshot-clipboard-permission-denied', handler);
-element.addEventListener('screenshot-clipboard-not-supported', handler);
-element.addEventListener('screenshot-clipboard-failed', handler);
-element.addEventListener('screenshot-enhancing', handler);  // Quality boost started
-element.addEventListener('screenshot-ready', handler);      // Quality boost complete
+element.addEventListener("screenshot-captured", handler); // Always fires
+element.addEventListener("screenshot-clipboard-success", handler);
+element.addEventListener("screenshot-clipboard-permission-denied", handler);
+element.addEventListener("screenshot-clipboard-not-supported", handler);
+element.addEventListener("screenshot-clipboard-failed", handler);
+element.addEventListener("screenshot-enhancing", handler); // Quality boost started
+element.addEventListener("screenshot-ready", handler); // Quality boost complete
 
 // Camera events
-element.addEventListener('camera-state-changed', handler);
-element.addEventListener('camera-animating', handler);
+element.addEventListener("camera-state-changed", handler);
+element.addEventListener("camera-animating", handler);
 
 // Video events
-element.addEventListener('animation-progress', handler);
-element.addEventListener('animation-frame-dropped', handler);
-element.addEventListener('animation-captured', handler);
-element.addEventListener('animation-cancelled', handler);
+element.addEventListener("animation-progress", handler);
+element.addEventListener("animation-frame-dropped", handler);
+element.addEventListener("animation-captured", handler);
+element.addEventListener("animation-cancelled", handler);
 ```
 
 ---
@@ -1701,93 +1712,93 @@ element.addEventListener('animation-cancelled', handler);
 ### Phase 1A: Screenshot Core (Week 1)
 
 1. Implement basic screenshot capture on Graph class
-   - Format selection (PNG/JPEG/WebP)
-   - Quality control
-   - Resolution multiplier with dimension precedence
-   - **Return ScreenshotResult object**
-   - **Integrate with OperationQueueManager**
-   - **Engine configuration check (preserveDrawingBuffer)**
+    - Format selection (PNG/JPEG/WebP)
+    - Quality control
+    - Resolution multiplier with dimension precedence
+    - **Return ScreenshotResult object**
+    - **Integrate with OperationQueueManager**
+    - **Engine configuration check (preserveDrawingBuffer)**
 
 2. Add destination options
-   - Unified API with blob/download/clipboard destinations
-   - Trigger browser download with filename parameter
-   - **Comprehensive clipboard error handling**
+    - Unified API with blob/download/clipboard destinations
+    - Trigger browser download with filename parameter
+    - **Comprehensive clipboard error handling**
 
 3. Add transparent background support
-   - **Disable ALL background layers** (clearColor, skybox, environment, etc.)
-   - Preserve alpha channel
-   - **Error on JPEG + transparent combination**
+    - **Disable ALL background layers** (clearColor, skybox, environment, etc.)
+    - Preserve alpha channel
+    - **Error on JPEG + transparent combination**
 
 4. **Add dimension validation**
-   - Sanity checks for browser limits
-   - Memory warnings
-   - Aspect ratio validation (optional strict mode)
+    - Sanity checks for browser limits
+    - Memory warnings
+    - Aspect ratio validation (optional strict mode)
 
 5. **Add screenshot presets**
-   - print, web-share, thumbnail, documentation
+    - print, web-share, thumbnail, documentation
 
 6. Expose on `<graphty-element>` public API
 
 7. **Add comprehensive error handling**
-   - Error codes enum
-   - ScreenshotError class
-   - Partial failure handling
+    - Error codes enum
+    - ScreenshotError class
+    - Partial failure handling
 
-8. Add events (screenshot-captured, clipboard-*, etc.)
+8. Add events (screenshot-captured, clipboard-\*, etc.)
 
 9. Write unit tests
 
 ### Phase 1B: Advanced Screenshot & Timing (Week 2)
 
 1. Add timing control options
-   - waitForSettle integration with layout engines
-   - waitForOperations integration with queue
-   - **Ensure built-in presets calculate AFTER settling**
+    - waitForSettle integration with layout engines
+    - waitForOperations integration with queue
+    - **Ensure built-in presets calculate AFTER settling**
 
 2. Add camera position override
-   - Temporarily set camera for screenshot
-   - Support both explicit position and presets
-   - **Resolve presets after waiting for settle**
-   - Restore after capture
+    - Temporarily set camera for screenshot
+    - Support both explicit position and presets
+    - **Resolve presets after waiting for settle**
+    - Restore after capture
 
 3. Add anti-aliasing enhancement
-   - Boost MSAA samples during capture
-   - **Document performance cost prominently**
-   - Add enhancement events
+    - Boost MSAA samples during capture
+    - **Document performance cost prominently**
+    - Add enhancement events
 
 4. Write integration tests
 
 ### Phase 1C: Camera API (Week 2-3)
 
 1. Implement getCameraState()
-   - **Support both 2D (OrthographicCamera) and 3D (ArcRotateCamera/Free/Universal)**
-   - Return only relevant properties for current camera type
-   - Serialize to JSON
+    - **Support both 2D (OrthographicCamera) and 3D (ArcRotateCamera/Free/Universal)**
+    - Return only relevant properties for current camera type
+    - Serialize to JSON
 
 2. Implement setCameraState()
-   - Partial updates
-   - **Support 2D properties: zoom, pan, rotation**
-   - **Support 3D properties: position, target, alpha, beta, radius, fov**
-   - Animation support using Babylon.js animations (both 2D and 3D)
-   - **Integrate animated transitions with OperationQueueManager**
-   - Support both explicit state and preset names
+    - Partial updates
+    - **Support 2D properties: zoom, pan, rotation**
+    - **Support 3D properties: position, target, alpha, beta, radius, fov**
+    - Animation support using Babylon.js animations (both 2D and 3D)
+    - **Integrate animated transitions with OperationQueueManager**
+    - Support both explicit state and preset names
 
 3. Implement built-in camera presets
-   - **Auto-detect 2D vs 3D camera mode**
-   - fitToGraph (auto-calculate from bounding box, works for both 2D and 3D)
-   - topView (adapts to 2D or 3D)
-   - sideView, frontView, isometric (3D only, error on 2D)
-   - Preset resolution logic with mode detection
+    - **Auto-detect 2D vs 3D camera mode**
+    - fitToGraph (auto-calculate from bounding box, works for both 2D and 3D)
+    - topView (adapts to 2D or 3D)
+    - sideView, frontView, isometric (3D only, error on 2D)
+    - Preset resolution logic with mode detection
 
 4. Implement user-defined camera presets
-   - Save/load named presets (preserve camera type)
-   - Export/import as JSON
-   - Don't overwrite built-in presets
+    - Save/load named presets (preserve camera type)
+    - Export/import as JSON
+    - Don't overwrite built-in presets
 
 5. Add convenience methods
-   - **2D: setCameraZoom, setCameraPan**
-   - **3D: setCameraPosition, setCameraTarget**
-   - resetCamera (works for both)
+    - **2D: setCameraZoom, setCameraPan**
+    - **3D: setCameraPosition, setCameraTarget**
+    - resetCamera (works for both)
 
 6. Add camera events
 
@@ -1796,36 +1807,36 @@ element.addEventListener('animation-cancelled', handler);
 ### Phase 2: Video Capture (Week 4-5)
 
 1. Implement stationary camera video capture
-   - MediaRecorder API setup with VP9/VP8 auto-detection
-   - Frame capture timing
-   - **Frame drop detection and reporting**
-   - Progress events
+    - MediaRecorder API setup with VP9/VP8 auto-detection
+    - Frame capture timing
+    - **Frame drop detection and reporting**
+    - Progress events
 
 2. **Add pre-flight estimation**
-   - Predict likely frame drop rate
-   - Recommend settings adjustments
+    - Predict likely frame drop rate
+    - Recommend settings adjustments
 
 3. **Add capture modes**
-   - Realtime mode (MediaRecorder)
-   - Manual mode (frame-by-frame with offline encoding)
+    - Realtime mode (MediaRecorder)
+    - Manual mode (frame-by-frame with offline encoding)
 
 4. **Implement animated camera path (Hybrid approach)**
-   - User-facing waypoint API for intuitive path definition
-   - **Convert waypoints to Babylon.js Animation objects**
-   - **Support both 2D (zoom, pan) and 3D (position, target) animations**
-   - Apply easing via Babylon.js easing functions (CubicEase, etc.)
-   - **Realtime mode:** Use scene.beginAnimation() for smooth playback
-   - **Manual mode:** Use Animation.evaluate() for exact frame states
-   - Leverage Babylon's interpolation instead of manual calculations
+    - User-facing waypoint API for intuitive path definition
+    - **Convert waypoints to Babylon.js Animation objects**
+    - **Support both 2D (zoom, pan) and 3D (position, target) animations**
+    - Apply easing via Babylon.js easing functions (CubicEase, etc.)
+    - **Realtime mode:** Use scene.beginAnimation() for smooth playback
+    - **Manual mode:** Use Animation.evaluate() for exact frame states
+    - Leverage Babylon's interpolation instead of manual calculations
 
 5. Add cancellation support
-   - Stop Babylon.js animatable if running
-   - Abort frame capture loop
+    - Stop Babylon.js animatable if running
+    - Abort frame capture loop
 
 6. Write integration tests with actual video playback
-   - Test waypoint conversion to animations
-   - Verify easing functions work correctly
-   - Test both 2D and 3D camera animations
+    - Test waypoint conversion to animations
+    - Verify easing functions work correctly
+    - Test both 2D and 3D camera animations
 
 7. Performance testing and optimization
 
@@ -1890,17 +1901,20 @@ element.addEventListener('animation-cancelled', handler);
 ## Browser Compatibility
 
 ### Screenshot Features
+
 - **PNG/JPEG/WebP**: All modern browsers
 - **Clipboard API**: Chrome 76+, Firefox 87+, Safari 13.1+ (may require permissions)
 - **Transparent background**: All (PNG/WebP support)
 
 ### Video Features
+
 - **MediaRecorder (WebM)**: Chrome 47+, Firefox 25+, Safari 14.1+
 - **VP9 codec**: Chrome 48+, Firefox 28+, Safari 14.1+ (limited)
 - **VP8 codec**: Chrome 47+, Firefox 25+, Safari 14.1+
 - **Alpha channel**: Chrome 96+, Firefox limited
 
 ### Fallbacks
+
 - Provide polyfill detection
 - Graceful degradation for unsupported features
 - **Clear error messages with error codes**
@@ -1910,12 +1924,14 @@ element.addEventListener('animation-cancelled', handler);
 ## Performance Considerations
 
 ### Screenshot
+
 - High multipliers (4x+) may cause memory issues
 - **Dimension validation prevents exceeding browser limits**
 - **enhanceQuality adds 100-1000ms** - use sparingly
 - Consider using `multiplier: 2` instead of enhanceQuality for better performance
 
 ### Video Capture
+
 - **Real-time encoding limited by browser performance**
 - **Large resolutions WILL drop frames** in realtime mode
 - **Recommended limits: 1920×1080 @ 30fps**
@@ -1924,6 +1940,7 @@ element.addEventListener('animation-cancelled', handler);
 - Consider limiting max resolution (1920×1080 default)
 
 ### Memory Management
+
 - Clean up temporary canvases immediately
 - Revoke blob URLs after use
 - Release MediaRecorder resources
@@ -1934,6 +1951,7 @@ element.addEventListener('animation-cancelled', handler);
 ## Security Considerations
 
 ### Screenshot
+
 - Respect CORS for textures/images
 - **User gesture may be required for clipboard API**
 - **HTTPS required for clipboard API**
@@ -1941,6 +1959,7 @@ element.addEventListener('animation-cancelled', handler);
 - **Engine must be configured correctly (preserveDrawingBuffer)**
 
 ### Video
+
 - MediaRecorder requires user gesture in some browsers
 - Large video files may exceed memory limits
 - Rate limiting for abuse prevention
@@ -1955,10 +1974,10 @@ element.addEventListener('animation-cancelled', handler);
 ```typescript
 // Capture 4K screenshot with enhanced quality
 const result = await graph.captureScreenshot({
-  preset: 'print',            // Auto-sets format, multiplier, enhanceQuality
-  width: 3840,                // Override to 8K
-  height: 2160,
-  downloadFilename: 'social-network-4k.png'
+    preset: "print", // Auto-sets format, multiplier, enhanceQuality
+    width: 3840, // Override to 8K
+    height: 2160,
+    downloadFilename: "social-network-4k.png",
 });
 
 console.log(`Captured ${result.metadata.width}×${result.metadata.height} in ${result.metadata.captureTime}ms`);
@@ -1969,19 +1988,19 @@ console.log(`Captured ${result.metadata.width}×${result.metadata.height} in ${r
 ```typescript
 // Use built-in preset for consistent overview
 const result = await graph.captureScreenshot({
-  preset: 'documentation',
-  camera: { preset: 'fitToGraph' },  // Calculated AFTER layout settles
-  downloadFilename: 'doc-overview.png'
+    preset: "documentation",
+    camera: { preset: "fitToGraph" }, // Calculated AFTER layout settles
+    downloadFilename: "doc-overview.png",
 });
 
 // Save custom camera positions as presets
-graph.saveCameraPreset('detail-view');
+graph.saveCameraPreset("detail-view");
 
 // Later: capture with user-defined preset
 await graph.captureScreenshot({
-  preset: 'documentation',
-  camera: { preset: 'detail-view' },
-  downloadFilename: 'doc-detail.png'
+    preset: "documentation",
+    camera: { preset: "detail-view" },
+    downloadFilename: "doc-detail.png",
 });
 ```
 
@@ -1990,15 +2009,15 @@ await graph.captureScreenshot({
 ```typescript
 // Copy screenshot to clipboard for pasting in Slack/email
 const result = await graph.captureScreenshot({
-  preset: 'web-share'  // Auto-sets multiplier: 2, clipboard: true
+    preset: "web-share", // Auto-sets multiplier: 2, clipboard: true
 });
 
-if (result.clipboardStatus === 'success') {
-  showToast('Screenshot copied! Paste anywhere to share.');
-} else if (result.clipboardStatus === 'permission-denied') {
-  showToast('Please allow clipboard access to enable sharing');
+if (result.clipboardStatus === "success") {
+    showToast("Screenshot copied! Paste anywhere to share.");
+} else if (result.clipboardStatus === "permission-denied") {
+    showToast("Please allow clipboard access to enable sharing");
 } else {
-  console.error('Clipboard copy failed:', result.clipboardError);
+    console.error("Clipboard copy failed:", result.clipboardError);
 }
 ```
 
@@ -2007,31 +2026,31 @@ if (result.clipboardStatus === 'success') {
 ```typescript
 // Estimate first
 const estimate = await graph.estimateAnimationCapture({
-  duration: 10000,
-  fps: 30,
-  width: 1920,
-  height: 1080
+    duration: 10000,
+    fps: 30,
+    width: 1920,
+    height: 1080,
 });
 
 if (estimate.likelyToDropFrames) {
-  console.warn(`May drop ${estimate.expectedDropRate}% of frames`);
-  // Use recommended settings or manual mode
+    console.warn(`May drop ${estimate.expectedDropRate}% of frames`);
+    // Use recommended settings or manual mode
 }
 
 // Record force-directed layout settling
 const result = await graph.captureAnimation({
-  duration: 10000,  // 10 seconds
-  fps: 30,
-  captureMode: 'realtime',
-  cameraMode: 'stationary',
-  camera: {
-    preset: 'fitToGraph'  // Auto-positions camera
-  },
-  downloadFilename: 'force-layout-settling.webm'
+    duration: 10000, // 10 seconds
+    fps: 30,
+    captureMode: "realtime",
+    cameraMode: "stationary",
+    camera: {
+        preset: "fitToGraph", // Auto-positions camera
+    },
+    downloadFilename: "force-layout-settling.webm",
 });
 
 if (result.metadata.framesDropped > 0) {
-  console.warn(`${result.metadata.framesDropped} frames dropped (${result.metadata.dropRate}%)`);
+    console.warn(`${result.metadata.framesDropped} frames dropped (${result.metadata.dropRate}%)`);
 }
 ```
 
@@ -2045,28 +2064,28 @@ const radius = 20;
 const duration = 8000;
 
 for (let i = 0; i <= numWaypoints; i++) {
-  const angle = (i / numWaypoints) * Math.PI * 2;
-  waypoints.push({
-    position: {
-      x: Math.cos(angle) * radius,
-      y: 10,
-      z: Math.sin(angle) * radius
-    },
-    target: { x: 0, y: 0, z: 0 },
-    timestamp: (i / numWaypoints) * duration
-  });
+    const angle = (i / numWaypoints) * Math.PI * 2;
+    waypoints.push({
+        position: {
+            x: Math.cos(angle) * radius,
+            y: 10,
+            z: Math.sin(angle) * radius,
+        },
+        target: { x: 0, y: 0, z: 0 },
+        timestamp: (i / numWaypoints) * duration,
+    });
 }
 
 await graph.captureAnimation({
-  duration,
-  fps: 30,
-  captureMode: 'manual',  // Guarantee all frames
-  cameraMode: 'animated',
-  cameraPath: waypoints,
-  easing: 'linear',
-  width: 1920,
-  height: 1080,
-  downloadFilename: 'graph-tour-360.webm'
+    duration,
+    fps: 30,
+    captureMode: "manual", // Guarantee all frames
+    cameraMode: "animated",
+    cameraPath: waypoints,
+    easing: "linear",
+    width: 1920,
+    height: 1080,
+    downloadFilename: "graph-tour-360.webm",
 });
 ```
 
@@ -2074,94 +2093,100 @@ await graph.captureAnimation({
 
 ```typescript
 // 2D: Set specific zoom and pan
-graph.setCameraState({
-  type: 'orthographic',
-  zoom: 2.5,
-  pan: { x: 150, y: 200 }
-}, { animate: true });
+graph.setCameraState(
+    {
+        type: "orthographic",
+        zoom: 2.5,
+        pan: { x: 150, y: 200 },
+    },
+    { animate: true },
+);
 
 // 2D: Capture screenshot with fitToGraph preset
 const result = await graph.captureScreenshot({
-  camera: { preset: 'fitToGraph' },  // Auto-adapts to 2D mode
-  destination: { download: true },
-  downloadFilename: '2d-graph-overview.png'
+    camera: { preset: "fitToGraph" }, // Auto-adapts to 2D mode
+    destination: { download: true },
+    downloadFilename: "2d-graph-overview.png",
 });
 
 // 2D: Animate zoom in
 graph.setCameraZoom(3.0, { animate: true, duration: 1000 });
 
 // 2D: Pan to specific node coordinates
-const nodePos = graph.getNode('node123').position;
-graph.setCameraPan(
-  { x: nodePos.x, y: nodePos.y },
-  { animate: true, duration: 500 }
-);
+const nodePos = graph.getNode("node123").position;
+graph.setCameraPan({ x: nodePos.x, y: nodePos.y }, { animate: true, duration: 500 });
 ```
 
 ### Example 7: 3D Camera Positioning and Screenshots
 
 ```typescript
 // 3D: Explicit camera position
-graph.setCameraState({
-  type: 'arcRotate',
-  position: { x: 100, y: 150, z: 100 },
-  target: { x: 0, y: 0, z: 0 }
-}, { animate: true });
+graph.setCameraState(
+    {
+        type: "arcRotate",
+        position: { x: 100, y: 150, z: 100 },
+        target: { x: 0, y: 0, z: 0 },
+    },
+    { animate: true },
+);
 
 // 3D: Capture from isometric angle
 const result = await graph.captureScreenshot({
-  camera: { preset: 'isometric' },
-  multiplier: 2,
-  destination: { download: true },
-  downloadFilename: '3d-isometric-view.png'
+    camera: { preset: "isometric" },
+    multiplier: 2,
+    destination: { download: true },
+    downloadFilename: "3d-isometric-view.png",
 });
 
 // 3D: Use ArcRotate camera properties
-graph.setCameraState({
-  type: 'arcRotate',
-  alpha: Math.PI / 4,   // 45° horizontal
-  beta: Math.PI / 3,    // 60° vertical
-  radius: 200
-}, { animate: true });
+graph.setCameraState(
+    {
+        type: "arcRotate",
+        alpha: Math.PI / 4, // 45° horizontal
+        beta: Math.PI / 3, // 60° vertical
+        radius: 200,
+    },
+    { animate: true },
+);
 ```
 
 ### Example 8: Error Handling (Including Camera Type Errors)
 
 ```typescript
 try {
-  const result = await graph.captureScreenshot({
-    width: 16000,
-    height: 16000,
-    format: 'jpeg',
-    transparentBackground: true,
-    camera: { preset: 'isometric' }  // 3D-only preset
-  });
+    const result = await graph.captureScreenshot({
+        width: 16000,
+        height: 16000,
+        format: "jpeg",
+        transparentBackground: true,
+        camera: { preset: "isometric" }, // 3D-only preset
+    });
 } catch (err) {
-  if (err instanceof ScreenshotError) {
-    switch (err.code) {
-      case 'DIMENSION_TOO_LARGE':
-        console.error('Resolution exceeds browser limits');
-        // Retry with smaller dimensions
-        break;
+    if (err instanceof ScreenshotError) {
+        switch (err.code) {
+            case "DIMENSION_TOO_LARGE":
+                console.error("Resolution exceeds browser limits");
+                // Retry with smaller dimensions
+                break;
 
-      case 'TRANSPARENT_REQUIRES_PNG':
-        console.error('JPEG does not support transparency');
-        // Retry with PNG format
-        break;
+            case "TRANSPARENT_REQUIRES_PNG":
+                console.error("JPEG does not support transparency");
+                // Retry with PNG format
+                break;
 
-      case 'ENGINE_NOT_CONFIGURED':
-        console.error('Engine needs preserveDrawingBuffer: true');
-        break;
+            case "ENGINE_NOT_CONFIGURED":
+                console.error("Engine needs preserveDrawingBuffer: true");
+                break;
 
-      case 'CAMERA_PRESET_NOT_AVAILABLE_IN_2D':
-        console.error('Cannot use 3D preset with 2D camera');
-        // Use 2D-compatible preset instead
-        break;
+            case "CAMERA_PRESET_NOT_AVAILABLE_IN_2D":
+                console.error("Cannot use 3D preset with 2D camera");
+                // Use 2D-compatible preset instead
+                break;
 
-      default:
-        console.error('Screenshot failed:', err.message);
+            default:
+                console.error("Screenshot failed:", err.message);
+        }
     }
-  }
 }
 ```
 
@@ -2170,69 +2195,71 @@ try {
 ## Resolved Design Questions
 
 1. **Camera Presets Storage**: ✅ **No persistence at web component level**
-   - Built-in presets (fitToGraph, etc.) are always available
-   - User-defined presets managed by application layer via export/import
-   - Web component provides the API, application handles storage
+    - Built-in presets (fitToGraph, etc.) are always available
+    - User-defined presets managed by application layer via export/import
+    - Web component provides the API, application handles storage
 
 2. **Video Format Detection**: ✅ **Yes, auto-detect best supported codec**
-   - Try VP9 first (best quality/compression)
-   - Fall back to VP8 if VP9 not available
-   - Clear error message if neither supported
+    - Try VP9 first (best quality/compression)
+    - Fall back to VP8 if VP9 not available
+    - Clear error message if neither supported
 
 3. **Frame Drop Handling**: ✅ **Detect and report frame drops, provide manual mode alternative**
-   - MediaRecorder operates in real-time and WILL drop frames if encoding can't keep up
-   - Detect and report dropped frames via events and result metadata
-   - Provide pre-flight estimation to warn users
-   - Offer manual capture mode for guaranteed quality (slower but no drops)
-   - Recommend conservative limits (1920×1080 @ 30fps)
+    - MediaRecorder operates in real-time and WILL drop frames if encoding can't keep up
+    - Detect and report dropped frames via events and result metadata
+    - Provide pre-flight estimation to warn users
+    - Offer manual capture mode for guaranteed quality (slower but no drops)
+    - Recommend conservative limits (1920×1080 @ 30fps)
 
 4. **Maximum Limits**: ✅ **Sanity checks with clear errors**
-   - Validate against browser canvas limits (16384px)
-   - Warn for large resolutions (> 4K)
-   - Error for excessive resolutions (> 8K)
-   - Provide clear error codes and recovery guidance
+    - Validate against browser canvas limits (16384px)
+    - Warn for large resolutions (> 4K)
+    - Error for excessive resolutions (> 8K)
+    - Provide clear error codes and recovery guidance
 
 5. **Metadata Standard**: ✅ **Deferred to Phase 3**
-   - PNG metadata embedding requires external libraries
-   - Adds complexity and dependencies
-   - Move to future considerations
-   - Application layer can handle metadata via filename conventions or sidecar files
+    - PNG metadata embedding requires external libraries
+    - Adds complexity and dependencies
+    - Move to future considerations
+    - Application layer can handle metadata via filename conventions or sidecar files
 
 6. **Operation Priorities**: ✅ **Not needed**
-   - Simple FIFO queue is sufficient
-   - Timing controls (waitForSettle, waitForOperations) provide needed flexibility
-   - Simpler API, easier to reason about
+    - Simple FIFO queue is sufficient
+    - Timing controls (waitForSettle, waitForOperations) provide needed flexibility
+    - Simpler API, easier to reason about
 
 7. **Layout Settle Detection**: ✅ **Use layout settled event with timeout**
-   - Primary: Listen for layout engine's settled state
-   - Fallback: 30-second timeout to prevent infinite waits
-   - Timeout value is internal implementation detail (not configurable)
+    - Primary: Listen for layout engine's settled state
+    - Fallback: 30-second timeout to prevent infinite waits
+    - Timeout value is internal implementation detail (not configurable)
 
 8. **Built-in Preset Timing**: ✅ **Calculate after settling**
-   - Built-in presets (fitToGraph, etc.) are resolved AFTER waitForSettle
-   - Ensures presets calculate based on final settled positions, not intermediate states
-   - Implemented in screenshot operation queueing logic
+    - Built-in presets (fitToGraph, etc.) are resolved AFTER waitForSettle
+    - Ensures presets calculate based on final settled positions, not intermediate states
+    - Implemented in screenshot operation queueing logic
 
 9. **Return Type**: ✅ **Consistent ScreenshotResult object**
-   - Always return structured result object
-   - Blob always present
-   - Status information for all operations
-   - Partial failure handling (e.g., clipboard errors don't fail entire operation)
-   - Better TypeScript experience
+    - Always return structured result object
+    - Blob always present
+    - Status information for all operations
+    - Partial failure handling (e.g., clipboard errors don't fail entire operation)
+    - Better TypeScript experience
 
 10. **2D vs 3D Camera Support**: ✅ **Unified API with auto-adaptation**
-   - Single CameraState interface supports both 2D and 3D
-   - Built-in presets automatically adapt to current camera mode
-   - 3D-only presets (sideView, frontView, isometric) error gracefully on 2D cameras
-   - Separate convenience methods for 2D (setCameraZoom, setCameraPan) and 3D (setCameraPosition, setCameraTarget)
-   - getCameraState() returns only relevant properties for current mode
-   - User-defined presets preserve camera type
+
+- Single CameraState interface supports both 2D and 3D
+- Built-in presets automatically adapt to current camera mode
+- 3D-only presets (sideView, frontView, isometric) error gracefully on 2D cameras
+- Separate convenience methods for 2D (setCameraZoom, setCameraPan) and 3D (setCameraPosition, setCameraTarget)
+- getCameraState() returns only relevant properties for current mode
+- User-defined presets preserve camera type
 
 ---
 
 ## Success Metrics
 
 ### Phase 1
+
 - [ ] Can capture PNG/JPEG/WebP screenshots
 - [ ] **Returns consistent ScreenshotResult object**
 - [ ] **Engine configuration check works (preserveDrawingBuffer)**
@@ -2263,6 +2290,7 @@ try {
 - [ ] Integration tests pass in CI
 
 ### Phase 2
+
 - [ ] Can capture WebM video with stationary camera
 - [ ] Can capture WebM video with animated camera
 - [ ] Auto-detection of VP9/VP8 codec works correctly

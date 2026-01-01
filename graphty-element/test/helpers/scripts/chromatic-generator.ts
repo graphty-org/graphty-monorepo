@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import {fileURLToPath} from "node:url";
+import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, "../../..");
 
 interface ArgType {
-    control: string | {type: string, min?: number, max?: number, step?: number};
+    control: string | { type: string; min?: number; max?: number; step?: number };
     options?: string[];
     name?: string;
-    table?: {category: string};
+    table?: { category: string };
     defaultValue?: unknown;
 }
 
@@ -76,7 +76,7 @@ class ChromaticGenerator {
 
     private async ensureDirectory(dir: string): Promise<void> {
         try {
-            await fs.mkdir(dir, {recursive: true});
+            await fs.mkdir(dir, { recursive: true });
         } catch {
             // Directory might already exist
         }
@@ -84,9 +84,7 @@ class ChromaticGenerator {
 
     private async findStoryFiles(): Promise<string[]> {
         const files = await fs.readdir(this.sourceDir);
-        return files
-            .filter((file) => file.endsWith(".stories.ts"))
-            .map((file) => path.join(this.sourceDir, file));
+        return files.filter((file) => file.endsWith(".stories.ts")).map((file) => path.join(this.sourceDir, file));
     }
 
     private async processStoryFile(filePath: string): Promise<void> {
@@ -141,13 +139,15 @@ class ChromaticGenerator {
     }
 
     private generateVariations(paramName: string, argType: ArgType): Variation[] {
-        const {control, options} = argType;
+        const { control, options } = argType;
         const paramPath = argType.name ?? paramName;
 
         // Check for overrides first
         if (paramPath in this.config.parameterGeneration.overrides) {
             return this.config.parameterGeneration.overrides[paramPath].map((value: unknown) => ({
-                name: String(value).replace(/\./g, "_").replace(/[^a-zA-Z0-9_]/g, ""),
+                name: String(value)
+                    .replace(/\./g, "_")
+                    .replace(/[^a-zA-Z0-9_]/g, ""),
                 value,
             }));
         }
@@ -166,22 +166,27 @@ class ChromaticGenerator {
 
         if (control === "boolean") {
             return [
-                {name: "true", value: true},
-                {name: "false", value: false},
+                { name: "true", value: true },
+                { name: "false", value: false },
             ];
         }
 
         if (control === "color") {
             return [
-                {name: "hex", value: "#FF5733"},
-                {name: "named", value: "blue"},
-                {name: "rgb", value: "rgb(128, 256, 0)"},
-                {name: "rgba", value: "rgba(255, 0, 0, 0.5)"},
+                { name: "hex", value: "#FF5733" },
+                { name: "named", value: "blue" },
+                { name: "rgb", value: "rgb(128, 256, 0)" },
+                { name: "rgba", value: "rgba(255, 0, 0, 0.5)" },
             ];
         }
 
         if (control === "text" || control === "string") {
-            return [{name: "default", value: argType.defaultValue ?? this.config.parameterGeneration.defaults.textDefault}];
+            return [
+                {
+                    name: "default",
+                    value: argType.defaultValue ?? this.config.parameterGeneration.defaults.textDefault,
+                },
+            ];
         }
 
         if (control === "number") {
@@ -193,7 +198,7 @@ class ChromaticGenerator {
 
         // Default case - use the default value if available
         if (argType.defaultValue !== undefined) {
-            return [{name: "default", value: argType.defaultValue}];
+            return [{ name: "default", value: argType.defaultValue }];
         }
 
         return [];
@@ -202,9 +207,9 @@ class ChromaticGenerator {
     private generateRangeVariations(min: number, max: number): Variation[] {
         const mid = (min + max) / 2;
         return [
-            {name: `min_${String(min).replace(/\./g, "_")}`, value: min},
-            {name: `mid_${String(mid).replace(/\./g, "_")}`, value: mid},
-            {name: `max_${String(max).replace(/\./g, "_")}`, value: max},
+            { name: `min_${String(min).replace(/\./g, "_")}`, value: min },
+            { name: `mid_${String(mid).replace(/\./g, "_")}`, value: mid },
+            { name: `max_${String(max).replace(/\./g, "_")}`, value: max },
         ];
     }
 

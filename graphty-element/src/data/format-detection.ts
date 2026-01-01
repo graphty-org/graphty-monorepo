@@ -1,11 +1,4 @@
-export type FormatType =
-    | "json"
-    | "graphml"
-    | "gexf"
-    | "csv"
-    | "gml"
-    | "dot"
-    | "pajek";
+export type FormatType = "json" | "graphml" | "gexf" | "csv" | "gml" | "dot" | "pajek";
 
 export interface FormatInfo {
     name: string;
@@ -119,11 +112,11 @@ export function detectFormat(filename: string, content: string): FormatType | nu
 }
 
 function detectXMLFormat(content: string): FormatType | null {
-    if (content.includes("xmlns=\"http://graphml.graphdrawing.org")) {
+    if (content.includes('xmlns="http://graphml.graphdrawing.org')) {
         return "graphml";
     }
 
-    if (content.includes("xmlns=\"http://gexf.net")) {
+    if (content.includes('xmlns="http://gexf.net')) {
         return "gexf";
     }
 

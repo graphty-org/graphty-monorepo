@@ -3,7 +3,7 @@
  * @module test/helpers/e2e-graph-setup
  */
 
-import {Graph} from "../../src/Graph";
+import { Graph } from "../../src/Graph";
 
 /**
  * Node data for setting up test graphs.
@@ -76,13 +76,7 @@ let container: HTMLElement | null = null;
  * ```
  */
 export async function createE2EGraph(options: E2EGraphOptions = {}): Promise<E2EGraphResult> {
-    const {
-        nodes = [],
-        edges = [],
-        enableAi = true,
-        width = 800,
-        height = 600,
-    } = options;
+    const { nodes = [], edges = [], enableAi = true, width = 800, height = 600 } = options;
 
     // Clean up any previous test container
     if (container) {
@@ -109,7 +103,7 @@ export async function createE2EGraph(options: E2EGraphOptions = {}): Promise<E2E
         graph: {
             viewMode: "3d",
             twoD: false,
-            background: {backgroundType: "color", color: "#F5F5F5"},
+            background: { backgroundType: "color", color: "#F5F5F5" },
             addDefaultStyle: true,
             startingCameraDistance: 100,
             layout: "ngraph",
@@ -152,10 +146,10 @@ export async function createE2EGraph(options: E2EGraphOptions = {}): Promise<E2E
 
     // Enable AI control if requested
     if (enableAi) {
-        await graph.enableAiControl({provider: "mock"});
+        await graph.enableAiControl({ provider: "mock" });
     }
 
-    return {element: container, graph};
+    return { element: container, graph };
 }
 
 /**
@@ -173,22 +167,22 @@ export function cleanupE2EGraph(): void {
  * Default test nodes for quick setup.
  */
 export const DEFAULT_TEST_NODES: TestNodeData[] = [
-    {id: "A", label: "Node A", type: "server"},
-    {id: "B", label: "Node B", type: "client"},
-    {id: "C", label: "Node C", type: "server"},
-    {id: "D", label: "Node D", type: "client"},
-    {id: "E", label: "Node E", type: "router"},
+    { id: "A", label: "Node A", type: "server" },
+    { id: "B", label: "Node B", type: "client" },
+    { id: "C", label: "Node C", type: "server" },
+    { id: "D", label: "Node D", type: "client" },
+    { id: "E", label: "Node E", type: "router" },
 ];
 
 /**
  * Default test edges for quick setup.
  */
 export const DEFAULT_TEST_EDGES: TestEdgeData[] = [
-    {src: "A", dst: "B"},
-    {src: "A", dst: "C"},
-    {src: "B", dst: "D"},
-    {src: "C", dst: "E"},
-    {src: "D", dst: "E"},
+    { src: "A", dst: "B" },
+    { src: "A", dst: "C" },
+    { src: "B", dst: "D" },
+    { src: "C", dst: "E" },
+    { src: "D", dst: "E" },
 ];
 
 /**

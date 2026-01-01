@@ -1,7 +1,7 @@
-import {createAnthropic} from "@ai-sdk/anthropic";
-import {createGoogleGenerativeAI} from "@ai-sdk/google";
-import {createOpenAI} from "@ai-sdk/openai";
-import {generateText, type LanguageModel, type ModelMessage, streamText, type Tool} from "ai";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
+import { generateText, type LanguageModel, type ModelMessage, streamText, type Tool } from "ai";
 
 import type {
     LlmProvider,
@@ -64,7 +64,7 @@ export class VercelAiProvider implements LlmProvider {
 
         switch (this.providerType) {
             case "openai": {
-                const openai = createOpenAI({apiKey: this.apiKey, baseURL: this.baseUrl});
+                const openai = createOpenAI({ apiKey: this.apiKey, baseURL: this.baseUrl });
                 return openai(this.model ?? "gpt-4o");
             }
             case "anthropic": {
@@ -82,7 +82,7 @@ export class VercelAiProvider implements LlmProvider {
             }
             case "google":
             default: {
-                const google = createGoogleGenerativeAI({apiKey: this.apiKey, baseURL: this.baseUrl});
+                const google = createGoogleGenerativeAI({ apiKey: this.apiKey, baseURL: this.baseUrl });
                 return google(this.model ?? "gemini-2.0-flash");
             }
         }
@@ -99,7 +99,7 @@ export class VercelAiProvider implements LlmProvider {
     async generate(
         messages: Message[],
         tools: ToolDefinition[],
-        options?: {signal?: AbortSignal},
+        options?: { signal?: AbortSignal },
     ): Promise<LlmResponse> {
         const model = this.getModel();
         const convertedMessages = this.convertMessages(messages);
@@ -114,13 +114,14 @@ export class VercelAiProvider implements LlmProvider {
             abortSignal: options?.signal,
         });
 
-        const {usage} = result;
+        const { usage } = result;
         return {
             text: result.text,
             toolCalls: this.convertToolCalls(result.toolCalls),
-            usage: usage.inputTokens !== undefined && usage.outputTokens !== undefined ?
-                {promptTokens: usage.inputTokens, completionTokens: usage.outputTokens} :
-                undefined,
+            usage:
+                usage.inputTokens !== undefined && usage.outputTokens !== undefined
+                    ? { promptTokens: usage.inputTokens, completionTokens: usage.outputTokens }
+                    : undefined,
         };
     }
 
@@ -165,9 +166,9 @@ export class VercelAiProvider implements LlmProvider {
                         // Tool calls may have 'input' or 'args' depending on SDK version
                         let args: Record<string, unknown> = {};
                         if ("input" in event) {
-                            ({input: args} = event as {input: Record<string, unknown>});
+                            ({ input: args } = event as { input: Record<string, unknown> });
                         } else if ("args" in event) {
-                            ({args} = event as unknown as {args: Record<string, unknown>});
+                            ({ args } = event as unknown as { args: Record<string, unknown> });
                         }
 
                         const toolCall: ToolCall = {
@@ -184,9 +185,9 @@ export class VercelAiProvider implements LlmProvider {
                         // Tool results may have 'output' or 'result' depending on SDK version
                         let output: unknown;
                         if ("output" in event) {
-                            ({output} = event as {output: unknown});
+                            ({ output } = event as { output: unknown });
                         } else if ("result" in event) {
-                            ({result: output} = event as unknown as {result: unknown});
+                            ({ result: output } = event as unknown as { result: unknown });
                         }
 
                         callbacks.onToolResult(event.toolName, output);
@@ -209,9 +210,10 @@ export class VercelAiProvider implements LlmProvider {
             callbacks.onComplete({
                 text: accumulatedText,
                 toolCalls,
-                usage: finalUsage.inputTokens !== undefined && finalUsage.outputTokens !== undefined ?
-                    {promptTokens: finalUsage.inputTokens, completionTokens: finalUsage.outputTokens} :
-                    undefined,
+                usage:
+                    finalUsage.inputTokens !== undefined && finalUsage.outputTokens !== undefined
+                        ? { promptTokens: finalUsage.inputTokens, completionTokens: finalUsage.outputTokens }
+                        : undefined,
             });
         } catch (error) {
             callbacks.onError(error instanceof Error ? error : new Error(String(error)));
@@ -228,18 +230,18 @@ export class VercelAiProvider implements LlmProvider {
         return messages.map((msg): ModelMessage => {
             switch (msg.role) {
                 case "system":
-                    return {role: "system", content: msg.content};
+                    return { role: "system", content: msg.content };
 
                 case "user":
-                    return {role: "user", content: msg.content};
+                    return { role: "user", content: msg.content };
 
                 case "assistant":
                     if (msg.toolCalls && msg.toolCalls.length > 0) {
                         return {
                             role: "assistant",
                             content: [
-                                ... (msg.content ? [{type: "text" as const, text: msg.content}] : []),
-                                ... msg.toolCalls.map((tc) => ({
+                                ...(msg.content ? [{ type: "text" as const, text: msg.content }] : []),
+                                ...msg.toolCalls.map((tc) => ({
                                     type: "tool-call" as const,
                                     toolCallId: tc.id,
                                     toolName: tc.name,
@@ -249,18 +251,20 @@ export class VercelAiProvider implements LlmProvider {
                         };
                     }
 
-                    return {role: "assistant", content: msg.content};
+                    return { role: "assistant", content: msg.content };
 
                 case "tool":
                 default:
                     return {
                         role: "tool",
-                        content: [{
-                            type: "tool-result" as const,
-                            toolCallId: msg.toolCallId ?? "",
-                            toolName: "", // Will be matched by toolCallId
-                            output: {type: "text" as const, value: msg.content},
-                        }],
+                        content: [
+                            {
+                                type: "tool-result" as const,
+                                toolCallId: msg.toolCallId ?? "",
+                                toolName: "", // Will be matched by toolCallId
+                                output: { type: "text" as const, value: msg.content },
+                            },
+                        ],
                     };
             }
         });
@@ -274,7 +278,7 @@ export class VercelAiProvider implements LlmProvider {
      * @returns Record mapping tool names to Tool objects
      */
     private convertTools(tools: ToolDefinition[]): Record<string, Tool> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const result: Record<string, any> = {};
 
         for (const t of tools) {
@@ -295,7 +299,7 @@ export class VercelAiProvider implements LlmProvider {
      * @returns Array of ToolCall objects
      */
     private convertToolCalls(
-        toolCalls: {toolCallId: string, toolName: string, input?: unknown, args?: unknown}[] | undefined,
+        toolCalls: { toolCallId: string; toolName: string; input?: unknown; args?: unknown }[] | undefined,
     ): ToolCall[] {
         if (!toolCalls) {
             return [];
@@ -316,11 +320,7 @@ export class VercelAiProvider implements LlmProvider {
      */
     async validateApiKey(): Promise<boolean> {
         try {
-            await this.generate(
-                [{role: "user", content: "hi"}],
-                [],
-                {},
-            );
+            await this.generate([{ role: "user", content: "hi" }], [], {});
 
             return true;
         } catch (error) {

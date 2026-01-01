@@ -1,378 +1,378 @@
 name: CI/CD Pipeline
 
 on:
-  push:
-    branches: [master]
-  pull_request:
-    branches: [master]
+    push:
+        branches: [master]
+    pull_request:
+        branches: [master]
 
 jobs:
-  # Build job - runs once, shares artifacts with test shards
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    # Build job - runs once, shares artifacts with test shards
+    build:
+        name: Build
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22.x'
-          cache: 'npm'
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22.x"
+                  cache: "npm"
 
-      - name: Upgrade npm for lockfile v3 compatibility
-        run: npm install -g npm@11
+            - name: Upgrade npm for lockfile v3 compatibility
+              run: npm install -g npm@11
 
-      - name: Install dependencies
-        run: npm ci
-        env:
-          HUSKY: 0
+            - name: Install dependencies
+              run: npm ci
+              env:
+                  HUSKY: 0
 
-      - name: Run lint
-        run: npm run lint
+            - name: Run lint
+              run: npm run lint
 
-      - name: Run build
-        run: npm run build
+            - name: Run build
+              run: npm run build
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-dist
-          path: dist/
-          retention-days: 1
+            - name: Upload build artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-dist
+                  path: dist/
+                  retention-days: 1
 
-      - name: Build Storybook
-        run: npm run build:storybook
+            - name: Build Storybook
+              run: npm run build:storybook
 
-      - name: Upload Storybook artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: storybook-static
-          path: storybook-static/
-          retention-days: 1
+            - name: Upload Storybook artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: storybook-static
+                  path: storybook-static/
+                  retention-days: 1
 
-      - name: Build Documentation
+            - name: Build Documentation
+              if: github.ref == 'refs/heads/master'
+              run: npm run docs:build
+
+            - name: Upload Documentation artifacts
+              if: github.ref == 'refs/heads/master'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: docs-dist
+                  path: docs/.vitepress/dist/
+                  retention-days: 1
+
+    # Sharded test jobs - run in parallel, collect coverage
+    # Target: each shard completes in ~2 minutes or less
+    test:
+        name: Test (${{ matrix.shard }})
+        needs: build
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                shard:
+                    - default
+                    - browser-1
+                    - browser-2
+                    - browser-3
+                    - browser-4
+                    - browser-5
+                    - storybook-1
+                    - storybook-2
+                    - storybook-3
+                    - storybook-4
+                    - visual
+                include:
+                    # Default tests (Node.js, no browser needed)
+                    - shard: default
+                      test-command: npx vitest run --project=default --reporter=blob --coverage
+                      needs-browser: false
+                      needs-storybook: false
+                    # Browser tests split into 5 shards (~2 min each)
+                    - shard: browser-1
+                      test-command: npx vitest run --project=browser --project=interactions --shard=1/5 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: false
+                    - shard: browser-2
+                      test-command: npx vitest run --project=browser --project=interactions --shard=2/5 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: false
+                    - shard: browser-3
+                      test-command: npx vitest run --project=browser --project=interactions --shard=3/5 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: false
+                    - shard: browser-4
+                      test-command: npx vitest run --project=browser --project=interactions --shard=4/5 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: false
+                    - shard: browser-5
+                      test-command: npx vitest run --project=browser --project=interactions --shard=5/5 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: false
+                    # Storybook tests split into 4 shards (~2 min each)
+                    - shard: storybook-1
+                      test-command: npx vitest run --project=storybook --shard=1/4 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: true
+                    - shard: storybook-2
+                      test-command: npx vitest run --project=storybook --shard=2/4 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: true
+                    - shard: storybook-3
+                      test-command: npx vitest run --project=storybook --shard=3/4 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: true
+                    - shard: storybook-4
+                      test-command: npx vitest run --project=storybook --shard=4/4 --reporter=blob --coverage
+                      needs-browser: true
+                      needs-storybook: true
+                    # Visual regression (Chromatic)
+                    - shard: visual
+                      test-command: npx chromatic
+                      needs-browser: false
+                      needs-storybook: true
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22.x"
+                  cache: "npm"
+
+            - name: Upgrade npm for lockfile v3 compatibility
+              run: npm install -g npm@11
+
+            - name: Install dependencies
+              run: npm ci
+              env:
+                  HUSKY: 0
+
+            - name: Download build artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-dist
+                  path: dist/
+
+            - name: Download Storybook artifacts
+              if: matrix.needs-storybook
+              uses: actions/download-artifact@v4
+              with:
+                  name: storybook-static
+                  path: storybook-static/
+
+            - name: Cache Playwright browsers
+              if: matrix.needs-browser
+              uses: actions/cache@v4
+              id: playwright-cache
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+            - name: Install Playwright browsers
+              if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit != 'true'
+              run: npx playwright install chromium
+
+            - name: Start Storybook server
+              if: matrix.needs-storybook && matrix.shard != 'visual'
+              run: |
+                  npx http-server storybook-static -p 9026 &
+                  sleep 3
+
+            - name: Run tests
+              run: ${{ matrix.test-command }}
+              env:
+                  CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+
+            - name: Upload blob reports for test merge
+              if: ${{ !cancelled() && matrix.shard != 'visual' }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: blob-report-${{ matrix.shard }}
+                  path: .vitest-reports/*
+                  include-hidden-files: true
+                  retention-days: 1
+
+            - name: Upload coverage report
+              if: ${{ !cancelled() && matrix.shard != 'visual' }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-${{ matrix.shard }}
+                  path: coverage/lcov.info
+                  retention-days: 1
+
+    # Aggregate test results - gate for downstream jobs
+    test-complete:
+        name: All Tests Complete
+        needs: test
+        runs-on: ubuntu-latest
+        outputs:
+            should-release: ${{ steps.check-release.outputs.should-release }}
+        steps:
+            - name: Check if release needed
+              id: check-release
+              run: |
+                  if [[ "${{ github.ref }}" == "refs/heads/master" && "${{ github.event_name }}" == "push" ]]; then
+                    echo "should-release=true" >> $GITHUB_OUTPUT
+                  else
+                    echo "should-release=false" >> $GITHUB_OUTPUT
+                  fi
+
+    # Coverage job - merges coverage from test shards and publishes
+    coverage:
+        name: Merge and Publish Coverage
+        needs: test
+        if: ${{ !cancelled() && github.ref == 'refs/heads/master' }}
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22.x"
+                  cache: "npm"
+
+            - name: Upgrade npm for lockfile v3 compatibility
+              run: npm install -g npm@11
+
+            - name: Install dependencies
+              run: npm ci
+              env:
+                  HUSKY: 0
+
+            - name: Download all blob reports
+              uses: actions/download-artifact@v4
+              with:
+                  pattern: blob-report-*
+                  path: .vitest-reports
+                  merge-multiple: true
+
+            - name: Merge test reports
+              run: npx vitest --merge-reports
+
+            - name: Download all coverage reports
+              uses: actions/download-artifact@v4
+              with:
+                  pattern: coverage-*
+                  path: coverage-reports
+
+            - name: Merge coverage reports
+              run: |
+                  mkdir -p coverage
+                  # Concatenate all lcov.info files into one
+                  find coverage-reports -name 'lcov.info' -exec cat {} + > coverage/lcov.info
+                  echo "Merged coverage file size: $(wc -l < coverage/lcov.info) lines"
+
+            - name: Publish to Coveralls
+              uses: coverallsapp/github-action@v2
+              with:
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  file: coverage/lcov.info
+
+    # Deploy Documentation and Storybook to GitHub Pages
+    deploy-pages:
+        name: Deploy to GitHub Pages
+        needs: test-complete
         if: github.ref == 'refs/heads/master'
-        run: npm run docs:build
+        runs-on: ubuntu-latest
 
-      - name: Upload Documentation artifacts
-        if: github.ref == 'refs/heads/master'
-        uses: actions/upload-artifact@v4
-        with:
-          name: docs-dist
-          path: docs/.vitepress/dist/
-          retention-days: 1
+        permissions:
+            contents: read
+            pages: write
+            id-token: write
 
-  # Sharded test jobs - run in parallel, collect coverage
-  # Target: each shard completes in ~2 minutes or less
-  test:
-    name: Test (${{ matrix.shard }})
-    needs: build
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard:
-          - default
-          - browser-1
-          - browser-2
-          - browser-3
-          - browser-4
-          - browser-5
-          - storybook-1
-          - storybook-2
-          - storybook-3
-          - storybook-4
-          - visual
-        include:
-          # Default tests (Node.js, no browser needed)
-          - shard: default
-            test-command: npx vitest run --project=default --reporter=blob --coverage
-            needs-browser: false
-            needs-storybook: false
-          # Browser tests split into 5 shards (~2 min each)
-          - shard: browser-1
-            test-command: npx vitest run --project=browser --project=interactions --shard=1/5 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: false
-          - shard: browser-2
-            test-command: npx vitest run --project=browser --project=interactions --shard=2/5 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: false
-          - shard: browser-3
-            test-command: npx vitest run --project=browser --project=interactions --shard=3/5 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: false
-          - shard: browser-4
-            test-command: npx vitest run --project=browser --project=interactions --shard=4/5 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: false
-          - shard: browser-5
-            test-command: npx vitest run --project=browser --project=interactions --shard=5/5 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: false
-          # Storybook tests split into 4 shards (~2 min each)
-          - shard: storybook-1
-            test-command: npx vitest run --project=storybook --shard=1/4 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: true
-          - shard: storybook-2
-            test-command: npx vitest run --project=storybook --shard=2/4 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: true
-          - shard: storybook-3
-            test-command: npx vitest run --project=storybook --shard=3/4 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: true
-          - shard: storybook-4
-            test-command: npx vitest run --project=storybook --shard=4/4 --reporter=blob --coverage
-            needs-browser: true
-            needs-storybook: true
-          # Visual regression (Chromatic)
-          - shard: visual
-            test-command: npx chromatic
-            needs-browser: false
-            needs-storybook: true
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        steps:
+            - name: Download Documentation artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  name: docs-dist
+                  path: ./public
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22.x'
-          cache: 'npm'
+            - name: Download Storybook artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  name: storybook-static
+                  path: ./public/storybook
 
-      - name: Upgrade npm for lockfile v3 compatibility
-        run: npm install -g npm@11
+            - name: Setup Pages
+              uses: actions/configure-pages@v4
 
-      - name: Install dependencies
-        run: npm ci
-        env:
-          HUSKY: 0
+            - name: Upload to GitHub Pages
+              uses: actions/upload-pages-artifact@v3
+              with:
+                  path: ./public
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-dist
-          path: dist/
+            - name: Deploy to GitHub Pages
+              id: deployment
+              uses: actions/deploy-pages@v4
 
-      - name: Download Storybook artifacts
-        if: matrix.needs-storybook
-        uses: actions/download-artifact@v4
-        with:
-          name: storybook-static
-          path: storybook-static/
+    # Semantic release job
+    release:
+        name: Release
+        needs: test-complete
+        if: needs.test-complete.outputs.should-release == 'true'
+        runs-on: ubuntu-latest
 
-      - name: Cache Playwright browsers
-        if: matrix.needs-browser
-        uses: actions/cache@v4
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+        permissions:
+            contents: write
+            issues: write
+            pull-requests: write
+            id-token: write
 
-      - name: Install Playwright browsers
-        if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Start Storybook server
-        if: matrix.needs-storybook && matrix.shard != 'visual'
-        run: |
-          npx http-server storybook-static -p 9026 &
-          sleep 3
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22.x"
+                  # Note: Do NOT set registry-url here - it interferes with OIDC trusted publishing
+                  # The npm CLI will handle registry configuration automatically with OIDC
 
-      - name: Run tests
-        run: ${{ matrix.test-command }}
-        env:
-          CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+            - name: Upgrade npm for lockfile v3 and OIDC support
+              run: npm install -g npm@latest
 
-      - name: Upload blob reports for test merge
-        if: ${{ !cancelled() && matrix.shard != 'visual' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: blob-report-${{ matrix.shard }}
-          path: .vitest-reports/*
-          include-hidden-files: true
-          retention-days: 1
+            - name: Install dependencies
+              run: npm ci
+              env:
+                  HUSKY: 0
 
-      - name: Upload coverage report
-        if: ${{ !cancelled() && matrix.shard != 'visual' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.shard }}
-          path: coverage/lcov.info
-          retention-days: 1
+            - name: Verify npm version supports OIDC
+              run: |
+                  NPM_VERSION=$(npm --version)
+                  echo "npm version: $NPM_VERSION"
+                  # OIDC trusted publishing requires npm 11.5.1+
 
-  # Aggregate test results - gate for downstream jobs
-  test-complete:
-    name: All Tests Complete
-    needs: test
-    runs-on: ubuntu-latest
-    outputs:
-      should-release: ${{ steps.check-release.outputs.should-release }}
-    steps:
-      - name: Check if release needed
-        id: check-release
-        run: |
-          if [[ "${{ github.ref }}" == "refs/heads/master" && "${{ github.event_name }}" == "push" ]]; then
-            echo "should-release=true" >> $GITHUB_OUTPUT
-          else
-            echo "should-release=false" >> $GITHUB_OUTPUT
-          fi
+            - name: Verify npm signatures
+              run: npm audit signatures
 
-  # Coverage job - merges coverage from test shards and publishes
-  coverage:
-    name: Merge and Publish Coverage
-    needs: test
-    if: ${{ !cancelled() && github.ref == 'refs/heads/master' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+            - name: Download build artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-dist
+                  path: dist/
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22.x'
-          cache: 'npm'
-
-      - name: Upgrade npm for lockfile v3 compatibility
-        run: npm install -g npm@11
-
-      - name: Install dependencies
-        run: npm ci
-        env:
-          HUSKY: 0
-
-      - name: Download all blob reports
-        uses: actions/download-artifact@v4
-        with:
-          pattern: blob-report-*
-          path: .vitest-reports
-          merge-multiple: true
-
-      - name: Merge test reports
-        run: npx vitest --merge-reports
-
-      - name: Download all coverage reports
-        uses: actions/download-artifact@v4
-        with:
-          pattern: coverage-*
-          path: coverage-reports
-
-      - name: Merge coverage reports
-        run: |
-          mkdir -p coverage
-          # Concatenate all lcov.info files into one
-          find coverage-reports -name 'lcov.info' -exec cat {} + > coverage/lcov.info
-          echo "Merged coverage file size: $(wc -l < coverage/lcov.info) lines"
-
-      - name: Publish to Coveralls
-        uses: coverallsapp/github-action@v2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          file: coverage/lcov.info
-
-  # Deploy Documentation and Storybook to GitHub Pages
-  deploy-pages:
-    name: Deploy to GitHub Pages
-    needs: test-complete
-    if: github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Download Documentation artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: docs-dist
-          path: ./public
-
-      - name: Download Storybook artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: storybook-static
-          path: ./public/storybook
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload to GitHub Pages
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./public
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-  # Semantic release job
-  release:
-    name: Release
-    needs: test-complete
-    if: needs.test-complete.outputs.should-release == 'true'
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-      id-token: write
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22.x'
-          # Note: Do NOT set registry-url here - it interferes with OIDC trusted publishing
-          # The npm CLI will handle registry configuration automatically with OIDC
-
-      - name: Upgrade npm for lockfile v3 and OIDC support
-        run: npm install -g npm@latest
-
-      - name: Install dependencies
-        run: npm ci
-        env:
-          HUSKY: 0
-
-      - name: Verify npm version supports OIDC
-        run: |
-          NPM_VERSION=$(npm --version)
-          echo "npm version: $NPM_VERSION"
-          # OIDC trusted publishing requires npm 11.5.1+
-
-      - name: Verify npm signatures
-        run: npm audit signatures
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-dist
-          path: dist/
-
-      - name: Run semantic release
-        run: npx semantic-release --debug
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HUSKY: 0
+            - name: Run semantic release
+              run: npx semantic-release --debug
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  HUSKY: 0

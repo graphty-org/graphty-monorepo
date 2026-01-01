@@ -6,10 +6,12 @@
  * understanding graph structure.
  */
 
-import type {Graph} from "../core/graph.js";
+import type { Graph } from "../core/graph.js";
 
 /**
  * Convert Graph to adjacency set representation
+ * @param graph - The input graph to convert
+ * @returns Map of node IDs to sets of neighbor node IDs
  */
 function graphToAdjacencySet(graph: Graph): Map<string, Set<string>> {
     const adjacency = new Map<string, Set<string>>();
@@ -49,12 +51,12 @@ export interface KCoreResult<T> {
 
 /**
  * Internal implementation of K-Core decomposition algorithm
+ * @param graph - Adjacency map representation of the graph
+ * @returns K-core decomposition result with cores, coreness values, and maximum core number
  */
-function kCoreDecompositionImpl<T>(
-    graph: Map<T, Set<T>>,
-): KCoreResult<T> {
+function kCoreDecompositionImpl<T>(graph: Map<T, Set<T>>): KCoreResult<T> {
     if (graph.size === 0) {
-        return {cores: new Map(), coreness: new Map(), maxCore: 0};
+        return { cores: new Map(), coreness: new Map(), maxCore: 0 };
     }
 
     const n = graph.size;
@@ -208,22 +210,18 @@ function kCoreDecompositionImpl<T>(
         maxCore = Math.max(maxCore, core);
     }
 
-    return {cores, coreness, maxCore};
+    return { cores, coreness, maxCore };
 }
 
 /**
  * Extract the k-core subgraph
  * Returns nodes that belong to k-core or higher
- *
  * @param graph - Undirected graph
  * @param k - Core number
  * @returns Set of nodes in k-core or higher
  */
-export function getKCore(
-    graph: Graph,
-    k: number,
-): Set<string> {
-    const {coreness} = kCoreDecomposition(graph);
+export function getKCore(graph: Graph, k: number): Set<string> {
+    const { coreness } = kCoreDecomposition(graph);
     const kCore = new Set<string>();
 
     for (const [node, core] of coreness) {
@@ -238,15 +236,11 @@ export function getKCore(
 /**
  * Get the induced subgraph for k-core
  * Returns the actual subgraph containing only k-core nodes
- *
  * @param graph - Original graph
  * @param k - Core number
  * @returns K-core subgraph
  */
-export function getKCoreSubgraph(
-    graph: Graph,
-    k: number,
-): Map<string, Set<string>> {
+export function getKCoreSubgraph(graph: Graph, k: number): Map<string, Set<string>> {
     const kCoreNodes = getKCore(graph, k);
     const adjacencySet = graphToAdjacencySet(graph);
     const subgraph = new Map<string, Set<string>>();
@@ -270,13 +264,10 @@ export function getKCoreSubgraph(
 /**
  * Degeneracy ordering of the graph
  * Orders nodes by their coreness values
- *
  * @param graph - Undirected graph
  * @returns Array of nodes ordered by degeneracy
  */
-export function degeneracyOrdering(
-    graph: Graph,
-): string[] {
+export function degeneracyOrdering(graph: Graph): string[] {
     const adjacencySet = graphToAdjacencySet(graph);
     const degree = new Map<string, number>();
     const remaining = new Map<string, Set<string>>();
@@ -290,7 +281,7 @@ export function degeneracyOrdering(
 
     // Build ordering
     while (ordering.length < adjacencySet.size) {
-    // Find minimum degree node
+        // Find minimum degree node
         let minDegree = Infinity;
         let minNode: string | undefined;
 
@@ -327,15 +318,11 @@ export function degeneracyOrdering(
 /**
  * Find k-truss subgraph (triangular k-cores)
  * Each edge must be part of at least k-2 triangles
- *
  * @param graph - Undirected graph
  * @param k - Truss number (k >= 2)
  * @returns Edges in k-truss
  */
-export function kTruss(
-    graph: Graph,
-    k: number,
-): Set<string> {
+export function kTruss(graph: Graph, k: number): Set<string> {
     if (k < 2) {
         throw new Error("k must be at least 2 for k-truss");
     }
@@ -349,7 +336,8 @@ export function kTruss(
     // Initialize edges
     for (const [u, neighbors] of adjacencySet) {
         for (const v of neighbors) {
-            if (u < v) { // Avoid duplicates
+            if (u < v) {
+                // Avoid duplicates
                 const edge = `${u},${v}`;
                 edges.add(edge);
                 edgeTriangles.set(edge, 0);
@@ -455,10 +443,10 @@ export function kTruss(
 
 /**
  * Convert directed graph to undirected for k-core analysis
+ * @param directedGraph - Directed graph represented as adjacency map with edge weights
+ * @returns Undirected graph represented as adjacency map with neighbor sets
  */
-export function toUndirected<T>(
-    directedGraph: Map<T, Map<T, number>>,
-): Map<T, Set<T>> {
+export function toUndirected<T>(directedGraph: Map<T, Map<T, number>>): Map<T, Set<T>> {
     const undirected = new Map<T, Set<T>>();
 
     // Initialize all nodes
@@ -491,18 +479,14 @@ export function toUndirected<T>(
 /**
  * K-Core decomposition algorithm
  * Finds all k-cores in the graph and assigns coreness values to nodes
- *
  * @param graph - Undirected graph - accepts Graph class or Map<T, Set<T>>
  * @returns K-core decomposition results
  *
  * Time Complexity: O(V + E)
  * Space Complexity: O(V)
  */
-export function kCoreDecomposition(
-    graph: Graph,
-): KCoreResult<string> {
+export function kCoreDecomposition(graph: Graph): KCoreResult<string> {
     // Convert Graph to adjacency set representation
     const adjacencySet = graphToAdjacencySet(graph);
     return kCoreDecompositionImpl(adjacencySet);
 }
-

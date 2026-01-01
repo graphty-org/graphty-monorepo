@@ -1,9 +1,4 @@
-import {
-    Camera,
-    Scene,
-    WebXRDefaultExperience,
-    WebXREnterExitUIButton,
-} from "@babylonjs/core";
+import { Camera, Scene, WebXRDefaultExperience, WebXREnterExitUIButton } from "@babylonjs/core";
 
 /**
  * Creates and initializes XR (VR/AR) buttons for entering immersive mode.
@@ -19,10 +14,7 @@ export async function createXrButton(scene: Scene, camera: Camera): Promise<WebX
 
     // add enter vr / ar buttons
     addCss();
-    const buttonsArray = [
-        mkButton("VR", "immersive-vr", "local-floor"),
-        mkButton("AR", "immersive-ar", "local-floor"),
-    ];
+    const buttonsArray = [mkButton("VR", "immersive-vr", "local-floor"), mkButton("AR", "immersive-ar", "local-floor")];
 
     // no WebXR
     if (!navigator.xr) {
@@ -74,7 +66,11 @@ export async function createXrButton(scene: Scene, camera: Camera): Promise<WebX
     return xrHelper;
 }
 
-function mkButton(text: string, sessionMode?: XRSessionMode, referenceSpaceType?: XRReferenceSpaceType): WebXREnterExitUIButton {
+function mkButton(
+    text: string,
+    sessionMode?: XRSessionMode,
+    referenceSpaceType?: XRReferenceSpaceType,
+): WebXREnterExitUIButton {
     sessionMode = sessionMode ?? "immersive-vr";
     referenceSpaceType = referenceSpaceType ?? "local-floor";
 
@@ -86,7 +82,7 @@ function mkButton(text: string, sessionMode?: XRSessionMode, referenceSpaceType?
 
     // create babylon button
     const xrBtn = new WebXREnterExitUIButton(btnElement, sessionMode, referenceSpaceType);
-    xrBtn.update = function(activeButton: WebXREnterExitUIButton | null) {
+    xrBtn.update = function (activeButton: WebXREnterExitUIButton | null) {
         if (activeButton === null) {
             // not active, show button and remove presenting style (if present)
             btnElement.style.display = "";

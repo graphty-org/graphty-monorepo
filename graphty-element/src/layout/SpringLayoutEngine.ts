@@ -1,8 +1,8 @@
-import {Edge as LayoutEdge, Node as LayoutNode, springLayout} from "@graphty/layout";
-import {z} from "zod/v4";
+import { Edge as LayoutEdge, Node as LayoutNode, springLayout } from "@graphty/layout";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema} from "../config";
-import {SimpleLayoutConfig, SimpleLayoutEngine} from "./LayoutEngine";
+import { defineOptions, type OptionsSchema } from "../config";
+import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for Spring Layout
@@ -56,12 +56,9 @@ export const springLayoutOptionsSchema = defineOptions({
 });
 
 export const SpringLayoutConfig = z.strictObject({
-    ... SimpleLayoutConfig.shape,
+    ...SimpleLayoutConfig.shape,
     k: z.number().or(z.null()).default(null),
-    pos: z.record(
-        z.number(),
-        z.array(z.number()).min(2).max(3),
-    ).or(z.null()).default(null),
+    pos: z.record(z.number(), z.array(z.number()).min(2).max(3)).or(z.null()).default(null),
     fixed: z.array(z.number()).or(z.null()).default(null),
     iterations: z.number().positive().default(50),
     scale: z.number().positive().default(1),
@@ -97,7 +94,7 @@ export class SpringLayout extends SimpleLayoutEngine {
      * @returns Options object with dim parameter
      */
     static getOptionsForDimension(dimension: 2 | 3): object {
-        return {dim: dimension};
+        return { dim: dimension };
     }
 
     /**
@@ -109,7 +106,7 @@ export class SpringLayout extends SimpleLayoutEngine {
         const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
 
         this.positions = springLayout(
-            {nodes, edges},
+            { nodes, edges },
             this.config.k,
             this.config.pos,
             this.config.fixed,

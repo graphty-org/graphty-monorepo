@@ -1,9 +1,14 @@
-import {set as deepSet} from "lodash";
+import { set as deepSet } from "lodash";
 
-import {AdHocData, type OptionsSchema as ZodOptionsSchema, SuggestedStylesConfig, SuggestedStylesProvider} from "../config";
-import {Edge} from "../Edge";
-import {Graph} from "../Graph";
-import {type OptionsFromSchema, type OptionsSchema, resolveOptions} from "./types/OptionSchema";
+import {
+    AdHocData,
+    type OptionsSchema as ZodOptionsSchema,
+    SuggestedStylesConfig,
+    SuggestedStylesProvider,
+} from "../config";
+import { Edge } from "../Edge";
+import { Graph } from "../Graph";
+import { type OptionsFromSchema, type OptionsSchema, resolveOptions } from "./types/OptionSchema";
 
 /**
  * Type for algorithm class constructor
@@ -301,7 +306,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * @returns The algorithm class, or null if not found
      */
     static getClass(namespace: string, type: string): (AlgorithmClass & AlgorithmStatics) | null {
-        return algorithmRegistry.get(`${namespace}:${type}`) as (AlgorithmClass & AlgorithmStatics) | null ?? null;
+        return (algorithmRegistry.get(`${namespace}:${type}`) as (AlgorithmClass & AlgorithmStatics) | null) ?? null;
     }
 
     /**
@@ -353,8 +358,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * @returns true if the algorithm has a Zod options schema defined
      */
     static hasZodOptions(): boolean {
-        return this.zodOptionsSchema !== undefined &&
-               Object.keys(this.zodOptionsSchema).length > 0;
+        return this.zodOptionsSchema !== undefined && Object.keys(this.zodOptionsSchema).length > 0;
     }
 
     /**

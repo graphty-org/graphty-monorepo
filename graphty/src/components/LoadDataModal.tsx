@@ -11,10 +11,10 @@ import {
     Textarea,
     TextInput,
 } from "@mantine/core";
-import {AlertCircle, Clipboard, FileText, Link, Upload} from "lucide-react";
-import {useCallback, useState} from "react";
+import { AlertCircle, Clipboard, FileText, Link, Upload } from "lucide-react";
+import { useCallback, useState } from "react";
 
-import {standardModalStyles} from "../utils/modal-styles";
+import { standardModalStyles } from "../utils/modal-styles";
 
 type InputMethod = "file" | "url" | "paste";
 type FormatType = "auto" | "json" | "graphml" | "gexf" | "csv" | "gml" | "dot" | "pajek";
@@ -40,14 +40,14 @@ interface DetectionResult {
 }
 
 const FORMAT_OPTIONS = [
-    {value: "auto", label: "Auto-detect"},
-    {value: "json", label: "JSON"},
-    {value: "graphml", label: "GraphML"},
-    {value: "gexf", label: "GEXF"},
-    {value: "csv", label: "CSV"},
-    {value: "gml", label: "GML"},
-    {value: "dot", label: "DOT (Graphviz)"},
-    {value: "pajek", label: "Pajek NET"},
+    { value: "auto", label: "Auto-detect" },
+    { value: "json", label: "JSON" },
+    { value: "graphml", label: "GraphML" },
+    { value: "gexf", label: "GEXF" },
+    { value: "csv", label: "CSV" },
+    { value: "gml", label: "GML" },
+    { value: "dot", label: "DOT (Graphviz)" },
+    { value: "pajek", label: "Pajek NET" },
 ];
 
 const FORMAT_EXTENSIONS: Record<string, FormatType> = {
@@ -66,7 +66,7 @@ const FORMAT_EXTENSIONS: Record<string, FormatType> = {
 };
 
 function detectFormatFromFilename(filename: string): FormatType | null {
-    const ext = (/\.[^.]+$/.exec(filename.toLowerCase()))?.[0];
+    const ext = /\.[^.]+$/.exec(filename.toLowerCase())?.[0];
     if (ext && ext in FORMAT_EXTENSIONS) {
         return FORMAT_EXTENSIONS[ext];
     }
@@ -79,47 +79,55 @@ function detectFormatFromContent(content: string): DetectionResult {
 
     // XML-based formats
     if (trimmed.startsWith("<?xml") || trimmed.startsWith("<")) {
-        if (trimmed.includes("xmlns=\"http://graphml.graphdrawing.org")) {
-            return {format: "graphml", confidence: "high"};
+        if (trimmed.includes('xmlns="http://graphml.graphdrawing.org')) {
+            return { format: "graphml", confidence: "high" };
         }
 
-        if (trimmed.includes("xmlns=\"http://gexf.net")) {
-            return {format: "gexf", confidence: "high"};
+        if (trimmed.includes('xmlns="http://gexf.net')) {
+            return { format: "gexf", confidence: "high" };
         }
 
         // Generic XML - could be GraphML or GEXF
-        return {format: "graphml", confidence: "low"};
+        return { format: "graphml", confidence: "low" };
     }
 
     // JSON
     if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-        return {format: "json", confidence: "high"};
+        return { format: "json", confidence: "high" };
     }
 
     // GML
     if (/graph\s*\[/i.test(trimmed)) {
-        return {format: "gml", confidence: "high"};
+        return { format: "gml", confidence: "high" };
     }
 
     // Pajek
     if (/^\*vertices/i.test(trimmed)) {
-        return {format: "pajek", confidence: "high"};
+        return { format: "pajek", confidence: "high" };
     }
 
     // DOT
     if (/^\s*(strict\s+)?(di)?graph\s+/i.test(trimmed)) {
-        return {format: "dot", confidence: "high"};
+        return { format: "dot", confidence: "high" };
     }
 
     // CSV (very generic, check last)
     if (/^[\w-]+\s*,\s*[\w-]+/m.test(trimmed)) {
-        return {format: "csv", confidence: "medium"};
+        return { format: "csv", confidence: "medium" };
     }
 
-    return {format: null, confidence: "low"};
+    return { format: null, confidence: "low" };
 }
 
-export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): React.JSX.Element {
+/**
+ * Modal for loading graph data from file, URL, or pasted content.
+ * @param root0 - Component props
+ * @param root0.opened - Whether the modal is open
+ * @param root0.onClose - Close the modal
+ * @param root0.onLoad - Called with the load request when data is loaded
+ * @returns The load data modal component
+ */
+export function LoadDataModal({ opened, onClose, onLoad }: LoadDataModalProps): React.JSX.Element {
     const [inputMethod, setInputMethod] = useState<InputMethod>("file");
     const [selectedFormat, setSelectedFormat] = useState<FormatType>("auto");
     const [detectedFormat, setDetectedFormat] = useState<DetectionResult | null>(null);
@@ -152,7 +160,7 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
         // Detect format from filename
         const formatFromName = detectFormatFromFilename(file.name);
         if (formatFromName) {
-            setDetectedFormat({format: formatFromName, confidence: "high"});
+            setDetectedFormat({ format: formatFromName, confidence: "high" });
         } else {
             // Read content to detect format
             const reader = new FileReader();
@@ -165,15 +173,18 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
         }
     }, []);
 
-    const handleDrop = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(false);
+    const handleDrop = useCallback(
+        (e: React.DragEvent) => {
+            e.preventDefault();
+            setIsDragging(false);
 
-        const file = e.dataTransfer.files[0] as File | undefined;
-        if (file) {
-            handleFileSelect(file);
-        }
-    }, [handleFileSelect]);
+            const file = e.dataTransfer.files[0] as File | undefined;
+            if (file) {
+                handleFileSelect(file);
+            }
+        },
+        [handleFileSelect],
+    );
 
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault();
@@ -185,12 +196,15 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
         setIsDragging(false);
     }, []);
 
-    const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            handleFileSelect(file);
-        }
-    }, [handleFileSelect]);
+    const handleFileInputChange = useCallback(
+        (e: React.ChangeEvent<HTMLInputElement>) => {
+            const file = e.target.files?.[0];
+            if (file) {
+                handleFileSelect(file);
+            }
+        },
+        [handleFileSelect],
+    );
 
     const handleUrlChange = useCallback((value: string) => {
         setUrl(value);
@@ -200,7 +214,7 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
         if (value) {
             const formatFromUrl = detectFormatFromFilename(value);
             if (formatFromUrl) {
-                setDetectedFormat({format: formatFromUrl, confidence: "medium"});
+                setDetectedFormat({ format: formatFromUrl, confidence: "medium" });
             } else {
                 setDetectedFormat(null);
             }
@@ -261,13 +275,15 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
     }, [inputMethod, selectedFile, url, pastedContent, getEffectiveFormat, onLoad, handleClose, replaceExisting]);
 
     const canLoad = useCallback((): boolean => {
-        const hasData = (inputMethod === "file" && selectedFile !== null) ||
+        const hasData =
+            (inputMethod === "file" && selectedFile !== null) ||
             (inputMethod === "url" && url.trim() !== "") ||
             (inputMethod === "paste" && pastedContent.trim() !== "");
 
         // For URL and file, we can use auto-detection even without a detected format
         // For paste, we need either explicit format or detected format
-        const hasFormat = selectedFormat !== "auto" ||
+        const hasFormat =
+            selectedFormat !== "auto" ||
             detectedFormat?.format !== null ||
             inputMethod === "url" ||
             inputMethod === "file";
@@ -307,14 +323,7 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
     };
 
     return (
-        <Modal
-            opened={opened}
-            onClose={handleClose}
-            title="Load Data"
-            size="lg"
-            centered
-            styles={standardModalStyles}
-        >
+        <Modal opened={opened} onClose={handleClose} title="Load Data" size="lg" centered styles={standardModalStyles}>
             <Stack gap="lg">
                 {/* Input Method Tabs */}
                 <SegmentedControl
@@ -383,7 +392,7 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
                             type="file"
                             accept=".json,.graphml,.xml,.gexf,.csv,.edges,.edgelist,.gml,.dot,.gv,.net,.paj"
                             onChange={handleFileInputChange}
-                            style={{display: "none"}}
+                            style={{ display: "none" }}
                         />
                         <Upload
                             size={32}
@@ -425,7 +434,7 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
                         }}
                         leftSection={<Link size={14} />}
                         styles={{
-                            label: {color: "var(--mantine-color-dimmed)"},
+                            label: { color: "var(--mantine-color-dimmed)" },
                         }}
                     />
                 )}
@@ -451,7 +460,7 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
                         maxRows={12}
                         autosize
                         styles={{
-                            label: {color: "var(--mantine-color-dimmed)"},
+                            label: { color: "var(--mantine-color-dimmed)" },
                             input: {
                                 fontFamily: "monospace",
                                 fontSize: "12px",
@@ -470,9 +479,11 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
                     }}
                     data={FORMAT_OPTIONS}
                     styles={{
-                        label: {color: "var(--mantine-color-dimmed)"},
+                        label: { color: "var(--mantine-color-dimmed)" },
                         description: {
-                            color: detectedFormat?.format ? "var(--mantine-color-green-5)" : "var(--mantine-color-dimmed)",
+                            color: detectedFormat?.format
+                                ? "var(--mantine-color-green-5)"
+                                : "var(--mantine-color-dimmed)",
                         },
                     }}
                 />
@@ -491,13 +502,13 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
                         setReplaceExisting(e.currentTarget.checked);
                     }}
                     styles={{
-                        description: {color: "var(--mantine-color-dimmed)"},
+                        description: { color: "var(--mantine-color-dimmed)" },
                     }}
                 />
 
                 {/* Error Display */}
                 {error && (
-                    <Group gap="xs" style={{color: "var(--mantine-color-red-5)"}}>
+                    <Group gap="xs" style={{ color: "var(--mantine-color-red-5)" }}>
                         <AlertCircle size={16} />
                         <Text size="sm">{error}</Text>
                     </Group>
@@ -508,11 +519,7 @@ export function LoadDataModal({opened, onClose, onLoad}: LoadDataModalProps): Re
                     <Button variant="subtle" color="gray" onClick={handleClose}>
                         Cancel
                     </Button>
-                    <Button
-                        onClick={handleLoad}
-                        disabled={!canLoad()}
-                        leftSection={<Upload size={16} />}
-                    >
+                    <Button onClick={handleLoad} disabled={!canLoad()} leftSection={<Upload size={16} />}>
                         Load {getFormatDisplay() !== "Auto-detect" ? getFormatDisplay() : "Data"}
                     </Button>
                 </Group>

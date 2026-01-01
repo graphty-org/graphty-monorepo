@@ -12,7 +12,7 @@
  * - Consistent discovery APIs
  */
 
-import {z} from "zod/v4";
+import { z } from "zod/v4";
 
 /**
  * UI metadata for an option (not validation - that's Zod's job)
@@ -100,13 +100,13 @@ export function defineOptions<S extends OptionsSchema>(schema: S): S {
  */
 export function toZodSchema<S extends OptionsSchema>(
     optionsSchema: S,
-): z.ZodObject<{[K in keyof S]: S[K]["schema"]}> {
+): z.ZodObject<{ [K in keyof S]: S[K]["schema"] }> {
     const shape: Record<string, z.ZodType> = {};
     for (const [key, def] of Object.entries(optionsSchema)) {
         shape[key] = def.schema;
     }
 
-    return z.object(shape) as z.ZodObject<{[K in keyof S]: S[K]["schema"]}>;
+    return z.object(shape) as z.ZodObject<{ [K in keyof S]: S[K]["schema"] }>;
 }
 
 /**
@@ -123,10 +123,7 @@ export function toZodSchema<S extends OptionsSchema>(
  * // options is fully typed with all defaults applied
  * ```
  */
-export function parseOptions<S extends OptionsSchema>(
-    optionsSchema: S,
-    options: PartialOptions<S>,
-): InferOptions<S> {
+export function parseOptions<S extends OptionsSchema>(optionsSchema: S, options: PartialOptions<S>): InferOptions<S> {
     const zodSchema = toZodSchema(optionsSchema);
     return zodSchema.parse(options) as InferOptions<S>;
 }
@@ -134,9 +131,7 @@ export function parseOptions<S extends OptionsSchema>(
 /**
  * Result type for safe parsing
  */
-export type SafeParseResult<T> =
-    | {success: true, data: T}
-    | {success: false, error: z.ZodError};
+export type SafeParseResult<T> = { success: true; data: T } | { success: false; error: z.ZodError };
 
 /**
  * Safely parse options, returning a result object instead of throwing
@@ -151,10 +146,10 @@ export function safeParseOptions<S extends OptionsSchema>(
     const zodSchema = toZodSchema(optionsSchema);
     const result = zodSchema.safeParse(options);
     if (result.success) {
-        return {success: true, data: result.data as InferOptions<S>};
+        return { success: true, data: result.data as InferOptions<S> };
     }
 
-    return {success: false, error: result.error};
+    return { success: false, error: result.error };
 }
 
 /**
@@ -164,9 +159,7 @@ export function safeParseOptions<S extends OptionsSchema>(
  * @param optionsSchema - Options schema to extract defaults from
  * @returns Object with all default values
  */
-export function getDefaults<S extends OptionsSchema>(
-    optionsSchema: S,
-): InferOptions<S> {
+export function getDefaults<S extends OptionsSchema>(optionsSchema: S): InferOptions<S> {
     const zodSchema = toZodSchema(optionsSchema);
     return zodSchema.parse({}) as InferOptions<S>;
 }
@@ -200,10 +193,7 @@ export function getOptionsMeta(optionsSchema: OptionsSchema): Map<string, Option
  * @param advanced - If true, return only advanced options. If false, return only basic options.
  * @returns Filtered options schema
  */
-export function getOptionsFiltered(
-    optionsSchema: OptionsSchema,
-    advanced: boolean,
-): OptionsSchema {
+export function getOptionsFiltered(optionsSchema: OptionsSchema, advanced: boolean): OptionsSchema {
     const filtered: OptionsSchema = {};
     for (const [key, def] of Object.entries(optionsSchema)) {
         const isAdvanced = def.meta.advanced ?? false;
@@ -220,9 +210,7 @@ export function getOptionsFiltered(
  * @param optionsSchema - Options schema to group
  * @returns Map of group name to options in that group. Ungrouped options are under ""
  */
-export function getOptionsGrouped(
-    optionsSchema: OptionsSchema,
-): Map<string, OptionsSchema> {
+export function getOptionsGrouped(optionsSchema: OptionsSchema): Map<string, OptionsSchema> {
     const groups = new Map<string, OptionsSchema>();
 
     for (const [key, def] of Object.entries(optionsSchema)) {

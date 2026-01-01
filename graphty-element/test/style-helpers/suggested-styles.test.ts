@@ -1,8 +1,8 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../src/algorithms/Algorithm";
-import {DegreeAlgorithm} from "../../src/algorithms/DegreeAlgorithm";
-import {AdHocData, SuggestedStylesConfig} from "../../src/config";
+import { Algorithm } from "../../src/algorithms/Algorithm";
+import { DegreeAlgorithm } from "../../src/algorithms/DegreeAlgorithm";
+import { AdHocData, SuggestedStylesConfig } from "../../src/config";
 
 // DegreeAlgorithm auto-registers when imported
 
@@ -10,7 +10,7 @@ interface MockGraphOpts {
     dataPath?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
     const nodes = new Map<string | number, AdHocData>();
     const edges = new Map<string | number, AdHocData>();
@@ -62,7 +62,7 @@ async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
 
                 const suggestedStyles = AlgorithmClass.getSuggestedStyles();
                 if (suggestedStyles) {
-                    layers.push(... suggestedStyles.layers);
+                    layers.push(...suggestedStyles.layers);
                     applied = true;
                 }
             }
@@ -158,7 +158,7 @@ describe("DegreeAlgorithm Suggested Styles", () => {
         assert.ok(layer.node);
         assert.ok(layer.node.calculatedStyle);
 
-        const {calculatedStyle} = layer.node;
+        const { calculatedStyle } = layer.node;
         assert.deepStrictEqual(calculatedStyle.inputs, ["algorithmResults.graphty.degree.degreePct"]);
         assert.strictEqual(calculatedStyle.output, "style.texture.color");
         assert.ok(calculatedStyle.expr.includes("arguments[0]"));
@@ -177,7 +177,7 @@ describe("DegreeAlgorithm Suggested Styles", () => {
 });
 
 describe("Graph.getSuggestedStyles()", () => {
-    it("returns suggested styles for registered algorithm", async() => {
+    it("returns suggested styles for registered algorithm", async () => {
         const graph = await mockGraph();
         const styles = graph.getSuggestedStyles("graphty:degree");
 
@@ -186,7 +186,7 @@ describe("Graph.getSuggestedStyles()", () => {
         assert.strictEqual(styles.layers.length, 1);
     });
 
-    it("returns null for algorithm without suggested styles", async() => {
+    it("returns null for algorithm without suggested styles", async () => {
         const graph = await mockGraph();
         const styles = graph.getSuggestedStyles("nonexistent:algorithm");
 
@@ -195,7 +195,7 @@ describe("Graph.getSuggestedStyles()", () => {
 });
 
 describe("Graph.applySuggestedStyles()", () => {
-    it("applies suggested styles from single algorithm", async() => {
+    it("applies suggested styles from single algorithm", async () => {
         const graph = await mockGraph();
         const applied = graph.applySuggestedStyles("graphty:degree");
 
@@ -208,7 +208,7 @@ describe("Graph.applySuggestedStyles()", () => {
         assert.ok(layer.node.calculatedStyle);
     });
 
-    it("applies suggested styles from multiple algorithms", async() => {
+    it("applies suggested styles from multiple algorithms", async () => {
         const graph = await mockGraph();
 
         // Register a second test algorithm with suggested styles
@@ -216,17 +216,19 @@ describe("Graph.applySuggestedStyles()", () => {
             static namespace = "test";
             static type = "test";
             static suggestedStyles = (): SuggestedStylesConfig => ({
-                layers: [{
-                    node: {
-                        selector: "",
-                        style: {
-                            enabled: true,
+                layers: [
+                    {
+                        node: {
+                            selector: "",
+                            style: {
+                                enabled: true,
+                            },
+                        },
+                        metadata: {
+                            name: "Test Layer",
                         },
                     },
-                    metadata: {
-                        name: "Test Layer",
-                    },
-                }],
+                ],
                 description: "Test styles",
             });
 
@@ -243,7 +245,7 @@ describe("Graph.applySuggestedStyles()", () => {
         assert.strictEqual(graph.styles.layers.length, 2);
     });
 
-    it("returns false when no algorithms have suggested styles", async() => {
+    it("returns false when no algorithms have suggested styles", async () => {
         const graph = await mockGraph();
         const applied = graph.applySuggestedStyles("nonexistent:algorithm");
 
@@ -251,7 +253,7 @@ describe("Graph.applySuggestedStyles()", () => {
         assert.strictEqual(graph.styles.layers.length, 0);
     });
 
-    it("handles empty algorithm key array", async() => {
+    it("handles empty algorithm key array", async () => {
         const graph = await mockGraph();
         const applied = graph.applySuggestedStyles([]);
 
@@ -261,8 +263,8 @@ describe("Graph.applySuggestedStyles()", () => {
 });
 
 describe("Integration: DegreeAlgorithm with Suggested Styles", () => {
-    it("applies suggested styles to graph after algorithm run", async() => {
-        const fakeGraph = await mockGraph({dataPath: "../helpers/data4.json"});
+    it("applies suggested styles to graph after algorithm run", async () => {
+        const fakeGraph = await mockGraph({ dataPath: "../helpers/data4.json" });
         const da = new DegreeAlgorithm(fakeGraph);
 
         // Run algorithm
@@ -288,7 +290,7 @@ describe("Integration: DegreeAlgorithm with Suggested Styles", () => {
         assert.ok(layer.node.calculatedStyle);
 
         // Verify calculatedStyle references the correct algorithm result
-        const {inputs} = layer.node.calculatedStyle;
+        const { inputs } = layer.node.calculatedStyle;
         assert.deepStrictEqual(inputs, ["algorithmResults.graphty.degree.degreePct"]);
     });
 });

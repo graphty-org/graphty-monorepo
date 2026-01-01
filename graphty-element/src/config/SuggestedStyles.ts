@@ -78,7 +78,7 @@
  * @module SuggestedStyles
  */
 
-import type {AppliedEdgeStyleConfig, AppliedNodeStyleConfig} from "./StyleTemplate";
+import type { AppliedEdgeStyleConfig, AppliedNodeStyleConfig } from "./StyleTemplate";
 
 /**
  * Metadata for a suggested style layer

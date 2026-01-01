@@ -1,14 +1,14 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {BellmanFordAlgorithm} from "../../../src/algorithms/BellmanFordAlgorithm";
-import type {AdHocData} from "../../../src/config";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { BellmanFordAlgorithm } from "../../../src/algorithms/BellmanFordAlgorithm";
+import type { AdHocData } from "../../../src/config";
 
 interface MockGraphOpts {
     dataPath?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
     const nodes = new Map<string | number, AdHocData>();
     const edges = new Map<string | number, AdHocData>();
@@ -44,7 +44,7 @@ async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
     return fakeGraph;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function mockGraphWithNegativeCycle(): any {
     // Create a graph with a negative cycle:
     // A --1--> B --2--> C ---(-4)--> A
@@ -53,13 +53,13 @@ function mockGraphWithNegativeCycle(): any {
     const edges = new Map<string | number, AdHocData>();
     let graphResults: AdHocData | undefined;
 
-    nodes.set("A", {id: "A"} as unknown as AdHocData);
-    nodes.set("B", {id: "B"} as unknown as AdHocData);
-    nodes.set("C", {id: "C"} as unknown as AdHocData);
+    nodes.set("A", { id: "A" } as unknown as AdHocData);
+    nodes.set("B", { id: "B" } as unknown as AdHocData);
+    nodes.set("C", { id: "C" } as unknown as AdHocData);
 
-    edges.set("A:B", {srcId: "A", dstId: "B", value: 1} as unknown as AdHocData);
-    edges.set("B:C", {srcId: "B", dstId: "C", value: 2} as unknown as AdHocData);
-    edges.set("C:A", {srcId: "C", dstId: "A", value: -4} as unknown as AdHocData);
+    edges.set("A:B", { srcId: "A", dstId: "B", value: 1 } as unknown as AdHocData);
+    edges.set("B:C", { srcId: "B", dstId: "C", value: 2 } as unknown as AdHocData);
+    edges.set("C:A", { srcId: "C", dstId: "A", value: -4 } as unknown as AdHocData);
 
     return {
         nodes,
@@ -90,14 +90,14 @@ describe("BellmanFordAlgorithm", () => {
     });
 
     describe("Algorithm Execution", () => {
-        it("exists", async() => {
+        it("exists", async () => {
             new BellmanFordAlgorithm(await mockGraph());
         });
 
-        it("calculates distances from source to all nodes", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("calculates distances from source to all nodes", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new BellmanFordAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean"});
+            algo.configure({ source: "Valjean" });
             await algo.run();
 
             for (const node of fakeGraph.nodes.values()) {
@@ -112,10 +112,10 @@ describe("BellmanFordAlgorithm", () => {
             assert.strictEqual(sourceNode.algorithmResults.graphty["bellman-ford"].distance, 0);
         });
 
-        it("marks nodes in shortest path when target is specified", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("marks nodes in shortest path when target is specified", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new BellmanFordAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean", target: "Cosette"});
+            algo.configure({ source: "Valjean", target: "Cosette" });
             await algo.run();
 
             let pathNodeCount = 0;
@@ -127,10 +127,10 @@ describe("BellmanFordAlgorithm", () => {
             assert.isAtLeast(pathNodeCount, 2); // At least source and target
         });
 
-        it("marks edges in shortest path when target is specified", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("marks edges in shortest path when target is specified", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new BellmanFordAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean", target: "Cosette"});
+            algo.configure({ source: "Valjean", target: "Cosette" });
             await algo.run();
 
             let pathEdgeCount = 0;
@@ -143,18 +143,18 @@ describe("BellmanFordAlgorithm", () => {
             assert.isAtLeast(pathEdgeCount, 1);
         });
 
-        it("handles empty graph", async() => {
+        it("handles empty graph", async () => {
             const emptyGraph = await mockGraph();
             const algo = new BellmanFordAlgorithm(emptyGraph);
-            algo.configure({source: "A"});
+            algo.configure({ source: "A" });
             await algo.run();
             // Should not throw
         });
 
-        it("normalizes distances to percentages", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("normalizes distances to percentages", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new BellmanFordAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean"});
+            algo.configure({ source: "Valjean" });
             await algo.run();
 
             for (const node of fakeGraph.nodes.values()) {
@@ -166,13 +166,13 @@ describe("BellmanFordAlgorithm", () => {
             }
         });
 
-        it("detects negative cycles", async() => {
+        it("detects negative cycles", async () => {
             const graphWithNegCycle = mockGraphWithNegativeCycle();
             const algo = new BellmanFordAlgorithm(graphWithNegCycle);
-            algo.configure({source: "A"});
+            algo.configure({ source: "A" });
             await algo.run();
 
-            const {results} = algo;
+            const { results } = algo;
             assert.ok(results.graph?.graphty?.["bellman-ford"]?.hasNegativeCycle);
         });
     });

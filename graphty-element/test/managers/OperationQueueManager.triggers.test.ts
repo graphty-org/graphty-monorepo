@@ -1,7 +1,7 @@
-import {assert, beforeEach, describe, it} from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 
-import {EventManager} from "../../src/managers/EventManager";
-import {type OperationCategory, OperationQueueManager} from "../../src/managers/OperationQueueManager";
+import { EventManager } from "../../src/managers/EventManager";
+import { type OperationCategory, OperationQueueManager } from "../../src/managers/OperationQueueManager";
 
 describe("Operation Triggers", () => {
     let manager: OperationQueueManager;
@@ -12,7 +12,7 @@ describe("Operation Triggers", () => {
         manager = new OperationQueueManager(eventManager);
     });
 
-    it("should trigger layout-update after data-add", async() => {
+    it("should trigger layout-update after data-add", async () => {
         const operations: string[] = [];
         let layoutUpdateTriggered = false;
 
@@ -42,7 +42,7 @@ describe("Operation Triggers", () => {
         assert.include(operations, "data-add", "data-add should have executed");
     });
 
-    it("should skip triggers when skipTriggers flag is set", async() => {
+    it("should skip triggers when skipTriggers flag is set", async () => {
         const operations: string[] = [];
         let layoutUpdateTriggered = false;
 
@@ -72,7 +72,7 @@ describe("Operation Triggers", () => {
         assert.include(operations, "data-add", "data-add should have executed");
     });
 
-    it("should handle custom triggers", async() => {
+    it("should handle custom triggers", async () => {
         const operations: string[] = [];
         let customTriggered = false;
 
@@ -108,7 +108,7 @@ describe("Operation Triggers", () => {
         assert.include(operations, "custom-trigger", "custom trigger should have been invoked");
     });
 
-    it("should not trigger if prerequisites missing (no layout engine)", async() => {
+    it("should not trigger if prerequisites missing (no layout engine)", async () => {
         const operations: string[] = [];
         let layoutUpdateTriggered = false;
 
@@ -140,7 +140,7 @@ describe("Operation Triggers", () => {
         assert.include(operations, "data-add", "data-add should have executed");
     });
 
-    it("should queue multiple triggered operations from single source", async() => {
+    it("should queue multiple triggered operations from single source", async () => {
         const operations: string[] = [];
         const triggeredCategories: OperationCategory[] = [];
 
@@ -191,7 +191,7 @@ describe("Operation Triggers", () => {
         assert.include(operations, "trigger-2", "second trigger should have been invoked");
     });
 
-    it("should handle trigger that returns null (conditional trigger)", async() => {
+    it("should handle trigger that returns null (conditional trigger)", async () => {
         const operations: string[] = [];
         let triggerCalled = false;
 
@@ -221,7 +221,7 @@ describe("Operation Triggers", () => {
         assert.equal(operations.length, 1, "only the original operation should execute");
     });
 
-    it("should pass operation metadata to trigger function", async() => {
+    it("should pass operation metadata to trigger function", async () => {
         let receivedMetadata: unknown = null;
 
         // Register a trigger that captures metadata
@@ -247,6 +247,10 @@ describe("Operation Triggers", () => {
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         // Check that the metadata contains the expected fields (ignoring timestamp)
-        assert.equal((receivedMetadata as Record<string, unknown>).description, testMetadata.description, "should have description");
+        assert.equal(
+            (receivedMetadata as Record<string, unknown>).description,
+            testMetadata.description,
+            "should have description",
+        );
     });
 });

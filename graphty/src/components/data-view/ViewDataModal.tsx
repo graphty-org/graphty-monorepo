@@ -1,10 +1,10 @@
-import {Group, Modal, SegmentedControl, Stack, Text, TextInput} from "@mantine/core";
-import {useDebouncedValue} from "@mantine/hooks";
-import {Search} from "lucide-react";
-import {useState} from "react";
+import { Group, Modal, SegmentedControl, Stack, Text, TextInput } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
+import { Search } from "lucide-react";
+import { useState } from "react";
 
-import {standardModalStyles} from "../../utils/modal-styles";
-import {DataGrid} from "./DataGrid";
+import { standardModalStyles } from "../../utils/modal-styles";
+import { DataGrid } from "./DataGrid";
 
 export interface ViewDataModalProps {
     /** Whether the modal is open */
@@ -25,13 +25,14 @@ type TabValue = "nodes" | "edges";
 /**
  * Modal component for viewing all graph data in a tabbed interface.
  * Displays nodes and edges in separate tabs with a search input.
+ * @param root0 - Component props
+ * @param root0.opened - Whether the modal is open
+ * @param root0.onClose - Callback when the modal is closed
+ * @param root0.data - The graph data to display
+ * @param root0.showCopyButton - Whether to show copy button when a cell is selected
+ * @returns The view data modal component
  */
-export function ViewDataModal({
-    opened,
-    onClose,
-    data,
-    showCopyButton = true,
-}: ViewDataModalProps): React.JSX.Element {
+export function ViewDataModal({ opened, onClose, data, showCopyButton = true }: ViewDataModalProps): React.JSX.Element {
     const [activeTab, setActiveTab] = useState<TabValue>("nodes");
     const [searchText, setSearchText] = useState("");
     const [debouncedSearch] = useDebouncedValue(searchText, 300);
@@ -42,14 +43,7 @@ export function ViewDataModal({
     const edgeCount = data.edges.length;
 
     return (
-        <Modal
-            opened={opened}
-            onClose={onClose}
-            title="View Data"
-            size="xl"
-            centered
-            styles={standardModalStyles}
-        >
+        <Modal opened={opened} onClose={onClose} title="View Data" size="xl" centered styles={standardModalStyles}>
             <Stack gap="xs">
                 {/* Tabs for Nodes/Edges */}
                 <SegmentedControl
@@ -58,8 +52,8 @@ export function ViewDataModal({
                         setActiveTab(value as TabValue);
                     }}
                     data={[
-                        {value: "nodes", label: "Nodes"},
-                        {value: "edges", label: "Edges"},
+                        { value: "nodes", label: "Nodes" },
+                        { value: "edges", label: "Edges" },
                     ]}
                     fullWidth
                     size="xs"
@@ -115,8 +109,8 @@ export function ViewDataModal({
                 {/* Footer with item counts */}
                 <Group justify="space-between">
                     <Text size="xs" c="dimmed">
-                        {nodeCount} {nodeCount === 1 ? "node" : "nodes"} ·{" "}
-                        {edgeCount} {edgeCount === 1 ? "edge" : "edges"}
+                        {nodeCount} {nodeCount === 1 ? "node" : "nodes"} · {edgeCount}{" "}
+                        {edgeCount === 1 ? "edge" : "edges"}
                     </Text>
                 </Group>
             </Stack>

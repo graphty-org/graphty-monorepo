@@ -17,7 +17,7 @@
 export function linear(value: number, minOpacity = 0.1, maxOpacity = 1.0): number {
     // Clamp value to [0, 1]
     const clampedValue = Math.max(0, Math.min(1, value));
-    return minOpacity + (clampedValue * (maxOpacity - minOpacity));
+    return minOpacity + clampedValue * (maxOpacity - minOpacity);
 }
 
 /**
@@ -33,12 +33,7 @@ export function linear(value: number, minOpacity = 0.1, maxOpacity = 1.0): numbe
  * threshold(0.6)              // 1.0 (above 0.5)
  * threshold(0.2, 0.3, 0.2, 1) // 0.2 (below 0.3)
  */
-export function threshold(
-    value: number,
-    thresholdValue = 0.5,
-    belowOpacity = 0.3,
-    aboveOpacity = 1.0,
-): number {
+export function threshold(value: number, thresholdValue = 0.5, belowOpacity = 0.3, aboveOpacity = 1.0): number {
     return value < thresholdValue ? belowOpacity : aboveOpacity;
 }
 
@@ -53,11 +48,7 @@ export function threshold(
  * binary(true)   // 1.0
  * binary(false)  // 0.0
  */
-export function binary(
-    isVisible: boolean,
-    visibleOpacity = 1.0,
-    hiddenOpacity = 0.0,
-): number {
+export function binary(isVisible: boolean, visibleOpacity = 1.0, hiddenOpacity = 0.0): number {
     return isVisible ? visibleOpacity : hiddenOpacity;
 }
 
@@ -77,5 +68,5 @@ export function inverse(value: number, minOpacity = 0.1, maxOpacity = 1.0): numb
     // Clamp value to [0, 1]
     const clampedValue = Math.max(0, Math.min(1, value));
     // Invert: 1 - value
-    return minOpacity + ((1 - clampedValue) * (maxOpacity - minOpacity));
+    return minOpacity + (1 - clampedValue) * (maxOpacity - minOpacity);
 }

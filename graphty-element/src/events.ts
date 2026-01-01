@@ -1,15 +1,11 @@
-import type {AiStatus} from "./ai/AiStatus";
-import type {CommandResult} from "./ai/commands/types";
-import type {NodeIdType} from "./config";
-import type {Edge} from "./Edge";
-import type {Graph} from "./Graph";
-import type {Node} from "./Node";
+import type { AiStatus } from "./ai/AiStatus";
+import type { CommandResult } from "./ai/commands/types";
+import type { NodeIdType } from "./config";
+import type { Edge } from "./Edge";
+import type { Graph } from "./Graph";
+import type { Node } from "./Node";
 
-export type EventType =
-    GraphEventType |
-    NodeEventType |
-    EdgeEventType |
-    AiEventType;
+export type EventType = GraphEventType | NodeEventType | EdgeEventType | AiEventType;
 export type EventCallbackType = (evt: GraphEvent | NodeEvent | EdgeEvent | AiEvent) => void;
 
 export type GraphEventType = GraphEvent["type"];
@@ -18,7 +14,19 @@ export type EdgeEventType = EdgeEvent["type"];
 export type AiEventType = AiEvent["type"];
 
 // graph events
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | SelectionChangedEvent;
+export type GraphEvent =
+    | GraphSettledEvent
+    | GraphErrorEvent
+    | GraphDataLoadedEvent
+    | GraphDataAddedEvent
+    | GraphLayoutInitializedEvent
+    | CameraStateChangedEvent
+    | GraphGenericEvent
+    | DataLoadingProgressEvent
+    | DataLoadingErrorEvent
+    | DataLoadingErrorSummaryEvent
+    | DataLoadingCompleteEvent
+    | SelectionChangedEvent;
 
 export interface GraphSettledEvent {
     type: "graph-settled";
@@ -59,21 +67,33 @@ export interface GraphLayoutInitializedEvent {
 export interface CameraStateChangedEvent {
     type: "camera-state-changed";
     state: {
-        position?: {x: number, y: number, z: number};
-        target?: {x: number, y: number, z: number};
+        position?: { x: number; y: number; z: number };
+        target?: { x: number; y: number; z: number };
         zoom?: number;
-        pan?: {x: number, y: number};
+        pan?: { x: number; y: number };
         [key: string]: unknown;
     };
 }
 
 // Generic events for internal manager communication
 export interface GraphGenericEvent {
-    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded"
-        | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete"
-        | "operation-start" | "operation-complete" | "operation-progress" | "operation-obsoleted"
-        | "animation-progress" | "animation-cancelled"
-        | "screenshot-enhancing" | "screenshot-ready"
+    type:
+        | "render-initialized"
+        | "manager-initialized"
+        | "lifecycle-initialized"
+        | "lifecycle-disposed"
+        | "skybox-loaded"
+        | "operation-queue-active"
+        | "operation-queue-idle"
+        | "operation-batch-complete"
+        | "operation-start"
+        | "operation-complete"
+        | "operation-progress"
+        | "operation-obsoleted"
+        | "animation-progress"
+        | "animation-cancelled"
+        | "screenshot-enhancing"
+        | "screenshot-ready"
         | "style-changed";
     [key: string]: unknown;
 }
@@ -132,7 +152,13 @@ export interface SelectionChangedEvent {
 }
 
 // node events
-export type NodeEvent = NodeGenericEvent | NodeAddEvent | NodeClickEvent | NodeHoverEvent | NodeDragStartEvent | NodeDragEndEvent;
+export type NodeEvent =
+    | NodeGenericEvent
+    | NodeAddEvent
+    | NodeClickEvent
+    | NodeHoverEvent
+    | NodeDragStartEvent
+    | NodeDragEndEvent;
 
 export interface NodeGenericEvent {
     type: "node-update-after" | "node-update-before";
@@ -173,7 +199,7 @@ export interface NodeHoverEvent {
 export interface NodeDragStartEvent {
     type: "node-drag-start";
     node: Node;
-    position: {x: number, y: number, z: number};
+    position: { x: number; y: number; z: number };
 }
 
 /**
@@ -183,7 +209,7 @@ export interface NodeDragStartEvent {
 export interface NodeDragEndEvent {
     type: "node-drag-end";
     node: Node;
-    position: {x: number, y: number, z: number};
+    position: { x: number; y: number; z: number };
 }
 
 // edge events

@@ -1,19 +1,17 @@
-import {
-    AbstractMesh,
-} from "@babylonjs/core";
+import { AbstractMesh } from "@babylonjs/core";
 import jmespath from "jmespath";
 import _ from "lodash";
 
-import {CalculatedValue} from "./CalculatedValue";
-import {ChangeManager} from "./ChangeManager";
-import {AdHocData, NodeStyle, NodeStyleConfig} from "./config";
-import type {Graph} from "./Graph";
-import type {GraphContext} from "./managers/GraphContext";
-import {NodeEffects} from "./meshes/NodeEffects";
-import {NodeMesh} from "./meshes/NodeMesh";
-import {RichTextLabel, type RichTextLabelOptions} from "./meshes/RichTextLabel";
-import {NodeBehavior, type NodeDragHandler} from "./NodeBehavior";
-import {NodeStyleId, Styles} from "./Styles";
+import { CalculatedValue } from "./CalculatedValue";
+import { ChangeManager } from "./ChangeManager";
+import { AdHocData, NodeStyle, NodeStyleConfig } from "./config";
+import type { Graph } from "./Graph";
+import type { GraphContext } from "./managers/GraphContext";
+import { NodeEffects } from "./meshes/NodeEffects";
+import { NodeMesh } from "./meshes/NodeMesh";
+import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
+import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
+import { NodeStyleId, Styles } from "./Styles";
 
 export type NodeIdType = string | number;
 
@@ -63,7 +61,13 @@ export class Node {
      * @param data - Custom data associated with this node
      * @param opts - Optional configuration options for the node
      */
-    constructor(graph: Graph | GraphContext, nodeId: NodeIdType, styleId: NodeStyleId, data: AdHocData<string | number>, opts: NodeOpts = {}) {
+    constructor(
+        graph: Graph | GraphContext,
+        nodeId: NodeIdType,
+        styleId: NodeStyleId,
+        data: AdHocData<string | number>,
+        opts: NodeOpts = {},
+    ) {
         this.parentGraph = graph;
         this.id = nodeId;
         this.opts = opts;
@@ -71,7 +75,9 @@ export class Node {
         this.data = this.changeManager.watch("data", data);
         this.algorithmResults = this.changeManager.watch("algorithmResults", {} as unknown as AdHocData);
         this.styleUpdates = this.changeManager.addData("style", {} as unknown as AdHocData, NodeStyle);
-        this.changeManager.loadCalculatedValues(this.context.getStyleManager().getStyles().getCalculatedStylesForNode(data));
+        this.changeManager.loadCalculatedValues(
+            this.context.getStyleManager().getStyles().getCalculatedStylesForNode(data),
+        );
 
         // copy nodeMeshOpts
         this.styleId = styleId;
@@ -85,8 +91,8 @@ export class Node {
 
         this.mesh = NodeMesh.create(
             this.context.getMeshCache(),
-            {styleId: String(styleId), is2D: this.context.is2D(), size: this.size},
-            {shape: o.shape, texture: o.texture, effect: o.effect},
+            { styleId: String(styleId), is2D: this.context.is2D(), size: this.size },
+            { shape: o.shape, texture: o.texture, effect: o.effect },
             this.context.getScene(),
         );
 
@@ -157,7 +163,7 @@ export class Node {
         }
 
         const layoutManager = this.context.getLayoutManager();
-        const {layoutEngine} = layoutManager;
+        const { layoutEngine } = layoutManager;
 
         const pos = layoutEngine?.getNodePosition(this);
         if (pos) {
@@ -205,8 +211,8 @@ export class Node {
 
         this.mesh = NodeMesh.create(
             this.context.getMeshCache(),
-            {styleId: String(styleId), is2D: this.context.is2D(), size: this.size},
-            {shape: o.shape, texture: o.texture, effect: o.effect},
+            { styleId: String(styleId), is2D: this.context.is2D(), size: this.size },
+            { shape: o.shape, texture: o.texture, effect: o.effect },
             this.context.getScene(),
         );
 
@@ -289,7 +295,11 @@ export class Node {
         // Check if text is directly provided
         if (labelConfig.text !== undefined && labelConfig.text !== null) {
             // Only convert to string if it's a primitive type
-            if (typeof labelConfig.text === "string" || typeof labelConfig.text === "number" || typeof labelConfig.text === "boolean") {
+            if (
+                typeof labelConfig.text === "string" ||
+                typeof labelConfig.text === "number" ||
+                typeof labelConfig.text === "boolean"
+            ) {
                 return String(labelConfig.text);
             }
         } else if (labelConfig.textPath && typeof labelConfig.textPath === "string") {
@@ -317,9 +327,9 @@ export class Node {
         let backgroundColor: string | undefined = undefined;
         if (labelStyle.backgroundColor) {
             if (typeof labelStyle.backgroundColor === "string") {
-                ({backgroundColor} = labelStyle);
+                ({ backgroundColor } = labelStyle);
             } else if (labelStyle.backgroundColor.colorType === "solid") {
-                ({value: backgroundColor} = labelStyle.backgroundColor);
+                ({ value: backgroundColor } = labelStyle.backgroundColor);
             } else if (labelStyle.backgroundColor.colorType === "gradient") {
                 // For gradients, use the first color as a fallback
                 [backgroundColor] = labelStyle.backgroundColor.colors;
@@ -329,17 +339,19 @@ export class Node {
         // Filter out undefined values from backgroundGradientColors
         let backgroundGradientColors: string[] | undefined = undefined;
         if (labelStyle.backgroundGradientColors) {
-            backgroundGradientColors = labelStyle.backgroundGradientColors.filter((color): color is string => color !== undefined);
+            backgroundGradientColors = labelStyle.backgroundGradientColors.filter(
+                (color): color is string => color !== undefined,
+            );
             if (backgroundGradientColors.length === 0) {
                 backgroundGradientColors = undefined;
             }
         }
 
         // Transform borders to ensure colors are strings
-        let borders: {width: number, color: string, spacing: number}[] | undefined = undefined;
+        let borders: { width: number; color: string; spacing: number }[] | undefined = undefined;
         if (labelStyle.borders && labelStyle.borders.length > 0) {
             const validBorders = labelStyle.borders
-                .filter((border): border is typeof border & {color: string} => border.color !== undefined)
+                .filter((border): border is typeof border & { color: string } => border.color !== undefined)
                 .map((border) => ({
                     width: border.width,
                     color: border.color,
@@ -354,7 +366,7 @@ export class Node {
 
         // Create label options by spreading the entire labelStyle object
         const labelOptions: RichTextLabelOptions = {
-            ... labelStyle,
+            ...labelStyle,
             // Override with computed values
             text: labelText,
             attachTo: this.mesh,
@@ -362,7 +374,7 @@ export class Node {
             attachOffset,
             backgroundColor,
             backgroundGradientColors,
-            ... (borders !== undefined && {borders}),
+            ...(borders !== undefined && { borders }),
         };
 
         // Handle special case for transparent background
@@ -372,12 +384,18 @@ export class Node {
 
         // Remove properties that shouldn't be passed to RichTextLabel
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const {location, textPath, enabled, ... finalLabelOptions} = labelOptions as RichTextLabelOptions & {location?: string, textPath?: string, enabled?: boolean};
+        const { location, textPath, enabled, ...finalLabelOptions } = labelOptions as RichTextLabelOptions & {
+            location?: string;
+            textPath?: string;
+            enabled?: boolean;
+        };
 
         return finalLabelOptions;
     }
 
-    private getAttachPosition(location: string): "top" | "top-left" | "top-right" | "left" | "center" | "right" | "bottom" | "bottom-left" | "bottom-right" {
+    private getAttachPosition(
+        location: string,
+    ): "top" | "top-left" | "top-right" | "left" | "center" | "right" | "bottom" | "bottom-left" | "bottom-right" {
         switch (location) {
             case "floating":
             case "automatic":
@@ -415,7 +433,7 @@ export class Node {
      * Gets the current 3D position of the node's mesh.
      * @returns An object containing the x, y, and z coordinates of the node
      */
-    getPosition(): {x: number, y: number, z: number} {
+    getPosition(): { x: number; y: number; z: number } {
         return {
             x: this.mesh.position.x,
             y: this.mesh.position.y,

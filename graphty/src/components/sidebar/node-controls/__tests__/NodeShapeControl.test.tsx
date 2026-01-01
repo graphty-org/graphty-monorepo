@@ -1,7 +1,7 @@
-import {describe, expect, it, vi} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {fireEvent, render, screen} from "../../../../test/test-utils";
-import {NodeShapeControl} from "../NodeShapeControl";
+import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { NodeShapeControl } from "../NodeShapeControl";
 
 describe("NodeShapeControl", () => {
     const defaultValue = {
@@ -30,7 +30,7 @@ describe("NodeShapeControl", () => {
         render(<NodeShapeControl value={defaultValue} onChange={onChange} />);
 
         const select = screen.getByLabelText("Shape Type");
-        fireEvent.change(select, {target: {value: "box"}});
+        fireEvent.change(select, { target: { value: "box" } });
 
         expect(onChange).toHaveBeenCalledWith({
             type: "box",
@@ -43,7 +43,7 @@ describe("NodeShapeControl", () => {
         render(<NodeShapeControl value={defaultValue} onChange={onChange} />);
 
         const sizeInput = screen.getByLabelText("Size");
-        fireEvent.change(sizeInput, {target: {value: "2"}});
+        fireEvent.change(sizeInput, { target: { value: "2" } });
         fireEvent.blur(sizeInput);
 
         expect(onChange).toHaveBeenCalledWith({

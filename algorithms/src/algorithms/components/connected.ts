@@ -1,6 +1,6 @@
-import type {Graph} from "../../core/graph.js";
-import {UnionFind} from "../../data-structures/union-find.js";
-import type {NodeId} from "../../types/index.js";
+import type { Graph } from "../../core/graph.js";
+import { UnionFind } from "../../data-structures/union-find.js";
+import type { NodeId } from "../../types/index.js";
 
 /**
  * Connected components algorithms
@@ -11,10 +11,14 @@ import type {NodeId} from "../../types/index.js";
 
 /**
  * Find connected components in an undirected graph using Union-Find
+ * @param graph - The input graph (must be undirected)
+ * @returns Array of connected components, each containing an array of node IDs
  */
 export function connectedComponents(graph: Graph): NodeId[][] {
     if (graph.isDirected) {
-        throw new Error("Connected components algorithm requires an undirected graph. Use stronglyConnectedComponents for directed graphs.");
+        throw new Error(
+            "Connected components algorithm requires an undirected graph. Use stronglyConnectedComponents for directed graphs.",
+        );
     }
 
     const nodes = Array.from(graph.nodes()).map((node) => node.id);
@@ -35,6 +39,8 @@ export function connectedComponents(graph: Graph): NodeId[][] {
 
 /**
  * Find connected components using DFS (alternative implementation)
+ * @param graph - The input graph (must be undirected)
+ * @returns Array of connected components, each containing an array of node IDs
  */
 export function connectedComponentsDFS(graph: Graph): NodeId[][] {
     if (graph.isDirected) {
@@ -57,13 +63,12 @@ export function connectedComponentsDFS(graph: Graph): NodeId[][] {
 
 /**
  * DFS helper for connected components
+ * @param graph - The input graph
+ * @param nodeId - The starting node ID
+ * @param visited - Set of already visited node IDs
+ * @param component - Array to accumulate component members
  */
-function dfsComponent(
-    graph: Graph,
-    nodeId: NodeId,
-    visited: Set<NodeId>,
-    component: NodeId[],
-): void {
+function dfsComponent(graph: Graph, nodeId: NodeId, visited: Set<NodeId>, component: NodeId[]): void {
     visited.add(nodeId);
     component.push(nodeId);
 
@@ -76,6 +81,8 @@ function dfsComponent(
 
 /**
  * Find the number of connected components
+ * @param graph - The input graph (must be undirected)
+ * @returns The number of connected components in the graph
  */
 export function numberOfConnectedComponents(graph: Graph): number {
     return connectedComponents(graph).length;
@@ -83,6 +90,8 @@ export function numberOfConnectedComponents(graph: Graph): number {
 
 /**
  * Check if the graph is connected (has exactly one connected component)
+ * @param graph - The input graph (must be undirected)
+ * @returns True if the graph is connected, false otherwise
  */
 export function isConnected(graph: Graph): boolean {
     return numberOfConnectedComponents(graph) <= 1;
@@ -90,6 +99,8 @@ export function isConnected(graph: Graph): boolean {
 
 /**
  * Find the largest connected component
+ * @param graph - The input graph (must be undirected)
+ * @returns Array of node IDs in the largest connected component
  */
 export function largestConnectedComponent(graph: Graph): NodeId[] {
     const components = connectedComponents(graph);
@@ -98,13 +109,14 @@ export function largestConnectedComponent(graph: Graph): NodeId[] {
         return [];
     }
 
-    return components.reduce((largest, current) =>
-        current.length > largest.length ? current : largest,
-    );
+    return components.reduce((largest, current) => (current.length > largest.length ? current : largest));
 }
 
 /**
  * Get the connected component containing a specific node
+ * @param graph - The input graph (must be undirected)
+ * @param nodeId - The node ID to find the component for
+ * @returns Array of node IDs in the same component as the specified node
  */
 export function getConnectedComponent(graph: Graph, nodeId: NodeId): NodeId[] {
     if (!graph.hasNode(nodeId)) {
@@ -125,6 +137,8 @@ export function getConnectedComponent(graph: Graph, nodeId: NodeId): NodeId[] {
 
 /**
  * Find strongly connected components using Tarjan's algorithm
+ * @param graph - The input graph (must be directed)
+ * @returns Array of strongly connected components, each containing an array of node IDs
  */
 export function stronglyConnectedComponents(graph: Graph): NodeId[][] {
     if (!graph.isDirected) {
@@ -198,6 +212,8 @@ export function stronglyConnectedComponents(graph: Graph): NodeId[][] {
 
 /**
  * Check if a directed graph is strongly connected
+ * @param graph - The input graph (must be directed)
+ * @returns True if the graph is strongly connected, false otherwise
  */
 export function isStronglyConnected(graph: Graph): boolean {
     if (!graph.isDirected) {
@@ -211,10 +227,14 @@ export function isStronglyConnected(graph: Graph): boolean {
 /**
  * Find weakly connected components in a directed graph
  * (treat the graph as undirected for connectivity)
+ * @param graph - The input graph (must be directed)
+ * @returns Array of weakly connected components, each containing an array of node IDs
  */
 export function weaklyConnectedComponents(graph: Graph): NodeId[][] {
     if (!graph.isDirected) {
-        throw new Error("Weakly connected components are for directed graphs. Use connectedComponents for undirected graphs.");
+        throw new Error(
+            "Weakly connected components are for directed graphs. Use connectedComponents for undirected graphs.",
+        );
     }
 
     const nodes = Array.from(graph.nodes()).map((node) => node.id);
@@ -235,6 +255,8 @@ export function weaklyConnectedComponents(graph: Graph): NodeId[][] {
 
 /**
  * Check if a directed graph is weakly connected
+ * @param graph - The input graph (must be directed)
+ * @returns True if the graph is weakly connected, false otherwise
  */
 export function isWeaklyConnected(graph: Graph): boolean {
     if (!graph.isDirected) {
@@ -246,6 +268,8 @@ export function isWeaklyConnected(graph: Graph): boolean {
 
 /**
  * Find condensation graph (quotient graph of strongly connected components)
+ * @param graph - The input graph (must be directed)
+ * @returns Object containing the condensed graph, component map, and component arrays
  */
 export function condensationGraph(graph: Graph): {
     condensedGraph: Graph;
@@ -258,7 +282,7 @@ export function condensationGraph(graph: Graph): {
 
     const components = stronglyConnectedComponents(graph);
     const componentMap = new Map<NodeId, number>();
-    const condensedGraph = new (graph.constructor as new (config: {directed: boolean}) => Graph)({directed: true});
+    const condensedGraph = new (graph.constructor as new (config: { directed: boolean }) => Graph)({ directed: true });
 
     // Map each node to its component index
     for (let i = 0; i < components.length; i++) {
@@ -279,8 +303,7 @@ export function condensationGraph(graph: Graph): {
         const sourceComponent = componentMap.get(edge.source);
         const targetComponent = componentMap.get(edge.target);
 
-        if (sourceComponent !== undefined && targetComponent !== undefined &&
-            sourceComponent !== targetComponent) {
+        if (sourceComponent !== undefined && targetComponent !== undefined && sourceComponent !== targetComponent) {
             const edgeKey = `${String(sourceComponent)}-${String(targetComponent)}`;
 
             if (!addedEdges.has(edgeKey)) {

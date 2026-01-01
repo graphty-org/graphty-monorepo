@@ -1,9 +1,9 @@
-import {MantineProvider} from "@mantine/core";
-import {render, screen, waitFor} from "@testing-library/react";
+import { MantineProvider } from "@mantine/core";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {describe, expect, it, vi} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {TopMenuBar} from "../TopMenuBar";
+import { TopMenuBar } from "../TopMenuBar";
 
 const defaultProps = {
     onToggleLeftSidebar: vi.fn(),
@@ -36,13 +36,13 @@ describe("TopMenuBar", () => {
 });
 
 describe("TopMenuBar - View Data", () => {
-    it("renders View Data menu item", async() => {
+    it("renders View Data menu item", async () => {
         renderWithProvider(<TopMenuBar {...defaultProps} />);
         await openMenu();
         expect(screen.getByText("View Data...")).toBeInTheDocument();
     });
 
-    it("calls onViewData when clicked", async() => {
+    it("calls onViewData when clicked", async () => {
         const onViewData = vi.fn();
         renderWithProvider(<TopMenuBar {...defaultProps} onViewData={onViewData} />);
         await openMenu();
@@ -50,21 +50,21 @@ describe("TopMenuBar - View Data", () => {
         expect(onViewData).toHaveBeenCalled();
     });
 
-    it("disables View Data when hasData is false", async() => {
+    it("disables View Data when hasData is false", async () => {
         renderWithProvider(<TopMenuBar {...defaultProps} hasData={false} />);
         await openMenu();
         const item = screen.getByText("View Data...").closest("[role='menuitem']");
         expect(item).toHaveAttribute("data-disabled", "true");
     });
 
-    it("enables View Data when hasData is true", async() => {
+    it("enables View Data when hasData is true", async () => {
         renderWithProvider(<TopMenuBar {...defaultProps} hasData={true} />);
         await openMenu();
         const item = screen.getByText("View Data...").closest("[role='menuitem']");
         expect(item).not.toHaveAttribute("data-disabled", "true");
     });
 
-    it("enables View Data when hasData is not specified", async() => {
+    it("enables View Data when hasData is not specified", async () => {
         renderWithProvider(<TopMenuBar {...defaultProps} />);
         await openMenu();
         const item = screen.getByText("View Data...").closest("[role='menuitem']");

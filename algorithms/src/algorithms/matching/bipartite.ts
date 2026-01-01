@@ -1,6 +1,6 @@
-import type {Graph} from "../../core/graph.js";
-import type {NodeId} from "../../types/index.js";
-import {bfsColoringWithPartitions} from "../traversal/bfs-variants.js";
+import type { Graph } from "../../core/graph.js";
+import type { NodeId } from "../../types/index.js";
+import { bfsColoringWithPartitions } from "../traversal/bfs-variants.js";
 
 /**
  * Maximum Bipartite Matching implementation using Hopcroft-Karp algorithm
@@ -25,13 +25,17 @@ export interface BipartiteMatchingOptions {
 /**
  * Find maximum matching in a bipartite graph using augmenting path algorithm
  * (simplified implementation that's more reliable than Hopcroft-Karp for this context)
+ * @param graph - The bipartite graph to find maximum matching for
+ * @param options - Optional configuration including left and right node partitions
+ * @returns The maximum matching as a map from left nodes to right nodes and the matching size
+ * @throws Error if the graph is not bipartite
  */
 export function maximumBipartiteMatching(
     graph: Graph,
     options: BipartiteMatchingOptions = {},
 ): BipartiteMatchingResult {
     // If partitions not provided, try to infer them
-    let {leftNodes, rightNodes} = options;
+    let { leftNodes, rightNodes } = options;
 
     if (!leftNodes || !rightNodes) {
         const partition = bipartitePartition(graph);
@@ -87,8 +91,10 @@ export function maximumBipartiteMatching(
 
 /**
  * Check if graph is bipartite and return the partition
+ * @param graph - The graph to check for bipartiteness
+ * @returns An object with left and right node sets if bipartite, or null if not bipartite
  */
-export function bipartitePartition(graph: Graph): {left: Set<NodeId>, right: Set<NodeId>} | null {
+export function bipartitePartition(graph: Graph): { left: Set<NodeId>; right: Set<NodeId> } | null {
     const result = bfsColoringWithPartitions(graph);
 
     if (!result.isBipartite || !result.partitions) {
@@ -104,12 +110,13 @@ export function bipartitePartition(graph: Graph): {left: Set<NodeId>, right: Set
 /**
  * Simple greedy bipartite matching algorithm
  * Useful for comparison or when Hopcroft-Karp is overkill
+ * @param graph - The bipartite graph to find matching for
+ * @param options - Optional configuration including left and right node partitions
+ * @returns The matching as a map from left nodes to right nodes and the matching size
+ * @throws Error if the graph is not bipartite
  */
-export function greedyBipartiteMatching(
-    graph: Graph,
-    options: BipartiteMatchingOptions = {},
-): BipartiteMatchingResult {
-    let {leftNodes, rightNodes} = options;
+export function greedyBipartiteMatching(graph: Graph, options: BipartiteMatchingOptions = {}): BipartiteMatchingResult {
+    let { leftNodes, rightNodes } = options;
 
     if (!leftNodes || !rightNodes) {
         const partition = bipartitePartition(graph);

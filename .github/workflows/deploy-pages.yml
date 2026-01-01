@@ -1,197 +1,197 @@
 name: Deploy to GitHub Pages
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [master]
-  # Manual trigger not supported - artifacts only available from CI workflow
-  # To redeploy, re-run the CI workflow on master instead
+    workflow_run:
+        workflows: ["CI"]
+        types: [completed]
+        branches: [master]
+    # Manual trigger not supported - artifacts only available from CI workflow
+    # To redeploy, re-run the CI workflow on master instead
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
-  actions: read  # Required to download artifacts from other workflow runs
+    contents: read
+    pages: write
+    id-token: write
+    actions: read # Required to download artifacts from other workflow runs
 
 concurrency:
-  group: "pages"
-  cancel-in-progress: false
+    group: "pages"
+    cancel-in-progress: false
 
 jobs:
-  build:
-    name: Assemble Site
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    build:
+        name: Assemble Site
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
 
-      # Download all artifacts from CI workflow
-      - name: Download graphty app build
-        uses: actions/download-artifact@v4
-        with:
-          name: build-graphty
-          path: ./graphty/dist/
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+            # Download all artifacts from CI workflow
+            - name: Download graphty app build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-graphty
+                  path: ./graphty/dist/
+                  run-id: ${{ github.event.workflow_run.id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download graphty-element Storybook
-        uses: actions/download-artifact@v4
-        with:
-          name: build-storybook-element
-          path: ./graphty-element/storybook-static/
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+            - name: Download graphty-element Storybook
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-element
+                  path: ./graphty-element/storybook-static/
+                  run-id: ${{ github.event.workflow_run.id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download graphty Storybook
-        uses: actions/download-artifact@v4
-        with:
-          name: build-storybook-app
-          path: ./graphty/storybook-static/
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+            - name: Download graphty Storybook
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-app
+                  path: ./graphty/storybook-static/
+                  run-id: ${{ github.event.workflow_run.id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download graphty-element docs
-        uses: actions/download-artifact@v4
-        with:
-          name: build-docs-element
-          path: ./graphty-element/docs/.vitepress/dist/
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+            - name: Download graphty-element docs
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-docs-element
+                  path: ./graphty-element/docs/.vitepress/dist/
+                  run-id: ${{ github.event.workflow_run.id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download algorithms gh-pages
-        uses: actions/download-artifact@v4
-        with:
-          name: build-ghpages-algorithms
-          path: ./algorithms/gh-pages/
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+            - name: Download algorithms gh-pages
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-ghpages-algorithms
+                  path: ./algorithms/gh-pages/
+                  run-id: ${{ github.event.workflow_run.id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download layout gh-pages
-        uses: actions/download-artifact@v4
-        with:
-          name: build-ghpages-layout
-          path: ./layout/gh-pages/
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+            - name: Download layout gh-pages
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-ghpages-layout
+                  path: ./layout/gh-pages/
+                  run-id: ${{ github.event.workflow_run.id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Assemble the unified GitHub Pages site
-      # URL Structure:
-      #   / = graphty app (React app - graphty.app)
-      #   /docs/ = graphty-element docs (VitePress)
-      #   /storybook/element/ = graphty-element Storybook
-      #   /storybook/app/ = graphty Storybook
-      #   /algorithms/ = algorithms gh-pages
-      #   /layout/ = layout gh-pages
-      - name: Assemble GitHub Pages site
-        run: |
-          mkdir -p ./public
+            # Assemble the unified GitHub Pages site
+            # URL Structure:
+            #   / = graphty app (React app - graphty.app)
+            #   /docs/ = graphty-element docs (VitePress)
+            #   /storybook/element/ = graphty-element Storybook
+            #   /storybook/app/ = graphty Storybook
+            #   /algorithms/ = algorithms gh-pages
+            #   /layout/ = layout gh-pages
+            - name: Assemble GitHub Pages site
+              run: |
+                  mkdir -p ./public
 
-          # graphty app as root (/)
-          if [ -d "./graphty/dist" ]; then
-            cp -r ./graphty/dist/* ./public/
-            echo "✅ Copied graphty app to /"
-          else
-            echo "⚠️ graphty dist not found"
-          fi
+                  # graphty app as root (/)
+                  if [ -d "./graphty/dist" ]; then
+                    cp -r ./graphty/dist/* ./public/
+                    echo "✅ Copied graphty app to /"
+                  else
+                    echo "⚠️ graphty dist not found"
+                  fi
 
-          # graphty-element docs (/docs/)
-          if [ -d "./graphty-element/docs/.vitepress/dist" ]; then
-            mkdir -p ./public/docs
-            cp -r ./graphty-element/docs/.vitepress/dist/* ./public/docs/
-            echo "✅ Copied graphty-element docs to /docs/"
-          else
-            echo "⚠️ graphty-element docs not found"
-          fi
+                  # graphty-element docs (/docs/)
+                  if [ -d "./graphty-element/docs/.vitepress/dist" ]; then
+                    mkdir -p ./public/docs
+                    cp -r ./graphty-element/docs/.vitepress/dist/* ./public/docs/
+                    echo "✅ Copied graphty-element docs to /docs/"
+                  else
+                    echo "⚠️ graphty-element docs not found"
+                  fi
 
-          # graphty-element Storybook (/storybook/element/)
-          if [ -d "./graphty-element/storybook-static" ]; then
-            mkdir -p ./public/storybook/element
-            cp -r ./graphty-element/storybook-static/* ./public/storybook/element/
-            echo "✅ Copied graphty-element Storybook to /storybook/element/"
-          else
-            echo "⚠️ graphty-element Storybook not found"
-          fi
+                  # graphty-element Storybook (/storybook/element/)
+                  if [ -d "./graphty-element/storybook-static" ]; then
+                    mkdir -p ./public/storybook/element
+                    cp -r ./graphty-element/storybook-static/* ./public/storybook/element/
+                    echo "✅ Copied graphty-element Storybook to /storybook/element/"
+                  else
+                    echo "⚠️ graphty-element Storybook not found"
+                  fi
 
-          # graphty Storybook (/storybook/app/)
-          if [ -d "./graphty/storybook-static" ]; then
-            mkdir -p ./public/storybook/app
-            cp -r ./graphty/storybook-static/* ./public/storybook/app/
-            echo "✅ Copied graphty Storybook to /storybook/app/"
-          else
-            echo "⚠️ graphty Storybook not found"
-          fi
+                  # graphty Storybook (/storybook/app/)
+                  if [ -d "./graphty/storybook-static" ]; then
+                    mkdir -p ./public/storybook/app
+                    cp -r ./graphty/storybook-static/* ./public/storybook/app/
+                    echo "✅ Copied graphty Storybook to /storybook/app/"
+                  else
+                    echo "⚠️ graphty Storybook not found"
+                  fi
 
-          # Create storybook index page
-          cat > ./public/storybook/index.html << 'SBINDEXEOF'
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Graphty Storybooks</title>
-            <style>
-              body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 1rem; }
-              h1 { color: #333; }
-              ul { list-style: none; padding: 0; }
-              li { margin: 1rem 0; }
-              a { color: #0066cc; text-decoration: none; font-size: 1.2rem; }
-              a:hover { text-decoration: underline; }
-              .desc { color: #666; font-size: 0.9rem; margin-top: 0.25rem; }
-            </style>
-          </head>
-          <body>
-            <h1>Graphty Storybooks</h1>
-            <ul>
-              <li>
-                <a href="/storybook/element/">graphty-element</a>
-                <div class="desc">Web Component library for graph visualization</div>
-              </li>
-              <li>
-                <a href="/storybook/app/">graphty app</a>
-                <div class="desc">React application components</div>
-              </li>
-            </ul>
-            <p><a href="/">← Back to graphty.app</a></p>
-          </body>
-          </html>
-          SBINDEXEOF
-          echo "✅ Created storybook index at /storybook/"
+                  # Create storybook index page
+                  cat > ./public/storybook/index.html << 'SBINDEXEOF'
+                  <!DOCTYPE html>
+                  <html>
+                  <head>
+                    <title>Graphty Storybooks</title>
+                    <style>
+                      body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 1rem; }
+                      h1 { color: #333; }
+                      ul { list-style: none; padding: 0; }
+                      li { margin: 1rem 0; }
+                      a { color: #0066cc; text-decoration: none; font-size: 1.2rem; }
+                      a:hover { text-decoration: underline; }
+                      .desc { color: #666; font-size: 0.9rem; margin-top: 0.25rem; }
+                    </style>
+                  </head>
+                  <body>
+                    <h1>Graphty Storybooks</h1>
+                    <ul>
+                      <li>
+                        <a href="/storybook/element/">graphty-element</a>
+                        <div class="desc">Web Component library for graph visualization</div>
+                      </li>
+                      <li>
+                        <a href="/storybook/app/">graphty app</a>
+                        <div class="desc">React application components</div>
+                      </li>
+                    </ul>
+                    <p><a href="/">← Back to graphty.app</a></p>
+                  </body>
+                  </html>
+                  SBINDEXEOF
+                  echo "✅ Created storybook index at /storybook/"
 
-          # algorithms gh-pages (/algorithms/)
-          if [ -d "./algorithms/gh-pages" ]; then
-            cp -r ./algorithms/gh-pages ./public/algorithms
-            echo "✅ Copied algorithms to /algorithms/"
-          else
-            echo "⚠️ algorithms gh-pages not found"
-          fi
+                  # algorithms gh-pages (/algorithms/)
+                  if [ -d "./algorithms/gh-pages" ]; then
+                    cp -r ./algorithms/gh-pages ./public/algorithms
+                    echo "✅ Copied algorithms to /algorithms/"
+                  else
+                    echo "⚠️ algorithms gh-pages not found"
+                  fi
 
-          # layout gh-pages (/layout/)
-          if [ -d "./layout/gh-pages" ]; then
-            cp -r ./layout/gh-pages ./public/layout
-            echo "✅ Copied layout to /layout/"
-          else
-            echo "⚠️ layout gh-pages not found"
-          fi
+                  # layout gh-pages (/layout/)
+                  if [ -d "./layout/gh-pages" ]; then
+                    cp -r ./layout/gh-pages ./public/layout
+                    echo "✅ Copied layout to /layout/"
+                  else
+                    echo "⚠️ layout gh-pages not found"
+                  fi
 
-          echo ""
-          echo "📁 Site structure:"
-          find ./public -type f -name "*.html" | head -30
+                  echo ""
+                  echo "📁 Site structure:"
+                  find ./public -type f -name "*.html" | head -30
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
+            - name: Setup Pages
+              uses: actions/configure-pages@v4
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./public
+            - name: Upload Pages artifact
+              uses: actions/upload-pages-artifact@v3
+              with:
+                  path: ./public
 
-  deploy:
-    name: Deploy
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+    deploy:
+        name: Deploy
+        needs: build
+        runs-on: ubuntu-latest
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - name: Deploy to GitHub Pages
+              id: deployment
+              uses: actions/deploy-pages@v4

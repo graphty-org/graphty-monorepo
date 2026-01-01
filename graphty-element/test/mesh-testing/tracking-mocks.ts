@@ -5,7 +5,7 @@
  * precise validation without requiring actual rendering or pixels.
  */
 
-import {Color3, Vector3} from "@babylonjs/core";
+import { Color3, Vector3 } from "@babylonjs/core";
 
 // Configuration tracking interface
 export interface ConfigurationRecord {
@@ -129,7 +129,7 @@ export class TrackingMockMesh {
 
     // Query methods
     getConfigurationHistory(): ConfigurationRecord[] {
-        return [... this.configurations];
+        return [...this.configurations];
     }
 
     findConfigurations(method: string): ConfigurationRecord[] {
@@ -239,7 +239,7 @@ export class TrackingMockMaterial {
 
     // Query methods
     getConfigurationHistory(): ConfigurationRecord[] {
-        return [... this.configurations];
+        return [...this.configurations];
     }
 
     findConfigurations(method: string): ConfigurationRecord[] {
@@ -297,15 +297,15 @@ export class TrackingMockTexture {
 
     private _recordDrawing(operation: DrawingOperation): void {
         this.drawingOperations.push({
-            ... operation,
+            ...operation,
             timestamp: Date.now(),
-            contextState: {... this._contextState},
+            contextState: { ...this._contextState },
         });
     }
 
     // Size methods
-    getSize(): {width: number, height: number} {
-        return {width: this.width, height: this.height};
+    getSize(): { width: number; height: number } {
+        return { width: this.width, height: this.height };
     }
 
     resize(width: number, height: number): void {
@@ -395,7 +395,10 @@ export class TrackingMockTexture {
             fillRect(x: number, y: number, w: number, h: number): void {
                 record({
                     type: "fillRect",
-                    x, y, w, h,
+                    x,
+                    y,
+                    w,
+                    h,
                     fillStyle: contextState.fillStyle,
                 });
             },
@@ -403,7 +406,10 @@ export class TrackingMockTexture {
             strokeRect(x: number, y: number, w: number, h: number): void {
                 record({
                     type: "strokeRect",
-                    x, y, w, h,
+                    x,
+                    y,
+                    w,
+                    h,
                     strokeStyle: contextState.strokeStyle,
                     lineWidth: contextState.lineWidth,
                 });
@@ -412,14 +418,20 @@ export class TrackingMockTexture {
             clearRect(x: number, y: number, w: number, h: number): void {
                 record({
                     type: "clearRect",
-                    x, y, w, h,
+                    x,
+                    y,
+                    w,
+                    h,
                 });
             },
 
             fillText(text: string, x: number, y: number, maxWidth?: number): void {
                 record({
                     type: "fillText",
-                    text, x, y, maxWidth,
+                    text,
+                    x,
+                    y,
+                    maxWidth,
                     fillStyle: contextState.fillStyle,
                     font: contextState.font,
                 });
@@ -428,7 +440,10 @@ export class TrackingMockTexture {
             strokeText(text: string, x: number, y: number, maxWidth?: number): void {
                 record({
                     type: "strokeText",
-                    text, x, y, maxWidth,
+                    text,
+                    x,
+                    y,
+                    maxWidth,
                     strokeStyle: contextState.strokeStyle,
                     lineWidth: contextState.lineWidth,
                     font: contextState.font,
@@ -437,32 +452,47 @@ export class TrackingMockTexture {
 
             // Path methods
             beginPath(): void {
-                record({type: "beginPath"});
+                record({ type: "beginPath" });
             },
 
             closePath(): void {
-                record({type: "closePath"});
+                record({ type: "closePath" });
             },
 
             moveTo(x: number, y: number): void {
-                record({type: "moveTo", x, y});
+                record({ type: "moveTo", x, y });
             },
 
             lineTo(x: number, y: number): void {
-                record({type: "lineTo", x, y});
+                record({ type: "lineTo", x, y });
             },
 
-            arc(x: number, y: number, radius: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void {
+            arc(
+                x: number,
+                y: number,
+                radius: number,
+                startAngle: number,
+                endAngle: number,
+                counterclockwise?: boolean,
+            ): void {
                 record({
                     type: "arc",
-                    x, y, radius, startAngle, endAngle, counterclockwise,
+                    x,
+                    y,
+                    radius,
+                    startAngle,
+                    endAngle,
+                    counterclockwise,
                 });
             },
 
             quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void {
                 record({
                     type: "quadraticCurveTo",
-                    cpx, cpy, x, y,
+                    cpx,
+                    cpy,
+                    x,
+                    y,
                 });
             },
 
@@ -484,11 +514,11 @@ export class TrackingMockTexture {
 
             // State methods
             save(): void {
-                record({type: "save"});
+                record({ type: "save" });
             },
 
             restore(): void {
-                record({type: "restore"});
+                record({ type: "restore" });
             },
 
             // Measurement methods

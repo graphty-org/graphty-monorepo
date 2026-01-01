@@ -1,7 +1,7 @@
-import {beforeEach, describe, expect, it} from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import {Graph} from "../../../src/core/graph.js";
-import {CSRGraph} from "../../../src/optimized/csr-graph.js";
+import { Graph } from "../../../src/core/graph.js";
+import { CSRGraph } from "../../../src/optimized/csr-graph.js";
 import {
     configureOptimizations,
     createOptimizedGraph,
@@ -41,7 +41,7 @@ describe("GraphAdapter", () => {
         });
 
         it("should handle directed graphs", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");
             graph.addEdge("C", "A");
@@ -79,9 +79,9 @@ describe("GraphAdapter", () => {
                     return [];
                 },
                 edges: function* () {
-                    yield {source: "A", target: "B"};
-                    yield {source: "A", target: "C"};
-                    yield {source: "B", target: "C"};
+                    yield { source: "A", target: "B" };
+                    yield { source: "A", target: "C" };
+                    yield { source: "B", target: "C" };
                 },
                 nodeCount: () => 3,
                 hasDirectedEdge: (source: string, target: string) => {
@@ -112,7 +112,7 @@ describe("GraphAdapter", () => {
                     return [];
                 },
                 edges: function* () {
-                    yield {source: "A", target: "B", weight: 42};
+                    yield { source: "A", target: "B", weight: 42 };
                 },
                 nodeCount: () => 2,
                 hasDirectedEdge: () => true,
@@ -221,9 +221,7 @@ describe("createOptimizedGraph", () => {
 
     it("should handle nodes without edges", () => {
         const nodes = ["A", "B", "C"];
-        const edges: [string, string, number?][] = [
-            ["A", "B"],
-        ];
+        const edges: [string, string, number?][] = [["A", "B"]];
 
         const graph = createOptimizedGraph(nodes, edges);
 

@@ -1,14 +1,16 @@
-import type {keyPathNode} from "./DataGrid";
+import type { keyPathNode } from "./DataGrid";
 
 /**
  * Flattens a keyPathNode array, handling cases where nodes might be arrays themselves.
  * The keyPathNode type is: string | string[] | number | number[]
+ * @param keyPath - The key path array to flatten
+ * @returns The flattened array of string or number segments
  */
 function flattenKeyPath(keyPath: keyPathNode[]): (string | number)[] {
     const result: (string | number)[] = [];
     for (const node of keyPath) {
         if (Array.isArray(node)) {
-            result.push(... node);
+            result.push(...node);
         } else {
             result.push(node);
         }
@@ -19,6 +21,8 @@ function flattenKeyPath(keyPath: keyPathNode[]): (string | number)[] {
 
 /**
  * Checks if a string represents a valid array index (non-negative integer).
+ * @param value - The value to check
+ * @returns True if the value represents a valid array index
  */
 function isArrayIndex(value: string | number): boolean {
     if (typeof value === "number") {
@@ -32,6 +36,8 @@ function isArrayIndex(value: string | number): boolean {
 /**
  * Checks if a key needs to be quoted in JMESPath.
  * Keys need quoting if they contain special characters or start with a digit.
+ * @param key - The key to check
+ * @returns True if the key needs to be quoted
  */
 function needsQuoting(key: string): boolean {
     // JMESPath identifiers must start with a letter or underscore and
@@ -48,7 +54,6 @@ function needsQuoting(key: string): boolean {
  * - [0, "name"] -> "[0].name"
  * - ["users", 0, "profile"] -> "users[0].profile"
  * - ["my-key", "value"] -> '"my-key".value'
- *
  * @param keyPath - Array of path segments from react-json-grid's onSelect callback
  * @returns JMESPath string that can be used to query the data
  */
@@ -88,7 +93,6 @@ export function keyPathToJMESPath(keyPath: keyPathNode[]): string {
 
 /**
  * Gets the value at a given keyPath within a data object.
- *
  * @param data - The root object to traverse
  * @param keyPath - Array of path segments to the desired value
  * @returns The value at the path, or undefined if the path doesn't exist

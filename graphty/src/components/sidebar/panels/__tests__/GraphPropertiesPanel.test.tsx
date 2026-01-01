@@ -1,8 +1,8 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {render, screen} from "../../../../test/test-utils";
-import type {GraphInfo} from "../../../../types/selection";
-import {GraphPropertiesPanel} from "../GraphPropertiesPanel";
+import { render, screen } from "../../../../test/test-utils";
+import type { GraphInfo } from "../../../../types/selection";
+import { GraphPropertiesPanel } from "../GraphPropertiesPanel";
 
 describe("GraphPropertiesPanel", () => {
     const mockGraphInfo: GraphInfo = {
@@ -10,8 +10,8 @@ describe("GraphPropertiesPanel", () => {
         edgeCount: 250,
         density: 0.0505,
         dataSources: [
-            {name: "graph.json", type: "json"},
-            {name: "edges.csv", type: "csv"},
+            { name: "graph.json", type: "json" },
+            { name: "edges.csv", type: "csv" },
         ],
         graphType: {
             directed: true,
@@ -50,7 +50,7 @@ describe("GraphPropertiesPanel", () => {
     });
 
     it("shows 'No data loaded' when dataSources is empty", () => {
-        const emptyInfo = {... mockGraphInfo, dataSources: []};
+        const emptyInfo = { ...mockGraphInfo, dataSources: [] };
         render(<GraphPropertiesPanel graphInfo={emptyInfo} />);
 
         expect(screen.getByText("No data loaded")).toBeInTheDocument();

@@ -5,11 +5,8 @@
  * This integrates with the existing instrumentation infrastructure.
  */
 
-import type {Graph} from "../../src/Graph";
-import type {
-    OperationBlockingStats,
-    PerformanceSnapshot,
-} from "../../src/managers/StatsManager";
+import type { Graph } from "../../src/Graph";
+import type { OperationBlockingStats, PerformanceSnapshot } from "../../src/managers/StatsManager";
 
 /**
  * Extended performance metrics using StatsManager data
@@ -102,29 +99,29 @@ export const TEST_CONFIG = {
     EDGE_COUNTS: [10, 100, 1000, 10000],
 
     LAYOUT_TYPES: [
-        {name: "fixed", type: "fixed", isPhysics: false},
-        {name: "ngraph", type: "ngraph", isPhysics: true},
+        { name: "fixed", type: "fixed", isPhysics: false },
+        { name: "ngraph", type: "ngraph", isPhysics: true },
     ],
 
     LINE_STYLES: [
-        {name: "solid", type: "solid", pattern: null},
-        {name: "dot", type: "dot", pattern: "circle"},
-        {name: "dash", type: "dash", pattern: "rectangle"},
-        {name: "diamond", type: "diamond", pattern: "diamond"},
-        {name: "sinewave", type: "sinewave", pattern: "wave"},
-        {name: "zigzag", type: "zigzag", pattern: "zigzag"},
+        { name: "solid", type: "solid", pattern: null },
+        { name: "dot", type: "dot", pattern: "circle" },
+        { name: "dash", type: "dash", pattern: "rectangle" },
+        { name: "diamond", type: "diamond", pattern: "diamond" },
+        { name: "sinewave", type: "sinewave", pattern: "wave" },
+        { name: "zigzag", type: "zigzag", pattern: "zigzag" },
     ],
 
     ARROW_TYPES: [
-        {name: "none", type: "none", renderer: null},
-        {name: "normal", type: "normal", renderer: "FilledArrowRenderer"},
-        {name: "sphere-dot", type: "sphere-dot", renderer: "FilledArrowRenderer"},
-        {name: "diamond", type: "diamond", renderer: "FilledArrowRenderer"},
-        {name: "box", type: "box", renderer: "FilledArrowRenderer"},
-        {name: "dot", type: "dot", renderer: "FilledArrowRenderer"},
-        {name: "tee", type: "tee", renderer: "CustomLineRenderer"},
-        {name: "open-normal", type: "open-normal", renderer: "CustomLineRenderer"},
-        {name: "crow", type: "crow", renderer: "CustomLineRenderer"},
+        { name: "none", type: "none", renderer: null },
+        { name: "normal", type: "normal", renderer: "FilledArrowRenderer" },
+        { name: "sphere-dot", type: "sphere-dot", renderer: "FilledArrowRenderer" },
+        { name: "diamond", type: "diamond", renderer: "FilledArrowRenderer" },
+        { name: "box", type: "box", renderer: "FilledArrowRenderer" },
+        { name: "dot", type: "dot", renderer: "FilledArrowRenderer" },
+        { name: "tee", type: "tee", renderer: "CustomLineRenderer" },
+        { name: "open-normal", type: "open-normal", renderer: "CustomLineRenderer" },
+        { name: "crow", type: "crow", renderer: "CustomLineRenderer" },
     ],
 
     // Test settings
@@ -139,13 +136,12 @@ export const TEST_CONFIG = {
 export function extractMetricsFromSnapshot(
     snapshot: PerformanceSnapshot,
     blockingReport: OperationBlockingStats[],
-    config: {edgeCount: number, layoutType: string, lineStyle: string, arrowType: string},
-    memory: {heapUsedBefore: number, heapUsedAfter: number, memoryDelta: number},
+    config: { edgeCount: number; layoutType: string; lineStyle: string; arrowType: string },
+    memory: { heapUsedBefore: number; heapUsedAfter: number; memoryDelta: number },
 ): PerformanceMetrics {
     // Helper to find CPU measurement by label
     type CpuMeasurement = PerformanceSnapshot["cpu"][number];
-    const findCpu = (label: string): CpuMeasurement | undefined =>
-        snapshot.cpu.find((m) => m.label === label);
+    const findCpu = (label: string): CpuMeasurement | undefined => snapshot.cpu.find((m) => m.label === label);
 
     // Extract CPU metrics
     const edgeUpdate = findCpu("Edge.update");
@@ -158,7 +154,7 @@ export function extractMetricsFromSnapshot(
     const fps = snapshot.scene?.frameTime.avg ? 1000 / snapshot.scene.frameTime.avg : 0;
 
     // Get layout session safely
-    const {layoutSession} = snapshot;
+    const { layoutSession } = snapshot;
 
     return {
         // Config
@@ -199,13 +195,10 @@ export function extractMetricsFromSnapshot(
 
         // Derived
         fps,
-        edgesPerSecond:
-            (edgeCreation?.total ?? 0) > 0 ?
-                config.edgeCount / ((edgeCreation?.total ?? 1) / 1000) :
-                0,
+        edgesPerSecond: (edgeCreation?.total ?? 0) > 0 ? config.edgeCount / ((edgeCreation?.total ?? 1) / 1000) : 0,
 
         // Memory
-        ... memory,
+        ...memory,
 
         // Bottleneck identification - top 5 blocking operations
         topBlockingOperations: blockingReport.slice(0, 5),
@@ -337,11 +330,8 @@ function generateSummary(metrics: PerformanceMetrics, bottlenecks: BottleneckIte
 /**
  * Generate random node positions in a grid or scattered pattern
  */
-export function generateNodes(
-    count: number,
-    useGrid: boolean,
-): {id: string, x?: number, y?: number, z?: number}[] {
-    const nodes: {id: string, x?: number, y?: number, z?: number}[] = [];
+export function generateNodes(count: number, useGrid: boolean): { id: string; x?: number; y?: number; z?: number }[] {
+    const nodes: { id: string; x?: number; y?: number; z?: number }[] = [];
 
     if (useGrid) {
         // Grid layout for fixed positions
@@ -349,14 +339,14 @@ export function generateNodes(
         const spacing = 10;
 
         for (let i = 0; i < count; i++) {
-            const x = ((i % gridSize) * spacing) - ((gridSize * spacing) / 2);
-            const y = (Math.floor(i / gridSize) * spacing) - ((gridSize * spacing) / 2);
-            nodes.push({id: `node-${i}`, x, y, z: 0});
+            const x = (i % gridSize) * spacing - (gridSize * spacing) / 2;
+            const y = Math.floor(i / gridSize) * spacing - (gridSize * spacing) / 2;
+            nodes.push({ id: `node-${i}`, x, y, z: 0 });
         }
     } else {
         // Random positions for physics layouts (let engine position them)
         for (let i = 0; i < count; i++) {
-            nodes.push({id: `node-${i}`});
+            nodes.push({ id: `node-${i}` });
         }
     }
 
@@ -366,11 +356,8 @@ export function generateNodes(
 /**
  * Generate random edges between nodes
  */
-export function generateEdges(
-    nodes: {id: string}[],
-    edgeCount: number,
-): {source: string, target: string}[] {
-    const edges: {source: string, target: string}[] = [];
+export function generateEdges(nodes: { id: string }[], edgeCount: number): { source: string; target: string }[] {
+    const edges: { source: string; target: string }[] = [];
     const nodeCount = nodes.length;
 
     // Create a connected graph first (spanning tree)
@@ -405,7 +392,7 @@ export function generateEdges(
  * Type for accessing private layoutManager in tests
  */
 interface GraphWithLayout extends Omit<Graph, "layoutManager"> {
-    layoutManager?: {isSettled: boolean};
+    layoutManager?: { isSettled: boolean };
 }
 
 /**
@@ -434,12 +421,12 @@ export async function waitForLayoutSettle(graph: Graph, timeoutMs: number): Prom
 /**
  * Baseline performance expectations
  */
-export const BASELINES: Record<string, {fps: number, creationTime: number}> = {
-    "100_edges_fixed_solid_none": {fps: 60, creationTime: 100},
-    "1000_edges_fixed_solid_none": {fps: 45, creationTime: 500},
-    "1000_edges_fixed_solid_normal": {fps: 35, creationTime: 700},
-    "1000_edges_ngraph_solid_none": {fps: 20, creationTime: 800},
-    "1000_edges_fixed_diamond_normal": {fps: 25, creationTime: 800},
+export const BASELINES: Record<string, { fps: number; creationTime: number }> = {
+    "100_edges_fixed_solid_none": { fps: 60, creationTime: 100 },
+    "1000_edges_fixed_solid_none": { fps: 45, creationTime: 500 },
+    "1000_edges_fixed_solid_normal": { fps: 35, creationTime: 700 },
+    "1000_edges_ngraph_solid_none": { fps: 20, creationTime: 800 },
+    "1000_edges_fixed_diamond_normal": { fps: 25, creationTime: 800 },
 };
 
 /**
@@ -449,7 +436,7 @@ export const BASELINES: Record<string, {fps: number, creationTime: number}> = {
 export function getHeapUsed(): number {
     // Browser environment - performance.memory is non-standard (Chrome only)
     const perf = performance as Performance & {
-        memory?: {usedJSHeapSize: number};
+        memory?: { usedJSHeapSize: number };
     };
     return perf.memory?.usedJSHeapSize ?? 0;
 }

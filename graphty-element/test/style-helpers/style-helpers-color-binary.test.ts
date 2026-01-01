@@ -1,8 +1,8 @@
 import assert from "node:assert";
 
-import {describe, it} from "vitest";
+import { describe, it } from "vitest";
 
-import {StyleHelpers} from "../../src/config";
+import { StyleHelpers } from "../../src/config";
 
 describe("StyleHelpers.color.binary.blueHighlight", () => {
     it("returns Okabe-Ito blue (#0072B2) when highlighted", () => {

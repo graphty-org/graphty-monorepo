@@ -5,11 +5,11 @@
  * (controllers, hands) and handling device connection/disconnection.
  */
 
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test, vi} from "vitest";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import type {StyleSchema} from "../../../src/config";
-import {Graph} from "../../../src/Graph";
+import type { StyleSchema } from "../../../src/config";
+import { Graph } from "../../../src/Graph";
 
 function createStyleTemplate(): StyleSchema {
     return {
@@ -19,7 +19,7 @@ function createStyleTemplate(): StyleSchema {
             addDefaultStyle: true,
             twoD: false,
             layout: "fixed",
-            layoutOptions: {dim: 3},
+            layoutOptions: { dim: 3 },
         },
         layers: [],
         data: {
@@ -34,20 +34,23 @@ function createStyleTemplate(): StyleSchema {
             },
         },
         behavior: {
-            layout: {type: "fixed", preSteps: 0, stepMultiplier: 1, minDelta: 0.001, zoomStepInterval: 5},
-            node: {pinOnDrag: true},
+            layout: { type: "fixed", preSteps: 0, stepMultiplier: 1, minDelta: 0.001, zoomStepInterval: 5 },
+            node: { pinOnDrag: true },
         },
     } as unknown as StyleSchema;
 }
 
-const TEST_NODES = [{id: "node1", x: 0, y: 0, z: 0}, {id: "node2", x: 5, y: 0, z: 0}];
-const TEST_EDGES = [{src: "node1", dst: "node2"}];
+const TEST_NODES = [
+    { id: "node1", x: 0, y: 0, z: 0 },
+    { id: "node2", x: 5, y: 0, z: 0 },
+];
+const TEST_EDGES = [{ src: "node1", dst: "node2" }];
 
 describe("XR Input Switching", () => {
     let graph: Graph;
     let container: HTMLDivElement;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         container = document.createElement("div");
         container.style.width = "800px";
         container.style.height = "600px";
@@ -71,12 +74,12 @@ describe("XR Input Switching", () => {
     describe("Input Handler Management", () => {
         test("XR session manager exists", () => {
             // Access private property for testing purposes
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const xrManager = (graph as any).xrSessionManager;
             assert.isDefined(xrManager, "XR session manager should exist");
         });
 
-        test("graph remains stable during input handler operations", async() => {
+        test("graph remains stable during input handler operations", async () => {
             const node1 = graph.getNode("node1");
             if (!node1) {
                 return;
@@ -98,7 +101,7 @@ describe("XR Input Switching", () => {
     });
 
     describe("Scene Stability", () => {
-        test("scene remains valid during mode transitions", async() => {
+        test("scene remains valid during mode transitions", async () => {
             // Transition through modes
             await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();
@@ -111,7 +114,7 @@ describe("XR Input Switching", () => {
             assert.isDefined(graph.scene, "Scene should exist in 3D mode");
         });
 
-        test("nodes remain accessible after mode transitions", async() => {
+        test("nodes remain accessible after mode transitions", async () => {
             await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();
 
@@ -127,7 +130,7 @@ describe("XR Input Switching", () => {
     });
 
     describe("Input State Cleanup", () => {
-        test("drag state resets on view mode change", async() => {
+        test("drag state resets on view mode change", async () => {
             const node1 = graph.getNode("node1");
             if (!node1) {
                 return;
@@ -155,7 +158,7 @@ describe("XR Input Switching", () => {
             assert.isTrue(hasValidPosition, "Node should have valid position");
         });
 
-        test("camera controller remains functional after transitions", async() => {
+        test("camera controller remains functional after transitions", async () => {
             await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();
 

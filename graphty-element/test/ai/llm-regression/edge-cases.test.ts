@@ -12,16 +12,16 @@
  * and ensure reasonable tool selection for unclear requests.
  */
 
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import {skipIfNoApiKey} from "../../helpers/llm-regression-env";
-import {LlmRegressionTestHarness} from "../../helpers/llm-regression-harness";
-import {serverNetworkFixture} from "./fixtures/test-graph-fixtures";
+import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
+import { LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
     let harness: LlmRegressionTestHarness;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         harness = await LlmRegressionTestHarness.create({
             graphData: serverNetworkFixture,
         });
@@ -32,18 +32,13 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
     });
 
     describe("ambiguous prompts", () => {
-        it("handles 'change the view' with reasonable tool choice", async() => {
+        it("handles 'change the view' with reasonable tool choice", async () => {
             const result = await harness.testPrompt("change the view");
 
             // This is ambiguous - could be camera, layout, or dimension
             // We accept any of these reasonable interpretations
             if (result.toolWasCalled) {
-                const validTools = [
-                    "setCameraPosition",
-                    "setLayout",
-                    "setDimension",
-                    "zoomToNodes",
-                ];
+                const validTools = ["setCameraPosition", "setLayout", "setDimension", "zoomToNodes"];
                 assert.ok(
                     result.toolName && validTools.includes(result.toolName),
                     `Expected one of ${validTools.join(", ")} but got '${result.toolName}'`,
@@ -58,16 +53,12 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
             );
         });
 
-        it("handles 'make it pretty' with style-related tool", async() => {
+        it("handles 'make it pretty' with style-related tool", async () => {
             const result = await harness.testPrompt("make it pretty");
 
             // This is subjective - expect a styling-related tool
             if (result.toolWasCalled) {
-                const styleTools = [
-                    "findAndStyleNodes",
-                    "findAndStyleEdges",
-                    "setLayout",
-                ];
+                const styleTools = ["findAndStyleNodes", "findAndStyleEdges", "setLayout"];
                 assert.ok(
                     result.toolName && styleTools.includes(result.toolName),
                     `Expected a style-related tool but got '${result.toolName}'`,
@@ -81,7 +72,7 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
             );
         });
 
-        it("handles 'analyze the graph' with query or algorithm tool", async() => {
+        it("handles 'analyze the graph' with query or algorithm tool", async () => {
             const result = await harness.testPrompt("analyze the graph");
 
             // Could be interpreted as querying info or running an algorithm
@@ -107,7 +98,7 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
     });
 
     describe("complex prompts", () => {
-        it("handles 'show me server nodes and make them blue'", async() => {
+        it("handles 'show me server nodes and make them blue'", async () => {
             const result = await harness.testPrompt("show me server nodes and make them blue");
 
             // This has two parts: finding and styling
@@ -135,26 +126,18 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
 
                 // Should have color in style
                 if (style) {
-                    assert.ok(
-                        style.color !== undefined,
-                        "Expected style to include color property",
-                    );
+                    assert.ok(style.color !== undefined, "Expected style to include color property");
                 }
             }
         });
 
-        it("handles 'highlight nodes with high weight connections'", async() => {
+        it("handles 'highlight nodes with high weight connections'", async () => {
             const result = await harness.testPrompt("highlight nodes with high weight connections");
 
             // This requires understanding edge weights and applying styles
             // Could be findAndStyleNodes, findAndStyleEdges, or a query first
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const validTools = [
-                "findAndStyleNodes",
-                "findAndStyleEdges",
-                "findNodes",
-                "runAlgorithm",
-            ];
+            const validTools = ["findAndStyleNodes", "findAndStyleEdges", "findNodes", "runAlgorithm"];
             assert.ok(
                 result.toolName && validTools.includes(result.toolName),
                 `Expected a relevant tool but got '${result.toolName}'`,
@@ -163,7 +146,7 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
     });
 
     describe("no-op prompts", () => {
-        it("returns text response for 'hello'", async() => {
+        it("returns text response for 'hello'", async () => {
             const result = await harness.testPrompt("hello");
 
             // A greeting should not trigger any graph tool
@@ -175,7 +158,7 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
             // We're just verifying it doesn't crash and produces some output
         });
 
-        it("returns text response for 'what can you do?'", async() => {
+        it("returns text response for 'what can you do?'", async () => {
             const result = await harness.testPrompt("what can you do?");
 
             // Should explain capabilities, not call a tool
@@ -183,7 +166,7 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
             assert.ok(result.llmText.length > 0, "Expected non-empty text response");
         });
 
-        it("returns text response for 'thanks!'", async() => {
+        it("returns text response for 'thanks!'", async () => {
             const result = await harness.testPrompt("thanks!");
 
             // A simple acknowledgment should get text response
@@ -192,34 +175,26 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
     });
 
     describe("invalid prompts", () => {
-        it("handles gracefully when asked about non-existent features", async() => {
-            const result = await harness.testPrompt(
-                "Enable the quantum entanglement mode for nodes",
-            );
+        it("handles gracefully when asked about non-existent features", async () => {
+            const result = await harness.testPrompt("Enable the quantum entanglement mode for nodes");
 
             // This feature doesn't exist - should handle gracefully
             // Either explain it's not available or try closest match
-            assert.ok(
-                result.llmText !== null || result.toolWasCalled,
-                "Expected some response (text or tool attempt)",
-            );
+            assert.ok(result.llmText !== null || result.toolWasCalled, "Expected some response (text or tool attempt)");
 
             // Should not throw an error
             assert.ok(result.error === undefined, "Expected no error to be thrown");
         });
 
-        it("handles empty-ish prompts gracefully", async() => {
+        it("handles empty-ish prompts gracefully", async () => {
             const result = await harness.testPrompt("...");
 
             // A minimal/unclear prompt should still get a response
-            assert.ok(
-                result.llmText !== null || result.toolWasCalled,
-                "Expected some response",
-            );
+            assert.ok(result.llmText !== null || result.toolWasCalled, "Expected some response");
             assert.ok(result.error === undefined, "Expected no error");
         });
 
-        it("handles prompts with only special characters", async() => {
+        it("handles prompts with only special characters", async () => {
             const result = await harness.testPrompt("??? !!! ###");
 
             // Should handle gracefully without crashing
@@ -231,17 +206,14 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
     });
 
     describe("command result validation", () => {
-        it("provides informative response for ambiguous prompts", async() => {
+        it("provides informative response for ambiguous prompts", async () => {
             const result = await harness.testPrompt("do something interesting");
 
             // Should either take action or provide guidance
-            assert.ok(
-                result.llmText && result.llmText.length > 5,
-                "Expected informative response",
-            );
+            assert.ok(result.llmText && result.llmText.length > 5, "Expected informative response");
         });
 
-        it("measures latency for complex prompts", async() => {
+        it("measures latency for complex prompts", async () => {
             const result = await harness.testPrompt(
                 "find database nodes, make them green, and also tell me how many edges there are",
             );

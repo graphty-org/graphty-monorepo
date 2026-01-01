@@ -1,8 +1,8 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {BidirectionalDijkstra} from "../../src/algorithms/shortest-path/bidirectional-dijkstra.js";
-import {dijkstraPath} from "../../src/algorithms/shortest-path/dijkstra.js";
-import {Graph} from "../../src/core/graph.js";
+import { BidirectionalDijkstra } from "../../src/algorithms/shortest-path/bidirectional-dijkstra.js";
+import { dijkstraPath } from "../../src/algorithms/shortest-path/dijkstra.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Bidirectional Dijkstra Algorithm", () => {
     describe("BidirectionalDijkstra class", () => {
@@ -50,7 +50,7 @@ describe("Bidirectional Dijkstra Algorithm", () => {
         });
 
         it("should work with directed graphs", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b", 1);
             graph.addEdge("b", "c", 1);
@@ -103,8 +103,8 @@ describe("Bidirectional Dijkstra Algorithm", () => {
             graph.addEdge("D", "C", 1);
 
             const defaultResult = dijkstraPath(graph, "A", "C"); // Uses bidirectional by default
-            const explicitBiResult = dijkstraPath(graph, "A", "C", {bidirectional: true});
-            const standardResult = dijkstraPath(graph, "A", "C", {bidirectional: false});
+            const explicitBiResult = dijkstraPath(graph, "A", "C", { bidirectional: true });
+            const standardResult = dijkstraPath(graph, "A", "C", { bidirectional: false });
 
             expect(defaultResult).not.toBeNull();
             expect(explicitBiResult).not.toBeNull();
@@ -165,13 +165,13 @@ describe("Bidirectional Dijkstra Algorithm", () => {
             }
 
             // Verify it matches standard dijkstra
-            const standardResult = dijkstraPath(graph, 0, n - 1, {bidirectional: false});
+            const standardResult = dijkstraPath(graph, 0, n - 1, { bidirectional: false });
             expect(standardResult).not.toBeNull();
             expect(result!.distance).toBe(standardResult!.distance);
         });
 
         it("should handle self-loops correctly", () => {
-            const graph = new Graph({allowSelfLoops: true});
+            const graph = new Graph({ allowSelfLoops: true });
 
             graph.addEdge("A", "A", 5);
             graph.addEdge("A", "B", 1);
@@ -186,7 +186,7 @@ describe("Bidirectional Dijkstra Algorithm", () => {
 
     describe("Performance characteristics", () => {
         it("should be faster on sparse graphs with long paths", () => {
-            const graph = new Graph({allowParallelEdges: true});
+            const graph = new Graph({ allowParallelEdges: true });
             const n = 1000;
 
             // First ensure connectivity with a backbone
@@ -197,7 +197,7 @@ describe("Bidirectional Dijkstra Algorithm", () => {
             // Create additional sparse connections (~4 more edges per node)
             for (let i = 0; i < n; i++) {
                 for (let j = 0; j < 4; j++) {
-                    const target = (i + (j * 37) + 13) % n; // Use coprime numbers to ensure good distribution
+                    const target = (i + j * 37 + 13) % n; // Use coprime numbers to ensure good distribution
                     if (i !== target && !graph.hasEdge(i, target)) {
                         graph.addEdge(i, target, Math.random() + 0.1);
                     }
@@ -208,12 +208,12 @@ describe("Bidirectional Dijkstra Algorithm", () => {
             const target = n - 1;
 
             // Warm up
-            dijkstraPath(graph, source, target, {bidirectional: false}); // standard
+            dijkstraPath(graph, source, target, { bidirectional: false }); // standard
             dijkstraPath(graph, source, target); // bidirectional (default)
 
             // Benchmark standard dijkstra
             const standardStart = performance.now();
-            const standardResult = dijkstraPath(graph, source, target, {bidirectional: false});
+            const standardResult = dijkstraPath(graph, source, target, { bidirectional: false });
             const standardTime = performance.now() - standardStart;
 
             // Benchmark bidirectional dijkstra (default behavior)

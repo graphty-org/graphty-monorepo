@@ -5,6 +5,7 @@
 This implementation plan addresses issues identified in the code review of the screen capture and video capture implementation. The fixes are prioritized by severity (critical → high → medium → low) and organized into phases that deliver verifiable improvements incrementally.
 
 **Issues Summary:**
+
 - 1 Critical: Missing type exports for public API
 - 4 High Priority: Test duplication, console logging, hardcoded quality, unimplemented manual mode
 - 5 Medium Priority: Event listener cleanup, test style inconsistency, undocumented deferrals, hardcoded skybox name, missing 2D video tests
@@ -26,7 +27,7 @@ This implementation plan addresses issues identified in the code review of the s
 
 ```typescript
 // Example test case
-import {assert, test} from "vitest";
+import { assert, test } from "vitest";
 
 test("screenshot types are exported from main entry point", async () => {
     // Dynamic import to test the actual package export
@@ -59,21 +60,17 @@ export type {
     ClipboardStatus,
 } from "./src/screenshot/types";
 
-export {ScreenshotError, ScreenshotErrorCode} from "./src/screenshot/ScreenshotError";
+export { ScreenshotError, ScreenshotErrorCode } from "./src/screenshot/ScreenshotError";
 
-export type {
-    AnimationOptions,
-    AnimationResult,
-    CameraWaypoint,
-} from "./src/video/VideoCapture";
+export type { AnimationOptions, AnimationResult, CameraWaypoint } from "./src/video/VideoCapture";
 
-export {AnimationCancelledError} from "./src/video/MediaRecorderCapture";
+export { AnimationCancelledError } from "./src/video/MediaRecorderCapture";
 ```
 
 2. **Create shared MockMediaRecorder test helper**:
-   - Create `test/browser/video/mock-media-recorder.ts`
-   - Extract `MockMediaRecorder` class from both test files
-   - Export helper functions for setup/teardown
+    - Create `test/browser/video/mock-media-recorder.ts`
+    - Extract `MockMediaRecorder` class from both test files
+    - Export helper functions for setup/teardown
 
 ```typescript
 // test/browser/video/mock-media-recorder.ts
@@ -84,7 +81,7 @@ export class MockMediaRecorder {
     state: "inactive" | "recording" | "paused" = "inactive";
     mimeType: string;
 
-    constructor(stream: MediaStream, options?: {mimeType?: string, videoBitsPerSecond?: number}) {
+    constructor(stream: MediaStream, options?: { mimeType?: string; videoBitsPerSecond?: number }) {
         this.mimeType = options?.mimeType ?? "video/webm";
     }
 
@@ -94,8 +91,8 @@ export class MockMediaRecorder {
 
     stop(): void {
         this.state = "inactive";
-        const blob = new Blob(["mock video data"], {type: this.mimeType});
-        this.ondataavailable?.({data: blob} as BlobEvent);
+        const blob = new Blob(["mock video data"], { type: this.mimeType });
+        this.ondataavailable?.({ data: blob } as BlobEvent);
         setTimeout(() => this.onstop?.(), 0);
     }
 
@@ -116,10 +113,7 @@ export function setupMockMediaRecorder(vi: typeof import("vitest").vi): void {
     vi.stubGlobal("MediaRecorder", MockMediaRecorder);
 }
 
-export function restoreMockMediaRecorder(
-    vi: typeof import("vitest").vi,
-    original: typeof MediaRecorder
-): void {
+export function restoreMockMediaRecorder(vi: typeof import("vitest").vi, original: typeof MediaRecorder): void {
     vi.stubGlobal("MediaRecorder", original);
 }
 ```
@@ -150,14 +144,16 @@ export class MediaRecorderCapture {
 ```
 
 4. **Fix hardcoded quality in format conversion** (`ScreenshotCapture.ts:408`):
-   - Add `quality` parameter to `convertBlobFormat` method
-   - Pass user-specified quality through the conversion pipeline
+    - Add `quality` parameter to `convertBlobFormat` method
+    - Pass user-specified quality through the conversion pipeline
 
 **Dependencies**:
+
 - External: None
 - Internal: None
 
 **Verification**:
+
 1. Run: `npm run build && npm test`
 2. Expected: All tests pass, no build errors
 3. Manual verification: Import types from built package in a test file
@@ -197,11 +193,13 @@ test("can capture video in manual mode", async () => {
 #### Implementation Decision
 
 **Option A: Remove `manual` mode** (recommended if not implementing)
+
 - Remove `captureMode?: "realtime" | "manual"` from `AnimationOptions`
 - Add JSDoc comment explaining real-time constraints
 - Document in design notes that manual capture is deferred to future phase
 
 **Option B: Implement `manual` mode** (requires significant effort)
+
 - Implement frame-by-frame capture with Babylon.js screenshots
 - Use `ffmpeg.wasm` or similar for video encoding
 - Add significant bundle size (~50KB+ compressed)
@@ -211,10 +209,12 @@ test("can capture video in manual mode", async () => {
 Given the design review's acknowledgment that MediaRecorder operates in real-time only, **Option A** (removal + documentation) is recommended for this phase. Manual mode can be added in a future phase with proper library integration.
 
 **Dependencies**:
+
 - External: None (or `ffmpeg.wasm` if implementing Option B)
 - Internal: Phase 1 completion
 
 **Verification**:
+
 1. Run: `npm run lint && npm run build && npm test`
 2. For Option A: Verify TypeScript compilation succeeds with `captureMode` removed
 3. For Option B: Verify frame counts match expectations in tests
@@ -238,7 +238,7 @@ test("event listeners are cleaned up after waitForLayoutSettle", async () => {
     const initialListenerCount = graph.listenerCount?.("graph-settled") ?? 0;
 
     await graph.captureScreenshot({
-        timing: {waitForSettle: true},
+        timing: { waitForSettle: true },
     });
 
     // Listener should be removed after capture
@@ -302,19 +302,17 @@ private async waitForLayoutSettle(): Promise<void> {
 ```
 
 2. **Standardize test assertions** in `screenshot-error-codes.test.ts`:
-   - Replace `expect().rejects.toThrow()` with `assert.rejects()` pattern
+    - Replace `expect().rejects.toThrow()` with `assert.rejects()` pattern
 
 ```typescript
 // Before
-await expect(
-    graph.captureScreenshot({width: 20000, height: 20000}),
-).rejects.toThrow(ScreenshotError);
+await expect(graph.captureScreenshot({ width: 20000, height: 20000 })).rejects.toThrow(ScreenshotError);
 
 // After
 await assert.rejects(
-    () => graph.captureScreenshot({width: 20000, height: 20000}),
+    () => graph.captureScreenshot({ width: 20000, height: 20000 }),
     ScreenshotError,
-    "Should throw ScreenshotError for oversized dimensions"
+    "Should throw ScreenshotError for oversized dimensions",
 );
 ```
 
@@ -342,7 +340,6 @@ private findSkyboxMesh(): Mesh | null {
 ```typescript
 export interface ScreenshotOptions {
     // ... existing options ...
-
     /**
      * PNG metadata embedding.
      *
@@ -358,10 +355,12 @@ export interface ScreenshotOptions {
 ```
 
 **Dependencies**:
+
 - External: None
 - Internal: Phases 1-2 completion
 
 **Verification**:
+
 1. Run: `npm run lint && npm run build && npm test`
 2. Expected: All tests pass, no memory leak warnings in browser tests
 3. Manual: Run extended test session and monitor memory usage
@@ -378,9 +377,9 @@ export interface ScreenshotOptions {
 
 ```typescript
 // test/browser/video/video-capture-2d.test.ts
-import {afterEach, assert, beforeEach, test, vi} from "vitest";
-import {Graph} from "../../../src/Graph.js";
-import {MockMediaRecorder, setupMockMediaRecorder, restoreMockMediaRecorder} from "./mock-media-recorder.js";
+import { afterEach, assert, beforeEach, test, vi } from "vitest";
+import { Graph } from "../../../src/Graph.js";
+import { MockMediaRecorder, setupMockMediaRecorder, restoreMockMediaRecorder } from "./mock-media-recorder.js";
 
 let originalMediaRecorder: typeof MediaRecorder;
 
@@ -397,7 +396,7 @@ test("can capture video with 2D orthographic camera", async () => {
     const canvas = document.createElement("canvas");
     canvas.width = 800;
     canvas.height = 600;
-    const graph = new Graph(canvas, {is2D: true});
+    const graph = new Graph(canvas, { is2D: true });
 
     const result = await graph.captureAnimation({
         duration: 2000,
@@ -413,7 +412,7 @@ test("can capture video with 2D camera zoom animation", async () => {
     const canvas = document.createElement("canvas");
     canvas.width = 800;
     canvas.height = 600;
-    const graph = new Graph(canvas, {is2D: true});
+    const graph = new Graph(canvas, { is2D: true });
 
     // 2D animation through zoom/pan rather than 3D waypoints
     const result = await graph.captureAnimation({
@@ -422,7 +421,7 @@ test("can capture video with 2D camera zoom animation", async () => {
         cameraMode: "stationary",
         camera: {
             zoom: 2,
-            pan: {x: 100, y: 100},
+            pan: { x: 100, y: 100 },
         },
     });
 
@@ -433,7 +432,7 @@ test("2D video capture maintains orthographic projection", async () => {
     const canvas = document.createElement("canvas");
     canvas.width = 800;
     canvas.height = 600;
-    const graph = new Graph(canvas, {is2D: true});
+    const graph = new Graph(canvas, { is2D: true });
 
     const result = await graph.captureAnimation({
         duration: 1000,
@@ -450,18 +449,20 @@ test("2D video capture maintains orthographic projection", async () => {
 #### Implementation
 
 1. **Ensure `CameraPathAnimator` properly handles 2D mode**:
-   - Verify 2D camera state (zoom, pan) is correctly interpolated
-   - Add fallback behavior when 3D waypoints provided for 2D camera
+    - Verify 2D camera state (zoom, pan) is correctly interpolated
+    - Add fallback behavior when 3D waypoints provided for 2D camera
 
 2. **Update any documentation for 2D video capture**:
-   - Add examples in JSDoc for 2D-specific options
-   - Note any limitations (e.g., no 3D rotation in 2D mode)
+    - Add examples in JSDoc for 2D-specific options
+    - Note any limitations (e.g., no 3D rotation in 2D mode)
 
 **Dependencies**:
+
 - External: None
 - Internal: Phase 1 (shared mock helper)
 
 **Verification**:
+
 1. Run: `npm run test -- test/browser/video/video-capture-2d.test.ts`
 2. Expected: All 2D video tests pass
 3. Run full test suite to ensure no regressions
@@ -559,14 +560,16 @@ export interface AnimationOptions {
 ```
 
 5. **Address potential race condition** in cancellation (`MediaRecorderCapture.ts:148-154`):
-   - Review the cancellation flow
-   - Add synchronization if needed (e.g., use a mutex or state machine)
+    - Review the cancellation flow
+    - Add synchronization if needed (e.g., use a mutex or state machine)
 
 **Dependencies**:
+
 - External: None
 - Internal: All previous phases
 
 **Verification**:
+
 1. Run: `npm run lint && npm run build && npm test`
 2. Expected: All tests pass, no new linting errors
 3. Manual: Review JSDoc rendering in IDE tooltips
@@ -575,33 +578,33 @@ export interface AnimationOptions {
 
 ## Common Utilities Needed
 
-| Utility | Purpose | Used In |
-|---------|---------|---------|
-| `MockMediaRecorder` | Test helper for video capture | Phase 1, all video tests |
-| `SCREENSHOT_CONSTANTS` | Named constants for configuration | Phase 5, ScreenshotCapture |
-| `findSkyboxMesh()` | Robust skybox detection | Phase 3, transparency handling |
+| Utility                | Purpose                           | Used In                        |
+| ---------------------- | --------------------------------- | ------------------------------ |
+| `MockMediaRecorder`    | Test helper for video capture     | Phase 1, all video tests       |
+| `SCREENSHOT_CONSTANTS` | Named constants for configuration | Phase 5, ScreenshotCapture     |
+| `findSkyboxMesh()`     | Robust skybox detection           | Phase 3, transparency handling |
 
 ---
 
 ## External Libraries Assessment
 
-| Task | Consideration | Recommendation |
-|------|---------------|----------------|
-| Manual video capture | `ffmpeg.wasm` for frame-by-frame encoding | Defer to future phase - adds ~50KB+ to bundle |
-| PNG metadata | `png-metadata-ts` or similar | Defer to future phase - complex binary manipulation |
-| Test coverage reporting | Built-in Vitest coverage | Already configured, no changes needed |
+| Task                    | Consideration                             | Recommendation                                      |
+| ----------------------- | ----------------------------------------- | --------------------------------------------------- |
+| Manual video capture    | `ffmpeg.wasm` for frame-by-frame encoding | Defer to future phase - adds ~50KB+ to bundle       |
+| PNG metadata            | `png-metadata-ts` or similar              | Defer to future phase - complex binary manipulation |
+| Test coverage reporting | Built-in Vitest coverage                  | Already configured, no changes needed               |
 
 ---
 
 ## Risk Mitigation
 
-| Potential Risk | Mitigation Strategy |
-|----------------|---------------------|
-| Breaking public API with type exports | Export types as-is without modifications; types are additive |
-| Console logging removal breaks debugging | Add optional `debug` flag to preserve capability |
-| MockMediaRecorder extraction breaks tests | Run tests after each extraction step |
-| Event listener cleanup causes behavior change | Add specific test for cleanup behavior before implementing |
-| 2D video tests fail due to camera differences | Test in isolation first, verify camera mode detection |
+| Potential Risk                                | Mitigation Strategy                                          |
+| --------------------------------------------- | ------------------------------------------------------------ |
+| Breaking public API with type exports         | Export types as-is without modifications; types are additive |
+| Console logging removal breaks debugging      | Add optional `debug` flag to preserve capability             |
+| MockMediaRecorder extraction breaks tests     | Run tests after each extraction step                         |
+| Event listener cleanup causes behavior change | Add specific test for cleanup behavior before implementing   |
+| 2D video tests fail due to camera differences | Test in isolation first, verify camera mode detection        |
 
 ---
 
@@ -624,6 +627,7 @@ npm run coverage
 ```
 
 **Expected Outcomes:**
+
 - All tests pass
 - No TypeScript errors
 - No ESLint errors
@@ -635,10 +639,10 @@ npm run coverage
 
 ## Implementation Tracking
 
-| Phase | Status | Completion Date | Notes |
-|-------|--------|-----------------|-------|
-| Phase 1 | Completed | 2025-11-25 | Public API exports, MockMediaRecorder helper, debug logging, quality passthrough |
-| Phase 2 | Completed | 2025-11-25 | Option A: Removed `captureMode` from interface, documented decision |
-| Phase 3 | Completed | 2025-11-26 | Event listener cleanup in waitForLayoutSettle, test assertion standardization, skybox mesh name configuration, PNG metadata documentation |
-| Phase 4 | Completed | 2025-11-26 | Added 2D video capture tests, fixed CameraPathAnimator to use valid ortho properties instead of invalid orthoSize |
-| Phase 5 | Completed | 2025-11-26 | Created SCREENSHOT_CONSTANTS and VIDEO_CONSTANTS, added JSDoc to private methods, documented cancellation race condition handling |
+| Phase   | Status    | Completion Date | Notes                                                                                                                                     |
+| ------- | --------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Phase 1 | Completed | 2025-11-25      | Public API exports, MockMediaRecorder helper, debug logging, quality passthrough                                                          |
+| Phase 2 | Completed | 2025-11-25      | Option A: Removed `captureMode` from interface, documented decision                                                                       |
+| Phase 3 | Completed | 2025-11-26      | Event listener cleanup in waitForLayoutSettle, test assertion standardization, skybox mesh name configuration, PNG metadata documentation |
+| Phase 4 | Completed | 2025-11-26      | Added 2D video capture tests, fixed CameraPathAnimator to use valid ortho properties instead of invalid orthoSize                         |
+| Phase 5 | Completed | 2025-11-26      | Created SCREENSHOT_CONSTANTS and VIDEO_CONSTANTS, added JSDoc to private methods, documented cancellation race condition handling         |

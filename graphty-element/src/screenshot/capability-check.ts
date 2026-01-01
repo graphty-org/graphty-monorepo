@@ -1,5 +1,5 @@
-import {BROWSER_LIMITS, calculateDimensions} from "./dimensions.js";
-import type {ScreenshotOptions} from "./types.js";
+import { BROWSER_LIMITS, calculateDimensions } from "./dimensions.js";
+import type { ScreenshotOptions } from "./types.js";
 
 export interface CapabilityCheck {
     supported: boolean;
@@ -48,15 +48,11 @@ export async function canCaptureScreenshot(
 
     // Warnings
     if (pixels >= BROWSER_LIMITS.WARN_PIXELS) {
-        warnings.push(
-            `Large screenshot (${(pixels / 1e6).toFixed(1)}MP) may fail on some devices`,
-        );
+        warnings.push(`Large screenshot (${(pixels / 1e6).toFixed(1)}MP) may fail on some devices`);
     }
 
     if (memoryMB > 100) {
-        warnings.push(
-            `High memory usage (~${memoryMB.toFixed(0)}MB) - may cause performance issues`,
-        );
+        warnings.push(`High memory usage (~${memoryMB.toFixed(0)}MB) - may cause performance issues`);
     }
 
     return {
@@ -72,11 +68,8 @@ async function supportsWebP(): Promise<boolean> {
         canvas.width = 1;
         canvas.height = 1;
 
-        canvas.toBlob(
-            (blob) => {
-                resolve(blob !== null && blob.type === "image/webp");
-            },
-            "image/webp",
-        );
+        canvas.toBlob((blob) => {
+            resolve(blob !== null && blob.type === "image/webp");
+        }, "image/webp");
     });
 }

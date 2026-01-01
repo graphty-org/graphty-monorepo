@@ -3,31 +3,31 @@
  * @module test/ai/commands/SchemaCommands.describeProperty.test
  */
 
-import {assert, beforeEach, describe, it} from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 
-import {describeProperty} from "../../../src/ai/commands/SchemaCommands";
-import type {CommandContext} from "../../../src/ai/commands/types";
-import type {Graph} from "../../../src/Graph";
-import {createMockGraphWithCustomData} from "../../helpers/mock-graph-custom-data";
-import {createMockContext, createTestGraph} from "../../helpers/test-graph";
+import { describeProperty } from "../../../src/ai/commands/SchemaCommands";
+import type { CommandContext } from "../../../src/ai/commands/types";
+import type { Graph } from "../../../src/Graph";
+import { createMockGraphWithCustomData } from "../../helpers/mock-graph-custom-data";
+import { createMockContext, createTestGraph } from "../../helpers/test-graph";
 
 describe("describeProperty command", () => {
     let graph: Graph;
     let context: CommandContext;
 
     beforeEach(() => {
-        graph = createTestGraph({nodes: 25, edges: 40});
+        graph = createTestGraph({ nodes: 25, edges: 40 });
         context = createMockContext(graph);
     });
 
     describe("string properties", () => {
-        it("returns value distribution for string properties", async() => {
-            const result = await describeProperty.execute(graph, {property: "data.type", target: "nodes"}, context);
+        it("returns value distribution for string properties", async () => {
+            const result = await describeProperty.execute(graph, { property: "data.type", target: "nodes" }, context);
             assert.strictEqual(result.success, true);
             const data = result.data as {
                 property: string;
                 type: string;
-                distribution: Record<string, {count: number, percentage: number}>;
+                distribution: Record<string, { count: number; percentage: number }>;
             };
             assert.strictEqual(data.property, "data.type");
             assert.strictEqual(data.type, "string");
@@ -36,11 +36,11 @@ describe("describeProperty command", () => {
             assert.ok("server" in data.distribution || "client" in data.distribution || "router" in data.distribution);
         });
 
-        it("includes percentages for string values", async() => {
-            const result = await describeProperty.execute(graph, {property: "data.type", target: "nodes"}, context);
+        it("includes percentages for string values", async () => {
+            const result = await describeProperty.execute(graph, { property: "data.type", target: "nodes" }, context);
             assert.strictEqual(result.success, true);
             const data = result.data as {
-                distribution: Record<string, {count: number, percentage: number}>;
+                distribution: Record<string, { count: number; percentage: number }>;
             };
             // Check that percentages are included
             for (const value of Object.values(data.distribution)) {
@@ -50,7 +50,7 @@ describe("describeProperty command", () => {
             }
         });
 
-        it("respects limit parameter for unique values", async() => {
+        it("respects limit parameter for unique values", async () => {
             // Create a graph with many unique string values
             const customGraph = createMockGraphWithCustomData({
                 nodeCount: 50,
@@ -58,10 +58,14 @@ describe("describeProperty command", () => {
                     category: `category-${index}`,
                 }),
             });
-            const result = await describeProperty.execute(customGraph, {property: "category", target: "nodes", limit: 5}, context);
+            const result = await describeProperty.execute(
+                customGraph,
+                { property: "category", target: "nodes", limit: 5 },
+                context,
+            );
             assert.strictEqual(result.success, true);
             const data = result.data as {
-                distribution: Record<string, {count: number, percentage: number}>;
+                distribution: Record<string, { count: number; percentage: number }>;
                 truncated: boolean;
             };
             // Should only show limit number of unique values
@@ -71,13 +75,13 @@ describe("describeProperty command", () => {
     });
 
     describe("number properties", () => {
-        it("returns min/max/avg for number properties", async() => {
-            const result = await describeProperty.execute(graph, {property: "weight", target: "edges"}, context);
+        it("returns min/max/avg for number properties", async () => {
+            const result = await describeProperty.execute(graph, { property: "weight", target: "edges" }, context);
             assert.strictEqual(result.success, true);
             const data = result.data as {
                 property: string;
                 type: string;
-                statistics: {min: number, max: number, avg: number, median: number};
+                statistics: { min: number; max: number; avg: number; median: number };
             };
             assert.strictEqual(data.type, "number");
             assert.ok(data.statistics);
@@ -87,11 +91,11 @@ describe("describeProperty command", () => {
             assert.ok(data.statistics.min <= data.statistics.max);
         });
 
-        it("includes histogram for number properties", async() => {
-            const result = await describeProperty.execute(graph, {property: "weight", target: "edges"}, context);
+        it("includes histogram for number properties", async () => {
+            const result = await describeProperty.execute(graph, { property: "weight", target: "edges" }, context);
             assert.strictEqual(result.success, true);
             const data = result.data as {
-                histogram: {range: string, count: number}[];
+                histogram: { range: string; count: number }[];
             };
             assert.ok(Array.isArray(data.histogram));
             assert.ok(data.histogram.length > 0);
@@ -101,7 +105,7 @@ describe("describeProperty command", () => {
             }
         });
 
-        it("handles integer and float numbers", async() => {
+        it("handles integer and float numbers", async () => {
             const customGraph = createMockGraphWithCustomData({
                 nodeCount: 20,
                 nodeDataGenerator: (index) => ({
@@ -111,21 +115,29 @@ describe("describeProperty command", () => {
             });
 
             // Test integer values
-            const intResult = await describeProperty.execute(customGraph, {property: "intValue", target: "nodes"}, context);
+            const intResult = await describeProperty.execute(
+                customGraph,
+                { property: "intValue", target: "nodes" },
+                context,
+            );
             assert.strictEqual(intResult.success, true);
-            const intData = intResult.data as {type: string};
+            const intData = intResult.data as { type: string };
             assert.strictEqual(intData.type, "number");
 
             // Test float values
-            const floatResult = await describeProperty.execute(customGraph, {property: "floatValue", target: "nodes"}, context);
+            const floatResult = await describeProperty.execute(
+                customGraph,
+                { property: "floatValue", target: "nodes" },
+                context,
+            );
             assert.strictEqual(floatResult.success, true);
-            const floatData = floatResult.data as {type: string};
+            const floatData = floatResult.data as { type: string };
             assert.strictEqual(floatData.type, "number");
         });
     });
 
     describe("boolean properties", () => {
-        it("returns true/false counts for boolean properties", async() => {
+        it("returns true/false counts for boolean properties", async () => {
             const customGraph = createMockGraphWithCustomData({
                 nodeCount: 20,
                 nodeDataGenerator: (index) => ({
@@ -133,12 +145,16 @@ describe("describeProperty command", () => {
                 }),
             });
 
-            const result = await describeProperty.execute(customGraph, {property: "isActive", target: "nodes"}, context);
+            const result = await describeProperty.execute(
+                customGraph,
+                { property: "isActive", target: "nodes" },
+                context,
+            );
             assert.strictEqual(result.success, true);
             const data = result.data as {
                 property: string;
                 type: string;
-                distribution: {true: {count: number}, false: {count: number}};
+                distribution: { true: { count: number }; false: { count: number } };
             };
             assert.strictEqual(data.type, "boolean");
             assert.ok(data.distribution);
@@ -146,7 +162,7 @@ describe("describeProperty command", () => {
             assert.ok("false" in data.distribution);
         });
 
-        it("includes percentages for boolean values", async() => {
+        it("includes percentages for boolean values", async () => {
             const customGraph = createMockGraphWithCustomData({
                 nodeCount: 20,
                 nodeDataGenerator: (index) => ({
@@ -154,7 +170,11 @@ describe("describeProperty command", () => {
                 }),
             });
 
-            const result = await describeProperty.execute(customGraph, {property: "isActive", target: "nodes"}, context);
+            const result = await describeProperty.execute(
+                customGraph,
+                { property: "isActive", target: "nodes" },
+                context,
+            );
             assert.strictEqual(result.success, true);
             interface CountPercent {
                 count: number;
@@ -173,7 +193,7 @@ describe("describeProperty command", () => {
     });
 
     describe("array properties", () => {
-        it("returns unique values for array items", async() => {
+        it("returns unique values for array items", async () => {
             const customGraph = createMockGraphWithCustomData({
                 nodeCount: 10,
                 nodeDataGenerator: () => ({
@@ -181,7 +201,7 @@ describe("describeProperty command", () => {
                 }),
             });
 
-            const result = await describeProperty.execute(customGraph, {property: "tags", target: "nodes"}, context);
+            const result = await describeProperty.execute(customGraph, { property: "tags", target: "nodes" }, context);
             assert.strictEqual(result.success, true);
             const data = result.data as {
                 type: string;
@@ -193,19 +213,19 @@ describe("describeProperty command", () => {
             assert.ok(data.uniqueItems.includes("tag1"));
         });
 
-        it("includes array length statistics", async() => {
+        it("includes array length statistics", async () => {
             const customGraph = createMockGraphWithCustomData({
                 nodeCount: 10,
                 nodeDataGenerator: (index) => ({
-                    tags: Array.from({length: (index % 5) + 1}, (_, i) => `tag${i}`),
+                    tags: Array.from({ length: (index % 5) + 1 }, (_, i) => `tag${i}`),
                 }),
             });
 
-            const result = await describeProperty.execute(customGraph, {property: "tags", target: "nodes"}, context);
+            const result = await describeProperty.execute(customGraph, { property: "tags", target: "nodes" }, context);
             assert.strictEqual(result.success, true);
             const data = result.data as {
                 type: string;
-                lengthStatistics: {min: number, max: number, avg: number};
+                lengthStatistics: { min: number; max: number; avg: number };
             };
             assert.ok(data.lengthStatistics);
             assert.ok(typeof data.lengthStatistics.min === "number");
@@ -215,28 +235,32 @@ describe("describeProperty command", () => {
     });
 
     describe("edge cases", () => {
-        it("handles nested property paths", async() => {
+        it("handles nested property paths", async () => {
             // data.type is a nested property in our test graph
-            const result = await describeProperty.execute(graph, {property: "data.type", target: "nodes"}, context);
+            const result = await describeProperty.execute(graph, { property: "data.type", target: "nodes" }, context);
             assert.strictEqual(result.success, true);
-            const data = result.data as {property: string};
+            const data = result.data as { property: string };
             assert.strictEqual(data.property, "data.type");
         });
 
-        it("returns not found for missing properties", async() => {
-            const result = await describeProperty.execute(graph, {property: "nonexistent.prop", target: "nodes"}, context);
+        it("returns not found for missing properties", async () => {
+            const result = await describeProperty.execute(
+                graph,
+                { property: "nonexistent.prop", target: "nodes" },
+                context,
+            );
             assert.strictEqual(result.success, false);
             assert.ok(result.message.includes("not found"));
         });
 
-        it("suggests available properties when not found", async() => {
-            const result = await describeProperty.execute(graph, {property: "nonexistent", target: "nodes"}, context);
+        it("suggests available properties when not found", async () => {
+            const result = await describeProperty.execute(graph, { property: "nonexistent", target: "nodes" }, context);
             assert.strictEqual(result.success, false);
             // Should suggest available properties
             assert.ok(result.message.includes("Available") || result.data !== undefined);
         });
 
-        it("handles mixed type properties", async() => {
+        it("handles mixed type properties", async () => {
             const customGraph = createMockGraphWithCustomData({
                 nodeCount: 10,
                 nodeDataGenerator: (index) => ({
@@ -244,13 +268,17 @@ describe("describeProperty command", () => {
                 }),
             });
 
-            const result = await describeProperty.execute(customGraph, {property: "mixedValue", target: "nodes"}, context);
+            const result = await describeProperty.execute(
+                customGraph,
+                { property: "mixedValue", target: "nodes" },
+                context,
+            );
             assert.strictEqual(result.success, true);
-            const data = result.data as {type: string};
+            const data = result.data as { type: string };
             assert.strictEqual(data.type, "mixed");
         });
 
-        it("handles null values in property analysis", async() => {
+        it("handles null values in property analysis", async () => {
             const customGraph = createMockGraphWithCustomData({
                 nodeCount: 10,
                 nodeDataGenerator: (index) => ({
@@ -258,26 +286,30 @@ describe("describeProperty command", () => {
                 }),
             });
 
-            const result = await describeProperty.execute(customGraph, {property: "nullableValue", target: "nodes"}, context);
+            const result = await describeProperty.execute(
+                customGraph,
+                { property: "nullableValue", target: "nodes" },
+                context,
+            );
             assert.strictEqual(result.success, true);
-            const data = result.data as {nullCount: number};
+            const data = result.data as { nullCount: number };
             assert.ok(typeof data.nullCount === "number");
             assert.ok(data.nullCount > 0);
         });
     });
 
     describe("target parameter", () => {
-        it("defaults to nodes when target not specified", async() => {
-            const result = await describeProperty.execute(graph, {property: "data.type"}, context);
+        it("defaults to nodes when target not specified", async () => {
+            const result = await describeProperty.execute(graph, { property: "data.type" }, context);
             assert.strictEqual(result.success, true);
-            const data = result.data as {target: string};
+            const data = result.data as { target: string };
             assert.strictEqual(data.target, "nodes");
         });
 
-        it("analyzes edge properties when target is edges", async() => {
-            const result = await describeProperty.execute(graph, {property: "weight", target: "edges"}, context);
+        it("analyzes edge properties when target is edges", async () => {
+            const result = await describeProperty.execute(graph, { property: "weight", target: "edges" }, context);
             assert.strictEqual(result.success, true);
-            const data = result.data as {target: string};
+            const data = result.data as { target: string };
             assert.strictEqual(data.target, "edges");
         });
     });

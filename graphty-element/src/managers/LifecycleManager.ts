@@ -1,9 +1,9 @@
-import {GraphtyLogger, type Logger} from "../logging/GraphtyLogger.js";
-import type {EventManager} from "./EventManager";
-import type {Manager} from "./interfaces";
+import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
+import type { EventManager } from "./EventManager";
+import type { Manager } from "./interfaces";
 
 // Type guard for render managers with startRenderLoop method
-type RenderManagerWithStartLoop = Manager & {startRenderLoop(callback: () => void): void};
+type RenderManagerWithStartLoop = Manager & { startRenderLoop(callback: () => void): void };
 
 function hasStartRenderLoop(manager: Manager): manager is RenderManagerWithStartLoop {
     return "startRenderLoop" in manager;
@@ -73,7 +73,7 @@ export class LifecycleManager implements Manager {
                     this.logger.error(
                         `Manager initialization failed: ${managerName}`,
                         error instanceof Error ? error : new Error(String(error)),
-                        {managerName},
+                        { managerName },
                     );
 
                     // Clean up any managers that were already initialized
@@ -105,12 +105,7 @@ export class LifecycleManager implements Manager {
             this.initializing = false;
 
             const err = error instanceof Error ? error : new Error(String(error));
-            this.eventManager.emitGraphError(
-                null,
-                err,
-                "init",
-                {component: "LifecycleManager"},
-            );
+            this.eventManager.emitGraphError(null, err, "init", { component: "LifecycleManager" });
 
             throw error;
         }
@@ -139,12 +134,10 @@ export class LifecycleManager implements Manager {
             });
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
-            this.eventManager.emitGraphError(
-                null,
-                err,
-                "init",
-                {component: "LifecycleManager", operation: "startGraph"},
-            );
+            this.eventManager.emitGraphError(null, err, "init", {
+                component: "LifecycleManager",
+                operation: "startGraph",
+            });
             throw new Error(`Failed to start graph: ${err.message}`);
         }
     }
@@ -162,7 +155,7 @@ export class LifecycleManager implements Manager {
         });
 
         // Dispose managers in reverse order
-        const reverseOrder = [... this.initOrder].reverse();
+        const reverseOrder = [...this.initOrder].reverse();
 
         for (const managerName of reverseOrder) {
             const manager = this.managers.get(managerName);
@@ -175,14 +168,14 @@ export class LifecycleManager implements Manager {
                     this.logger.error(
                         `Error disposing manager: ${managerName}`,
                         error instanceof Error ? error : new Error(String(error)),
-                        {managerName},
+                        { managerName },
                     );
 
                     this.eventManager.emitGraphError(
                         null,
                         error instanceof Error ? error : new Error(String(error)),
                         "other",
-                        {component: "LifecycleManager", operation: "dispose", managerName},
+                        { component: "LifecycleManager", operation: "dispose", managerName },
                     );
                 }
             }
@@ -222,7 +215,7 @@ export class LifecycleManager implements Manager {
                     this.logger.error(
                         `Error during cleanup of manager: ${managerName}`,
                         error instanceof Error ? error : new Error(String(error)),
-                        {managerName},
+                        { managerName },
                     );
                 }
             }

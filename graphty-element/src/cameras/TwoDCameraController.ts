@@ -1,4 +1,4 @@
-import {Camera, Engine, FreeCamera, Scene, TransformNode, Vector3, WebGPUEngine} from "@babylonjs/core";
+import { Camera, Engine, FreeCamera, Scene, TransformNode, Vector3, WebGPUEngine } from "@babylonjs/core";
 
 // === Configuration Object ===
 export interface TwoDCameraControlsConfigType {
@@ -30,7 +30,7 @@ export interface TwoDCameraControlsConfigType {
 export class TwoDCameraController {
     public camera: FreeCamera;
     public parent: TransformNode;
-    public velocity = {x: 0, y: 0, zoom: 0, rotate: 0};
+    public velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
 
     /**
      * Creates a new TwoDCameraController instance.
@@ -73,7 +73,7 @@ export class TwoDCameraController {
      * Keeps the horizontal view (orthoLeft/Right) the same and adjusts vertical bounds.
      */
     public updateOrthoAspectRatio(): void {
-        const {orthoRight} = this.camera;
+        const { orthoRight } = this.camera;
         if (orthoRight === null) {
             return;
         }

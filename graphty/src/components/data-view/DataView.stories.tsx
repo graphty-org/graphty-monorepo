@@ -1,6 +1,6 @@
-import type {Meta, StoryObj} from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 
-import {DataGrid} from "./DataGrid";
+import { DataGrid } from "./DataGrid";
 
 const meta: Meta<typeof DataGrid> = {
     title: "Components/DataView/DataGrid",
@@ -10,7 +10,7 @@ const meta: Meta<typeof DataGrid> = {
     },
     decorators: [
         (Story) => (
-            <div style={{maxWidth: "600px", padding: "1rem"}}>
+            <div style={{ maxWidth: "600px", padding: "1rem" }}>
                 <Story />
             </div>
         ),
@@ -23,7 +23,7 @@ type Story = StoryObj<typeof meta>;
 /** Flat object without nesting - displays simple key/value pairs */
 export const FlatObject: Story = {
     args: {
-        data: {name: "Test", count: 42, active: true},
+        data: { name: "Test", count: 42, active: true },
         defaultExpandDepth: 1,
     },
 };
@@ -31,7 +31,7 @@ export const FlatObject: Story = {
 /** Default nested object view with expand/collapse */
 export const NestedObject: Story = {
     args: {
-        data: {user: {name: "John", profile: {age: 30, email: "john@example.com"}}},
+        data: { user: { name: "John", profile: { age: 30, email: "john@example.com" } } },
         defaultExpandDepth: 2,
     },
 };
@@ -42,7 +42,7 @@ export const WithSearch: Story = {
         data: {
             name: "searchable",
             description: "This contains searchable text",
-            nested: {also: "searchable here"},
+            nested: { also: "searchable here" },
         },
         searchText: "search",
         defaultExpandDepth: 2,
@@ -53,9 +53,9 @@ export const WithSearch: Story = {
 export const ArrayOfObjects: Story = {
     args: {
         data: [
-            {id: 1, name: "Alice", role: "Admin"},
-            {id: 2, name: "Bob", role: "User"},
-            {id: 3, name: "Charlie", role: "User"},
+            { id: 1, name: "Alice", role: "Admin" },
+            { id: 2, name: "Bob", role: "User" },
+            { id: 3, name: "Charlie", role: "User" },
         ],
         defaultExpandDepth: 1,
     },
@@ -80,7 +80,7 @@ export const WithCopyButton: Story = {
 /** Large dataset for performance testing */
 export const LargeDataset: Story = {
     args: {
-        data: Array.from({length: 100}, (_, i) => ({
+        data: Array.from({ length: 100 }, (_, i) => ({
             id: `item-${i}`,
             name: `Item ${i}`,
             value: Math.round(Math.random() * 1000),

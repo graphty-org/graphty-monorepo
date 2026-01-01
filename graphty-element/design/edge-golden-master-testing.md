@@ -5,12 +5,14 @@
 This plan outlines comprehensive testing for edges and arrowheads following the same patterns established for node testing in `test/NodeMesh.test.ts` and `test/mesh-testing/node-golden-masters.test.ts`.
 
 ### Goals
+
 1. Achieve 100% coverage of edge rendering features from `design/edge-styles-implementation-plan.md`
 2. Test all 9 line types, 15 arrow types, and their property combinations
 3. Create golden master tests that validate mesh/material properties without visual rendering
 4. Follow existing node testing patterns for consistency
 
 ### Reference Files (Node Testing Patterns)
+
 - `test/NodeMesh.test.ts` - Direct unit test pattern using NullEngine
 - `test/mesh-testing/node-golden-masters.test.ts` - Golden master test pattern
 - `test/mesh-testing/mesh-factory.ts` - Mock factory pattern (NodeMeshFactory)
@@ -356,13 +358,14 @@ validate(
 
 ### 1.8 Files to Modify
 
-| File | Changes |
-|------|---------|
+| File                                | Changes                                |
+| ----------------------------------- | -------------------------------------- |
 | `test/mesh-testing/mesh-factory.ts` | Update EdgeMeshFactory (lines 204-369) |
 
 ### 1.9 Reference Pattern
 
 Follow `NodeMeshFactory` structure from `mesh-factory.ts:36-198`:
+
 - `SHAPES` array → `LINE_TYPES`, `ARROW_TYPES` arrays
 - `create()` → returns `MeshTestResult` with mesh, material, validation
 - `simulateNodeMeshCreation()` → `simulateCustomLineRenderer()`, `simulatePatternedLine()`
@@ -390,9 +393,21 @@ export const ArrowMeshFactory = {
 
     // All arrow types from EdgeStyle.ts
     ARROW_TYPES: [
-        "normal", "inverted", "dot", "sphere-dot", "open-dot", "none",
-        "tee", "open-normal", "diamond", "open-diamond", "crow",
-        "box", "open", "half-open", "vee",
+        "normal",
+        "inverted",
+        "dot",
+        "sphere-dot",
+        "open-dot",
+        "none",
+        "tee",
+        "open-normal",
+        "diamond",
+        "open-diamond",
+        "crow",
+        "box",
+        "open",
+        "half-open",
+        "vee",
     ],
 
     // Categorized by renderer
@@ -402,11 +417,11 @@ export const ArrowMeshFactory = {
 
     // Expected vertex counts for filled arrows (XZ plane geometry)
     VERTEX_COUNTS: {
-        "normal": 3,      // Triangle: 3 vertices
-        "inverted": 3,    // Triangle: 3 vertices
-        "diamond": 4,     // Diamond: 4 vertices
-        "box": 4,         // Rectangle: 4 vertices
-        "dot": 33,        // Circle: 32 segments + center
+        normal: 3, // Triangle: 3 vertices
+        inverted: 3, // Triangle: 3 vertices
+        diamond: 4, // Diamond: 4 vertices
+        box: 4, // Rectangle: 4 vertices
+        dot: 33, // Circle: 32 segments + center
     } as Record<string, number>,
 
     create(style: ArrowMockStyle): ArrowTestResult {
@@ -426,12 +441,18 @@ export const ArrowMeshFactory = {
             return {
                 mesh: null,
                 material: null,
-                validation: {isValid: true, errors: [], warnings: [], expected: style, actual: null},
+                validation: { isValid: true, errors: [], warnings: [], expected: style, actual: null },
             };
         }
 
         ArrowMeshFactory.simulateArrowCreation(mesh, material, {
-            type, is2D, size, width, length, color, opacity,
+            type,
+            is2D,
+            size,
+            width,
+            length,
+            color,
+            opacity,
         });
 
         mesh.setMaterial(material);
@@ -456,7 +477,7 @@ export const ArrowMeshFactory = {
             opacity: number;
         },
     ): void {
-        const {type, is2D, size, width, length, color, opacity} = config;
+        const { type, is2D, size, width, length, color, opacity } = config;
         const isFilled = ArrowMeshFactory.FILLED_ARROWS.includes(type);
 
         // Common metadata
@@ -481,13 +502,13 @@ export const ArrowMeshFactory = {
     simulate2DArrow(
         mesh: TrackingMockMesh,
         material: TrackingMockMaterial,
-        config: {type: string; color: string; opacity: number},
+        config: { type: string; color: string; opacity: number },
     ): void {
         // 2D arrows use StandardMaterial with XY plane geometry
         // Reference: FilledArrowRenderer.create2DArrow()
         mesh.setMetadata("rendererType", "FilledArrowRenderer.create2DArrow");
         mesh.setMetadata("geometryPlane", "XY");
-        mesh.setMetadata("rotation", {x: Math.PI / 2, y: 0, z: 0});
+        mesh.setMetadata("rotation", { x: Math.PI / 2, y: 0, z: 0 });
 
         // StandardMaterial with emissive color (unlit)
         material.setMetadata("materialType", "StandardMaterial");
@@ -499,7 +520,7 @@ export const ArrowMeshFactory = {
     simulate3DFilledArrow(
         mesh: TrackingMockMesh,
         material: TrackingMockMaterial,
-        config: {type: string; size: number; color: string; opacity: number},
+        config: { type: string; size: number; color: string; opacity: number },
     ): void {
         // 3D filled arrows use tangent billboarding shader
         // Reference: FilledArrowRenderer.ts
@@ -528,7 +549,7 @@ export const ArrowMeshFactory = {
     simulate3DOutlineArrow(
         mesh: TrackingMockMesh,
         material: TrackingMockMaterial,
-        config: {type: string; size: number; width: number; color: string; opacity: number},
+        config: { type: string; size: number; width: number; color: string; opacity: number },
     ): void {
         // Outline arrows use CustomLineRenderer (same shader as lines)
         // Reference: design/edge-styles-implementation-plan.md Phase 3
@@ -552,19 +573,19 @@ export const ArrowMeshFactory = {
         mesh.visibility = config.opacity;
     },
 
-    getOutlineArrowPath(type: string): {points: number; closed: boolean} {
+    getOutlineArrowPath(type: string): { points: number; closed: boolean } {
         // Approximate path info for each outline arrow type
-        const paths: Record<string, {points: number; closed: boolean}> = {
-            "open-normal": {points: 3, closed: false},    // V-shape (2 segments)
-            "open-dot": {points: 33, closed: true},       // Circle outline
-            "open-diamond": {points: 5, closed: true},    // Diamond outline (4 segments)
-            "tee": {points: 2, closed: false},            // Perpendicular line (1 segment)
-            "open": {points: 3, closed: false},           // Chevron (2 segments)
-            "half-open": {points: 3, closed: false},      // Asymmetric V
-            "vee": {points: 3, closed: false},            // Wide V
-            "crow": {points: 7, closed: false},           // Three-prong fork (6 segments)
+        const paths: Record<string, { points: number; closed: boolean }> = {
+            "open-normal": { points: 3, closed: false }, // V-shape (2 segments)
+            "open-dot": { points: 33, closed: true }, // Circle outline
+            "open-diamond": { points: 5, closed: true }, // Diamond outline (4 segments)
+            tee: { points: 2, closed: false }, // Perpendicular line (1 segment)
+            open: { points: 3, closed: false }, // Chevron (2 segments)
+            "half-open": { points: 3, closed: false }, // Asymmetric V
+            vee: { points: 3, closed: false }, // Wide V
+            crow: { points: 7, closed: false }, // Three-prong fork (6 segments)
         };
-        return paths[type] ?? {points: 3, closed: false};
+        return paths[type] ?? { points: 3, closed: false };
     },
 
     validate(
@@ -580,12 +601,12 @@ export const ArrowMeshFactory = {
             if (mesh !== null) {
                 errors.push("Arrow type 'none' should return null mesh");
             }
-            return {isValid: errors.length === 0, errors, warnings, expected: style, actual: null};
+            return { isValid: errors.length === 0, errors, warnings, expected: style, actual: null };
         }
 
         if (!mesh || !material) {
             errors.push("Mesh and material should be created for non-none arrow type");
-            return {isValid: false, errors, warnings, expected: style, actual: null};
+            return { isValid: false, errors, warnings, expected: style, actual: null };
         }
 
         // Validate arrow type
@@ -605,7 +626,9 @@ export const ArrowMeshFactory = {
         // Validate material type
         const expectedMaterialType = is2D ? "StandardMaterial" : "ShaderMaterial";
         if (material.metadata.materialType !== expectedMaterialType) {
-            errors.push(`Material type mismatch: expected ${expectedMaterialType}, got ${material.metadata.materialType}`);
+            errors.push(
+                `Material type mismatch: expected ${expectedMaterialType}, got ${material.metadata.materialType}`,
+            );
         }
 
         // Validate opacity
@@ -651,13 +674,14 @@ interface ArrowTestResult {
 
 ### 2.2 Files to Modify
 
-| File | Changes |
-|------|---------|
+| File                                | Changes                                    |
+| ----------------------------------- | ------------------------------------------ |
 | `test/mesh-testing/mesh-factory.ts` | Add ArrowMeshFactory after EdgeMeshFactory |
 
 ### 2.3 Reference Pattern
 
 Follow `NodeMeshFactory.create()` pattern from `mesh-factory.ts:68-85`:
+
 - Return `{mesh, material, validation}` object
 - Use `TrackingMockMesh` and `TrackingMockMaterial`
 - Set metadata via `mesh.setMetadata()` and `material.setMetadata()`
@@ -683,8 +707,8 @@ Follow `test/mesh-testing/node-golden-masters.test.ts` structure:
  * to achieve 100% coverage of EdgeMesh.ts and related rendering code.
  */
 
-import {assert, describe, test} from "vitest";
-import {EdgeMeshFactory} from "./mesh-factory";
+import { assert, describe, test } from "vitest";
+import { EdgeMeshFactory } from "./mesh-factory";
 
 describe("Edge Golden Masters", () => {
     // Test structure mirrors node-golden-masters.test.ts
@@ -705,8 +729,7 @@ describe("Line Types", () => {
                 color: "#FF0000",
             });
 
-            assert.isTrue(result.validation.isValid,
-                `Validation failed: ${result.validation.errors.join(", ")}`);
+            assert.isTrue(result.validation.isValid, `Validation failed: ${result.validation.errors.join(", ")}`);
             assert.equal(result.mesh.metadata.lineType, "solid");
             assert.equal(result.mesh.metadata.rendererType, "CustomLineRenderer");
             assert.equal(result.mesh.metadata.meshType, "customLine");
@@ -724,8 +747,10 @@ describe("Line Types", () => {
                     color: "#00FF00",
                 });
 
-                assert.isTrue(result.validation.isValid,
-                    `${patternType} validation failed: ${result.validation.errors.join(", ")}`);
+                assert.isTrue(
+                    result.validation.isValid,
+                    `${patternType} validation failed: ${result.validation.errors.join(", ")}`,
+                );
                 assert.equal(result.mesh.metadata.lineType, patternType);
                 assert.equal(result.mesh.metadata.rendererType, "PatternedLineRenderer");
                 assert.isTrue(result.mesh.metadata.usesInstancing);
@@ -735,34 +760,34 @@ describe("Line Types", () => {
 
     describe("Pattern Shapes", () => {
         test("dot pattern uses circle instances", () => {
-            const result = EdgeMeshFactory.create({type: "dot"});
+            const result = EdgeMeshFactory.create({ type: "dot" });
             assert.equal(result.mesh.metadata.patternShape, "circle");
         });
 
         test("star pattern uses star instances", () => {
-            const result = EdgeMeshFactory.create({type: "star"});
+            const result = EdgeMeshFactory.create({ type: "star" });
             assert.equal(result.mesh.metadata.patternShape, "star");
         });
 
         test("box pattern uses square instances (1:1 aspect)", () => {
-            const result = EdgeMeshFactory.create({type: "box"});
+            const result = EdgeMeshFactory.create({ type: "box" });
             assert.equal(result.mesh.metadata.patternShape, "square");
             assert.equal(result.mesh.metadata.patternAspectRatio, 1);
         });
 
         test("dash pattern uses rectangle instances (3:1 aspect)", () => {
-            const result = EdgeMeshFactory.create({type: "dash"});
+            const result = EdgeMeshFactory.create({ type: "dash" });
             assert.equal(result.mesh.metadata.patternShape, "rectangle");
             assert.equal(result.mesh.metadata.patternAspectRatio, 3);
         });
 
         test("diamond pattern uses diamond instances", () => {
-            const result = EdgeMeshFactory.create({type: "diamond"});
+            const result = EdgeMeshFactory.create({ type: "diamond" });
             assert.equal(result.mesh.metadata.patternShape, "diamond");
         });
 
         test("dash-dot uses alternating shapes", () => {
-            const result = EdgeMeshFactory.create({type: "dash-dot"});
+            const result = EdgeMeshFactory.create({ type: "dash-dot" });
             assert.equal(result.mesh.metadata.patternShape, "alternating");
         });
     });
@@ -912,7 +937,7 @@ describe("Line Animation", () => {
 describe("Arrow Heads", () => {
     // Reference: node-golden-masters.test.ts lines 56-123 (Material Properties)
 
-    const arrowTypes = EdgeMeshFactory.ARROW_TYPES.filter(t => t !== "none");
+    const arrowTypes = EdgeMeshFactory.ARROW_TYPES.filter((t) => t !== "none");
 
     describe("All Arrow Types", () => {
         arrowTypes.forEach((arrowType) => {
@@ -930,13 +955,12 @@ describe("Arrow Heads", () => {
                     },
                 });
 
-                assert.isTrue(result.validation.isValid,
-                    `${arrowType} validation failed: ${result.validation.errors.join(", ")}`);
-                assert.isDefined(result.mesh.metadata.targetArrow);
-                assert.equal(
-                    (result.mesh.metadata.targetArrow as {type: string}).type,
-                    arrowType
+                assert.isTrue(
+                    result.validation.isValid,
+                    `${arrowType} validation failed: ${result.validation.errors.join(", ")}`,
                 );
+                assert.isDefined(result.mesh.metadata.targetArrow);
+                assert.equal((result.mesh.metadata.targetArrow as { type: string }).type, arrowType);
             });
 
             test(`creates source arrow: ${arrowType}`, () => {
@@ -955,10 +979,7 @@ describe("Arrow Heads", () => {
 
                 assert.isTrue(result.validation.isValid);
                 assert.isDefined(result.mesh.metadata.sourceArrow);
-                assert.equal(
-                    (result.mesh.metadata.sourceArrow as {type: string}).type,
-                    arrowType
-                );
+                assert.equal((result.mesh.metadata.sourceArrow as { type: string }).type, arrowType);
             });
         });
     });
@@ -970,22 +991,16 @@ describe("Arrow Heads", () => {
                 width: 3,
                 color: "#000000",
                 arrow: {
-                    source: {type: "normal", size: 1, color: "#FF0000"},
-                    target: {type: "inverted", size: 1.2, color: "#0000FF"},
+                    source: { type: "normal", size: 1, color: "#FF0000" },
+                    target: { type: "inverted", size: 1.2, color: "#0000FF" },
                 },
             });
 
             assert.isTrue(result.validation.isValid);
             assert.isDefined(result.mesh.metadata.sourceArrow);
             assert.isDefined(result.mesh.metadata.targetArrow);
-            assert.equal(
-                (result.mesh.metadata.sourceArrow as {type: string}).type,
-                "normal"
-            );
-            assert.equal(
-                (result.mesh.metadata.targetArrow as {type: string}).type,
-                "inverted"
-            );
+            assert.equal((result.mesh.metadata.sourceArrow as { type: string }).type, "normal");
+            assert.equal((result.mesh.metadata.targetArrow as { type: string }).type, "inverted");
         });
     });
 
@@ -999,15 +1014,12 @@ describe("Arrow Heads", () => {
                     width: 2,
                     color: "#000000",
                     arrow: {
-                        target: {type: "normal", size: size, color: "#FF0000"},
+                        target: { type: "normal", size: size, color: "#FF0000" },
                     },
                 });
 
                 assert.isTrue(result.validation.isValid);
-                assert.equal(
-                    (result.mesh.metadata.targetArrow as {size: number}).size,
-                    size
-                );
+                assert.equal((result.mesh.metadata.targetArrow as { size: number }).size, size);
             });
         });
     });
@@ -1019,16 +1031,13 @@ describe("Arrow Heads", () => {
                 width: 2,
                 color: "#0000FF", // Blue line
                 arrow: {
-                    target: {type: "normal", size: 1, color: "#FF0000"}, // Red arrow
+                    target: { type: "normal", size: 1, color: "#FF0000" }, // Red arrow
                 },
             });
 
             assert.isTrue(result.validation.isValid);
             assert.equal(result.mesh.metadata.lineColor, "#0000FF");
-            assert.equal(
-                (result.mesh.metadata.targetArrow as {color: string}).color,
-                "#FF0000"
-            );
+            assert.equal((result.mesh.metadata.targetArrow as { color: string }).color, "#FF0000");
         });
     });
 
@@ -1042,15 +1051,12 @@ describe("Arrow Heads", () => {
                     width: 2,
                     color: "#000000",
                     arrow: {
-                        target: {type: "normal", size: 1, color: "#FF0000", opacity},
+                        target: { type: "normal", size: 1, color: "#FF0000", opacity },
                     },
                 });
 
                 assert.isTrue(result.validation.isValid);
-                assert.equal(
-                    (result.mesh.metadata.targetArrow as {opacity: number}).opacity,
-                    opacity
-                );
+                assert.equal((result.mesh.metadata.targetArrow as { opacity: number }).opacity, opacity);
             });
         });
     });
@@ -1066,7 +1072,7 @@ describe("2D vs 3D Mode", () => {
             const result = EdgeMeshFactory.create({
                 type: "solid",
                 is2D: false,
-                arrow: {target: {type: "normal", size: 1, color: "#FF0000"}},
+                arrow: { target: { type: "normal", size: 1, color: "#FF0000" } },
             });
 
             assert.isTrue(result.validation.isValid);
@@ -1079,7 +1085,7 @@ describe("2D vs 3D Mode", () => {
             const result = EdgeMeshFactory.create({
                 type: "solid",
                 is2D: false,
-                arrow: {target: {type: "open-normal", size: 1, color: "#FF0000"}},
+                arrow: { target: { type: "open-normal", size: 1, color: "#FF0000" } },
             });
 
             assert.isTrue(result.validation.isValid);
@@ -1093,7 +1099,7 @@ describe("2D vs 3D Mode", () => {
             const result = EdgeMeshFactory.create({
                 type: "solid",
                 is2D: true,
-                arrow: {target: {type: "normal", size: 1, color: "#FF0000"}},
+                arrow: { target: { type: "normal", size: 1, color: "#FF0000" } },
             });
 
             assert.isTrue(result.validation.isValid);
@@ -1119,8 +1125,8 @@ describe("Combined Configurations", () => {
             opacity: 0.8,
             animationSpeed: 2,
             arrow: {
-                source: {type: "dot", size: 1, color: "#FF0000", opacity: 0.9},
-                target: {type: "diamond", size: 1.5, color: "#0000FF", opacity: 1.0},
+                source: { type: "dot", size: 1, color: "#FF0000", opacity: 0.9 },
+                target: { type: "diamond", size: 1.5, color: "#0000FF", opacity: 1.0 },
             },
         });
 
@@ -1140,21 +1146,15 @@ describe("Combined Configurations", () => {
             color: "#00FFFF",
             bezier: true,
             arrow: {
-                source: {type: "tee", size: 1, color: "#FFFF00"},
-                target: {type: "normal", size: 2, color: "#FF00FF"},
+                source: { type: "tee", size: 1, color: "#FFFF00" },
+                target: { type: "normal", size: 2, color: "#FF00FF" },
             },
         });
 
         assert.isTrue(result.validation.isValid);
         assert.isTrue(result.mesh.metadata.bezier);
-        assert.equal(
-            (result.mesh.metadata.sourceArrow as {type: string}).type,
-            "tee"
-        );
-        assert.equal(
-            (result.mesh.metadata.targetArrow as {type: string}).type,
-            "normal"
-        );
+        assert.equal((result.mesh.metadata.sourceArrow as { type: string }).type, "tee");
+        assert.equal((result.mesh.metadata.targetArrow as { type: string }).type, "normal");
     });
 });
 ```
@@ -1210,8 +1210,8 @@ describe("Default Values", () => {
 
 ### 3.9 Files to Create/Modify
 
-| File | Action |
-|------|--------|
+| File                                            | Action             |
+| ----------------------------------------------- | ------------------ |
 | `test/mesh-testing/edge-golden-masters.test.ts` | Rewrite completely |
 
 ---
@@ -1233,8 +1233,8 @@ describe("Default Values", () => {
  * and arrow-related code in EdgeMesh.ts.
  */
 
-import {assert, describe, test} from "vitest";
-import {ArrowMeshFactory} from "./mesh-factory";
+import { assert, describe, test } from "vitest";
+import { ArrowMeshFactory } from "./mesh-factory";
 
 describe("Arrowhead Golden Masters", () => {
     // All arrow shape tests
@@ -1256,8 +1256,7 @@ describe("Filled Arrow Geometry (3D)", () => {
                 color: "#FF0000",
             });
 
-            assert.isTrue(result.validation.isValid,
-                `Validation failed: ${result.validation.errors.join(", ")}`);
+            assert.isTrue(result.validation.isValid, `Validation failed: ${result.validation.errors.join(", ")}`);
             assert.equal(result.mesh.metadata.arrowType, "normal");
             assert.isTrue(result.mesh.metadata.isFilled);
             assert.equal(result.mesh.metadata.geometryPlane, "XZ");
@@ -1346,7 +1345,7 @@ describe("Filled Arrow Geometry (3D)", () => {
                 assert.equal(
                     result.mesh.metadata.geometryPlane,
                     "XZ",
-                    `${arrowType} MUST use XZ plane for tangent billboarding to work`
+                    `${arrowType} MUST use XZ plane for tangent billboarding to work`,
                 );
             });
 
@@ -1360,7 +1359,7 @@ describe("Filled Arrow Geometry (3D)", () => {
                 assert.equal(
                     result.mesh.metadata.faceNormal,
                     "Y",
-                    `${arrowType} face normal must be in ±Y for camera-facing`
+                    `${arrowType} face normal must be in ±Y for camera-facing`,
                 );
             });
         });
@@ -1520,7 +1519,7 @@ describe("Outline Arrow Geometry (3D)", () => {
                 assert.equal(
                     result.mesh.metadata.rendererType,
                     "CustomLineRenderer",
-                    `${arrowType} should use same shader as lines`
+                    `${arrowType} should use same shader as lines`,
                 );
                 assert.equal(result.material.metadata.shaderName, "customLine");
             });
@@ -1613,7 +1612,7 @@ describe("2D Arrow Properties", () => {
     // Reference: test/meshes/FilledArrowRenderer.test.ts (2D arrow tests)
 
     describe("StandardMaterial Usage", () => {
-        const allArrowTypes = ArrowMeshFactory.ARROW_TYPES.filter(t => t !== "none");
+        const allArrowTypes = ArrowMeshFactory.ARROW_TYPES.filter((t) => t !== "none");
 
         allArrowTypes.forEach((arrowType) => {
             test(`2D ${arrowType} uses StandardMaterial`, () => {
@@ -1774,8 +1773,8 @@ describe("None Type and Error Handling", () => {
 
 ### 4.8 Files to Create
 
-| File | Action |
-|------|--------|
+| File                                                 | Action          |
+| ---------------------------------------------------- | --------------- |
 | `test/mesh-testing/arrowhead-golden-masters.test.ts` | Create new file |
 
 ---
@@ -1801,7 +1800,7 @@ describe("Bezier Curves", () => {
             color: "#FF0000",
         };
         const style = {
-            line: {width: 0.5, color: "#FF0000", bezier: true},
+            line: { width: 0.5, color: "#FF0000", bezier: true },
             enabled: true,
         };
 
@@ -1823,7 +1822,7 @@ describe("Line Opacity", () => {
             color: "#FF0000",
         };
         const style = {
-            line: {width: 0.5, color: "#FF0000", opacity: 0.5},
+            line: { width: 0.5, color: "#FF0000", opacity: 0.5 },
             enabled: true,
         };
 
@@ -1851,14 +1850,7 @@ describe("FilledArrowRenderer - 3D Arrows", () => {
             return;
         }
 
-        const mesh = FilledArrowRenderer.create3DArrow(
-            "normal",
-            0.5,
-            0.3,
-            "#ff0000",
-            1.0,
-            scene,
-        );
+        const mesh = FilledArrowRenderer.create3DArrow("normal", 0.5, 0.3, "#ff0000", 1.0, scene);
 
         assert.exists(mesh);
         assert.instanceOf(mesh.material, ShaderMaterial);
@@ -1869,14 +1861,7 @@ describe("FilledArrowRenderer - 3D Arrows", () => {
 
         filledTypes.forEach((arrowType) => {
             test(`${arrowType} geometry is in XZ plane (Y=0)`, () => {
-                const mesh = FilledArrowRenderer.create2DArrow(
-                    arrowType,
-                    0.5,
-                    0.3,
-                    "#ff0000",
-                    1.0,
-                    scene,
-                );
+                const mesh = FilledArrowRenderer.create2DArrow(arrowType, 0.5, 0.3, "#ff0000", 1.0, scene);
 
                 const positions = mesh.getVerticesData("position");
                 assert.exists(positions);
@@ -1891,11 +1876,11 @@ describe("FilledArrowRenderer - 3D Arrows", () => {
 
 ### 5.3 Files to Modify
 
-| File | Changes |
-|------|---------|
-| `test/EdgeMesh.test.ts` | Add bezier, opacity tests |
-| `test/meshes/FilledArrowRenderer.test.ts` | Add 3D arrow tests |
-| `test/CustomLineRenderer.test.ts` | Add pattern-specific tests |
+| File                                      | Changes                    |
+| ----------------------------------------- | -------------------------- |
+| `test/EdgeMesh.test.ts`                   | Add bezier, opacity tests  |
+| `test/meshes/FilledArrowRenderer.test.ts` | Add 3D arrow tests         |
+| `test/CustomLineRenderer.test.ts`         | Add pattern-specific tests |
 
 ---
 
@@ -1915,11 +1900,11 @@ describe("FilledArrowRenderer - 3D Arrows", () => {
  * positioning, and transformation.
  */
 
-import {NullEngine, Scene, Vector3} from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import {Edge} from "../src/Edge";
-import {MeshCache} from "../src/meshes/MeshCache";
+import { Edge } from "../src/Edge";
+import { MeshCache } from "../src/meshes/MeshCache";
 
 describe("Edge Integration", () => {
     let scene: Scene;
@@ -1977,8 +1962,8 @@ describe("Edge Integration", () => {
 
 ### 6.2 Files to Create
 
-| File | Action |
-|------|--------|
+| File                            | Action          |
+| ------------------------------- | --------------- |
 | `test/Edge.integration.test.ts` | Create new file |
 
 ---
@@ -2020,9 +2005,9 @@ Create a dedicated performance test file:
  * - BabylonJS SceneInstrumentation for scene metrics
  */
 
-import {NullEngine, Scene} from "@babylonjs/core";
-import {afterEach, beforeEach, describe, test} from "vitest";
-import type {PerformanceSnapshot, OperationBlockingStats} from "../../src/managers/StatsManager";
+import { NullEngine, Scene } from "@babylonjs/core";
+import { afterEach, beforeEach, describe, test } from "vitest";
+import type { PerformanceSnapshot, OperationBlockingStats } from "../../src/managers/StatsManager";
 
 // Extended performance metrics using StatsManager data
 interface PerformanceMetrics {
@@ -2033,11 +2018,11 @@ interface PerformanceMetrics {
     arrowType: string;
 
     // CPU timing metrics (from StatsManager.getSnapshot().cpu)
-    edgeCreationTime: number;          // Edge.constructor total
-    edgeUpdateTime: number;            // Edge.update total
-    arrowCapUpdateTime: number;        // ArrowCap update total
-    intersectCalcTime: number;         // Ray intersection calculation
-    graphStepTime: number;             // Layout physics step (ngraph only)
+    edgeCreationTime: number; // Edge.constructor total
+    edgeUpdateTime: number; // Edge.update total
+    arrowCapUpdateTime: number; // ArrowCap update total
+    intersectCalcTime: number; // Ray intersection calculation
+    graphStepTime: number; // Layout physics step (ngraph only)
 
     // Percentiles (from StatsManager)
     edgeUpdateP95: number;
@@ -2080,29 +2065,29 @@ const TEST_CONFIG = {
     EDGE_COUNTS: [10, 100, 1000, 10000],
 
     LAYOUT_TYPES: [
-        {name: "fixed", type: "fixed", isPhysics: false},
-        {name: "ngraph", type: "ngraph", isPhysics: true},
+        { name: "fixed", type: "fixed", isPhysics: false },
+        { name: "ngraph", type: "ngraph", isPhysics: true },
     ],
 
     LINE_STYLES: [
-        {name: "solid", type: "solid", pattern: null},
-        {name: "dot", type: "dot", pattern: "circle"},
-        {name: "dash", type: "dash", pattern: "rectangle"},
-        {name: "diamond", type: "diamond", pattern: "diamond"},
-        {name: "sinewave", type: "sinewave", pattern: "wave"},
-        {name: "zigzag", type: "zigzag", pattern: "zigzag"},
+        { name: "solid", type: "solid", pattern: null },
+        { name: "dot", type: "dot", pattern: "circle" },
+        { name: "dash", type: "dash", pattern: "rectangle" },
+        { name: "diamond", type: "diamond", pattern: "diamond" },
+        { name: "sinewave", type: "sinewave", pattern: "wave" },
+        { name: "zigzag", type: "zigzag", pattern: "zigzag" },
     ],
 
     ARROW_TYPES: [
-        {name: "none", type: "none", renderer: null},
-        {name: "normal", type: "normal", renderer: "FilledArrowRenderer"},
-        {name: "sphere-dot", type: "sphere-dot", renderer: "FilledArrowRenderer"},
-        {name: "diamond", type: "diamond", renderer: "FilledArrowRenderer"},
-        {name: "box", type: "box", renderer: "FilledArrowRenderer"},
-        {name: "dot", type: "dot", renderer: "FilledArrowRenderer"},
-        {name: "tee", type: "tee", renderer: "CustomLineRenderer"},
-        {name: "open-normal", type: "open-normal", renderer: "CustomLineRenderer"},
-        {name: "crow", type: "crow", renderer: "CustomLineRenderer"},
+        { name: "none", type: "none", renderer: null },
+        { name: "normal", type: "normal", renderer: "FilledArrowRenderer" },
+        { name: "sphere-dot", type: "sphere-dot", renderer: "FilledArrowRenderer" },
+        { name: "diamond", type: "diamond", renderer: "FilledArrowRenderer" },
+        { name: "box", type: "box", renderer: "FilledArrowRenderer" },
+        { name: "dot", type: "dot", renderer: "FilledArrowRenderer" },
+        { name: "tee", type: "tee", renderer: "CustomLineRenderer" },
+        { name: "open-normal", type: "open-normal", renderer: "CustomLineRenderer" },
+        { name: "crow", type: "crow", renderer: "CustomLineRenderer" },
     ],
 
     // Test settings
@@ -2241,10 +2226,10 @@ describe("Edge Performance Tests", () => {
                 metrics.push(...results);
 
                 // Solid should be fastest (no instancing overhead)
-                const solidResult = results.find(r => r.lineStyle === "solid")!;
-                const avgPatternedFps = results
-                    .filter(r => r.lineStyle !== "solid")
-                    .reduce((sum, r) => sum + r.fps, 0) / (results.length - 1);
+                const solidResult = results.find((r) => r.lineStyle === "solid")!;
+                const avgPatternedFps =
+                    results.filter((r) => r.lineStyle !== "solid").reduce((sum, r) => sum + r.fps, 0) /
+                    (results.length - 1);
 
                 // Solid line should be at least 80% of patterned performance
                 assert.isAbove(solidResult.fps, avgPatternedFps * 0.8);
@@ -2350,10 +2335,10 @@ describe("Edge Performance Tests", () => {
                 metrics.push(...results);
 
                 // "none" should be fastest
-                const noArrowResult = results.find(r => r.arrowType === "none")!;
-                const avgWithArrowFps = results
-                    .filter(r => r.arrowType !== "none")
-                    .reduce((sum, r) => sum + r.fps, 0) / (results.length - 1);
+                const noArrowResult = results.find((r) => r.arrowType === "none")!;
+                const avgWithArrowFps =
+                    results.filter((r) => r.arrowType !== "none").reduce((sum, r) => sum + r.fps, 0) /
+                    (results.length - 1);
 
                 // No arrow should be at least 20% faster than average with arrows
                 assert.isAbove(noArrowResult.fps, avgWithArrowFps * 1.1);
@@ -2546,9 +2531,9 @@ describe("Edge Performance Tests", () => {
 ```typescript
 // test/helpers/performance-utils.ts
 
-import type {PerformanceSnapshot, OperationBlockingStats} from "../../src/managers/StatsManager";
-import type {StatsManager} from "../../src/managers/StatsManager";
-import type {Graph} from "../../src/Graph";
+import type { PerformanceSnapshot, OperationBlockingStats } from "../../src/managers/StatsManager";
+import type { StatsManager } from "../../src/managers/StatsManager";
+import type { Graph } from "../../src/Graph";
 
 interface MeasurementOptions {
     edgeCount: number;
@@ -2563,7 +2548,7 @@ interface MeasurementOptions {
  * This integrates with the existing instrumentation infrastructure
  */
 async function measureEdgePerformance(options: MeasurementOptions): Promise<PerformanceMetrics> {
-    const {edgeCount, layoutType, lineStyle, arrowType, arrowTailType} = options;
+    const { edgeCount, layoutType, lineStyle, arrowType, arrowTailType } = options;
 
     // Capture memory before
     const heapUsedBefore = process.memoryUsage?.().heapUsed ?? 0;
@@ -2574,9 +2559,9 @@ async function measureEdgePerformance(options: MeasurementOptions): Promise<Perf
         edgeCount,
         layoutType,
         edgeStyle: {
-            line: {type: lineStyle, width: 0.5, color: "#FFFFFF"},
-            arrowHead: arrowType !== "none" ? {type: arrowType, size: 1, color: "#FF0000"} : undefined,
-            arrowTail: arrowTailType ? {type: arrowTailType, size: 1, color: "#00FF00"} : undefined,
+            line: { type: lineStyle, width: 0.5, color: "#FFFFFF" },
+            arrowHead: arrowType !== "none" ? { type: arrowType, size: 1, color: "#FF0000" } : undefined,
+            arrowTail: arrowTailType ? { type: arrowTailType, size: 1, color: "#00FF00" } : undefined,
         },
     });
 
@@ -2624,8 +2609,8 @@ async function measureEdgePerformance(options: MeasurementOptions): Promise<Perf
     const metrics = extractMetricsFromSnapshot(
         snapshot,
         blockingReport,
-        {edgeCount, layoutType, lineStyle, arrowType},
-        {heapUsedBefore, heapUsedAfter, memoryDelta},
+        { edgeCount, layoutType, lineStyle, arrowType },
+        { heapUsedBefore, heapUsedAfter, memoryDelta },
     );
 
     // Output detailed report if verbose
@@ -2647,11 +2632,11 @@ async function measureEdgePerformance(options: MeasurementOptions): Promise<Perf
 function extractMetricsFromSnapshot(
     snapshot: PerformanceSnapshot,
     blockingReport: OperationBlockingStats[],
-    config: {edgeCount: number, layoutType: string, lineStyle: string, arrowType: string},
-    memory: {heapUsedBefore: number, heapUsedAfter: number, memoryDelta: number},
+    config: { edgeCount: number; layoutType: string; lineStyle: string; arrowType: string },
+    memory: { heapUsedBefore: number; heapUsedAfter: number; memoryDelta: number },
 ): PerformanceMetrics {
     // Helper to find CPU measurement by label
-    const findCpu = (label: string) => snapshot.cpu.find(m => m.label === label);
+    const findCpu = (label: string) => snapshot.cpu.find((m) => m.label === label);
 
     // Extract CPU metrics
     const edgeUpdate = findCpu("Edge.update");
@@ -2661,8 +2646,7 @@ function extractMetricsFromSnapshot(
     const graphStep = findCpu("Graph.step");
 
     // Calculate FPS from scene metrics
-    const fps = snapshot.scene?.frameTime.avg ?
-        1000 / snapshot.scene.frameTime.avg : 0;
+    const fps = snapshot.scene?.frameTime.avg ? 1000 / snapshot.scene.frameTime.avg : 0;
 
     return {
         // Config
@@ -2703,8 +2687,7 @@ function extractMetricsFromSnapshot(
 
         // Derived
         fps,
-        edgesPerSecond: (edgeCreation?.total ?? 0) > 0 ?
-            config.edgeCount / ((edgeCreation?.total ?? 1) / 1000) : 0,
+        edgesPerSecond: (edgeCreation?.total ?? 0) > 0 ? config.edgeCount / ((edgeCreation?.total ?? 1) / 1000) : 0,
 
         // Memory
         ...memory,
@@ -2802,8 +2785,12 @@ function identifyBottlenecks(metrics: PerformanceMetrics): BottleneckReport {
 
     return {
         bottlenecks,
-        overallHealth: bottlenecks.filter(b => b.severity === "high").length > 0 ? "poor" :
-            bottlenecks.filter(b => b.severity === "medium").length > 0 ? "fair" : "good",
+        overallHealth:
+            bottlenecks.filter((b) => b.severity === "high").length > 0
+                ? "poor"
+                : bottlenecks.filter((b) => b.severity === "medium").length > 0
+                  ? "fair"
+                  : "good",
         summary: generateSummary(metrics, bottlenecks),
     };
 }
@@ -2832,7 +2819,7 @@ function generateSummary(metrics: PerformanceMetrics, bottlenecks: BottleneckIte
 
     if (bottlenecks.length > 0) {
         lines.push(`\nBottlenecks found: ${bottlenecks.length}`);
-        for (const b of bottlenecks.filter(b => b.severity === "high")) {
+        for (const b of bottlenecks.filter((b) => b.severity === "high")) {
             lines.push(`  ⚠️ ${b.message}`);
         }
     }
@@ -2862,7 +2849,7 @@ async function createTestGraph(config: {
     });
 
     // Add data
-    await graph.setData({nodes, edges});
+    await graph.setData({ nodes, edges });
 
     return graph;
 }
@@ -2907,10 +2894,9 @@ describe("Bottleneck Detection", () => {
 
             // Validate blocking correlation identifies key operations
             const edgeRelatedBottlenecks = report.bottlenecks.filter(
-                b => b.component.includes("Edge") || b.component.includes("Arrow")
+                (b) => b.component.includes("Edge") || b.component.includes("Arrow"),
             );
-            assert.isAbove(edgeRelatedBottlenecks.length, 0,
-                "Should identify edge-related bottlenecks");
+            assert.isAbove(edgeRelatedBottlenecks.length, 0, "Should identify edge-related bottlenecks");
         });
 
         test("identifies ray intersection as potential bottleneck", async () => {
@@ -2922,12 +2908,11 @@ describe("Bottleneck Detection", () => {
             });
 
             // Ray intersections should be visible in CPU metrics
-            assert.isAbove(metrics.intersectCalcTime, 0,
-                "Ray intersection should have measurable time");
+            assert.isAbove(metrics.intersectCalcTime, 0, "Ray intersection should have measurable time");
 
             // Check if it appears in blocking report
             const rayInBlocking = metrics.topBlockingOperations.find(
-                op => op.label.includes("intersect") || op.label.includes("Ray")
+                (op) => op.label.includes("intersect") || op.label.includes("Ray"),
             );
 
             if (rayInBlocking && rayInBlocking.highBlockingPercentage > 30) {
@@ -2951,11 +2936,8 @@ describe("Bottleneck Detection", () => {
             console.log(`Draw calls: ${metrics.drawCallsCount}`);
 
             if (metrics.drawCallsCount > 500) {
-                const drawCallBottleneck = report.bottlenecks.find(
-                    b => b.type === "draw-calls"
-                );
-                assert.exists(drawCallBottleneck,
-                    "Should identify draw calls as bottleneck");
+                const drawCallBottleneck = report.bottlenecks.find((b) => b.type === "draw-calls");
+                assert.exists(drawCallBottleneck, "Should identify draw calls as bottleneck");
             }
         });
 
@@ -2980,8 +2962,11 @@ describe("Bottleneck Detection", () => {
             console.log(`Draw calls - Patterned: ${patternedMetrics.drawCallsCount}`);
 
             // Patterned lines use instancing - should have reasonable overhead
-            assert.isBelow(patternedMetrics.gpuFrameTimeAvg, solidMetrics.gpuFrameTimeAvg * 3,
-                "Patterned lines shouldn't have >3x GPU overhead");
+            assert.isBelow(
+                patternedMetrics.gpuFrameTimeAvg,
+                solidMetrics.gpuFrameTimeAvg * 3,
+                "Patterned lines shouldn't have >3x GPU overhead",
+            );
         });
     });
 
@@ -2991,7 +2976,7 @@ describe("Bottleneck Detection", () => {
                 nodeCount: 50,
                 edgeCount: 1000,
                 layoutType: "ngraph",
-                edgeStyle: {line: {type: "solid", width: 0.5, color: "#FFF"}},
+                edgeStyle: { line: { type: "solid", width: 0.5, color: "#FFF" } },
             });
 
             const statsManager = graph.getStatsManager();
@@ -3012,14 +2997,13 @@ describe("Bottleneck Detection", () => {
             blockingReport.slice(0, 5).forEach((op, i) => {
                 console.log(
                     `  ${i + 1}. ${op.label}: ` +
-                    `${op.highBlockingPercentage.toFixed(1)}% high-blocking, ` +
-                    `${op.avgBlockingRatioWhenPresent.toFixed(2)}x ratio`
+                        `${op.highBlockingPercentage.toFixed(1)}% high-blocking, ` +
+                        `${op.avgBlockingRatioWhenPresent.toFixed(2)}x ratio`,
                 );
             });
 
             // Should have identified some operations
-            assert.isAbove(blockingReport.length, 0,
-                "Should identify operations in blocking report");
+            assert.isAbove(blockingReport.length, 0, "Should identify operations in blocking report");
 
             statsManager.disableProfiling();
             statsManager.disableFrameProfiling();
@@ -3033,8 +3017,8 @@ describe("Bottleneck Detection", () => {
                 edgeCount: 5000, // Large enough to potentially cause long tasks
                 layoutType: "ngraph",
                 edgeStyle: {
-                    line: {type: "diamond", width: 0.5, color: "#FFF"},
-                    arrowHead: {type: "normal", size: 1, color: "#F00"},
+                    line: { type: "diamond", width: 0.5, color: "#FFF" },
+                    arrowHead: { type: "normal", size: 1, color: "#F00" },
                 },
             });
 
@@ -3078,13 +3062,12 @@ describe("Bottleneck Detection", () => {
             console.log(`FPS with arrows: ${filledArrowMetrics.fps.toFixed(1)}`);
 
             // Arrow overhead should be reasonable
-            assert.isBelow(overheadPercent, 50,
-                "Arrow update shouldn't exceed 50% of edge update time");
+            assert.isBelow(overheadPercent, 50, "Arrow update shouldn't exceed 50% of edge update time");
         });
 
         test("measures PatternedLineRenderer instance count scaling", async () => {
             const edgeCounts = [100, 500, 1000];
-            const results: {count: number, drawCalls: number, fps: number}[] = [];
+            const results: { count: number; drawCalls: number; fps: number }[] = [];
 
             for (const count of edgeCounts) {
                 const metrics = await measureEdgePerformance({
@@ -3108,8 +3091,7 @@ describe("Bottleneck Detection", () => {
             const drawCallRatio = results[2].drawCalls / results[0].drawCalls;
             const edgeRatio = results[2].count / results[0].count;
 
-            assert.isBelow(drawCallRatio, edgeRatio,
-                "Draw calls should scale sub-linearly with instancing");
+            assert.isBelow(drawCallRatio, edgeRatio, "Draw calls should scale sub-linearly with instancing");
         });
 
         test("measures CustomLineRenderer vs PatternedLineRenderer", async () => {
@@ -3117,19 +3099,23 @@ describe("Bottleneck Detection", () => {
                 edgeCount: 1000,
                 layoutType: "fixed",
                 lineStyle: "solid", // CustomLineRenderer
-                arrowType: "tee",   // CustomLineRenderer arrow
+                arrowType: "tee", // CustomLineRenderer arrow
             });
 
             const patternedLineMetrics = await measureEdgePerformance({
                 edgeCount: 1000,
                 layoutType: "fixed",
                 lineStyle: "diamond", // PatternedLineRenderer
-                arrowType: "normal",  // FilledArrowRenderer arrow
+                arrowType: "normal", // FilledArrowRenderer arrow
             });
 
             console.log("Renderer Comparison:");
-            console.log(`CustomLineRenderer: ${customLineMetrics.fps.toFixed(1)} FPS, ${customLineMetrics.drawCallsCount} draw calls`);
-            console.log(`PatternedLineRenderer: ${patternedLineMetrics.fps.toFixed(1)} FPS, ${patternedLineMetrics.drawCallsCount} draw calls`);
+            console.log(
+                `CustomLineRenderer: ${customLineMetrics.fps.toFixed(1)} FPS, ${customLineMetrics.drawCallsCount} draw calls`,
+            );
+            console.log(
+                `PatternedLineRenderer: ${patternedLineMetrics.fps.toFixed(1)} FPS, ${patternedLineMetrics.drawCallsCount} draw calls`,
+            );
 
             // Both should be usable
             assert.isAbove(customLineMetrics.fps, 20);
@@ -3145,11 +3131,11 @@ describe("Bottleneck Detection", () => {
 describe("Performance Regression Tests", () => {
     // Baseline metrics (update these when performance improves)
     const BASELINES = {
-        "100_edges_fixed_solid_none": {fps: 60, creationTime: 100},
-        "1000_edges_fixed_solid_none": {fps: 45, creationTime: 500},
-        "1000_edges_fixed_solid_normal": {fps: 35, creationTime: 700},
-        "1000_edges_ngraph_solid_none": {fps: 20, creationTime: 800},
-        "1000_edges_fixed_diamond_normal": {fps: 25, creationTime: 800},
+        "100_edges_fixed_solid_none": { fps: 60, creationTime: 100 },
+        "1000_edges_fixed_solid_none": { fps: 45, creationTime: 500 },
+        "1000_edges_fixed_solid_normal": { fps: 35, creationTime: 700 },
+        "1000_edges_ngraph_solid_none": { fps: 20, creationTime: 800 },
+        "1000_edges_fixed_diamond_normal": { fps: 25, creationTime: 800 },
     };
 
     Object.entries(BASELINES).forEach(([key, baseline]) => {
@@ -3164,10 +3150,16 @@ describe("Performance Regression Tests", () => {
             });
 
             // Should not regress more than 20% from baseline
-            assert.isAbove(result.fps, baseline.fps * 0.8,
-                `FPS regression: expected >= ${baseline.fps * 0.8}, got ${result.fps}`);
-            assert.isBelow(result.edgeCreationTime, baseline.creationTime * 1.2,
-                `Creation time regression: expected <= ${baseline.creationTime * 1.2}, got ${result.edgeCreationTime}`);
+            assert.isAbove(
+                result.fps,
+                baseline.fps * 0.8,
+                `FPS regression: expected >= ${baseline.fps * 0.8}, got ${result.fps}`,
+            );
+            assert.isBelow(
+                result.edgeCreationTime,
+                baseline.creationTime * 1.2,
+                `Creation time regression: expected <= ${baseline.creationTime * 1.2}, got ${result.edgeCreationTime}`,
+            );
 
             // Also check for new bottlenecks
             const report = identifyBottlenecks(result);
@@ -3182,44 +3174,45 @@ describe("Performance Regression Tests", () => {
 ### 7.6 Performance Test Matrix Summary
 
 | Edge Count | Layout | Line Style | Arrow Type | Expected FPS |
-|------------|--------|------------|------------|--------------|
-| 10 | fixed | solid | none | 60+ |
-| 10 | ngraph | solid | none | 60 |
-| 100 | fixed | solid | none | 60 |
-| 100 | ngraph | solid | none | 45+ |
-| 100 | fixed | solid | normal | 60 |
-| 1000 | fixed | solid | none | 45+ |
-| 1000 | ngraph | solid | none | 20+ |
-| 1000 | fixed | solid | normal | 35+ |
-| 1000 | fixed | diamond | normal | 25+ |
-| 1000 | fixed | dot | sphere-dot | 25+ |
-| 1000 | fixed | dash | tee | 30+ |
-| 1000 | ngraph | solid | normal | 15+ |
-| 10000 | fixed | solid | none | 20+ |
-| 10000 | ngraph | solid | none | 10+ |
+| ---------- | ------ | ---------- | ---------- | ------------ |
+| 10         | fixed  | solid      | none       | 60+          |
+| 10         | ngraph | solid      | none       | 60           |
+| 100        | fixed  | solid      | none       | 60           |
+| 100        | ngraph | solid      | none       | 45+          |
+| 100        | fixed  | solid      | normal     | 60           |
+| 1000       | fixed  | solid      | none       | 45+          |
+| 1000       | ngraph | solid      | none       | 20+          |
+| 1000       | fixed  | solid      | normal     | 35+          |
+| 1000       | fixed  | diamond    | normal     | 25+          |
+| 1000       | fixed  | dot        | sphere-dot | 25+          |
+| 1000       | fixed  | dash       | tee        | 30+          |
+| 1000       | ngraph | solid      | normal     | 15+          |
+| 10000      | fixed  | solid      | none       | 20+          |
+| 10000      | ngraph | solid      | none       | 10+          |
 
 ### 7.7 Files to Create
 
-| File | Action |
-|------|--------|
+| File                                        | Action                           |
+| ------------------------------------------- | -------------------------------- |
 | `test/performance/edge-performance.test.ts` | Create new performance test file |
-| `test/helpers/performance-utils.ts` | Create utility functions |
+| `test/helpers/performance-utils.ts`         | Create utility functions         |
 
 ### 7.8 Bottleneck Detection Capabilities
 
 The performance tests use `StatsManager` to automatically identify bottlenecks:
 
-| Bottleneck Type | Detection Method | Threshold |
-|-----------------|------------------|-----------|
-| CPU-bound layout | `layoutSession.percentages.cpu` | >80% |
-| Blocking overhead | `layoutSession.percentages.blocking` | >30% |
-| Slow edge updates | `edgeUpdate.p99` | >5ms |
-| GPU-bound | `gpu.gpuFrameTime.avg` | >16ms (60 FPS) |
-| High draw calls | `scene.drawCalls.count` | >500 (warn), >1000 (error) |
-| Shader compilation | `gpu.shaderCompilation.total` | >100ms |
-| Blocking correlation | `getBlockingReport()` | >50% high-blocking frames |
+| Bottleneck Type      | Detection Method                     | Threshold                  |
+| -------------------- | ------------------------------------ | -------------------------- |
+| CPU-bound layout     | `layoutSession.percentages.cpu`      | >80%                       |
+| Blocking overhead    | `layoutSession.percentages.blocking` | >30%                       |
+| Slow edge updates    | `edgeUpdate.p99`                     | >5ms                       |
+| GPU-bound            | `gpu.gpuFrameTime.avg`               | >16ms (60 FPS)             |
+| High draw calls      | `scene.drawCalls.count`              | >500 (warn), >1000 (error) |
+| Shader compilation   | `gpu.shaderCompilation.total`        | >100ms                     |
+| Blocking correlation | `getBlockingReport()`                | >50% high-blocking frames  |
 
 **Actionable Outputs:**
+
 - `identifyBottlenecks()` returns severity-ranked list with suggestions
 - `statsManager.reportDetailed()` outputs comprehensive console report
 - Frame-level blocking detection with Long Task API integration
@@ -3229,48 +3222,48 @@ The performance tests use `StatsManager` to automatically identify bottlenecks:
 
 This phase ensures all renderer code paths are tested under load:
 
-| Code Path | Covered By |
-|-----------|-----------|
-| `CustomLineRenderer` (solid lines) | All solid line tests |
+| Code Path                                    | Covered By                                 |
+| -------------------------------------------- | ------------------------------------------ |
+| `CustomLineRenderer` (solid lines)           | All solid line tests                       |
 | `PatternedLineRenderer` (instanced patterns) | dot, dash, diamond, sinewave, zigzag tests |
-| `FilledArrowRenderer` (filled 3D arrows) | normal, inverted, diamond, box, dot tests |
-| `FilledArrowRenderer.sphereDot` | sphere-dot tests |
-| Outline arrows via `CustomLineRenderer` | tee, open-normal, crow, vee tests |
-| Physics layout updates | All ngraph layout tests |
-| Static positioning | All fixed layout tests |
-| Bidirectional arrows | Bidirectional arrow tests |
-| Ray intersection | Bottleneck detection tests |
-| Mesh instancing efficiency | PatternedLineRenderer scaling tests |
+| `FilledArrowRenderer` (filled 3D arrows)     | normal, inverted, diamond, box, dot tests  |
+| `FilledArrowRenderer.sphereDot`              | sphere-dot tests                           |
+| Outline arrows via `CustomLineRenderer`      | tee, open-normal, crow, vee tests          |
+| Physics layout updates                       | All ngraph layout tests                    |
+| Static positioning                           | All fixed layout tests                     |
+| Bidirectional arrows                         | Bidirectional arrow tests                  |
+| Ray intersection                             | Bottleneck detection tests                 |
+| Mesh instancing efficiency                   | PatternedLineRenderer scaling tests        |
 
 ---
 
 ## Summary: Files to Create/Modify
 
-| Phase | File | Action |
-|-------|------|--------|
-| 1 | `test/mesh-testing/mesh-factory.ts` | Update EdgeMeshFactory |
-| 2 | `test/mesh-testing/mesh-factory.ts` | Add ArrowMeshFactory |
-| 3 | `test/mesh-testing/edge-golden-masters.test.ts` | Rewrite completely |
-| 4 | `test/mesh-testing/arrowhead-golden-masters.test.ts` | Create new |
-| 5 | `test/EdgeMesh.test.ts` | Enhance |
-| 5 | `test/meshes/FilledArrowRenderer.test.ts` | Enhance |
-| 5 | `test/CustomLineRenderer.test.ts` | Enhance |
-| 6 | `test/integration/Edge.integration.test.ts` | Create new |
-| 7 | `test/performance/edge-performance.test.ts` | Create new |
-| 7 | `test/helpers/performance-utils.ts` | Create new |
+| Phase | File                                                 | Action                 |
+| ----- | ---------------------------------------------------- | ---------------------- |
+| 1     | `test/mesh-testing/mesh-factory.ts`                  | Update EdgeMeshFactory |
+| 2     | `test/mesh-testing/mesh-factory.ts`                  | Add ArrowMeshFactory   |
+| 3     | `test/mesh-testing/edge-golden-masters.test.ts`      | Rewrite completely     |
+| 4     | `test/mesh-testing/arrowhead-golden-masters.test.ts` | Create new             |
+| 5     | `test/EdgeMesh.test.ts`                              | Enhance                |
+| 5     | `test/meshes/FilledArrowRenderer.test.ts`            | Enhance                |
+| 5     | `test/CustomLineRenderer.test.ts`                    | Enhance                |
+| 6     | `test/integration/Edge.integration.test.ts`          | Create new             |
+| 7     | `test/performance/edge-performance.test.ts`          | Create new             |
+| 7     | `test/helpers/performance-utils.ts`                  | Create new             |
 
 ## Estimated Total Effort
 
-| Phase | Description | Effort |
-|-------|-------------|--------|
-| 1 | Update Edge Mock Factory | 1-2 days |
-| 2 | Create Arrow Mock Factory | 1 day |
-| 3 | Rewrite Edge Golden Masters | 1-2 days |
-| 4 | Create Arrowhead Golden Masters | 2-3 days |
-| 5 | Enhance Unit Tests | 1-2 days |
-| 6 | Integration Tests | 1 day |
-| 7 | Performance Tests | 2-3 days |
-| **Total** | | **9-14 days** |
+| Phase     | Description                     | Effort        |
+| --------- | ------------------------------- | ------------- |
+| 1         | Update Edge Mock Factory        | 1-2 days      |
+| 2         | Create Arrow Mock Factory       | 1 day         |
+| 3         | Rewrite Edge Golden Masters     | 1-2 days      |
+| 4         | Create Arrowhead Golden Masters | 2-3 days      |
+| 5         | Enhance Unit Tests              | 1-2 days      |
+| 6         | Integration Tests               | 1 day         |
+| 7         | Performance Tests               | 2-3 days      |
+| **Total** |                                 | **9-14 days** |
 
 ## Key Reference Files
 

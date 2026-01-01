@@ -1,7 +1,7 @@
-import type {Meta, StoryObj} from "@storybook/web-components-vite";
+import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import type {Graphty} from "../src/graphty-element";
-import {eventWaitingDecorator, renderFn, templateCreator} from "./helpers";
+import type { Graphty } from "../src/graphty-element";
+import { eventWaitingDecorator, renderFn, templateCreator } from "./helpers";
 
 interface EdgeData {
     src: string;
@@ -16,7 +16,7 @@ function generateEdges(nodeCount: number, edgeCount: number): EdgeData[] {
     const edges: EdgeData[] = [];
     let seed = 42;
     const random = (): number => {
-        seed = ((seed * 1103515245) + 12345) & 0x7fffffff;
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
         return seed / 0x7fffffff;
     };
 
@@ -31,7 +31,7 @@ function generateEdges(nodeCount: number, edgeCount: number): EdgeData[] {
         const key = `${i}-${dst}`;
         if (!edgeSet.has(key)) {
             edgeSet.add(key);
-            edges.push({src: `node-${i}`, dst: `node-${dst}`});
+            edges.push({ src: `node-${i}`, dst: `node-${dst}` });
         }
     }
 
@@ -44,7 +44,7 @@ function generateEdges(nodeCount: number, edgeCount: number): EdgeData[] {
             const key = `${src}-${dst}`;
             if (!edgeSet.has(key)) {
                 edgeSet.add(key);
-                edges.push({src: `node-${src}`, dst: `node-${dst}`});
+                edges.push({ src: `node-${src}`, dst: `node-${dst}` });
             }
         }
     }
@@ -53,7 +53,7 @@ function generateEdges(nodeCount: number, edgeCount: number): EdgeData[] {
 }
 
 // Generate 250 edges with 150 nodes (no positions for physics layout)
-const nodes150 = Array.from({length: 150}, (_, i) => ({id: `node-${i}`}));
+const nodes150 = Array.from({ length: 150 }, (_, i) => ({ id: `node-${i}` }));
 const edges250 = generateEdges(150, 250);
 
 const meta: Meta = {
@@ -68,15 +68,15 @@ const meta: Meta = {
     },
     args: {
         layout: "ngraph",
-        layoutConfig: {seed: 42},
+        layoutConfig: { seed: 42 },
         styleTemplate: templateCreator({
             edgeStyle: {
-                line: {color: "#666666"},
-                arrowHead: {type: "normal", color: "#666666"},
+                line: { color: "#666666" },
+                arrowHead: { type: "normal", color: "#666666" },
             },
             nodeStyle: {
-                texture: {color: {colorType: "solid", value: "#5A67D8"}},
-                shape: {type: "sphere", size: 0.5},
+                texture: { color: { colorType: "solid", value: "#5A67D8" } },
+                shape: { type: "sphere", size: 0.5 },
             },
         }),
         nodeData: nodes150,

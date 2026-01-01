@@ -1,6 +1,6 @@
-import {assert, beforeEach, describe, it} from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 
-import {type AiStatus, AiStatusManager, type ToolCallStatus} from "../../src/ai/AiStatus";
+import { type AiStatus, AiStatusManager, type ToolCallStatus } from "../../src/ai/AiStatus";
 
 describe("AiStatusManager", () => {
     let manager: AiStatusManager;
@@ -67,7 +67,7 @@ describe("AiStatusManager", () => {
             assert.ok(manager.current.elapsed >= 0);
         });
 
-        it("calculates correct elapsed time", async() => {
+        it("calculates correct elapsed time", async () => {
             manager.submit();
             await new Promise((resolve) => setTimeout(resolve, 50));
             manager.updateElapsed();
@@ -155,18 +155,18 @@ describe("AiStatusManager", () => {
             manager.submit();
             manager.startStreaming();
             manager.addToolCall("findAndStyleNodes");
-            manager.updateToolCallStatus("findAndStyleNodes", "complete", {affectedNodes: 12});
+            manager.updateToolCallStatus("findAndStyleNodes", "complete", { affectedNodes: 12 });
             assert.strictEqual(manager.current.toolCalls?.[0].status, "complete");
-            assert.deepStrictEqual(manager.current.toolCalls?.[0].result, {affectedNodes: 12});
+            assert.deepStrictEqual(manager.current.toolCalls?.[0].result, { affectedNodes: 12 });
         });
 
         it("updates tool call status to error", () => {
             manager.submit();
             manager.startStreaming();
             manager.addToolCall("findAndStyleNodes");
-            manager.updateToolCallStatus("findAndStyleNodes", "error", {error: "Tool failed"});
+            manager.updateToolCallStatus("findAndStyleNodes", "error", { error: "Tool failed" });
             assert.strictEqual(manager.current.toolCalls?.[0].status, "error");
-            assert.deepStrictEqual(manager.current.toolCalls?.[0].result, {error: "Tool failed"});
+            assert.deepStrictEqual(manager.current.toolCalls?.[0].result, { error: "Tool failed" });
         });
 
         it("tracks multiple tool calls", () => {
@@ -293,7 +293,7 @@ describe("AiStatusManager", () => {
             assert.strictEqual(manager.current.state, "executing");
 
             // Complete tool call
-            manager.updateToolCallStatus("testTool", "complete", {result: "success"});
+            manager.updateToolCallStatus("testTool", "complete", { result: "success" });
 
             // Complete
             manager.complete();
@@ -329,7 +329,7 @@ describe("AiStatusManager", () => {
         it("notifies on error", () => {
             const statuses: AiStatus[] = [];
 
-            manager.subscribe((s) => statuses.push({... s}));
+            manager.subscribe((s) => statuses.push({ ...s }));
 
             manager.setError(new Error("test error"), true);
 
@@ -395,7 +395,7 @@ describe("AiStatusManager", () => {
             const snapshot = manager.getSnapshot();
 
             // Modify the snapshot
-            (snapshot as {state: string}).state = "modified";
+            (snapshot as { state: string }).state = "modified";
 
             // Original should be unchanged
             assert.strictEqual(manager.current.state, "submitted");
@@ -443,9 +443,9 @@ describe("ToolCallStatus type", () => {
         const status: ToolCallStatus = {
             name: "testTool",
             status: "complete",
-            result: {data: "value"},
+            result: { data: "value" },
         };
 
-        assert.deepStrictEqual(status.result, {data: "value"});
+        assert.deepStrictEqual(status.result, { data: "value" });
     });
 });

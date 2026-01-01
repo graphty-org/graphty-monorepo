@@ -1,4 +1,4 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
 import {
     countUniqueCommunities,
@@ -6,11 +6,11 @@ import {
     getNodeDegree,
     getTotalEdgeWeight,
 } from "../../../src/algorithms/utils/communityUtils";
-import type {GraphLike, MinimalEdge} from "../../../src/algorithms/utils/graphUtils";
+import type { GraphLike, MinimalEdge } from "../../../src/algorithms/utils/graphUtils";
 
 interface MockGraphOpts {
-    nodes?: {id: string | number, [key: string]: unknown}[];
-    edges?: {srcId: string | number, dstId: string | number, value?: number, [key: string]: unknown}[];
+    nodes?: { id: string | number; [key: string]: unknown }[];
+    edges?: { srcId: string | number; dstId: string | number; value?: number; [key: string]: unknown }[];
 }
 
 function createMockGraph(opts: MockGraphOpts = {}): GraphLike {
@@ -31,7 +31,7 @@ function createMockGraph(opts: MockGraphOpts = {}): GraphLike {
 
     return {
         getDataManager() {
-            return {nodes, edges};
+            return { nodes, edges };
         },
     };
 }
@@ -120,10 +120,10 @@ describe("community utilities", () => {
     describe("getTotalEdgeWeight", () => {
         it("calculates total edge weight", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                 edges: [
-                    {srcId: "A", dstId: "B", value: 2},
-                    {srcId: "B", dstId: "C", value: 3},
+                    { srcId: "A", dstId: "B", value: 2 },
+                    { srcId: "B", dstId: "C", value: 3 },
                 ],
             });
 
@@ -134,10 +134,10 @@ describe("community utilities", () => {
 
         it("uses default weight of 1 when not specified", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                 edges: [
-                    {srcId: "A", dstId: "B"},
-                    {srcId: "B", dstId: "C"},
+                    { srcId: "A", dstId: "B" },
+                    { srcId: "B", dstId: "C" },
                 ],
             });
 
@@ -159,11 +159,11 @@ describe("community utilities", () => {
 
         it("uses custom weight attribute", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}],
-                edges: [{srcId: "A", dstId: "B", weight: 10}],
+                nodes: [{ id: "A" }, { id: "B" }],
+                edges: [{ srcId: "A", dstId: "B", weight: 10 }],
             });
 
-            const total = getTotalEdgeWeight(graph, {weightAttribute: "weight"});
+            const total = getTotalEdgeWeight(graph, { weightAttribute: "weight" });
 
             assert.strictEqual(total, 10);
         });
@@ -172,10 +172,10 @@ describe("community utilities", () => {
     describe("getNodeDegree", () => {
         it("counts outgoing edges", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                 edges: [
-                    {srcId: "A", dstId: "B"},
-                    {srcId: "A", dstId: "C"},
+                    { srcId: "A", dstId: "B" },
+                    { srcId: "A", dstId: "C" },
                 ],
             });
 
@@ -187,10 +187,10 @@ describe("community utilities", () => {
 
         it("counts incoming edges in undirected mode", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                 edges: [
-                    {srcId: "A", dstId: "B"},
-                    {srcId: "C", dstId: "B"},
+                    { srcId: "A", dstId: "B" },
+                    { srcId: "C", dstId: "B" },
                 ],
             });
 
@@ -202,7 +202,7 @@ describe("community utilities", () => {
 
         it("returns 0 for isolated node", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "isolated"}],
+                nodes: [{ id: "A" }, { id: "isolated" }],
                 edges: [],
             });
 
@@ -213,7 +213,7 @@ describe("community utilities", () => {
 
         it("returns 0 for non-existent node", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}],
+                nodes: [{ id: "A" }],
                 edges: [],
             });
 
@@ -224,14 +224,14 @@ describe("community utilities", () => {
 
         it("counts only outgoing edges in directed mode", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                 edges: [
-                    {srcId: "A", dstId: "B"},
-                    {srcId: "C", dstId: "A"},
+                    { srcId: "A", dstId: "B" },
+                    { srcId: "C", dstId: "A" },
                 ],
             });
 
-            const degree = getNodeDegree(graph, "A", {directed: true, countType: "out"});
+            const degree = getNodeDegree(graph, "A", { directed: true, countType: "out" });
 
             // Directed out: A has 1 outgoing edge (A->B)
             assert.strictEqual(degree, 1);
@@ -239,14 +239,14 @@ describe("community utilities", () => {
 
         it("counts only incoming edges in directed mode", () => {
             const graph = createMockGraph({
-                nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                 edges: [
-                    {srcId: "A", dstId: "B"},
-                    {srcId: "C", dstId: "B"},
+                    { srcId: "A", dstId: "B" },
+                    { srcId: "C", dstId: "B" },
                 ],
             });
 
-            const degree = getNodeDegree(graph, "B", {directed: true, countType: "in"});
+            const degree = getNodeDegree(graph, "B", { directed: true, countType: "in" });
 
             // Directed in: B has 2 incoming edges (A->B, C->B)
             assert.strictEqual(degree, 2);

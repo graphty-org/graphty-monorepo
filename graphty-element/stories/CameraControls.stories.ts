@@ -1,11 +1,11 @@
 import "../index.ts";
 
-import type {Meta, StoryObj} from "@storybook/web-components-vite";
-import {html} from "lit";
+import type { Meta, StoryObj } from "@storybook/web-components-vite";
+import { html } from "lit";
 
-import {StyleTemplate} from "../src/config";
-import {Graphty} from "../src/graphty-element";
-import {edgeData, eventWaitingDecorator, nodeData, waitForGraphSettled} from "./helpers";
+import { StyleTemplate } from "../src/config";
+import { Graphty } from "../src/graphty-element";
+import { edgeData, eventWaitingDecorator, nodeData, waitForGraphSettled } from "./helpers";
 
 const meta: Meta = {
     title: "Camera Controls",
@@ -16,11 +16,11 @@ const meta: Meta = {
     },
     argTypes: {
         duration: {
-            control: {type: "range", min: 100, max: 3000, step: 100},
+            control: { type: "range", min: 100, max: 3000, step: 100 },
             description: "Animation duration in milliseconds",
         },
         easing: {
-            control: {type: "select"},
+            control: { type: "select" },
             options: ["linear", "easeIn", "easeOut", "easeInOut"],
             description: "Animation easing function",
         },
@@ -34,7 +34,7 @@ const meta: Meta = {
 };
 export default meta;
 
-type Story = StoryObj<Graphty & {duration: number, easing: string}>;
+type Story = StoryObj<Graphty & { duration: number; easing: string }>;
 
 /**
  * 3D camera controls with animated transitions.
@@ -42,12 +42,12 @@ type Story = StoryObj<Graphty & {duration: number, easing: string}>;
 export const ThreeD: Story = {
     name: "3D",
     args: {
-        layoutConfig: {seed: 42},
+        layoutConfig: { seed: 42 },
         styleTemplate: StyleTemplate.parse({
             graphtyTemplate: true,
             majorVersion: "1",
             behavior: {
-                layout: {preSteps: 2000},
+                layout: { preSteps: 2000 },
             },
         }),
     },
@@ -74,8 +74,12 @@ export const ThreeD: Story = {
                             }
 
                             void el.setCameraPosition(
-                                {x: 30, y: 30, z: 30},
-                                {animate: true, duration: args.duration, easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut"},
+                                { x: 30, y: 30, z: 30 },
+                                {
+                                    animate: true,
+                                    duration: args.duration,
+                                    easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut",
+                                },
                             );
                         }}
                         style="padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -91,8 +95,12 @@ export const ThreeD: Story = {
                             }
 
                             void el.setCameraPosition(
-                                {x: 150, y: 150, z: 150},
-                                {animate: true, duration: args.duration, easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut"},
+                                { x: 150, y: 150, z: 150 },
+                                {
+                                    animate: true,
+                                    duration: args.duration,
+                                    easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut",
+                                },
                             );
                         }}
                         style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -108,8 +116,12 @@ export const ThreeD: Story = {
                             }
 
                             void el.setCameraPosition(
-                                {x: 0, y: 100, z: 0},
-                                {animate: true, duration: args.duration, easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut"},
+                                { x: 0, y: 100, z: 0 },
+                                {
+                                    animate: true,
+                                    duration: args.duration,
+                                    easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut",
+                                },
                             );
                         }}
                         style="padding: 8px 16px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -125,8 +137,12 @@ export const ThreeD: Story = {
                             }
 
                             void el.setCameraPosition(
-                                {x: 100, y: 0, z: 0},
-                                {animate: true, duration: args.duration, easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut"},
+                                { x: 100, y: 0, z: 0 },
+                                {
+                                    animate: true,
+                                    duration: args.duration,
+                                    easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut",
+                                },
                             );
                         }}
                         style="padding: 8px 16px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -143,7 +159,11 @@ export const ThreeD: Story = {
                                 return;
                             }
 
-                            void el.resetCamera({animate: true, duration: args.duration, easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut"});
+                            void el.resetCamera({
+                                animate: true,
+                                duration: args.duration,
+                                easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut",
+                            });
                         }}
                         style="padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;"
                     >
@@ -153,7 +173,7 @@ export const ThreeD: Story = {
             </div>
         </div>
     `,
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -164,16 +184,16 @@ export const ThreeD: Story = {
 export const TwoD: Story = {
     name: "2D",
     args: {
-        layoutConfig: {seed: 42},
+        layoutConfig: { seed: 42 },
         styleTemplate: StyleTemplate.parse({
             graphtyTemplate: true,
             majorVersion: "1",
             graph: {
                 viewMode: "2d",
-                background: {backgroundType: "color", color: "#f0f0f0"},
+                background: { backgroundType: "color", color: "#f0f0f0" },
             },
             behavior: {
-                layout: {preSteps: 2000},
+                layout: { preSteps: 2000 },
             },
         }),
     },
@@ -201,10 +221,11 @@ export const TwoD: Story = {
 
                             const state = el.getCameraState();
 
-                            void el.setCameraZoom(
-                                (state.zoom ?? 1) * 1.5,
-                                {animate: true, duration: args.duration, easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut"},
-                            );
+                            void el.setCameraZoom((state.zoom ?? 1) * 1.5, {
+                                animate: true,
+                                duration: args.duration,
+                                easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut",
+                            });
                         }}
                         style="padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"
                     >
@@ -220,10 +241,11 @@ export const TwoD: Story = {
 
                             const state = el.getCameraState();
 
-                            void el.setCameraZoom(
-                                (state.zoom ?? 1) / 1.5,
-                                {animate: true, duration: args.duration, easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut"},
-                            );
+                            void el.setCameraZoom((state.zoom ?? 1) / 1.5, {
+                                animate: true,
+                                duration: args.duration,
+                                easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut",
+                            });
                         }}
                         style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;"
                     >
@@ -240,8 +262,12 @@ export const TwoD: Story = {
                             }
 
                             void el.setCameraPan(
-                                {x: -50, y: 0},
-                                {animate: true, duration: args.duration, easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut"},
+                                { x: -50, y: 0 },
+                                {
+                                    animate: true,
+                                    duration: args.duration,
+                                    easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut",
+                                },
                             );
                         }}
                         style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -257,8 +283,12 @@ export const TwoD: Story = {
                             }
 
                             void el.setCameraPan(
-                                {x: 50, y: 0},
-                                {animate: true, duration: args.duration, easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut"},
+                                { x: 50, y: 0 },
+                                {
+                                    animate: true,
+                                    duration: args.duration,
+                                    easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut",
+                                },
                             );
                         }}
                         style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -274,8 +304,12 @@ export const TwoD: Story = {
                             }
 
                             void el.setCameraPan(
-                                {x: 0, y: 50},
-                                {animate: true, duration: args.duration, easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut"},
+                                { x: 0, y: 50 },
+                                {
+                                    animate: true,
+                                    duration: args.duration,
+                                    easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut",
+                                },
                             );
                         }}
                         style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -291,8 +325,12 @@ export const TwoD: Story = {
                             }
 
                             void el.setCameraPan(
-                                {x: 0, y: -50},
-                                {animate: true, duration: args.duration, easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut"},
+                                { x: 0, y: -50 },
+                                {
+                                    animate: true,
+                                    duration: args.duration,
+                                    easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut",
+                                },
                             );
                         }}
                         style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;"
@@ -309,7 +347,11 @@ export const TwoD: Story = {
                                 return;
                             }
 
-                            void el.resetCamera({animate: true, duration: args.duration, easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut"});
+                            void el.resetCamera({
+                                animate: true,
+                                duration: args.duration,
+                                easing: args.easing as "linear" | "easeIn" | "easeOut" | "easeInOut",
+                            });
                         }}
                         style="padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;"
                     >
@@ -319,7 +361,7 @@ export const TwoD: Story = {
             </div>
         </div>
     `,
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };

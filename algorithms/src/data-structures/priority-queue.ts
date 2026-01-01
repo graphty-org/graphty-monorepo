@@ -5,9 +5,13 @@
  * Uses a min-heap by default but supports custom comparison functions.
  */
 export class PriorityQueue<T> {
-    private heap: {item: T, priority: number}[];
+    private heap: { item: T; priority: number }[];
     private compareFn: (a: number, b: number) => number;
 
+    /**
+     * Creates a new PriorityQueue instance.
+     * @param compareFn - Custom comparison function for priorities. Returns negative if a has higher priority than b.
+     */
     constructor(compareFn?: (a: number, b: number) => number) {
         this.heap = [];
         // Default to min-heap (smaller priority values have higher priority)
@@ -16,15 +20,18 @@ export class PriorityQueue<T> {
 
     /**
      * Add an item with the given priority to the queue
+     * @param item - The item to add to the queue
+     * @param priority - The priority value for the item (lower values have higher priority in min-heap)
      */
     enqueue(item: T, priority: number): void {
-        const element = {item, priority};
+        const element = { item, priority };
         this.heap.push(element);
         this.heapifyUp(this.heap.length - 1);
     }
 
     /**
      * Remove and return the item with the highest priority
+     * @returns The item with the highest priority, or undefined if the queue is empty
      */
     dequeue(): T | undefined {
         if (this.heap.length === 0) {
@@ -52,6 +59,7 @@ export class PriorityQueue<T> {
 
     /**
      * View the item with the highest priority without removing it
+     * @returns The item with the highest priority, or undefined if the queue is empty
      */
     peek(): T | undefined {
         const first = this.heap[0];
@@ -60,6 +68,7 @@ export class PriorityQueue<T> {
 
     /**
      * Check if the queue is empty
+     * @returns True if the queue has no items, false otherwise
      */
     isEmpty(): boolean {
         return this.heap.length === 0;
@@ -67,6 +76,7 @@ export class PriorityQueue<T> {
 
     /**
      * Get the number of items in the queue
+     * @returns The number of items currently in the queue
      */
     size(): number {
         return this.heap.length;
@@ -74,7 +84,9 @@ export class PriorityQueue<T> {
 
     /**
      * Update the priority of an item if it exists in the queue
-     * Returns true if the item was found and updated
+     * @param item - The item whose priority should be updated
+     * @param newPriority - The new priority value for the item
+     * @returns True if the item was found and updated, false otherwise
      */
     updatePriority(item: T, newPriority: number): boolean {
         const index = this.heap.findIndex((element) => element.item === item);
@@ -110,13 +122,15 @@ export class PriorityQueue<T> {
 
     /**
      * Convert queue to array (for testing/debugging)
+     * @returns An array of all items with their priorities
      */
-    toArray(): {item: T, priority: number}[] {
-        return [... this.heap];
+    toArray(): { item: T; priority: number }[] {
+        return [...this.heap];
     }
 
     /**
      * Move element up the heap until heap property is satisfied
+     * @param index - The index of the element to heapify up
      */
     private heapifyUp(index: number): void {
         if (index === 0) {
@@ -136,26 +150,35 @@ export class PriorityQueue<T> {
 
     /**
      * Move element down the heap until heap property is satisfied
+     * @param index - The index of the element to heapify down
      */
     private heapifyDown(index: number): void {
-        const leftChildIndex = (2 * index) + 1;
-        const rightChildIndex = (2 * index) + 2;
+        const leftChildIndex = 2 * index + 1;
+        const rightChildIndex = 2 * index + 2;
         let targetIndex = index;
 
         // Find the child with highest priority (lowest value for min-heap)
         const leftChild = this.heap[leftChildIndex];
         const target = this.heap[targetIndex];
 
-        if (leftChildIndex < this.heap.length && leftChild && target &&
-            this.compareFn(leftChild.priority, target.priority) < 0) {
+        if (
+            leftChildIndex < this.heap.length &&
+            leftChild &&
+            target &&
+            this.compareFn(leftChild.priority, target.priority) < 0
+        ) {
             targetIndex = leftChildIndex;
         }
 
         const rightChild = this.heap[rightChildIndex];
         const newTarget = this.heap[targetIndex];
 
-        if (rightChildIndex < this.heap.length && rightChild && newTarget &&
-            this.compareFn(rightChild.priority, newTarget.priority) < 0) {
+        if (
+            rightChildIndex < this.heap.length &&
+            rightChild &&
+            newTarget &&
+            this.compareFn(rightChild.priority, newTarget.priority) < 0
+        ) {
             targetIndex = rightChildIndex;
         }
 
@@ -168,6 +191,8 @@ export class PriorityQueue<T> {
 
     /**
      * Swap two elements in the heap
+     * @param i - Index of the first element
+     * @param j - Index of the second element
      */
     private swap(i: number, j: number): void {
         const temp = this.heap[i];

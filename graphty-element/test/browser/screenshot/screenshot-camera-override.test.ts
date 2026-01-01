@@ -1,7 +1,7 @@
-import {afterEach, assert, test} from "vitest";
+import { afterEach, assert, test } from "vitest";
 
-import type {Graph} from "../../../src/Graph";
-import {cleanupTestGraphWithData, createTestGraphWithData} from "./test-setup.js";
+import type { Graph } from "../../../src/Graph";
+import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
 
@@ -9,7 +9,7 @@ afterEach(() => {
     cleanupTestGraphWithData(graph);
 });
 
-test("camera override temporarily changes camera", async() => {
+test("camera override temporarily changes camera", async () => {
     graph = await createTestGraphWithData();
 
     // Get original camera state
@@ -18,8 +18,8 @@ test("camera override temporarily changes camera", async() => {
     // Capture with camera override
     const result = await graph.captureScreenshot({
         camera: {
-            position: {x: 100, y: 100, z: 100},
-            target: {x: 0, y: 0, z: 0},
+            position: { x: 100, y: 100, z: 100 },
+            target: { x: 0, y: 0, z: 0 },
         },
         timing: {
             waitForSettle: false,
@@ -31,26 +31,18 @@ test("camera override temporarily changes camera", async() => {
     const restoredState = graph.getCameraState();
 
     assert.ok(result.blob instanceof Blob, "Should return a blob");
-    assert.deepEqual(
-        restoredState.position,
-        originalState.position,
-        "Camera position should be restored",
-    );
-    assert.deepEqual(
-        restoredState.target,
-        originalState.target,
-        "Camera target should be restored",
-    );
+    assert.deepEqual(restoredState.position, originalState.position, "Camera position should be restored");
+    assert.deepEqual(restoredState.target, originalState.target, "Camera target should be restored");
 });
 
-test("camera override works without affecting subsequent captures", async() => {
+test("camera override works without affecting subsequent captures", async () => {
     graph = await createTestGraphWithData();
 
     // First capture with override
     await graph.captureScreenshot({
         camera: {
-            position: {x: 50, y: 50, z: 50},
-            target: {x: 0, y: 0, z: 0},
+            position: { x: 50, y: 50, z: 50 },
+            target: { x: 0, y: 0, z: 0 },
         },
         timing: {
             waitForSettle: false,
@@ -71,12 +63,12 @@ test("camera override works without affecting subsequent captures", async() => {
     assert.deepEqual(stateAfter, stateBefore, "Camera should remain unchanged after normal capture");
 });
 
-test("camera preset resolves correctly", async() => {
+test("camera preset resolves correctly", async () => {
     graph = await createTestGraphWithData();
 
     // Capture with camera preset
     const result = await graph.captureScreenshot({
-        camera: {preset: "fitToGraph"},
+        camera: { preset: "fitToGraph" },
         timing: {
             waitForSettle: false,
             waitForOperations: false,
@@ -86,7 +78,7 @@ test("camera preset resolves correctly", async() => {
     assert.ok(result.blob instanceof Blob, "Should return a blob with preset");
 });
 
-test("camera override is restored even if capture throws error", async() => {
+test("camera override is restored even if capture throws error", async () => {
     graph = await createTestGraphWithData();
 
     const originalState = graph.getCameraState();
@@ -95,8 +87,8 @@ test("camera override is restored even if capture throws error", async() => {
     try {
         await graph.captureScreenshot({
             camera: {
-                position: {x: 200, y: 200, z: 200},
-                target: {x: 0, y: 0, z: 0},
+                position: { x: 200, y: 200, z: 200 },
+                target: { x: 0, y: 0, z: 0 },
             },
             // Force a very large resolution to potentially cause an error
             width: 50000,
@@ -117,9 +109,5 @@ test("camera override is restored even if capture throws error", async() => {
         originalState.position,
         "Camera position should be restored even after error",
     );
-    assert.deepEqual(
-        restoredState.target,
-        originalState.target,
-        "Camera target should be restored even after error",
-    );
+    assert.deepEqual(restoredState.target, originalState.target, "Camera target should be restored even after error");
 });

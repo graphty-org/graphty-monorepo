@@ -1,8 +1,8 @@
-import {NullEngine, Scene, Vector3} from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import type {EdgeStyleConfig} from "../../src/config";
-import {RichTextLabel} from "../../src/meshes/RichTextLabel";
+import type { EdgeStyleConfig } from "../../src/config";
+import { RichTextLabel } from "../../src/meshes/RichTextLabel";
 
 describe("Edge Tooltips", () => {
     let scene: Scene;
@@ -23,12 +23,12 @@ describe("Edge Tooltips", () => {
                     textColor: "#000000",
                     backgroundColor: "#FFFFFF",
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
             // Verify tooltip config is present by accessing via tooltip property
-            const {tooltip} = style;
+            const { tooltip } = style;
             assert.exists(tooltip);
             assert.isTrue(tooltip.enabled);
             assert.equal(tooltip.text, "Test tooltip");
@@ -129,12 +129,12 @@ describe("Edge Tooltips", () => {
                     textPath: "weight",
                     fontSize: 14,
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
             // Verify textPath config is supported
-            const {tooltip} = style;
+            const { tooltip } = style;
             assert.exists(tooltip);
             assert.equal(tooltip.textPath, "weight");
         });
@@ -143,7 +143,7 @@ describe("Edge Tooltips", () => {
     describe("Tooltip Configuration in EdgeStyle", () => {
         test("tooltip enabled property defaults to false when not configured", () => {
             const style: EdgeStyleConfig = {
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
@@ -169,9 +169,7 @@ describe("Edge Tooltips", () => {
             const tooltip = new RichTextLabel(scene, {
                 text: "Bordered tooltip",
                 fontSize: 14,
-                borders: [
-                    {width: 1, color: "#CCCCCC", spacing: 4},
-                ],
+                borders: [{ width: 1, color: "#CCCCCC", spacing: 4 }],
             });
 
             assert.exists(tooltip);

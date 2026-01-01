@@ -5,6 +5,7 @@
 **Current Issue**: Bezier curves exhibit visible segmentation because they are pre-tessellated into fixed-density line segments on the CPU. With `BEZIER_POINT_DENSITY: 8`, curves show faceting artifacts, especially in high-curvature regions.
 
 **Root Cause**: Fixed tessellation density creates a trade-off:
+
 - **Too few segments** (density=8): Visible faceting, poor visual quality
 - **Too many segments** (density=40+): Smooth curves but wasteful on straight/low-curvature sections
 - **No adaptation**: Uniform sampling regardless of curve complexity
@@ -14,9 +15,11 @@
 ## Current Implementation Analysis
 
 ### Code Location
+
 `src/meshes/EdgeMesh.ts:847-877` (`createBezierLine`)
 
 ### Current Approach
+
 ```typescript
 const numPoints = Math.max(10, Math.ceil(estimatedLength * EDGE_CONSTANTS.BEZIER_POINT_DENSITY));
 
@@ -28,12 +31,14 @@ for (let i = 0; i <= numPoints; i++) {
 ```
 
 **Characteristics**:
+
 - Linear density based on edge length only
 - No consideration of curvature
 - Predictable vertex count: `length * density`
 - Simple, fast, deterministic
 
 **Performance Profile**:
+
 - 10-unit edge @ density=8: 80 segments = 320 vertices
 - 10-unit edge @ density=40: 400 segments = 1,600 vertices
 - Self-loops (special case): 50 segments fixed
@@ -45,18 +50,21 @@ for (let i = 0; i <= numPoints; i++) {
 **Description**: Simply increase `BEZIER_POINT_DENSITY` from 8 to 30-40.
 
 **Implementation**:
+
 ```typescript
 // src/constants/meshConstants.ts
 BEZIER_POINT_DENSITY: 35, // Increased for smooth curves
 ```
 
 **Pros**:
+
 - ✅ One-line fix
 - ✅ Immediate elimination of visible segments
 - ✅ Zero code complexity
 - ✅ Predictable, deterministic behavior
 
 **Cons**:
+
 - ❌ 4-5x vertex count increase across ALL edges
 - ❌ Wasteful on nearly-straight curves
 - ❌ Higher memory usage
@@ -64,6 +72,7 @@ BEZIER_POINT_DENSITY: 35, // Increased for smooth curves
 - ❌ Doesn't scale to very long edges
 
 **Performance Impact**:
+
 ```
 Before (density=8):  80 segments × 4 vertices = 320 vertices per 10-unit edge
 After (density=35):  350 segments × 4 vertices = 1,400 vertices per 10-unit edge
@@ -83,11 +92,13 @@ GPU processing: ~4.4x more vertices to transform
 #### Approach 2A: Simple Curvature Estimation
 
 **Algorithm**:
+
 1. Calculate control point deviation from baseline
 2. Use deviation as curvature proxy
 3. Map curvature to segment count (10-100 range)
 
 **Implementation**:
+
 ```typescript
 static createBezierLineAdaptive(
     srcPoint: Vector3,
@@ -132,6 +143,7 @@ static createBezierLineAdaptive(
 ```
 
 **Pros**:
+
 - ✅ Simple implementation (~30 lines)
 - ✅ Fast computation (vector math only)
 - ✅ Smooth curves on high-curvature edges
@@ -140,11 +152,13 @@ static createBezierLineAdaptive(
 - ✅ No recursion overhead
 
 **Cons**:
+
 - ❌ Still uses uniform sampling along curve
 - ❌ Doesn't optimize segment placement
 - ❌ May over-tessellate in some regions
 
 **Performance Profile**:
+
 ```
 Edge Type               | Segments | Vertices | vs Fixed(8) | vs Fixed(35)
 ------------------------|----------|----------|-------------|-------------
@@ -155,6 +169,7 @@ Extreme curve (1.5)     |   100    |   400    |    +25%     |    -71%
 ```
 
 **Tuning Parameters**:
+
 ```typescript
 // Constants to expose for tuning
 BEZIER_MIN_SEGMENTS: 10,        // Minimum even for straight lines
@@ -163,6 +178,7 @@ BEZIER_CURVATURE_THRESHOLD: 0.5 // Curvature value for max segments
 ```
 
 **Edge Cases**:
+
 1. **Self-loops**: Already have special case in `createSelfLoopCurve()`
 2. **Degenerate (src ≈ dst)**: Caught by `equalsWithEpsilon` check
 3. **Near-zero baseline**: Division by `baseline + 0.001` prevents divide-by-zero
@@ -205,11 +221,13 @@ static calculateCurvatureMetric(
 ```
 
 **Pros**:
+
 - ✅ More accurate curvature measurement
 - ✅ Detects local high-curvature regions
 - ✅ Better for complex S-curves
 
 **Cons**:
+
 - ❌ More computation (3-5x slower)
 - ❌ Still uniform sampling
 - ❌ Numerical derivatives introduce error
@@ -221,6 +239,7 @@ static calculateCurvatureMetric(
 **Description**: De Casteljau algorithm with adaptive subdivision based on flatness criterion.
 
 **Algorithm**:
+
 ```
 function subdivide(p0, p1, p2, p3, tolerance):
     if isFlatEnough(p0, p1, p2, p3, tolerance):
@@ -233,6 +252,7 @@ function subdivide(p0, p1, p2, p3, tolerance):
 ```
 
 **Implementation**:
+
 ```typescript
 static createBezierLineRecursive(
     srcPoint: Vector3,
@@ -355,6 +375,7 @@ private static subdivideCubicBezier(
 ```
 
 **Pros**:
+
 - ✅ Mathematically optimal segment placement
 - ✅ Concentrates segments where curvature is highest
 - ✅ Minimal segments on straight/low-curvature regions
@@ -362,12 +383,14 @@ private static subdivideCubicBezier(
 - ✅ Guaranteed bounds with maxDepth
 
 **Cons**:
+
 - ❌ More complex implementation (~100 lines)
 - ❌ Recursive overhead (call stack depth ~10)
 - ❌ Harder to reason about segment count
 - ❌ Non-deterministic segment count (varies with geometry)
 
 **Performance Profile**:
+
 ```
 Edge Type               | Segments | Vertices | Recursion Depth
 ------------------------|----------|----------|----------------
@@ -380,12 +403,14 @@ Extreme curve           |   128    |   512    |      8-10
 ```
 
 **Tuning Parameters**:
+
 ```typescript
 BEZIER_FLATNESS_TOLERANCE: 0.1,  // Smaller = more segments
 BEZIER_MAX_RECURSION_DEPTH: 10,  // Prevent stack overflow
 ```
 
 **Edge Cases**:
+
 1. **Infinite recursion**: Prevented by `maxDepth` parameter
 2. **Numerical instability**: Flatness test uses epsilon for near-zero cases
 3. **Degenerate curves**: Early exit when baseline < 0.0001
@@ -398,6 +423,7 @@ BEZIER_MAX_RECURSION_DEPTH: 10,  // Prevent stack overflow
 
 **Concept**:
 Instead of CPU-generating 100+ points, pass 4 control points + t-parameter to GPU:
+
 ```
 CPU: Generate 20-30 vertices with t-values [0, 0.05, 0.1, ..., 1.0]
 GPU: For each vertex, evaluate cubic bezier formula at its t-value
@@ -405,6 +431,7 @@ Result: Perfectly smooth curve with minimal geometry
 ```
 
 **Shader Implementation**:
+
 ```glsl
 // Vertex shader
 attribute vec3 position;     // Not used (will be computed)
@@ -452,9 +479,10 @@ void main() {
 ```
 
 **Geometry Structure**:
+
 ```typescript
 // Only need 20-30 vertices for perfectly smooth curve!
-const tValues = Array.from({length: 30}, (_, i) => i / 29);
+const tValues = Array.from({ length: 30 }, (_, i) => i / 29);
 
 for (let i = 0; i < tValues.length - 1; i++) {
     const t0 = tValues[i];
@@ -462,15 +490,16 @@ for (let i = 0; i < tValues.length - 1; i++) {
 
     // Create quad (4 vertices, 2 triangles)
     vertices.push(
-        {t: t0, side: -1, control0: p0, control1: p1, control2: p2, control3: p3},
-        {t: t0, side: +1, control0: p0, control1: p1, control2: p2, control3: p3},
-        {t: t1, side: -1, control0: p0, control1: p1, control2: p2, control3: p3},
-        {t: t1, side: +1, control0: p0, control1: p1, control2: p2, control3: p3}
+        { t: t0, side: -1, control0: p0, control1: p1, control2: p2, control3: p3 },
+        { t: t0, side: +1, control0: p0, control1: p1, control2: p2, control3: p3 },
+        { t: t1, side: -1, control0: p0, control1: p1, control2: p2, control3: p3 },
+        { t: t1, side: +1, control0: p0, control1: p1, control2: p2, control3: p3 },
     );
 }
 ```
 
 **Pros**:
+
 - ✅ Perfectly smooth curves (mathematically exact)
 - ✅ Minimal geometry (20-30 vertices vs 100-400)
 - ✅ 90% reduction in vertex count
@@ -479,6 +508,7 @@ for (let i = 0; i < tValues.length - 1; i++) {
 - ✅ Scales to arbitrarily long edges
 
 **Cons**:
+
 - ❌ Complex shader rewrite required
 - ❌ More vertex attributes (4 control points per vertex = 12 floats)
 - ❌ Slightly more expensive vertex shader
@@ -486,6 +516,7 @@ for (let i = 0; i < tValues.length - 1; i++) {
 - ❌ Still need CPU tessellation for hit-testing/picking
 
 **Performance Profile**:
+
 ```
 Current (fixed density=8):     80 segments × 4 vertices = 320 vertices
 Current (fixed density=35):   350 segments × 4 vertices = 1,400 vertices
@@ -497,12 +528,14 @@ Net rendering cost: -40% to -85%
 ```
 
 **Implementation Effort**: HIGH (3-5 days)
+
 - New shader code
 - New vertex attribute layout
 - Update CustomLineRenderer.ts
 - Extensive testing (visual + performance)
 
 **Trade-offs**:
+
 - ✅ Best for: Many edges, long edges, performance-critical scenarios
 - ❌ Overkill for: Small graphs (<100 edges), short edges
 
@@ -510,20 +543,22 @@ Net rendering cost: -40% to -85%
 
 ## Comparison Matrix
 
-| Solution | Code Complexity | Performance | Visual Quality | Vertex Count | Recommendation |
-|----------|----------------|-------------|----------------|--------------|----------------|
-| **Fixed (8)** | ⭐ Very Simple | ⭐⭐⭐⭐⭐ Fast | ⭐⭐ Poor | 320 | ❌ Current problem |
-| **Fixed (35)** | ⭐ Very Simple | ⭐⭐⭐ Good | ⭐⭐⭐⭐⭐ Excellent | 1,400 | ⚠️ Temporary only |
-| **Curvature-Based** | ⭐⭐ Simple | ⭐⭐⭐⭐ Fast | ⭐⭐⭐⭐⭐ Excellent | 40-400 | ✅ **Best Balance** |
-| **Recursive** | ⭐⭐⭐ Moderate | ⭐⭐⭐ Good | ⭐⭐⭐⭐⭐ Excellent | 12-512 | ✅ Optimal quality |
-| **GPU-Based** | ⭐⭐⭐⭐⭐ Complex | ⭐⭐⭐⭐⭐ Fastest | ⭐⭐⭐⭐⭐ Perfect | 120 | 🔮 Future |
+| Solution            | Code Complexity    | Performance        | Visual Quality       | Vertex Count | Recommendation      |
+| ------------------- | ------------------ | ------------------ | -------------------- | ------------ | ------------------- |
+| **Fixed (8)**       | ⭐ Very Simple     | ⭐⭐⭐⭐⭐ Fast    | ⭐⭐ Poor            | 320          | ❌ Current problem  |
+| **Fixed (35)**      | ⭐ Very Simple     | ⭐⭐⭐ Good        | ⭐⭐⭐⭐⭐ Excellent | 1,400        | ⚠️ Temporary only   |
+| **Curvature-Based** | ⭐⭐ Simple        | ⭐⭐⭐⭐ Fast      | ⭐⭐⭐⭐⭐ Excellent | 40-400       | ✅ **Best Balance** |
+| **Recursive**       | ⭐⭐⭐ Moderate    | ⭐⭐⭐ Good        | ⭐⭐⭐⭐⭐ Excellent | 12-512       | ✅ Optimal quality  |
+| **GPU-Based**       | ⭐⭐⭐⭐⭐ Complex | ⭐⭐⭐⭐⭐ Fastest | ⭐⭐⭐⭐⭐ Perfect   | 120          | 🔮 Future           |
 
 ## Recommended Implementation Strategy
 
 ### Phase 1: Immediate Fix (1 hour)
+
 **Goal**: Eliminate visible segmentation NOW
 
 **Action**: Increase fixed density
+
 ```typescript
 // src/constants/meshConstants.ts
 BEZIER_POINT_DENSITY: 35, // Temporary fix
@@ -534,22 +569,24 @@ BEZIER_POINT_DENSITY: 35, // Temporary fix
 ---
 
 ### Phase 2: Curvature-Based Adaptive (1-2 days)
+
 **Goal**: Implement proper adaptive tessellation
 
 **Tasks**:
+
 1. Implement `calculateCurvatureMetric()` method
 2. Add adaptive segment calculation to `createBezierLine()`
 3. Add tuning constants to `meshConstants.ts`:
-   ```typescript
-   BEZIER_MIN_SEGMENTS: 10,
-   BEZIER_MAX_SEGMENTS: 100,
-   BEZIER_CURVATURE_THRESHOLD: 0.5,
-   BEZIER_ADAPTIVE_ENABLED: true, // Feature flag
-   ```
+    ```typescript
+    BEZIER_MIN_SEGMENTS: 10,
+    BEZIER_MAX_SEGMENTS: 100,
+    BEZIER_CURVATURE_THRESHOLD: 0.5,
+    BEZIER_ADAPTIVE_ENABLED: true, // Feature flag
+    ```
 4. Write unit tests:
-   - Straight line → min segments
-   - High curvature → max segments
-   - Self-loop → consistent behavior
+    - Straight line → min segments
+    - High curvature → max segments
+    - Self-loop → consistent behavior
 5. Visual regression tests in Storybook
 6. Performance benchmarks (large graphs)
 
@@ -558,14 +595,17 @@ BEZIER_POINT_DENSITY: 35, // Temporary fix
 ---
 
 ### Phase 3: Recursive Subdivision (Optional, 3-5 days)
+
 **Goal**: Optimal tessellation for complex cases
 
 **When to Implement**:
+
 - After Phase 2 is stable
 - If curvature-based still shows segmentation in extreme cases
 - If performance profiling shows opportunity for optimization
 
 **Tasks**:
+
 1. Implement De Casteljau subdivision
 2. Implement flatness testing
 3. Add recursion depth limits
@@ -577,14 +617,17 @@ BEZIER_POINT_DENSITY: 35, // Temporary fix
 ---
 
 ### Phase 4: GPU Evaluation (Future, 1-2 weeks)
+
 **Goal**: Ultimate performance and quality
 
 **When to Implement**:
+
 - When graphs with 1000+ edges show performance issues
 - When vertex count becomes a bottleneck
 - After core features are stable
 
 **Tasks**:
+
 1. Design new shader with control point attributes
 2. Rewrite CustomLineRenderer vertex structure
 3. Implement tangent calculation in shader
@@ -596,37 +639,35 @@ BEZIER_POINT_DENSITY: 35, // Temporary fix
 ## Testing Strategy
 
 ### Unit Tests
+
 ```typescript
-describe('Adaptive Bezier Tessellation', () => {
-    it('should use minimum segments for straight line', () => {
+describe("Adaptive Bezier Tessellation", () => {
+    it("should use minimum segments for straight line", () => {
         const points = EdgeMesh.createBezierLineAdaptive(
             new Vector3(0, 0, 0),
             new Vector3(10, 0, 0),
-            [new Vector3(3.33, 0, 0), new Vector3(6.67, 0, 0)] // Collinear controls
+            [new Vector3(3.33, 0, 0), new Vector3(6.67, 0, 0)], // Collinear controls
         );
         const numSegments = points.length / 3 - 1;
-        assert(numSegments <= 15, 'Straight line should have minimal segments');
+        assert(numSegments <= 15, "Straight line should have minimal segments");
     });
 
-    it('should use maximum segments for high curvature', () => {
+    it("should use maximum segments for high curvature", () => {
         const points = EdgeMesh.createBezierLineAdaptive(
             new Vector3(0, 0, 0),
             new Vector3(10, 0, 0),
-            [new Vector3(0, 10, 0), new Vector3(10, 10, 0)] // High arc
+            [new Vector3(0, 10, 0), new Vector3(10, 10, 0)], // High arc
         );
         const numSegments = points.length / 3 - 1;
-        assert(numSegments >= 60, 'High curvature should have many segments');
+        assert(numSegments >= 60, "High curvature should have many segments");
     });
 
-    it('should handle self-loops correctly', () => {
-        const points = EdgeMesh.createBezierLineAdaptive(
-            new Vector3(0, 0, 0),
-            new Vector3(0, 0, 0)
-        );
-        assert(points.length > 0, 'Self-loop should generate points');
+    it("should handle self-loops correctly", () => {
+        const points = EdgeMesh.createBezierLineAdaptive(new Vector3(0, 0, 0), new Vector3(0, 0, 0));
+        assert(points.length > 0, "Self-loop should generate points");
     });
 
-    it('should respect min/max bounds', () => {
+    it("should respect min/max bounds", () => {
         // Test various curvatures
         for (let curvature = 0; curvature <= 2.0; curvature += 0.2) {
             const points = EdgeMesh.createBezierLineAdaptive(/* ... */);
@@ -638,24 +679,25 @@ describe('Adaptive Bezier Tessellation', () => {
 ```
 
 ### Visual Regression Tests
+
 ```typescript
 // stories/BezierEdges.stories.ts
 export const AdaptiveTessellation: Story = {
     args: {
         nodeData: [
-            {id: "A", position: {x: -10, y: 0, z: 0}},
-            {id: "B", position: {x: 10, y: 10, z: 0}},  // High curvature
-            {id: "C", position: {x: 30, y: 0, z: 0}},   // Moderate
-            {id: "D", position: {x: 50, y: -1, z: 0}},  // Low curvature
+            { id: "A", position: { x: -10, y: 0, z: 0 } },
+            { id: "B", position: { x: 10, y: 10, z: 0 } }, // High curvature
+            { id: "C", position: { x: 30, y: 0, z: 0 } }, // Moderate
+            { id: "D", position: { x: 50, y: -1, z: 0 } }, // Low curvature
         ],
         edgeData: [
-            {src: "A", dst: "B"}, // Should have many segments
-            {src: "B", dst: "C"}, // Moderate segments
-            {src: "C", dst: "D"}, // Few segments
+            { src: "A", dst: "B" }, // Should have many segments
+            { src: "B", dst: "C" }, // Moderate segments
+            { src: "C", dst: "D" }, // Few segments
         ],
         styleTemplate: templateCreator({
             edgeStyle: {
-                line: {bezier: true, color: "#FF6B6B", width: 2},
+                line: { bezier: true, color: "#FF6B6B", width: 2 },
             },
         }),
     },
@@ -663,9 +705,10 @@ export const AdaptiveTessellation: Story = {
 ```
 
 ### Performance Benchmarks
+
 ```typescript
-describe('Bezier Tessellation Performance', () => {
-    it('should scale linearly with edge count', () => {
+describe("Bezier Tessellation Performance", () => {
+    it("should scale linearly with edge count", () => {
         const edgeCounts = [10, 100, 1000, 5000];
         const times: number[] = [];
 
@@ -678,7 +721,7 @@ describe('Bezier Tessellation Performance', () => {
 
         // Check scaling (should be roughly linear)
         const ratio1000_100 = times[2] / times[1];
-        assert(ratio1000_100 < 12, 'Should scale better than O(n²)');
+        assert(ratio1000_100 < 12, "Should scale better than O(n²)");
     });
 });
 ```
@@ -690,6 +733,7 @@ describe('Bezier Tessellation Performance', () => {
 ### Memory Impact
 
 **Current (fixed density=8)**:
+
 ```
 Edge: 80 segments × 4 vertices × 36 bytes = 11.52 KB per edge
 100 edges = 1.15 MB
@@ -697,6 +741,7 @@ Edge: 80 segments × 4 vertices × 36 bytes = 11.52 KB per edge
 ```
 
 **Proposed (curvature-based avg 40 segments)**:
+
 ```
 Edge: 40 segments × 4 vertices × 36 bytes = 5.76 KB per edge
 100 edges = 576 KB (50% reduction)
@@ -711,11 +756,13 @@ Weighted average: 4.97 KB per edge (57% reduction)
 ### CPU Performance
 
 **Tessellation Cost**:
+
 - Fixed: O(n) where n = density × length
 - Curvature-based: O(n) + O(1) curvature calculation
 - Recursive: O(n × log depth) + O(depth) stack overhead
 
 **Expected Impact**:
+
 ```
 Operation: Generate 1000 bezier curves
 Current (fixed): ~8ms
@@ -726,6 +773,7 @@ Recursive: ~15ms (+88%, noticeable but OK)
 ### GPU Performance
 
 **Vertex Processing**:
+
 ```
 Current (320 vertices/edge):
 - 1000 edges = 320,000 vertices
@@ -741,6 +789,7 @@ Curvature-based (160 vertices/edge):
 ### Network/Serialization
 
 If bezier control points are ever serialized:
+
 ```
 Current: edge + 300 point coordinates = ~900 bytes
 Future: edge + 4 control points = ~48 bytes (95% reduction)
@@ -758,19 +807,19 @@ export const EDGE_CONSTANTS = {
     // ... existing constants ...
 
     // Bezier tessellation mode
-    BEZIER_TESSELLATION_MODE: 'adaptive' as 'fixed' | 'adaptive' | 'recursive',
+    BEZIER_TESSELLATION_MODE: "adaptive" as "fixed" | "adaptive" | "recursive",
 
     // Fixed mode
     BEZIER_POINT_DENSITY: 35, // Fallback for fixed mode
 
     // Adaptive mode (curvature-based)
-    BEZIER_MIN_SEGMENTS: 10,       // Minimum segments even for straight lines
-    BEZIER_MAX_SEGMENTS: 100,      // Maximum segments even for extreme curves
+    BEZIER_MIN_SEGMENTS: 10, // Minimum segments even for straight lines
+    BEZIER_MAX_SEGMENTS: 100, // Maximum segments even for extreme curves
     BEZIER_CURVATURE_THRESHOLD: 0.5, // Curvature value for max segments
 
     // Recursive mode
-    BEZIER_FLATNESS_TOLERANCE: 0.1,  // Smaller = smoother (more segments)
-    BEZIER_MAX_RECURSION_DEPTH: 10,  // Prevent infinite recursion
+    BEZIER_FLATNESS_TOLERANCE: 0.1, // Smaller = smoother (more segments)
+    BEZIER_MAX_RECURSION_DEPTH: 10, // Prevent infinite recursion
 
     // Debug
     BEZIER_SHOW_SEGMENT_COUNT: false, // Log segment count per edge
@@ -780,6 +829,7 @@ export const EDGE_CONSTANTS = {
 ### Runtime Configuration
 
 Allow users to override via config:
+
 ```typescript
 // User's style template
 {
@@ -802,9 +852,11 @@ Allow users to override via config:
 ## Edge Cases and Corner Cases
 
 ### Self-Loops
+
 **Issue**: Source and destination are the same point
 **Current**: Special `createSelfLoopCurve()` method (50 fixed segments)
 **Adaptive Solution**: Use circular arc with curvature-based density
+
 ```typescript
 if (srcPoint.equalsWithEpsilon(dstPoint, 0.01)) {
     const radius = 2.0; // Self-loop radius
@@ -815,33 +867,41 @@ if (srcPoint.equalsWithEpsilon(dstPoint, 0.01)) {
 ```
 
 ### Near-Collinear Control Points
+
 **Issue**: Control points nearly on straight line → low curvature → few segments → but user expects curve
 **Solution**: Enforce minimum segment count (10)
+
 ```typescript
 const numSegments = Math.max(
     BEZIER_MIN_SEGMENTS,
-    Math.ceil(minSegments + curvatureFactor * (maxSegments - minSegments))
+    Math.ceil(minSegments + curvatureFactor * (maxSegments - minSegments)),
 );
 ```
 
 ### Extreme Curvature
+
 **Issue**: Very tight curves could demand 1000+ segments
 **Solution**: Cap at `BEZIER_MAX_SEGMENTS` (100)
+
 ```typescript
 const numSegments = Math.min(BEZIER_MAX_SEGMENTS, calculatedSegments);
 ```
 
 ### Very Long Edges
+
 **Issue**: 1000-unit edge with fixed density=35 → 35,000 segments
 **Adaptive Solution**: Curvature is relative to length, so long straight edges get fewer segments per unit:
+
 ```typescript
 // Curvature = deviation / baseline
 // Long straight edge: deviation is small, baseline is large → curvature ≈ 0
 ```
 
 ### Numerical Instability
+
 **Issue**: Near-zero division, floating-point error
 **Solutions**:
+
 - Add epsilon to denominators: `baseline + 0.001`
 - Early exit for degenerate cases: `if (baseline < 0.0001) return straightLine`
 - Clamp curvature values: `curvature = Math.min(10.0, calculatedCurvature)`
@@ -851,7 +911,9 @@ const numSegments = Math.min(BEZIER_MAX_SEGMENTS, calculatedSegments);
 ## Future Enhancements
 
 ### 1. Screen-Space Adaptive Tessellation
+
 **Concept**: Adjust segment count based on edge's screen-space length
+
 ```typescript
 // More segments for edges that appear large on screen
 const screenLength = this.calculateScreenSpaceLength(srcPoint, dstPoint, camera);
@@ -862,7 +924,9 @@ const adjustedSegments = baseSegments * screenFactor;
 **Use Case**: LOD (Level of Detail) for large scenes with camera zoom
 
 ### 2. Animation-Aware Tessellation
+
 **Concept**: Increase segments during camera movement
+
 ```typescript
 if (camera.isMoving) {
     segments *= 1.5; // More segments during motion for smooth animation
@@ -870,16 +934,20 @@ if (camera.isMoving) {
 ```
 
 ### 3. Curvature Visualization
+
 **Debug Tool**: Color-code edges by segment count
+
 ```typescript
 if (DEBUG_MODE) {
-    const hue = (numSegments - 10) / 90 * 120; // Green (10 segs) to Red (100 segs)
+    const hue = ((numSegments - 10) / 90) * 120; // Green (10 segs) to Red (100 segs)
     edgeColor = hslToRgb(hue, 1.0, 0.5);
 }
 ```
 
 ### 4. Per-Edge Tessellation Override
+
 **Use Case**: User wants specific edges to be smoother
+
 ```typescript
 edgeData: [
     {
@@ -887,16 +955,18 @@ edgeData: [
         dst: "B",
         style: {
             bezier: {
-                mode: 'recursive',
-                tolerance: 0.01  // Extra smooth
-            }
-        }
-    }
-]
+                mode: "recursive",
+                tolerance: 0.01, // Extra smooth
+            },
+        },
+    },
+];
 ```
 
 ### 5. Bezier Interpolation Animation
+
 **Concept**: Animate between straight line and bezier curve
+
 ```typescript
 const t = animationProgress; // 0 to 1
 for (let i = 0; i <= numSegments; i++) {
@@ -914,45 +984,48 @@ for (let i = 0; i <= numSegments; i++) {
 
 ### Phase 2 (Curvature-Based) Risks
 
-| Risk | Impact | Probability | Mitigation |
-|------|--------|-------------|------------|
-| Segments still visible on extreme curves | Medium | Low | Add `BEZIER_EXTREME_CURVE_BOOST` multiplier |
-| Performance regression on large graphs | High | Medium | Benchmark before/after, optimize if needed |
-| Inconsistent segment count confuses users | Low | Medium | Document behavior, add debug logging |
-| Edge case crashes (div by zero) | High | Low | Add epsilon guards, unit tests |
+| Risk                                      | Impact | Probability | Mitigation                                  |
+| ----------------------------------------- | ------ | ----------- | ------------------------------------------- |
+| Segments still visible on extreme curves  | Medium | Low         | Add `BEZIER_EXTREME_CURVE_BOOST` multiplier |
+| Performance regression on large graphs    | High   | Medium      | Benchmark before/after, optimize if needed  |
+| Inconsistent segment count confuses users | Low    | Medium      | Document behavior, add debug logging        |
+| Edge case crashes (div by zero)           | High   | Low         | Add epsilon guards, unit tests              |
 
 ### Phase 3 (Recursive) Risks
 
-| Risk | Impact | Probability | Mitigation |
-|------|--------|-------------|------------|
-| Stack overflow on pathological curves | High | Very Low | Enforce `maxDepth` limit |
-| Unpredictable performance | Medium | Medium | Profile and document worst-case |
-| Harder to debug issues | Medium | High | Add extensive logging, visualization tools |
+| Risk                                  | Impact | Probability | Mitigation                                 |
+| ------------------------------------- | ------ | ----------- | ------------------------------------------ |
+| Stack overflow on pathological curves | High   | Very Low    | Enforce `maxDepth` limit                   |
+| Unpredictable performance             | Medium | Medium      | Profile and document worst-case            |
+| Harder to debug issues                | Medium | High        | Add extensive logging, visualization tools |
 
 ### Phase 4 (GPU) Risks
 
-| Risk | Impact | Probability | Mitigation |
-|------|--------|-------------|------------|
-| Shader bugs hard to debug | High | High | Incremental implementation, visual tests |
-| Browser/GPU compatibility issues | High | Medium | Fallback to CPU tessellation |
-| Breaks existing edge features | Critical | Low | Comprehensive integration tests |
-| Long implementation time | Medium | High | Timebox effort, consider ROI |
+| Risk                             | Impact   | Probability | Mitigation                               |
+| -------------------------------- | -------- | ----------- | ---------------------------------------- |
+| Shader bugs hard to debug        | High     | High        | Incremental implementation, visual tests |
+| Browser/GPU compatibility issues | High     | Medium      | Fallback to CPU tessellation             |
+| Breaks existing edge features    | Critical | Low         | Comprehensive integration tests          |
+| Long implementation time         | Medium   | High        | Timebox effort, consider ROI             |
 
 ---
 
 ## Success Metrics
 
 ### Visual Quality
+
 - ✅ No visible segments at default camera distance
 - ✅ Smooth curves at 2x zoom
 - ✅ Passes Chromatic visual regression tests
 
 ### Performance
+
 - ✅ <10ms for 1000 edge tessellation
 - ✅ <16ms frame time for 1000 edge graph @ 60 FPS
 - ✅ Memory usage < 10MB for 1000 edges
 
 ### Code Quality
+
 - ✅ Unit test coverage > 80%
 - ✅ All edge cases tested
 - ✅ No regression in existing features
@@ -962,16 +1035,19 @@ for (let i = 0; i <= numSegments; i++) {
 ## Implementation Timeline
 
 ### Week 1: Quick Fix + Research
+
 - Day 1: Increase `BEZIER_POINT_DENSITY` to 35 → **SHIP**
 - Day 2-3: Implement curvature-based adaptive
 - Day 4-5: Testing, debugging, tuning
 
 ### Week 2: Optimization
+
 - Day 1-2: Performance benchmarks
 - Day 3-4: Visual regression testing
 - Day 5: Documentation, merge → **SHIP**
 
 ### Future (Optional)
+
 - Weeks 3-4: Recursive subdivision (if needed)
 - Weeks 5-8: GPU-based evaluation (if justified by data)
 
@@ -998,19 +1074,19 @@ for (let i = 0; i <= numSegments; i++) {
 ## Open Questions
 
 1. **Tuning**: What values for `BEZIER_MIN_SEGMENTS`, `BEZIER_MAX_SEGMENTS`, and `BEZIER_CURVATURE_THRESHOLD` look best?
-   - **Answer via**: A/B testing in Storybook with various edge configurations
+    - **Answer via**: A/B testing in Storybook with various edge configurations
 
 2. **Performance**: At what graph size (edge count) does adaptive tessellation become slower than fixed?
-   - **Answer via**: Benchmark with 10, 100, 1k, 10k edges
+    - **Answer via**: Benchmark with 10, 100, 1k, 10k edges
 
 3. **User Control**: Should users have per-edge tessellation control?
-   - **Answer via**: User feedback after initial release
+    - **Answer via**: User feedback after initial release
 
 4. **Compatibility**: Are there any browser/GPU limitations we need to consider?
-   - **Answer via**: Cross-browser testing
+    - **Answer via**: Cross-browser testing
 
 5. **Future**: Is GPU-based evaluation worth the effort?
-   - **Answer via**: Performance profiling after Phase 2 implementation
+    - **Answer via**: Performance profiling after Phase 2 implementation
 
 ---
 
@@ -1021,12 +1097,14 @@ for (let i = 0; i <= numSegments; i++) {
 **Immediate action**: Implement curvature-based adaptive tessellation (Phase 2)
 
 **Expected outcome**:
+
 - Smooth, visually perfect bezier curves
 - 50% reduction in average vertex count
 - Minimal performance impact
 - Maintainable, extensible codebase
 
 **Next steps**:
+
 1. Implement curvature-based tessellation (1-2 days)
 2. Add tuning constants and feature flag
 3. Write comprehensive tests

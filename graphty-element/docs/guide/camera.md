@@ -54,9 +54,9 @@ graph.zoomToFit({ padding: 1.2 }); // 20% extra space
 
 ```typescript
 graph.setCameraState({
-  position: { x: 50, y: 50, z: 100 },
-  target: { x: 0, y: 0, z: 0 },
-  up: { x: 0, y: 1, z: 0 }
+    position: { x: 50, y: 50, z: 100 },
+    target: { x: 0, y: 0, z: 0 },
+    up: { x: 0, y: 1, z: 0 },
 });
 ```
 
@@ -66,19 +66,20 @@ Animate camera movements for smooth transitions:
 
 ```typescript
 const newState = {
-  position: { x: 100, y: 100, z: 200 },
-  target: { x: 0, y: 0, z: 0 },
-  up: { x: 0, y: 1, z: 0 }
+    position: { x: 100, y: 100, z: 200 },
+    target: { x: 0, y: 0, z: 0 },
+    up: { x: 0, y: 1, z: 0 },
 };
 
 graph.setCameraState(newState, {
-  animate: true,
-  duration: 1000,           // milliseconds
-  easing: 'easeInOutQuad'   // easing function
+    animate: true,
+    duration: 1000, // milliseconds
+    easing: "easeInOutQuad", // easing function
 });
 ```
 
 Available easing functions:
+
 - `linear`
 - `easeInQuad`, `easeOutQuad`, `easeInOutQuad`
 - `easeInCubic`, `easeOutCubic`, `easeInOutCubic`
@@ -90,18 +91,18 @@ Save and restore camera positions:
 
 ```typescript
 // Save current view
-graph.saveCameraPreset('overview');
+graph.saveCameraPreset("overview");
 
 // Navigate to different part of graph
 graph.setCameraPosition({ x: 200, y: 0, z: 50 });
 
 // Restore saved view
-graph.loadCameraPreset('overview');
+graph.loadCameraPreset("overview");
 
 // Restore with animation
-graph.loadCameraPreset('overview', {
-  animate: true,
-  duration: 1000
+graph.loadCameraPreset("overview", {
+    animate: true,
+    duration: 1000,
 });
 ```
 
@@ -109,21 +110,21 @@ graph.loadCameraPreset('overview', {
 
 ```typescript
 // Save multiple presets
-graph.saveCameraPreset('top');
+graph.saveCameraPreset("top");
 graph.setCameraPosition({ x: 0, y: 100, z: 0 });
 graph.setCameraTarget({ x: 0, y: 0, z: 0 });
 
-graph.saveCameraPreset('side');
+graph.saveCameraPreset("side");
 graph.setCameraPosition({ x: 100, y: 0, z: 0 });
 graph.setCameraTarget({ x: 0, y: 0, z: 0 });
 
 // Create a tour
-const presets = ['overview', 'top', 'side'];
+const presets = ["overview", "top", "side"];
 let current = 0;
 
 function nextView() {
-  current = (current + 1) % presets.length;
-  graph.loadCameraPreset(presets[current], { animate: true });
+    current = (current + 1) % presets.length;
+    graph.loadCameraPreset(presets[current], { animate: true });
 }
 ```
 
@@ -132,6 +133,7 @@ function nextView() {
 ### 3D Mode (Default)
 
 Full 3D navigation with orbit controls:
+
 - Mouse drag: Orbit around target
 - Scroll: Zoom in/out
 - Right-drag: Pan
@@ -150,6 +152,7 @@ graph.setCameraPosition({ x: 0, y: 0, z: 100 });
 ```
 
 In 2D mode:
+
 - Mouse drag: Pan
 - Scroll: Zoom
 - No orbit (camera always looks down at the plane)
@@ -170,7 +173,7 @@ const screenPos = graph.worldToScreen(worldPos);
 Use case: Position HTML overlays on nodes:
 
 ```typescript
-const node = graph.getNode('node1');
+const node = graph.getNode("node1");
 const screenPos = graph.worldToScreen(node.position);
 
 overlay.style.left = `${screenPos.x}px`;
@@ -191,8 +194,8 @@ const worldPos = graph.screenToWorld(screenPos);
 Listen to camera changes:
 
 ```typescript
-graph.on('camera-state-changed', ({ state }) => {
-  console.log('Camera moved:', state);
+graph.on("camera-state-changed", ({ state }) => {
+    console.log("Camera moved:", state);
 });
 ```
 
@@ -202,23 +205,26 @@ Animate camera to focus on a specific node:
 
 ```typescript
 async function focusNode(nodeId) {
-  const node = graph.getNode(nodeId);
-  if (!node) return;
+    const node = graph.getNode(nodeId);
+    if (!node) return;
 
-  const position = node.position;
+    const position = node.position;
 
-  graph.setCameraState({
-    position: {
-      x: position.x,
-      y: position.y,
-      z: position.z + 50  // Back away a bit
-    },
-    target: position,
-    up: { x: 0, y: 1, z: 0 }
-  }, {
-    animate: true,
-    duration: 500
-  });
+    graph.setCameraState(
+        {
+            position: {
+                x: position.x,
+                y: position.y,
+                z: position.z + 50, // Back away a bit
+            },
+            target: position,
+            up: { x: 0, y: 1, z: 0 },
+        },
+        {
+            animate: true,
+            duration: 500,
+        },
+    );
 }
 ```
 
@@ -228,22 +234,22 @@ Create a rotating view:
 
 ```typescript
 function startOrbit() {
-  let angle = 0;
-  const radius = 100;
-  const center = { x: 0, y: 0, z: 0 };
+    let angle = 0;
+    const radius = 100;
+    const center = { x: 0, y: 0, z: 0 };
 
-  const intervalId = setInterval(() => {
-    angle += 0.01;
+    const intervalId = setInterval(() => {
+        angle += 0.01;
 
-    graph.setCameraPosition({
-      x: center.x + radius * Math.cos(angle),
-      y: 20,
-      z: center.z + radius * Math.sin(angle)
-    });
-    graph.setCameraTarget(center);
-  }, 16); // ~60fps
+        graph.setCameraPosition({
+            x: center.x + radius * Math.cos(angle),
+            y: 20,
+            z: center.z + radius * Math.sin(angle),
+        });
+        graph.setCameraTarget(center);
+    }, 16); // ~60fps
 
-  return () => clearInterval(intervalId);
+    return () => clearInterval(intervalId);
 }
 
 const stopOrbit = startOrbit();

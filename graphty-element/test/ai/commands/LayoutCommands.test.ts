@@ -3,13 +3,13 @@
  * @module test/ai/commands/LayoutCommands.test
  */
 
-import {assert, beforeEach, describe, it} from "vitest";
-import {z} from "zod";
+import { assert, beforeEach, describe, it } from "vitest";
+import { z } from "zod";
 
-import {setDimension, setLayout} from "../../../src/ai/commands/LayoutCommands";
-import type {CommandContext} from "../../../src/ai/commands/types";
-import type {Graph} from "../../../src/Graph";
-import {createMockContext, createTestGraph} from "../../helpers/test-graph";
+import { setDimension, setLayout } from "../../../src/ai/commands/LayoutCommands";
+import type { CommandContext } from "../../../src/ai/commands/types";
+import type { Graph } from "../../../src/Graph";
+import { createMockContext, createTestGraph } from "../../helpers/test-graph";
 
 describe("LayoutCommands", () => {
     let graph: Graph;
@@ -21,62 +21,62 @@ describe("LayoutCommands", () => {
     });
 
     describe("setLayout", () => {
-        it("switches to circular layout", async() => {
-            const result = await setLayout.execute(graph, {type: "circular"}, context);
+        it("switches to circular layout", async () => {
+            const result = await setLayout.execute(graph, { type: "circular" }, context);
             assert.strictEqual(result.success, true);
             assert.ok(result.message.toLowerCase().includes("circular"));
         });
 
-        it("switches to force-directed layout (ngraph)", async() => {
-            const result = await setLayout.execute(graph, {type: "ngraph"}, context);
+        it("switches to force-directed layout (ngraph)", async () => {
+            const result = await setLayout.execute(graph, { type: "ngraph" }, context);
             assert.strictEqual(result.success, true);
-            assert.ok(result.message.toLowerCase().includes("ngraph") || result.message.toLowerCase().includes("force"));
-        });
-
-        it("switches to random layout", async() => {
-            const result = await setLayout.execute(graph, {type: "random"}, context);
-            assert.strictEqual(result.success, true);
-        });
-
-        it("rejects invalid layout type", async() => {
-            const result = await setLayout.execute(graph, {type: "nonexistent_layout_xyz"}, context);
-            assert.strictEqual(result.success, false);
-            assert.ok(result.message.toLowerCase().includes("invalid") ||
-                      result.message.toLowerCase().includes("unknown") ||
-                      result.message.toLowerCase().includes("not found") ||
-                      result.message.toLowerCase().includes("error"));
-        });
-
-        it("accepts layout options", async() => {
-            const result = await setLayout.execute(
-                graph,
-                {type: "circular", options: {radius: 100}},
-                context,
+            assert.ok(
+                result.message.toLowerCase().includes("ngraph") || result.message.toLowerCase().includes("force"),
             );
+        });
+
+        it("switches to random layout", async () => {
+            const result = await setLayout.execute(graph, { type: "random" }, context);
+            assert.strictEqual(result.success, true);
+        });
+
+        it("rejects invalid layout type", async () => {
+            const result = await setLayout.execute(graph, { type: "nonexistent_layout_xyz" }, context);
+            assert.strictEqual(result.success, false);
+            assert.ok(
+                result.message.toLowerCase().includes("invalid") ||
+                    result.message.toLowerCase().includes("unknown") ||
+                    result.message.toLowerCase().includes("not found") ||
+                    result.message.toLowerCase().includes("error"),
+            );
+        });
+
+        it("accepts layout options", async () => {
+            const result = await setLayout.execute(graph, { type: "circular", options: { radius: 100 } }, context);
             assert.strictEqual(result.success, true);
         });
     });
 
     describe("setDimension", () => {
-        it("switches to 2D", async() => {
-            const result = await setDimension.execute(graph, {dimension: "2d"}, context);
+        it("switches to 2D", async () => {
+            const result = await setDimension.execute(graph, { dimension: "2d" }, context);
             assert.strictEqual(result.success, true);
             assert.ok(result.message.toLowerCase().includes("2d"));
         });
 
-        it("switches to 3D", async() => {
-            const result = await setDimension.execute(graph, {dimension: "3d"}, context);
+        it("switches to 3D", async () => {
+            const result = await setDimension.execute(graph, { dimension: "3d" }, context);
             assert.strictEqual(result.success, true);
             assert.ok(result.message.toLowerCase().includes("3d"));
         });
 
-        it("handles dimension as number (2)", async() => {
-            const result = await setDimension.execute(graph, {dimension: 2}, context);
+        it("handles dimension as number (2)", async () => {
+            const result = await setDimension.execute(graph, { dimension: 2 }, context);
             assert.strictEqual(result.success, true);
         });
 
-        it("handles dimension as number (3)", async() => {
-            const result = await setDimension.execute(graph, {dimension: 3}, context);
+        it("handles dimension as number (3)", async () => {
+            const result = await setDimension.execute(graph, { dimension: 3 }, context);
             assert.strictEqual(result.success, true);
         });
     });
@@ -122,7 +122,7 @@ describe("LayoutCommands", () => {
     describe("regression: schema enum values are strings for Google compatibility (Issue #3)", () => {
         it("setDimension dimension parameter should be string enum (not union with numbers)", () => {
             // Get the parameters schema and extract the dimension field
-            const paramsSchema = setDimension.parameters as z.ZodObject<{dimension: z.ZodType}>;
+            const paramsSchema = setDimension.parameters as z.ZodObject<{ dimension: z.ZodType }>;
             assert.ok(paramsSchema instanceof z.ZodObject, "parameters should be a ZodObject");
 
             // Access the shape to get the dimension schema
@@ -131,22 +131,22 @@ describe("LayoutCommands", () => {
 
             // The dimension schema should be a ZodEnum (string enum) not a ZodUnion
             // This ensures Google API compatibility (no numeric enum values)
-            const def = dimensionSchema._def as {typeName: string};
-            const {typeName} = def;
+            const def = dimensionSchema._def as { typeName: string };
+            const { typeName } = def;
 
             // ZodEnum is good (strings only), ZodUnion might contain literals with numbers
             assert.ok(
                 typeName === "ZodEnum",
                 `dimension schema should be ZodEnum (string-only enum) for Google API compatibility, got: ${typeName}. ` +
-                "If this is ZodUnion, it may contain numeric literals which Google's API rejects.",
+                    "If this is ZodUnion, it may contain numeric literals which Google's API rejects.",
             );
         });
 
         it("setDimension accepts both string forms ('2d' and '3d')", () => {
             // Verify the schema accepts the string forms
             const paramsSchema = setDimension.parameters;
-            const result2d = paramsSchema.safeParse({dimension: "2d"});
-            const result3d = paramsSchema.safeParse({dimension: "3d"});
+            const result2d = paramsSchema.safeParse({ dimension: "2d" });
+            const result3d = paramsSchema.safeParse({ dimension: "3d" });
 
             assert.strictEqual(result2d.success, true, "Should accept '2d' string");
             assert.strictEqual(result3d.success, true, "Should accept '3d' string");
@@ -154,17 +154,17 @@ describe("LayoutCommands", () => {
 
         it("setDimension schema does not have union type (which could contain numbers)", () => {
             // Access the parameters schema's shape
-            const paramsSchema = setDimension.parameters as z.ZodObject<{dimension: z.ZodType}>;
+            const paramsSchema = setDimension.parameters as z.ZodObject<{ dimension: z.ZodType }>;
             const dimensionSchema = paramsSchema.shape.dimension;
 
             // Check that it's not a union type (which was the source of the bug)
-            const def = dimensionSchema._def as {typeName: string};
-            const {typeName} = def;
+            const def = dimensionSchema._def as { typeName: string };
+            const { typeName } = def;
             assert.notStrictEqual(
                 typeName,
                 "ZodUnion",
                 "dimension schema should NOT be ZodUnion - unions with z.literal(2) and z.literal(3) " +
-                "produce numeric enum values that Google's API rejects",
+                    "produce numeric enum values that Google's API rejects",
             );
         });
     });

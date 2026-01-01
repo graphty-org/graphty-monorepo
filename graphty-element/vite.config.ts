@@ -1,11 +1,11 @@
-import {readFileSync} from "fs";
-import {resolve} from "path";
-import {defineConfig, loadEnv, UserConfig} from "vite";
+import { readFileSync } from "fs";
+import { resolve } from "path";
+import { defineConfig, loadEnv, UserConfig } from "vite";
 import VitePluginCustomElementsManifest from "vite-plugin-cem";
 // import eslint from "vite-plugin-eslint";
 
 // https://vitejs.dev/config/
-export default defineConfig(({mode}) => {
+export default defineConfig(({ mode }) => {
     // Load env file based on `mode` in the current working directory.
     // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
     const env = loadEnv(mode, process.cwd(), "");
@@ -45,7 +45,7 @@ export default defineConfig(({mode}) => {
                     globals: {
                         "@babylonjs/core": "BABYLON",
                         "@babylonjs/inspector": "BABYLON",
-                        "lit": "Lit",
+                        lit: "Lit",
                         "lit/decorators.js": "Lit",
                         "lit/directives/class-map.js": "Lit",
                         "lit/directives/style-map.js": "Lit",
@@ -58,10 +58,7 @@ export default defineConfig(({mode}) => {
             },
         },
         optimizeDeps: {
-            exclude: [
-                "@babylonjs/core",
-                "@babylonjs/inspector",
-            ],
+            exclude: ["@babylonjs/core", "@babylonjs/inspector"],
         },
         resolve: {
             alias: {
@@ -91,4 +88,3 @@ export default defineConfig(({mode}) => {
 
     return config;
 });
-

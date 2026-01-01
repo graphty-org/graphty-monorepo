@@ -1,5 +1,5 @@
-import type {AdHocData} from "../../../src/config/common";
-import {Graph} from "../../../src/Graph";
+import type { AdHocData } from "../../../src/config/common";
+import { Graph } from "../../../src/Graph";
 
 export async function createTestGraphWithData(): Promise<Graph> {
     // Create a container element
@@ -17,11 +17,11 @@ export async function createTestGraphWithData(): Promise<Graph> {
 
     // Add some test data
     const dataManager = graph.getDataManager();
-    dataManager.addNode({id: "1", label: "Node 1"} as unknown as AdHocData);
-    dataManager.addNode({id: "2", label: "Node 2"} as unknown as AdHocData);
-    dataManager.addNode({id: "3", label: "Node 3"} as unknown as AdHocData);
-    dataManager.addEdge({src: "1", dst: "2"} as unknown as AdHocData);
-    dataManager.addEdge({src: "2", dst: "3"} as unknown as AdHocData);
+    dataManager.addNode({ id: "1", label: "Node 1" } as unknown as AdHocData);
+    dataManager.addNode({ id: "2", label: "Node 2" } as unknown as AdHocData);
+    dataManager.addNode({ id: "3", label: "Node 3" } as unknown as AdHocData);
+    dataManager.addEdge({ src: "1", dst: "2" } as unknown as AdHocData);
+    dataManager.addEdge({ src: "2", dst: "3" } as unknown as AdHocData);
 
     // Set fixed layout so layout is immediately settled
     // This prevents waitForLayoutSettle from timing out

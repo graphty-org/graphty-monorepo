@@ -3,17 +3,18 @@
  * @module ai/commands/CaptureCommands
  */
 
-import {z} from "zod";
+import { z } from "zod";
 
-import type {Graph} from "../../Graph";
-import type {CommandResult, GraphCommand} from "./types";
+import type { Graph } from "../../Graph";
+import type { CommandResult, GraphCommand } from "./types";
 
 /**
  * Command to capture a screenshot of the graph.
  */
 export const captureScreenshot: GraphCommand = {
     name: "captureScreenshot",
-    description: "Capture a screenshot of the current graph visualization. Returns a data URL that can be displayed or downloaded. Supports PNG and JPEG formats with configurable size and quality.",
+    description:
+        "Capture a screenshot of the current graph visualization. Returns a data URL that can be displayed or downloaded. Supports PNG and JPEG formats with configurable size and quality.",
     parameters: z.object({
         format: z.enum(["png", "jpeg"]).optional().describe("Image format (default: png)"),
         width: z.number().positive().optional().describe("Width of the screenshot in pixels"),
@@ -22,17 +23,14 @@ export const captureScreenshot: GraphCommand = {
         download: z.boolean().optional().describe("Whether to trigger a download (default: false)"),
     }),
     examples: [
-        {input: "Take a screenshot", params: {}},
-        {input: "Capture the graph as PNG", params: {format: "png"}},
-        {input: "Screenshot in JPEG format", params: {format: "jpeg", quality: 0.9}},
-        {input: "High resolution screenshot", params: {width: 1920, height: 1080}},
-        {input: "Download screenshot", params: {download: true}},
+        { input: "Take a screenshot", params: {} },
+        { input: "Capture the graph as PNG", params: { format: "png" } },
+        { input: "Screenshot in JPEG format", params: { format: "jpeg", quality: 0.9 } },
+        { input: "High resolution screenshot", params: { width: 1920, height: 1080 } },
+        { input: "Download screenshot", params: { download: true } },
     ],
 
-    async execute(
-        graph: Graph,
-        params: Record<string, unknown>,
-    ): Promise<CommandResult> {
+    async execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
         const {
             format = "png",
             width,
@@ -124,23 +122,28 @@ function triggerDownload(dataUrl: string, filename: string): void {
  */
 export const captureVideo: GraphCommand = {
     name: "captureVideo",
-    description: "Start or stop video recording of the graph visualization. Returns a video blob URL when stopped. Note: This is a browser-only feature that requires MediaRecorder API support.",
+    description:
+        "Start or stop video recording of the graph visualization. Returns a video blob URL when stopped. Note: This is a browser-only feature that requires MediaRecorder API support.",
     parameters: z.object({
         action: z.enum(["start", "stop"]).describe("Action to perform: start or stop recording"),
-        duration: z.number().positive().optional().describe("Auto-stop after this many seconds (only for start action)"),
-        format: z.enum(["webm", "mp4"]).optional().describe("Video format (default: webm, note: mp4 may not be supported in all browsers)"),
+        duration: z
+            .number()
+            .positive()
+            .optional()
+            .describe("Auto-stop after this many seconds (only for start action)"),
+        format: z
+            .enum(["webm", "mp4"])
+            .optional()
+            .describe("Video format (default: webm, note: mp4 may not be supported in all browsers)"),
     }),
     examples: [
-        {input: "Start recording", params: {action: "start"}},
-        {input: "Stop recording", params: {action: "stop"}},
-        {input: "Record for 5 seconds", params: {action: "start", duration: 5}},
+        { input: "Start recording", params: { action: "start" } },
+        { input: "Stop recording", params: { action: "stop" } },
+        { input: "Record for 5 seconds", params: { action: "start", duration: 5 } },
     ],
 
-    execute(
-        _graph: Graph,
-        params: Record<string, unknown>,
-    ): Promise<CommandResult> {
-        const {action, duration} = params as {
+    execute(_graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
+        const { action, duration } = params as {
             action: "start" | "stop";
             duration?: number;
             format?: "webm" | "mp4";

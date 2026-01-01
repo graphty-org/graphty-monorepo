@@ -1,8 +1,8 @@
-import {afterEach, assert, beforeEach, describe, test, vi} from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
-import {Graph} from "../../../src/Graph.js";
-import type {CameraWaypoint} from "../../../src/video/VideoCapture.js";
-import {restoreMockMediaRecorder, setupMockMediaRecorder} from "./mock-media-recorder.js";
+import { Graph } from "../../../src/Graph.js";
+import type { CameraWaypoint } from "../../../src/video/VideoCapture.js";
+import { restoreMockMediaRecorder, setupMockMediaRecorder } from "./mock-media-recorder.js";
 
 // Store original MediaRecorder
 let originalMediaRecorder: typeof MediaRecorder;
@@ -20,15 +20,15 @@ afterEach(() => {
 });
 
 describe("Video Capture - Animated Camera Mode", () => {
-    test("can capture video with animated camera", async() => {
+    test("can capture video with animated camera", async () => {
         const canvas = document.createElement("canvas");
         canvas.width = 800;
         canvas.height = 600;
         const graph = new Graph(canvas);
 
         const cameraPath: CameraWaypoint[] = [
-            {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-            {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 2000},
+            { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+            { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 2000 },
         ];
 
         const result = await graph.captureAnimation({
@@ -48,17 +48,17 @@ describe("Video Capture - Animated Camera Mode", () => {
         graph.dispose();
     });
 
-    test("supports multiple waypoints", async() => {
+    test("supports multiple waypoints", async () => {
         const canvas = document.createElement("canvas");
         canvas.width = 800;
         canvas.height = 600;
         const graph = new Graph(canvas);
 
         const cameraPath: CameraWaypoint[] = [
-            {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-            {position: {x: 0, y: 20, z: 0}, target: {x: 0, y: 0, z: 0}, duration: 1000},
-            {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 1000},
-            {position: {x: 0, y: 0, z: 20}, target: {x: 0, y: 0, z: 0}, duration: 1000},
+            { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+            { position: { x: 0, y: 20, z: 0 }, target: { x: 0, y: 0, z: 0 }, duration: 1000 },
+            { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 1000 },
+            { position: { x: 0, y: 0, z: 20 }, target: { x: 0, y: 0, z: 0 }, duration: 1000 },
         ];
 
         const result = await graph.captureAnimation({
@@ -74,15 +74,15 @@ describe("Video Capture - Animated Camera Mode", () => {
         graph.dispose();
     });
 
-    test("supports easing options", async() => {
+    test("supports easing options", async () => {
         const canvas = document.createElement("canvas");
         canvas.width = 800;
         canvas.height = 600;
         const graph = new Graph(canvas);
 
         const cameraPath: CameraWaypoint[] = [
-            {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-            {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 2000},
+            { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+            { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 2000 },
         ];
 
         // Test all easing options
@@ -101,7 +101,7 @@ describe("Video Capture - Animated Camera Mode", () => {
         graph.dispose();
     });
 
-    test("fires animation-progress events", async() => {
+    test("fires animation-progress events", async () => {
         const canvas = document.createElement("canvas");
         canvas.width = 800;
         canvas.height = 600;
@@ -110,15 +110,17 @@ describe("Video Capture - Animated Camera Mode", () => {
         const progressEvents: number[] = [];
 
         // Use eventManager to listen for events
-        const {eventManager} = (graph as {eventManager: {addListener: (event: string, handler: (data: unknown) => void) => void}});
+        const { eventManager } = graph as {
+            eventManager: { addListener: (event: string, handler: (data: unknown) => void) => void };
+        };
         eventManager.addListener("animation-progress", (data) => {
-            const progressData = data as {progress: number};
+            const progressData = data as { progress: number };
             progressEvents.push(progressData.progress);
         });
 
         const cameraPath: CameraWaypoint[] = [
-            {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-            {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 1000},
+            { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+            { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 1000 },
         ];
 
         await graph.captureAnimation({
@@ -135,7 +137,7 @@ describe("Video Capture - Animated Camera Mode", () => {
         graph.dispose();
     });
 
-    test("throws error with no camera path", async() => {
+    test("throws error with no camera path", async () => {
         const canvas = document.createElement("canvas");
         canvas.width = 800;
         canvas.height = 600;
@@ -156,15 +158,13 @@ describe("Video Capture - Animated Camera Mode", () => {
         graph.dispose();
     });
 
-    test("throws error with single waypoint", async() => {
+    test("throws error with single waypoint", async () => {
         const canvas = document.createElement("canvas");
         canvas.width = 800;
         canvas.height = 600;
         const graph = new Graph(canvas);
 
-        const cameraPath: CameraWaypoint[] = [
-            {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-        ];
+        const cameraPath: CameraWaypoint[] = [{ position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } }];
 
         try {
             await graph.captureAnimation({
@@ -181,15 +181,15 @@ describe("Video Capture - Animated Camera Mode", () => {
         graph.dispose();
     });
 
-    test("respects custom fps setting", async() => {
+    test("respects custom fps setting", async () => {
         const canvas = document.createElement("canvas");
         canvas.width = 800;
         canvas.height = 600;
         const graph = new Graph(canvas);
 
         const cameraPath: CameraWaypoint[] = [
-            {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-            {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 500},
+            { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+            { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 500 },
         ];
 
         const result = await graph.captureAnimation({
@@ -204,15 +204,15 @@ describe("Video Capture - Animated Camera Mode", () => {
         graph.dispose();
     });
 
-    test("respects custom dimensions", async() => {
+    test("respects custom dimensions", async () => {
         const canvas = document.createElement("canvas");
         canvas.width = 800;
         canvas.height = 600;
         const graph = new Graph(canvas);
 
         const cameraPath: CameraWaypoint[] = [
-            {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-            {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 500},
+            { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+            { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 500 },
         ];
 
         const result = await graph.captureAnimation({
@@ -232,7 +232,7 @@ describe("Video Capture - Animated Camera Mode", () => {
 });
 
 describe("Video Capture - Animated vs Stationary Comparison", () => {
-    test("stationary mode still works after animated mode implementation", async() => {
+    test("stationary mode still works after animated mode implementation", async () => {
         const canvas = document.createElement("canvas");
         canvas.width = 800;
         canvas.height = 600;
@@ -250,15 +250,15 @@ describe("Video Capture - Animated vs Stationary Comparison", () => {
         graph.dispose();
     });
 
-    test("animated mode produces valid video output", async() => {
+    test("animated mode produces valid video output", async () => {
         const canvas = document.createElement("canvas");
         canvas.width = 800;
         canvas.height = 600;
         const graph = new Graph(canvas);
 
         const cameraPath: CameraWaypoint[] = [
-            {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-            {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 500},
+            { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+            { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 500 },
         ];
 
         const result = await graph.captureAnimation({

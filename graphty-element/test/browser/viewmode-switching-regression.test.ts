@@ -10,12 +10,12 @@
  * 3. 2D pan didn't work after switching from 3D to 2D
  * 4. AR/VR mode shouldn't attempt to work if WebXR APIs aren't available
  */
-import {Vector3} from "@babylonjs/core";
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { Vector3 } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import type {Edge} from "../../src/Edge";
-import {Graph} from "../../src/Graph";
-import type {DataManager} from "../../src/managers/DataManager";
+import type { Edge } from "../../src/Edge";
+import { Graph } from "../../src/Graph";
+import type { DataManager } from "../../src/managers/DataManager";
 
 // Type helper to access private Graph members in tests
 interface TestGraph {
@@ -34,18 +34,18 @@ describe("ViewMode Switching Regression Tests", () => {
     let container: HTMLDivElement;
 
     const TEST_NODES = [
-        {id: 1, name: "Node 1"},
-        {id: 2, name: "Node 2"},
-        {id: 3, name: "Node 3"},
+        { id: 1, name: "Node 1" },
+        { id: 2, name: "Node 2" },
+        { id: 3, name: "Node 3" },
     ];
 
     const TEST_EDGES = [
-        {id: "e1", src: 1, dst: 2},
-        {id: "e2", src: 2, dst: 3},
-        {id: "e3", src: 3, dst: 1},
+        { id: "e1", src: 1, dst: 2 },
+        { id: "e2", src: 2, dst: 3 },
+        { id: "e3", src: 3, dst: 1 },
     ];
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         container = document.createElement("div");
         container.style.width = "800px";
         container.style.height = "600px";
@@ -60,7 +60,7 @@ describe("ViewMode Switching Regression Tests", () => {
     });
 
     describe("Regression: Edges connect to nodes after 2D→3D switch", () => {
-        it("should have edges properly connected to nodes after switching from 2D to 3D", async() => {
+        it("should have edges properly connected to nodes after switching from 2D to 3D", async () => {
             // Setup in 2D mode first
             await graph.setViewMode("2d");
             await graph.addNodes(TEST_NODES);
@@ -99,7 +99,10 @@ describe("ViewMode Switching Regression Tests", () => {
                 const edgeMesh = edge.mesh;
                 if ("position" in edgeMesh && "isEnabled" in edgeMesh) {
                     // For non-patterned line meshes, check they exist and are enabled
-                    assert.isTrue((edgeMesh as {isEnabled: () => boolean}).isEnabled(), `Edge ${edge.id} mesh should be enabled after 2D→3D switch`);
+                    assert.isTrue(
+                        (edgeMesh as { isEnabled: () => boolean }).isEnabled(),
+                        `Edge ${edge.id} mesh should be enabled after 2D→3D switch`,
+                    );
                 }
 
                 // Verify edge endpoints are not at origin (0, 0, 0) unless nodes are there
@@ -107,15 +110,12 @@ describe("ViewMode Switching Regression Tests", () => {
                 if (srcPos.length() > 0.1 || dstPos.length() > 0.1) {
                     // At least one node is not at origin, so edge should span some distance
                     const edgeLength = Vector3.Distance(srcPos, dstPos);
-                    assert.isTrue(
-                        edgeLength > 0.01,
-                        `Edge ${edge.id} should have non-zero length after 2D→3D switch`,
-                    );
+                    assert.isTrue(edgeLength > 0.01, `Edge ${edge.id} should have non-zero length after 2D→3D switch`);
                 }
             }
         });
 
-        it("should maintain edge-node connections through multiple 2D↔3D cycles", async() => {
+        it("should maintain edge-node connections through multiple 2D↔3D cycles", async () => {
             // Start in 3D
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
@@ -149,7 +149,7 @@ describe("ViewMode Switching Regression Tests", () => {
     });
 
     describe("Regression: Edges preserved after 3D→2D switch", () => {
-        it("should preserve all edges when switching from 3D to 2D", async() => {
+        it("should preserve all edges when switching from 3D to 2D", async () => {
             // Setup in 3D mode - add nodes and edges
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
@@ -172,12 +172,15 @@ describe("ViewMode Switching Regression Tests", () => {
             for (const edge of edges2D) {
                 const edgeMesh = edge.mesh;
                 if ("isEnabled" in edgeMesh) {
-                    assert.isTrue((edgeMesh as {isEnabled: () => boolean}).isEnabled(), `Edge ${edge.id} mesh should be enabled after switch`);
+                    assert.isTrue(
+                        (edgeMesh as { isEnabled: () => boolean }).isEnabled(),
+                        `Edge ${edge.id} mesh should be enabled after switch`,
+                    );
                 }
             }
         });
 
-        it("should preserve edges through rapid 3D→2D→3D switches", async() => {
+        it("should preserve edges through rapid 3D→2D→3D switches", async () => {
             // Setup in 3D mode
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
@@ -200,7 +203,7 @@ describe("ViewMode Switching Regression Tests", () => {
             assert.strictEqual(finalEdges.length, TEST_EDGES.length, "Should preserve all edges after rapid switches");
         });
 
-        it("should preserve edges over multiple mode switches", async() => {
+        it("should preserve edges over multiple mode switches", async () => {
             // Setup
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
@@ -235,7 +238,7 @@ describe("ViewMode Switching Regression Tests", () => {
     });
 
     describe("Regression: 2D pan works after 3D→2D switch", () => {
-        it("should have camera controller active after switching from 3D to 2D", async() => {
+        it("should have camera controller active after switching from 3D to 2D", async () => {
             // Setup in 3D mode first
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
@@ -267,7 +270,7 @@ describe("ViewMode Switching Regression Tests", () => {
             assert.isDefined(scene.activeCamera, "Scene should have an active camera");
         });
 
-        it("should have camera controller active after 3D→2D→3D→2D switches", async() => {
+        it("should have camera controller active after 3D→2D→3D→2D switches", async () => {
             // Setup
             await graph.addNodes(TEST_NODES);
             await graph.setLayout("circular");
@@ -299,7 +302,7 @@ describe("ViewMode Switching Regression Tests", () => {
     });
 
     describe("Regression: AR/VR gracefully handles missing WebXR APIs", () => {
-        it("should fall back to 3D when VR is not supported", async() => {
+        it("should fall back to 3D when VR is not supported", async () => {
             // Setup
             await graph.addNodes(TEST_NODES);
             await graph.operationQueue.waitForCompletion();
@@ -313,16 +316,12 @@ describe("ViewMode Switching Regression Tests", () => {
 
             if (!vrSupported) {
                 // Should fall back to 3D
-                assert.strictEqual(
-                    graph.getViewMode(),
-                    "3d",
-                    "Should fall back to 3D when VR is not supported",
-                );
+                assert.strictEqual(graph.getViewMode(), "3d", "Should fall back to 3D when VR is not supported");
             }
             // If VR is supported (unlikely in test environment), just verify it doesn't crash
         });
 
-        it("should fall back to 3D when AR is not supported", async() => {
+        it("should fall back to 3D when AR is not supported", async () => {
             // Setup
             await graph.addNodes(TEST_NODES);
             await graph.operationQueue.waitForCompletion();
@@ -336,16 +335,12 @@ describe("ViewMode Switching Regression Tests", () => {
 
             if (!arSupported) {
                 // Should fall back to 3D
-                assert.strictEqual(
-                    graph.getViewMode(),
-                    "3d",
-                    "Should fall back to 3D when AR is not supported",
-                );
+                assert.strictEqual(graph.getViewMode(), "3d", "Should fall back to 3D when AR is not supported");
             }
             // If AR is supported (unlikely in test environment), just verify it doesn't crash
         });
 
-        it("should not throw when switching to VR without WebXR", async() => {
+        it("should not throw when switching to VR without WebXR", async () => {
             // Setup
             await graph.addNodes(TEST_NODES);
             await graph.operationQueue.waitForCompletion();
@@ -362,7 +357,7 @@ describe("ViewMode Switching Regression Tests", () => {
             assert.isFalse(errorThrown, "Setting viewMode to 'vr' should not throw");
         });
 
-        it("should not throw when switching to AR without WebXR", async() => {
+        it("should not throw when switching to AR without WebXR", async () => {
             // Setup
             await graph.addNodes(TEST_NODES);
             await graph.operationQueue.waitForCompletion();
@@ -379,7 +374,7 @@ describe("ViewMode Switching Regression Tests", () => {
             assert.isFalse(errorThrown, "Setting viewMode to 'ar' should not throw");
         });
 
-        it("should report VR support status correctly", async() => {
+        it("should report VR support status correctly", async () => {
             const vrSupported = await graph.isVRSupported();
 
             // In test environment, WebXR is typically not available
@@ -387,7 +382,7 @@ describe("ViewMode Switching Regression Tests", () => {
             assert.isBoolean(vrSupported, "isVRSupported() should return a boolean");
         });
 
-        it("should report AR support status correctly", async() => {
+        it("should report AR support status correctly", async () => {
             const arSupported = await graph.isARSupported();
 
             // In test environment, WebXR is typically not available
@@ -397,7 +392,7 @@ describe("ViewMode Switching Regression Tests", () => {
     });
 
     describe("Order of Operations Edge Cases", () => {
-        it("should handle setViewMode before addNodes", async() => {
+        it("should handle setViewMode before addNodes", async () => {
             // Set mode before adding any data
             await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();
@@ -412,7 +407,7 @@ describe("ViewMode Switching Regression Tests", () => {
             assert.strictEqual(graph.getNodeCount(), TEST_NODES.length);
         });
 
-        it("should handle setViewMode during layout animation", async() => {
+        it("should handle setViewMode during layout animation", async () => {
             // Start with nodes
             await graph.addNodes(TEST_NODES);
             await graph.operationQueue.waitForCompletion();
@@ -429,7 +424,7 @@ describe("ViewMode Switching Regression Tests", () => {
             assert.strictEqual(graph.getNodeCount(), TEST_NODES.length);
         });
 
-        it("should handle multiple setViewMode calls during same operation", async() => {
+        it("should handle multiple setViewMode calls during same operation", async () => {
             // Setup
             await graph.addNodes(TEST_NODES);
             await graph.setLayout("circular");
@@ -446,7 +441,7 @@ describe("ViewMode Switching Regression Tests", () => {
             assert.strictEqual(graph.getNodeCount(), TEST_NODES.length);
         });
 
-        it("should handle interleaved node operations and mode switches", async() => {
+        it("should handle interleaved node operations and mode switches", async () => {
             // Sequential operations with proper awaiting
             await graph.setViewMode("2d");
             await graph.operationQueue.waitForCompletion();

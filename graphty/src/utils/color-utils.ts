@@ -11,10 +11,8 @@ export const MAX_OPACITY_PERCENT = 100;
 
 /**
  * Converts a hex alpha string (00-FF) to an opacity percentage (0-100).
- *
  * @param alphaHex - Two-character hex string representing alpha (00-FF)
  * @returns Opacity as a percentage from 0 to 100
- *
  * @example
  * parseAlphaFromHexa("FF") // returns 100
  * parseAlphaFromHexa("80") // returns ~50
@@ -26,15 +24,15 @@ export function parseAlphaFromHexa(alphaHex: string): number {
 
 /**
  * Converts an opacity percentage (0-100) to a hex alpha string (00-ff).
- *
  * @param opacity - Opacity as a percentage from 0 to 100
  * @returns Two-character lowercase hex string representing alpha
- *
  * @example
  * opacityToAlphaHex(100) // returns "ff"
  * opacityToAlphaHex(50)  // returns "80"
  * opacityToAlphaHex(0)   // returns "00"
  */
 export function opacityToAlphaHex(opacity: number): string {
-    return Math.round((opacity / MAX_OPACITY_PERCENT) * MAX_ALPHA_HEX).toString(16).padStart(2, "0");
+    return Math.round((opacity / MAX_OPACITY_PERCENT) * MAX_ALPHA_HEX)
+        .toString(16)
+        .padStart(2, "0");
 }

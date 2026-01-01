@@ -33,15 +33,15 @@ import {
     Textarea,
     TextInput,
 } from "@mantine/core";
-import {render, screen} from "@testing-library/react";
-import {beforeEach, describe, expect, it, vi} from "vitest";
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {theme} from "../../theme";
-import {CompactColorInput} from "../sidebar/controls/CompactColorInput";
-import {StyleColorInput} from "../sidebar/controls/StyleColorInput";
+import { theme } from "../../theme";
+import { CompactColorInput } from "../sidebar/controls/CompactColorInput";
+import { StyleColorInput } from "../sidebar/controls/StyleColorInput";
 
 // Wrapper component with theme provider
-function ThemeWrapper({children}: {children: React.ReactNode}): React.JSX.Element {
+function ThemeWrapper({ children }: { children: React.ReactNode }): React.JSX.Element {
     return (
         <MantineProvider theme={theme} forceColorScheme="dark">
             {children}
@@ -495,7 +495,7 @@ describe("Compact CSS Regression Tests", () => {
                         <Button size="compact">Test</Button>
                     </ThemeWrapper>,
                 );
-                const button = screen.getByRole("button", {name: "Test"});
+                const button = screen.getByRole("button", { name: "Test" });
                 const computed = window.getComputedStyle(button);
                 expect(computed.height).toBe("24px");
             });
@@ -506,7 +506,7 @@ describe("Compact CSS Regression Tests", () => {
                         <Button size="compact">Test</Button>
                     </ThemeWrapper>,
                 );
-                const button = screen.getByRole("button", {name: "Test"});
+                const button = screen.getByRole("button", { name: "Test" });
                 const computed = window.getComputedStyle(button);
                 expect(computed.fontSize).toBe("11px");
             });
@@ -517,7 +517,7 @@ describe("Compact CSS Regression Tests", () => {
                         <Button size="compact">Test</Button>
                     </ThemeWrapper>,
                 );
-                const button = screen.getByRole("button", {name: "Test"});
+                const button = screen.getByRole("button", { name: "Test" });
                 const computed = window.getComputedStyle(button);
                 expect(computed.padding).toBe("0px 8px");
             });
@@ -528,7 +528,7 @@ describe("Compact CSS Regression Tests", () => {
                         <Button size="compact">Test</Button>
                     </ThemeWrapper>,
                 );
-                const button = screen.getByRole("button", {name: "Test"});
+                const button = screen.getByRole("button", { name: "Test" });
                 const computed = window.getComputedStyle(button);
                 expect(computed.borderRadius).toBe("4px");
             });
@@ -538,10 +538,12 @@ describe("Compact CSS Regression Tests", () => {
             it("has correct compact size (24x24px)", () => {
                 render(
                     <ThemeWrapper>
-                        <ActionIcon size="compact" aria-label="Test">X</ActionIcon>
+                        <ActionIcon size="compact" aria-label="Test">
+                            X
+                        </ActionIcon>
                     </ThemeWrapper>,
                 );
-                const button = screen.getByRole("button", {name: "Test"});
+                const button = screen.getByRole("button", { name: "Test" });
                 const computed = window.getComputedStyle(button);
                 expect(computed.height).toBe("24px");
                 expect(computed.width).toBe("24px");
@@ -550,10 +552,12 @@ describe("Compact CSS Regression Tests", () => {
             it("has correct min size (24x24px)", () => {
                 render(
                     <ThemeWrapper>
-                        <ActionIcon size="compact" aria-label="Test">X</ActionIcon>
+                        <ActionIcon size="compact" aria-label="Test">
+                            X
+                        </ActionIcon>
                     </ThemeWrapper>,
                 );
-                const button = screen.getByRole("button", {name: "Test"});
+                const button = screen.getByRole("button", { name: "Test" });
                 const computed = window.getComputedStyle(button);
                 expect(computed.minHeight).toBe("24px");
                 expect(computed.minWidth).toBe("24px");
@@ -562,10 +566,12 @@ describe("Compact CSS Regression Tests", () => {
             it("has correct border radius (4px)", () => {
                 render(
                     <ThemeWrapper>
-                        <ActionIcon size="compact" aria-label="Test">X</ActionIcon>
+                        <ActionIcon size="compact" aria-label="Test">
+                            X
+                        </ActionIcon>
                     </ThemeWrapper>,
                 );
-                const button = screen.getByRole("button", {name: "Test"});
+                const button = screen.getByRole("button", { name: "Test" });
                 const computed = window.getComputedStyle(button);
                 expect(computed.borderRadius).toBe("4px");
             });
@@ -841,7 +847,7 @@ describe("Compact CSS Regression Tests", () => {
                         <CompactColorInput {...defaultProps} />
                     </ThemeWrapper>,
                 );
-                const actionIcon = screen.getByRole("button", {name: "Color swatch"});
+                const actionIcon = screen.getByRole("button", { name: "Color swatch" });
                 const computed = window.getComputedStyle(actionIcon);
                 expect(computed.height).toBe("24px");
                 expect(computed.width).toBe("24px");
@@ -853,7 +859,7 @@ describe("Compact CSS Regression Tests", () => {
                         <CompactColorInput {...defaultProps} />
                     </ThemeWrapper>,
                 );
-                const actionIcon = screen.getByRole("button", {name: "Color swatch"});
+                const actionIcon = screen.getByRole("button", { name: "Color swatch" });
                 const computed = window.getComputedStyle(actionIcon);
                 // Should use --mantine-color-default = rgb(42, 48, 53)
                 expect(computed.backgroundColor).toBe("rgb(42, 48, 53)");
@@ -865,7 +871,7 @@ describe("Compact CSS Regression Tests", () => {
                         <CompactColorInput {...defaultProps} />
                     </ThemeWrapper>,
                 );
-                const actionIcon = screen.getByRole("button", {name: "Color swatch"});
+                const actionIcon = screen.getByRole("button", { name: "Color swatch" });
                 const computed = window.getComputedStyle(actionIcon);
                 expect(computed.borderRadius).toBe("4px 0px 0px 4px");
             });
@@ -990,7 +996,7 @@ describe("Compact CSS Regression Tests", () => {
                         <StyleColorInput {...defaultProps} />
                     </ThemeWrapper>,
                 );
-                const actionIcon = screen.getByRole("button", {name: "Color swatch"});
+                const actionIcon = screen.getByRole("button", { name: "Color swatch" });
                 const computed = window.getComputedStyle(actionIcon);
                 expect(computed.height).toBe("24px");
                 expect(computed.width).toBe("24px");
@@ -1076,13 +1082,13 @@ describe("Compact CSS Regression Tests", () => {
             });
 
             it("shows reset button only when explicit value is set", () => {
-                const {rerender} = render(
+                const { rerender } = render(
                     <ThemeWrapper>
                         <StyleColorInput {...defaultProps} value={undefined} />
                     </ThemeWrapper>,
                 );
                 // No reset button when using default
-                expect(screen.queryByRole("button", {name: /Reset/})).toBeNull();
+                expect(screen.queryByRole("button", { name: /Reset/ })).toBeNull();
 
                 // Reset button appears when explicit value is set
                 rerender(
@@ -1090,7 +1096,7 @@ describe("Compact CSS Regression Tests", () => {
                         <StyleColorInput {...defaultProps} value="#FF0000" />
                     </ThemeWrapper>,
                 );
-                expect(screen.getByRole("button", {name: "Reset Fill Color to default"})).toBeDefined();
+                expect(screen.getByRole("button", { name: "Reset Fill Color to default" })).toBeDefined();
             });
         });
     });
@@ -1206,9 +1212,7 @@ describe("Compact CSS Regression Tests", () => {
             const textLabel = getElement(".mantine-TextInput-label");
             const numberLabel = getElement(".mantine-NumberInput-label");
 
-            const colors = [textLabel, numberLabel].map(
-                (el) => window.getComputedStyle(el).color,
-            );
+            const colors = [textLabel, numberLabel].map((el) => window.getComputedStyle(el).color);
 
             // All should have the same dimmed color
             expect(new Set(colors).size).toBe(1);

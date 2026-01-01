@@ -6,9 +6,9 @@
  * and PatternedLineRenderer (instanced patterns) based on the updated architecture.
  */
 
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {ArrowMeshFactory, EdgeMeshFactory} from "./mesh-factory";
+import { ArrowMeshFactory, EdgeMeshFactory } from "./mesh-factory";
 
 describe("Edge Golden Masters", () => {
     // Line type tests - all 9 supported line types
@@ -23,8 +23,10 @@ describe("Edge Golden Masters", () => {
                     color: "#000000",
                 });
 
-                assert.isTrue(result.validation.isValid,
-                    `${lineType} validation failed: ${result.validation.errors.join(", ")}`);
+                assert.isTrue(
+                    result.validation.isValid,
+                    `${lineType} validation failed: ${result.validation.errors.join(", ")}`,
+                );
                 assert.equal(result.mesh.metadata.lineType, lineType);
 
                 // Solid lines use CustomLineRenderer, all other patterns use PatternedLineRenderer
@@ -184,16 +186,16 @@ describe("Edge Golden Masters", () => {
     // Pattern shapes - testing the new architecture
     describe("Pattern Shapes", () => {
         // Patterns that use instanced meshes with specific shapes
-        const patternTypes: {type: string, shape: string}[] = [
-            {type: "dot", shape: "circle"},
-            {type: "star", shape: "star"},
-            {type: "box", shape: "square"},
-            {type: "dash", shape: "rectangle"},
-            {type: "diamond", shape: "diamond"},
-            {type: "dash-dot", shape: "alternating"},
+        const patternTypes: { type: string; shape: string }[] = [
+            { type: "dot", shape: "circle" },
+            { type: "star", shape: "star" },
+            { type: "box", shape: "square" },
+            { type: "dash", shape: "rectangle" },
+            { type: "diamond", shape: "diamond" },
+            { type: "dash-dot", shape: "alternating" },
         ];
 
-        patternTypes.forEach(({type, shape}) => {
+        patternTypes.forEach(({ type, shape }) => {
             test(`creates ${type} pattern with ${shape} instances`, () => {
                 const result = EdgeMeshFactory.create({
                     type: type,
@@ -246,7 +248,7 @@ describe("Edge Golden Masters", () => {
 
                 assert.isTrue(result.validation.isValid);
                 assert.isDefined(result.mesh.metadata.sourceArrow);
-                assert.equal((result.mesh.metadata.sourceArrow as {type: string}).type, arrowType);
+                assert.equal((result.mesh.metadata.sourceArrow as { type: string }).type, arrowType);
             });
 
             test(`creates target arrow: ${arrowType}`, () => {
@@ -265,8 +267,8 @@ describe("Edge Golden Masters", () => {
 
                 assert.isTrue(result.validation.isValid);
                 assert.isDefined(result.mesh.metadata.targetArrow);
-                assert.equal((result.mesh.metadata.targetArrow as {type: string}).type, arrowType);
-                assert.equal((result.mesh.metadata.targetArrow as {size: number}).size, 1.5);
+                assert.equal((result.mesh.metadata.targetArrow as { type: string }).type, arrowType);
+                assert.equal((result.mesh.metadata.targetArrow as { size: number }).size, 1.5);
             });
         });
 
@@ -292,8 +294,8 @@ describe("Edge Golden Masters", () => {
             assert.isTrue(result.validation.isValid);
             assert.isDefined(result.mesh.metadata.sourceArrow);
             assert.isDefined(result.mesh.metadata.targetArrow);
-            assert.equal((result.mesh.metadata.sourceArrow as {type: string}).type, "normal");
-            assert.equal((result.mesh.metadata.targetArrow as {type: string}).type, "inverted");
+            assert.equal((result.mesh.metadata.sourceArrow as { type: string }).type, "normal");
+            assert.equal((result.mesh.metadata.targetArrow as { type: string }).type, "inverted");
         });
     });
 
@@ -317,7 +319,7 @@ describe("Edge Golden Masters", () => {
                 });
 
                 assert.isTrue(result.validation.isValid);
-                assert.equal((result.mesh.metadata.targetArrow as {size: number}).size, size);
+                assert.equal((result.mesh.metadata.targetArrow as { size: number }).size, size);
             });
         });
     });
@@ -330,16 +332,13 @@ describe("Edge Golden Masters", () => {
                 width: 2,
                 color: "#0000FF", // Blue line
                 arrow: {
-                    target: {type: "normal", size: 1, color: "#FF0000"}, // Red arrow
+                    target: { type: "normal", size: 1, color: "#FF0000" }, // Red arrow
                 },
             });
 
             assert.isTrue(result.validation.isValid);
             assert.equal(result.mesh.metadata.lineColor, "#0000FF");
-            assert.equal(
-                (result.mesh.metadata.targetArrow as {color: string}).color,
-                "#FF0000",
-            );
+            assert.equal((result.mesh.metadata.targetArrow as { color: string }).color, "#FF0000");
         });
 
         test("multiple arrows can have different colors", () => {
@@ -348,20 +347,14 @@ describe("Edge Golden Masters", () => {
                 width: 2,
                 color: "#000000",
                 arrow: {
-                    source: {type: "normal", size: 1, color: "#FF0000"},
-                    target: {type: "inverted", size: 1, color: "#00FF00"},
+                    source: { type: "normal", size: 1, color: "#FF0000" },
+                    target: { type: "inverted", size: 1, color: "#00FF00" },
                 },
             });
 
             assert.isTrue(result.validation.isValid);
-            assert.equal(
-                (result.mesh.metadata.sourceArrow as {color: string}).color,
-                "#FF0000",
-            );
-            assert.equal(
-                (result.mesh.metadata.targetArrow as {color: string}).color,
-                "#00FF00",
-            );
+            assert.equal((result.mesh.metadata.sourceArrow as { color: string }).color, "#FF0000");
+            assert.equal((result.mesh.metadata.targetArrow as { color: string }).color, "#00FF00");
         });
     });
 
@@ -376,15 +369,12 @@ describe("Edge Golden Masters", () => {
                     width: 2,
                     color: "#000000",
                     arrow: {
-                        target: {type: "normal", size: 1, color: "#FF0000", opacity},
+                        target: { type: "normal", size: 1, color: "#FF0000", opacity },
                     },
                 });
 
                 assert.isTrue(result.validation.isValid);
-                assert.equal(
-                    (result.mesh.metadata.targetArrow as {opacity: number}).opacity,
-                    opacity,
-                );
+                assert.equal((result.mesh.metadata.targetArrow as { opacity: number }).opacity, opacity);
             });
         });
     });
@@ -396,7 +386,7 @@ describe("Edge Golden Masters", () => {
                 const result = EdgeMeshFactory.create({
                     type: "solid",
                     is2D: false,
-                    arrow: {target: {type: "normal", size: 1, color: "#FF0000"}},
+                    arrow: { target: { type: "normal", size: 1, color: "#FF0000" } },
                 });
 
                 assert.isTrue(result.validation.isValid);
@@ -409,7 +399,7 @@ describe("Edge Golden Masters", () => {
                 const result = EdgeMeshFactory.create({
                     type: "solid",
                     is2D: false,
-                    arrow: {target: {type: "open-normal", size: 1, color: "#FF0000"}},
+                    arrow: { target: { type: "open-normal", size: 1, color: "#FF0000" } },
                 });
 
                 assert.isTrue(result.validation.isValid);
@@ -423,7 +413,7 @@ describe("Edge Golden Masters", () => {
                 const result = EdgeMeshFactory.create({
                     type: "solid",
                     is2D: true,
-                    arrow: {target: {type: "normal", size: 1, color: "#FF0000"}},
+                    arrow: { target: { type: "normal", size: 1, color: "#FF0000" } },
                 });
 
                 assert.isTrue(result.validation.isValid);
@@ -437,8 +427,8 @@ describe("Edge Golden Masters", () => {
                     type: "solid",
                     is2D: true,
                     arrow: {
-                        source: {type: "diamond", size: 1, color: "#FF0000"},
-                        target: {type: "normal", size: 1, color: "#00FF00"},
+                        source: { type: "diamond", size: 1, color: "#FF0000" },
+                        target: { type: "normal", size: 1, color: "#00FF00" },
                     },
                 });
 
@@ -516,21 +506,15 @@ describe("Edge Golden Masters", () => {
                 color: "#00FFFF",
                 bezier: true,
                 arrow: {
-                    source: {type: "tee", size: 1, color: "#FFFF00"},
-                    target: {type: "normal", size: 2, color: "#FF00FF"},
+                    source: { type: "tee", size: 1, color: "#FFFF00" },
+                    target: { type: "normal", size: 2, color: "#FF00FF" },
                 },
             });
 
             assert.isTrue(result.validation.isValid);
             assert.isTrue(result.mesh.metadata.bezier);
-            assert.equal(
-                (result.mesh.metadata.sourceArrow as {type: string}).type,
-                "tee",
-            );
-            assert.equal(
-                (result.mesh.metadata.targetArrow as {type: string}).type,
-                "normal",
-            );
+            assert.equal((result.mesh.metadata.sourceArrow as { type: string }).type, "tee");
+            assert.equal((result.mesh.metadata.targetArrow as { type: string }).type, "normal");
         });
 
         test("animated dashed line with bidirectional arrows and opacity", () => {
@@ -541,8 +525,8 @@ describe("Edge Golden Masters", () => {
                 opacity: 0.8,
                 animationSpeed: 2,
                 arrow: {
-                    source: {type: "dot", size: 1, color: "#FF0000", opacity: 0.9},
-                    target: {type: "diamond", size: 1.5, color: "#0000FF", opacity: 1.0},
+                    source: { type: "dot", size: 1, color: "#FF0000", opacity: 0.9 },
+                    target: { type: "diamond", size: 1.5, color: "#0000FF", opacity: 1.0 },
                 },
             });
 
@@ -656,8 +640,10 @@ describe("ArrowMeshFactory Golden Masters", () => {
                     color: "#FF0000",
                 });
 
-                assert.isTrue(result.validation.isValid,
-                    `${arrowType} validation failed: ${result.validation.errors.join(", ")}`);
+                assert.isTrue(
+                    result.validation.isValid,
+                    `${arrowType} validation failed: ${result.validation.errors.join(", ")}`,
+                );
                 assert.isNotNull(result.mesh);
                 assert.isNotNull(result.material);
                 assert.equal(result.mesh.metadata.arrowType, arrowType);
@@ -671,8 +657,10 @@ describe("ArrowMeshFactory Golden Masters", () => {
                     color: "#00FF00",
                 });
 
-                assert.isTrue(result.validation.isValid,
-                    `2D ${arrowType} validation failed: ${result.validation.errors.join(", ")}`);
+                assert.isTrue(
+                    result.validation.isValid,
+                    `2D ${arrowType} validation failed: ${result.validation.errors.join(", ")}`,
+                );
                 assert.isNotNull(result.mesh);
                 assert.isNotNull(result.material);
                 assert.equal(result.mesh.metadata.arrowType, arrowType);
@@ -1098,7 +1086,7 @@ describe("ArrowMeshFactory Golden Masters", () => {
 
             assert.isTrue(result.validation.isValid);
             if (result.mesh) {
-                const rotation = result.mesh.metadata.rotation as {x: number, y: number, z: number};
+                const rotation = result.mesh.metadata.rotation as { x: number; y: number; z: number };
                 assert.equal(rotation.x, Math.PI / 2);
             }
         });

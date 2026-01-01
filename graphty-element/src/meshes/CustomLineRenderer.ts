@@ -69,7 +69,9 @@ export class CustomLineRenderer {
         // 1. The global BABYLON loaded via <script> tag
         // 2. The ES module import from @babylonjs/core
         // We need to register in both because ShaderMaterial might use either one
-        const globalShaderStore = typeof window !== "undefined" && (window as typeof globalThis & {BABYLON?: {Effect: typeof Effect}}).BABYLON?.Effect.ShadersStore;
+        const globalShaderStore =
+            typeof window !== "undefined" &&
+            (window as typeof globalThis & { BABYLON?: { Effect: typeof Effect } }).BABYLON?.Effect.ShadersStore;
         const moduleShaderStore = Effect.ShadersStore;
 
         // Vertex Shader: Screen-space width expansion
@@ -338,7 +340,7 @@ void main(void) {
         const numDots = Math.floor(totalLength / cycle);
 
         for (let i = 0; i < numDots; i++) {
-            const targetDistance = (i * cycle) + dotRadius; // Center of each dot
+            const targetDistance = i * cycle + dotRadius; // Center of each dot
 
             // Find which segment this distance falls on
             let segmentIndex = 0;
@@ -371,10 +373,7 @@ void main(void) {
      * @param scene Babylon.js scene
      * @returns Parent mesh containing all dot disc meshes
      */
-    private static createPointsForDots(
-        options: CustomLineOptions,
-        scene: Scene,
-    ): Mesh {
+    private static createPointsForDots(options: CustomLineOptions, scene: Scene): Mesh {
         // console.log("createPointsForDots called with:", {
         //     points: options.points.length,
         //     width: options.width,
@@ -473,13 +472,35 @@ void main(void) {
 
             // Add start vertices (at p0)
             this.addVertexPair(
-                positions, directions, sides, distances, uvs, segmentStarts, segmentEnds, p0, direction, cumulativeDistance, p0, p1,
+                positions,
+                directions,
+                sides,
+                distances,
+                uvs,
+                segmentStarts,
+                segmentEnds,
+                p0,
+                direction,
+                cumulativeDistance,
+                p0,
+                p1,
             );
 
             // Add end vertices (at p1)
             cumulativeDistance += segmentLength;
             this.addVertexPair(
-                positions, directions, sides, distances, uvs, segmentStarts, segmentEnds, p1, direction, cumulativeDistance, p0, p1,
+                positions,
+                directions,
+                sides,
+                distances,
+                uvs,
+                segmentStarts,
+                segmentEnds,
+                p1,
+                direction,
+                cumulativeDistance,
+                p0,
+                p1,
             );
 
             // Add indices for two triangles forming a quad
@@ -516,11 +537,7 @@ void main(void) {
      * @param frequency Wave frequency (cycles per path length)
      * @returns Array of Vector3 points forming the wave
      */
-    static createSinewaveGeometry(
-        points: Vector3[],
-        amplitude: number,
-        frequency: number,
-    ): Vector3[] {
+    static createSinewaveGeometry(points: Vector3[], amplitude: number, frequency: number): Vector3[] {
         if (points.length < 2) {
             throw new Error("Sinewave requires at least 2 points");
         }
@@ -579,11 +596,7 @@ void main(void) {
      * @param frequency Zigzag frequency (number of zigs/zags)
      * @returns Array of Vector3 points forming the zigzag
      */
-    static createZigzagGeometry(
-        points: Vector3[],
-        amplitude: number,
-        frequency: number,
-    ): Vector3[] {
+    static createZigzagGeometry(points: Vector3[], amplitude: number, frequency: number): Vector3[] {
         if (points.length < 2) {
             throw new Error("Zigzag requires at least 2 points");
         }
@@ -687,10 +700,7 @@ void main(void) {
      * @param scene - Babylon.js scene
      * @returns Mesh with custom line shader
      */
-    static create(
-        options: CustomLineOptions,
-        scene: Scene,
-    ): Mesh {
+    static create(options: CustomLineOptions, scene: Scene): Mesh {
         this.registerShaders();
 
         // Generate geometry from points
@@ -822,7 +832,7 @@ void main(void) {
      */
     static createFromGeometry(
         geometry: LineGeometry,
-        options: {width: number, color: string, opacity?: number},
+        options: { width: number; color: string; opacity?: number },
         scene: Scene,
     ): Mesh {
         this.registerShaders();

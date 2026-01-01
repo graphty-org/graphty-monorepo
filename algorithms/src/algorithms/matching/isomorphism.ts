@@ -1,5 +1,5 @@
-import type {Graph} from "../../core/graph.js";
-import type {NodeId} from "../../types/index.js";
+import type { Graph } from "../../core/graph.js";
+import type { NodeId } from "../../types/index.js";
 
 /**
  * Graph Isomorphism (VF2) algorithm implementation
@@ -37,19 +37,19 @@ interface VF2State {
 
 /**
  * Check if two graphs are isomorphic using VF2 algorithm
+ * @param graph1 - The first graph to compare
+ * @param graph2 - The second graph to compare
+ * @param options - Optional configuration for node and edge matching predicates
+ * @returns An object indicating if the graphs are isomorphic and an optional mapping between nodes
  */
-export function isGraphIsomorphic(
-    graph1: Graph,
-    graph2: Graph,
-    options: IsomorphismOptions = {},
-): IsomorphismResult {
+export function isGraphIsomorphic(graph1: Graph, graph2: Graph, options: IsomorphismOptions = {}): IsomorphismResult {
     // Quick checks
     if (graph1.nodeCount !== graph2.nodeCount || graph1.totalEdgeCount !== graph2.totalEdgeCount) {
-        return {isIsomorphic: false};
+        return { isIsomorphic: false };
     }
 
     if (graph1.isDirected !== graph2.isDirected) {
-        return {isIsomorphic: false};
+        return { isIsomorphic: false };
     }
 
     const nodes1 = Array.from(graph1.nodes()).map((n) => n.id);
@@ -61,7 +61,7 @@ export function isGraphIsomorphic(
 
     for (let i = 0; i < degrees1.length; i++) {
         if (degrees1[i] !== degrees2[i]) {
-            return {isIsomorphic: false};
+            return { isIsomorphic: false };
         }
     }
 
@@ -87,11 +87,19 @@ export function isGraphIsomorphic(
         };
     }
 
-    return {isIsomorphic: false};
+    return { isIsomorphic: false };
 }
 
 /**
  * VF2 recursive search
+ * @param g1 - The first graph being compared
+ * @param g2 - The second graph being compared
+ * @param state - The current VF2 algorithm state containing mappings and terminal sets
+ * @param nodes1 - Array of node IDs from the first graph
+ * @param nodes2 - Array of node IDs from the second graph
+ * @param options - Configuration options for matching predicates
+ * @param mappings - Array to collect found isomorphism mappings
+ * @returns True if an isomorphism was found and search should stop, false otherwise
  */
 function vf2Recurse(
     g1: Graph,
@@ -127,6 +135,12 @@ function vf2Recurse(
 
 /**
  * Get candidate pairs for the next mapping
+ * @param g1 - The first graph being compared
+ * @param g2 - The second graph being compared
+ * @param state - The current VF2 algorithm state containing mappings and terminal sets
+ * @param nodes1 - Array of node IDs from the first graph
+ * @param nodes2 - Array of node IDs from the second graph
+ * @returns Array of candidate node pairs to try matching
  */
 function getCandidatePairs(
     g1: Graph,
@@ -187,6 +201,13 @@ function getCandidatePairs(
 
 /**
  * Check if a pair is feasible
+ * @param g1 - The first graph being compared
+ * @param g2 - The second graph being compared
+ * @param state - The current VF2 algorithm state containing mappings and terminal sets
+ * @param node1 - The candidate node from the first graph
+ * @param node2 - The candidate node from the second graph
+ * @param options - Configuration options for matching predicates
+ * @returns True if the node pair can be feasibly matched, false otherwise
  */
 function isFeasible(
     g1: Graph,
@@ -222,8 +243,14 @@ function isFeasible(
     }
 
     // Check terminal set sizes
-    let new1In = 0; let new1Out = 0; let term1In = 0; let term1Out = 0;
-    let new2In = 0; let new2Out = 0; let term2In = 0; let term2Out = 0;
+    let new1In = 0;
+    let new1Out = 0;
+    let term1In = 0;
+    let term1Out = 0;
+    let new2In = 0;
+    let new2Out = 0;
+    let term2In = 0;
+    let term2Out = 0;
 
     for (const neighbor of neighbors1) {
         if (state.core1.has(neighbor)) {
@@ -271,20 +298,19 @@ function isFeasible(
         }
     }
 
-    return term1In === term2In && term1Out === term2Out &&
-           new1In === new2In && new1Out === new2Out;
+    return term1In === term2In && term1Out === term2Out && new1In === new2In && new1Out === new2Out;
 }
 
 /**
  * Add a pair to the mapping and update terminal sets
+ * @param g1 - The first graph being compared
+ * @param g2 - The second graph being compared
+ * @param state - The current VF2 algorithm state containing mappings and terminal sets
+ * @param node1 - The node from the first graph to add to the mapping
+ * @param node2 - The node from the second graph to add to the mapping
+ * @returns A new VF2 state with the pair added and terminal sets updated
  */
-function addPair(
-    g1: Graph,
-    g2: Graph,
-    state: VF2State,
-    node1: NodeId,
-    node2: NodeId,
-): VF2State {
+function addPair(g1: Graph, g2: Graph, state: VF2State, node1: NodeId, node2: NodeId): VF2State {
     const newState: VF2State = {
         core1: new Map(state.core1),
         core2: new Map(state.core2),
@@ -340,6 +366,10 @@ function addPair(
 
 /**
  * Find all isomorphisms between two graphs
+ * @param graph1 - The first graph to compare
+ * @param graph2 - The second graph to compare
+ * @param options - Optional configuration for node and edge matching predicates
+ * @returns An array of all possible node mappings between the graphs
  */
 export function findAllIsomorphisms(
     graph1: Graph,
@@ -386,7 +416,7 @@ export function findAllIsomorphisms(
 
     // Find all isomorphisms
     const mappings: Map<NodeId, NodeId>[] = [];
-    vf2Recurse(graph1, graph2, state, nodes1, nodes2, {... options, findAllMappings: true}, mappings);
+    vf2Recurse(graph1, graph2, state, nodes1, nodes2, { ...options, findAllMappings: true }, mappings);
 
     return mappings;
 }

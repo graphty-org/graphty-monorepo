@@ -1,6 +1,6 @@
-import type {Graph} from "../core/graph.js";
-import type {NodeId} from "../types/index.js";
-import {SeededRandom} from "../utils/math-utilities.js";
+import type { Graph } from "../core/graph.js";
+import type { NodeId } from "../types/index.js";
+import { SeededRandom } from "../utils/math-utilities.js";
 
 /**
  * Configuration options for the GRSBM (Greedy Recursive Spectral Bisection) algorithm
@@ -80,7 +80,6 @@ export interface ClusterExplanation {
  * community structure by tracking the reasoning behind each split.
  *
  * Based on: "Explainable Community Detection via Hierarchical Spectral Clustering" (2024)
- *
  * @param graph - Input graph to cluster
  * @param config - Configuration options
  * @returns Hierarchical clustering result with explanations
@@ -109,7 +108,7 @@ export function grsbm(graph: Graph, config: GRSBMConfig = {}): GRSBMResult {
 
     // Initialize root cluster with all nodes
     const rootMembers = new Set(nodes.map((node) => node.id));
-    const initialModularity = calculateModularity(graph, new Map([... rootMembers].map((id) => [id, 0])));
+    const initialModularity = calculateModularity(graph, new Map([...rootMembers].map((id) => [id, 0])));
 
     const root: GRSBMCluster = {
         id: "root",
@@ -133,25 +132,18 @@ export function grsbm(graph: Graph, config: GRSBMConfig = {}): GRSBMResult {
         }
 
         // Check stopping criteria
-        if (currentCluster.depth >= maxDepth ||
-            currentCluster.members.size < minClusterSize * 2) {
+        if (currentCluster.depth >= maxDepth || currentCluster.members.size < minClusterSize * 2) {
             continue;
         }
 
         // Attempt spectral bisection
-        const bisectionResult = spectralBisection(
-            graph,
-            currentCluster,
-            numEigenvectors,
-            tolerance,
-            maxIterations,
-        );
+        const bisectionResult = spectralBisection(graph, currentCluster, numEigenvectors, tolerance, maxIterations);
 
         if (!bisectionResult) {
             continue; // Could not split this cluster
         }
 
-        const {leftMembers, rightMembers, spectralScore, keyNodes, spectralValues, reason} = bisectionResult;
+        const { leftMembers, rightMembers, spectralScore, keyNodes, spectralValues, reason } = bisectionResult;
 
         // Create child clusters
         const leftCluster: GRSBMCluster = {
@@ -183,7 +175,8 @@ export function grsbm(graph: Graph, config: GRSBMConfig = {}): GRSBMResult {
         const modularityImprovement = newModularity - currentCluster.modularity;
 
         // Only split if modularity improves or is neutral (allow small splits)
-        if (modularityImprovement >= -0.01) { // Small tolerance for neutral splits
+        if (modularityImprovement >= -0.01) {
+            // Small tolerance for neutral splits
             leftCluster.modularity = newModularity;
             rightCluster.modularity = newModularity;
 
@@ -245,6 +238,12 @@ export function grsbm(graph: Graph, config: GRSBMConfig = {}): GRSBMResult {
 
 /**
  * Perform spectral bisection on a cluster
+ * @param graph - The input graph
+ * @param cluster - The cluster to bisect
+ * @param numEigenvectors - Number of eigenvectors to compute
+ * @param tolerance - Convergence tolerance
+ * @param maxIterations - Maximum number of iterations
+ * @returns Bisection result with left/right members, scores, and explanation, or null if bisection failed
  */
 function spectralBisection(
     graph: Graph,
@@ -278,9 +277,7 @@ function spectralBisection(
     }
 
     // Find optimal split point
-    const sortedIndices = eigenvector
-        .map((value, index) => ({value, index}))
-        .sort((a, b) => a.value - b.value);
+    const sortedIndices = eigenvector.map((value, index) => ({ value, index })).sort((a, b) => a.value - b.value);
 
     let bestSplitIndex = Math.floor(n / 2);
     let bestModularity = -Infinity;
@@ -335,7 +332,7 @@ function spectralBisection(
 
     // Identify key nodes (those with extreme spectral values)
     const extremeThreshold = 0.1;
-    const sortedValues = [... eigenvector].sort((a, b) => Math.abs(b) - Math.abs(a));
+    const sortedValues = [...eigenvector].sort((a, b) => Math.abs(b) - Math.abs(a));
     const threshold = sortedValues[Math.floor(sortedValues.length * extremeThreshold)] ?? 0;
 
     const keyNodes: NodeId[] = [];
@@ -369,6 +366,9 @@ function spectralBisection(
 
 /**
  * Create Laplacian matrix for a subgraph
+ * @param graph - The input graph
+ * @param nodes - The nodes to include in the subgraph
+ * @returns The Laplacian matrix as a 2D array
  */
 function createLaplacianMatrix(graph: Graph, nodes: NodeId[]): number[][] {
     const n = nodes.length;
@@ -383,7 +383,7 @@ function createLaplacianMatrix(graph: Graph, nodes: NodeId[]): number[][] {
     }
 
     // Initialize Laplacian matrix
-    const laplacian = Array.from({length: n}, () => new Array<number>(n).fill(0));
+    const laplacian = Array.from({ length: n }, () => new Array<number>(n).fill(0));
 
     // Fill adjacency part and calculate degrees
     const degrees = new Array<number>(n).fill(0);
@@ -420,6 +420,10 @@ function createLaplacianMatrix(graph: Graph, nodes: NodeId[]): number[][] {
 
 /**
  * Compute the Fiedler vector (second smallest eigenvector) using power iteration
+ * @param laplacian - The Laplacian matrix
+ * @param tolerance - Convergence tolerance
+ * @param maxIterations - Maximum number of iterations
+ * @returns The Fiedler vector, or null if computation failed
  */
 function computeFiedlerVector(laplacian: number[][], tolerance: number, maxIterations: number): number[] | null {
     const n = laplacian.length;
@@ -443,7 +447,7 @@ function computeFiedlerVector(laplacian: number[][], tolerance: number, maxItera
     }
 
     // Normalize
-    const norm = Math.sqrt(vector.reduce((sum: number, val: number) => sum + (val * val), 0));
+    const norm = Math.sqrt(vector.reduce((sum: number, val: number) => sum + val * val, 0));
     if (norm > 0) {
         for (let i = 0; i < n; i++) {
             const val = vector[i];
@@ -494,7 +498,7 @@ function computeFiedlerVector(laplacian: number[][], tolerance: number, maxItera
         }
 
         // Normalize
-        const newNorm = Math.sqrt(newVector.reduce((sum, val) => sum + (val * val), 0));
+        const newNorm = Math.sqrt(newVector.reduce((sum, val) => sum + val * val, 0));
         if (newNorm < tolerance) {
             break; // Converged to zero vector
         }
@@ -528,6 +532,9 @@ function computeFiedlerVector(laplacian: number[][], tolerance: number, maxItera
 
 /**
  * Calculate modularity of a graph partitioning
+ * @param graph - The input graph
+ * @param assignment - Map from node ID to community ID
+ * @returns The modularity score
  */
 function calculateModularity(graph: Graph, assignment: Map<NodeId, number>): number {
     const totalEdges = graph.uniqueEdgeCount;
@@ -577,4 +584,3 @@ function calculateModularity(graph: Graph, assignment: Map<NodeId, number>): num
 
     return modularity;
 }
-

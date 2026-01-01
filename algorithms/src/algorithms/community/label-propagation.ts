@@ -9,9 +9,9 @@
  * detect community structures in large-scale networks"
  */
 
-import type {Graph} from "../../core/graph.js";
-import {graphToMap} from "../../utils/graph-converters.js";
-import {SeededRandom, shuffle} from "../../utils/math-utilities.js";
+import type { Graph } from "../../core/graph.js";
+import { graphToMap } from "../../utils/graph-converters.js";
+import { SeededRandom, shuffle } from "../../utils/math-utilities.js";
 
 export interface LabelPropagationOptions {
     maxIterations?: number;
@@ -26,15 +26,15 @@ export interface LabelPropagationResult {
 
 /**
  * Internal implementation of Label Propagation Algorithm
+ * @param graph - Map representation of the graph (node to neighbors with weights)
+ * @param options - Algorithm configuration options
+ * @returns Community assignments, iteration count, and convergence status
  */
 function labelPropagationImpl(
     graph: Map<string, Map<string, number>>,
     options: LabelPropagationOptions = {},
 ): LabelPropagationResult {
-    const {
-        maxIterations = 100,
-        randomSeed = 42,
-    } = options;
+    const { maxIterations = 100, randomSeed = 42 } = options;
 
     if (graph.size === 0) {
         return {
@@ -61,7 +61,7 @@ function labelPropagationImpl(
         converged = true;
 
         // Create random order for node updates
-        const nodeOrder = [... nodes];
+        const nodeOrder = [...nodes];
         shuffle(nodeOrder, random);
 
         // Update each node's label
@@ -151,14 +151,15 @@ function labelPropagationImpl(
 /**
  * Internal implementation of Asynchronous Label Propagation
  * Updates all nodes simultaneously (can lead to oscillations)
+ * @param graph - Map representation of the graph (node to neighbors with weights)
+ * @param options - Algorithm configuration options
+ * @returns Community assignments, iteration count, and convergence status
  */
 function labelPropagationAsyncImpl(
     graph: Map<string, Map<string, number>>,
     options: LabelPropagationOptions = {},
 ): LabelPropagationResult {
-    const {
-        maxIterations = 100,
-    } = options;
+    const { maxIterations = 100 } = options;
 
     if (graph.size === 0) {
         return {
@@ -261,16 +262,17 @@ function labelPropagationAsyncImpl(
 /**
  * Internal implementation of Semi-supervised Label Propagation
  * Some nodes have fixed labels that don't change
+ * @param graph - Map representation of the graph (node to neighbors with weights)
+ * @param seedLabels - Map of node IDs to their fixed community labels
+ * @param options - Algorithm configuration options
+ * @returns Community assignments, iteration count, and convergence status
  */
 function labelPropagationSemiSupervisedImpl(
     graph: Map<string, Map<string, number>>,
     seedLabels: Map<string, number>,
     options: LabelPropagationOptions = {},
 ): LabelPropagationResult {
-    const {
-        maxIterations = 100,
-        randomSeed = 42,
-    } = options;
+    const { maxIterations = 100, randomSeed = 42 } = options;
 
     // Initialize random number generator
     const random = SeededRandom.createGenerator(randomSeed);
@@ -278,7 +280,7 @@ function labelPropagationSemiSupervisedImpl(
     // Initialize labels
     const labels = new Map<string, number>();
     const nodes = Array.from(graph.keys());
-    let labelCounter = Math.max(... Array.from(seedLabels.values())) + 1;
+    let labelCounter = Math.max(...Array.from(seedLabels.values())) + 1;
 
     for (const node of nodes) {
         if (seedLabels.has(node)) {
@@ -366,7 +368,6 @@ function labelPropagationSemiSupervisedImpl(
 /**
  * Label Propagation Algorithm
  * Each node adopts the most frequent label among its neighbors
- *
  * @param graph - Undirected graph (can be weighted)
  * @param options - Algorithm options
  * @returns Community assignments
@@ -374,10 +375,7 @@ function labelPropagationSemiSupervisedImpl(
  * Time Complexity: O(m) per iteration, typically O(km) for k iterations
  * Space Complexity: O(n)
  */
-export function labelPropagation(
-    graph: Graph,
-    options: LabelPropagationOptions = {},
-): LabelPropagationResult {
+export function labelPropagation(graph: Graph, options: LabelPropagationOptions = {}): LabelPropagationResult {
     // Convert Graph to Map representation
     const graphMap = graphToMap(graph);
     return labelPropagationImpl(graphMap, options);
@@ -386,15 +384,11 @@ export function labelPropagation(
 /**
  * Asynchronous Label Propagation
  * Updates all nodes simultaneously (can lead to oscillations)
- *
  * @param graph - Undirected graph (can be weighted)
  * @param options - Algorithm options
  * @returns Community assignments
  */
-export function labelPropagationAsync(
-    graph: Graph,
-    options: LabelPropagationOptions = {},
-): LabelPropagationResult {
+export function labelPropagationAsync(graph: Graph, options: LabelPropagationOptions = {}): LabelPropagationResult {
     // Convert Graph to Map representation
     const graphMap = graphToMap(graph);
     return labelPropagationAsyncImpl(graphMap, options);
@@ -403,7 +397,6 @@ export function labelPropagationAsync(
 /**
  * Semi-supervised Label Propagation
  * Some nodes have fixed labels that don't change
- *
  * @param graph - Undirected graph (can be weighted)
  * @param seedLabels - Initial fixed labels for some nodes
  * @param options - Algorithm options
@@ -418,4 +411,3 @@ export function labelPropagationSemiSupervised(
     const graphMap = graphToMap(graph);
     return labelPropagationSemiSupervisedImpl(graphMap, seedLabels, options);
 }
-

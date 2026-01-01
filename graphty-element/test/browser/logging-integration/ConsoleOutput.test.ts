@@ -1,8 +1,8 @@
-import {afterEach, assert, beforeEach, describe, type MockInstance, test, vi} from "vitest";
+import { afterEach, assert, beforeEach, describe, type MockInstance, test, vi } from "vitest";
 
-import {GraphtyLogger} from "../../../src/logging/GraphtyLogger.js";
-import {resetLoggingConfig} from "../../../src/logging/LoggerConfig.js";
-import {LogLevel} from "../../../src/logging/types.js";
+import { GraphtyLogger } from "../../../src/logging/GraphtyLogger.js";
+import { resetLoggingConfig } from "../../../src/logging/LoggerConfig.js";
+import { LogLevel } from "../../../src/logging/types.js";
 
 // Empty mock function to satisfy linter
 function noop(): void {
@@ -15,7 +15,7 @@ describe("Console Output", () => {
     let consoleWarnSpy: MockInstance;
     let consoleErrorSpy: MockInstance;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Reset logging config before each test
         resetLoggingConfig();
 
@@ -31,7 +31,7 @@ describe("Console Output", () => {
             enabled: true,
             level: LogLevel.TRACE,
             modules: "*",
-            format: {timestamp: true, module: true, colors: true},
+            format: { timestamp: true, module: true, colors: true },
         });
     });
 
@@ -60,10 +60,7 @@ describe("Console Output", () => {
             assert.isTrue(consoleInfoSpy.mock.calls.length > 0, "Expected console.info to be called");
 
             const firstArg = consoleInfoSpy.mock.calls[0][0] as string;
-            assert.isTrue(
-                firstArg.includes("[graphty.layout.ngraph]"),
-                `Expected category path in: ${firstArg}`,
-            );
+            assert.isTrue(firstArg.includes("[graphty.layout.ngraph]"), `Expected category path in: ${firstArg}`);
         });
 
         test("should include log level", () => {
@@ -95,7 +92,7 @@ describe("Console Output", () => {
             const testData = {
                 count: 42,
                 name: "test",
-                nested: {value: true},
+                nested: { value: true },
             };
 
             logger.info("Test message", testData);
@@ -109,7 +106,7 @@ describe("Console Output", () => {
             assert.isDefined(dataArg, "Expected data argument");
             assert.strictEqual(dataArg.count, 42);
             assert.strictEqual(dataArg.name, "test");
-            assert.deepEqual(dataArg.nested, {value: true});
+            assert.deepEqual(dataArg.nested, { value: true });
         });
 
         test("should include stack trace for errors", () => {
@@ -130,10 +127,7 @@ describe("Console Output", () => {
 
             // The error property should contain stack or message
             const errorInfo = dataArg.error as string;
-            assert.isTrue(
-                errorInfo.includes("Test error"),
-                `Expected error message in: ${errorInfo}`,
-            );
+            assert.isTrue(errorInfo.includes("Test error"), `Expected error message in: ${errorInfo}`);
         });
     });
 
@@ -176,13 +170,13 @@ describe("Console Output", () => {
     });
 
     describe("Format configuration", () => {
-        test("should omit timestamp when format.timestamp is false", async() => {
+        test("should omit timestamp when format.timestamp is false", async () => {
             resetLoggingConfig();
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.INFO,
                 modules: "*",
-                format: {timestamp: false, module: true},
+                format: { timestamp: false, module: true },
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
@@ -194,13 +188,13 @@ describe("Console Output", () => {
             assert.isFalse(isoPattern.test(firstArg), `Should not have timestamp in: ${firstArg}`);
         });
 
-        test("should omit module when format.module is false", async() => {
+        test("should omit module when format.module is false", async () => {
             resetLoggingConfig();
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.INFO,
                 modules: "*",
-                format: {timestamp: true, module: false},
+                format: { timestamp: true, module: false },
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
@@ -208,17 +202,14 @@ describe("Console Output", () => {
 
             const firstArg = consoleInfoSpy.mock.calls[0][0] as string;
             // Should NOT have module path
-            assert.isFalse(
-                firstArg.includes("[graphty.test]"),
-                `Should not have module in: ${firstArg}`,
-            );
+            assert.isFalse(firstArg.includes("[graphty.test]"), `Should not have module in: ${firstArg}`);
         });
     });
 
     describe("Complete output format", () => {
         test("should output complete formatted message with all parts", () => {
             const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
-            logger.info("Layout initialized", {nodeCount: 100, edgeCount: 50});
+            logger.info("Layout initialized", { nodeCount: 100, edgeCount: 50 });
 
             assert.isTrue(consoleInfoSpy.mock.calls.length > 0);
 
@@ -234,10 +225,7 @@ describe("Console Output", () => {
             ];
 
             for (const pattern of parts) {
-                assert.isTrue(
-                    pattern.test(firstArg),
-                    `Expected ${pattern.toString()} in: ${firstArg}`,
-                );
+                assert.isTrue(pattern.test(firstArg), `Expected ${pattern.toString()} in: ${firstArg}`);
             }
 
             // Check data is passed

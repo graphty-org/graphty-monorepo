@@ -1,10 +1,10 @@
 // Import algorithms to trigger side-effect registration
 import "../../src/algorithms";
 
-import type {Meta, StoryObj} from "@storybook/web-components-vite";
+import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import type {Graphty} from "../../src/graphty-element";
-import {eventWaitingDecorator, templateCreator, waitForGraphSettled} from "../helpers";
+import type { Graphty } from "../../src/graphty-element";
+import { eventWaitingDecorator, templateCreator, waitForGraphSettled } from "../helpers";
 
 export type Story = StoryObj<Graphty>;
 
@@ -16,7 +16,7 @@ export const algorithmMetaBase: Omit<Meta, "title"> = {
     component: "graphty-element",
     decorators: [eventWaitingDecorator],
     parameters: {
-        controls: {exclude: /^(#|_)/},
+        controls: { exclude: /^(#|_)/ },
         chromatic: {
             delay: 500, // Allow Babylon.js render frames to complete
         },
@@ -56,7 +56,7 @@ export const createAlgorithmStory = (algorithmId: string): Story => ({
         }),
         runAlgorithmsOnLoad: true,
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         // Wait for the graph to fully settle before applying algorithm styles
         await waitForGraphSettled(canvasElement);
 
@@ -67,7 +67,7 @@ export const createAlgorithmStory = (algorithmId: string): Story => ({
         }
 
         const graphtyElement = element as Graphty;
-        const {graph} = graphtyElement;
+        const { graph } = graphtyElement;
 
         // Apply suggested styles from the algorithm
         graph.applySuggestedStyles(algorithmId);
@@ -79,4 +79,4 @@ export const createAlgorithmStory = (algorithmId: string): Story => ({
 });
 
 // Re-export helpers for convenience
-export {templateCreator, waitForGraphSettled} from "../helpers";
+export { templateCreator, waitForGraphSettled } from "../helpers";

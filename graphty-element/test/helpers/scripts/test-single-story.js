@@ -1,28 +1,28 @@
-import {chromium} from "playwright";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 
 async function main() {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
     // Test ngraph story
     await page.goto(`${STORYBOOK_URL}/iframe.html?id=layout-3d--ngraph&viewMode=story`);
 
     // Wait for graphty-element
-    await page.waitForSelector("graphty-element", {timeout: 10000});
+    await page.waitForSelector("graphty-element", { timeout: 10000 });
 
     // Check layout state periodically
     for (let i = 0; i < 20; i++) {
         const state = await page.evaluate(() => {
             const graphty = document.querySelector("graphty-element");
             if (!graphty?.graph) {
-                return {exists: false};
+                return { exists: false };
             }
 
             const layout = graphty.graph.layoutManager?.layoutEngine;
             if (!layout) {
-                return {exists: true, hasLayout: false};
+                return { exists: true, hasLayout: false };
             }
 
             return {

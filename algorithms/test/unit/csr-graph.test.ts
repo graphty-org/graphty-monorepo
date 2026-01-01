@@ -1,7 +1,7 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {Graph} from "../../src/core/graph.js";
-import {CSRGraph} from "../../src/optimized/csr-graph.js";
+import { Graph } from "../../src/core/graph.js";
+import { CSRGraph } from "../../src/optimized/csr-graph.js";
 
 describe("CSRGraph", () => {
     describe("construction", () => {
@@ -145,7 +145,7 @@ describe("CSRGraph", () => {
         });
 
         it("should handle undirected graphs", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 

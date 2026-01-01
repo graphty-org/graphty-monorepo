@@ -1,6 +1,6 @@
-import type {Meta, StoryObj} from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 
-import {ViewDataModal} from "./ViewDataModal";
+import { ViewDataModal } from "./ViewDataModal";
 
 const meta: Meta<typeof ViewDataModal> = {
     title: "Components/DataView/ViewDataModal",
@@ -10,7 +10,7 @@ const meta: Meta<typeof ViewDataModal> = {
     },
     decorators: [
         (Story) => (
-            <div style={{minHeight: "100vh", backgroundColor: "var(--mantine-color-dark-8)"}}>
+            <div style={{ minHeight: "100vh", backgroundColor: "var(--mantine-color-dark-8)" }}>
                 <Story />
             </div>
         ),
@@ -19,7 +19,7 @@ const meta: Meta<typeof ViewDataModal> = {
         opened: true,
     },
     argTypes: {
-        onClose: {action: "onClose"},
+        onClose: { action: "onClose" },
     },
 };
 
@@ -76,6 +76,6 @@ export const Default: Story = {
 /** Empty state handling */
 export const Empty: Story = {
     args: {
-        data: {nodes: [], edges: []},
+        data: { nodes: [], edges: [] },
     },
 };

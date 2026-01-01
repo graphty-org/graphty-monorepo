@@ -1,8 +1,8 @@
-import {Vector3} from "@babylonjs/core";
-import {assert, describe, test} from "vitest";
+import { Vector3 } from "@babylonjs/core";
+import { assert, describe, test } from "vitest";
 
-import {EDGE_CONSTANTS} from "../../src/constants/meshConstants";
-import {EdgeMesh} from "../../src/meshes/EdgeMesh";
+import { EDGE_CONSTANTS } from "../../src/constants/meshConstants";
+import { EdgeMesh } from "../../src/meshes/EdgeMesh";
 
 describe("Bezier Curve Generation", () => {
     test("generates smooth curve between two points", () => {
@@ -32,11 +32,7 @@ describe("Bezier Curve Generation", () => {
 
         // Curve should deviate from straight line
         const midIdx = Math.floor(curvePoints.length / 2 / 3) * 3;
-        const midPoint = new Vector3(
-            curvePoints[midIdx],
-            curvePoints[midIdx + 1],
-            curvePoints[midIdx + 2],
-        );
+        const midPoint = new Vector3(curvePoints[midIdx], curvePoints[midIdx + 1], curvePoints[midIdx + 2]);
 
         const straightMid = Vector3.Lerp(src, dst, 0.5);
 
@@ -79,7 +75,10 @@ describe("Bezier Curve Generation", () => {
         const curvePoints = EdgeMesh.createBezierLine(src, dst);
 
         // Should still generate valid curve (minimum points)
-        assert.isTrue(curvePoints.length >= 6, `Very short edges should have at least 6 values (2 points), got ${curvePoints.length}`);
+        assert.isTrue(
+            curvePoints.length >= 6,
+            `Very short edges should have at least 6 values (2 points), got ${curvePoints.length}`,
+        );
     });
 
     test("handles self-loops (source === destination)", () => {
@@ -98,12 +97,7 @@ describe("Bezier Curve Generation", () => {
             curvePoints[curvePoints.length - 1],
         );
 
-        assert.closeTo(
-            Vector3.Distance(firstPoint, lastPoint),
-            0,
-            0.1,
-            "Self-loop should start and end at same point",
-        );
+        assert.closeTo(Vector3.Distance(firstPoint, lastPoint), 0, 0.1, "Self-loop should start and end at same point");
     });
 
     test("generated curve is continuous", () => {

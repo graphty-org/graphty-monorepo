@@ -12,13 +12,13 @@ Since tool calling is the only purpose of the LLM in our application, models tha
 
 ### Native Tool Calling Support by Model
 
-| Model | Native Tool Support | Format | Quality | Size |
-|-------|-------------------|--------|---------|------|
-| **Qwen 2.5** | ✅ Yes | Hermes-style JSON | Good | 800MB-3.5GB |
-| **SmolLM2** | ✅ Yes | `<tool_call>` XML tags | 27% BFCL | 200MB-1GB |
-| **Llama 3.2** | ✅ Yes | JSON or pythonic | Good | 500MB-1.5GB |
-| **Phi 3.5 Mini** | ⚠️ Unofficial | Prompt engineering | Unreliable | ~2GB |
-| **Hermes** | ✅ Yes (WebLLM native) | OpenAI-style | Best | ~4GB |
+| Model            | Native Tool Support    | Format                 | Quality    | Size        |
+| ---------------- | ---------------------- | ---------------------- | ---------- | ----------- |
+| **Qwen 2.5**     | ✅ Yes                 | Hermes-style JSON      | Good       | 800MB-3.5GB |
+| **SmolLM2**      | ✅ Yes                 | `<tool_call>` XML tags | 27% BFCL   | 200MB-1GB   |
+| **Llama 3.2**    | ✅ Yes                 | JSON or pythonic       | Good       | 500MB-1.5GB |
+| **Phi 3.5 Mini** | ⚠️ Unofficial          | Prompt engineering     | Unreliable | ~2GB        |
+| **Hermes**       | ✅ Yes (WebLLM native) | OpenAI-style           | Best       | ~4GB        |
 
 ### Why WebLLM Only Supports Hermes
 
@@ -32,23 +32,27 @@ The limitation is in WebLLM's implementation, not the models:
 ### Model-Specific Tool Calling Formats
 
 #### Qwen 2.5
+
 - Uses Hermes-style tool format
 - Requires proper prompting via Qwen-Agent framework
 - Documentation: https://qwen.readthedocs.io/en/latest/framework/function_call.html
 
 #### SmolLM2
+
 - Uses `<tool_call>` XML wrapper tags
 - Output format: `<tool_call>[{"name": "func", "arguments": {...}}]</tool_call>`
 - Requires regex parsing: `/<tool_call>(.*?)<\/tool_call>/`
 - Documentation: https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct/blob/main/instructions_function_calling.md
 
 #### Llama 3.2
+
 - Supports JSON-based and pythonic tool calling
 - Fine-tuned for single, nested, and parallel function calls
 - Uses `tool_chat_template_llama3.2_json.jinja` template
 - Documentation: https://www.llama.com/docs/model-cards-and-prompt-formats/llama3_2/
 
 #### Phi 3.5 Mini
+
 - Microsoft does NOT officially support tool calling
 - Community fine-tunes exist (e.g., `ayan-sh003/phi3.5-phunction-calling`)
 - Requires careful prompt engineering with explicit JSON formatting instructions
@@ -137,14 +141,18 @@ class SmolLM2Strategy implements ToolCallingStrategy {
     readonly supportsNativeToolsApi = false;
 
     formatToolsForPrompt(tools: ToolDefinition[]): string {
-        return JSON.stringify(tools.map(t => ({
-            type: "function",
-            function: {
-                name: t.name,
-                description: t.description,
-                parameters: zodToJsonSchema(t.parameters),
-            }
-        })), null, 2);
+        return JSON.stringify(
+            tools.map((t) => ({
+                type: "function",
+                function: {
+                    name: t.name,
+                    description: t.description,
+                    parameters: zodToJsonSchema(t.parameters),
+                },
+            })),
+            null,
+            2,
+        );
     }
 
     buildSystemPrompt(basePrompt: string, tools: ToolDefinition[]): string {
@@ -168,7 +176,7 @@ ${basePrompt}`;
         if (!match) return [];
 
         try {
-            const calls = JSON.parse(match[1]) as Array<{name: string; arguments: Record<string, unknown>}>;
+            const calls = JSON.parse(match[1]) as Array<{ name: string; arguments: Record<string, unknown> }>;
             return calls.map((c, i) => ({
                 id: `call_${Date.now()}_${i}`,
                 name: c.name,
@@ -189,14 +197,18 @@ class LlamaQwenStrategy implements ToolCallingStrategy {
     readonly supportsNativeToolsApi = false;
 
     formatToolsForPrompt(tools: ToolDefinition[]): string {
-        return JSON.stringify(tools.map(t => ({
-            type: "function",
-            function: {
-                name: t.name,
-                description: t.description,
-                parameters: zodToJsonSchema(t.parameters),
-            }
-        })), null, 2);
+        return JSON.stringify(
+            tools.map((t) => ({
+                type: "function",
+                function: {
+                    name: t.name,
+                    description: t.description,
+                    parameters: zodToJsonSchema(t.parameters),
+                },
+            })),
+            null,
+            2,
+        );
     }
 
     buildSystemPrompt(basePrompt: string, tools: ToolDefinition[]): string {
@@ -219,33 +231,37 @@ ${basePrompt}`;
         // Try to parse as JSON array first
         try {
             const trimmed = response.trim();
-            if (trimmed.startsWith('[')) {
-                const calls = JSON.parse(trimmed) as Array<{name: string; arguments: Record<string, unknown>}>;
+            if (trimmed.startsWith("[")) {
+                const calls = JSON.parse(trimmed) as Array<{ name: string; arguments: Record<string, unknown> }>;
                 return calls.map((c, i) => ({
                     id: `call_${Date.now()}_${i}`,
                     name: c.name,
                     arguments: c.arguments,
                 }));
             }
-            if (trimmed.startsWith('{')) {
-                const call = JSON.parse(trimmed) as {name: string; arguments: Record<string, unknown>};
-                return [{
-                    id: `call_${Date.now()}`,
-                    name: call.name,
-                    arguments: call.arguments,
-                }];
+            if (trimmed.startsWith("{")) {
+                const call = JSON.parse(trimmed) as { name: string; arguments: Record<string, unknown> };
+                return [
+                    {
+                        id: `call_${Date.now()}`,
+                        name: call.name,
+                        arguments: call.arguments,
+                    },
+                ];
             }
         } catch {
             // Try to extract JSON from response
             const jsonMatch = response.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 try {
-                    const call = JSON.parse(jsonMatch[0]) as {name: string; arguments: Record<string, unknown>};
-                    return [{
-                        id: `call_${Date.now()}`,
-                        name: call.name,
-                        arguments: call.arguments,
-                    }];
+                    const call = JSON.parse(jsonMatch[0]) as { name: string; arguments: Record<string, unknown> };
+                    return [
+                        {
+                            id: `call_${Date.now()}`,
+                            name: call.name,
+                            arguments: call.arguments,
+                        },
+                    ];
                 } catch {
                     // Fall through
                 }
@@ -308,13 +324,13 @@ async generate(
 
 ### Quality Concerns
 
-| Model | BFCL Score | Notes |
-|-------|-----------|-------|
-| SmolLM2-1.7B | 27% | Low reliability; may hallucinate function names |
-| SmolLM2-360M | Unknown (lower) | Too small for reliable tool calling |
-| Llama 3.2 1B | Unknown | Small models struggle with structured output |
-| Llama 3.2 3B | Better | Reasonable for simple tool calls |
-| Qwen 2.5 1.5B | Unknown | Untested in this context |
+| Model         | BFCL Score      | Notes                                           |
+| ------------- | --------------- | ----------------------------------------------- |
+| SmolLM2-1.7B  | 27%             | Low reliability; may hallucinate function names |
+| SmolLM2-360M  | Unknown (lower) | Too small for reliable tool calling             |
+| Llama 3.2 1B  | Unknown         | Small models struggle with structured output    |
+| Llama 3.2 3B  | Better          | Reasonable for simple tool calls                |
+| Qwen 2.5 1.5B | Unknown         | Untested in this context                        |
 
 ### Implementation Risks
 
@@ -338,12 +354,14 @@ async generate(
 **Effort**: Medium-High (2-3 days initial, ongoing maintenance)
 
 **Implementation Priority**:
+
 1. SmolLM2-1.7B (smallest working model, ~1GB)
 2. Llama 3.2 3B (good balance of size/quality)
 3. Qwen 2.5 1.5B (multilingual support)
 4. Skip Phi 3.5 (unofficial support, unreliable)
 
 **Benefits**:
+
 - Models as small as 1GB for tool calling
 - More choice for users with limited hardware
 - Faster inference with smaller models
@@ -353,11 +371,13 @@ async generate(
 **Effort**: None
 
 **Rationale**:
+
 - Hermes models are specifically fine-tuned for tool calling
 - Most reliable option
 - WebLLM team may add native support for other models
 
 **Drawbacks**:
+
 - Minimum ~4GB download
 - Fewer model choices
 
@@ -366,6 +386,7 @@ async generate(
 **Effort**: None (monitoring only)
 
 Per [Issue #526](https://github.com/mlc-ai/web-llm/issues/526), WebLLM plans to:
+
 - Integrate XGrammar for structural tags
 - Enable reliable tool use with small models
 - Add MCP-like examples

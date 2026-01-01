@@ -1,10 +1,10 @@
-import {beforeEach, describe, expect, it, vi} from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {fireEvent, render, screen, waitFor} from "../../../test/test-utils";
-import {AiChatDialog} from "../AiChatDialog";
+import { fireEvent, render, screen, waitFor } from "../../../test/test-utils";
+import { AiChatDialog } from "../AiChatDialog";
 
 // Mock localStorage
-const createLocalStorageMock = (): Storage & {clear: () => void} => {
+const createLocalStorageMock = (): Storage & { clear: () => void } => {
     let store = new Map<string, string>();
     return {
         getItem: vi.fn((key: string) => store.get(key) ?? null),
@@ -29,7 +29,7 @@ const createLocalStorageMock = (): Storage & {clear: () => void} => {
 };
 
 const localStorageMock = createLocalStorageMock();
-Object.defineProperty(window, "localStorage", {value: localStorageMock});
+Object.defineProperty(window, "localStorage", { value: localStorageMock });
 
 describe("AiChatDialog", () => {
     const defaultProps = {
@@ -38,9 +38,9 @@ describe("AiChatDialog", () => {
         onOpenSettings: vi.fn(),
         status: null,
         isProcessing: false,
-        onExecute: vi.fn().mockResolvedValue({success: true, message: "Done"}),
+        onExecute: vi.fn().mockResolvedValue({ success: true, message: "Done" }),
         onCancel: vi.fn(),
-        availableProviders: [{value: "openai" as const, label: "OpenAI"}],
+        availableProviders: [{ value: "openai" as const, label: "OpenAI" }],
         currentProvider: "openai" as const,
         onProviderChange: vi.fn(),
     };
@@ -72,9 +72,9 @@ describe("AiChatDialog", () => {
         it("shows quick action buttons", () => {
             render(<AiChatDialog {...defaultProps} />);
 
-            expect(screen.getByRole("button", {name: /style nodes/i})).toBeInTheDocument();
-            expect(screen.getByRole("button", {name: /run layout/i})).toBeInTheDocument();
-            expect(screen.getByRole("button", {name: /find nodes/i})).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: /style nodes/i })).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: /run layout/i })).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: /find nodes/i })).toBeInTheDocument();
         });
 
         it("shows input textarea", () => {
@@ -88,26 +88,26 @@ describe("AiChatDialog", () => {
         it("shows settings button", () => {
             render(<AiChatDialog {...defaultProps} />);
 
-            expect(screen.getByRole("button", {name: /ai settings/i})).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: /ai settings/i })).toBeInTheDocument();
         });
 
         it("shows minimize button", () => {
             render(<AiChatDialog {...defaultProps} />);
 
-            expect(screen.getByRole("button", {name: /minimize/i})).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: /minimize/i })).toBeInTheDocument();
         });
 
         it("shows close button", () => {
             render(<AiChatDialog {...defaultProps} />);
 
-            expect(screen.getByRole("button", {name: /close/i})).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: /close/i })).toBeInTheDocument();
         });
 
         it("calls onOpenSettings when settings button clicked", () => {
             const onOpenSettings = vi.fn();
             render(<AiChatDialog {...defaultProps} onOpenSettings={onOpenSettings} />);
 
-            fireEvent.click(screen.getByRole("button", {name: /ai settings/i}));
+            fireEvent.click(screen.getByRole("button", { name: /ai settings/i }));
 
             expect(onOpenSettings).toHaveBeenCalledTimes(1);
         });
@@ -116,21 +116,21 @@ describe("AiChatDialog", () => {
             const onClose = vi.fn();
             render(<AiChatDialog {...defaultProps} onClose={onClose} />);
 
-            fireEvent.click(screen.getByRole("button", {name: /close/i}));
+            fireEvent.click(screen.getByRole("button", { name: /close/i }));
 
             expect(onClose).toHaveBeenCalledTimes(1);
         });
     });
 
     describe("message submission", () => {
-        it("sends message when submit button clicked", async() => {
-            const onExecute = vi.fn().mockResolvedValue({success: true, message: "Done"});
+        it("sends message when submit button clicked", async () => {
+            const onExecute = vi.fn().mockResolvedValue({ success: true, message: "Done" });
             render(<AiChatDialog {...defaultProps} onExecute={onExecute} />);
 
             const input = screen.getByPlaceholderText(/ask me to style or analyze/i);
-            fireEvent.change(input, {target: {value: "Make nodes blue"}});
+            fireEvent.change(input, { target: { value: "Make nodes blue" } });
 
-            const sendButton = screen.getByRole("button", {name: /send/i});
+            const sendButton = screen.getByRole("button", { name: /send/i });
             fireEvent.click(sendButton);
 
             await waitFor(() => {
@@ -138,65 +138,65 @@ describe("AiChatDialog", () => {
             });
         });
 
-        it("sends message when Enter is pressed", async() => {
-            const onExecute = vi.fn().mockResolvedValue({success: true, message: "Done"});
+        it("sends message when Enter is pressed", async () => {
+            const onExecute = vi.fn().mockResolvedValue({ success: true, message: "Done" });
             render(<AiChatDialog {...defaultProps} onExecute={onExecute} />);
 
             const input = screen.getByPlaceholderText(/ask me to style or analyze/i);
-            fireEvent.change(input, {target: {value: "Make nodes blue"}});
-            fireEvent.keyDown(input, {key: "Enter"});
+            fireEvent.change(input, { target: { value: "Make nodes blue" } });
+            fireEvent.keyDown(input, { key: "Enter" });
 
             await waitFor(() => {
                 expect(onExecute).toHaveBeenCalledWith("Make nodes blue");
             });
         });
 
-        it("does not send message when Shift+Enter is pressed", async() => {
-            const onExecute = vi.fn().mockResolvedValue({success: true, message: "Done"});
+        it("does not send message when Shift+Enter is pressed", async () => {
+            const onExecute = vi.fn().mockResolvedValue({ success: true, message: "Done" });
             render(<AiChatDialog {...defaultProps} onExecute={onExecute} />);
 
             const input = screen.getByPlaceholderText(/ask me to style or analyze/i);
-            fireEvent.change(input, {target: {value: "Make nodes blue"}});
-            fireEvent.keyDown(input, {key: "Enter", shiftKey: true});
+            fireEvent.change(input, { target: { value: "Make nodes blue" } });
+            fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
 
             // Wait a bit to ensure no call was made
             await new Promise((resolve) => setTimeout(resolve, 100));
             expect(onExecute).not.toHaveBeenCalled();
         });
 
-        it("displays user message after submission", async() => {
-            const onExecute = vi.fn().mockResolvedValue({success: true, message: "Done"});
+        it("displays user message after submission", async () => {
+            const onExecute = vi.fn().mockResolvedValue({ success: true, message: "Done" });
             render(<AiChatDialog {...defaultProps} onExecute={onExecute} />);
 
             const input = screen.getByPlaceholderText(/ask me to style or analyze/i);
-            fireEvent.change(input, {target: {value: "Make nodes blue"}});
-            fireEvent.click(screen.getByRole("button", {name: /send/i}));
+            fireEvent.change(input, { target: { value: "Make nodes blue" } });
+            fireEvent.click(screen.getByRole("button", { name: /send/i }));
 
             await waitFor(() => {
                 expect(screen.getByText("Make nodes blue")).toBeInTheDocument();
             });
         });
 
-        it("displays assistant response after execution", async() => {
-            const onExecute = vi.fn().mockResolvedValue({success: true, message: "Nodes styled successfully"});
+        it("displays assistant response after execution", async () => {
+            const onExecute = vi.fn().mockResolvedValue({ success: true, message: "Nodes styled successfully" });
             render(<AiChatDialog {...defaultProps} onExecute={onExecute} />);
 
             const input = screen.getByPlaceholderText(/ask me to style or analyze/i);
-            fireEvent.change(input, {target: {value: "Make nodes blue"}});
-            fireEvent.click(screen.getByRole("button", {name: /send/i}));
+            fireEvent.change(input, { target: { value: "Make nodes blue" } });
+            fireEvent.click(screen.getByRole("button", { name: /send/i }));
 
             await waitFor(() => {
                 expect(screen.getByText("Nodes styled successfully")).toBeInTheDocument();
             });
         });
 
-        it("clears input after submission", async() => {
-            const onExecute = vi.fn().mockResolvedValue({success: true, message: "Done"});
+        it("clears input after submission", async () => {
+            const onExecute = vi.fn().mockResolvedValue({ success: true, message: "Done" });
             render(<AiChatDialog {...defaultProps} onExecute={onExecute} />);
 
             const input = screen.getByPlaceholderText(/ask me to style or analyze/i);
-            fireEvent.change(input, {target: {value: "Make nodes blue"}});
-            fireEvent.click(screen.getByRole("button", {name: /send/i}));
+            fireEvent.change(input, { target: { value: "Make nodes blue" } });
+            fireEvent.click(screen.getByRole("button", { name: /send/i }));
 
             await waitFor(() => {
                 expect(input).toHaveValue("");
@@ -208,7 +208,7 @@ describe("AiChatDialog", () => {
         it("populates input when quick action clicked", () => {
             render(<AiChatDialog {...defaultProps} />);
 
-            fireEvent.click(screen.getByRole("button", {name: /style nodes/i}));
+            fireEvent.click(screen.getByRole("button", { name: /style nodes/i }));
 
             const input = screen.getByPlaceholderText(/ask me to style or analyze/i);
             expect(input).toHaveValue("Make all nodes blue");
@@ -226,14 +226,14 @@ describe("AiChatDialog", () => {
         it("shows cancel button while processing", () => {
             render(<AiChatDialog {...defaultProps} isProcessing={true} />);
 
-            expect(screen.getByRole("button", {name: /cancel/i})).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();
         });
 
         it("calls onCancel when cancel button clicked", () => {
             const onCancel = vi.fn();
             render(<AiChatDialog {...defaultProps} isProcessing={true} onCancel={onCancel} />);
 
-            fireEvent.click(screen.getByRole("button", {name: /cancel/i}));
+            fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
             expect(onCancel).toHaveBeenCalledTimes(1);
         });
@@ -242,10 +242,10 @@ describe("AiChatDialog", () => {
     describe("provider selector", () => {
         it("shows provider selector when multiple providers available", () => {
             const props = {
-                ... defaultProps,
+                ...defaultProps,
                 availableProviders: [
-                    {value: "openai" as const, label: "OpenAI"},
-                    {value: "anthropic" as const, label: "Anthropic"},
+                    { value: "openai" as const, label: "OpenAI" },
+                    { value: "anthropic" as const, label: "Anthropic" },
                 ],
             };
             render(<AiChatDialog {...props} />);
@@ -265,10 +265,10 @@ describe("AiChatDialog", () => {
     });
 
     describe("minimize functionality", () => {
-        it("minimizes dialog when minimize button clicked", async() => {
+        it("minimizes dialog when minimize button clicked", async () => {
             render(<AiChatDialog {...defaultProps} />);
 
-            const minimizeButton = screen.getByRole("button", {name: /minimize/i});
+            const minimizeButton = screen.getByRole("button", { name: /minimize/i });
             fireEvent.click(minimizeButton);
 
             await waitFor(() => {
@@ -286,7 +286,7 @@ describe("AiChatDialog", () => {
             render(<AiChatDialog {...defaultProps} onClose={onClose} />);
 
             const input = screen.getByPlaceholderText(/ask me to style or analyze/i);
-            fireEvent.keyDown(input, {key: "Escape"});
+            fireEvent.keyDown(input, { key: "Escape" });
 
             expect(onClose).toHaveBeenCalledTimes(1);
         });
@@ -297,7 +297,7 @@ describe("AiChatDialog", () => {
             render(<AiChatDialog {...defaultProps} isProcessing={true} onCancel={onCancel} onClose={onClose} />);
 
             const input = screen.getByPlaceholderText(/ask me to style or analyze/i);
-            fireEvent.keyDown(input, {key: "Escape"});
+            fireEvent.keyDown(input, { key: "Escape" });
 
             expect(onCancel).toHaveBeenCalledTimes(1);
             expect(onClose).not.toHaveBeenCalled();

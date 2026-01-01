@@ -90,7 +90,7 @@ export interface NodeStyle {
     shape?: ShapeConfig;
     color?: ColorConfig;
     // Legacy support for simple color string
-    texture?: {color?: string};
+    texture?: { color?: string };
     // Node effects
     effects?: NodeEffectsConfig;
     // Labels and tooltips
@@ -108,7 +108,21 @@ export type EdgeLineType = "solid" | "dot" | "star" | "box" | "dash" | "diamond"
  * Edge arrow type options.
  * Matches graphty-element ArrowType enum.
  */
-export type ArrowType = "none" | "normal" | "inverted" | "dot" | "sphere-dot" | "open-dot" | "tee" | "open-normal" | "diamond" | "open-diamond" | "crow" | "box" | "half-open" | "vee";
+export type ArrowType =
+    | "none"
+    | "normal"
+    | "inverted"
+    | "dot"
+    | "sphere-dot"
+    | "open-dot"
+    | "tee"
+    | "open-normal"
+    | "diamond"
+    | "open-diamond"
+    | "crow"
+    | "box"
+    | "half-open"
+    | "vee";
 
 /**
  * Edge line configuration.

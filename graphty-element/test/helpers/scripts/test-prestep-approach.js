@@ -1,29 +1,29 @@
-import {createHash} from "crypto";
-import {chromium} from "playwright";
+import { createHash } from "crypto";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 
 async function preStepLayout(page, steps = 500) {
-    return await page.evaluate(async(stepCount) => {
+    return await page.evaluate(async (stepCount) => {
         const graphty = document.querySelector("graphty-element");
         if (!graphty) {
-            return {error: "No graphty-element found"};
+            return { error: "No graphty-element found" };
         }
 
         // Wait for graph to be initialized (like helpers.ts does)
         let attempts = 0;
-        while ((!graphty.graph?.layoutManager?.layoutEngine) && attempts < 50) {
+        while (!graphty.graph?.layoutManager?.layoutEngine && attempts < 50) {
             await new Promise((resolve) => setTimeout(resolve, 100));
             attempts++;
         }
 
         if (!graphty.graph) {
-            return {error: "No graph property after waiting"};
+            return { error: "No graph property after waiting" };
         }
 
         const layout = graphty.graph.layoutManager?.layoutEngine;
         if (!layout) {
-            return {error: "No layout engine found after waiting", hasLayoutManager: !!graphty.graph.layoutManager};
+            return { error: "No layout engine found after waiting", hasLayoutManager: !!graphty.graph.layoutManager };
         }
 
         console.log(`Pre-stepping ${layout.constructor.name} layout ${stepCount} times...`);
@@ -59,7 +59,7 @@ async function testStory(page, storyId) {
     // Navigate to story
     console.log(`  Navigating to: ${STORYBOOK_URL}/iframe.html?id=${storyId}&viewMode=story`);
     await page.goto(`${STORYBOOK_URL}/iframe.html?id=${storyId}&viewMode=story`);
-    await page.waitForSelector("graphty-element", {timeout: 15000});
+    await page.waitForSelector("graphty-element", { timeout: 15000 });
     console.log("  Found graphty-element");
     await page.waitForTimeout(5000);
     console.log("  Waited for element to initialize");
@@ -71,7 +71,7 @@ async function testStory(page, storyId) {
     // Take 3 screenshots to test consistency
     const hashes = [];
     for (let i = 0; i < 3; i++) {
-    // Pre-step again for each screenshot to ensure consistency
+        // Pre-step again for each screenshot to ensure consistency
         await preStepLayout(page, 500);
 
         const screenshot = await page.locator("graphty-element").screenshot();
@@ -93,16 +93,14 @@ async function testStory(page, storyId) {
         console.log(`  ❌ ${storyId} is still inconsistent even with pre-stepping`);
     }
 
-    return {storyId, consistent: allIdentical, preStepResult};
+    return { storyId, consistent: allIdentical, preStepResult };
 }
 
 async function main() {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
-    const stories = [
-        "layout-3d--ngraph",
-    ];
+    const stories = ["layout-3d--ngraph"];
 
     const results = [];
 

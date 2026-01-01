@@ -7,7 +7,7 @@ export interface BenchmarkGraph {
     weighted: boolean;
 }
 
-export type BenchmarkAdjacencyList = Record<number, {to: number; weight?: number}[]>;
+export type BenchmarkAdjacencyList = Record<number, { to: number; weight?: number }[]>;
 
 export interface BenchmarkGraphMetadata {
     generationAlgorithm: string;
@@ -36,14 +36,14 @@ export class BenchmarkGraphImpl implements BenchmarkGraph {
 
     addEdge(from: number, to: number, weight?: number): void {
         this.edges.push([from, to, weight]);
-        this.adjacencyList[from].push({to, weight});
+        this.adjacencyList[from].push({ to, weight });
 
         if (!this.directed) {
-            this.adjacencyList[to].push({to: from, weight});
+            this.adjacencyList[to].push({ to: from, weight });
         }
     }
 
-    getNeighbors(vertex: number): {to: number; weight?: number}[] {
+    getNeighbors(vertex: number): { to: number; weight?: number }[] {
         return this.adjacencyList[vertex] || [];
     }
 

@@ -1,6 +1,6 @@
-import type {Graph} from "../../core/graph.js";
-import type {NodeId} from "../../types/index.js";
-import {bfsDistancesOnly, bfsWeightedDistances} from "../traversal/bfs-variants.js";
+import type { Graph } from "../../core/graph.js";
+import type { NodeId } from "../../types/index.js";
+import { bfsDistancesOnly, bfsWeightedDistances } from "../traversal/bfs-variants.js";
 
 /**
  * Closeness centrality implementation
@@ -34,6 +34,11 @@ export interface ClosenessCentralityOptions {
 
 /**
  * Calculate closeness centrality from distances
+ * @param distances - Map of node IDs to their distances from source
+ * @param sourceNode - The source node for distance calculations
+ * @param totalNodes - Total number of nodes in the graph
+ * @param options - Algorithm configuration options
+ * @returns The closeness centrality score for the source node
  */
 function calculateClosenessFromDistances(
     distances: Map<NodeId, number>,
@@ -76,7 +81,7 @@ function calculateClosenessFromDistances(
 
             // Wasserman and Faust normalization for disconnected graphs
             if (options.normalized && totalNodes > 1) {
-                centrality = centrality * reachableNodes / (totalNodes - 1);
+                centrality = (centrality * reachableNodes) / (totalNodes - 1);
             }
         }
     }
@@ -90,11 +95,9 @@ function calculateClosenessFromDistances(
  * Closeness centrality measures how close a node is to all other nodes
  * in the graph. It is the reciprocal of the sum of the shortest path
  * distances to all other reachable nodes.
- *
  * @param graph - The input graph
  * @param options - Algorithm options
  * @returns Centrality scores for each node
- *
  * @example
  * ```typescript
  * const graph = new Graph();
@@ -108,10 +111,7 @@ function calculateClosenessFromDistances(
  * Time Complexity: O(V * (V + E)) for unweighted graphs
  * Space Complexity: O(V)
  */
-export function closenessCentrality(
-    graph: Graph,
-    options: ClosenessCentralityOptions = {},
-): Record<string, number> {
+export function closenessCentrality(graph: Graph, options: ClosenessCentralityOptions = {}): Record<string, number> {
     const nodes = Array.from(graph.nodes()).map((node) => node.id);
     const centrality: Record<string, number> = {};
 
@@ -124,18 +124,23 @@ export function closenessCentrality(
 
 /**
  * Calculate closeness centrality for a specific node
+ * @param graph - The input graph to analyze
+ * @param node - The node to calculate centrality for
+ * @param options - Algorithm configuration options
+ * @returns The closeness centrality score for the node
  */
-export function nodeClosenessCentrality(
-    graph: Graph,
-    node: NodeId,
-    options: ClosenessCentralityOptions = {},
-): number {
+export function nodeClosenessCentrality(graph: Graph, node: NodeId, options: ClosenessCentralityOptions = {}): number {
     if (!graph.hasNode(node)) {
         throw new Error(`Node ${String(node)} not found in graph`);
     }
 
     // Use optimized BFS variant for unweighted graphs
-    const distances = bfsDistancesOnly(graph, node, options.cutoff, options.optimized !== undefined ? {optimized: options.optimized} : {});
+    const distances = bfsDistancesOnly(
+        graph,
+        node,
+        options.cutoff,
+        options.optimized !== undefined ? { optimized: options.optimized } : {},
+    );
     const totalNodes = graph.nodeCount;
 
     return calculateClosenessFromDistances(distances, node, totalNodes, options);
@@ -143,6 +148,9 @@ export function nodeClosenessCentrality(
 
 /**
  * Calculate weighted closeness centrality using Dijkstra's algorithm
+ * @param graph - The input graph to analyze
+ * @param options - Algorithm configuration options
+ * @returns Centrality scores for each node keyed by node ID
  */
 export function weightedClosenessCentrality(
     graph: Graph,
@@ -160,6 +168,10 @@ export function weightedClosenessCentrality(
 
 /**
  * Calculate weighted closeness centrality for a specific node using Dijkstra
+ * @param graph - The input graph to analyze
+ * @param node - The node to calculate centrality for
+ * @param options - Algorithm configuration options
+ * @returns The weighted closeness centrality score for the node
  */
 export function nodeWeightedClosenessCentrality(
     graph: Graph,
@@ -171,7 +183,12 @@ export function nodeWeightedClosenessCentrality(
     }
 
     // Use optimized weighted BFS variant (simplified Dijkstra)
-    const distances = bfsWeightedDistances(graph, node, options.cutoff, options.optimized !== undefined ? {optimized: options.optimized} : {});
+    const distances = bfsWeightedDistances(
+        graph,
+        node,
+        options.cutoff,
+        options.optimized !== undefined ? { optimized: options.optimized } : {},
+    );
     const totalNodes = graph.nodeCount;
 
     return calculateClosenessFromDistances(distances, node, totalNodes, options);

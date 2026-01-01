@@ -1,11 +1,4 @@
-import type {
-    LlmProvider,
-    LlmResponse,
-    Message,
-    ProviderOptions,
-    StreamCallbacks,
-    ToolDefinition,
-} from "./types";
+import type { LlmProvider, LlmResponse, Message, ProviderOptions, StreamCallbacks, ToolDefinition } from "./types";
 
 /** Records a call to the mock provider for inspection */
 interface CallRecord {
@@ -37,7 +30,6 @@ export class MockLlmProvider implements LlmProvider {
      * Configure the provider (no-op for mock, but implements interface).
      * @param _options - Provider configuration options (unused)
      */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     configure(_options: ProviderOptions): void {
         // Mock provider doesn't need configuration
     }
@@ -87,7 +79,7 @@ export class MockLlmProvider implements LlmProvider {
      * @returns Array of call records
      */
     getCallHistory(): CallRecord[] {
-        return [... this.callHistory];
+        return [...this.callHistory];
     }
 
     /**
@@ -103,8 +95,8 @@ export class MockLlmProvider implements LlmProvider {
      * @returns Matching response or default response
      */
     private findResponse(messages: Message[]): LlmResponse {
-    // Find the last user message
-        const userMessage = [... messages].reverse().find((m) => m.role === "user");
+        // Find the last user message
+        const userMessage = [...messages].reverse().find((m) => m.role === "user");
         if (!userMessage) {
             return this.defaultResponse;
         }
@@ -132,9 +124,9 @@ export class MockLlmProvider implements LlmProvider {
     async generate(
         messages: Message[],
         tools: ToolDefinition[],
-        options?: {signal?: AbortSignal},
+        options?: { signal?: AbortSignal },
     ): Promise<LlmResponse> {
-    // Record the call
+        // Record the call
         this.callHistory.push({
             messages,
             tools,
@@ -179,7 +171,7 @@ export class MockLlmProvider implements LlmProvider {
         callbacks: StreamCallbacks,
         signal?: AbortSignal,
     ): Promise<void> {
-    // Record the call
+        // Record the call
         this.callHistory.push({
             messages,
             tools,
@@ -201,7 +193,7 @@ export class MockLlmProvider implements LlmProvider {
         const response = this.findResponse(messages);
 
         // Stream text in chunks
-        const {text} = response;
+        const { text } = response;
         for (const char of text) {
             if (signal?.aborted) {
                 throw new Error("Request was aborted");

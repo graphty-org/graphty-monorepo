@@ -5,12 +5,12 @@
  * in a flow network using the Ford-Fulkerson method.
  */
 
-import {fordFulkerson, Graph as AlgorithmGraph} from "@graphty/algorithms";
-import {z} from "zod/v4";
+import { fordFulkerson, Graph as AlgorithmGraph } from "@graphty/algorithms";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig} from "../config";
-import {Algorithm} from "./Algorithm";
-import {type OptionsSchema} from "./types/OptionSchema";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import { Algorithm } from "./Algorithm";
+import { type OptionsSchema } from "./types/OptionSchema";
 
 /**
  * Zod-based options schema for Max Flow algorithm
@@ -76,14 +76,14 @@ export class MaxFlowAlgorithm extends Algorithm<MaxFlowOptions> {
     /**
      * Legacy options set via configure() for backward compatibility
      */
-    private legacyOptions: {source: string, sink: string} | null = null;
+    private legacyOptions: { source: string; sink: string } | null = null;
 
     static suggestedStyles = (): SuggestedStylesConfig => ({
         layers: [
             {
                 edge: {
                     selector: "",
-                    style: {enabled: true},
+                    style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.max-flow.flowPct"],
                         output: "style.line.width",
@@ -98,7 +98,7 @@ export class MaxFlowAlgorithm extends Algorithm<MaxFlowOptions> {
             {
                 edge: {
                     selector: "",
-                    style: {enabled: true},
+                    style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.max-flow.flowPct"],
                         output: "style.line.color",
@@ -144,7 +144,7 @@ export class MaxFlowAlgorithm extends Algorithm<MaxFlowOptions> {
      * @returns This algorithm instance for chaining
      * @deprecated Use constructor options instead. This method is kept for backward compatibility.
      */
-    configure(options: {source: string, sink: string}): this {
+    configure(options: { source: string; sink: string }): this {
         this.legacyOptions = options;
         return this;
     }
@@ -170,7 +170,7 @@ export class MaxFlowAlgorithm extends Algorithm<MaxFlowOptions> {
         const sink = String(this.legacyOptions?.sink ?? this._schemaOptions.sink ?? nodeIds[nodeIds.length - 1]);
 
         // Build capacity graph from edges using AlgorithmGraph
-        const capacityGraph = new AlgorithmGraph({directed: true});
+        const capacityGraph = new AlgorithmGraph({ directed: true });
 
         // Initialize nodes
         for (const node of nodes) {

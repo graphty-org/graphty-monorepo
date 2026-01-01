@@ -14,39 +14,35 @@
  * 4. Report success/failure based on whether screenshots were captured
  */
 
-/* eslint-disable no-console */
+ 
 
-import {resolve} from "path";
-import {type Browser, chromium, type Page} from "playwright";
+import { resolve } from "path";
+import { type Browser, chromium, type Page } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 const TMP_DIR = resolve(process.cwd(), "tmp");
 
-async function captureStory(
-    page: Page,
-    storyId: string,
-    filename: string,
-): Promise<void> {
+async function captureStory(page: Page, storyId: string, filename: string): Promise<void> {
     const storyUrl = `${STORYBOOK_URL}/iframe.html?id=${storyId}&viewMode=story`;
-    await page.goto(storyUrl, {waitUntil: "networkidle"});
+    await page.goto(storyUrl, { waitUntil: "networkidle" });
 
     // Wait for component to load
-    await page.waitForSelector("graphty-element", {timeout: 10000});
+    await page.waitForSelector("graphty-element", { timeout: 10000 });
     await page.waitForTimeout(1000);
 
     // Take screenshot
     const canvas = page.locator("canvas");
     const screenshotPath = resolve(TMP_DIR, filename);
-    await canvas.screenshot({path: screenshotPath});
+    await canvas.screenshot({ path: screenshotPath });
 
     console.log(`  ✓ Captured: ${filename}`);
 }
 
 async function checkZoomBehavior(page: Page): Promise<void> {
     const storyUrl = `${STORYBOOK_URL}/iframe.html?id=styles-edge--two-d-solid-lines&viewMode=story`;
-    await page.goto(storyUrl, {waitUntil: "networkidle"});
+    await page.goto(storyUrl, { waitUntil: "networkidle" });
 
-    await page.waitForSelector("graphty-element", {timeout: 10000});
+    await page.waitForSelector("graphty-element", { timeout: 10000 });
     await page.waitForTimeout(1000);
 
     // Capture before zoom
@@ -59,7 +55,7 @@ async function checkZoomBehavior(page: Page): Promise<void> {
     // Zoom in
     await page.evaluate(() => {
         const elem = document.querySelector("graphty-element") as {
-            graph?: {camera: {radius: number}};
+            graph?: { camera: { radius: number } };
         } | null;
         if (elem?.graph?.camera) {
             elem.graph.camera.radius *= 0.5; // Zoom in 2x
@@ -78,7 +74,7 @@ async function checkZoomBehavior(page: Page): Promise<void> {
 async function main(): Promise<void> {
     console.log("Starting 2D edge visual regression check...\n");
 
-    const browser: Browser = await chromium.launch({headless: true});
+    const browser: Browser = await chromium.launch({ headless: true });
     const page: Page = await browser.newPage();
 
     try {

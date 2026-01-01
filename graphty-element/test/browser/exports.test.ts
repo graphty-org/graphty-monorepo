@@ -1,16 +1,9 @@
-import {assert, test} from "vitest";
+import { assert, test } from "vitest";
 
-import {
-    AnimationCancelledError,
-    ScreenshotError,
-    ScreenshotErrorCode,
-} from "../../index.js";
+import { AnimationCancelledError, ScreenshotError, ScreenshotErrorCode } from "../../index.js";
 
 test("ScreenshotError is exported and can be instantiated", () => {
-    const error = new ScreenshotError(
-        "Test error",
-        ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED,
-    );
+    const error = new ScreenshotError("Test error", ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED);
 
     assert.equal(error.name, "ScreenshotError");
     assert.equal(error.code, ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED);

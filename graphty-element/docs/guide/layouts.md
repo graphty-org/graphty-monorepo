@@ -8,37 +8,36 @@ Layout algorithms determine how nodes are positioned in the visualization. Choos
 
 ## Available Layouts
 
-| Layout | Type | Best For | Dimensions |
-|--------|------|----------|------------|
-| `ngraph` | Force-directed | General graphs | 2D/3D |
-| `d3-force` | Force-directed | Web-standard | 2D |
-| `circular` | Geometric | Cycles, small graphs | 2D/3D |
-| `grid` | Geometric | Regular structures | 2D/3D |
-| `hierarchical` | Layered | Trees, DAGs | 2D/3D |
-| `random` | Random | Testing, initial state | 2D/3D |
-| `fixed` | Manual | Pre-computed positions | 2D/3D |
+| Layout         | Type           | Best For               | Dimensions |
+| -------------- | -------------- | ---------------------- | ---------- |
+| `ngraph`       | Force-directed | General graphs         | 2D/3D      |
+| `d3-force`     | Force-directed | Web-standard           | 2D         |
+| `circular`     | Geometric      | Cycles, small graphs   | 2D/3D      |
+| `grid`         | Geometric      | Regular structures     | 2D/3D      |
+| `hierarchical` | Layered        | Trees, DAGs            | 2D/3D      |
+| `random`       | Random         | Testing, initial state | 2D/3D      |
+| `fixed`        | Manual         | Pre-computed positions | 2D/3D      |
 
 ## Setting a Layout
 
 ### Via HTML Attribute
 
 ```html
-<graphty-element layout="ngraph"></graphty-element>
-<graphty-element layout="circular"></graphty-element>
+<graphty-element layout="ngraph"></graphty-element> <graphty-element layout="circular"></graphty-element>
 ```
 
 ### Via JavaScript
 
 ```typescript
 // Simple layout change
-graph.setLayout('circular');
+graph.setLayout("circular");
 
 // With configuration options
-graph.setLayout('ngraph', {
-  springLength: 100,
-  springCoefficient: 0.0008,
-  gravity: -1.2,
-  dimensions: 3
+graph.setLayout("ngraph", {
+    springLength: 100,
+    springCoefficient: 0.0008,
+    gravity: -1.2,
+    dimensions: 3,
 });
 ```
 
@@ -47,18 +46,19 @@ graph.setLayout('ngraph', {
 ### ngraph (Force-Directed)
 
 The default layout. Uses physics simulation where:
+
 - Edges act like springs pulling connected nodes together
 - Nodes repel each other to prevent overlap
 - Works well for most general graphs
 
 ```typescript
-graph.setLayout('ngraph', {
-  springLength: 100,        // Ideal edge length
-  springCoefficient: 0.0008, // Spring stiffness
-  gravity: -1.2,            // Global attraction/repulsion
-  dimensions: 3,            // 2 or 3
-  dragCoefficient: 0.02,    // Damping
-  theta: 0.8                // Barnes-Hut approximation
+graph.setLayout("ngraph", {
+    springLength: 100, // Ideal edge length
+    springCoefficient: 0.0008, // Spring stiffness
+    gravity: -1.2, // Global attraction/repulsion
+    dimensions: 3, // 2 or 3
+    dragCoefficient: 0.02, // Damping
+    theta: 0.8, // Barnes-Hut approximation
 });
 ```
 
@@ -67,25 +67,26 @@ graph.setLayout('ngraph', {
 D3's force simulation. Industry-standard for web visualizations:
 
 ```typescript
-graph.setLayout('d3-force', {
-  strength: -30,           // Node repulsion
-  distance: 50,            // Link distance
-  iterations: 300          // Simulation steps
+graph.setLayout("d3-force", {
+    strength: -30, // Node repulsion
+    distance: 50, // Link distance
+    iterations: 300, // Simulation steps
 });
 ```
 
 ### circular
 
 Arranges nodes in a circle. Good for:
+
 - Small graphs
 - Cycle detection
 - Ring topologies
 
 ```typescript
-graph.setLayout('circular', {
-  radius: 100,            // Circle radius
-  startAngle: 0,          // Starting angle (radians)
-  endAngle: Math.PI * 2   // Ending angle
+graph.setLayout("circular", {
+    radius: 100, // Circle radius
+    startAngle: 0, // Starting angle (radians)
+    endAngle: Math.PI * 2, // Ending angle
 });
 ```
 
@@ -94,9 +95,9 @@ graph.setLayout('circular', {
 Arranges nodes in a regular grid:
 
 ```typescript
-graph.setLayout('grid', {
-  columns: 5,             // Number of columns
-  spacing: 10             // Space between nodes
+graph.setLayout("grid", {
+    columns: 5, // Number of columns
+    spacing: 10, // Space between nodes
 });
 ```
 
@@ -105,24 +106,25 @@ graph.setLayout('grid', {
 Tree-like layout for directed graphs:
 
 ```typescript
-graph.setLayout('hierarchical', {
-  direction: 'TB',        // TB, BT, LR, RL
-  levelSeparation: 100,   // Vertical spacing
-  nodeSeparation: 50      // Horizontal spacing
+graph.setLayout("hierarchical", {
+    direction: "TB", // TB, BT, LR, RL
+    levelSeparation: 100, // Vertical spacing
+    nodeSeparation: 50, // Horizontal spacing
 });
 ```
 
 ### random
 
 Random positions. Useful for:
+
 - Testing
 - Initial state before force layout
 - Deliberate chaos visualization
 
 ```typescript
-graph.setLayout('random', {
-  seed: 42,               // For reproducible layouts
-  dimensions: 3
+graph.setLayout("random", {
+    seed: 42, // For reproducible layouts
+    dimensions: 3,
 });
 ```
 
@@ -133,13 +135,13 @@ Use pre-computed positions from node data:
 ```typescript
 // Node data includes positions
 const nodes = [
-  { id: 'a', x: 0, y: 0, z: 0 },
-  { id: 'b', x: 100, y: 0, z: 0 },
-  { id: 'c', x: 50, y: 100, z: 0 }
+    { id: "a", x: 0, y: 0, z: 0 },
+    { id: "b", x: 100, y: 0, z: 0 },
+    { id: "c", x: 50, y: 100, z: 0 },
 ];
 
 await graph.addNodes(nodes);
-graph.setLayout('fixed');
+graph.setLayout("fixed");
 ```
 
 ## Layout Transitions
@@ -148,14 +150,18 @@ Animate between layouts for smooth visual transitions:
 
 ```typescript
 // Current layout
-graph.setLayout('random');
+graph.setLayout("random");
 await graph.waitForSettled();
 
 // Transition to new layout
-graph.setLayout('circular', {}, {
-  animate: true,
-  duration: 1000
-});
+graph.setLayout(
+    "circular",
+    {},
+    {
+        animate: true,
+        duration: 1000,
+    },
+);
 ```
 
 ## Waiting for Settled
@@ -163,7 +169,7 @@ graph.setLayout('circular', {}, {
 Force-directed layouts converge over time. Wait for stabilization:
 
 ```typescript
-graph.setLayout('ngraph');
+graph.setLayout("ngraph");
 
 // Wait for physics to settle
 await graph.waitForSettled();
@@ -175,9 +181,9 @@ graph.zoomToFit();
 You can also listen to the event:
 
 ```typescript
-graph.on('graph-settled', () => {
-  console.log('Layout complete');
-  graph.zoomToFit();
+graph.on("graph-settled", () => {
+    console.log("Layout complete");
+    graph.zoomToFit();
 });
 ```
 
@@ -187,10 +193,10 @@ Most layouts support both dimensions:
 
 ```typescript
 // 3D layout (default)
-graph.setLayout('ngraph', { dimensions: 3 });
+graph.setLayout("ngraph", { dimensions: 3 });
 
 // 2D layout
-graph.setLayout('ngraph', { dimensions: 2 });
+graph.setLayout("ngraph", { dimensions: 2 });
 ```
 
 For 2D layouts, also set the view mode:

@@ -1,4 +1,4 @@
-import {Observable} from "@babylonjs/core";
+import { Observable } from "@babylonjs/core";
 
 import type {
     DataLoadingCompleteEvent,
@@ -18,9 +18,9 @@ import type {
     NodeEvent,
     SelectionChangedEvent,
 } from "../events";
-import type {Graph} from "../Graph";
-import type {GraphContext} from "./GraphContext";
-import type {Manager} from "./interfaces";
+import type { Graph } from "../Graph";
+import type { GraphContext } from "./GraphContext";
+import type { Manager } from "./interfaces";
 
 /**
  * Centralized event management for the Graph system
@@ -51,13 +51,16 @@ export class EventManager implements Manager {
 
     // Track observers for cleanup
     // Using any here is required due to BabylonJS Observable/Observer type limitations
-    private observers = new Map<symbol, {
-        type: "graph" | "node" | "edge";
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        observable: any;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        observer: any;
-    }>();
+    private observers = new Map<
+        symbol,
+        {
+            type: "graph" | "node" | "edge";
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            observable: any;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            observer: any;
+        }
+    >();
 
     // Error handling configuration
     private errorRetryCount = 3;
@@ -77,7 +80,7 @@ export class EventManager implements Manager {
      */
     dispose(): void {
         // Clear all observers
-        for (const {observable, observer} of this.observers.values()) {
+        for (const { observable, observer } of this.observers.values()) {
             observable.remove(observer);
         }
         this.observers.clear();
@@ -131,11 +134,7 @@ export class EventManager implements Manager {
      * @param chunksLoaded - Number of data chunks loaded
      * @param dataSourceType - Type of data source used
      */
-    emitGraphDataLoaded(
-        graph: Graph | GraphContext,
-        chunksLoaded: number,
-        dataSourceType: string,
-    ): void {
+    emitGraphDataLoaded(graph: Graph | GraphContext, chunksLoaded: number, dataSourceType: string): void {
         const event: GraphDataLoadedEvent = {
             type: "data-loaded",
             graph: graph as Graph,
@@ -175,10 +174,7 @@ export class EventManager implements Manager {
      * @param layoutType - Type of layout that was initialized
      * @param shouldZoomToFit - Whether to zoom to fit after initialization
      */
-    emitLayoutInitialized(
-        layoutType: string,
-        shouldZoomToFit: boolean,
-    ): void {
+    emitLayoutInitialized(layoutType: string, shouldZoomToFit: boolean): void {
         const event: GraphLayoutInitializedEvent = {
             type: "layout-initialized",
             layoutType,
@@ -194,7 +190,7 @@ export class EventManager implements Manager {
      * @param data - Event data payload
      */
     emitGraphEvent(type: string, data: Record<string, unknown>): void {
-        const event = {type, ... data} as GraphGenericEvent;
+        const event = { type, ...data } as GraphGenericEvent;
         this.graphObservable.notifyObservers(event);
     }
 
@@ -257,7 +253,7 @@ export class EventManager implements Manager {
             error,
             context,
             format,
-            ... details,
+            ...details,
         };
         this.graphObservable.notifyObservers(event);
     }
@@ -352,7 +348,7 @@ export class EventManager implements Manager {
      * @param eventData - Event data (excluding type field)
      */
     emitNodeEvent(type: NodeEvent["type"], eventData: Omit<NodeEvent, "type">): void {
-        const event = {type, ... eventData} as NodeEvent;
+        const event = { type, ...eventData } as NodeEvent;
         this.nodeObservable.notifyObservers(event);
     }
 
@@ -364,7 +360,7 @@ export class EventManager implements Manager {
      * @param eventData - Event data (excluding type field)
      */
     emitEdgeEvent(type: EdgeEvent["type"], eventData: Omit<EdgeEvent, "type">): void {
-        const event = {type, ... eventData} as EdgeEvent;
+        const event = { type, ...eventData } as EdgeEvent;
         this.edgeObservable.notifyObservers(event);
     }
 
@@ -502,12 +498,17 @@ export class EventManager implements Manager {
      * @param timeout - Optional timeout in milliseconds
      * @returns Promise that resolves with the event or rejects on timeout
      */
-    waitFor(type: EventType, timeout?: number): Promise<GraphEvent | NodeEvent | EdgeEvent | import("../events").AiEvent> {
+    waitFor(
+        type: EventType,
+        timeout?: number,
+    ): Promise<GraphEvent | NodeEvent | EdgeEvent | import("../events").AiEvent> {
         return new Promise((resolve, reject) => {
-            const timeoutId = timeout ? setTimeout(() => {
-                this.removeListener(listenerId);
-                reject(new Error(`Timeout waiting for event: ${type}`));
-            }, timeout) : undefined;
+            const timeoutId = timeout
+                ? setTimeout(() => {
+                      this.removeListener(listenerId);
+                      reject(new Error(`Timeout waiting for event: ${type}`));
+                  }, timeout)
+                : undefined;
 
             const listenerId = this.once(type, (event) => {
                 if (timeoutId) {
@@ -546,7 +547,7 @@ export class EventManager implements Manager {
 
                 // Emit error event for this attempt
                 this.emitGraphError(graph, lastError, context, {
-                    ... details,
+                    ...details,
                     attempt: attempt + 1,
                     maxAttempts: this.errorRetryCount,
                 });

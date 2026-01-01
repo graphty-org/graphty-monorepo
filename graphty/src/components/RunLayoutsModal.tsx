@@ -1,12 +1,12 @@
-import {Button, Divider, Group, Modal, Radio, Select, Stack, Text} from "@mantine/core";
-import {AlertTriangle, Sparkles} from "lucide-react";
-import {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import { Button, Divider, Group, Modal, Radio, Select, Stack, Text } from "@mantine/core";
+import { AlertTriangle, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import {CATEGORY_LABELS, getLayoutMetadata, LAYOUT_METADATA, type LayoutMetadata} from "../data/layoutMetadata";
-import {getHiddenFields, getLayoutSchema} from "../data/layoutSchemas";
-import {standardModalStyles} from "../utils/modal-styles";
-import {getDefaultValues} from "../utils/zodSchemaParser";
-import {LayoutOptionsForm} from "./layout-options/LayoutOptionsForm";
+import { CATEGORY_LABELS, getLayoutMetadata, LAYOUT_METADATA, type LayoutMetadata } from "../data/layoutMetadata";
+import { getHiddenFields, getLayoutSchema } from "../data/layoutSchemas";
+import { standardModalStyles } from "../utils/modal-styles";
+import { getDefaultValues } from "../utils/zodSchemaParser";
+import { LayoutOptionsForm } from "./layout-options/LayoutOptionsForm";
 
 export interface RunLayoutsModalProps {
     opened: boolean;
@@ -18,19 +18,18 @@ export interface RunLayoutsModalProps {
 }
 
 /**
- * Group layouts by category for the dropdown
+ * Group layouts by category for the dropdown.
+ * @returns Grouped layout options for the select input
  */
-function getGroupedLayoutOptions(): {group: string, items: {value: string, label: string}[]}[] {
+function getGroupedLayoutOptions(): { group: string; items: { value: string; label: string }[] }[] {
     const categories: LayoutMetadata["category"][] = ["force", "geometric", "hierarchical", "special"];
 
     return categories.map((category) => ({
         group: CATEGORY_LABELS[category],
-        items: LAYOUT_METADATA
-            .filter((layout) => layout.category === category)
-            .map((layout) => ({
-                value: layout.type,
-                label: layout.label,
-            })),
+        items: LAYOUT_METADATA.filter((layout) => layout.category === category).map((layout) => ({
+            value: layout.type,
+            label: layout.label,
+        })),
     }));
 }
 
@@ -43,6 +42,17 @@ const REQUIRED_FIELD_WARNINGS: Record<string, string> = {
     multipartite: "This layout requires subset key configuration. Advanced configuration is not yet available.",
 };
 
+/**
+ * Modal for selecting and configuring layout algorithms.
+ * @param root0 - Component props
+ * @param root0.opened - Whether the modal is open
+ * @param root0.onClose - Close the modal
+ * @param root0.onApply - Called when a layout is applied
+ * @param root0.is2DMode - Whether the graph is in 2D mode
+ * @param root0.currentLayout - The currently active layout
+ * @param root0.currentLayoutConfig - Configuration for the current layout
+ * @returns The run layouts modal component
+ */
 export function RunLayoutsModal({
     opened,
     onClose,
@@ -60,8 +70,8 @@ export function RunLayoutsModal({
     const groupedLayoutOptions = getGroupedLayoutOptions();
 
     // Check if the selected layout has required fields that prevent usage
-    const hasRequiredFields = selectedLayoutMetadata?.requiredFields &&
-        selectedLayoutMetadata.requiredFields.length > 0;
+    const hasRequiredFields =
+        selectedLayoutMetadata?.requiredFields && selectedLayoutMetadata.requiredFields.length > 0;
     const requiredFieldWarning = REQUIRED_FIELD_WARNINGS[selectedLayoutType] ?? null;
 
     // Get the schema and hidden fields for the selected layout
@@ -116,7 +126,7 @@ export function RunLayoutsModal({
 
     const handleApply = useCallback(() => {
         // Merge schema defaults with user config values
-        const finalConfig = {... schemaDefaults, ... configValues};
+        const finalConfig = { ...schemaDefaults, ...configValues };
 
         // Add dim based on selected dimension (respects user choice from radio)
         finalConfig.dim = selectedDim;
@@ -141,14 +151,7 @@ export function RunLayoutsModal({
     }, []);
 
     return (
-        <Modal
-            opened={opened}
-            onClose={onClose}
-            title="Run Layout"
-            size="md"
-            centered
-            styles={standardModalStyles}
-        >
+        <Modal opened={opened} onClose={onClose} title="Run Layout" size="md" centered styles={standardModalStyles}>
             <Stack gap="lg">
                 {/* Layout Selection Dropdown */}
                 <Select
@@ -161,7 +164,7 @@ export function RunLayoutsModal({
                     data={groupedLayoutOptions}
                     searchable
                     styles={{
-                        label: {color: "var(--mantine-color-dimmed)"},
+                        label: { color: "var(--mantine-color-dimmed)" },
                     }}
                 />
 
@@ -174,7 +177,7 @@ export function RunLayoutsModal({
 
                 {/* Required Fields Warning */}
                 {requiredFieldWarning && (
-                    <Group gap="xs" style={{color: "var(--mantine-color-yellow-5)"}}>
+                    <Group gap="xs" style={{ color: "var(--mantine-color-yellow-5)" }}>
                         <AlertTriangle size={16} />
                         <Text size="sm" c="yellow.5">
                             {requiredFieldWarning}
@@ -206,12 +209,7 @@ export function RunLayoutsModal({
                             <Text size="sm" fw={500} c="gray.3">
                                 Options
                             </Text>
-                            <Button
-                                variant="subtle"
-                                color="gray"
-                                size="xs"
-                                onClick={handleResetToDefaults}
-                            >
+                            <Button variant="subtle" color="gray" size="xs" onClick={handleResetToDefaults}>
                                 Reset to Defaults
                             </Button>
                         </Group>
@@ -229,11 +227,7 @@ export function RunLayoutsModal({
                     <Button variant="subtle" color="gray" onClick={onClose}>
                         Cancel
                     </Button>
-                    <Button
-                        onClick={handleApply}
-                        leftSection={<Sparkles size={16} />}
-                        disabled={hasRequiredFields}
-                    >
+                    <Button onClick={handleApply} leftSection={<Sparkles size={16} />} disabled={hasRequiredFields}>
                         Apply Layout
                     </Button>
                 </Group>

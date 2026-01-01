@@ -1,8 +1,8 @@
-import {Animation, Camera, EasingFunction, Scene, Vector3} from "@babylonjs/core";
-import {assert, beforeEach, describe, test, vi} from "vitest";
+import { Animation, Camera, EasingFunction, Scene, Vector3 } from "@babylonjs/core";
+import { assert, beforeEach, describe, test, vi } from "vitest";
 
-import {CameraPathAnimator, type CameraPathAnimatorOptions} from "../../../src/video/CameraPathAnimator.js";
-import type {CameraWaypoint} from "../../../src/video/VideoCapture.js";
+import { CameraPathAnimator, type CameraPathAnimatorOptions } from "../../../src/video/CameraPathAnimator.js";
+import type { CameraWaypoint } from "../../../src/video/VideoCapture.js";
 
 // Helper to create a mock 3D camera
 function createMock3DCamera(): Camera {
@@ -67,8 +67,8 @@ describe("CameraPathAnimator", () => {
             const animator = new CameraPathAnimator(camera, scene, defaultOptions);
 
             const waypoints: CameraWaypoint[] = [
-                {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-                {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 5000},
+                { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+                { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 5000 },
             ];
 
             const animations = animator.createCameraAnimations(waypoints);
@@ -82,9 +82,9 @@ describe("CameraPathAnimator", () => {
             const animator = new CameraPathAnimator(camera, scene, defaultOptions);
 
             const waypoints: CameraWaypoint[] = [
-                {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-                {position: {x: 0, y: 20, z: 0}, target: {x: 0, y: 0, z: 0}, duration: 2500},
-                {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 2500},
+                { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+                { position: { x: 0, y: 20, z: 0 }, target: { x: 0, y: 0, z: 0 }, duration: 2500 },
+                { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 2500 },
             ];
 
             const animations = animator.createCameraAnimations(waypoints);
@@ -106,8 +106,8 @@ describe("CameraPathAnimator", () => {
             const animator = new CameraPathAnimator(camera, scene, defaultOptions);
 
             const waypoints: CameraWaypoint[] = [
-                {position: {x: 10, y: 20, z: 30}, target: {x: 0, y: 0, z: 0}},
-                {position: {x: -10, y: -20, z: -30}, target: {x: 1, y: 2, z: 3}, duration: 5000},
+                { position: { x: 10, y: 20, z: 30 }, target: { x: 0, y: 0, z: 0 } },
+                { position: { x: -10, y: -20, z: -30 }, target: { x: 1, y: 2, z: 3 }, duration: 5000 },
             ];
 
             const animations = animator.createCameraAnimations(waypoints);
@@ -133,8 +133,8 @@ describe("CameraPathAnimator", () => {
             const animator = new CameraPathAnimator(camera, scene, defaultOptions);
 
             const waypoints: CameraWaypoint[] = [
-                {position: {x: 0, y: 0, z: 10}, target: {x: 1, y: 2, z: 3}},
-                {position: {x: 0, y: 0, z: -10}, target: {x: 4, y: 5, z: 6}, duration: 5000},
+                { position: { x: 0, y: 0, z: 10 }, target: { x: 1, y: 2, z: 3 } },
+                { position: { x: 0, y: 0, z: -10 }, target: { x: 4, y: 5, z: 6 }, duration: 5000 },
             ];
 
             const animations = animator.createCameraAnimations(waypoints);
@@ -159,9 +159,7 @@ describe("CameraPathAnimator", () => {
         test("throws error with less than 2 waypoints", () => {
             const animator = new CameraPathAnimator(camera, scene, defaultOptions);
 
-            const waypoints: CameraWaypoint[] = [
-                {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-            ];
+            const waypoints: CameraWaypoint[] = [{ position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } }];
 
             assert.throws(() => {
                 animator.createCameraAnimations(waypoints);
@@ -175,8 +173,8 @@ describe("CameraPathAnimator", () => {
             const animator = new CameraPathAnimator(camera, scene, defaultOptions);
 
             const waypoints: CameraWaypoint[] = [
-                {position: {x: 0, y: 0, z: 10}, target: {x: 0, y: 0, z: 0}},
-                {position: {x: 5, y: 5, z: 20}, target: {x: 0, y: 0, z: 0}, duration: 5000},
+                { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+                { position: { x: 5, y: 5, z: 20 }, target: { x: 0, y: 0, z: 0 }, duration: 5000 },
             ];
 
             const animations = animator.createCameraAnimations(waypoints);
@@ -204,13 +202,13 @@ describe("CameraPathAnimator", () => {
     describe("easing", () => {
         test("applies easeInOut easing to animations", () => {
             const animator = new CameraPathAnimator(camera, scene, {
-                ... defaultOptions,
+                ...defaultOptions,
                 easing: "easeInOut",
             });
 
             const waypoints: CameraWaypoint[] = [
-                {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-                {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 5000},
+                { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+                { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 5000 },
             ];
 
             const animations = animator.createCameraAnimations(waypoints);
@@ -223,13 +221,13 @@ describe("CameraPathAnimator", () => {
 
         test("applies easeIn easing to animations", () => {
             const animator = new CameraPathAnimator(camera, scene, {
-                ... defaultOptions,
+                ...defaultOptions,
                 easing: "easeIn",
             });
 
             const waypoints: CameraWaypoint[] = [
-                {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-                {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 5000},
+                { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+                { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 5000 },
             ];
 
             const animations = animator.createCameraAnimations(waypoints);
@@ -242,13 +240,13 @@ describe("CameraPathAnimator", () => {
 
         test("applies easeOut easing to animations", () => {
             const animator = new CameraPathAnimator(camera, scene, {
-                ... defaultOptions,
+                ...defaultOptions,
                 easing: "easeOut",
             });
 
             const waypoints: CameraWaypoint[] = [
-                {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-                {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 5000},
+                { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+                { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 5000 },
             ];
 
             const animations = animator.createCameraAnimations(waypoints);
@@ -261,13 +259,13 @@ describe("CameraPathAnimator", () => {
 
         test("linear easing has no easing function", () => {
             const animator = new CameraPathAnimator(camera, scene, {
-                ... defaultOptions,
+                ...defaultOptions,
                 easing: "linear",
             });
 
             const waypoints: CameraWaypoint[] = [
-                {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-                {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 5000},
+                { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+                { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 5000 },
             ];
 
             const animations = animator.createCameraAnimations(waypoints);
@@ -295,18 +293,18 @@ describe("CameraPathAnimator", () => {
     });
 
     describe("startRealtimeAnimation", () => {
-        test("starts animation on scene", async() => {
+        test("starts animation on scene", async () => {
             const animator = new CameraPathAnimator(camera, scene, defaultOptions);
 
             const waypoints: CameraWaypoint[] = [
-                {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-                {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 5000},
+                { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+                { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 5000 },
             ];
 
             animator.createCameraAnimations(waypoints);
 
             // Mock the animation completion
-            const mockAnimatable = {stop: vi.fn()};
+            const mockAnimatable = { stop: vi.fn() };
             (scene.beginAnimation as ReturnType<typeof vi.fn>).mockImplementation(
                 (_target, _from, _to, _loop, _speed, onAnimationEnd) => {
                     // Simulate immediate completion
@@ -327,7 +325,7 @@ describe("CameraPathAnimator", () => {
             assert.equal(call[4], 1.0); // speed
         });
 
-        test("throws error if animations not created", async() => {
+        test("throws error if animations not created", async () => {
             const animator = new CameraPathAnimator(camera, scene, defaultOptions);
 
             try {
@@ -344,14 +342,14 @@ describe("CameraPathAnimator", () => {
             const animator = new CameraPathAnimator(camera, scene, defaultOptions);
 
             const waypoints: CameraWaypoint[] = [
-                {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-                {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 5000},
+                { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+                { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 5000 },
             ];
 
             animator.createCameraAnimations(waypoints);
 
             const mockStop = vi.fn();
-            const mockAnimatable = {stop: mockStop};
+            const mockAnimatable = { stop: mockStop };
             (scene.beginAnimation as ReturnType<typeof vi.fn>).mockReturnValue(mockAnimatable);
 
             // Start but don't await
@@ -377,8 +375,8 @@ describe("CameraPathAnimator", () => {
             const animator = new CameraPathAnimator(camera, scene, defaultOptions);
 
             const waypoints: CameraWaypoint[] = [
-                {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-                {position: {x: -10, y: -10, z: -10}, target: {x: 5, y: 5, z: 5}, duration: 5000},
+                { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+                { position: { x: -10, y: -10, z: -10 }, target: { x: 5, y: 5, z: 5 }, duration: 5000 },
             ];
 
             animator.createCameraAnimations(waypoints);
@@ -399,8 +397,8 @@ describe("CameraPathAnimator", () => {
             const animator = new CameraPathAnimator(camera, scene, defaultOptions);
 
             const waypoints: CameraWaypoint[] = [
-                {position: {x: 0, y: 0, z: 10}, target: {x: 0, y: 0, z: 0}},
-                {position: {x: 5, y: 5, z: 20}, target: {x: 0, y: 0, z: 0}, duration: 5000},
+                { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+                { position: { x: 5, y: 5, z: 20 }, target: { x: 0, y: 0, z: 0 }, duration: 5000 },
             ];
 
             animator.createCameraAnimations(waypoints);
@@ -432,8 +430,8 @@ describe("CameraPathAnimator", () => {
             const animator = new CameraPathAnimator(camera, scene, defaultOptions);
 
             const waypoints: CameraWaypoint[] = [
-                {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}},
-                {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 5000},
+                { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+                { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 5000 },
             ];
 
             animator.createCameraAnimations(waypoints);
@@ -451,10 +449,10 @@ describe("CameraPathAnimator", () => {
             });
 
             const waypoints: CameraWaypoint[] = [
-                {position: {x: 10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}}, // Start
-                {position: {x: 0, y: 20, z: 0}, target: {x: 0, y: 0, z: 0}, duration: 2000}, // 2s
-                {position: {x: -10, y: 10, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 2000}, // 4s
-                {position: {x: 10, y: 0, z: -10}, target: {x: 0, y: 0, z: 0}, duration: 2000}, // 6s
+                { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } }, // Start
+                { position: { x: 0, y: 20, z: 0 }, target: { x: 0, y: 0, z: 0 }, duration: 2000 }, // 2s
+                { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 2000 }, // 4s
+                { position: { x: 10, y: 0, z: -10 }, target: { x: 0, y: 0, z: 0 }, duration: 2000 }, // 6s
             ];
 
             const animations = animator.createCameraAnimations(waypoints);

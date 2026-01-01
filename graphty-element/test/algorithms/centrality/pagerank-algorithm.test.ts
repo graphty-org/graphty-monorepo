@@ -1,21 +1,21 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {PageRankAlgorithm} from "../../../src/algorithms/PageRankAlgorithm";
-import {createMockGraph, getGraphResult, getNodeResult} from "../../helpers/mockGraph";
+import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
+import { createMockGraph, getGraphResult, getNodeResult } from "../../helpers/mockGraph";
 
 describe("PageRankAlgorithm", () => {
-    it("exists", async() => {
+    it("exists", async () => {
         new PageRankAlgorithm(await createMockGraph());
     });
 
-    it("calculates pagerank scores", async() => {
-        const graph = await createMockGraph({dataPath: "./data4.json"});
+    it("calculates pagerank scores", async () => {
+        const graph = await createMockGraph({ dataPath: "./data4.json" });
         const pr = new PageRankAlgorithm(graph);
 
         await pr.run();
 
         // Check that all nodes have pagerank results
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const dm = graph.getDataManager() as any;
         for (const [nodeId] of dm.nodes) {
             const rank = getNodeResult(graph, nodeId, "graphty", "pagerank", "rank");
@@ -91,8 +91,8 @@ describe("PageRankAlgorithm", () => {
         assert.strictEqual(outputs.length, 1, "Should have exactly one style layer");
     });
 
-    it("stores graph-level convergence info", async() => {
-        const graph = await createMockGraph({dataPath: "./data4.json"});
+    it("stores graph-level convergence info", async () => {
+        const graph = await createMockGraph({ dataPath: "./data4.json" });
         const pr = new PageRankAlgorithm(graph);
         await pr.run();
 
@@ -117,7 +117,7 @@ describe("PageRankAlgorithm", () => {
         assert.isAtLeast(maxRank, 0, "Max rank should be non-negative");
     });
 
-    it("handles empty graph gracefully", async() => {
+    it("handles empty graph gracefully", async () => {
         const graph = await createMockGraph({
             nodes: [],
             edges: [],

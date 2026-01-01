@@ -1,9 +1,9 @@
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {GMLDataSource} from "../../src/data/GMLDataSource.js";
+import { GMLDataSource } from "../../src/data/GMLDataSource.js";
 
 describe("GMLDataSource", () => {
-    test("parses basic GML graph", async() => {
+    test("parses basic GML graph", async () => {
         const gml = `graph [
   node [
     id 0
@@ -17,7 +17,7 @@ describe("GMLDataSource", () => {
   ]
 ]`;
 
-        const source = new GMLDataSource({data: gml});
+        const source = new GMLDataSource({ data: gml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -33,7 +33,7 @@ describe("GMLDataSource", () => {
         assert.equal(chunks[0].edges[0].dst, 1);
     });
 
-    test("parses node and edge attributes", async() => {
+    test("parses node and edge attributes", async () => {
         const gml = `graph [
   node [
     id 0
@@ -53,7 +53,7 @@ describe("GMLDataSource", () => {
   ]
 ]`;
 
-        const source = new GMLDataSource({data: gml});
+        const source = new GMLDataSource({ data: gml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -68,7 +68,7 @@ describe("GMLDataSource", () => {
         assert.equal(chunks[0].edges[0].type, "friend");
     });
 
-    test("parses directed graph attribute", async() => {
+    test("parses directed graph attribute", async () => {
         const gml = `graph [
   directed 1
   node [
@@ -83,7 +83,7 @@ describe("GMLDataSource", () => {
   ]
 ]`;
 
-        const source = new GMLDataSource({data: gml});
+        const source = new GMLDataSource({ data: gml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -91,10 +91,10 @@ describe("GMLDataSource", () => {
         }
 
         assert.equal(chunks.length, 1);
-    // directed attribute is graph-level, not per-edge in this format
+        // directed attribute is graph-level, not per-edge in this format
     });
 
-    test("yields nodes in chunks for large graphs", async() => {
+    test("yields nodes in chunks for large graphs", async () => {
         let gml = "graph [\n";
 
         for (let i = 0; i < 5000; i++) {
@@ -103,7 +103,7 @@ describe("GMLDataSource", () => {
 
         gml += "]";
 
-        const source = new GMLDataSource({data: gml});
+        const source = new GMLDataSource({ data: gml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -118,7 +118,7 @@ describe("GMLDataSource", () => {
         assert.equal(totalNodes, 5000);
     });
 
-    test("handles nested attributes", async() => {
+    test("handles nested attributes", async () => {
         const gml = `graph [
   node [
     id 0
@@ -131,7 +131,7 @@ describe("GMLDataSource", () => {
   ]
 ]`;
 
-        const source = new GMLDataSource({data: gml});
+        const source = new GMLDataSource({ data: gml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -147,7 +147,7 @@ describe("GMLDataSource", () => {
         });
     });
 
-    test("handles string IDs", async() => {
+    test("handles string IDs", async () => {
         const gml = `graph [
   node [
     id "node_a"
@@ -163,7 +163,7 @@ describe("GMLDataSource", () => {
   ]
 ]`;
 
-        const source = new GMLDataSource({data: gml});
+        const source = new GMLDataSource({ data: gml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -176,7 +176,7 @@ describe("GMLDataSource", () => {
         assert.equal(chunks[0].edges[0].dst, "node_b");
     });
 
-    test("handles parsing errors gracefully", async() => {
+    test("handles parsing errors gracefully", async () => {
         const gml = `graph [
   node [
     id 0
@@ -190,7 +190,7 @@ describe("GMLDataSource", () => {
   ]
 ]`;
 
-        const source = new GMLDataSource({data: gml});
+        const source = new GMLDataSource({ data: gml });
         const chunks = [];
 
         // Should not throw, should collect errors
@@ -203,10 +203,10 @@ describe("GMLDataSource", () => {
         assert.equal(chunks[0].edges.length, 1);
     });
 
-    test("handles empty graph", async() => {
+    test("handles empty graph", async () => {
         const gml = "graph []";
 
-        const source = new GMLDataSource({data: gml});
+        const source = new GMLDataSource({ data: gml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -216,7 +216,7 @@ describe("GMLDataSource", () => {
         assert.equal(chunks.length, 0);
     });
 
-    test("handles graph with only nodes", async() => {
+    test("handles graph with only nodes", async () => {
         const gml = `graph [
   node [
     id 0
@@ -226,7 +226,7 @@ describe("GMLDataSource", () => {
   ]
 ]`;
 
-        const source = new GMLDataSource({data: gml});
+        const source = new GMLDataSource({ data: gml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -238,7 +238,7 @@ describe("GMLDataSource", () => {
         assert.equal(chunks[0].edges.length, 0);
     });
 
-    test("handles graph with only edges", async() => {
+    test("handles graph with only edges", async () => {
         const gml = `graph [
   edge [
     source 0
@@ -250,7 +250,7 @@ describe("GMLDataSource", () => {
   ]
 ]`;
 
-        const source = new GMLDataSource({data: gml});
+        const source = new GMLDataSource({ data: gml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {

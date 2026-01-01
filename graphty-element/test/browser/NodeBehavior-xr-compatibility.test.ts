@@ -1,11 +1,11 @@
-import {Vector3} from "@babylonjs/core";
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test} from "vitest";
+import { Vector3 } from "@babylonjs/core";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test } from "vitest";
 
-import type {AdHocData} from "../../src/config/common";
-import {Graph} from "../../src/Graph";
-import type {Node as GraphNode} from "../../src/Node";
-import {cleanupTestGraph, createTestGraph} from "../helpers/testSetup";
+import type { AdHocData } from "../../src/config/common";
+import { Graph } from "../../src/Graph";
+import type { Node as GraphNode } from "../../src/Node";
+import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 /**
  * Tests to verify that NodeBehavior works with XR inputs.
@@ -18,13 +18,13 @@ describe("NodeBehavior XR Compatibility", () => {
     let graph: Graph;
     let node: GraphNode;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Create test graph using the helper (properly sets up styles)
         graph = await createTestGraph();
 
         // Create test node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({id: "test-node-1", label: "Test Node"} as unknown as AdHocData);
+        dataManager.addNode({ id: "test-node-1", label: "Test Node" } as unknown as AdHocData);
         const retrievedNode = dataManager.getNode("test-node-1");
         assert.exists(retrievedNode, "Node should be created");
         node = retrievedNode;
@@ -73,7 +73,7 @@ describe("NodeBehavior XR Compatibility", () => {
 
         // Note: We can't test actual double-click behavior without fetchNodes/fetchEdges
         // But we verify the infrastructure is in place for XR pointer events to trigger it
-        const {actions} = node.mesh.actionManager;
+        const { actions } = node.mesh.actionManager;
 
         // If graph has fetchNodes/fetchEdges, action should be registered
         // In this test, graph doesn't have them, so no actions expected

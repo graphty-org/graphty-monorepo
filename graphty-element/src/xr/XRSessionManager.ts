@@ -1,11 +1,7 @@
 /* eslint-disable no-console -- XR debugging requires console logging for development */
-import type {Camera, Scene, WebXRDefaultExperience} from "@babylonjs/core";
+import type { Camera, Scene, WebXRDefaultExperience } from "@babylonjs/core";
 
-export type XRReferenceSpaceType =
-  | "local"
-  | "local-floor"
-  | "bounded-floor"
-  | "unbounded";
+export type XRReferenceSpaceType = "local" | "local-floor" | "bounded-floor" | "unbounded";
 
 export interface XRSessionConfig {
     vr: {
@@ -72,7 +68,7 @@ export class XRSessionManager {
 
         try {
             // navigator.xr is guaranteed to exist after isXRSupported() check
-            const {xr} = navigator;
+            const { xr } = navigator;
             if (!xr) {
                 return false;
             }
@@ -95,7 +91,7 @@ export class XRSessionManager {
 
         try {
             // navigator.xr is guaranteed to exist after isXRSupported() check
-            const {xr} = navigator;
+            const { xr } = navigator;
             if (!xr) {
                 return false;
             }
@@ -125,7 +121,7 @@ export class XRSessionManager {
             console.log("🎮 [XRSessionManager] Creating VR XR experience...");
 
             // Import WebXR module dynamically
-            const {WebXRDefaultExperience, WebXRFeatureName} = await import("@babylonjs/core");
+            const { WebXRDefaultExperience, WebXRFeatureName } = await import("@babylonjs/core");
 
             this.xrHelper = await WebXRDefaultExperience.CreateAsync(this.scene, {
                 floorMeshes: [],
@@ -143,7 +139,7 @@ export class XRSessionManager {
                     "latest",
                     {
                         xrInput: this.xrHelper.input,
-                        jointMeshes: {enablePhysics: false},
+                        jointMeshes: { enablePhysics: false },
                     },
                 );
                 console.log("🤲 [XRSessionManager] Hand tracking enabled:", handTracking);
@@ -174,7 +170,7 @@ export class XRSessionManager {
             console.error("🎮 [XRSessionManager] Failed to enter VR:", error);
             this.xrHelper = null;
             this.activeMode = null;
-            throw new Error(`Failed to enter VR mode: ${error}`);
+            throw new Error(`Failed to enter VR mode: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 
@@ -196,7 +192,7 @@ export class XRSessionManager {
             console.log("🎮 [XRSessionManager] Creating AR XR experience...");
 
             // Import WebXR module dynamically
-            const {WebXRDefaultExperience} = await import("@babylonjs/core");
+            const { WebXRDefaultExperience } = await import("@babylonjs/core");
 
             // For AR, we explicitly DON'T request hand-tracking as an optional feature
             // This prevents dots/spheres from appearing in AR mode
@@ -211,7 +207,9 @@ export class XRSessionManager {
                 },
             });
 
-            console.log("🎮 [XRSessionManager] AR mode: Created without hand tracking (controller gestures still work)");
+            console.log(
+                "🎮 [XRSessionManager] AR mode: Created without hand tracking (controller gestures still work)",
+            );
 
             // Actually enter the AR session
             console.log("🎮 [XRSessionManager] Entering AR session...");
@@ -236,7 +234,7 @@ export class XRSessionManager {
             console.error("🎮 [XRSessionManager] Failed to enter AR:", error);
             this.xrHelper = null;
             this.activeMode = null;
-            throw new Error(`Failed to enter AR mode: ${error}`);
+            throw new Error(`Failed to enter AR mode: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 
@@ -258,7 +256,7 @@ export class XRSessionManager {
             // Clean up even if exit fails
             this.xrHelper = null;
             this.activeMode = null;
-            throw new Error(`Failed to exit XR mode: ${error}`);
+            throw new Error(`Failed to exit XR mode: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 

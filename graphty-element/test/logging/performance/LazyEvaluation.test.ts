@@ -1,9 +1,9 @@
-import {afterEach, assert, beforeEach, describe, type MockInstance, test, vi} from "vitest";
+import { afterEach, assert, beforeEach, describe, type MockInstance, test, vi } from "vitest";
 
-import {GraphtyLogger} from "../../../src/logging/GraphtyLogger.js";
-import {lazy} from "../../../src/logging/LazyEval.js";
-import {resetLoggingConfig} from "../../../src/logging/LoggerConfig.js";
-import {LogLevel} from "../../../src/logging/types.js";
+import { GraphtyLogger } from "../../../src/logging/GraphtyLogger.js";
+import { lazy } from "../../../src/logging/LazyEval.js";
+import { resetLoggingConfig } from "../../../src/logging/LoggerConfig.js";
+import { LogLevel } from "../../../src/logging/types.js";
 
 // Empty mock function to satisfy linter
 function noop(): void {
@@ -30,95 +30,95 @@ describe("Lazy Evaluation", () => {
     });
 
     describe("lazy() helper function", () => {
-        test("should not evaluate lazy function when level filtered", async() => {
+        test("should not evaluate lazy function when level filtered", async () => {
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.WARN, // Debug is filtered
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
-            const expensiveFn = vi.fn().mockReturnValue({computed: "expensive data"});
+            const expensiveFn = vi.fn().mockReturnValue({ computed: "expensive data" });
             const lazyData = lazy(expensiveFn);
 
             // Log with lazy data - should not evaluate because debug is filtered
-            logger.debug("message", {data: lazyData});
+            logger.debug("message", { data: lazyData });
 
             assert.strictEqual(expensiveFn.mock.calls.length, 0);
         });
 
-        test("should evaluate lazy function when level passes", async() => {
+        test("should evaluate lazy function when level passes", async () => {
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.DEBUG, // Debug is enabled
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
-            const expensiveFn = vi.fn().mockReturnValue({computed: "expensive data"});
+            const expensiveFn = vi.fn().mockReturnValue({ computed: "expensive data" });
             const lazyData = lazy(expensiveFn);
 
             // Log with lazy data - should evaluate because debug is enabled
-            logger.debug("message", {data: lazyData});
+            logger.debug("message", { data: lazyData });
 
             assert.strictEqual(expensiveFn.mock.calls.length, 1);
         });
 
-        test("should work with isDebugEnabled() guard", async() => {
+        test("should work with isDebugEnabled() guard", async () => {
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.WARN, // Debug is filtered
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
-            const expensiveFn = vi.fn().mockReturnValue({computed: "expensive data"});
+            const expensiveFn = vi.fn().mockReturnValue({ computed: "expensive data" });
 
             // Pattern: Use isDebugEnabled() guard with lazy evaluation
             if (logger.isDebugEnabled()) {
                 const lazyData = lazy(expensiveFn);
-                logger.debug("message", {data: lazyData});
+                logger.debug("message", { data: lazyData });
             }
 
             // Function should not be called because of the guard
             assert.strictEqual(expensiveFn.mock.calls.length, 0);
         });
 
-        test("should not evaluate when logging is disabled", async() => {
+        test("should not evaluate when logging is disabled", async () => {
             await GraphtyLogger.configure({
                 enabled: false,
                 level: LogLevel.DEBUG,
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
-            const expensiveFn = vi.fn().mockReturnValue({computed: "expensive data"});
+            const expensiveFn = vi.fn().mockReturnValue({ computed: "expensive data" });
             const lazyData = lazy(expensiveFn);
 
             // Log with lazy data - should not evaluate because logging is disabled
-            logger.debug("message", {data: lazyData});
+            logger.debug("message", { data: lazyData });
 
             assert.strictEqual(expensiveFn.mock.calls.length, 0);
         });
 
-        test("should not evaluate when module is filtered", async() => {
+        test("should not evaluate when module is filtered", async () => {
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: ["layout"], // Only layout is enabled
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "xr"]);
-            const expensiveFn = vi.fn().mockReturnValue({computed: "expensive data"});
+            const expensiveFn = vi.fn().mockReturnValue({ computed: "expensive data" });
             const lazyData = lazy(expensiveFn);
 
             // Log with lazy data - should not evaluate because xr module is filtered
-            logger.debug("message", {data: lazyData});
+            logger.debug("message", { data: lazyData });
 
             assert.strictEqual(expensiveFn.mock.calls.length, 0);
         });
@@ -126,7 +126,7 @@ describe("Lazy Evaluation", () => {
 
     describe("lazy() return type", () => {
         test("should return a function that returns the computed value", () => {
-            const expensiveFn = vi.fn().mockReturnValue({result: 42});
+            const expensiveFn = vi.fn().mockReturnValue({ result: 42 });
             const lazyFn = lazy(expensiveFn);
 
             // lazy() returns a function
@@ -134,50 +134,50 @@ describe("Lazy Evaluation", () => {
 
             // Calling the lazy function invokes the expensive function
             const result = lazyFn();
-            assert.deepStrictEqual(result, {result: 42});
+            assert.deepStrictEqual(result, { result: 42 });
             assert.strictEqual(expensiveFn.mock.calls.length, 1);
         });
 
         test("should cache the result on subsequent calls", () => {
             let callCount = 0;
-            const expensiveFn = (): {counter: number} => {
+            const expensiveFn = (): { counter: number } => {
                 callCount++;
-                return {counter: callCount};
+                return { counter: callCount };
             };
             const lazyFn = lazy(expensiveFn);
 
             // First call computes the value
             const result1 = lazyFn();
-            assert.deepStrictEqual(result1, {counter: 1});
+            assert.deepStrictEqual(result1, { counter: 1 });
 
             // Second call returns cached value
             const result2 = lazyFn();
-            assert.deepStrictEqual(result2, {counter: 1}); // Still 1, not 2
+            assert.deepStrictEqual(result2, { counter: 1 }); // Still 1, not 2
             assert.strictEqual(callCount, 1); // Only called once
         });
 
         test("should preserve type of returned value", () => {
             const stringFn = lazy(() => "hello");
             const numberFn = lazy(() => 42);
-            const objectFn = lazy(() => ({key: "value"}));
+            const objectFn = lazy(() => ({ key: "value" }));
 
             assert.strictEqual(stringFn(), "hello");
             assert.strictEqual(numberFn(), 42);
-            assert.deepStrictEqual(objectFn(), {key: "value"});
+            assert.deepStrictEqual(objectFn(), { key: "value" });
         });
     });
 
     describe("performance patterns", () => {
-        test("pattern: lazy evaluation for expensive object serialization", async() => {
+        test("pattern: lazy evaluation for expensive object serialization", async () => {
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.INFO, // Debug is filtered
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
-            const serializeFn = vi.fn().mockReturnValue({serialized: "data"});
+            const serializeFn = vi.fn().mockReturnValue({ serialized: "data" });
 
             // Common pattern: wrap expensive serialization in lazy()
             logger.debug("Node data", {
@@ -188,12 +188,12 @@ describe("Lazy Evaluation", () => {
             assert.strictEqual(serializeFn.mock.calls.length, 0);
         });
 
-        test("pattern: lazy evaluation for expensive computation", async() => {
+        test("pattern: lazy evaluation for expensive computation", async () => {
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.WARN, // Debug and info are filtered
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
@@ -208,16 +208,16 @@ describe("Lazy Evaluation", () => {
             assert.strictEqual(computeFn.mock.calls.length, 0);
         });
 
-        test("pattern: combining isDebugEnabled() with lazy() for maximum efficiency", async() => {
+        test("pattern: combining isDebugEnabled() with lazy() for maximum efficiency", async () => {
             await GraphtyLogger.configure({
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
-            const computeFn = vi.fn().mockReturnValue({complex: "data"});
+            const computeFn = vi.fn().mockReturnValue({ complex: "data" });
 
             // Most efficient pattern: guard + lazy
             if (logger.isDebugEnabled()) {
@@ -231,16 +231,16 @@ describe("Lazy Evaluation", () => {
             assert.strictEqual(consoleDebugSpy.mock.calls.length, 1);
         });
 
-        test("pattern: lazy evaluation skipped entirely when using guard with disabled logging", async() => {
+        test("pattern: lazy evaluation skipped entirely when using guard with disabled logging", async () => {
             await GraphtyLogger.configure({
                 enabled: false, // Logging disabled
                 level: LogLevel.DEBUG,
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
-            const computeFn = vi.fn().mockReturnValue({complex: "data"});
+            const computeFn = vi.fn().mockReturnValue({ complex: "data" });
             let lazyWasCalled = false;
 
             // Guard pattern - most efficient

@@ -1,4 +1,4 @@
-import type {z} from "zod";
+import type { z } from "zod";
 
 /**
  * Represents a message in a conversation with an LLM.
@@ -111,11 +111,7 @@ export interface LlmProvider {
      * @param options.signal - Optional abort signal for cancellation
      * @returns Promise resolving to the LLM response
      */
-    generate(
-        messages: Message[],
-        tools: ToolDefinition[],
-        options?: {signal?: AbortSignal},
-    ): Promise<LlmResponse>;
+    generate(messages: Message[], tools: ToolDefinition[], options?: { signal?: AbortSignal }): Promise<LlmResponse>;
 
     /**
      * Generate a streaming response from the LLM.

@@ -13,11 +13,12 @@ Our AI tools include commands like `findNodes`, `findAndStyleNodes`, and `findAn
 ```typescript
 findAndStyleNodes({
     selector: "data.type == 'server'",
-    style: { color: "#ff0000" }
-})
+    style: { color: "#ff0000" },
+});
 ```
 
 However, the LLM has no way of knowing:
+
 1. What properties exist in `node.data` or `edge.data`
 2. What values those properties can have
 3. The structure/schema of the loaded dataset
@@ -27,11 +28,13 @@ The examples currently in our tool definitions (like `data.type == 'server'`) ar
 ### User Impact
 
 Without schema discovery, users asking natural language questions like:
+
 - "Highlight all the database nodes"
 - "Show me connections with high latency"
 - "Color nodes by their category"
 
 ...will result in the LLM either:
+
 1. Guessing property names (likely incorrect)
 2. Asking the user for property names (poor UX)
 3. Failing to execute the request
@@ -49,31 +52,35 @@ Enable LLMs to autonomously discover graph data schemas so they can write accura
 A single tool that analyzes all nodes/edges and returns a comprehensive schema summary.
 
 **Implementation:**
+
 - Iterate through all nodes, collect unique property keys from `node.data`
 - For each property, determine the type (string, number, boolean, array)
 - Collect unique values (for strings) or min/max ranges (for numbers)
 - Return a structured summary
 
 **Example Output:**
+
 ```json
 {
-  "nodeProperties": {
-    "type": { "type": "string", "values": ["server", "database", "client"], "count": 3 },
-    "name": { "type": "string", "sampleValues": ["web-01", "db-master"], "uniqueCount": 47 },
-    "cpu": { "type": "number", "min": 0.1, "max": 0.98, "avg": 0.45 }
-  },
-  "edgeProperties": {
-    "weight": { "type": "number", "min": 0.1, "max": 1.0 },
-    "relationship": { "type": "string", "values": ["connects", "depends_on"] }
-  }
+    "nodeProperties": {
+        "type": { "type": "string", "values": ["server", "database", "client"], "count": 3 },
+        "name": { "type": "string", "sampleValues": ["web-01", "db-master"], "uniqueCount": 47 },
+        "cpu": { "type": "number", "min": 0.1, "max": 0.98, "avg": 0.45 }
+    },
+    "edgeProperties": {
+        "weight": { "type": "number", "min": 0.1, "max": 1.0 },
+        "relationship": { "type": "string", "values": ["connects", "depends_on"] }
+    }
 }
 ```
 
 **Pros:**
+
 - Comprehensive single-call solution
 - Gives full picture of available data
 
 **Cons:**
+
 - Could be slow for large graphs
 - Output might be verbose, consuming LLM context window
 - All-or-nothing approach wastes tokens when LLM only needs specific info
@@ -85,25 +92,29 @@ A single tool that analyzes all nodes/edges and returns a comprehensive schema s
 Return a small number of actual nodes/edges so the LLM can see real data structures.
 
 **Implementation:**
+
 - Return 3-5 random (or representative) nodes with their full `data` objects
 - Optionally use stratified sampling to show variety
 
 **Example Output:**
+
 ```json
 {
-  "samples": [
-    { "id": "node-1", "data": { "type": "server", "name": "web-01", "cpu": 0.45 } },
-    { "id": "node-7", "data": { "type": "database", "name": "db-master", "cpu": 0.82 } }
-  ]
+    "samples": [
+        { "id": "node-1", "data": { "type": "server", "name": "web-01", "cpu": 0.45 } },
+        { "id": "node-7", "data": { "type": "database", "name": "db-master", "cpu": 0.82 } }
+    ]
 }
 ```
 
 **Pros:**
+
 - Simple to implement
 - Shows real data; LLM can infer schema naturally
 - Minimal output size
 
 **Cons:**
+
 - Small sample might miss some properties
 - Doesn't show value distributions or ranges
 - LLM must infer schema from examples (may miss edge cases)
@@ -115,11 +126,13 @@ Return a small number of actual nodes/edges so the LLM can see real data structu
 Include dataset metadata in the system prompt when AI is initialized.
 
 **Implementation:**
+
 - When data is loaded, extract schema information
 - Pass it to `SystemPromptBuilder` to include in the prompt
 - LLM always has this context available
 
 **Example System Prompt Addition:**
+
 ```
 ## Current Dataset Schema
 
@@ -133,11 +146,13 @@ Edges have the following properties:
 ```
 
 **Pros:**
+
 - Always available without tool calls
 - Fast - no runtime computation needed
 - Naturally integrates with existing prompt system
 
 **Cons:**
+
 - Uses context window space permanently
 - Needs to be updated when data changes
 - Requires coordination between data loading and AI initialization
@@ -150,10 +165,12 @@ Edges have the following properties:
 Generate tool examples based on actual data at runtime.
 
 **Implementation:**
+
 - When commands are registered or system prompt is built, inspect current data
 - Replace generic examples with real ones from the dataset
 
 **Example Transformation:**
+
 ```typescript
 // Static example (current)
 {input: "Find all server nodes", params: {selector: "data.type == 'server'"}}
@@ -163,11 +180,13 @@ Generate tool examples based on actual data at runtime.
 ```
 
 **Pros:**
+
 - Examples are always relevant
 - Teaches by showing real patterns
 - Doesn't require new tools
 
 **Cons:**
+
 - More complex to implement
 - Examples might not cover all use cases
 - Limited to a few examples; can't show full schema
@@ -179,17 +198,20 @@ Generate tool examples based on actual data at runtime.
 Combine multiple strategies for optimal coverage and efficiency.
 
 **Components:**
+
 1. **System prompt** includes high-level schema summary (property names and types)
 2. **`sampleData` tool** available for LLM to inspect actual nodes/edges when needed
 3. **`describeProperty` tool** for deep-diving into a specific property's values
 
 **Pros:**
+
 - Immediate baseline knowledge (system prompt)
 - Ability to explore when uncertain (tools)
 - Efficient context usage (only fetches details when needed)
 - Handles both simple and complex discovery needs
 
 **Cons:**
+
 - More components to implement and maintain
 - Requires coordination between components
 
@@ -198,6 +220,7 @@ Combine multiple strategies for optimal coverage and efficiency.
 ## Chosen Solution: Hybrid Approach
 
 The hybrid approach provides the best balance of:
+
 - **Immediate availability:** Schema summary in system prompt
 - **Depth on demand:** Tools for detailed exploration
 - **Context efficiency:** Only detailed info when needed
@@ -281,6 +304,7 @@ class SystemPromptBuilder {
 #### Schema Update Lifecycle
 
 Schema should be updated when:
+
 1. Initial data load completes
 2. Nodes/edges are added or removed (debounced)
 3. Node/edge data properties change
@@ -290,7 +314,10 @@ Hook into `DataManager` events:
 ```typescript
 // In AiManager or AiController
 dataManager.on("dataLoaded", () => this.updateSchema());
-dataManager.on("nodesChanged", debounce(() => this.updateSchema(), 1000));
+dataManager.on(
+    "nodesChanged",
+    debounce(() => this.updateSchema(), 1000),
+);
 ```
 
 #### Output Format
@@ -303,6 +330,7 @@ The schema section in the system prompt should be concise but informative:
 **Graph Size:** 150 nodes, 230 edges
 
 **Node Properties:**
+
 - `type` (string): "server", "database", "client", "gateway"
 - `name` (string): unique identifier
 - `cpu` (number): 0.02 - 0.98
@@ -312,6 +340,7 @@ The schema section in the system prompt should be concise but informative:
 - `region` (string): "us-east", "us-west", "eu-central"
 
 **Edge Properties:**
+
 - `weight` (number): 0.1 - 1.0
 - `latency` (number): 1 - 500
 - `relationship` (string): "connects", "depends_on", "replicates"
@@ -332,13 +361,14 @@ File: `src/ai/commands/SchemaCommands.ts`
 ```typescript
 export const sampleData: GraphCommand = {
     name: "sampleData",
-    description: "Get sample nodes and/or edges from the graph to inspect their data structure. Useful for understanding what properties are available before writing selectors.",
+    description:
+        "Get sample nodes and/or edges from the graph to inspect their data structure. Useful for understanding what properties are available before writing selectors.",
     parameters: z.object({
-        target: z.enum(["nodes", "edges", "both"]).optional()
-            .describe("What to sample (default: 'both')"),
-        count: z.number().min(1).max(10).optional()
-            .describe("Number of samples to return (default: 3)"),
-        stratifyBy: z.string().optional()
+        target: z.enum(["nodes", "edges", "both"]).optional().describe("What to sample (default: 'both')"),
+        count: z.number().min(1).max(10).optional().describe("Number of samples to return (default: 3)"),
+        stratifyBy: z
+            .string()
+            .optional()
             .describe("Property to stratify samples by (e.g., 'type' to get one of each type)"),
     }),
     examples: [
@@ -349,24 +379,24 @@ export const sampleData: GraphCommand = {
 
     execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
         // Implementation
-    }
+    },
 };
 ```
 
 #### Sampling Strategies
 
 1. **Random sampling (default):**
-   - Select `count` random nodes/edges
-   - Simple and fast
+    - Select `count` random nodes/edges
+    - Simple and fast
 
 2. **Stratified sampling (when `stratifyBy` specified):**
-   - Group items by the specified property
-   - Select one from each group (up to `count`)
-   - Ensures variety in samples
+    - Group items by the specified property
+    - Select one from each group (up to `count`)
+    - Ensures variety in samples
 
 3. **Representative sampling (future enhancement):**
-   - Select items that together cover all observed properties
-   - More complex but ensures completeness
+    - Select items that together cover all observed properties
+    - More complex but ensures completeness
 
 #### Output Format
 
@@ -385,7 +415,7 @@ export const sampleData: GraphCommand = {
                     "active": true,
                     "tags": ["production", "critical"]
                 }
-            },
+            }
             // ... more nodes
         ],
         "edges": [
@@ -398,7 +428,7 @@ export const sampleData: GraphCommand = {
                     "latency": 45,
                     "relationship": "connects"
                 }
-            },
+            }
             // ... more edges
         ]
     }
@@ -425,13 +455,16 @@ A tool for deep-diving into a specific property to understand its values in deta
 ```typescript
 export const describeProperty: GraphCommand = {
     name: "describeProperty",
-    description: "Get detailed information about a specific property in node or edge data. Returns type, value distribution, and statistics. Useful for understanding what values to use in selectors.",
+    description:
+        "Get detailed information about a specific property in node or edge data. Returns type, value distribution, and statistics. Useful for understanding what values to use in selectors.",
     parameters: z.object({
-        property: z.string()
-            .describe("Property name to inspect (e.g., 'type', 'weight', 'metadata.category')"),
-        target: z.enum(["nodes", "edges"]).optional()
-            .describe("Whether to inspect nodes or edges (default: 'nodes')"),
-        limit: z.number().min(1).max(50).optional()
+        property: z.string().describe("Property name to inspect (e.g., 'type', 'weight', 'metadata.category')"),
+        target: z.enum(["nodes", "edges"]).optional().describe("Whether to inspect nodes or edges (default: 'nodes')"),
+        limit: z
+            .number()
+            .min(1)
+            .max(50)
+            .optional()
             .describe("Max unique values to return for string properties (default: 20)"),
     }),
     examples: [
@@ -442,13 +475,14 @@ export const describeProperty: GraphCommand = {
 
     execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
         // Implementation
-    }
+    },
 };
 ```
 
 #### Output Formats by Type
 
 **String property:**
+
 ```json
 {
     "success": true,
@@ -472,6 +506,7 @@ export const describeProperty: GraphCommand = {
 ```
 
 **Number property:**
+
 ```json
 {
     "success": true,
@@ -500,6 +535,7 @@ export const describeProperty: GraphCommand = {
 ```
 
 **Boolean property:**
+
 ```json
 {
     "success": true,
@@ -520,6 +556,7 @@ export const describeProperty: GraphCommand = {
 ```
 
 **Array property:**
+
 ```json
 {
     "success": true,
@@ -547,6 +584,7 @@ export const describeProperty: GraphCommand = {
 ```
 
 **Property not found:**
+
 ```json
 {
     "success": true,
@@ -563,15 +601,18 @@ export const describeProperty: GraphCommand = {
 #### Implementation Notes
 
 **Nested property access:**
+
 - Support dot notation: `"metadata.category"`, `"metrics.cpu.current"`
 - Use a helper function to safely access nested properties
 
 **Performance considerations:**
+
 - For large graphs (>10k nodes), consider sampling instead of full iteration
 - Cache results for repeated queries (invalidate on data change)
 - Histogram bin count should be configurable or adaptive
 
 **Edge cases to handle:**
+
 - Property exists on some nodes but not others
 - Mixed types (same property is string on some nodes, number on others)
 - Very long string values (truncate in output)
@@ -663,6 +704,7 @@ const result = await command.execute(this.graph, params);
 **LLM thinks:** "I need to find nodes that are 'important'. Let me check what properties exist."
 
 **System prompt already contains:**
+
 ```
 Node Properties:
 - `priority` (string): "low", "medium", "high", "critical"
@@ -680,15 +722,14 @@ Node Properties:
 **LLM:** Calls `sampleData({target: "both", count: 2})`
 
 **Result:**
+
 ```json
 {
     "nodes": [
-        {"id": "n1", "data": {"category": "router", "bandwidth": 1000, "location": "dc-1"}},
-        {"id": "n2", "data": {"category": "switch", "bandwidth": 500, "location": "dc-2"}}
+        { "id": "n1", "data": { "category": "router", "bandwidth": 1000, "location": "dc-1" } },
+        { "id": "n2", "data": { "category": "switch", "bandwidth": 500, "location": "dc-2" } }
     ],
-    "edges": [
-        {"id": "e1", "source": "n1", "target": "n2", "data": {"capacity": 800, "type": "fiber"}}
-    ]
+    "edges": [{ "id": "e1", "source": "n1", "target": "n2", "data": { "capacity": 800, "type": "fiber" } }]
 }
 ```
 
@@ -703,6 +744,7 @@ Node Properties:
 **LLM:** Calls `describeProperty({property: "latency", target: "edges"})`
 
 **Result:**
+
 ```json
 {
     "property": "latency",
@@ -711,9 +753,9 @@ Node Properties:
     "max": 487,
     "avg": 45.2,
     "histogram": [
-        {"range": "0-100", "count": 180, "percentage": 78.3},
-        {"range": "100-200", "count": 35, "percentage": 15.2},
-        {"range": "200-500", "count": 15, "percentage": 6.5}
+        { "range": "0-100", "count": 180, "percentage": 78.3 },
+        { "range": "100-200", "count": 35, "percentage": 15.2 },
+        { "range": "200-500", "count": 15, "percentage": 6.5 }
     ]
 }
 ```
@@ -727,44 +769,44 @@ Node Properties:
 ### Unit Tests
 
 1. **SchemaExtractor tests:**
-   - Extracts correct types for various property values
-   - Handles mixed types appropriately
-   - Correctly identifies enum-like string properties
-   - Handles nested properties
-   - Handles empty graphs
+    - Extracts correct types for various property values
+    - Handles mixed types appropriately
+    - Correctly identifies enum-like string properties
+    - Handles nested properties
+    - Handles empty graphs
 
 2. **sampleData command tests:**
-   - Returns correct number of samples
-   - Stratified sampling works correctly
-   - Handles graphs with fewer items than requested count
-   - Output format matches specification
+    - Returns correct number of samples
+    - Stratified sampling works correctly
+    - Handles graphs with fewer items than requested count
+    - Output format matches specification
 
 3. **describeProperty command tests:**
-   - Correct output for each data type (string, number, boolean, array)
-   - Handles missing properties gracefully
-   - Nested property access works
-   - Histogram generation is correct
-   - Percentages sum correctly
+    - Correct output for each data type (string, number, boolean, array)
+    - Handles missing properties gracefully
+    - Nested property access works
+    - Histogram generation is correct
+    - Percentages sum correctly
 
 ### Integration Tests
 
 1. **Schema in system prompt:**
-   - Schema section appears in built prompt
-   - Schema updates when data changes
-   - Schema is formatted readably
+    - Schema section appears in built prompt
+    - Schema updates when data changes
+    - Schema is formatted readably
 
 2. **End-to-end with LLM:**
-   - LLM can use schema info to write correct selectors
-   - LLM calls schema tools when needed
-   - Tools return usable information
+    - LLM can use schema info to write correct selectors
+    - LLM calls schema tools when needed
+    - Tools return usable information
 
 ### Storybook Stories
 
 Create stories demonstrating schema discovery:
 
 1. `stories/ai/SchemaDiscovery.stories.ts`:
-   - Story showing schema extraction for various datasets
-   - Interactive tool calling demonstration
+    - Story showing schema extraction for various datasets
+    - Interactive tool calling demonstration
 
 ---
 
@@ -781,18 +823,21 @@ Create stories demonstrating schema discovery:
 ## Implementation Checklist
 
 ### Phase 1: Core Infrastructure
+
 - [ ] Create `src/ai/schema/` directory structure
 - [ ] Implement `SchemaExtractor` class
 - [ ] Implement `SchemaFormatter` class
 - [ ] Define TypeScript types for schema structures
 
 ### Phase 2: System Prompt Integration
+
 - [ ] Modify `SystemPromptBuilder` to accept schema
 - [ ] Add schema section formatting
 - [ ] Hook schema extraction into data loading lifecycle
 - [ ] Add debounced schema refresh on data changes
 
 ### Phase 3: sampleData Command
+
 - [ ] Implement `sampleData` command
 - [ ] Add random sampling logic
 - [ ] Add stratified sampling logic
@@ -800,6 +845,7 @@ Create stories demonstrating schema discovery:
 - [ ] Register command in CommandRegistry
 
 ### Phase 4: describeProperty Command
+
 - [ ] Implement `describeProperty` command
 - [ ] Add type-specific analysis (string, number, boolean, array)
 - [ ] Add nested property support
@@ -808,6 +854,7 @@ Create stories demonstrating schema discovery:
 - [ ] Register command in CommandRegistry
 
 ### Phase 5: Testing & Documentation
+
 - [ ] Write integration tests
 - [ ] Create Storybook stories
 - [ ] Update tool documentation

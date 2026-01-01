@@ -1,10 +1,10 @@
-import {ArcRotateCamera, Engine, Scene, ShaderMaterial, StandardMaterial, Vector3} from "@babylonjs/core";
-import {assert, test} from "vitest";
+import { ArcRotateCamera, Engine, Scene, ShaderMaterial, StandardMaterial, Vector3 } from "@babylonjs/core";
+import { assert, test } from "vitest";
 
-import {PatternedLineRenderer} from "../../src/meshes/PatternedLineRenderer";
+import { PatternedLineRenderer } from "../../src/meshes/PatternedLineRenderer";
 
 // Setup helper
-function createTestScene(): {scene: Scene, engine: Engine, cleanup: () => void} {
+function createTestScene(): { scene: Scene; engine: Engine; cleanup: () => void } {
     const canvas = document.createElement("canvas");
     const engine = new Engine(canvas, false);
     const scene = new Scene(engine);
@@ -16,11 +16,11 @@ function createTestScene(): {scene: Scene, engine: Engine, cleanup: () => void} 
         engine.dispose();
     };
 
-    return {scene, engine, cleanup};
+    return { scene, engine, cleanup };
 }
 
 test("createPatternMesh applies 2D material when is2DMode is true", () => {
-    const {scene, cleanup} = createTestScene();
+    const { scene, cleanup } = createTestScene();
 
     try {
         const mesh = PatternedLineRenderer.createPatternMesh(
@@ -48,7 +48,7 @@ test("createPatternMesh applies 2D material when is2DMode is true", () => {
 });
 
 test("createPatternMesh applies 3D shader when is2DMode is false", () => {
-    const {scene, cleanup} = createTestScene();
+    const { scene, cleanup } = createTestScene();
 
     try {
         const mesh = PatternedLineRenderer.createPatternMesh(
@@ -73,7 +73,7 @@ test("createPatternMesh applies 3D shader when is2DMode is false", () => {
 });
 
 test("createPatternMesh applies 3D shader when is2DMode is undefined (default)", () => {
-    const {scene, cleanup} = createTestScene();
+    const { scene, cleanup } = createTestScene();
 
     try {
         const mesh = PatternedLineRenderer.createPatternMesh(
@@ -95,7 +95,7 @@ test("createPatternMesh applies 3D shader when is2DMode is undefined (default)",
 });
 
 test("createPatternMesh works with all pattern types in 2D mode", () => {
-    const {scene, cleanup} = createTestScene();
+    const { scene, cleanup } = createTestScene();
 
     try {
         const patterns = ["dot", "star", "diamond", "box", "dash"] as const;
@@ -112,15 +112,8 @@ test("createPatternMesh works with all pattern types in 2D mode", () => {
                 true, // is2DMode
             );
 
-            assert(
-                mesh.material instanceof StandardMaterial,
-                `Expected StandardMaterial for pattern: ${pattern}`,
-            );
-            assert.strictEqual(
-                mesh.metadata.is2D,
-                true,
-                `Expected is2D metadata for pattern: ${pattern}`,
-            );
+            assert(mesh.material instanceof StandardMaterial, `Expected StandardMaterial for pattern: ${pattern}`);
+            assert.strictEqual(mesh.metadata.is2D, true, `Expected is2D metadata for pattern: ${pattern}`);
         }
     } finally {
         cleanup();
@@ -128,7 +121,7 @@ test("createPatternMesh works with all pattern types in 2D mode", () => {
 });
 
 test("createPatternMesh works with shape type override in 2D mode", () => {
-    const {scene, cleanup} = createTestScene();
+    const { scene, cleanup } = createTestScene();
 
     try {
         // Create dash-dot pattern with specific shape type (for alternating patterns)

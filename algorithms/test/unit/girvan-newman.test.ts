@@ -1,12 +1,12 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {girvanNewman} from "../../src/algorithms/community/girvan-newman.js";
-import {Graph} from "../../src/core/graph.js";
+import { girvanNewman } from "../../src/algorithms/community/girvan-newman.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Girvan-Newman Community Detection Algorithm", () => {
     describe("girvanNewman", () => {
         it("should detect communities in a simple bipartite graph", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create two triangles connected by a bridge
             graph.addEdge("A1", "A2");
@@ -35,7 +35,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
         });
 
         it("should handle a single node graph", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addNode("A");
 
             const results = girvanNewman(graph);
@@ -47,7 +47,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
         });
 
         it("should handle a graph with no edges", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addNode("A");
             graph.addNode("B");
             graph.addNode("C");
@@ -60,7 +60,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
         });
 
         it("should produce a dendrogram showing hierarchical community structure", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a graph with clear hierarchical structure
             // Two pairs connected to a central hub
@@ -88,7 +88,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
         });
 
         it("should handle disconnected components", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Two disconnected triangles
             graph.addEdge("A1", "A2");
@@ -118,7 +118,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
         });
 
         it("should respect maxCommunities parameter", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a path graph that can be split into many communities
             const nodes = ["A", "B", "C", "D", "E", "F"];
@@ -126,14 +126,14 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
                 graph.addEdge(nodes[i], nodes[i + 1]);
             }
 
-            const results = girvanNewman(graph, {maxCommunities: 3});
+            const results = girvanNewman(graph, { maxCommunities: 3 });
 
             // Should stop when 3 communities are reached or when no more edges can be removed
             expect(results[results.length - 1].communities.length).toBeGreaterThanOrEqual(3);
         });
 
         it("should respect minCommunitySize parameter", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a graph where small communities might form
             graph.addEdge("A", "B");
@@ -141,7 +141,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
             graph.addEdge("C", "D");
             graph.addEdge("D", "E");
 
-            const results = girvanNewman(graph, {minCommunitySize: 2});
+            const results = girvanNewman(graph, { minCommunitySize: 2 });
 
             // All communities should have at least 2 nodes
             for (const result of results) {
@@ -152,7 +152,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
         });
 
         it("should handle weighted edges", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create structure with different edge weights
             graph.addEdge("A1", "A2", 10); // Strong internal connections
@@ -175,7 +175,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
         });
 
         it("should calculate modularity correctly at each step", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a clear community structure
             graph.addEdge("A1", "A2");
@@ -199,7 +199,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
         });
 
         it("should handle complete graphs", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create complete graph K4
             const nodes = ["A", "B", "C", "D"];
@@ -219,7 +219,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
         });
 
         it("should handle star graphs", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create star graph with center node
             const center = "center";
@@ -242,7 +242,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
         });
 
         it("should handle path graphs", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a path: A - B - C - D - E
             graph.addEdge("A", "B");
@@ -260,7 +260,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
         });
 
         it("should handle graphs with bridges", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create two clusters connected by a bridge
             // Cluster 1
@@ -288,7 +288,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
         });
 
         it("should handle self-loops gracefully", () => {
-            const graph = new Graph({directed: false, allowSelfLoops: true});
+            const graph = new Graph({ directed: false, allowSelfLoops: true });
 
             graph.addEdge("A", "A"); // Self-loop
             graph.addEdge("A", "B");
@@ -307,7 +307,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
         });
 
         it("should produce meaningful community evolution", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a barbell graph (two cliques connected by a path)
             // First clique
@@ -338,7 +338,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
         });
 
         it("should handle empty graphs", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             const results = girvanNewman(graph);
 
@@ -348,7 +348,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
         });
 
         it("should maintain numerical stability with small weights", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             graph.addEdge("A", "B", 0.001);
             graph.addEdge("B", "C", 0.001);
@@ -366,7 +366,7 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
         });
 
         it("should handle large edge weights", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             graph.addEdge("A", "B", 1000);
             graph.addEdge("B", "C", 1000);
@@ -482,14 +482,14 @@ describe("Girvan-Newman Community Detection Algorithm", () => {
             // Add isolated component
             graph.addEdge("iso1", "iso2", 1);
 
-            const results = girvanNewman(graph, {maxCommunities: 4});
+            const results = girvanNewman(graph, { maxCommunities: 4 });
 
             expect(results).toBeDefined();
             expect(results.length).toBeGreaterThan(1);
 
             // Verify the algorithm progresses through multiple stages
             const communityCounts = results.map((r) => r.communities.length);
-            expect(Math.max(... communityCounts)).toBeGreaterThanOrEqual(2);
+            expect(Math.max(...communityCounts)).toBeGreaterThanOrEqual(2);
         });
 
         it("should handle BFS with undefined distance edge case", () => {

@@ -1,6 +1,6 @@
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {PerformanceRegressionTest} from "../../helpers/performance-regression.js";
+import { PerformanceRegressionTest } from "../../helpers/performance-regression.js";
 
 // Mock fs module
 vi.mock("fs");
@@ -12,7 +12,7 @@ const originalConsole = {
 };
 
 describe("PerformanceRegressionTest", () => {
-    beforeEach(async() => {
+    beforeEach(async () => {
         vi.clearAllMocks();
 
         // Set up fs mocks
@@ -39,7 +39,7 @@ describe("PerformanceRegressionTest", () => {
     });
 
     describe("constructor and baseline loading", () => {
-        it("should load baselines from file if exists", async() => {
+        it("should load baselines from file if exists", async () => {
             const mockBaselines = [
                 {
                     algorithm: "BFS",
@@ -57,14 +57,11 @@ describe("PerformanceRegressionTest", () => {
 
             new PerformanceRegressionTest();
 
-            expect(fs.readFileSync).toHaveBeenCalledWith(
-                expect.stringContaining("performance-baseline.json"),
-                "utf8",
-            );
+            expect(fs.readFileSync).toHaveBeenCalledWith(expect.stringContaining("performance-baseline.json"), "utf8");
             expect(console.log).toHaveBeenCalledWith("Loaded 1 baseline measurements");
         });
 
-        it("should handle missing baseline file", async() => {
+        it("should handle missing baseline file", async () => {
             const fs = await import("fs");
             vi.mocked(fs.readFileSync).mockImplementation(() => {
                 throw new Error("File not found");
@@ -72,9 +69,7 @@ describe("PerformanceRegressionTest", () => {
 
             new PerformanceRegressionTest();
 
-            expect(console.warn).toHaveBeenCalledWith(
-                "No baseline file found. Will create new baseline.",
-            );
+            expect(console.warn).toHaveBeenCalledWith("No baseline file found. Will create new baseline.");
         });
     });
 
@@ -88,9 +83,7 @@ describe("PerformanceRegressionTest", () => {
             const result = test.runAll();
 
             expect(result).toBe(true);
-            expect(console.log).toHaveBeenCalledWith(
-                expect.stringContaining("Performance Regression Test Suite"),
-            );
+            expect(console.log).toHaveBeenCalledWith(expect.stringContaining("Performance Regression Test Suite"));
         });
 
         it("should detect performance regressions", () => {
@@ -123,9 +116,7 @@ describe("PerformanceRegressionTest", () => {
             const result = test.runAll();
 
             expect(result).toBe(false);
-            expect(console.log).toHaveBeenCalledWith(
-                expect.stringContaining("Performance regressions detected!"),
-            );
+            expect(console.log).toHaveBeenCalledWith(expect.stringContaining("Performance regressions detected!"));
         });
     });
 
@@ -142,16 +133,18 @@ describe("PerformanceRegressionTest", () => {
                 expect.stringContaining("performance-baseline.json"),
                 expect.any(String),
             );
-            expect(console.log).toHaveBeenCalledWith(
-                expect.stringContaining("Baselines updated successfully!"),
-            );
+            expect(console.log).toHaveBeenCalledWith(expect.stringContaining("Baselines updated successfully!"));
         });
     });
 
     describe("private methods", () => {
         it("should generate correct baseline keys", () => {
             const test = new PerformanceRegressionTest();
-            const getBaselineKey = (test as unknown as {getBaselineKey: (config: {algorithm: string; graphType: string; nodeCount: number}) => string}).getBaselineKey.bind(test);
+            const getBaselineKey = (
+                test as unknown as {
+                    getBaselineKey: (config: { algorithm: string; graphType: string; nodeCount: number }) => string;
+                }
+            ).getBaselineKey.bind(test);
 
             const key = getBaselineKey({
                 algorithm: "BFS",
@@ -162,9 +155,9 @@ describe("PerformanceRegressionTest", () => {
             expect(key).toBe("BFS-small-world-1000");
         });
 
-        it("should save baselines correctly", async() => {
+        it("should save baselines correctly", async () => {
             const test = new PerformanceRegressionTest();
-            const {baselines} = test as unknown as {baselines: Map<string, BenchmarkResult>};
+            const { baselines } = test as unknown as { baselines: Map<string, BenchmarkResult> };
 
             baselines.set("test-key", {
                 algorithm: "TestAlgo",
@@ -176,21 +169,20 @@ describe("PerformanceRegressionTest", () => {
                 timestamp: "2024-01-01",
             });
 
-            const saveBaselines = (test as unknown as {saveBaselines: () => void}).saveBaselines.bind(test);
+            const saveBaselines = (test as unknown as { saveBaselines: () => void }).saveBaselines.bind(test);
             saveBaselines();
 
             const fs = await import("fs");
-            expect(fs.writeFileSync).toHaveBeenCalledWith(
-                expect.any(String),
-                expect.stringContaining("TestAlgo"),
-            );
+            expect(fs.writeFileSync).toHaveBeenCalledWith(expect.any(String), expect.stringContaining("TestAlgo"));
         });
     });
 
     describe("graph generation", () => {
         it("should generate small world graph", () => {
             const test = new PerformanceRegressionTest();
-            const generateSmallWorldGraph = (test as unknown as {generateSmallWorldGraph: (size: number) => Graph}).generateSmallWorldGraph.bind(test);
+            const generateSmallWorldGraph = (
+                test as unknown as { generateSmallWorldGraph: (size: number) => Graph }
+            ).generateSmallWorldGraph.bind(test);
             const Graph = vi.fn().mockImplementation(() => ({
                 addNode: vi.fn(),
                 addEdge: vi.fn(),
@@ -207,7 +199,9 @@ describe("PerformanceRegressionTest", () => {
 
         it("should generate scale free graph", () => {
             const test = new PerformanceRegressionTest();
-            const generateScaleFreeGraph = (test as unknown as {generateScaleFreeGraph: (size: number) => Graph}).generateScaleFreeGraph.bind(test);
+            const generateScaleFreeGraph = (
+                test as unknown as { generateScaleFreeGraph: (size: number) => Graph }
+            ).generateScaleFreeGraph.bind(test);
             const Graph = vi.fn().mockImplementation(() => ({
                 addNode: vi.fn(),
                 addEdge: vi.fn(),
@@ -223,7 +217,9 @@ describe("PerformanceRegressionTest", () => {
 
         it("should generate random graph", () => {
             const test = new PerformanceRegressionTest();
-            const generateRandomGraph = (test as unknown as {generateRandomGraph: (size: number, density: number) => Graph}).generateRandomGraph.bind(test);
+            const generateRandomGraph = (
+                test as unknown as { generateRandomGraph: (size: number, density: number) => Graph }
+            ).generateRandomGraph.bind(test);
             const Graph = vi.fn().mockImplementation(() => ({
                 addNode: vi.fn(),
                 addEdge: vi.fn(),
@@ -238,7 +234,9 @@ describe("PerformanceRegressionTest", () => {
 
         it("should generate complete graph", () => {
             const test = new PerformanceRegressionTest();
-            const generateCompleteGraph = (test as unknown as {generateCompleteGraph: (size: number) => Graph}).generateCompleteGraph.bind(test);
+            const generateCompleteGraph = (
+                test as unknown as { generateCompleteGraph: (size: number) => Graph }
+            ).generateCompleteGraph.bind(test);
             const Graph = vi.fn().mockImplementation(() => ({
                 addNode: vi.fn(),
                 addEdge: vi.fn(),
@@ -254,7 +252,9 @@ describe("PerformanceRegressionTest", () => {
 
         it("should throw error for unknown graph type", () => {
             const test = new PerformanceRegressionTest();
-            const generateGraph = (test as unknown as {generateGraph: (size: number, density: number) => Graph}).generateGraph.bind(test);
+            const generateGraph = (
+                test as unknown as { generateGraph: (size: number, density: number) => Graph }
+            ).generateGraph.bind(test);
 
             expect(() => generateGraph(10, "unknown")).toThrow("Unknown graph type: unknown");
         });
@@ -263,12 +263,21 @@ describe("PerformanceRegressionTest", () => {
     describe("benchmark methods", () => {
         it("should run BFS benchmark", () => {
             const test = new PerformanceRegressionTest();
-            const benchmarkBFS = (test as unknown as {benchmarkBFS: (graph: {nodeCount: number; hasNode: () => boolean; nodes: () => Array<{id: number}>; neighbors: () => never[]}) => number}).benchmarkBFS.bind(test);
+            const benchmarkBFS = (
+                test as unknown as {
+                    benchmarkBFS: (graph: {
+                        nodeCount: number;
+                        hasNode: () => boolean;
+                        nodes: () => Array<{ id: number }>;
+                        neighbors: () => never[];
+                    }) => number;
+                }
+            ).benchmarkBFS.bind(test);
 
             const mockGraph = {
                 nodeCount: 100,
                 hasNode: () => true,
-                nodes: () => [{id: 0}],
+                nodes: () => [{ id: 0 }],
                 neighbors: () => [],
             };
 
@@ -278,7 +287,9 @@ describe("PerformanceRegressionTest", () => {
 
         it("should run shortest path benchmark", () => {
             const test = new PerformanceRegressionTest();
-            const benchmarkShortestPath = (test as unknown as {benchmarkShortestPath: () => void}).benchmarkShortestPath.bind(test);
+            const benchmarkShortestPath = (
+                test as unknown as { benchmarkShortestPath: () => void }
+            ).benchmarkShortestPath.bind(test);
 
             const mockGraph = {
                 nodeCount: 100,
@@ -292,7 +303,9 @@ describe("PerformanceRegressionTest", () => {
 
         it("should run single source shortest path benchmark", () => {
             const test = new PerformanceRegressionTest();
-            const benchmarkSingleSourceSP = (test as unknown as {benchmarkSingleSourceSP: () => void}).benchmarkSingleSourceSP.bind(test);
+            const benchmarkSingleSourceSP = (
+                test as unknown as { benchmarkSingleSourceSP: () => void }
+            ).benchmarkSingleSourceSP.bind(test);
 
             const mockGraph = {
                 hasNode: () => true,
@@ -307,7 +320,7 @@ describe("PerformanceRegressionTest", () => {
     describe("displayResults", () => {
         it("should display results summary", () => {
             const test = new PerformanceRegressionTest();
-            const {results} = test as unknown as {results: BenchmarkResult[]};
+            const { results } = test as unknown as { results: BenchmarkResult[] };
 
             results.push({
                 algorithm: "BFS",
@@ -331,32 +344,36 @@ describe("PerformanceRegressionTest", () => {
                 memoryChange: 0.1,
             });
 
-            const displayResults = (test as unknown as {displayResults: () => void}).displayResults.bind(test);
+            const displayResults = (test as unknown as { displayResults: () => void }).displayResults.bind(test);
             displayResults();
 
-            expect(console.log).toHaveBeenCalledWith(
-                expect.stringContaining("Performance Regression Summary"),
-            );
-            expect(console.log).toHaveBeenCalledWith(
-                expect.stringContaining("1/2 passed"),
-            );
+            expect(console.log).toHaveBeenCalledWith(expect.stringContaining("Performance Regression Summary"));
+            expect(console.log).toHaveBeenCalledWith(expect.stringContaining("1/2 passed"));
         });
     });
 
     describe("runBenchmark", () => {
-        it("should create new baseline when none exists", async() => {
+        it("should create new baseline when none exists", async () => {
             const fs = await import("fs");
             vi.mocked(fs.readFileSync).mockImplementation(() => {
                 throw new Error("No baseline");
             });
 
             const test = new PerformanceRegressionTest();
-            const runBenchmark = (test as unknown as {runBenchmark: (graph: Graph, algorithmName: string, algorithm: (g: Graph) => unknown) => BenchmarkResult}).runBenchmark.bind(test);
+            const runBenchmark = (
+                test as unknown as {
+                    runBenchmark: (
+                        graph: Graph,
+                        algorithmName: string,
+                        algorithm: (g: Graph) => unknown,
+                    ) => BenchmarkResult;
+                }
+            ).runBenchmark.bind(test);
 
             const mockGraph = {
                 nodeCount: 100,
                 totalEdgeCount: 200,
-                nodes: () => [{id: 0}],
+                nodes: () => [{ id: 0 }],
                 neighbors: () => [],
             };
 
@@ -369,12 +386,10 @@ describe("PerformanceRegressionTest", () => {
             const isCI = process.env.CI === "true";
             const expectedCalls = isCI ? 4 : 13;
             expect(benchmarkFn).toHaveBeenCalledTimes(expectedCalls);
-            expect(console.log).toHaveBeenCalledWith(
-                expect.stringContaining("new baseline"),
-            );
+            expect(console.log).toHaveBeenCalledWith(expect.stringContaining("new baseline"));
         });
 
-        it("should compare with existing baseline", async() => {
+        it("should compare with existing baseline", async () => {
             const mockBaselines = [
                 {
                     algorithm: "TestAlgo",
@@ -391,12 +406,26 @@ describe("PerformanceRegressionTest", () => {
             vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockBaselines));
 
             const test = new PerformanceRegressionTest();
-            const runBenchmark = (test as unknown as {runBenchmark: (algorithmName: string, benchmarkFn: () => number, graph: {nodeCount: number; totalEdgeCount: number; nodes: () => Array<{id: number}>; neighbors: () => never[]}, graphType: string) => void}).runBenchmark.bind(test);
+            const runBenchmark = (
+                test as unknown as {
+                    runBenchmark: (
+                        algorithmName: string,
+                        benchmarkFn: () => number,
+                        graph: {
+                            nodeCount: number;
+                            totalEdgeCount: number;
+                            nodes: () => Array<{ id: number }>;
+                            neighbors: () => never[];
+                        },
+                        graphType: string,
+                    ) => void;
+                }
+            ).runBenchmark.bind(test);
 
             const mockGraph = {
                 nodeCount: 100,
                 totalEdgeCount: 200,
-                nodes: () => [{id: 0}],
+                nodes: () => [{ id: 0 }],
                 neighbors: () => [],
             };
 
@@ -404,9 +433,7 @@ describe("PerformanceRegressionTest", () => {
 
             runBenchmark("TestAlgo", benchmarkFn, mockGraph, "test-type");
 
-            expect(console.log).toHaveBeenCalledWith(
-                expect.stringContaining("+10.0%"),
-            );
+            expect(console.log).toHaveBeenCalledWith(expect.stringContaining("+10.0%"));
         });
     });
 });

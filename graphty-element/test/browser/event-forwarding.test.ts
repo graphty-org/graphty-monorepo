@@ -7,14 +7,14 @@
  */
 import "../../src/graphty-element";
 
-import {assert, describe, test, vi} from "vitest";
+import { assert, describe, test, vi } from "vitest";
 
-import type {Graphty} from "../../index.js";
+import type { Graphty } from "../../index.js";
 
 /**
  * Helper to create a graphty-element and wait for it to initialize
  */
-async function createGraphtyElement(): Promise<{element: Graphty, container: HTMLDivElement}> {
+async function createGraphtyElement(): Promise<{ element: Graphty; container: HTMLDivElement }> {
     const container = document.createElement("div");
     container.style.width = "400px";
     container.style.height = "300px";
@@ -29,7 +29,7 @@ async function createGraphtyElement(): Promise<{element: Graphty, container: HTM
     // Wait for element to be connected and asyncFirstUpdated to complete
     await new Promise((resolve) => setTimeout(resolve, 300));
 
-    return {element: graphtyElement, container};
+    return { element: graphtyElement, container };
 }
 
 /**
@@ -44,8 +44,8 @@ function cleanup(element: HTMLElement): void {
 
 describe("Event Forwarding Regression Tests", () => {
     describe("graph-settled event", () => {
-        test("graph-settled event is forwarded as DOM CustomEvent", async() => {
-            const {element: graphtyElement} = await createGraphtyElement();
+        test("graph-settled event is forwarded as DOM CustomEvent", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
             const settledCallback = vi.fn();
 
             // Listen for the event on the DOM element
@@ -69,8 +69,8 @@ describe("Event Forwarding Regression Tests", () => {
             cleanup(graphtyElement);
         });
 
-        test("graph-settled event bubbles through DOM", async() => {
-            const {element: graphtyElement, container} = await createGraphtyElement();
+        test("graph-settled event bubbles through DOM", async () => {
+            const { element: graphtyElement, container } = await createGraphtyElement();
             const containerCallback = vi.fn();
 
             // Listen on the parent container (bubbling)
@@ -85,14 +85,14 @@ describe("Event Forwarding Regression Tests", () => {
     });
 
     describe("data-added event", () => {
-        test("data-added event is forwarded when nodes are added", async() => {
-            const {element: graphtyElement} = await createGraphtyElement();
+        test("data-added event is forwarded when nodes are added", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
             const dataAddedCallback = vi.fn();
 
             graphtyElement.addEventListener("data-added", dataAddedCallback);
 
             // Add nodes which should trigger data-added event
-            await graphtyElement.graph.addNodes([{id: "1"}, {id: "2"}]);
+            await graphtyElement.graph.addNodes([{ id: "1" }, { id: "2" }]);
 
             // Wait for async operations
             await new Promise((resolve) => setTimeout(resolve, 100));
@@ -108,12 +108,12 @@ describe("Event Forwarding Regression Tests", () => {
             cleanup(graphtyElement);
         });
 
-        test("data-added event is forwarded when edges are added", async() => {
-            const {element: graphtyElement} = await createGraphtyElement();
+        test("data-added event is forwarded when edges are added", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
             const dataAddedCallback = vi.fn();
 
             // First add nodes
-            await graphtyElement.graph.addNodes([{id: "a"}, {id: "b"}, {id: "c"}]);
+            await graphtyElement.graph.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             // Now listen for edge additions
@@ -121,8 +121,8 @@ describe("Event Forwarding Regression Tests", () => {
 
             // Add edges
             await graphtyElement.graph.addEdges([
-                {src: "a", dst: "b"},
-                {src: "b", dst: "c"},
+                { src: "a", dst: "b" },
+                { src: "b", dst: "c" },
             ]);
 
             await new Promise((resolve) => setTimeout(resolve, 100));
@@ -133,26 +133,23 @@ describe("Event Forwarding Regression Tests", () => {
             ) as [CustomEvent] | undefined;
             assert.isDefined(edgeEvent);
             // Type assertion safe because assert.isDefined will throw if undefined
-            assert.equal((edgeEvent)[0].detail.count, 2);
+            assert.equal(edgeEvent[0].detail.count, 2);
 
             cleanup(graphtyElement);
         });
     });
 
     describe("error event", () => {
-        test("error event is forwarded as DOM CustomEvent", async() => {
-            const {element: graphtyElement} = await createGraphtyElement();
+        test("error event is forwarded as DOM CustomEvent", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
             const errorCallback = vi.fn();
 
             graphtyElement.addEventListener("error", errorCallback);
 
             const testError = new Error("Test error message");
-            graphtyElement.graph.eventManager.emitGraphError(
-                graphtyElement.graph,
-                testError,
-                "other",
-                {customDetail: "value"},
-            );
+            graphtyElement.graph.eventManager.emitGraphError(graphtyElement.graph, testError, "other", {
+                customDetail: "value",
+            });
 
             assert.equal(errorCallback.mock.calls.length, 1);
 
@@ -160,15 +157,15 @@ describe("Event Forwarding Regression Tests", () => {
             assert.equal(event.type, "error");
             assert.equal(event.detail.error, testError);
             assert.equal(event.detail.context, "other");
-            assert.deepEqual(event.detail.details, {customDetail: "value"});
+            assert.deepEqual(event.detail.details, { customDetail: "value" });
 
             cleanup(graphtyElement);
         });
     });
 
     describe("layout-initialized event", () => {
-        test("layout-initialized event is forwarded", async() => {
-            const {element: graphtyElement} = await createGraphtyElement();
+        test("layout-initialized event is forwarded", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
             const layoutCallback = vi.fn();
 
             graphtyElement.addEventListener("layout-initialized", layoutCallback);
@@ -186,8 +183,8 @@ describe("Event Forwarding Regression Tests", () => {
     });
 
     describe("data-loaded event", () => {
-        test("data-loaded event is forwarded", async() => {
-            const {element: graphtyElement} = await createGraphtyElement();
+        test("data-loaded event is forwarded", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
             const loadedCallback = vi.fn();
 
             graphtyElement.addEventListener("data-loaded", loadedCallback);
@@ -209,20 +206,13 @@ describe("Event Forwarding Regression Tests", () => {
     });
 
     describe("data loading progress events", () => {
-        test("data-loading-progress event is forwarded", async() => {
-            const {element: graphtyElement} = await createGraphtyElement();
+        test("data-loading-progress event is forwarded", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
             const progressCallback = vi.fn();
 
             graphtyElement.addEventListener("data-loading-progress", progressCallback);
 
-            graphtyElement.graph.eventManager.emitDataLoadingProgress(
-                "csv",
-                1024,
-                2048,
-                10,
-                5,
-                2,
-            );
+            graphtyElement.graph.eventManager.emitDataLoadingProgress("csv", 1024, 2048, 10, 5, 2);
 
             assert.equal(progressCallback.mock.calls.length, 1);
 
@@ -236,8 +226,8 @@ describe("Event Forwarding Regression Tests", () => {
             cleanup(graphtyElement);
         });
 
-        test("data-loading-complete event is forwarded", async() => {
-            const {element: graphtyElement} = await createGraphtyElement();
+        test("data-loading-complete event is forwarded", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
             const completeCallback = vi.fn();
 
             graphtyElement.addEventListener("data-loading-complete", completeCallback);
@@ -263,19 +253,17 @@ describe("Event Forwarding Regression Tests", () => {
             cleanup(graphtyElement);
         });
 
-        test("data-loading-error event is forwarded", async() => {
-            const {element: graphtyElement} = await createGraphtyElement();
+        test("data-loading-error event is forwarded", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
             const errorCallback = vi.fn();
 
             graphtyElement.addEventListener("data-loading-error", errorCallback);
 
             const testError = new Error("Parse error");
-            graphtyElement.graph.eventManager.emitDataLoadingError(
-                testError,
-                "parsing",
-                "csv",
-                {line: 42, canContinue: false},
-            );
+            graphtyElement.graph.eventManager.emitDataLoadingError(testError, "parsing", "csv", {
+                line: 42,
+                canContinue: false,
+            });
 
             assert.equal(errorCallback.mock.calls.length, 1);
 
@@ -290,8 +278,8 @@ describe("Event Forwarding Regression Tests", () => {
     });
 
     describe("operation queue events", () => {
-        test("operation-queue-active event is forwarded", async() => {
-            const {element: graphtyElement} = await createGraphtyElement();
+        test("operation-queue-active event is forwarded", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
             const activeCallback = vi.fn();
 
             graphtyElement.addEventListener("operation-queue-active", activeCallback);
@@ -303,8 +291,8 @@ describe("Event Forwarding Regression Tests", () => {
             cleanup(graphtyElement);
         });
 
-        test("operation-queue-idle event is forwarded", async() => {
-            const {element: graphtyElement} = await createGraphtyElement();
+        test("operation-queue-idle event is forwarded", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
             const idleCallback = vi.fn();
 
             graphtyElement.addEventListener("operation-queue-idle", idleCallback);
@@ -318,8 +306,8 @@ describe("Event Forwarding Regression Tests", () => {
     });
 
     describe("multiple event listeners", () => {
-        test("multiple listeners receive the same event", async() => {
-            const {element: graphtyElement} = await createGraphtyElement();
+        test("multiple listeners receive the same event", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
             const callback1 = vi.fn();
             const callback2 = vi.fn();
             const callback3 = vi.fn();
@@ -337,8 +325,8 @@ describe("Event Forwarding Regression Tests", () => {
             cleanup(graphtyElement);
         });
 
-        test("removeEventListener stops event delivery", async() => {
-            const {element: graphtyElement} = await createGraphtyElement();
+        test("removeEventListener stops event delivery", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
             const callback = vi.fn();
 
             graphtyElement.addEventListener("graph-settled", callback);
@@ -358,18 +346,13 @@ describe("Event Forwarding Regression Tests", () => {
     });
 
     describe("event detail contains original event data", () => {
-        test("event detail preserves all original event properties", async() => {
-            const {element: graphtyElement} = await createGraphtyElement();
+        test("event detail preserves all original event properties", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
             const callback = vi.fn();
 
             graphtyElement.addEventListener("data-added", callback);
 
-            graphtyElement.graph.eventManager.emitDataAdded(
-                "nodes",
-                42,
-                true,
-                false,
-            );
+            graphtyElement.graph.eventManager.emitDataAdded("nodes", 42, true, false);
 
             const event = callback.mock.calls[0][0] as CustomEvent;
 
@@ -385,8 +368,8 @@ describe("Event Forwarding Regression Tests", () => {
     });
 
     describe("composed events cross shadow DOM boundary", () => {
-        test("events are composed and can be caught outside shadow DOM", async() => {
-            const {element: graphtyElement} = await createGraphtyElement();
+        test("events are composed and can be caught outside shadow DOM", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
             const documentCallback = vi.fn();
 
             // Listen on document (outside shadow DOM)
@@ -403,8 +386,8 @@ describe("Event Forwarding Regression Tests", () => {
     });
 
     describe("real-world integration scenarios", () => {
-        test("events fire during full graph lifecycle", async() => {
-            const {element: graphtyElement} = await createGraphtyElement();
+        test("events fire during full graph lifecycle", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
 
             const dataAddedEvents: CustomEvent[] = [];
             const settledEvents: CustomEvent[] = [];
@@ -417,15 +400,11 @@ describe("Event Forwarding Regression Tests", () => {
             });
 
             // Add nodes and edges
-            await graphtyElement.graph.addNodes([
-                {id: "node1"},
-                {id: "node2"},
-                {id: "node3"},
-            ]);
+            await graphtyElement.graph.addNodes([{ id: "node1" }, { id: "node2" }, { id: "node3" }]);
 
             await graphtyElement.graph.addEdges([
-                {src: "node1", dst: "node2"},
-                {src: "node2", dst: "node3"},
+                { src: "node1", dst: "node2" },
+                { src: "node2", dst: "node3" },
             ]);
 
             // Wait for operations to complete

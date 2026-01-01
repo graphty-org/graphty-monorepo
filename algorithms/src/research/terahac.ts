@@ -1,5 +1,5 @@
-import type {Graph} from "../core/graph.js";
-import type {NodeId} from "../types/index.js";
+import type { Graph } from "../core/graph.js";
+import type { NodeId } from "../types/index.js";
 
 /**
  * Configuration options for the TeraHAC (Hierarchical Agglomerative Clustering) algorithm
@@ -60,7 +60,6 @@ export interface TeraHACResult {
  *
  * Based on: "Scaling Hierarchical Agglomerative Clustering to Trillion-Edge Graphs"
  * Google Research 2024
- *
  * @param graph - Input graph to cluster
  * @param config - Configuration options
  * @returns Hierarchical clustering result
@@ -88,7 +87,9 @@ export function teraHAC(graph: Graph, config: TeraHACConfig = {}): TeraHACResult
     }
 
     if (nodeCount > maxNodes) {
-        onWarning(`Graph has ${String(nodeCount)} nodes, which exceeds maxNodes (${String(maxNodes)}). Performance may be degraded.`);
+        onWarning(
+            `Graph has ${String(nodeCount)} nodes, which exceeds maxNodes (${String(maxNodes)}). Performance may be degraded.`,
+        );
     }
 
     // Initialize each node as its own cluster
@@ -122,7 +123,7 @@ export function teraHAC(graph: Graph, config: TeraHACConfig = {}): TeraHACResult
     // Perform agglomerative clustering
     while (clusters.size > 1 && mergeCandidates.length > 0) {
         // Find closest pair of clusters
-        const {cluster1Id, cluster2Id, distance} = findClosestPair(mergeCandidates);
+        const { cluster1Id, cluster2Id, distance } = findClosestPair(mergeCandidates);
 
         // Check stopping criteria
         if (numClusters && clusters.size <= numClusters) {
@@ -142,7 +143,7 @@ export function teraHAC(graph: Graph, config: TeraHACConfig = {}): TeraHACResult
 
         // Create new merged cluster
         const newClusterId = (nextClusterId++).toString();
-        const mergedMembers = new Set([... cluster1.members, ... cluster2.members]);
+        const mergedMembers = new Set([...cluster1.members, ...cluster2.members]);
 
         const newCluster: ClusterNode = {
             id: newClusterId,
@@ -182,7 +183,7 @@ export function teraHAC(graph: Graph, config: TeraHACConfig = {}): TeraHACResult
 
                 const newRoot: ClusterNode = {
                     id: (nextClusterId++).toString(),
-                    members: new Set([... root.members, ... currentCluster.members]),
+                    members: new Set([...root.members, ...currentCluster.members]),
                     left: root,
                     right: currentCluster,
                     distance: Infinity,
@@ -216,10 +217,14 @@ export function teraHAC(graph: Graph, config: TeraHACConfig = {}): TeraHACResult
 
 /**
  * Calculate distance matrix between all pairs of nodes
+ * @param graph - The input graph
+ * @param nodes - Array of nodes to calculate distances between
+ * @param useGraphDistance - Whether to use graph-based shortest path distances
+ * @returns 2D distance matrix
  */
-function calculateDistanceMatrix(graph: Graph, nodes: {id: NodeId}[], useGraphDistance: boolean): number[][] {
+function calculateDistanceMatrix(graph: Graph, nodes: { id: NodeId }[], useGraphDistance: boolean): number[][] {
     const n = nodes.length;
-    const matrix: number[][] = Array.from({length: n}, () => new Array(n).fill(Infinity) as number[]);
+    const matrix: number[][] = Array.from({ length: n }, () => new Array(n).fill(Infinity) as number[]);
 
     if (useGraphDistance) {
         // Use graph-based distances (shortest path)
@@ -286,6 +291,9 @@ function calculateDistanceMatrix(graph: Graph, nodes: {id: NodeId}[], useGraphDi
 
 /**
  * BFS-based shortest path calculation from a source node
+ * @param graph - The input graph
+ * @param source - The source node ID
+ * @returns Map of node IDs to their distances from the source
  */
 function bfsShortestPaths(graph: Graph, source: NodeId): Map<NodeId, number> {
     const distances = new Map<NodeId, number>();
@@ -317,12 +325,15 @@ function bfsShortestPaths(graph: Graph, source: NodeId): Map<NodeId, number> {
 
 /**
  * Initialize merge candidates priority queue
+ * @param clusters - Map of cluster IDs to cluster nodes
+ * @param distanceMatrix - 2D distance matrix between nodes
+ * @returns Array of merge candidates sorted by distance
  */
 function initializeMergeCandidates(
     clusters: Map<string, ClusterNode>,
     distanceMatrix: number[][],
-): {cluster1Id: string, cluster2Id: string, distance: number}[] {
-    const candidates: {cluster1Id: string, cluster2Id: string, distance: number}[] = [];
+): { cluster1Id: string; cluster2Id: string; distance: number }[] {
+    const candidates: { cluster1Id: string; cluster2Id: string; distance: number }[] = [];
     const clusterIds = Array.from(clusters.keys());
 
     for (let i = 0; i < clusterIds.length; i++) {
@@ -355,10 +366,14 @@ function initializeMergeCandidates(
 
 /**
  * Find the closest pair of clusters
+ * @param mergeCandidates - Array of merge candidates
+ * @returns The closest cluster pair with their distance
  */
-function findClosestPair(
-    mergeCandidates: {cluster1Id: string, cluster2Id: string, distance: number}[],
-): {cluster1Id: string, cluster2Id: string, distance: number} {
+function findClosestPair(mergeCandidates: { cluster1Id: string; cluster2Id: string; distance: number }[]): {
+    cluster1Id: string;
+    cluster2Id: string;
+    distance: number;
+} {
     // Return the first (closest) valid candidate
     const candidate = mergeCandidates.shift();
     if (!candidate) {
@@ -370,9 +385,16 @@ function findClosestPair(
 
 /**
  * Update merge candidates after a merge operation
+ * @param mergeCandidates - Array of merge candidates to update
+ * @param oldCluster1Id - ID of first merged cluster
+ * @param oldCluster2Id - ID of second merged cluster
+ * @param newClusterId - ID of the newly created cluster
+ * @param clusters - Map of cluster IDs to cluster nodes
+ * @param distanceMatrix - 2D distance matrix between nodes
+ * @param linkage - Linkage criterion to use
  */
 function updateMergeCandidates(
-    mergeCandidates: {cluster1Id: string, cluster2Id: string, distance: number}[],
+    mergeCandidates: { cluster1Id: string; cluster2Id: string; distance: number }[],
     oldCluster1Id: string,
     oldCluster2Id: string,
     newClusterId: string,
@@ -387,8 +409,12 @@ function updateMergeCandidates(
             continue;
         }
 
-        if (candidate.cluster1Id === oldCluster1Id || candidate.cluster1Id === oldCluster2Id ||
-            candidate.cluster2Id === oldCluster1Id || candidate.cluster2Id === oldCluster2Id) {
+        if (
+            candidate.cluster1Id === oldCluster1Id ||
+            candidate.cluster1Id === oldCluster2Id ||
+            candidate.cluster2Id === oldCluster1Id ||
+            candidate.cluster2Id === oldCluster2Id
+        ) {
             mergeCandidates.splice(i, 1);
         }
     }
@@ -416,6 +442,11 @@ function updateMergeCandidates(
 
 /**
  * Calculate distance between two clusters based on linkage criterion
+ * @param cluster1 - First cluster
+ * @param cluster2 - Second cluster
+ * @param distanceMatrix - 2D distance matrix between nodes
+ * @param linkage - Linkage criterion (single, complete, average, ward)
+ * @returns The distance between the two clusters
  */
 function calculateClusterDistance(
     cluster1: ClusterNode,
@@ -451,14 +482,14 @@ function calculateClusterDistance(
     // Apply linkage criterion
     switch (linkage) {
         case "single":
-            return Math.min(... distances);
+            return Math.min(...distances);
         case "complete":
-            return Math.max(... distances);
+            return Math.max(...distances);
         case "average":
             return distances.reduce((sum, d) => sum + d, 0) / distances.length;
         case "ward":
             // Simplified Ward linkage (would need cluster centroids for full implementation)
-            return distances.reduce((sum, d) => sum + (d * d), 0) / distances.length;
+            return distances.reduce((sum, d) => sum + d * d, 0) / distances.length;
         default:
             return distances.reduce((sum, d) => sum + d, 0) / distances.length;
     }
@@ -466,6 +497,9 @@ function calculateClusterDistance(
 
 /**
  * Extract flat clustering from dendrogram
+ * @param dendrogram - The root of the dendrogram tree
+ * @param numClusters - The target number of clusters
+ * @returns Map of node IDs to cluster assignments
  */
 function extractFlatClustering(dendrogram: ClusterNode, numClusters: number): Map<NodeId, number> {
     const clusters = new Map<NodeId, number>();

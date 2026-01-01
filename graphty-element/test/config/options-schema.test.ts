@@ -2,8 +2,8 @@
  * @fileoverview Tests for the unified OptionsSchema system
  */
 
-import {assert, describe, it} from "vitest";
-import {z} from "zod/v4";
+import { assert, describe, it } from "vitest";
+import { z } from "zod/v4";
 
 import {
     defineOptions,
@@ -80,7 +80,7 @@ describe("OptionsSchema", () => {
 
         it("should include all fields from the options schema", () => {
             const zodSchema = toZodSchema(sampleSchema);
-            const {shape} = zodSchema;
+            const { shape } = zodSchema;
             assert.isDefined(shape.dampingFactor);
             assert.isDefined(shape.maxIterations);
             assert.isDefined(shape.tolerance);
@@ -109,36 +109,39 @@ describe("OptionsSchema", () => {
 
         it("should throw on invalid values", () => {
             assert.throws(() => {
-                parseOptions(sampleSchema, {dampingFactor: 1.5}); // > max of 1
+                parseOptions(sampleSchema, { dampingFactor: 1.5 }); // > max of 1
             });
         });
 
         it("should throw on invalid types", () => {
             assert.throws(() => {
                 // @ts-expect-error - testing runtime validation
-                parseOptions(sampleSchema, {dampingFactor: "not a number"});
+                parseOptions(sampleSchema, { dampingFactor: "not a number" });
             });
         });
 
         it("should validate integer constraint", () => {
             assert.throws(() => {
-                parseOptions(sampleSchema, {maxIterations: 50.5}); // not an integer
+                parseOptions(sampleSchema, { maxIterations: 50.5 }); // not an integer
             });
         });
     });
 
     describe("safeParseOptions", () => {
         it("should return success with valid options", () => {
-            const result = safeParseOptions(sampleSchema, {dampingFactor: 0.9});
+            const result = safeParseOptions(sampleSchema, { dampingFactor: 0.9 });
             assert.isTrue(result.success, "Expected parsing to succeed");
             assert.property(result, "data", "Expected result to have data property");
             // Type assertion needed because TypeScript doesn't narrow based on assert
-            const successResult = result as {success: true, data: ReturnType<typeof parseOptions<typeof sampleSchema>>};
+            const successResult = result as {
+                success: true;
+                data: ReturnType<typeof parseOptions<typeof sampleSchema>>;
+            };
             assert.strictEqual(successResult.data.dampingFactor, 0.9);
         });
 
         it("should return error with invalid options", () => {
-            const result = safeParseOptions(sampleSchema, {dampingFactor: 1.5});
+            const result = safeParseOptions(sampleSchema, { dampingFactor: 1.5 });
             assert.isFalse(result.success, "Expected parsing to fail");
             assert.property(result, "error", "Expected result to have error property");
         });
@@ -244,9 +247,11 @@ describe("OptionsSchema", () => {
                 },
             },
             config: {
-                schema: z.object({
-                    nested: z.string().default("value"),
-                }).default({nested: "value"}),
+                schema: z
+                    .object({
+                        nested: z.string().default("value"),
+                    })
+                    .default({ nested: "value" }),
                 meta: {
                     label: "Config",
                     description: "Nested configuration",
@@ -255,25 +260,25 @@ describe("OptionsSchema", () => {
         });
 
         it("should handle enum types", () => {
-            const options = parseOptions(complexSchema, {mode: "fast"});
+            const options = parseOptions(complexSchema, { mode: "fast" });
             assert.strictEqual(options.mode, "fast");
         });
 
         it("should validate enum values", () => {
             assert.throws(() => {
                 // @ts-expect-error - testing runtime validation
-                parseOptions(complexSchema, {mode: "invalid"});
+                parseOptions(complexSchema, { mode: "invalid" });
             });
         });
 
         it("should handle array types", () => {
-            const options = parseOptions(complexSchema, {weights: [2, 3, 4]});
+            const options = parseOptions(complexSchema, { weights: [2, 3, 4] });
             assert.deepEqual(options.weights, [2, 3, 4]);
         });
 
         it("should handle nested object types", () => {
             const options = parseOptions(complexSchema, {
-                config: {nested: "custom"},
+                config: { nested: "custom" },
             });
             assert.strictEqual(options.config.nested, "custom");
         });
@@ -303,7 +308,7 @@ describe("OptionsSchema", () => {
         });
 
         it("should allow null values", () => {
-            const options = parseOptions(nullableSchema, {source: null});
+            const options = parseOptions(nullableSchema, { source: null });
             assert.isNull(options.source);
         });
 

@@ -1,7 +1,7 @@
-import {describe, expect, it, vi} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {fireEvent, render, screen} from "../../../../test/test-utils";
-import {ColorConfig, NodeColorControl} from "../NodeColorControl";
+import { fireEvent, render, screen } from "../../../../test/test-utils";
+import { ColorConfig, NodeColorControl } from "../NodeColorControl";
 
 describe("NodeColorControl", () => {
     const solidColorValue: ColorConfig = {
@@ -13,8 +13,8 @@ describe("NodeColorControl", () => {
     const gradientColorValue: ColorConfig = {
         mode: "gradient",
         stops: [
-            {id: "stop-1", offset: 0, color: "#ff0000"},
-            {id: "stop-2", offset: 1, color: "#0000ff"},
+            { id: "stop-1", offset: 0, color: "#ff0000" },
+            { id: "stop-2", offset: 1, color: "#0000ff" },
         ],
         direction: 0,
         opacity: 1.0,
@@ -23,9 +23,9 @@ describe("NodeColorControl", () => {
     it("renders solid/gradient/radial toggle", () => {
         render(<NodeColorControl value={solidColorValue} onChange={vi.fn()} />);
 
-        expect(screen.getByRole("radio", {name: "Solid"})).toBeInTheDocument();
-        expect(screen.getByRole("radio", {name: "Gradient"})).toBeInTheDocument();
-        expect(screen.getByRole("radio", {name: "Radial"})).toBeInTheDocument();
+        expect(screen.getByRole("radio", { name: "Solid" })).toBeInTheDocument();
+        expect(screen.getByRole("radio", { name: "Gradient" })).toBeInTheDocument();
+        expect(screen.getByRole("radio", { name: "Radial" })).toBeInTheDocument();
     });
 
     it("shows single color picker in solid mode", () => {
@@ -54,7 +54,7 @@ describe("NodeColorControl", () => {
         const onChange = vi.fn();
         render(<NodeColorControl value={solidColorValue} onChange={onChange} />);
 
-        const gradientRadio = screen.getByRole("radio", {name: "Gradient"});
+        const gradientRadio = screen.getByRole("radio", { name: "Gradient" });
         fireEvent.click(gradientRadio);
 
         expect(onChange).toHaveBeenCalledWith(
@@ -69,7 +69,7 @@ describe("NodeColorControl", () => {
         render(<NodeColorControl value={solidColorValue} onChange={onChange} />);
 
         const colorInput = screen.getByLabelText("Color hex value");
-        fireEvent.change(colorInput, {target: {value: "00FF00"}});
+        fireEvent.change(colorInput, { target: { value: "00FF00" } });
         fireEvent.blur(colorInput);
 
         expect(onChange).toHaveBeenCalledWith(
@@ -84,7 +84,7 @@ describe("NodeColorControl", () => {
         const onChange = vi.fn();
         render(<NodeColorControl value={solidColorValue} onChange={onChange} />);
 
-        const radialRadio = screen.getByRole("radio", {name: "Radial"});
+        const radialRadio = screen.getByRole("radio", { name: "Radial" });
         fireEvent.click(radialRadio);
 
         expect(onChange).toHaveBeenCalledWith(
@@ -104,8 +104,8 @@ describe("NodeColorControl", () => {
         const radialValue: ColorConfig = {
             mode: "radial",
             stops: [
-                {id: "stop-1", offset: 0, color: "#ff0000"},
-                {id: "stop-2", offset: 1, color: "#0000ff"},
+                { id: "stop-1", offset: 0, color: "#ff0000" },
+                { id: "stop-2", offset: 1, color: "#0000ff" },
             ],
             opacity: 1.0,
         };

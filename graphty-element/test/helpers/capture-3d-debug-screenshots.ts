@@ -23,10 +23,10 @@
  *   --axes    Enable BabylonJS AxesViewer to show coordinate system
  */
 
-/* eslint-disable no-console */
+ 
 
-import {resolve} from "path";
-import {chromium} from "playwright";
+import { resolve } from "path";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 const TMP_DIR = resolve(process.cwd(), "tmp");
@@ -88,11 +88,11 @@ const getCameraPositions = (): CameraPosition[] => {
  */
 interface PageLike {
     locator: (selector: string) => {
-        boundingBox: () => Promise<{x: number, y: number, width: number, height: number} | null>;
-        screenshot: (options: {path: string}) => Promise<unknown>;
+        boundingBox: () => Promise<{ x: number; y: number; width: number; height: number } | null>;
+        screenshot: (options: { path: string }) => Promise<unknown>;
     };
     mouse: {
-        move: (x: number, y: number, options?: {steps?: number}) => Promise<void>;
+        move: (x: number, y: number, options?: { steps?: number }) => Promise<void>;
         down: () => Promise<void>;
         up: () => Promise<void>;
     };
@@ -100,10 +100,7 @@ interface PageLike {
     evaluate: (fn: () => void) => Promise<void>;
 }
 
-async function setupCamera(
-    page: PageLike,
-    position: CameraPosition,
-): Promise<void> {
+async function setupCamera(page: PageLike, position: CameraPosition): Promise<void> {
     // Skip if this is the "start" position - use default camera
     if (isNaN(position.alpha)) {
         return;
@@ -118,8 +115,8 @@ async function setupCamera(
     }
 
     // Calculate center of canvas
-    const centerX = box.x + (box.width / 2);
-    const centerY = box.y + (box.height / 2);
+    const centerX = box.x + box.width / 2;
+    const centerY = box.y + box.height / 2;
 
     // Use mouse drag to rotate camera
     // Dragging horizontally changes alpha (horizontal rotation)
@@ -151,7 +148,7 @@ async function setupCamera(
     // Perform the drag operation
     await page.mouse.move(centerX, centerY);
     await page.mouse.down();
-    await page.mouse.move(centerX + dragX, centerY + dragY, {steps: 20});
+    await page.mouse.move(centerX + dragX, centerY + dragY, { steps: 20 });
     await page.mouse.up();
 
     // Wait for camera to settle
@@ -164,13 +161,15 @@ async function setupCamera(
 async function enableAxesViewer(page: PageLike): Promise<void> {
     await page.evaluate(() => {
         const elem = document.querySelector("graphty-element");
-        const graphty = elem as {graph: {scene: {metadata?: {axesViewer?: {dispose: () => void}}, render: () => void}}} | null;
+        const graphty = elem as {
+            graph: { scene: { metadata?: { axesViewer?: { dispose: () => void } }; render: () => void } };
+        } | null;
         if (!graphty?.graph) {
             console.error("Graph not found");
             return;
         }
 
-        const {scene} = graphty.graph;
+        const { scene } = graphty.graph;
 
         // Remove any existing axes viewer
         if (scene.metadata?.axesViewer) {
@@ -179,37 +178,37 @@ async function enableAxesViewer(page: PageLike): Promise<void> {
 
         // Create AxesViewer using global BABYLON namespace
         // Size 5 makes axes visible but not too large
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Browser context accessing global BABYLON namespace
+         
         const axes = new (window as any).BABYLON.AxesViewer(scene, 5);
 
         // Make the colors bright and vivid (graphty-element's scene settings can wash out colors)
         // Set both emissive and diffuse colors to full brightness
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Private BabylonJS internal API
+         
         axes._xAxis.getChildMeshes().forEach((mesh: any) => {
             if (mesh.material) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Browser context accessing global BABYLON namespace
+                 
                 mesh.material.emissiveColor = new (window as any).BABYLON.Color3(1, 0, 0); // Bright red
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Browser context accessing global BABYLON namespace
+                 
                 mesh.material.diffuseColor = new (window as any).BABYLON.Color3(1, 0, 0);
             }
         });
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Private BabylonJS internal API
+         
         axes._yAxis.getChildMeshes().forEach((mesh: any) => {
             if (mesh.material) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Browser context accessing global BABYLON namespace
+                 
                 mesh.material.emissiveColor = new (window as any).BABYLON.Color3(0, 1, 0); // Bright green
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Browser context accessing global BABYLON namespace
+                 
                 mesh.material.diffuseColor = new (window as any).BABYLON.Color3(0, 1, 0);
             }
         });
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Private BabylonJS internal API
+         
         axes._zAxis.getChildMeshes().forEach((mesh: any) => {
             if (mesh.material) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Browser context accessing global BABYLON namespace
+                 
                 mesh.material.emissiveColor = new (window as any).BABYLON.Color3(0, 0, 1); // Bright blue
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Browser context accessing global BABYLON namespace
+                 
                 mesh.material.diffuseColor = new (window as any).BABYLON.Color3(0, 0, 1);
             }
         });
@@ -239,7 +238,7 @@ function getTimestamp(): string {
  * Main capture function
  */
 async function captureScreenshots(storyId: string, showAxes = false): Promise<void> {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
     try {
@@ -249,7 +248,7 @@ async function captureScreenshots(storyId: string, showAxes = false): Promise<vo
         await page.goto(storyUrl);
 
         // Wait for the component to load and render
-        await page.waitForSelector("graphty-element", {timeout: 10000});
+        await page.waitForSelector("graphty-element", { timeout: 10000 });
         console.log("Component loaded");
 
         // Wait for initial render to complete

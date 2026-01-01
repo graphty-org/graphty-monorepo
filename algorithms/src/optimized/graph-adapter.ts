@@ -1,6 +1,6 @@
-import type {Graph} from "../core/graph.js";
-import type {NodeId} from "../types/index.js";
-import {CSRGraph, type ReadonlyGraph} from "./csr-graph.js";
+import type { Graph } from "../core/graph.js";
+import type { NodeId } from "../types/index.js";
+import { CSRGraph, type ReadonlyGraph } from "./csr-graph.js";
 
 /**
  * Adapter to convert standard Graph to CSR format
@@ -10,8 +10,12 @@ import {CSRGraph, type ReadonlyGraph} from "./csr-graph.js";
 export class GraphAdapter<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     private csrGraph: CSRGraph<TNodeId>;
 
+    /**
+     * Creates a new GraphAdapter that wraps or converts a graph to CSR format.
+     * @param graph - The graph to adapt (either standard Graph or ReadonlyGraph)
+     */
     constructor(graph: Graph | ReadonlyGraph<TNodeId>) {
-    // Check if already a CSRGraph
+        // Check if already a CSRGraph
         if (graph instanceof CSRGraph) {
             this.csrGraph = graph as CSRGraph<TNodeId>;
         } else {
@@ -21,8 +25,10 @@ export class GraphAdapter<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     }
 
     /**
-   * Convert standard graph to CSR format
-   */
+     * Convert standard graph to CSR format.
+     * @param graph - The graph to convert
+     * @returns A new CSRGraph instance
+     */
     private convertToCSR(graph: Graph | ReadonlyGraph<TNodeId>): CSRGraph<TNodeId> {
         const adjacencyList = new Map<TNodeId, TNodeId[]>();
         const weights = new Map<string, number>();
@@ -31,7 +37,7 @@ export class GraphAdapter<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
         if ("nodes" in graph && typeof graph.nodes === "function") {
             // Build adjacency list from Graph
             for (const node of graph.nodes()) {
-                const nodeId = (node as {id: TNodeId}).id;
+                const nodeId = (node as { id: TNodeId }).id;
                 const neighbors: TNodeId[] = [];
 
                 const graphTyped = graph as Graph;
@@ -53,7 +59,7 @@ export class GraphAdapter<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
             // Handle ReadonlyGraph with nodeIds method
             interface ReadonlyGraphWithNodeIds {
                 nodeIds(): Iterable<TNodeId>;
-                edges?(): Iterable<{source: TNodeId, target: TNodeId, weight?: number}>;
+                edges?(): Iterable<{ source: TNodeId; target: TNodeId; weight?: number }>;
             }
             const readonlyGraph = graph as ReadonlyGraphWithNodeIds;
             for (const nodeId of readonlyGraph.nodeIds()) {
@@ -78,37 +84,71 @@ export class GraphAdapter<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     }
 
     // Delegate all methods to CSR implementation
+    /**
+     * Get the total number of nodes in the graph.
+     * @returns The number of nodes
+     */
     nodeCount(): number {
         return this.csrGraph.nodeCount();
     }
 
+    /**
+     * Get the total number of edges in the graph.
+     * @returns The number of edges
+     */
     edgeCount(): number {
         return this.csrGraph.edgeCount();
     }
 
+    /**
+     * Check if a node exists in the graph.
+     * @param nodeId - The node ID to check
+     * @returns True if the node exists, false otherwise
+     */
     hasNode(nodeId: TNodeId): boolean {
         return this.csrGraph.hasNode(nodeId);
     }
 
+    /**
+     * Check if an edge exists between two nodes.
+     * @param source - The source node ID
+     * @param target - The target node ID
+     * @returns True if the edge exists, false otherwise
+     */
     hasEdge(source: TNodeId, target: TNodeId): boolean {
         return this.csrGraph.hasEdge(source, target);
     }
 
+    /**
+     * Get neighbors of a node as node IDs.
+     * @param nodeId - The node ID to get neighbors for
+     * @returns An iterator over neighbor node IDs
+     */
     neighbors(nodeId: TNodeId): IterableIterator<TNodeId> {
         return this.csrGraph.neighbors(nodeId);
     }
 
+    /**
+     * Get the out-degree (number of outgoing edges) of a node.
+     * @param nodeId - The node ID to get the out-degree for
+     * @returns The number of outgoing edges from the node
+     */
     outDegree(nodeId: TNodeId): number {
         return this.csrGraph.outDegree(nodeId);
     }
 
+    /**
+     * Get all nodes in the graph.
+     * @returns An iterator over all node IDs
+     */
     nodes(): IterableIterator<TNodeId> {
         return this.csrGraph.nodes();
     }
 
     /**
-   * Get the underlying CSR graph
-   */
+     * Get the underlying CSR graph.
+     * @returns The CSRGraph instance used internally
+     */
     getCSRGraph(): CSRGraph<TNodeId> {
         return this.csrGraph;
     }
@@ -133,31 +173,36 @@ export interface GraphAlgorithmConfig {
 }
 
 /**
- * Configure optimizations globally
+ * Configure optimizations globally.
  * @deprecated This function is a no-op and will be removed in a future version
+ * @param _config - The configuration object (ignored)
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function configureOptimizations(_config: GraphAlgorithmConfig): void {
     // No-op for backward compatibility
 }
 
 /**
- * Get current configuration
+ * Get current configuration.
  * @deprecated This function returns empty config and will be removed in a future version
+ * @returns An empty configuration object
  */
 export function getOptimizationConfig(): GraphAlgorithmConfig {
     return {};
 }
 
 /**
- * Check if a graph is already in CSR format
+ * Check if a graph is already in CSR format.
+ * @param graph - The graph to check
+ * @returns True if the graph is a CSRGraph instance
  */
 export function isCSRGraph<TNodeId = NodeId>(graph: unknown): graph is CSRGraph<TNodeId> {
     return graph instanceof CSRGraph;
 }
 
 /**
- * Convert any graph to CSR format
+ * Convert any graph to CSR format.
+ * @param graph - The graph to convert
+ * @returns A CSRGraph instance (either the original if already CSR, or a new converted one)
  */
 export function toCSRGraph<TNodeId = NodeId>(
     graph: Graph | ReadonlyGraph<TNodeId> | CSRGraph<TNodeId>,
@@ -171,7 +216,10 @@ export function toCSRGraph<TNodeId = NodeId>(
 }
 
 /**
- * Create an optimized graph from nodes and edges
+ * Create an optimized graph from nodes and edges.
+ * @param nodes - Array of node IDs
+ * @param edges - Array of edge tuples [source, target, weight?]
+ * @returns A new CSRGraph instance
  */
 export function createOptimizedGraph<TNodeId = NodeId>(
     nodes: TNodeId[],

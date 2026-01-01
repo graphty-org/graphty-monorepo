@@ -3,9 +3,9 @@
  * These tests run in a real browser environment via Playwright.
  */
 
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import {ApiKeyManager} from "../../../src/ai/keys/ApiKeyManager";
+import { ApiKeyManager } from "../../../src/ai/keys/ApiKeyManager";
 
 describe("ApiKeyManager Persistence", () => {
     // Use unique prefixes for each test to avoid interference

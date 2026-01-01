@@ -1,7 +1,11 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {betweennessCentrality, edgeBetweennessCentrality, nodeBetweennessCentrality} from "../../src/algorithms/centrality/betweenness.js";
-import {Graph} from "../../src/core/graph.js";
+import {
+    betweennessCentrality,
+    edgeBetweennessCentrality,
+    nodeBetweennessCentrality,
+} from "../../src/algorithms/centrality/betweenness.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Betweenness Centrality", () => {
     describe("betweennessCentrality", () => {
@@ -44,7 +48,7 @@ describe("Betweenness Centrality", () => {
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const centrality = betweennessCentrality(graph, {normalized: true});
+            const centrality = betweennessCentrality(graph, { normalized: true });
 
             // For 3 nodes in undirected graph: normalization factor = (3-1)*(3-2)/2 = 1
             expect(centrality.a).toBe(0);
@@ -53,7 +57,7 @@ describe("Betweenness Centrality", () => {
         });
 
         it("should handle directed graphs", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
@@ -169,7 +173,7 @@ describe("Betweenness Centrality", () => {
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const centrality = nodeBetweennessCentrality(graph, "b", {normalized: true});
+            const centrality = nodeBetweennessCentrality(graph, "b", { normalized: true });
 
             expect(centrality).toBe(1);
         });
@@ -230,14 +234,14 @@ describe("Betweenness Centrality", () => {
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const centrality = edgeBetweennessCentrality(graph, {normalized: true});
+            const centrality = edgeBetweennessCentrality(graph, { normalized: true });
 
             expect(centrality.get("a-b")).toBe(1);
             expect(centrality.get("b-c")).toBe(1);
         });
 
         it("should handle directed graphs for edge betweenness", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
@@ -270,7 +274,7 @@ describe("Betweenness Centrality", () => {
 
     describe("edge cases", () => {
         it("should handle self-loops", () => {
-            const graph = new Graph({allowSelfLoops: true});
+            const graph = new Graph({ allowSelfLoops: true });
 
             graph.addEdge("a", "a");
             graph.addEdge("a", "b");
@@ -311,7 +315,7 @@ describe("Betweenness Centrality", () => {
 
             const centrality = betweennessCentrality(graph);
 
-            expect(centrality.center).toBe((nodeCount - 1) * (nodeCount - 2) / 2);
+            expect(centrality.center).toBe(((nodeCount - 1) * (nodeCount - 2)) / 2);
             expect(centrality.node_1).toBe(0);
         });
 
@@ -322,8 +326,8 @@ describe("Betweenness Centrality", () => {
             graph.addEdge("b", "c");
             graph.addEdge("c", "d");
 
-            const centralityWithEndpoints = betweennessCentrality(graph, {endpoints: true});
-            const centralityWithoutEndpoints = betweennessCentrality(graph, {endpoints: false});
+            const centralityWithEndpoints = betweennessCentrality(graph, { endpoints: true });
+            const centralityWithoutEndpoints = betweennessCentrality(graph, { endpoints: false });
 
             // Test that endpoints option affects the calculation differently
             expect(centralityWithEndpoints.c).toBeDefined();
@@ -361,7 +365,7 @@ describe("Betweenness Centrality", () => {
         });
 
         it("should handle zero shortest paths", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a directed graph where some nodes are unreachable
             graph.addEdge("a", "b");
@@ -391,7 +395,7 @@ describe("Betweenness Centrality", () => {
         });
 
         it("should handle parallel edges correctly", () => {
-            const graph = new Graph({allowParallelEdges: true});
+            const graph = new Graph({ allowParallelEdges: true });
 
             graph.addEdge("a", "b");
             graph.addEdge("a", "b"); // Parallel edge
@@ -404,7 +408,7 @@ describe("Betweenness Centrality", () => {
         });
 
         it("should handle directed graph with cycles", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
@@ -463,7 +467,7 @@ describe("Betweenness Centrality", () => {
         });
 
         it("should handle directed graph with no paths between some nodes", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addNode("a");
             graph.addNode("b");
             graph.addNode("c");
@@ -537,7 +541,7 @@ describe("Betweenness Centrality", () => {
         });
 
         it("should handle directed graph with exactly 3 nodes normalized", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("a");
             directedGraph.addNode("b");
             directedGraph.addNode("c");
@@ -553,7 +557,7 @@ describe("Betweenness Centrality", () => {
         });
 
         it("should handle edge betweenness for directed graph normalized with 2 nodes", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("a");
             directedGraph.addNode("b");
             directedGraph.addEdge("a", "b");
@@ -571,7 +575,7 @@ describe("Betweenness Centrality", () => {
 
         it("should handle case where sigma is 0 for node", () => {
             // This is a theoretical edge case where we force sigma to be 0
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create disconnected nodes
             graph.addNode("isolated1");
@@ -608,7 +612,7 @@ describe("Betweenness Centrality", () => {
         });
 
         it("should handle edge betweenness with zero sigma values", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a structure that might lead to zero sigma
             graph.addNode("source");
@@ -633,7 +637,7 @@ describe("Betweenness Centrality", () => {
         });
 
         it("should handle directed graph normalization with 1 node", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("only");
 
             const centrality = betweennessCentrality(directedGraph, {
@@ -655,7 +659,7 @@ describe("Betweenness Centrality", () => {
         });
 
         it("should handle directed edge betweenness normalization with 1 node", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("only");
 
             const edgeCentrality = edgeBetweennessCentrality(directedGraph, {
@@ -683,7 +687,7 @@ describe("Betweenness Centrality", () => {
         });
 
         it("should handle edge betweenness with missing predecessors", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Single node with self-loop
             graph.addNode("self");
@@ -734,7 +738,7 @@ describe("Betweenness Centrality", () => {
             graph.addNode("test");
             graph.addNode("test2");
 
-            const centrality = betweennessCentrality(graph, {normalized: true});
+            const centrality = betweennessCentrality(graph, { normalized: true });
 
             expect(centrality.test).toBeDefined();
             expect(centrality.test2).toBeDefined();
@@ -748,8 +752,8 @@ describe("Betweenness Centrality", () => {
             graph.addEdge("b", "c");
             graph.addEdge("c", "d");
 
-            const withEndpoints = betweennessCentrality(graph, {endpoints: true});
-            const withoutEndpoints = betweennessCentrality(graph, {endpoints: false});
+            const withEndpoints = betweennessCentrality(graph, { endpoints: true });
+            const withoutEndpoints = betweennessCentrality(graph, { endpoints: false });
 
             // Endpoints option should affect the calculation
             expect(withEndpoints.b).toBeDefined();
@@ -762,8 +766,8 @@ describe("Betweenness Centrality", () => {
             // Single node graph will have normalization factor of 0
             graph.addNode("single");
 
-            const centralityNormalized = betweennessCentrality(graph, {normalized: true});
-            const edgeCentralityNormalized = edgeBetweennessCentrality(graph, {normalized: true});
+            const centralityNormalized = betweennessCentrality(graph, { normalized: true });
+            const edgeCentralityNormalized = edgeBetweennessCentrality(graph, { normalized: true });
 
             expect(centralityNormalized.single).toBe(0);
             expect(edgeCentralityNormalized.size).toBe(0);
@@ -823,8 +827,8 @@ describe("Betweenness Centrality", () => {
             graph.addEdge("b", "c");
             graph.addEdge("c", "d");
 
-            const edgeCentralityWithEndpoints = edgeBetweennessCentrality(graph, {endpoints: true});
-            const edgeCentralityWithoutEndpoints = edgeBetweennessCentrality(graph, {endpoints: false});
+            const edgeCentralityWithEndpoints = edgeBetweennessCentrality(graph, { endpoints: true });
+            const edgeCentralityWithoutEndpoints = edgeBetweennessCentrality(graph, { endpoints: false });
 
             // Test that endpoints option creates valid edge centrality maps
             expect(edgeCentralityWithEndpoints.get("a-b")).toBeDefined();
@@ -835,14 +839,14 @@ describe("Betweenness Centrality", () => {
         });
 
         it("should test endpoints option with directed graphs", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
 
             directedGraph.addEdge("source", "middle");
             directedGraph.addEdge("middle", "target");
             directedGraph.addEdge("target", "end");
 
-            const centralityWithEndpoints = betweennessCentrality(directedGraph, {endpoints: true});
-            const centralityWithoutEndpoints = betweennessCentrality(directedGraph, {endpoints: false});
+            const centralityWithEndpoints = betweennessCentrality(directedGraph, { endpoints: true });
+            const centralityWithoutEndpoints = betweennessCentrality(directedGraph, { endpoints: false });
 
             expect(centralityWithEndpoints.middle).toBeDefined();
             expect(centralityWithoutEndpoints.middle).toBeDefined();
@@ -852,7 +856,7 @@ describe("Betweenness Centrality", () => {
         });
 
         it("should handle sigma zero check in node centrality calculation", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a directed graph where some sigma values might be zero
             graph.addNode("isolated1");
@@ -880,7 +884,7 @@ describe("Betweenness Centrality", () => {
             graph.addEdge("c", "d");
 
             // Test with endpoints=false (should exclude endpoint contributions)
-            const result = betweennessCentrality(graph, {endpoints: false});
+            const result = betweennessCentrality(graph, { endpoints: false });
 
             // Verify node centralities are calculated
             expect(result).toBeDefined();
@@ -909,7 +913,7 @@ describe("Betweenness Centrality", () => {
             // Single edge graph
             graph.addEdge("source", "target");
 
-            const result = betweennessCentrality(graph, {endpoints: false});
+            const result = betweennessCentrality(graph, { endpoints: false });
 
             expect(result.source).toBe(0);
             expect(result.target).toBe(0);
@@ -917,7 +921,7 @@ describe("Betweenness Centrality", () => {
         });
 
         it("should handle complex directed graph with multiple shortest paths", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a directed graph with multiple paths of same length
             graph.addEdge("s", "a");
@@ -939,7 +943,7 @@ describe("Betweenness Centrality", () => {
         });
 
         it("should handle edge centrality normalization for undirected graphs", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a square with diagonals
             graph.addEdge("tl", "tr");
@@ -949,7 +953,7 @@ describe("Betweenness Centrality", () => {
             graph.addEdge("tl", "br");
             graph.addEdge("tr", "bl");
 
-            const result = betweennessCentrality(graph, {normalized: true});
+            const result = betweennessCentrality(graph, { normalized: true });
 
             // Check node centralities exist and are properly normalized
             expect(result).toBeDefined();

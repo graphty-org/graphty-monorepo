@@ -1,10 +1,10 @@
-import {Badge, Box, Group, Stack, Text} from "@mantine/core";
-import {FileText} from "lucide-react";
+import { Badge, Box, Group, Stack, Text } from "@mantine/core";
+import { FileText } from "lucide-react";
 import React from "react";
 
-import type {GraphInfo} from "../../../types/selection";
-import {ControlGroup} from "../controls/ControlGroup";
-import {StatRow} from "../controls/StatRow";
+import type { GraphInfo } from "../../../types/selection";
+import { ControlGroup } from "../controls/ControlGroup";
+import { StatRow } from "../controls/StatRow";
 
 interface GraphPropertiesPanelProps {
     /** Information about the current graph */
@@ -14,10 +14,11 @@ interface GraphPropertiesPanelProps {
 /**
  * Panel displaying graph-level properties and statistics.
  * Shown when no layer is selected in the sidebar.
+ * @param root0 - Component props
+ * @param root0.graphInfo - Information about the current graph
+ * @returns The graph properties panel component
  */
-export function GraphPropertiesPanel({
-    graphInfo,
-}: GraphPropertiesPanelProps): React.JSX.Element {
+export function GraphPropertiesPanel({ graphInfo }: GraphPropertiesPanelProps): React.JSX.Element {
     const formatDensity = (density: number): string => {
         // Format to 4 decimal places, but remove trailing zeros
         return density.toFixed(4).replace(/\.?0+$/, "") || "0";
@@ -31,8 +32,8 @@ export function GraphPropertiesPanel({
                     <Stack gap={4} py={4}>
                         {graphInfo.dataSources.map((source, index) => (
                             <Group key={index} gap="xs">
-                                <FileText size={12} style={{color: "var(--mantine-color-gray-5)"}} />
-                                <Text size="xs" c="dimmed" style={{fontSize: "11px"}}>
+                                <FileText size={12} style={{ color: "var(--mantine-color-gray-5)" }} />
+                                <Text size="xs" c="dimmed" style={{ fontSize: "11px" }}>
                                     {source.name}
                                 </Text>
                                 <Badge size="compact" variant="light" color="gray">
@@ -43,7 +44,7 @@ export function GraphPropertiesPanel({
                     </Stack>
                 ) : (
                     <Box py={8}>
-                        <Text size="xs" c="dimmed" fs="italic" style={{fontSize: "11px"}}>
+                        <Text size="xs" c="dimmed" fs="italic" style={{ fontSize: "11px" }}>
                             No data loaded
                         </Text>
                     </Box>

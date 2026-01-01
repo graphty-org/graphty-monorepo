@@ -2,11 +2,7 @@
  * Binary color helpers for highlighted vs normal states
  */
 
-import {
-    BLUE_HIGHLIGHT,
-    GREEN_SUCCESS,
-    ORANGE_WARNING,
-} from "../../../config/palettes/binary";
+import { BLUE_HIGHLIGHT, GREEN_SUCCESS, ORANGE_WARNING } from "../../../config/palettes/binary";
 
 /**
  * Blue highlight - universal safe hue
@@ -56,10 +52,6 @@ export function orangeWarning(isHighlighted: boolean): string {
  * @param mutedColor - Color for normal state (hex string)
  * @returns Hex color string
  */
-export function custom(
-    isHighlighted: boolean,
-    highlightColor: string,
-    mutedColor: string,
-): string {
+export function custom(isHighlighted: boolean, highlightColor: string, mutedColor: string): string {
     return isHighlighted ? highlightColor : mutedColor;
 }

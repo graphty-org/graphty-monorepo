@@ -3,7 +3,7 @@
  * @module ai/input/VoiceInputAdapter
  */
 
-import type {InputAdapter, InputCallback, InputOptions} from "./types";
+import type { InputAdapter, InputCallback, InputOptions } from "./types";
 
 // Web Speech API types (not available in all browsers)
 interface SpeechRecognitionEvent extends Event {
@@ -47,7 +47,7 @@ interface SpeechRecognition extends EventTarget {
     abort(): void;
 }
 
-type SpeechRecognitionConstructor = new() => SpeechRecognition;
+type SpeechRecognitionConstructor = new () => SpeechRecognition;
 
 // Global type declaration for browser speech API
 declare global {
@@ -227,8 +227,8 @@ export class VoiceInputAdapter implements InputAdapter {
         // Process results starting from the new ones
         for (let i = event.resultIndex; i < event.results.length; i++) {
             const result = event.results[i];
-            const {transcript} = result[0];
-            const {isFinal} = result;
+            const { transcript } = result[0];
+            const { isFinal } = result;
 
             // Notify all callbacks
             for (const callback of this.callbacks) {

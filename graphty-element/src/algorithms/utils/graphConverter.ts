@@ -2,9 +2,9 @@
  * @file Utility for converting graphty-element Graph to @graphty/algorithms Graph format
  */
 
-import {Graph as AlgorithmGraph} from "@graphty/algorithms";
+import { Graph as AlgorithmGraph } from "@graphty/algorithms";
 
-import type {Graph} from "../../Graph";
+import type { Graph } from "../../Graph";
 
 /**
  * Options for graph conversion
@@ -32,7 +32,7 @@ export interface GraphConverterOptions {
  * @returns A new AlgorithmGraph instance
  */
 export function toAlgorithmGraph(g: Graph, options: GraphConverterOptions = {}): AlgorithmGraph {
-    const {directed = false, weightAttribute = "value", allowParallelEdges = true, addReverseEdges = true} = options;
+    const { directed = false, weightAttribute = "value", allowParallelEdges = true, addReverseEdges = true } = options;
 
     // Determine the actual directedness of the created graph:
     // - If directed=true, create a directed graph (no reverse edges needed)
@@ -41,7 +41,7 @@ export function toAlgorithmGraph(g: Graph, options: GraphConverterOptions = {}):
     // - If directed=false and addReverseEdges=false, create a truly undirected graph
     //   (required for MST algorithms like kruskal/prim)
     const useDirectedInternally = directed || addReverseEdges;
-    const graph = new AlgorithmGraph({directed: useDirectedInternally, allowParallelEdges});
+    const graph = new AlgorithmGraph({ directed: useDirectedInternally, allowParallelEdges });
 
     // Add all nodes
     for (const node of g.getDataManager().nodes.values()) {
@@ -83,7 +83,7 @@ export function toAlgorithmGraph(g: Graph, options: GraphConverterOptions = {}):
  * @returns An adjacency map where outer map keys are node IDs, inner maps are neighbor -> weight
  */
 export function toAdjacencyMap(g: Graph, options: GraphConverterOptions = {}): Map<string, Map<string, number>> {
-    const {weightAttribute = "value"} = options;
+    const { weightAttribute = "value" } = options;
 
     const adjacencyMap = new Map<string, Map<string, number>>();
 

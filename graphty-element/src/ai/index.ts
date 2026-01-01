@@ -4,23 +4,16 @@
  */
 
 // Status
-export type {
-    AiStage,
-    AiState,
-    AiStatus,
-    StatusChangeCallback,
-    ToolCallStatus,
-    ToolCallStatusType,
-} from "./AiStatus";
-export {AiStatusManager} from "./AiStatus";
+export type { AiStage, AiState, AiStatus, StatusChangeCallback, ToolCallStatus, ToolCallStatusType } from "./AiStatus";
+export { AiStatusManager } from "./AiStatus";
 
 // Controller
-export type {AiControllerOptions, AiEventEmitter, ExecutionResult} from "./AiController";
-export {AiController} from "./AiController";
+export type { AiControllerOptions, AiEventEmitter, ExecutionResult } from "./AiController";
+export { AiController } from "./AiController";
 
 // Manager (Phase 3)
-export type {AiManagerConfig, KeyPersistenceConfig} from "./AiManager";
-export {AiManager, createAiManager} from "./AiManager";
+export type { AiManagerConfig, KeyPersistenceConfig } from "./AiManager";
+export { AiManager, createAiManager } from "./AiManager";
 
 // Commands
 export {
@@ -50,12 +43,7 @@ export {
     setLayout,
     zoomToNodes,
 } from "./commands";
-export type {
-    CommandContext,
-    CommandExample,
-    CommandResult,
-    GraphCommand,
-} from "./commands/types";
+export type { CommandContext, CommandExample, CommandResult, GraphCommand } from "./commands/types";
 
 // Providers
 export type {
@@ -82,16 +70,16 @@ export {
 } from "./providers";
 
 // Keys (Phase 7)
-export type {PersistenceConfig} from "./keys";
-export {ApiKeyManager} from "./keys";
+export type { PersistenceConfig } from "./keys";
+export { ApiKeyManager } from "./keys";
 
 // Prompt Builder (Phase 3)
-export type {SystemPromptOptions} from "./prompt/SystemPromptBuilder";
-export {createSystemPromptBuilder, SystemPromptBuilder} from "./prompt/SystemPromptBuilder";
+export type { SystemPromptOptions } from "./prompt/SystemPromptBuilder";
+export { createSystemPromptBuilder, SystemPromptBuilder } from "./prompt/SystemPromptBuilder";
 
 // Input Adapters (Phase 6)
-export type {InputAdapter, InputCallback, InputOptions} from "./input";
-export {TextInputAdapter, VoiceInputAdapter} from "./input";
+export type { InputAdapter, InputCallback, InputOptions } from "./input";
+export { TextInputAdapter, VoiceInputAdapter } from "./input";
 
 // Schema Discovery (Phase 4-6)
 export type {
@@ -102,8 +90,4 @@ export type {
     SchemaExtractorOptions,
     SchemaSummary,
 } from "./schema";
-export {
-    formatSchemaForPrompt,
-    SchemaExtractor,
-    SchemaManager,
-} from "./schema";
+export { formatSchemaForPrompt, SchemaExtractor, SchemaManager } from "./schema";

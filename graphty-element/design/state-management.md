@@ -9,29 +9,33 @@ After thorough analysis, Redux and similar state management libraries would prov
 ## Current Problems Analysis
 
 ### 1. Property Initialization Order Issues
+
 ```javascript
 // Current problem: Different orders produce different results
 element.data = newData;
-element.layout = 'force-directed';
+element.layout = "force-directed";
 element.styleTemplate = newStyles;
 // vs
 element.styleTemplate = newStyles;
 element.data = newData;
-element.layout = 'force-directed';
+element.layout = "force-directed";
 ```
 
 ### 2. Complex Manager Dependencies
+
 - 11 managers with fragile initialization order
 - Circular dependencies (e.g., DataManager ↔ LayoutManager)
 - No compile-time safety for dependencies
 
 ### 3. Asynchronous Coordination
+
 - Layout engines perform async calculations
 - Data loading happens in chunks
 - Style calculations depend on DOM measurements
 - Babylon.js rendering has its own timing
 
 ### 4. Web Component Constraints
+
 - Properties can be set in any order from HTML
 - Must maintain standard property interface
 - Cannot control when browser calls setters
@@ -39,61 +43,70 @@ element.layout = 'force-directed';
 ## What Redux Would Solve
 
 ### ✅ 1. Single Source of Truth
+
 ```javascript
 // Redux approach
 const state = {
-  data: { nodes: [], edges: [] },
-  layout: { type: 'ngraph', options: {} },
-  styles: { template: null, computed: {} }
+    data: { nodes: [], edges: [] },
+    layout: { type: "ngraph", options: {} },
+    styles: { template: null, computed: {} },
 };
 ```
+
 - All state in one centralized store
 - Clear state shape and structure
 - Easier to reason about current state
 
 ### ✅ 2. Predictable State Transitions
+
 ```javascript
 // Redux reducer ensures predictable updates
 function graphReducer(state, action) {
-  switch (action.type) {
-    case 'SET_DATA':
-      return { ...state, data: action.payload };
-    case 'SET_LAYOUT':
-      return { ...state, layout: action.payload };
-    case 'SET_STYLE':
-      return { ...state, styles: action.payload };
-  }
+    switch (action.type) {
+        case "SET_DATA":
+            return { ...state, data: action.payload };
+        case "SET_LAYOUT":
+            return { ...state, layout: action.payload };
+        case "SET_STYLE":
+            return { ...state, styles: action.payload };
+    }
 }
 ```
+
 - Immutable updates prevent accidental mutations
 - Pure functions make testing easier
 - Clear action → state transformation
 
 ### ✅ 3. Time-Travel Debugging
+
 - Redux DevTools would show exact sequence of changes
 - Could replay problematic sequences
 - Better visibility into state evolution
 
 ### ✅ 4. Middleware for Side Effects
+
 ```javascript
 // Redux-Saga or Redux-Thunk for async coordination
 function* setDataSaga(action) {
-  yield put({ type: 'DATA_LOADING' });
-  const processed = yield call(processData, action.payload);
-  yield put({ type: 'DATA_LOADED', payload: processed });
-  yield put({ type: 'TRIGGER_LAYOUT_UPDATE' });
+    yield put({ type: "DATA_LOADING" });
+    const processed = yield call(processData, action.payload);
+    yield put({ type: "DATA_LOADED", payload: processed });
+    yield put({ type: "TRIGGER_LAYOUT_UPDATE" });
 }
 ```
 
 ## What Redux Would NOT Solve
 
 ### ❌ 1. Property Dependency Ordering
+
 Redux doesn't inherently solve the problem that layout depends on data, and both depend on styles. You'd still need to:
+
 - Manually coordinate the order of operations
 - Handle dependencies in reducers or middleware
 - Deal with cascading updates
 
 ### ❌ 2. Web Component Property Interface
+
 ```javascript
 // Still need property setters for Web Component API
 set data(value) {
@@ -102,21 +115,25 @@ set data(value) {
   // But when do we actually update? Need batching logic anyway
 }
 ```
+
 - Cannot remove property setters
 - Still need batching to prevent multiple renders
 - Redux adds indirection without solving timing
 
 ### ❌ 3. Asynchronous Layout Calculations
+
 ```javascript
 // Layout engines have their own async behavior
 layoutEngine.step(); // Async physics simulation
 // Redux can't make this synchronous or deterministic
 ```
+
 - Physics simulations are inherently iterative
 - WebGL/Babylon.js rendering has fixed timing
 - Redux doesn't help coordinate external async systems
 
 ### ❌ 4. Manager Initialization Dependencies
+
 ```javascript
 // Redux doesn't solve initialization order
 // These managers still have complex interdependencies:
@@ -126,6 +143,7 @@ new UpdateManager(eventManager, statsManager, layoutManager, ...);
 ```
 
 ### ❌ 5. Performance Overhead
+
 - Redux adds indirection for every state change
 - Immutable updates create object copying overhead
 - Still need custom batching logic
@@ -142,7 +160,7 @@ class GraphtyElement extends HTMLElement {
   // Reactive batching infrastructure
   private _updatePending = false;
   private _pendingUpdates = new Map<string, PropertyUpdate>();
-  
+
   // Dependency graph for ordering
   private static depGraph = new DependencyGraph([
     ['data', 'style'],      // data depends on style
@@ -154,82 +172,89 @@ class GraphtyElement extends HTMLElement {
 ### Why This Solution is Superior
 
 1. **Directly Addresses Dependencies**
-   - Explicit dependency graph
-   - Topological sort ensures correct order
-   - Works with any property setting sequence
+    - Explicit dependency graph
+    - Topological sort ensures correct order
+    - Works with any property setting sequence
 
 2. **Maintains Web Component API**
-   - Standard property setters
-   - No external library requirements
-   - Compatible with HTML attribute binding
+    - Standard property setters
+    - No external library requirements
+    - Compatible with HTML attribute binding
 
 3. **Optimized for Performance**
-   - Microtask batching (like Lit)
-   - Single update cycle for multiple changes
-   - No immutability overhead
+    - Microtask batching (like Lit)
+    - Single update cycle for multiple changes
+    - No immutability overhead
 
 4. **Handles Async Naturally**
-   - `updateComplete` promise for coordination
-   - Works with async layout engines
-   - Integrates with Babylon.js render loop
+    - `updateComplete` promise for coordination
+    - Works with async layout engines
+    - Integrates with Babylon.js render loop
 
 ## Alternative State Management Solutions
 
 ### 1. MobX
+
 ```javascript
 class GraphState {
-  @observable data = { nodes: [], edges: [] };
-  @observable layout = { type: 'ngraph' };
-  @observable styles = {};
-  
-  @action setData(data) {
-    this.data = data;
-    // Still need manual coordination
-  }
+    @observable data = { nodes: [], edges: [] };
+    @observable layout = { type: "ngraph" };
+    @observable styles = {};
+
+    @action setData(data) {
+        this.data = data;
+        // Still need manual coordination
+    }
 }
 ```
+
 - ✅ Less boilerplate than Redux
 - ✅ Better performance for frequent updates
 - ❌ Still doesn't solve dependency ordering
 - ❌ Requires decorators/transpilation
 
 ### 2. XState (State Machines)
+
 ```javascript
 const graphMachine = createMachine({
-  initial: 'idle',
-  states: {
-    idle: {
-      on: {
-        SET_DATA: 'updatingData',
-        SET_STYLE: 'updatingStyle'
-      }
+    initial: "idle",
+    states: {
+        idle: {
+            on: {
+                SET_DATA: "updatingData",
+                SET_STYLE: "updatingStyle",
+            },
+        },
+        updatingStyle: {
+            onDone: "updatingData",
+        },
+        updatingData: {
+            onDone: "updatingLayout",
+        },
     },
-    updatingStyle: {
-      onDone: 'updatingData'
-    },
-    updatingData: {
-      onDone: 'updatingLayout'
-    }
-  }
 });
 ```
+
 - ✅ Explicit state transitions
 - ✅ Prevents invalid states
 - ❌ Complex to implement for property setters
 - ❌ Overhead for simple property updates
 
 ### 3. Zustand
+
 ```javascript
 const useGraphStore = create((set) => ({
-  data: null,
-  layout: 'ngraph',
-  styles: null,
-  setData: (data) => set((state) => {
-    // Still need dependency logic
-    return { data };
-  })
+    data: null,
+    layout: "ngraph",
+    styles: null,
+    setData: (data) =>
+        set((state) => {
+            // Still need dependency logic
+            return { data };
+        }),
 }));
 ```
+
 - ✅ Minimal boilerplate
 - ✅ Good TypeScript support
 - ❌ React-focused (not ideal for Web Components)
@@ -240,22 +265,22 @@ const useGraphStore = create((set) => ({
 **Do not adopt Redux or similar state management libraries.** Instead, implement the proposed "Hybrid Reactive Batching with Dependency Graph" solution because:
 
 1. **It directly solves your actual problems:**
-   - Property dependency ordering
-   - Update batching
-   - Web Component compatibility
-   - Async coordination
+    - Property dependency ordering
+    - Update batching
+    - Web Component compatibility
+    - Async coordination
 
 2. **Redux would add complexity without solving core issues:**
-   - Still need custom batching logic
-   - Still need dependency management
-   - Adds performance overhead
-   - Requires significant refactoring
+    - Still need custom batching logic
+    - Still need dependency management
+    - Adds performance overhead
+    - Requires significant refactoring
 
 3. **The proposed solution is tailored to your architecture:**
-   - Works with existing manager pattern
-   - Integrates with Babylon.js
-   - Maintains Web Component standards
-   - Proven pattern (used by Lit)
+    - Works with existing manager pattern
+    - Integrates with Babylon.js
+    - Maintains Web Component standards
+    - Proven pattern (used by Lit)
 
 ## Implementation Path
 

@@ -1,4 +1,4 @@
-import {type BaseTexture, Color4, type Mesh, type Scene} from "@babylonjs/core";
+import { type BaseTexture, Color4, type Mesh, type Scene } from "@babylonjs/core";
 
 export interface BackgroundState {
     clearColor: Color4;
@@ -14,10 +14,7 @@ export interface BackgroundState {
  * @param skybox - The skybox mesh to disable, or null if none
  * @returns The saved background state for later restoration
  */
-export function enableTransparentBackground(
-    scene: Scene,
-    skybox: Mesh | null,
-): BackgroundState {
+export function enableTransparentBackground(scene: Scene, skybox: Mesh | null): BackgroundState {
     const original: BackgroundState = {
         clearColor: scene.clearColor.clone(),
         skyboxEnabled: skybox?.isEnabled() ?? false,
@@ -44,11 +41,7 @@ export function enableTransparentBackground(
  * @param skybox - The skybox mesh to restore, or null if none
  * @param state - The background state to restore from
  */
-export function restoreBackground(
-    scene: Scene,
-    skybox: Mesh | null,
-    state: BackgroundState,
-): void {
+export function restoreBackground(scene: Scene, skybox: Mesh | null, state: BackgroundState): void {
     scene.clearColor = state.clearColor;
     if (skybox) {
         skybox.setEnabled(state.skyboxEnabled);

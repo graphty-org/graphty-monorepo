@@ -1,9 +1,9 @@
-import {NullEngine, Scene} from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { NullEngine, Scene } from "@babylonjs/core";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import type {EdgeStyleConfig} from "../src/config";
-import {EdgeMesh} from "../src/meshes/EdgeMesh";
-import {MeshCache} from "../src/meshes/MeshCache";
+import type { EdgeStyleConfig } from "../src/config";
+import { EdgeMesh } from "../src/meshes/EdgeMesh";
+import { MeshCache } from "../src/meshes/MeshCache";
 
 describe("Arrow Tail Support", () => {
     let scene: Scene;
@@ -17,9 +17,9 @@ describe("Arrow Tail Support", () => {
 
     test("creates tail arrow when arrowTail configured", () => {
         const style: EdgeStyleConfig = {
-            arrowHead: {type: "normal", color: "#FF0000", size: 1, opacity: 1},
-            arrowTail: {type: "tee", color: "#0000FF", size: 1, opacity: 1},
-            line: {width: 0.5},
+            arrowHead: { type: "normal", color: "#FF0000", size: 1, opacity: 1 },
+            arrowTail: { type: "tee", color: "#0000FF", size: 1, opacity: 1 },
+            line: { width: 0.5 },
             enabled: true,
         };
 
@@ -59,9 +59,9 @@ describe("Arrow Tail Support", () => {
 
     test("tail arrow has independent styling", () => {
         const style: EdgeStyleConfig = {
-            arrowHead: {type: "normal", size: 1.0, color: "#FF0000", opacity: 1.0},
-            arrowTail: {type: "dot", size: 2.0, color: "#00FF00", opacity: 0.5},
-            line: {width: 0.5},
+            arrowHead: { type: "normal", size: 1.0, color: "#FF0000", opacity: 1.0 },
+            arrowTail: { type: "dot", size: 2.0, color: "#00FF00", opacity: 0.5 },
+            line: { width: 0.5 },
             enabled: true,
         };
 
@@ -116,9 +116,9 @@ describe("Arrow Tail Support", () => {
 
     test("arrow tail uses same sizing mechanism as arrow head", () => {
         const style: EdgeStyleConfig = {
-            arrowHead: {type: "normal", size: 3.0, color: "#FF0000", opacity: 1},
-            arrowTail: {type: "tee", size: 3.0, color: "#0000FF", opacity: 1},
-            line: {width: 0.5},
+            arrowHead: { type: "normal", size: 3.0, color: "#FF0000", opacity: 1 },
+            arrowTail: { type: "tee", size: 3.0, color: "#0000FF", opacity: 1 },
+            line: { width: 0.5 },
             enabled: true,
         };
 

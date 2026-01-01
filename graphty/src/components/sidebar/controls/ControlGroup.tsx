@@ -1,4 +1,4 @@
-import {Box, Divider, Group, Stack, Text} from "@mantine/core";
+import { Box, Divider, Group, Stack, Text } from "@mantine/core";
 import React from "react";
 
 interface ControlGroupProps {
@@ -10,8 +10,13 @@ interface ControlGroupProps {
 /**
  * A section header with label for grouping related controls.
  * Provides consistent Figma-style styling with separator lines.
+ * @param root0 - Component props
+ * @param root0.label - The label text for the group header
+ * @param root0.actions - Optional action buttons to display in the header
+ * @param root0.children - Child controls to render in the group
+ * @returns The control group component
  */
-export function ControlGroup({label, actions, children}: ControlGroupProps): React.JSX.Element {
+export function ControlGroup({ label, actions, children }: ControlGroupProps): React.JSX.Element {
     return (
         <Box>
             {/* Separator line above section */}

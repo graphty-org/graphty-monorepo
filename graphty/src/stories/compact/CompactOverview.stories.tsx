@@ -15,10 +15,10 @@ import {
     TextInput,
     Title,
 } from "@mantine/core";
-import type {Meta, StoryObj} from "@storybook/react";
-import {ChevronDown, Plus, Settings} from "lucide-react";
+import type { Meta, StoryObj } from "@storybook/react";
+import { ChevronDown, Plus, Settings } from "lucide-react";
 
-import {CompactComponentsDemo} from "../../components/demo/CompactComponentsDemo";
+import { CompactComponentsDemo } from "../../components/demo/CompactComponentsDemo";
 
 /**
  * Compact Components Overview
@@ -47,7 +47,7 @@ const meta: Meta = {
     },
     decorators: [
         (Story) => (
-            <Box p="md" style={{minWidth: 500, backgroundColor: "var(--mantine-color-body)"}}>
+            <Box p="md" style={{ minWidth: 500, backgroundColor: "var(--mantine-color-body)" }}>
                 <Story />
             </Box>
         ),
@@ -61,16 +61,20 @@ export const Introduction: Story = {
     render: () => (
         <Stack gap="lg">
             <Box>
-                <Title order={2} mb="md">Compact Component System</Title>
+                <Title order={2} mb="md">
+                    Compact Component System
+                </Title>
                 <Text c="dimmed" mb="lg">
-                    The compact size provides a dense UI suitable for properties panels,
-                    toolbars, and data-heavy interfaces. All components use{" "}
-                    <code>size="compact"</code> to achieve consistent 24px heights and 11px fonts.
+                    The compact size provides a dense UI suitable for properties panels, toolbars, and data-heavy
+                    interfaces. All components use <code>size="compact"</code> to achieve consistent 24px heights and
+                    11px fonts.
                 </Text>
             </Box>
 
             <Box>
-                <Title order={4} mb="sm">Quick Example</Title>
+                <Title order={4} mb="sm">
+                    Quick Example
+                </Title>
                 <Box
                     p="sm"
                     style={{
@@ -78,7 +82,9 @@ export const Introduction: Story = {
                         borderRadius: "var(--mantine-radius-sm)",
                     }}
                 >
-                    <Text size="xs" fw={500} mb="sm">Node Properties</Text>
+                    <Text size="xs" fw={500} mb="sm">
+                        Node Properties
+                    </Text>
                     <Stack gap={8}>
                         <Group grow>
                             <NativeSelect
@@ -86,20 +92,11 @@ export const Introduction: Story = {
                                 data={["Sphere", "Cube", "Cone"]}
                                 rightSection={<ChevronDown size={14} />}
                             />
-                            <NumberInput
-                                size="compact"
-                                defaultValue={1.0}
-                                decimalScale={1}
-                                hideControls
-                            />
+                            <NumberInput size="compact" defaultValue={1.0} decimalScale={1} hideControls />
                         </Group>
-                        <SegmentedControl
-                            size="compact"
-                            data={["Solid", "Gradient"]}
-                            fullWidth
-                        />
+                        <SegmentedControl size="compact" data={["Solid", "Gradient"]} fullWidth />
                         <Group>
-                            <ColorInput size="compact" defaultValue="#5B8FF9" style={{flex: 1}} />
+                            <ColorInput size="compact" defaultValue="#5B8FF9" style={{ flex: 1 }} />
                             <NumberInput size="compact" defaultValue={100} suffix="%" w={60} hideControls />
                         </Group>
                         <Slider size="compact" defaultValue={75} label={(val) => `${val}%`} />
@@ -108,7 +105,9 @@ export const Introduction: Story = {
                             <Checkbox size="compact" label="Selectable" defaultChecked />
                         </Group>
                         <Group justify="flex-end">
-                            <Button size="compact" variant="subtle">Reset</Button>
+                            <Button size="compact" variant="subtle">
+                                Reset
+                            </Button>
                             <Button size="compact">Apply</Button>
                         </Group>
                     </Stack>
@@ -132,7 +131,7 @@ export const SizeSpecifications: Story = {
                     fontSize: "12px",
                 }}
             >
-                <Text component="pre" style={{margin: 0, whiteSpace: "pre-wrap"}}>
+                <Text component="pre" style={{ margin: 0, whiteSpace: "pre-wrap" }}>
                     {`/* Input Components */
 --input-size: 24px;
 --input-fz: 11px;
@@ -187,9 +186,7 @@ export const AllComponents: Story = {
     parameters: {
         layout: "fullscreen",
     },
-    decorators: [
-        (Story) => <Story />,
-    ],
+    decorators: [(Story) => <Story />],
     render: () => <CompactComponentsDemo />,
 };
 
@@ -204,7 +201,9 @@ export const PropertiesPanelExample: Story = {
             }}
         >
             <Group justify="space-between" mb="sm">
-                <Text size="xs" fw={500}>Node Style</Text>
+                <Text size="xs" fw={500}>
+                    Node Style
+                </Text>
                 <ActionIcon size="compact" variant="subtle">
                     <Settings size={14} />
                 </ActionIcon>
@@ -212,13 +211,15 @@ export const PropertiesPanelExample: Story = {
 
             <Stack gap={8}>
                 <Box>
-                    <Text size="xs" c="dimmed" mb={2}>Shape</Text>
+                    <Text size="xs" c="dimmed" mb={2}>
+                        Shape
+                    </Text>
                     <Group gap={4} grow>
                         <NativeSelect
                             size="compact"
                             data={[
-                                {group: "Basic", items: ["Sphere", "Cube"]},
-                                {group: "Advanced", items: ["Torus", "Cone"]},
+                                { group: "Basic", items: ["Sphere", "Cube"] },
+                                { group: "Advanced", items: ["Torus", "Cone"] },
                             ]}
                             rightSection={<ChevronDown size={14} />}
                         />
@@ -237,22 +238,18 @@ export const PropertiesPanelExample: Story = {
                 <Divider />
 
                 <Box>
-                    <Text size="xs" c="dimmed" mb={2}>Color Mode</Text>
-                    <SegmentedControl
-                        size="compact"
-                        data={["Solid", "Gradient", "Radial"]}
-                        fullWidth
-                    />
+                    <Text size="xs" c="dimmed" mb={2}>
+                        Color Mode
+                    </Text>
+                    <SegmentedControl size="compact" data={["Solid", "Gradient", "Radial"]} fullWidth />
                 </Box>
 
                 <Box>
-                    <Text size="xs" c="dimmed" mb={2}>Color</Text>
+                    <Text size="xs" c="dimmed" mb={2}>
+                        Color
+                    </Text>
                     <Group gap={8}>
-                        <ColorInput
-                            size="compact"
-                            defaultValue="#5b8ff9"
-                            style={{flex: 1}}
-                        />
+                        <ColorInput size="compact" defaultValue="#5b8ff9" style={{ flex: 1 }} />
                         <NumberInput
                             size="compact"
                             defaultValue={100}
@@ -268,7 +265,9 @@ export const PropertiesPanelExample: Story = {
                 <Divider />
 
                 <Box>
-                    <Text size="xs" c="dimmed" mb={2}>Visibility</Text>
+                    <Text size="xs" c="dimmed" mb={2}>
+                        Visibility
+                    </Text>
                     <Group gap="md">
                         <Checkbox size="compact" label="Visible" defaultChecked />
                         <Checkbox size="compact" label="Selectable" defaultChecked />
@@ -276,20 +275,18 @@ export const PropertiesPanelExample: Story = {
                 </Box>
 
                 <Box>
-                    <Text size="xs" c="dimmed" mb={2}>Opacity</Text>
-                    <Slider
-                        size="compact"
-                        defaultValue={100}
-                        min={0}
-                        max={100}
-                        label={(val) => `${val}%`}
-                    />
+                    <Text size="xs" c="dimmed" mb={2}>
+                        Opacity
+                    </Text>
+                    <Slider size="compact" defaultValue={100} min={0} max={100} label={(val) => `${val}%`} />
                 </Box>
 
                 <Divider />
 
                 <Group gap="xs" justify="flex-end">
-                    <Button size="compact" variant="subtle">Reset</Button>
+                    <Button size="compact" variant="subtle">
+                        Reset
+                    </Button>
                     <Button size="compact">Apply</Button>
                 </Group>
             </Stack>
@@ -302,7 +299,9 @@ export const FigmaStyleColorRow: Story = {
     render: () => (
         <Stack gap="lg">
             <Box>
-                <Title order={4} mb="sm">Figma-style Fill Row</Title>
+                <Title order={4} mb="sm">
+                    Figma-style Fill Row
+                </Title>
                 <Text size="xs" c="dimmed" mb="md">
                     Pattern: [color swatch] [hex value] | [opacity%] [visibility] [delete]
                 </Text>

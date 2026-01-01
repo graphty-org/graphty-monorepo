@@ -1,7 +1,7 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {ConnectedComponentsAlgorithm} from "../../../src/algorithms/ConnectedComponentsAlgorithm";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { ConnectedComponentsAlgorithm } from "../../../src/algorithms/ConnectedComponentsAlgorithm";
 
 describe("ConnectedComponentsAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -38,8 +38,10 @@ describe("ConnectedComponentsAlgorithm", () => {
             assert.ok(layer.node);
             assert.ok(layer.node.calculatedStyle);
 
-            const {calculatedStyle} = layer.node;
-            assert.deepStrictEqual(calculatedStyle.inputs, ["algorithmResults.graphty.connected-components.componentId"]);
+            const { calculatedStyle } = layer.node;
+            assert.deepStrictEqual(calculatedStyle.inputs, [
+                "algorithmResults.graphty.connected-components.componentId",
+            ]);
             assert.strictEqual(calculatedStyle.output, "style.texture.color");
         });
 
@@ -52,7 +54,7 @@ describe("ConnectedComponentsAlgorithm", () => {
             assert.ok(layer.node);
             assert.ok(layer.node.calculatedStyle);
 
-            const {expr} = layer.node.calculatedStyle;
+            const { expr } = layer.node.calculatedStyle;
 
             // Should use StyleHelpers.color.categorical.carbon
             assert.ok(expr.includes("StyleHelpers"));
@@ -88,7 +90,7 @@ describe("ConnectedComponentsAlgorithm", () => {
             const layer = styles.layers[0];
             assert.ok(layer.node?.calculatedStyle);
 
-            const {expr} = layer.node.calculatedStyle;
+            const { expr } = layer.node.calculatedStyle;
             assert.ok(expr);
 
             // Should use StyleHelpers.color.categorical.carbon
@@ -103,7 +105,7 @@ describe("ConnectedComponentsAlgorithm", () => {
             const layer = styles.layers[0];
             assert.ok(layer.node?.calculatedStyle);
 
-            const {inputs} = layer.node.calculatedStyle;
+            const { inputs } = layer.node.calculatedStyle;
             assert.ok(inputs);
             assert.strictEqual(inputs.length, 1);
             assert.strictEqual(inputs[0], "algorithmResults.graphty.connected-components.componentId");
@@ -116,7 +118,7 @@ describe("ConnectedComponentsAlgorithm", () => {
             const layer = styles.layers[0];
             assert.ok(layer.node?.calculatedStyle);
 
-            const {output} = layer.node.calculatedStyle;
+            const { output } = layer.node.calculatedStyle;
             assert.strictEqual(output, "style.texture.color");
         });
     });

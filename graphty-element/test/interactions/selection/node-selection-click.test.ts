@@ -4,10 +4,10 @@
  * These tests verify that clicking on nodes selects them correctly,
  * and clicking on the background deselects the current selection.
  */
-/* eslint-disable @typescript-eslint/no-unnecessary-condition -- Chai assertions don't narrow types */
-import {afterEach, assert, beforeEach, describe, it, vi} from "vitest";
+ 
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
-import type {Graph} from "../../../src/Graph";
+import type { Graph } from "../../../src/Graph";
 import {
     clickOnBackground,
     clickOnNode,
@@ -27,7 +27,7 @@ describe("Node Selection - Click Interactions", () => {
     });
 
     describe("3D mode", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             graph = await setupTestGraph({
                 mode: "3d",
                 layout: "fixed",
@@ -37,7 +37,7 @@ describe("Node Selection - Click Interactions", () => {
             await waitForGraphReady(graph);
         });
 
-        it("clicking on a node selects it", async() => {
+        it("clicking on a node selects it", async () => {
             // Initially no node is selected
             assert.isNull(graph.getSelectedNode());
 
@@ -51,7 +51,7 @@ describe("Node Selection - Click Interactions", () => {
             assert.equal(selected?.id, "node1");
         });
 
-        it("clicking on a different node changes selection", async() => {
+        it("clicking on a different node changes selection", async () => {
             // Select node1
             await clickOnNode(graph, "node1");
             const firstSelected = graph.getSelectedNode();
@@ -67,7 +67,7 @@ describe("Node Selection - Click Interactions", () => {
             assert.equal(selected?.id, "node2");
         });
 
-        it("clicking on background deselects the current node", async() => {
+        it("clicking on background deselects the current node", async () => {
             // Select a node first
             await clickOnNode(graph, "node1");
             assert.isNotNull(graph.getSelectedNode());
@@ -79,7 +79,7 @@ describe("Node Selection - Click Interactions", () => {
             assert.isNull(graph.getSelectedNode());
         });
 
-        it("selection-changed event fires on click selection", async() => {
+        it("selection-changed event fires on click selection", async () => {
             const callback = vi.fn();
             graph.eventManager.addListener("selection-changed", callback);
 
@@ -95,7 +95,7 @@ describe("Node Selection - Click Interactions", () => {
             assert.equal(event.currentNode?.id, "node1");
         });
 
-        it("selected node has _selected property set to true", async() => {
+        it("selected node has _selected property set to true", async () => {
             // Click to select
             await clickOnNode(graph, "node1");
 
@@ -104,7 +104,7 @@ describe("Node Selection - Click Interactions", () => {
             assert.isTrue(node?.data._selected);
         });
 
-        it("deselected node has _selected property set to false", async() => {
+        it("deselected node has _selected property set to false", async () => {
             // Select then deselect
             await clickOnNode(graph, "node1");
             await clickOnBackground(graph);
@@ -116,7 +116,7 @@ describe("Node Selection - Click Interactions", () => {
     });
 
     describe("2D mode", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             graph = await setupTestGraph({
                 mode: "2d",
                 layout: "fixed",
@@ -126,7 +126,7 @@ describe("Node Selection - Click Interactions", () => {
             await waitForGraphReady(graph);
         });
 
-        it("clicking on a node selects it", async() => {
+        it("clicking on a node selects it", async () => {
             // Initially no node is selected
             assert.isNull(graph.getSelectedNode());
 
@@ -140,7 +140,7 @@ describe("Node Selection - Click Interactions", () => {
             assert.equal(selected?.id, "node1");
         });
 
-        it("clicking on a different node changes selection", async() => {
+        it("clicking on a different node changes selection", async () => {
             // Select node1
             await clickOnNode(graph, "node1");
             const firstSelected = graph.getSelectedNode();
@@ -156,7 +156,7 @@ describe("Node Selection - Click Interactions", () => {
             assert.equal(selected?.id, "node2");
         });
 
-        it("clicking on background deselects the current node", async() => {
+        it("clicking on background deselects the current node", async () => {
             // Select a node first
             await clickOnNode(graph, "node1");
             assert.isNotNull(graph.getSelectedNode());
@@ -170,7 +170,7 @@ describe("Node Selection - Click Interactions", () => {
     });
 
     describe("drag vs click differentiation", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             graph = await setupTestGraph({
                 mode: "3d",
                 layout: "fixed",
@@ -180,7 +180,7 @@ describe("Node Selection - Click Interactions", () => {
             await waitForGraphReady(graph);
         });
 
-        it("quick click without movement selects node", async() => {
+        it("quick click without movement selects node", async () => {
             // A quick click (pointer down then up with no movement) should select
             const clicked = await clickOnNode(graph, "node1");
             assert.isTrue(clicked);
@@ -197,8 +197,8 @@ describe("Node Selection - Click Interactions", () => {
         /**
          * Helper to capture all node positions
          */
-        function getAllNodePositions(g: Graph): Map<string, {x: number, y: number, z: number}> {
-            const positions = new Map<string, {x: number, y: number, z: number}>();
+        function getAllNodePositions(g: Graph): Map<string, { x: number; y: number; z: number }> {
+            const positions = new Map<string, { x: number; y: number; z: number }>();
             for (const node of g.getNodes()) {
                 positions.set(String(node.id), {
                     x: node.mesh.position.x,
@@ -213,8 +213,8 @@ describe("Node Selection - Click Interactions", () => {
          * Helper to verify positions haven't changed
          */
         function assertPositionsUnchanged(
-            before: Map<string, {x: number, y: number, z: number}>,
-            after: Map<string, {x: number, y: number, z: number}>,
+            before: Map<string, { x: number; y: number; z: number }>,
+            after: Map<string, { x: number; y: number; z: number }>,
             tolerance = 0.001,
         ): void {
             assert.equal(before.size, after.size, "Node count should not change");
@@ -227,26 +227,14 @@ describe("Node Selection - Click Interactions", () => {
                 const dy = Math.abs(beforePos.y - (afterPos?.y ?? 0));
                 const dz = Math.abs(beforePos.z - (afterPos?.z ?? 0));
 
-                assert.isBelow(
-                    dx,
-                    tolerance,
-                    `Node ${nodeId} X position changed by ${dx}`,
-                );
-                assert.isBelow(
-                    dy,
-                    tolerance,
-                    `Node ${nodeId} Y position changed by ${dy}`,
-                );
-                assert.isBelow(
-                    dz,
-                    tolerance,
-                    `Node ${nodeId} Z position changed by ${dz}`,
-                );
+                assert.isBelow(dx, tolerance, `Node ${nodeId} X position changed by ${dx}`);
+                assert.isBelow(dy, tolerance, `Node ${nodeId} Y position changed by ${dy}`);
+                assert.isBelow(dz, tolerance, `Node ${nodeId} Z position changed by ${dz}`);
             }
         }
 
         describe("2D mode position stability", () => {
-            beforeEach(async() => {
+            beforeEach(async () => {
                 graph = await setupTestGraph({
                     mode: "2d",
                     layout: "fixed",
@@ -256,7 +244,7 @@ describe("Node Selection - Click Interactions", () => {
                 await waitForGraphReady(graph);
             });
 
-            it("selecting a node does not change any node positions", async() => {
+            it("selecting a node does not change any node positions", async () => {
                 // Capture positions before selection
                 const positionsBefore = getAllNodePositions(graph);
 
@@ -275,7 +263,7 @@ describe("Node Selection - Click Interactions", () => {
                 assertPositionsUnchanged(positionsBefore, positionsAfter);
             });
 
-            it("clicking on background does not change any node positions", async() => {
+            it("clicking on background does not change any node positions", async () => {
                 // Capture positions before click
                 const positionsBefore = getAllNodePositions(graph);
 
@@ -289,7 +277,7 @@ describe("Node Selection - Click Interactions", () => {
                 assertPositionsUnchanged(positionsBefore, positionsAfter);
             });
 
-            it("selecting then deselecting does not change any node positions", async() => {
+            it("selecting then deselecting does not change any node positions", async () => {
                 // Capture initial positions
                 const positionsBefore = getAllNodePositions(graph);
 
@@ -308,7 +296,7 @@ describe("Node Selection - Click Interactions", () => {
                 assertPositionsUnchanged(positionsBefore, positionsAfter);
             });
 
-            it("camera position does not change when selecting a node", async() => {
+            it("camera position does not change when selecting a node", async () => {
                 // Capture camera state before
                 const camera = graph.scene.activeCamera;
                 assert.isNotNull(camera, "Active camera should exist");
@@ -337,7 +325,7 @@ describe("Node Selection - Click Interactions", () => {
         });
 
         describe("3D mode position stability", () => {
-            beforeEach(async() => {
+            beforeEach(async () => {
                 graph = await setupTestGraph({
                     mode: "3d",
                     layout: "fixed",
@@ -347,7 +335,7 @@ describe("Node Selection - Click Interactions", () => {
                 await waitForGraphReady(graph);
             });
 
-            it("selecting a node does not change any node positions", async() => {
+            it("selecting a node does not change any node positions", async () => {
                 // Capture positions before selection
                 const positionsBefore = getAllNodePositions(graph);
 
@@ -366,7 +354,7 @@ describe("Node Selection - Click Interactions", () => {
                 assertPositionsUnchanged(positionsBefore, positionsAfter);
             });
 
-            it("clicking on background does not change any node positions", async() => {
+            it("clicking on background does not change any node positions", async () => {
                 // Capture positions before click
                 const positionsBefore = getAllNodePositions(graph);
 

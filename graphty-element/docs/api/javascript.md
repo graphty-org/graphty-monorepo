@@ -7,7 +7,7 @@ Complete API reference for the `Graph` class.
 The `Graph` class is the core orchestrator for programmatic graph manipulation. Access it via the `.graph` property on the Web Component:
 
 ```typescript
-const element = document.querySelector('graphty-element');
+const element = document.querySelector("graphty-element");
 const graph = element.graph;
 ```
 
@@ -19,69 +19,69 @@ For usage patterns and examples, see the [JavaScript API Guide](/guide/javascrip
 
 ### Data Management
 
-| Method | Parameters | Returns | Description |
-|--------|------------|---------|-------------|
-| `addNodes(nodes)` | `NodeData[]` | `Promise<void>` | Add nodes to the graph |
-| `addEdges(edges)` | `EdgeData[]` | `Promise<void>` | Add edges to the graph |
-| `removeNodes(ids)` | `string[]` | `Promise<void>` | Remove nodes by ID |
-| `updateNodes(updates)` | `NodeUpdate[]` | `Promise<void>` | Update node properties |
-| `getNode(id)` | `string` | `Node \| undefined` | Get node by ID |
-| `getNodes()` | - | `Node[]` | Get all nodes |
-| `getEdges()` | - | `Edge[]` | Get all edges |
-| `clear()` | - | `Promise<void>` | Remove all data |
+| Method                 | Parameters     | Returns             | Description            |
+| ---------------------- | -------------- | ------------------- | ---------------------- |
+| `addNodes(nodes)`      | `NodeData[]`   | `Promise<void>`     | Add nodes to the graph |
+| `addEdges(edges)`      | `EdgeData[]`   | `Promise<void>`     | Add edges to the graph |
+| `removeNodes(ids)`     | `string[]`     | `Promise<void>`     | Remove nodes by ID     |
+| `updateNodes(updates)` | `NodeUpdate[]` | `Promise<void>`     | Update node properties |
+| `getNode(id)`          | `string`       | `Node \| undefined` | Get node by ID         |
+| `getNodes()`           | -              | `Node[]`            | Get all nodes          |
+| `getEdges()`           | -              | `Edge[]`            | Get all edges          |
+| `clear()`              | -              | `Promise<void>`     | Remove all data        |
 
 ### Selection
 
-| Method | Parameters | Returns | Description |
-|--------|------------|---------|-------------|
-| `selectNode(id)` | `string` | `void` | Select a node |
-| `deselectNode()` | - | `void` | Clear selection |
-| `getSelectedNode()` | - | `Node \| null` | Get selected node |
+| Method              | Parameters | Returns        | Description       |
+| ------------------- | ---------- | -------------- | ----------------- |
+| `selectNode(id)`    | `string`   | `void`         | Select a node     |
+| `deselectNode()`    | -          | `void`         | Clear selection   |
+| `getSelectedNode()` | -          | `Node \| null` | Get selected node |
 
 ### Layout
 
-| Method | Parameters | Returns | Description |
-|--------|------------|---------|-------------|
-| `setLayout(type, options?)` | `string`, `object` | `void` | Set layout algorithm |
-| `waitForSettled()` | - | `Promise<void>` | Wait for layout to stabilize |
-| `isSettled()` | - | `boolean` | Check if layout is stable |
+| Method                      | Parameters         | Returns         | Description                  |
+| --------------------------- | ------------------ | --------------- | ---------------------------- |
+| `setLayout(type, options?)` | `string`, `object` | `void`          | Set layout algorithm         |
+| `waitForSettled()`          | -                  | `Promise<void>` | Wait for layout to stabilize |
+| `isSettled()`               | -                  | `boolean`       | Check if layout is stable    |
 
 ### Algorithms
 
-| Method | Parameters | Returns | Description |
-|--------|------------|---------|-------------|
-| `runAlgorithm(namespace, type)` | `string`, `string` | `Promise<AlgorithmResult>` | Run an algorithm |
-| `applySuggestedStyles(id)` | `string` | `void` | Apply algorithm visualization |
+| Method                          | Parameters         | Returns                    | Description                   |
+| ------------------------------- | ------------------ | -------------------------- | ----------------------------- |
+| `runAlgorithm(namespace, type)` | `string`, `string` | `Promise<AlgorithmResult>` | Run an algorithm              |
+| `applySuggestedStyles(id)`      | `string`           | `void`                     | Apply algorithm visualization |
 
 ### Camera Control
 
-| Method | Parameters | Returns | Description |
-|--------|------------|---------|-------------|
-| `zoomToFit()` | - | `void` | Fit all nodes in view |
-| `getCameraState()` | - | `CameraState` | Get camera state |
-| `setCameraState(state, options?)` | `CameraState`, `CameraAnimationOptions` | `Promise<void>` | Set camera state |
-| `setCameraPosition(pos)` | `{x, y, z}` | `void` | Set camera position |
-| `setCameraTarget(target)` | `{x, y, z}` | `void` | Set camera target |
+| Method                            | Parameters                              | Returns         | Description           |
+| --------------------------------- | --------------------------------------- | --------------- | --------------------- |
+| `zoomToFit()`                     | -                                       | `void`          | Fit all nodes in view |
+| `getCameraState()`                | -                                       | `CameraState`   | Get camera state      |
+| `setCameraState(state, options?)` | `CameraState`, `CameraAnimationOptions` | `Promise<void>` | Set camera state      |
+| `setCameraPosition(pos)`          | `{x, y, z}`                             | `void`          | Set camera position   |
+| `setCameraTarget(target)`         | `{x, y, z}`                             | `void`          | Set camera target     |
 
 ### Styling
 
-| Method | Parameters | Returns | Description |
-|--------|------------|---------|-------------|
-| `addStyleLayer(layer)` | `StyleLayer` | `void` | Add a style layer |
-| `removeStyleLayer(id)` | `string` | `void` | Remove a style layer |
-| `clearStyleLayers()` | - | `void` | Remove all style layers |
+| Method                 | Parameters   | Returns | Description             |
+| ---------------------- | ------------ | ------- | ----------------------- |
+| `addStyleLayer(layer)` | `StyleLayer` | `void`  | Add a style layer       |
+| `removeStyleLayer(id)` | `string`     | `void`  | Remove a style layer    |
+| `clearStyleLayers()`   | -            | `void`  | Remove all style layers |
 
 ### Events
 
-| Method | Parameters | Returns | Description |
-|--------|------------|---------|-------------|
-| `on(event, handler)` | `string`, `Function` | `void` | Subscribe to events |
-| `off(event, handler)` | `string`, `Function` | `void` | Unsubscribe from events |
+| Method                | Parameters           | Returns | Description             |
+| --------------------- | -------------------- | ------- | ----------------------- |
+| `on(event, handler)`  | `string`, `Function` | `void`  | Subscribe to events     |
+| `off(event, handler)` | `string`, `Function` | `void`  | Unsubscribe from events |
 
 ### Batch Operations
 
-| Method | Parameters | Returns | Description |
-|--------|------------|---------|-------------|
+| Method                | Parameters       | Returns         | Description               |
+| --------------------- | ---------------- | --------------- | ------------------------- |
 | `batchOperations(fn)` | `async Function` | `Promise<void>` | Batch multiple operations |
 
 ## Manager Classes
@@ -91,7 +91,7 @@ The Graph class exposes manager instances for advanced control:
 ### StyleManager
 
 ```typescript
-graph.styleManager.addLayer({ selector: '*', styles: { node: { color: '#ff0000' } } });
+graph.styleManager.addLayer({ selector: "*", styles: { node: { color: "#ff0000" } } });
 graph.styleManager.removeLayer(layerId);
 graph.styleManager.clearLayers();
 ```
@@ -107,15 +107,15 @@ await graph.dataManager.clear();
 ### LayoutManager
 
 ```typescript
-graph.layoutManager.setLayout('ngraph', options);
+graph.layoutManager.setLayout("ngraph", options);
 await graph.layoutManager.waitForSettled();
 ```
 
 ### AlgorithmManager
 
 ```typescript
-await graph.algorithmManager.run('graphty', 'degree');
-graph.algorithmManager.applySuggestedStyles('graphty:degree');
+await graph.algorithmManager.run("graphty", "degree");
+graph.algorithmManager.applySuggestedStyles("graphty:degree");
 ```
 
 ## Data Types
@@ -124,9 +124,9 @@ graph.algorithmManager.applySuggestedStyles('graphty:degree');
 
 ```typescript
 interface NodeData {
-  id: string;
-  label?: string;
-  [key: string]: unknown;
+    id: string;
+    label?: string;
+    [key: string]: unknown;
 }
 ```
 
@@ -134,10 +134,10 @@ interface NodeData {
 
 ```typescript
 interface EdgeData {
-  source: string;
-  target: string;
-  weight?: number;
-  [key: string]: unknown;
+    source: string;
+    target: string;
+    weight?: number;
+    [key: string]: unknown;
 }
 ```
 
@@ -145,9 +145,9 @@ interface EdgeData {
 
 ```typescript
 interface CameraState {
-  position: { x: number; y: number; z: number };
-  target: { x: number; y: number; z: number };
-  up: { x: number; y: number; z: number };
+    position: { x: number; y: number; z: number };
+    target: { x: number; y: number; z: number };
+    up: { x: number; y: number; z: number };
 }
 ```
 
@@ -155,14 +155,14 @@ interface CameraState {
 
 ```typescript
 interface StyleLayer {
-  id?: string;
-  selector: string;
-  priority?: number;
-  styles: {
-    node?: NodeStyle;
-    edge?: EdgeStyle;
-    label?: LabelStyle;
-  };
+    id?: string;
+    selector: string;
+    priority?: number;
+    styles: {
+        node?: NodeStyle;
+        edge?: EdgeStyle;
+        label?: LabelStyle;
+    };
 }
 ```
 

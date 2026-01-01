@@ -9,11 +9,11 @@
  * and parameter extraction for styling graph elements.
  */
 
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import {skipIfNoApiKey} from "../../helpers/llm-regression-env";
-import {LlmRegressionTestHarness} from "../../helpers/llm-regression-harness";
-import {serverNetworkFixture} from "./fixtures/test-graph-fixtures";
+import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
+import { LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 /**
  * Check if a value appears to be a color value.
@@ -168,7 +168,7 @@ function hasWidthStyle(style: Record<string, unknown> | null): boolean {
 describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
     let harness: LlmRegressionTestHarness;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         harness = await LlmRegressionTestHarness.create({
             graphData: serverNetworkFixture,
         });
@@ -179,7 +179,7 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
     });
 
     describe("findAndStyleNodes", () => {
-        it("calls findAndStyleNodes for 'Make all nodes red'", async() => {
+        it("calls findAndStyleNodes for 'Make all nodes red'", async () => {
             const result = await harness.testPrompt("Make all nodes red");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -189,13 +189,10 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
             // Flexible assertion - color could be "red", "#ff0000", "#FF0000", etc.
             const style = result.toolParams.style as Record<string, unknown> | undefined;
             assert.ok(style, "Expected style parameter");
-            assert.ok(
-                hasColorStyle(style) || style.color !== undefined,
-                "Expected color to be specified in style",
-            );
+            assert.ok(hasColorStyle(style) || style.color !== undefined, "Expected color to be specified in style");
         });
 
-        it("calls findAndStyleNodes for 'Highlight server nodes in blue'", async() => {
+        it("calls findAndStyleNodes for 'Highlight server nodes in blue'", async () => {
             const result = await harness.testPrompt("Highlight server nodes in blue");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -214,13 +211,10 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
             // Verify style includes color
             const style = result.toolParams.style as Record<string, unknown> | undefined;
             assert.ok(style, "Expected style parameter");
-            assert.ok(
-                hasColorStyle(style) || style.color !== undefined,
-                "Expected color to be specified in style",
-            );
+            assert.ok(hasColorStyle(style) || style.color !== undefined, "Expected color to be specified in style");
         });
 
-        it("calls findAndStyleNodes for 'Make all nodes bigger'", async() => {
+        it("calls findAndStyleNodes for 'Make all nodes bigger'", async () => {
             const result = await harness.testPrompt("Make all nodes bigger");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -230,13 +224,10 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
             // Verify style includes size
             const style = result.toolParams.style as Record<string, unknown> | undefined;
             assert.ok(style, "Expected style parameter");
-            assert.ok(
-                hasSizeStyle(style) || style.size !== undefined,
-                "Expected size to be specified in style",
-            );
+            assert.ok(hasSizeStyle(style) || style.size !== undefined, "Expected size to be specified in style");
         });
 
-        it("calls findAndStyleNodes for 'Make database nodes green and larger'", async() => {
+        it("calls findAndStyleNodes for 'Make database nodes green and larger'", async () => {
             const result = await harness.testPrompt("Make database nodes green and larger");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -258,15 +249,12 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
             // At minimum, one of these should be present
             const hasColor = hasColorStyle(style) || style.color !== undefined;
             const hasSize = hasSizeStyle(style) || style.size !== undefined;
-            assert.ok(
-                hasColor || hasSize,
-                "Expected color or size to be specified in style",
-            );
+            assert.ok(hasColor || hasSize, "Expected color or size to be specified in style");
         });
     });
 
     describe("findAndStyleEdges", () => {
-        it("calls findAndStyleEdges for 'Make all edges green'", async() => {
+        it("calls findAndStyleEdges for 'Make all edges green'", async () => {
             const result = await harness.testPrompt("Make all edges green");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -276,13 +264,10 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
             // Verify style includes color
             const style = result.toolParams.style as Record<string, unknown> | undefined;
             assert.ok(style, "Expected style parameter");
-            assert.ok(
-                hasColorStyle(style) || style.color !== undefined,
-                "Expected color to be specified in style",
-            );
+            assert.ok(hasColorStyle(style) || style.color !== undefined, "Expected color to be specified in style");
         });
 
-        it("calls findAndStyleEdges for 'Make high-weight edges thicker'", async() => {
+        it("calls findAndStyleEdges for 'Make high-weight edges thicker'", async () => {
             const result = await harness.testPrompt("Make high-weight edges thicker");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -292,22 +277,16 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
             // Verify selector targets weight property
             const selector = result.toolParams.selector as string | undefined;
             if (selector && selector.length > 0 && selector !== "*") {
-                assert.ok(
-                    selector.includes("weight"),
-                    `Expected selector to include 'weight' but got '${selector}'`,
-                );
+                assert.ok(selector.includes("weight"), `Expected selector to include 'weight' but got '${selector}'`);
             }
 
             // Verify style includes width
             const style = result.toolParams.style as Record<string, unknown> | undefined;
             assert.ok(style, "Expected style parameter");
-            assert.ok(
-                hasWidthStyle(style) || style.width !== undefined,
-                "Expected width to be specified in style",
-            );
+            assert.ok(hasWidthStyle(style) || style.width !== undefined, "Expected width to be specified in style");
         });
 
-        it("calls findAndStyleEdges for 'Color edges with latency > 50 as red'", async() => {
+        it("calls findAndStyleEdges for 'Color edges with latency > 50 as red'", async () => {
             const result = await harness.testPrompt("Color edges with latency > 50 as red");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -317,24 +296,18 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
             // Verify selector targets latency property
             const selector = result.toolParams.selector as string | undefined;
             if (selector && selector.length > 0 && selector !== "*") {
-                assert.ok(
-                    selector.includes("latency"),
-                    `Expected selector to include 'latency' but got '${selector}'`,
-                );
+                assert.ok(selector.includes("latency"), `Expected selector to include 'latency' but got '${selector}'`);
             }
 
             // Verify style includes color
             const style = result.toolParams.style as Record<string, unknown> | undefined;
             assert.ok(style, "Expected style parameter");
-            assert.ok(
-                hasColorStyle(style) || style.color !== undefined,
-                "Expected color to be specified in style",
-            );
+            assert.ok(hasColorStyle(style) || style.color !== undefined, "Expected color to be specified in style");
         });
     });
 
     describe("clearStyles", () => {
-        it("calls clearStyles for 'Remove all styling'", async() => {
+        it("calls clearStyles for 'Remove all styling'", async () => {
             const result = await harness.testPrompt("Remove all styling");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -342,7 +315,7 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
             // clearStyles may have empty params or no layerName for clearing all
         });
 
-        it("calls clearStyles for 'Clear the highlight style'", async() => {
+        it("calls clearStyles for 'Clear the highlight style'", async () => {
             const result = await harness.testPrompt("Clear the highlight style");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
@@ -353,7 +326,7 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
     });
 
     describe("command result validation", () => {
-        it("returns command result for findAndStyleNodes", async() => {
+        it("returns command result for findAndStyleNodes", async () => {
             // Use explicit prompt that reliably triggers the tool
             const result = await harness.testPrompt("Apply red color to all nodes");
 
@@ -366,7 +339,7 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
             assert.ok(result.commandResult.message, "Expected result message");
         });
 
-        it("returns command result for findAndStyleEdges", async() => {
+        it("returns command result for findAndStyleEdges", async () => {
             // Use explicit prompt that reliably triggers the tool
             const result = await harness.testPrompt("Color all edges green");
 
@@ -379,7 +352,7 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
             assert.ok(result.commandResult.message, "Expected result message");
         });
 
-        it("returns command result for clearStyles", async() => {
+        it("returns command result for clearStyles", async () => {
             // Use explicit prompt that reliably triggers the tool
             const result = await harness.testPrompt("Clear all styles from the graph");
 
@@ -392,7 +365,7 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
             assert.ok(result.commandResult.message, "Expected result message");
         });
 
-        it("tracks latency for style commands", async() => {
+        it("tracks latency for style commands", async () => {
             // Use the same prompt as the color test which reliably triggers a tool
             const result = await harness.testPrompt("Change all node colors to purple");
 
@@ -400,7 +373,7 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
             assert.ok(result.latencyMs < 60000, "Expected latency under 60 seconds");
         });
 
-        it("captures token usage for style commands", async() => {
+        it("captures token usage for style commands", async () => {
             const result = await harness.testPrompt("Make all nodes blue");
 
             // Token usage may not always be available depending on provider configuration

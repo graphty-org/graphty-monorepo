@@ -11,13 +11,13 @@ import {
     WebGPUEngine,
 } from "@babylonjs/core";
 
-import {CameraManager} from "../cameras/CameraManager";
-import {OrbitCameraController} from "../cameras/OrbitCameraController";
-import {OrbitInputController} from "../cameras/OrbitInputController";
-import {TwoDCameraController} from "../cameras/TwoDCameraController";
-import {InputController} from "../cameras/TwoDInputController";
-import type {EventManager} from "./EventManager";
-import type {Manager} from "./interfaces";
+import { CameraManager } from "../cameras/CameraManager";
+import { OrbitCameraController } from "../cameras/OrbitCameraController";
+import { OrbitInputController } from "../cameras/OrbitInputController";
+import { TwoDCameraController } from "../cameras/TwoDCameraController";
+import { InputController } from "../cameras/TwoDInputController";
+import type { EventManager } from "./EventManager";
+import type { Manager } from "./interfaces";
 
 /**
  * Configuration options for RenderManager
@@ -127,12 +127,7 @@ export class RenderManager implements Manager {
             });
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
-            this.eventManager.emitGraphError(
-                null,
-                err,
-                "init",
-                {component: "RenderManager"},
-            );
+            this.eventManager.emitGraphError(null, err, "init", { component: "RenderManager" });
             throw new Error(`Failed to initialize RenderManager: ${err.message}`);
         }
     }
@@ -183,12 +178,10 @@ export class RenderManager implements Manager {
                 this.scene.render();
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
-                this.eventManager.emitGraphError(
-                    null,
-                    err,
-                    "other",
-                    {component: "RenderManager", phase: "render-loop"},
-                );
+                this.eventManager.emitGraphError(null, err, "other", {
+                    component: "RenderManager",
+                    phase: "render-loop",
+                });
 
                 // Don't stop render loop on error, but log it
                 console.error("Error in render loop:", error);
@@ -218,12 +211,11 @@ export class RenderManager implements Manager {
             this.scene.clearColor = Color4.FromHexString(color);
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
-            this.eventManager.emitGraphError(
-                null,
-                err,
-                "other",
-                {component: "RenderManager", operation: "setBackgroundColor", color},
-            );
+            this.eventManager.emitGraphError(null, err, "other", {
+                component: "RenderManager",
+                operation: "setBackgroundColor",
+                color,
+            });
         }
     }
 

@@ -1,5 +1,5 @@
-import type {Graph} from "../../core/graph.js";
-import type {CentralityOptions, CentralityResult} from "../../types/index.js";
+import type { Graph } from "../../core/graph.js";
+import type { CentralityOptions, CentralityResult } from "../../types/index.js";
 
 /**
  * Katz centrality implementation
@@ -22,20 +22,14 @@ export interface KatzCentralityOptions extends CentralityOptions {
 }
 
 /**
- * Calculate Katz centrality for all nodes in the graph
- * Uses iterative method to compute centrality scores
+ * Calculate Katz centrality for all nodes in the graph.
+ * Uses iterative method to compute centrality scores.
+ * @param graph - The graph to compute Katz centrality on
+ * @param options - Configuration options for the computation
+ * @returns Object mapping node IDs to their Katz centrality scores
  */
-export function katzCentrality(
-    graph: Graph,
-    options: KatzCentralityOptions = {},
-): CentralityResult {
-    const {
-        alpha = 0.1,
-        beta = 1.0,
-        maxIterations = 100,
-        tolerance = 1e-6,
-        normalized = true,
-    } = options;
+export function katzCentrality(graph: Graph, options: KatzCentralityOptions = {}): CentralityResult {
+    const { alpha = 0.1, beta = 1.0, maxIterations = 100, tolerance = 1e-6, normalized = true } = options;
 
     const centrality: CentralityResult = {};
     const nodes = Array.from(graph.nodes());
@@ -68,16 +62,14 @@ export function katzCentrality(
 
             // For directed graphs, use in-neighbors
             // For undirected graphs, use all neighbors
-            const neighbors = graph.isDirected ?
-                Array.from(graph.inNeighbors(nodeId)) :
-                graph.neighbors(nodeId);
+            const neighbors = graph.isDirected ? Array.from(graph.inNeighbors(nodeId)) : graph.neighbors(nodeId);
 
             for (const neighbor of neighbors) {
                 const neighborKey = neighbor.toString();
                 sum += previousScores.get(neighborKey) ?? 0;
             }
 
-            currentScores.set(nodeId.toString(), (alpha * sum) + beta);
+            currentScores.set(nodeId.toString(), alpha * sum + beta);
         }
 
         // Check for convergence
@@ -123,13 +115,13 @@ export function katzCentrality(
 }
 
 /**
- * Calculate Katz centrality for a specific node
+ * Calculate Katz centrality for a specific node.
+ * @param graph - The graph to compute Katz centrality on
+ * @param nodeId - The ID of the node to calculate centrality for
+ * @param options - Configuration options for the computation
+ * @returns The Katz centrality score for the specified node
  */
-export function nodeKatzCentrality(
-    graph: Graph,
-    nodeId: string | number,
-    options: KatzCentralityOptions = {},
-): number {
+export function nodeKatzCentrality(graph: Graph, nodeId: string | number, options: KatzCentralityOptions = {}): number {
     if (!graph.hasNode(nodeId)) {
         throw new Error(`Node ${String(nodeId)} not found in graph`);
     }

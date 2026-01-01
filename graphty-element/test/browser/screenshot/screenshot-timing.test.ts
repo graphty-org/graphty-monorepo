@@ -1,10 +1,10 @@
-import {afterEach, assert, test} from "vitest";
+import { afterEach, assert, test } from "vitest";
 
-import type {Edge} from "../../../src/Edge";
-import type {Graph} from "../../../src/Graph";
-import {type EdgePosition, LayoutEngine, type Position} from "../../../src/layout/LayoutEngine";
-import type {Node} from "../../../src/Node";
-import {cleanupTestGraphWithData, createTestGraphWithData} from "./test-setup.js";
+import type { Edge } from "../../../src/Edge";
+import type { Graph } from "../../../src/Graph";
+import { type EdgePosition, LayoutEngine, type Position } from "../../../src/layout/LayoutEngine";
+import type { Node } from "../../../src/Node";
+import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
 
@@ -33,7 +33,7 @@ class MockLayoutEngine extends LayoutEngine {
     }
 
     getNodePosition(): Position {
-        return {x: 0, y: 0, z: 0};
+        return { x: 0, y: 0, z: 0 };
     }
 
     setNodePosition(): void {
@@ -42,8 +42,8 @@ class MockLayoutEngine extends LayoutEngine {
 
     getEdgePosition(): EdgePosition {
         return {
-            src: {x: 0, y: 0, z: 0},
-            dst: {x: 10, y: 10, z: 10},
+            src: { x: 0, y: 0, z: 0 },
+            dst: { x: 10, y: 10, z: 10 },
         };
     }
 
@@ -79,7 +79,7 @@ class MockLayoutEngine extends LayoutEngine {
 // Register mock layout engine
 LayoutEngine.register(MockLayoutEngine);
 
-test("waitForSettle waits for layout to settle", async() => {
+test("waitForSettle waits for layout to settle", async () => {
     graph = await createTestGraphWithData();
 
     // Set up mock layout engine
@@ -91,11 +91,13 @@ test("waitForSettle waits for layout to settle", async() => {
     layoutEngine.setSettled(false);
 
     let captured = false;
-    const capturePromise = graph.captureScreenshot({
-        timing: {waitForSettle: true},
-    }).then(() => {
-        captured = true;
-    });
+    const capturePromise = graph
+        .captureScreenshot({
+            timing: { waitForSettle: true },
+        })
+        .then(() => {
+            captured = true;
+        });
 
     // Should not capture immediately
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -104,14 +106,16 @@ test("waitForSettle waits for layout to settle", async() => {
     // Settle layout
     layoutEngine.setSettled(true);
     // Access private eventManager for testing purposes
-    (graph as unknown as {eventManager: {emitGraphEvent: (type: string, data: Record<string, unknown>) => void}}).eventManager.emitGraphEvent("graph-settled", {graph});
+    (
+        graph as unknown as { eventManager: { emitGraphEvent: (type: string, data: Record<string, unknown>) => void } }
+    ).eventManager.emitGraphEvent("graph-settled", { graph });
 
     // Now should capture
     await capturePromise;
     assert.equal(captured, true, "Should capture after settling");
 });
 
-test("waitForSettle times out if layout never settles", {timeout: 35000}, async() => {
+test("waitForSettle times out if layout never settles", { timeout: 35000 }, async () => {
     graph = await createTestGraphWithData();
 
     // Set up mock layout engine
@@ -125,7 +129,7 @@ test("waitForSettle times out if layout never settles", {timeout: 35000}, async(
     // Set a short timeout for testing
     try {
         await graph.captureScreenshot({
-            timing: {waitForSettle: true},
+            timing: { waitForSettle: true },
         });
         assert.fail("Should have thrown timeout error");
     } catch (error) {
@@ -134,25 +138,24 @@ test("waitForSettle times out if layout never settles", {timeout: 35000}, async(
     }
 });
 
-test("waitForOperations waits for pending operations", async() => {
+test("waitForOperations waits for pending operations", async () => {
     graph = await createTestGraphWithData();
 
     // Queue a long operation (use style-apply to avoid triggering layout-update)
     let operationComplete = false;
-    const longOperation = graph.operationQueue.queueOperationAsync(
-        "style-apply",
-        async() => {
-            await new Promise((resolve) => setTimeout(resolve, 200));
-            operationComplete = true;
-        },
-    );
+    const longOperation = graph.operationQueue.queueOperationAsync("style-apply", async () => {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        operationComplete = true;
+    });
 
     let captured = false;
-    const capturePromise = graph.captureScreenshot({
-        timing: {waitForOperations: true, waitForSettle: false},
-    }).then(() => {
-        captured = true;
-    });
+    const capturePromise = graph
+        .captureScreenshot({
+            timing: { waitForOperations: true, waitForSettle: false },
+        })
+        .then(() => {
+            captured = true;
+        });
 
     // Should not capture immediately
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -167,7 +170,7 @@ test("waitForOperations waits for pending operations", async() => {
     assert.equal(captured, true, "Should capture after operations complete");
 });
 
-test("can skip waiting with timing.waitForSettle: false", async() => {
+test("can skip waiting with timing.waitForSettle: false", async () => {
     graph = await createTestGraphWithData();
 
     // Set up mock layout engine
@@ -189,16 +192,13 @@ test("can skip waiting with timing.waitForSettle: false", async() => {
     assert.ok(result.blob instanceof Blob, "Should return a blob");
 });
 
-test("can skip waiting for operations with timing.waitForOperations: false", async() => {
+test("can skip waiting for operations with timing.waitForOperations: false", async () => {
     graph = await createTestGraphWithData();
 
     // Queue a long operation (use style-apply to avoid triggering layout-update)
-    void graph.operationQueue.queueOperationAsync(
-        "style-apply",
-        async() => {
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-        },
-    );
+    void graph.operationQueue.queueOperationAsync("style-apply", async () => {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+    });
 
     // Should capture immediately without waiting for operations
     const startTime = Date.now();

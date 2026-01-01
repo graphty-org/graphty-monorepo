@@ -1,10 +1,10 @@
-import {AbstractMesh, NullEngine, Scene} from "@babylonjs/core";
+import { AbstractMesh, NullEngine, Scene } from "@babylonjs/core";
 
-import type {AdHocData, EdgeStyleConfig, StyleSchemaV1} from "../../src/config";
-import {Graph} from "../../src/Graph";
-import type {DataManager} from "../../src/managers/DataManager";
-import type {LayoutManager} from "../../src/managers/LayoutManager";
-import type {PatternedLineMesh} from "../../src/meshes/PatternedLineMesh";
+import type { AdHocData, EdgeStyleConfig, StyleSchemaV1 } from "../../src/config";
+import { Graph } from "../../src/Graph";
+import type { DataManager } from "../../src/managers/DataManager";
+import type { LayoutManager } from "../../src/managers/LayoutManager";
+import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 
 /**
  * Arrow style config type extracted from EdgeStyleConfig
@@ -48,9 +48,9 @@ export function asData<T extends Record<string, unknown>>(data: T): AdHocData & 
 /**
  * Create a complete graph config with defaults filled in
  */
-export function graphConfig(opts: {twoD?: boolean, addDefaultStyle?: boolean}): {
+export function graphConfig(opts: { twoD?: boolean; addDefaultStyle?: boolean }): {
     addDefaultStyle: boolean;
-    background: {backgroundType: "color", color: string};
+    background: { backgroundType: "color"; color: string };
     startingCameraDistance: number;
     viewMode: "2d" | "3d";
     twoD: boolean;
@@ -58,7 +58,7 @@ export function graphConfig(opts: {twoD?: boolean, addDefaultStyle?: boolean}): 
     const twoD = opts.twoD ?? false;
     return {
         addDefaultStyle: opts.addDefaultStyle ?? true,
-        background: {backgroundType: "color", color: "#2D2D2D"},
+        background: { backgroundType: "color", color: "#2D2D2D" },
         startingCameraDistance: 30,
         viewMode: twoD ? "2d" : "3d",
         twoD,
@@ -68,7 +68,12 @@ export function graphConfig(opts: {twoD?: boolean, addDefaultStyle?: boolean}): 
 /**
  * Create a complete arrow config with defaults filled in
  */
-export function arrowConfig(opts: {type: ArrowStyleConfig["type"], color?: string, size?: number, opacity?: number}): ArrowStyleConfig {
+export function arrowConfig(opts: {
+    type: ArrowStyleConfig["type"];
+    color?: string;
+    size?: number;
+    opacity?: number;
+}): ArrowStyleConfig {
     return {
         type: opts.type,
         size: opts.size ?? 1.0,
@@ -92,7 +97,7 @@ export function edgeStyleConfig(opts: {
             type: opts.lineType ?? "solid",
             color: opts.lineColor ?? "#AAAAAA",
         },
-        arrowHead: opts.arrowHead ? arrowConfig({type: opts.arrowHead, color: opts.arrowHeadColor}) : undefined,
+        arrowHead: opts.arrowHead ? arrowConfig({ type: opts.arrowHead, color: opts.arrowHeadColor }) : undefined,
     };
 }
 
@@ -107,7 +112,7 @@ export function styleTemplate(opts: {
     return {
         graphtyTemplate: true,
         majorVersion: "1",
-        graph: graphConfig({twoD: opts.twoD, addDefaultStyle: opts.addDefaultStyle}),
+        graph: graphConfig({ twoD: opts.twoD, addDefaultStyle: opts.addDefaultStyle }),
         layers: opts.layers ?? [],
         data: {
             knownFields: {
@@ -140,7 +145,7 @@ export function styleTemplate(opts: {
  * By default uses NullEngine for unit tests.
  * Pass useRealEngine: true for interaction tests that need WebGL picking.
  */
-export async function createTestGraph(options: {useRealEngine?: boolean} = {}): Promise<Graph> {
+export async function createTestGraph(options: { useRealEngine?: boolean } = {}): Promise<Graph> {
     // Create a container element
     const container = document.createElement("div");
     container.id = "test-graph-container";
@@ -154,9 +159,9 @@ export async function createTestGraph(options: {useRealEngine?: boolean} = {}): 
     // For unit tests, use NullEngine to avoid WebGL requirements
     // For interaction tests, use real engine for proper picking
     if (!options.useRealEngine) {
-        const graphWithEngine = graph as Graph & {createEngine: () => unknown, engine: unknown};
+        const graphWithEngine = graph as Graph & { createEngine: () => unknown; engine: unknown };
         const originalCreateEngine = graphWithEngine.createEngine;
-        graphWithEngine.createEngine = function() {
+        graphWithEngine.createEngine = function () {
             this.engine = new NullEngine();
             return this.engine;
         };

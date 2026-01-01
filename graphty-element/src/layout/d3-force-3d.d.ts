@@ -30,7 +30,7 @@ declare module "d3-force-3d" {
     type IdAccessor = (n: Node) => string | number;
     export interface Force {
         (alpha?: number): void;
-        initialize(nodes: Nodes, ... args: unknown[]): unknown;
+        initialize(nodes: Nodes, ...args: unknown[]): unknown;
         links(links: unknown[]): Force;
         links(): unknown[];
         id(forceAccessor: IdAccessor): Force;

@@ -1,9 +1,9 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {degreeCentrality} from "../../src/algorithms/centrality/degree.js";
-import {dijkstra} from "../../src/algorithms/shortest-path/dijkstra.js";
-import {breadthFirstSearch, depthFirstSearch} from "../../src/algorithms/traversal/index.js";
-import {Graph} from "../../src/core/graph.js";
+import { degreeCentrality } from "../../src/algorithms/centrality/degree.js";
+import { dijkstra } from "../../src/algorithms/shortest-path/dijkstra.js";
+import { breadthFirstSearch, depthFirstSearch } from "../../src/algorithms/traversal/index.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Browser Environment Tests", () => {
     it("should create and manipulate graphs in browser", () => {

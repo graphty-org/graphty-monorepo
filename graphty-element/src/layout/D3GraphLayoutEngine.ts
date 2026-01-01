@@ -7,12 +7,12 @@ import {
     InputEdge as D3InputEdge,
     Node as D3Node,
 } from "d3-force-3d";
-import {z} from "zod/v4";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema} from "../config";
-import type {Edge} from "../Edge";
-import type {Node, NodeIdType} from "../Node";
-import {EdgePosition, LayoutEngine, Position} from "./LayoutEngine";
+import { defineOptions, type OptionsSchema } from "../config";
+import type { Edge } from "../Edge";
+import type { Node, NodeIdType } from "../Node";
+import { EdgePosition, LayoutEngine, Position } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for D3 Force Layout
@@ -60,7 +60,8 @@ interface D3InputNode extends Partial<D3Node> {
 }
 
 function isD3Node(n: unknown): n is D3Node {
-    if (typeof n === "object" &&
+    if (
+        typeof n === "object" &&
         n !== null &&
         "index" in n &&
         typeof n.index === "number" &&
@@ -75,7 +76,8 @@ function isD3Node(n: unknown): n is D3Node {
         "vy" in n &&
         typeof n.vy === "number" &&
         "vz" in n &&
-        typeof n.vz === "number") {
+        typeof n.vz === "number"
+    ) {
         return true;
     }
 
@@ -92,7 +94,8 @@ export const D3LayoutConfig = z.strictObject({
 export type D3LayoutOptions = Partial<z.infer<typeof D3LayoutConfig>>;
 
 function isD3Edge(e: unknown): e is D3Edge {
-    if (typeof e === "object" &&
+    if (
+        typeof e === "object" &&
         e !== null &&
         Object.hasOwn(e, "index") &&
         "index" in e &&
@@ -100,7 +103,8 @@ function isD3Edge(e: unknown): e is D3Edge {
         "source" in e &&
         isD3Node(e.source) &&
         "target" in e &&
-        isD3Node(e.target)) {
+        isD3Node(e.target)
+    ) {
         return true;
     }
 
@@ -176,8 +180,8 @@ export class D3GraphEngine extends LayoutEngine {
     refresh(): void {
         if (this.graphNeedsRefresh || this.reheat) {
             // update nodes
-            let nodeList: (D3Node | D3InputNode)[] = [... this.nodeMapping.values()];
-            nodeList = nodeList.concat([... this.newNodeMap.values()]);
+            let nodeList: (D3Node | D3InputNode)[] = [...this.nodeMapping.values()];
+            nodeList = nodeList.concat([...this.newNodeMap.values()]);
             this.d3ForceLayout
                 .alpha(1) // re-heat the simulation
                 .nodes(nodeList)
@@ -196,11 +200,9 @@ export class D3GraphEngine extends LayoutEngine {
             this.newNodeMap.clear();
 
             // update edges
-            let linkList: (D3Edge | D3InputEdge)[] = [... this.edgeMapping.values()];
-            linkList = linkList.concat([... this.newEdgeMap.values()]);
-            this.d3ForceLayout
-                .force("link")
-                .links(linkList);
+            let linkList: (D3Edge | D3InputEdge)[] = [...this.edgeMapping.values()];
+            linkList = linkList.concat([...this.newEdgeMap.values()]);
+            this.d3ForceLayout.force("link").links(linkList);
 
             // copy over new edges
             for (const entry of this.newEdgeMap.entries()) {
@@ -242,7 +244,7 @@ export class D3GraphEngine extends LayoutEngine {
      * @param n - The node to add
      */
     addNode(n: Node): void {
-        this.newNodeMap.set(n, {id: n.id});
+        this.newNodeMap.set(n, { id: n.id });
     }
 
     /**

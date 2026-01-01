@@ -1,7 +1,7 @@
-import {assert, beforeEach, describe, it} from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 
-import {EventManager} from "../../src/managers/EventManager";
-import {OperationQueueManager} from "../../src/managers/OperationQueueManager";
+import { EventManager } from "../../src/managers/EventManager";
+import { OperationQueueManager } from "../../src/managers/OperationQueueManager";
 
 describe("Obsolescence Scenarios", () => {
     let eventManager: EventManager;
@@ -24,7 +24,7 @@ describe("Obsolescence Scenarios", () => {
         });
     });
 
-    it("should handle rapid data updates efficiently", async() => {
+    it("should handle rapid data updates efficiently", async () => {
         const executedLayouts: string[] = [];
         const executedDataOps: string[] = [];
 
@@ -33,7 +33,7 @@ describe("Obsolescence Scenarios", () => {
             // Add data operation
             queueManager.queueOperation(
                 "data-add",
-                async() => {
+                async () => {
                     executedDataOps.push(`data-${i}`);
                     // Simulate data processing
                     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -47,7 +47,7 @@ describe("Obsolescence Scenarios", () => {
             // Queue layout update that will likely be obsoleted by next data update
             queueManager.queueOperation(
                 "layout-update",
-                async(context) => {
+                async (context) => {
                     // Check for abort at start
                     if (context.signal.aborted) {
                         throw new Error("AbortError");
@@ -60,7 +60,7 @@ describe("Obsolescence Scenarios", () => {
                     }
                     executedLayouts.push(`layout-${i}`);
                 },
-                {description: `Layout for batch ${i}`},
+                { description: `Layout for batch ${i}` },
             );
 
             // Small delay between batches
@@ -79,13 +79,10 @@ describe("Obsolescence Scenarios", () => {
         );
 
         // Should have obsoleted some operations
-        assert.isTrue(
-            obsoletedOperations.length > 0,
-            "Should have obsoleted some operations",
-        );
+        assert.isTrue(obsoletedOperations.length > 0, "Should have obsoleted some operations");
     });
 
-    it("should not cancel near-complete operations (>90% progress)", async() => {
+    it("should not cancel near-complete operations (>90% progress)", async () => {
         const results: string[] = [];
 
         // Use a Promise to synchronize when layout reaches 90%+ progress
@@ -101,7 +98,7 @@ describe("Obsolescence Scenarios", () => {
             () => {
                 results.push("layout-set");
             },
-            {description: "Set layout"},
+            { description: "Set layout" },
         );
 
         // Wait for layout-set to complete
@@ -109,7 +106,7 @@ describe("Obsolescence Scenarios", () => {
 
         const layoutOpId = queueManager.queueOperation(
             "layout-update",
-            async(context) => {
+            async (context) => {
                 // Progress through to 95%
                 for (let i = 0; i <= 95; i += 5) {
                     if (context.signal.aborted) {
@@ -130,7 +127,7 @@ describe("Obsolescence Scenarios", () => {
                 results.push("layout-completed");
                 context.progress.setProgress(100);
             },
-            {description: "Nearly complete layout"},
+            { description: "Nearly complete layout" },
         );
 
         // Wait for layout to ACTUALLY reach 90%+ progress (deterministic, not timing-based)
@@ -159,19 +156,16 @@ describe("Obsolescence Scenarios", () => {
         assert.include(results, "data-added", "Data operation should complete");
 
         // Layout should not be in obsoleted list
-        assert.isFalse(
-            obsoletedOperations.includes(layoutOpId),
-            "Near-complete layout should not be obsoleted",
-        );
+        assert.isFalse(obsoletedOperations.includes(layoutOpId), "Near-complete layout should not be obsoleted");
     });
 
-    it("should cancel cascading obsolete operations", async() => {
+    it("should cancel cascading obsolete operations", async () => {
         const executed: string[] = [];
 
         // Queue a chain of dependent operations
         queueManager.queueOperation(
             "data-add",
-            async(context) => {
+            async (context) => {
                 await new Promise((resolve) => setTimeout(resolve, 50));
                 if (context.signal.aborted) {
                     throw new Error("AbortError");
@@ -179,12 +173,12 @@ describe("Obsolescence Scenarios", () => {
 
                 executed.push("data");
             },
-            {description: "Add initial data"},
+            { description: "Add initial data" },
         );
 
         queueManager.queueOperation(
             "layout-update",
-            async(context) => {
+            async (context) => {
                 await new Promise((resolve) => setTimeout(resolve, 50));
                 if (context.signal.aborted) {
                     throw new Error("AbortError");
@@ -192,12 +186,12 @@ describe("Obsolescence Scenarios", () => {
 
                 executed.push("layout");
             },
-            {description: "Calculate layout"},
+            { description: "Calculate layout" },
         );
 
         queueManager.queueOperation(
             "algorithm-run",
-            async(context) => {
+            async (context) => {
                 await new Promise((resolve) => setTimeout(resolve, 50));
                 if (context.signal.aborted) {
                     throw new Error("AbortError");
@@ -205,12 +199,12 @@ describe("Obsolescence Scenarios", () => {
 
                 executed.push("algorithm");
             },
-            {description: "Run algorithm on layout"},
+            { description: "Run algorithm on layout" },
         );
 
         queueManager.queueOperation(
             "render-update",
-            async(context) => {
+            async (context) => {
                 await new Promise((resolve) => setTimeout(resolve, 50));
                 if (context.signal.aborted) {
                     throw new Error("AbortError");
@@ -218,7 +212,7 @@ describe("Obsolescence Scenarios", () => {
 
                 executed.push("render");
             },
-            {description: "Render results"},
+            { description: "Render results" },
         );
 
         // After a short delay, add new data that obsoletes everything
@@ -243,40 +237,38 @@ describe("Obsolescence Scenarios", () => {
         assert.include(executed, "new-data", "New data operation should complete");
 
         // Most dependent operations should be obsoleted
-        const dependentOpsCompleted = ["layout", "algorithm", "render"].filter((op) =>
-            executed.includes(op),
-        );
+        const dependentOpsCompleted = ["layout", "algorithm", "render"].filter((op) => executed.includes(op));
         assert.isTrue(
             dependentOpsCompleted.length <= 1,
             `Most dependent operations should be cancelled, but ${dependentOpsCompleted.length} completed`,
         );
     });
 
-    it("should handle mixed operation priorities correctly", async() => {
-        const results: {operation: string, timestamp: number}[] = [];
+    it("should handle mixed operation priorities correctly", async () => {
+        const results: { operation: string; timestamp: number }[] = [];
 
         // Queue operations with different priorities and obsolescence rules
 
         // Low priority operation
         queueManager.queueOperation(
             "render-update",
-            async(context) => {
+            async (context) => {
                 if (context.signal.aborted) {
                     throw new Error("AbortError");
                 }
 
                 await new Promise((resolve) => setTimeout(resolve, 30));
-                results.push({operation: "render", timestamp: Date.now()});
+                results.push({ operation: "render", timestamp: Date.now() });
             },
-            {description: "Low priority render"},
+            { description: "Low priority render" },
         );
 
         // High priority data operation
         queueManager.queueOperation(
             "data-add",
-            async() => {
+            async () => {
                 await new Promise((resolve) => setTimeout(resolve, 10));
-                results.push({operation: "data", timestamp: Date.now()});
+                results.push({ operation: "data", timestamp: Date.now() });
             },
             {
                 description: "High priority data",
@@ -288,29 +280,32 @@ describe("Obsolescence Scenarios", () => {
         queueManager.queueOperation(
             "style-init",
             () => {
-                results.push({operation: "style", timestamp: Date.now()});
+                results.push({ operation: "style", timestamp: Date.now() });
             },
-            {description: "Critical style init"},
+            { description: "Critical style init" },
         );
 
         await queueManager.waitForCompletion();
 
         // Style should execute first due to dependencies
         // Data should execute and obsolete render
-        assert.isTrue(results.some((r) => r.operation === "style"), "Style should execute");
-        assert.isTrue(results.some((r) => r.operation === "data"), "Data should execute");
+        assert.isTrue(
+            results.some((r) => r.operation === "style"),
+            "Style should execute",
+        );
+        assert.isTrue(
+            results.some((r) => r.operation === "data"),
+            "Data should execute",
+        );
 
         // Render might be obsoleted
         const renderCompleted = results.some((r) => r.operation === "render");
         if (!renderCompleted) {
-            assert.isTrue(
-                obsoletedOperations.length > 0,
-                "Render should be obsoleted if it didn't complete",
-            );
+            assert.isTrue(obsoletedOperations.length > 0, "Render should be obsoleted if it didn't complete");
         }
     });
 
-    it("should respect custom obsolescence conditions", async() => {
+    it("should respect custom obsolescence conditions", async () => {
         const completed: string[] = [];
 
         // Queue operations with timestamp-based obsolescence
@@ -328,7 +323,7 @@ describe("Obsolescence Scenarios", () => {
                 },
                 {
                     description: `Algorithm ${i}`,
-                    timestamp: startTime + (i * 100),
+                    timestamp: startTime + i * 100,
                     shouldObsolete: (operation) => {
                         // Obsolete older algorithms of the same type
                         if (operation.category !== "algorithm-run") {
@@ -336,7 +331,7 @@ describe("Obsolescence Scenarios", () => {
                         }
 
                         const opTime = operation.metadata?.timestamp ?? 0;
-                        const myTime = startTime + (i * 100);
+                        const myTime = startTime + i * 100;
                         return opTime < myTime;
                     },
                 },
@@ -364,7 +359,7 @@ describe("Obsolescence Scenarios", () => {
         }
     });
 
-    it("should handle operation batches with obsolescence", async() => {
+    it("should handle operation batches with obsolescence", async () => {
         const results: string[] = [];
 
         // Simulate a batch of related operations
@@ -375,12 +370,12 @@ describe("Obsolescence Scenarios", () => {
                     () => {
                         results.push("batch1-data");
                     },
-                    {description: "Batch 1 data"},
+                    { description: "Batch 1 data" },
                 ),
             () =>
                 queueManager.queueOperation(
                     "layout-update",
-                    async(context) => {
+                    async (context) => {
                         if (context.signal.aborted) {
                             throw new Error("AbortError");
                         }
@@ -388,12 +383,12 @@ describe("Obsolescence Scenarios", () => {
                         await new Promise((resolve) => setTimeout(resolve, 30));
                         results.push("batch1-layout");
                     },
-                    {description: "Batch 1 layout"},
+                    { description: "Batch 1 layout" },
                 ),
             () =>
                 queueManager.queueOperation(
                     "render-update",
-                    async(context) => {
+                    async (context) => {
                         if (context.signal.aborted) {
                             throw new Error("AbortError");
                         }
@@ -401,7 +396,7 @@ describe("Obsolescence Scenarios", () => {
                         await new Promise((resolve) => setTimeout(resolve, 20));
                         results.push("batch1-render");
                     },
-                    {description: "Batch 1 render"},
+                    { description: "Batch 1 render" },
                 ),
         ];
 
@@ -429,7 +424,7 @@ describe("Obsolescence Scenarios", () => {
                     () => {
                         results.push("batch2-style");
                     },
-                    {description: "Batch 2 style reset"},
+                    { description: "Batch 2 style reset" },
                 ),
         ];
 
@@ -446,9 +441,6 @@ describe("Obsolescence Scenarios", () => {
 
         // Batch 1 layout and render should likely be obsoleted
         const batch1Obsoleted = !results.includes("batch1-layout") || !results.includes("batch1-render");
-        assert.isTrue(
-            batch1Obsoleted,
-            "At least one batch 1 operation should be obsoleted",
-        );
+        assert.isTrue(batch1Obsoleted, "At least one batch 1 operation should be obsoleted");
     });
 });

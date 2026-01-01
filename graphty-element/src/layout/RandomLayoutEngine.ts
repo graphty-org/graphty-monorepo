@@ -1,8 +1,8 @@
-import {Edge as LayoutEdge, Node as LayoutNode, randomLayout} from "@graphty/layout";
-import {z} from "zod/v4";
+import { Edge as LayoutEdge, Node as LayoutNode, randomLayout } from "@graphty/layout";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema} from "../config";
-import {SimpleLayoutConfig, SimpleLayoutEngine} from "./LayoutEngine";
+import { defineOptions, type OptionsSchema } from "../config";
+import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for Random Layout
@@ -33,7 +33,7 @@ export const randomLayoutOptionsSchema = defineOptions({
 });
 
 export const RandomLayoutConfig = z.strictObject({
-    ... SimpleLayoutConfig.shape,
+    ...SimpleLayoutConfig.shape,
     center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
     dim: z.number().default(2),
     seed: z.number().positive().or(z.null()).default(null),
@@ -66,7 +66,7 @@ export class RandomLayout extends SimpleLayoutEngine {
      * @returns Options object with dim parameter
      */
     static getOptionsForDimension(dimension: 2 | 3): object {
-        return {dim: dimension};
+        return { dim: dimension };
     }
 
     /**
@@ -77,11 +77,6 @@ export class RandomLayout extends SimpleLayoutEngine {
         const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
         const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
 
-        this.positions = randomLayout(
-            {nodes, edges},
-            this.config.center,
-            this.config.dim,
-            this.config.seed,
-        );
+        this.positions = randomLayout({ nodes, edges }, this.config.center, this.config.dim, this.config.seed);
     }
 }

@@ -1,22 +1,22 @@
-import type {Edge} from "../Edge";
-import {LayoutEngine} from "../layout/LayoutEngine";
-import {GraphtyLogger, type Logger} from "../logging/GraphtyLogger.js";
-import type {Node} from "../Node";
-import type {Styles} from "../Styles";
-import type {DataManager} from "./DataManager";
-import type {EventManager} from "./EventManager";
-import type {GraphContext} from "./GraphContext";
-import type {Manager} from "./interfaces";
+import type { Edge } from "../Edge";
+import { LayoutEngine } from "../layout/LayoutEngine";
+import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
+import type { Node } from "../Node";
+import type { Styles } from "../Styles";
+import type { DataManager } from "./DataManager";
+import type { EventManager } from "./EventManager";
+import type { GraphContext } from "./GraphContext";
+import type { Manager } from "./interfaces";
 
 // Type guard for layout engines with optional dispose method
-type LayoutEngineWithDispose = LayoutEngine & {dispose(): void};
+type LayoutEngineWithDispose = LayoutEngine & { dispose(): void };
 
 function hasDispose(engine: LayoutEngine): engine is LayoutEngineWithDispose {
     return "dispose" in engine;
 }
 
 // Type guard for layout engines with optional getEdgePath method
-type LayoutEngineWithEdgePath = LayoutEngine & {getEdgePath(edge: Edge): [number, number, number][]};
+type LayoutEngineWithEdgePath = LayoutEngine & { getEdgePath(edge: Edge): [number, number, number][] };
 
 function hasGetEdgePath(engine: LayoutEngine): engine is LayoutEngineWithEdgePath {
     return "getEdgePath" in engine;
@@ -106,11 +106,11 @@ export class LayoutManager implements Manager {
      * @param opts - Layout-specific options
      */
     private async _setLayoutInternal(type: string, opts: object = {}): Promise<void> {
-        this.logger.info("Setting layout", {type, options: opts});
+        this.logger.info("Setting layout", { type, options: opts });
 
         try {
             // Auto-sync layout dimension with graph's 2D/3D mode if not explicitly set
-            const layoutOpts = {... opts};
+            const layoutOpts = { ...opts };
 
             // Get dimension-specific options from the layout if not already provided
             // Support both new viewMode and deprecated twoD for backward compatibility
@@ -142,8 +142,8 @@ export class LayoutManager implements Manager {
 
             try {
                 // Add all existing nodes and edges to the new engine
-                const nodeArray = [... this.dataManager.nodes.values()];
-                const edgeArray = [... this.dataManager.edges.values()];
+                const nodeArray = [...this.dataManager.nodes.values()];
+                const edgeArray = [...this.dataManager.edges.values()];
                 engine.addNodes(nodeArray);
                 engine.addEdges(edgeArray);
 
@@ -154,7 +154,7 @@ export class LayoutManager implements Manager {
                 this.dataManager.setLayoutEngine(engine);
 
                 // run layout presteps
-                const {preSteps} = this.styles.config.behavior.layout;
+                const { preSteps } = this.styles.config.behavior.layout;
                 for (let i = 0; i < preSteps; i++) {
                     // Stop if layout has settled
                     if (this.layoutEngine.isSettled) {
@@ -190,7 +190,7 @@ export class LayoutManager implements Manager {
                 this.logger.error(
                     "Layout initialization failed",
                     error instanceof Error ? error : new Error(String(error)),
-                    {layoutType: type},
+                    { layoutType: type },
                 );
 
                 // Restore previous layout engine if initialization failed
@@ -203,11 +203,13 @@ export class LayoutManager implements Manager {
                         this.graphContext,
                         error instanceof Error ? error : new Error(String(error)),
                         "layout",
-                        {layoutType: type},
+                        { layoutType: type },
                     );
                 }
 
-                throw new Error(`Failed to initialize layout '${type}': ${error instanceof Error ? error.message : String(error)}`);
+                throw new Error(
+                    `Failed to initialize layout '${type}': ${error instanceof Error ? error.message : String(error)}`,
+                );
             }
         } catch (error) {
             // Re-throw if already a processed error
@@ -216,7 +218,9 @@ export class LayoutManager implements Manager {
             }
 
             // Otherwise wrap and throw
-            throw new Error(`Error setting layout '${type}': ${error instanceof Error ? error.message : String(error)}`);
+            throw new Error(
+                `Error setting layout '${type}': ${error instanceof Error ? error.message : String(error)}`,
+            );
         }
     }
 
@@ -318,7 +322,10 @@ export class LayoutManager implements Manager {
         try {
             if (this.layoutEngine) {
                 const currentDimension = twoD ? 2 : 3;
-                const currentDimensionOpts = LayoutEngine.getOptionsForDimensionByType(this.layoutEngine.type, currentDimension);
+                const currentDimensionOpts = LayoutEngine.getOptionsForDimensionByType(
+                    this.layoutEngine.type,
+                    currentDimension,
+                );
 
                 // Only recreate if the layout supports dimension configuration
                 if (currentDimensionOpts && Object.keys(currentDimensionOpts).length > 0) {
@@ -326,15 +333,15 @@ export class LayoutManager implements Manager {
                     // This is a bit tricky since we don't know what property name is used for dimensions
                     // The safest approach is to always recreate when switching between 2D/3D modes
                     const layoutType = this.layoutEngine.type;
-                    const layoutOpts = this.layoutEngine.config ? {... this.layoutEngine.config} : {};
+                    const layoutOpts = this.layoutEngine.config ? { ...this.layoutEngine.config } : {};
 
                     // Remove any dimension-related options that might conflict
                     // We'll let getOptionsForDimensionByType add the correct ones
                     const previousDimensionOpts2D = LayoutEngine.getOptionsForDimensionByType(layoutType, 2);
                     const previousDimensionOpts3D = LayoutEngine.getOptionsForDimensionByType(layoutType, 3);
                     const allDimensionKeys = new Set([
-                        ... Object.keys(previousDimensionOpts2D ?? {}),
-                        ... Object.keys(previousDimensionOpts3D ?? {}),
+                        ...Object.keys(previousDimensionOpts2D ?? {}),
+                        ...Object.keys(previousDimensionOpts3D ?? {}),
                     ]);
 
                     allDimensionKeys.forEach((key) => {
@@ -360,8 +367,7 @@ export class LayoutManager implements Manager {
             const options = layoutOptions ?? {};
 
             // Check if we need to update the layout
-            const needsUpdate = this.layoutEngine?.type !== layoutType ||
-                               this.hasOptionsChanged(options);
+            const needsUpdate = this.layoutEngine?.type !== layoutType || this.hasOptionsChanged(options);
 
             if (needsUpdate) {
                 await this._setLayoutInternal(layoutType, options);
@@ -444,7 +450,9 @@ export class LayoutManager implements Manager {
 
         // If the layout engine has an updatePositions method, use it
         if ("updatePositions" in this.layoutEngine && typeof this.layoutEngine.updatePositions === "function") {
-            const engineWithUpdate = this.layoutEngine as LayoutEngine & {updatePositions: (nodes: Node[]) => Promise<void>};
+            const engineWithUpdate = this.layoutEngine as LayoutEngine & {
+                updatePositions: (nodes: Node[]) => Promise<void>;
+            };
             await engineWithUpdate.updatePositions(nodes);
         } else {
             // Otherwise, just run a few steps to position new nodes

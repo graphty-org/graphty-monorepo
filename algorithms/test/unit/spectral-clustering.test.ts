@@ -1,7 +1,7 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {spectralClustering} from "../../src/clustering/spectral.js";
-import {Graph} from "../../src/core/graph.js";
+import { spectralClustering } from "../../src/clustering/spectral.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Spectral Clustering", () => {
     describe("spectralClustering", () => {
@@ -14,7 +14,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("d", "e");
             graph.addEdge("e", "f");
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
 
             expect(result.communities).toHaveLength(2);
             expect(result.clusterAssignments.size).toBe(6);
@@ -32,7 +32,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("b", "c");
             graph.addEdge("c", "a");
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
 
             expect(result.communities).toHaveLength(2);
             expect(result.clusterAssignments.size).toBe(3);
@@ -50,7 +50,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("center", "c");
             graph.addEdge("center", "d");
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
 
             expect(result.communities).toHaveLength(2);
             expect(result.clusterAssignments.size).toBe(5);
@@ -61,7 +61,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const result = spectralClustering(graph, {k: 5});
+            const result = spectralClustering(graph, { k: 5 });
 
             // Should return each node as its own cluster
             expect(result.communities).toHaveLength(3);
@@ -74,9 +74,9 @@ describe("Spectral Clustering", () => {
             graph.addEdge("b", "c");
             graph.addEdge("a", "c");
 
-            const unnormalized = spectralClustering(graph, {k: 2, laplacianType: "unnormalized"});
-            const normalized = spectralClustering(graph, {k: 2, laplacianType: "normalized"});
-            const randomWalk = spectralClustering(graph, {k: 2, laplacianType: "randomWalk"});
+            const unnormalized = spectralClustering(graph, { k: 2, laplacianType: "unnormalized" });
+            const normalized = spectralClustering(graph, { k: 2, laplacianType: "normalized" });
+            const randomWalk = spectralClustering(graph, { k: 2, laplacianType: "randomWalk" });
 
             // All should produce valid clusterings
             expect(unnormalized.communities.length).toBeGreaterThan(0);
@@ -90,7 +90,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("b", "c", 0.1);
             graph.addEdge("c", "d", 1.0);
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
 
             expect(result.communities).toHaveLength(2);
             expect(result.clusterAssignments.size).toBe(4);
@@ -102,7 +102,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("b", "c");
             graph.addEdge("c", "d");
 
-            const result = spectralClustering(graph, {k: 2, maxIterations: 10});
+            const result = spectralClustering(graph, { k: 2, maxIterations: 10 });
 
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.size).toBe(4);
@@ -114,7 +114,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("b", "c");
             graph.addEdge("c", "d");
 
-            const result = spectralClustering(graph, {k: 2, tolerance: 1e-2});
+            const result = spectralClustering(graph, { k: 2, tolerance: 1e-2 });
 
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.size).toBe(4);
@@ -125,7 +125,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
 
             // These may be simplified in the current implementation
             expect(result.eigenvalues).toBeDefined();
@@ -146,7 +146,7 @@ describe("Spectral Clustering", () => {
             // Weak connection between clusters
             graph.addEdge("a1", "b1");
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
 
             expect(result.communities).toHaveLength(2);
             expect(result.communities.every((community) => community.length > 0)).toBe(true);
@@ -157,7 +157,7 @@ describe("Spectral Clustering", () => {
         it("should handle empty graph", () => {
             const graph = new Graph();
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
 
             expect(result.communities).toHaveLength(0);
             expect(result.clusterAssignments.size).toBe(0);
@@ -167,7 +167,7 @@ describe("Spectral Clustering", () => {
             const graph = new Graph();
             graph.addNode("a");
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
 
             expect(result.communities).toHaveLength(1);
             expect(result.communities[0]).toContain("a");
@@ -178,7 +178,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("a", "b");
             graph.addNode("isolated");
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
 
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.has("isolated")).toBe(true);
@@ -190,7 +190,7 @@ describe("Spectral Clustering", () => {
             graph.addNode("b");
             graph.addNode("c");
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
 
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.size).toBe(3);
@@ -201,31 +201,31 @@ describe("Spectral Clustering", () => {
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const result = spectralClustering(graph, {k: 1});
+            const result = spectralClustering(graph, { k: 1 });
 
             expect(result.communities).toHaveLength(1);
             expect(result.communities[0]).toHaveLength(3);
         });
 
         it("should handle self-loops", () => {
-            const graph = new Graph({allowSelfLoops: true});
+            const graph = new Graph({ allowSelfLoops: true });
             graph.addEdge("a", "a");
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
 
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.size).toBe(3);
         });
 
         it("should handle directed graphs", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
             graph.addEdge("c", "a");
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
 
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.size).toBe(3);
@@ -240,7 +240,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("B", "C");
             graph.addEdge("C", "A");
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
 
             // Eigenvalues are approximate - document this behavior
             if (result.eigenvalues) {
@@ -279,7 +279,7 @@ describe("Spectral Clustering", () => {
             // Add single weak connection between clusters
             graph.addEdge("a1", "b1");
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
 
             expect(result.communities).toHaveLength(2);
 
@@ -311,7 +311,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("c2", "c3");
             graph.addEdge("c3", "c1");
 
-            const result = spectralClustering(graph, {k: 3});
+            const result = spectralClustering(graph, { k: 3 });
 
             // Spectral clustering may not always produce exactly k clusters
             // for disconnected components due to k-means initialization randomness
@@ -345,7 +345,7 @@ describe("Spectral Clustering", () => {
             }
 
             const start = Date.now();
-            const result = spectralClustering(graph, {k: 5, maxIterations: 20});
+            const result = spectralClustering(graph, { k: 5, maxIterations: 20 });
             const duration = Date.now() - start;
 
             expect(duration).toBeLessThan(10000); // Should complete within 10 seconds
@@ -357,7 +357,7 @@ describe("Spectral Clustering", () => {
     describe("k-means clustering edge cases", () => {
         it("should throw for k=0 (invalid parameter)", () => {
             const graph = new Graph();
-            expect(() => spectralClustering(graph, {k: 0})).toThrow("k must be a positive integer");
+            expect(() => spectralClustering(graph, { k: 0 })).toThrow("k must be a positive integer");
         });
 
         it("should handle graph with nodes but no edges (isolated nodes)", () => {
@@ -367,7 +367,7 @@ describe("Spectral Clustering", () => {
                 graph.addNode(`node${i}`);
             }
 
-            const result = spectralClustering(graph, {k: 3});
+            const result = spectralClustering(graph, { k: 3 });
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.size).toBe(10);
         });
@@ -379,7 +379,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("c", "d");
 
             // k is larger than number of nodes
-            const result = spectralClustering(graph, {k: 10});
+            const result = spectralClustering(graph, { k: 10 });
             expect(result.communities).toHaveLength(4); // Each node gets its own cluster
             expect(result.clusterAssignments.size).toBe(4);
         });
@@ -390,7 +390,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("b", "c", 0);
             graph.addEdge("c", "d", 1);
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.size).toBe(4);
         });
@@ -403,7 +403,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("c", "center", 1);
             graph.addEdge("d", "center", 1);
 
-            const result = spectralClustering(graph, {k: 2, maxIterations: 5});
+            const result = spectralClustering(graph, { k: 2, maxIterations: 5 });
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.size).toBe(5);
         });
@@ -415,7 +415,7 @@ describe("Spectral Clustering", () => {
                 graph.addEdge(`n${i}`, `n${i + 1}`);
             }
 
-            const result = spectralClustering(graph, {k: 5, maxIterations: 50});
+            const result = spectralClustering(graph, { k: 5, maxIterations: 50 });
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.size).toBe(21);
         });
@@ -426,7 +426,7 @@ describe("Spectral Clustering", () => {
             graph.addNode("isolated1");
             graph.addNode("isolated2");
 
-            const result = spectralClustering(graph, {k: 2, laplacianType: "unnormalized"});
+            const result = spectralClustering(graph, { k: 2, laplacianType: "unnormalized" });
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.size).toBe(4);
         });
@@ -437,7 +437,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("b", "c", 0.1);
             graph.addEdge("c", "d", 10);
 
-            const result = spectralClustering(graph, {k: 2, laplacianType: "randomWalk"});
+            const result = spectralClustering(graph, { k: 2, laplacianType: "randomWalk" });
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.size).toBe(4);
         });
@@ -448,7 +448,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("a", "b");
             graph.addNode("c");
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.eigenvalues).toBeDefined();
             expect(result.eigenvectors).toBeDefined();
@@ -459,7 +459,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const result = spectralClustering(graph, {k: 3});
+            const result = spectralClustering(graph, { k: 3 });
             expect(result.communities).toHaveLength(3);
             // When k >= n, eigenvalues/eigenvectors might not be returned
             // since each node becomes its own cluster
@@ -471,7 +471,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("b", "c", 0.0001);
             graph.addEdge("c", "d", 0.0001);
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.size).toBe(4);
         });
@@ -484,7 +484,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("c", "d");
             graph.addEdge("d", "e");
 
-            const result = spectralClustering(graph, {k: 1});
+            const result = spectralClustering(graph, { k: 1 });
             expect(result.communities).toHaveLength(1);
             expect(result.communities[0]).toHaveLength(5);
             expect(result.clusterAssignments.size).toBe(5);
@@ -497,7 +497,7 @@ describe("Spectral Clustering", () => {
             graph.addNode("b");
 
             // Request more clusters than data points in embedding space
-            const result = spectralClustering(graph, {k: 5});
+            const result = spectralClustering(graph, { k: 5 });
             expect(result.communities).toHaveLength(2); // Each node as its own cluster
             expect(result.clusterAssignments.size).toBe(2);
         });
@@ -507,14 +507,14 @@ describe("Spectral Clustering", () => {
             // Single node graph
             graph.addNode("a");
 
-            const result = spectralClustering(graph, {k: 1});
+            const result = spectralClustering(graph, { k: 1 });
             expect(result.communities).toHaveLength(1);
             expect(result.communities[0]).toContain("a");
         });
 
         it("should handle empty data in k-means", () => {
             const graph = new Graph();
-            const result = spectralClustering(graph, {k: 3});
+            const result = spectralClustering(graph, { k: 3 });
             expect(result.communities).toHaveLength(0);
         });
 
@@ -526,7 +526,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("c", "d");
             graph.addEdge("d", "a");
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.size).toBe(4);
         });
@@ -541,7 +541,7 @@ describe("Spectral Clustering", () => {
                 }
             }
 
-            const result = spectralClustering(graph, {k: 3, maxIterations: 2});
+            const result = spectralClustering(graph, { k: 3, maxIterations: 2 });
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.size).toBe(6);
         });
@@ -553,7 +553,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("b", "c", 1);
             graph.addEdge("c", "d", 1);
 
-            const result = spectralClustering(graph, {k: 2, maxIterations: 10});
+            const result = spectralClustering(graph, { k: 2, maxIterations: 10 });
             expect(result.communities.length).toBeGreaterThan(0);
         });
 
@@ -562,7 +562,7 @@ describe("Spectral Clustering", () => {
             graph.addNode("isolated");
             graph.addEdge("a", "b");
 
-            const result = spectralClustering(graph, {k: 2, laplacianType: "normalized"});
+            const result = spectralClustering(graph, { k: 2, laplacianType: "normalized" });
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.has("isolated")).toBe(true);
         });
@@ -572,7 +572,7 @@ describe("Spectral Clustering", () => {
             graph.addNode("isolated");
             graph.addEdge("a", "b");
 
-            const result = spectralClustering(graph, {k: 2, laplacianType: "randomWalk"});
+            const result = spectralClustering(graph, { k: 2, laplacianType: "randomWalk" });
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.clusterAssignments.has("isolated")).toBe(true);
         });
@@ -583,7 +583,7 @@ describe("Spectral Clustering", () => {
             graph.addNode("a");
             graph.addNode("b");
             // With 2 nodes but k=5, it should handle the case where we need more centroids
-            const result = spectralClustering(graph, {k: 5});
+            const result = spectralClustering(graph, { k: 5 });
             expect(result.communities).toHaveLength(2);
         });
 
@@ -594,7 +594,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge("b", "c");
             graph.addEdge("c", "a");
 
-            const result = spectralClustering(graph, {k: 1, maxIterations: 1});
+            const result = spectralClustering(graph, { k: 1, maxIterations: 1 });
             expect(result.communities).toHaveLength(1);
             expect(result.communities[0]).toHaveLength(3);
         });
@@ -608,7 +608,7 @@ describe("Spectral Clustering", () => {
                 }
             }
 
-            const result = spectralClustering(graph, {k: 3});
+            const result = spectralClustering(graph, { k: 3 });
             expect(result.communities).toHaveLength(3);
             expect(result.clusterAssignments.size).toBe(5);
         });
@@ -616,7 +616,7 @@ describe("Spectral Clustering", () => {
         it("should handle k-means with data dimension d = 0", () => {
             const graph = new Graph();
             // Empty graph should produce empty eigenvectors
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
             expect(result.communities).toHaveLength(0);
         });
 
@@ -635,7 +635,7 @@ describe("Spectral Clustering", () => {
             graph.addEdge(nodes[4], nodes[5]);
             graph.addEdge(nodes[5], nodes[0]);
 
-            const result = spectralClustering(graph, {k: 3});
+            const result = spectralClustering(graph, { k: 3 });
             expect(result.communities.length).toBeGreaterThan(0);
             expect(result.eigenvalues).toBeDefined();
         });
@@ -647,7 +647,7 @@ describe("Spectral Clustering", () => {
                 graph.addNode(`isolated${i}`);
             }
 
-            const result = spectralClustering(graph, {k: 2});
+            const result = spectralClustering(graph, { k: 2 });
             expect(result.communities.length).toBeGreaterThan(0);
         });
 
@@ -659,15 +659,15 @@ describe("Spectral Clustering", () => {
             graph.addNode("d"); // isolated node
 
             // Test unnormalized laplacian
-            const result1 = spectralClustering(graph, {k: 2, laplacianType: "unnormalized"});
+            const result1 = spectralClustering(graph, { k: 2, laplacianType: "unnormalized" });
             expect(result1.communities.length).toBeGreaterThan(0);
 
             // Test normalized laplacian with zero degree node
-            const result2 = spectralClustering(graph, {k: 2, laplacianType: "normalized"});
+            const result2 = spectralClustering(graph, { k: 2, laplacianType: "normalized" });
             expect(result2.communities.length).toBeGreaterThan(0);
 
             // Test random walk laplacian
-            const result3 = spectralClustering(graph, {k: 2, laplacianType: "randomWalk"});
+            const result3 = spectralClustering(graph, { k: 2, laplacianType: "randomWalk" });
             expect(result3.communities.length).toBeGreaterThan(0);
         });
     });

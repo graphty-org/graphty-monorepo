@@ -11,21 +11,21 @@
  * - Two-hand rotation rotates scene
  */
 
-import {Quaternion, Vector3} from "@babylonjs/core";
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test, vi} from "vitest";
+import { Quaternion, Vector3 } from "@babylonjs/core";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import {PivotController} from "../../../src/cameras/PivotController";
-import type {Graph} from "../../../src/Graph";
-import {cleanupTestGraph, createTestGraph} from "../../helpers/testSetup";
+import { PivotController } from "../../../src/cameras/PivotController";
+import type { Graph } from "../../../src/Graph";
+import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
 
 /**
  * Helper to get pivot rotation as Euler angles
  */
-function getPivotEuler(pivot: PivotController): {x: number, y: number, z: number} {
+function getPivotEuler(pivot: PivotController): { x: number; y: number; z: number } {
     const quat = pivot.pivot.rotationQuaternion ?? Quaternion.Identity();
     const euler = quat.toEulerAngles();
-    return {x: euler.x, y: euler.y, z: euler.z};
+    return { x: euler.x, y: euler.y, z: euler.z };
 }
 
 /**
@@ -96,7 +96,7 @@ class MockGestureProcessor {
 
         // Zoom from distance change
         const distanceDelta = currentDistance - this.previousDistance;
-        const zoomFactor = 1.0 + (distanceDelta * this.GESTURE_ZOOM_SENSITIVITY);
+        const zoomFactor = 1.0 + distanceDelta * this.GESTURE_ZOOM_SENSITIVITY;
         // Invert: hands apart (positive delta) = zoom out = scale down
         this.pivotController.zoom(2.0 - Math.max(0.9, Math.min(1.1, zoomFactor)));
 
@@ -141,7 +141,7 @@ describe("XR Controller Gestures", () => {
     let pivotController: PivotController;
     let processor: MockGestureProcessor;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         graph = await createTestGraph();
         pivotController = new PivotController(graph.scene);
         processor = new MockGestureProcessor(pivotController);
@@ -179,14 +179,8 @@ describe("XR Controller Gestures", () => {
         test("two-hand pinch zooms scene", () => {
             // Start with both hands pinching at initial distance
             const startDistance = 0.4;
-            processor.leftHand = processor.createHand(
-                new Vector3(-startDistance / 2, 1.0, -0.5),
-                true,
-            );
-            processor.rightHand = processor.createHand(
-                new Vector3(startDistance / 2, 1.0, -0.5),
-                true,
-            );
+            processor.leftHand = processor.createHand(new Vector3(-startDistance / 2, 1.0, -0.5), true);
+            processor.rightHand = processor.createHand(new Vector3(startDistance / 2, 1.0, -0.5), true);
 
             // Initialize gesture tracking
             processor.processGestures();
@@ -195,14 +189,8 @@ describe("XR Controller Gestures", () => {
 
             // Move hands closer together (pinch in = zoom out)
             const endDistance = 0.2;
-            processor.leftHand = processor.createHand(
-                new Vector3(-endDistance / 2, 1.0, -0.5),
-                true,
-            );
-            processor.rightHand = processor.createHand(
-                new Vector3(endDistance / 2, 1.0, -0.5),
-                true,
-            );
+            processor.leftHand = processor.createHand(new Vector3(-endDistance / 2, 1.0, -0.5), true);
+            processor.rightHand = processor.createHand(new Vector3(endDistance / 2, 1.0, -0.5), true);
 
             // Process the gesture
             processor.processGestures();
@@ -217,14 +205,8 @@ describe("XR Controller Gestures", () => {
         test("hands apart zooms scene in opposite direction", () => {
             // Start with both hands pinching close together
             const startDistance = 0.2;
-            processor.leftHand = processor.createHand(
-                new Vector3(-startDistance / 2, 1.0, -0.5),
-                true,
-            );
-            processor.rightHand = processor.createHand(
-                new Vector3(startDistance / 2, 1.0, -0.5),
-                true,
-            );
+            processor.leftHand = processor.createHand(new Vector3(-startDistance / 2, 1.0, -0.5), true);
+            processor.rightHand = processor.createHand(new Vector3(startDistance / 2, 1.0, -0.5), true);
 
             // Initialize gesture tracking
             processor.processGestures();
@@ -233,14 +215,8 @@ describe("XR Controller Gestures", () => {
 
             // Move hands further apart (spread = zoom in)
             const endDistance = 0.6;
-            processor.leftHand = processor.createHand(
-                new Vector3(-endDistance / 2, 1.0, -0.5),
-                true,
-            );
-            processor.rightHand = processor.createHand(
-                new Vector3(endDistance / 2, 1.0, -0.5),
-                true,
-            );
+            processor.leftHand = processor.createHand(new Vector3(-endDistance / 2, 1.0, -0.5), true);
+            processor.rightHand = processor.createHand(new Vector3(endDistance / 2, 1.0, -0.5), true);
 
             // Process the gesture
             processor.processGestures();
@@ -354,24 +330,9 @@ describe("XR Controller Gestures", () => {
             const finalEuler = getPivotEuler(pivotController);
 
             // Rotation should not change
-            assert.closeTo(
-                finalEuler.x,
-                initialEuler.x,
-                0.0001,
-                "Single hand should not rotate (X)",
-            );
-            assert.closeTo(
-                finalEuler.y,
-                initialEuler.y,
-                0.0001,
-                "Single hand should not rotate (Y)",
-            );
-            assert.closeTo(
-                finalEuler.z,
-                initialEuler.z,
-                0.0001,
-                "Single hand should not rotate (Z)",
-            );
+            assert.closeTo(finalEuler.x, initialEuler.x, 0.0001, "Single hand should not rotate (X)");
+            assert.closeTo(finalEuler.y, initialEuler.y, 0.0001, "Single hand should not rotate (Y)");
+            assert.closeTo(finalEuler.z, initialEuler.z, 0.0001, "Single hand should not rotate (Z)");
         });
     });
 
@@ -421,15 +382,9 @@ describe("XR Controller Gestures", () => {
             // Make multiple small incremental distance increases
             const steps = 5;
             for (let i = 1; i <= steps; i++) {
-                const distance = 0.2 + (i * 0.05);
-                processor.leftHand = processor.createHand(
-                    new Vector3(-distance, 1.0, -0.5),
-                    true,
-                );
-                processor.rightHand = processor.createHand(
-                    new Vector3(distance, 1.0, -0.5),
-                    true,
-                );
+                const distance = 0.2 + i * 0.05;
+                processor.leftHand = processor.createHand(new Vector3(-distance, 1.0, -0.5), true);
+                processor.rightHand = processor.createHand(new Vector3(distance, 1.0, -0.5), true);
                 processor.processGestures();
             }
 
@@ -447,7 +402,7 @@ describe("XR Gesture State Management", () => {
     let pivotController: PivotController;
     let processor: MockGestureProcessor;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         graph = await createTestGraph();
         pivotController = new PivotController(graph.scene);
         processor = new MockGestureProcessor(pivotController);
@@ -516,10 +471,6 @@ describe("XR Gesture State Management", () => {
         const scaleAfterSecondMove = getPivotScale(pivotController);
 
         // Scale should continue changing in same direction
-        assert.notEqual(
-            scaleAfterSecondMove,
-            scaleAfterMove,
-            "Continuous movement should continue affecting scale",
-        );
+        assert.notEqual(scaleAfterSecondMove, scaleAfterMove, "Continuous movement should continue affecting scale");
     });
 });

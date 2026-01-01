@@ -61,6 +61,7 @@ The application is structured as follows:
 This project wraps the `graphty-element` web component. During development, it references the local graphty-element project at `../graphty-element`.
 
 When graphty-element is published to npm, update the import in:
+
 - `package.json` - Add as dependency
 - `vite.config.ts` - Remove alias
 - `tsconfig.json` - Remove path mapping
@@ -69,6 +70,7 @@ When graphty-element is published to npm, update the import in:
 ## Contributing
 
 This project uses:
+
 - ESLint for code linting
 - Prettier formatting (via ESLint)
 - Conventional commits with commitlint

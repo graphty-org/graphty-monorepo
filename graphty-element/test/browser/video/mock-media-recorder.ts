@@ -1,4 +1,4 @@
-import type {vi as vitestVi} from "vitest";
+import type { vi as vitestVi } from "vitest";
 
 /**
  * Mock MediaRecorder for testing video capture functionality.
@@ -11,7 +11,7 @@ export class MockMediaRecorder {
     state: "inactive" | "recording" | "paused" = "inactive";
     mimeType: string;
 
-    constructor(stream: MediaStream, options?: {mimeType?: string, videoBitsPerSecond?: number}) {
+    constructor(stream: MediaStream, options?: { mimeType?: string; videoBitsPerSecond?: number }) {
         this.mimeType = options?.mimeType ?? "video/webm";
     }
 
@@ -22,8 +22,8 @@ export class MockMediaRecorder {
     stop(): void {
         this.state = "inactive";
         // Simulate data available
-        const blob = new Blob(["mock video data"], {type: this.mimeType});
-        this.ondataavailable?.({data: blob} as BlobEvent);
+        const blob = new Blob(["mock video data"], { type: this.mimeType });
+        this.ondataavailable?.({ data: blob } as BlobEvent);
         setTimeout(() => this.onstop?.(), 0);
     }
 
@@ -54,9 +54,6 @@ export function setupMockMediaRecorder(vi: typeof vitestVi): void {
  * @param vi - The vitest vi object for stubbing globals
  * @param original - The original MediaRecorder to restore
  */
-export function restoreMockMediaRecorder(
-    vi: typeof vitestVi,
-    original: typeof MediaRecorder,
-): void {
+export function restoreMockMediaRecorder(vi: typeof vitestVi, original: typeof MediaRecorder): void {
     vi.stubGlobal("MediaRecorder", original);
 }

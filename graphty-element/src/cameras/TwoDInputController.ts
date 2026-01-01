@@ -1,8 +1,8 @@
 // TwoDInputController.ts
-import {type Observer, PointerEventTypes, type PointerInfo, type PointerInfoPre} from "@babylonjs/core";
+import { type Observer, PointerEventTypes, type PointerInfo, type PointerInfoPre } from "@babylonjs/core";
 import Hammer from "hammerjs";
 
-import {TwoDCameraController, TwoDCameraControlsConfigType} from "./TwoDCameraController";
+import { TwoDCameraController, TwoDCameraControlsConfigType } from "./TwoDCameraController";
 
 interface GestureSession {
     panX: number;
@@ -119,7 +119,7 @@ export class InputController {
 
     private setupTouch(): void {
         this.hammer = new Hammer.Manager(this.canvas);
-        const pan = new Hammer.Pan({threshold: 0, pointers: 0});
+        const pan = new Hammer.Pan({ threshold: 0, pointers: 0 });
         const pinch = new Hammer.Pinch();
         const rotate = new Hammer.Rotate();
 
@@ -160,8 +160,8 @@ export class InputController {
             const dx = ev.center.x - this.gestureSession.panX;
             const dy = ev.center.y - this.gestureSession.panY;
 
-            this.cam.camera.position.x = this.gestureSession.panStartX - (dx * scaleX * this.config.touchPanScale);
-            this.cam.camera.position.y = this.gestureSession.panStartY + (dy * scaleY * this.config.touchPanScale);
+            this.cam.camera.position.x = this.gestureSession.panStartX - dx * scaleX * this.config.touchPanScale;
+            this.cam.camera.position.y = this.gestureSession.panStartY + dy * scaleY * this.config.touchPanScale;
 
             const pinch = (ev.scale || 1) / this.gestureSession.scale;
             this.cam.camera.orthoLeft = this.gestureSession.ortho.left / pinch;

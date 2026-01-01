@@ -1,7 +1,7 @@
-import {Mesh, NullEngine, Scene, StandardMaterial, Vector3} from "@babylonjs/core";
-import {assert, beforeEach, describe, test, vi} from "vitest";
+import { Mesh, NullEngine, Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
+import { assert, beforeEach, describe, test, vi } from "vitest";
 
-import {type AnimationOptions, type AnimationType, RichTextAnimator} from "../src/meshes/RichTextAnimator";
+import { type AnimationOptions, type AnimationType, RichTextAnimator } from "../src/meshes/RichTextAnimator";
 
 describe("RichTextAnimator", () => {
     let scene: Scene;
@@ -344,8 +344,10 @@ describe("RichTextAnimator", () => {
             // Check all progress values are between 0 and 1
             mockProgressCallback.mock.calls.forEach((call: unknown[]) => {
                 const progressValue = call[0] as number;
-                assert.isTrue(progressValue >= 0 && progressValue <= 1,
-                    `Progress value ${progressValue} should be between 0 and 1`);
+                assert.isTrue(
+                    progressValue >= 0 && progressValue <= 1,
+                    `Progress value ${progressValue} should be between 0 and 1`,
+                );
             });
         });
 
@@ -421,8 +423,7 @@ describe("RichTextAnimator", () => {
             scene.onBeforeRenderObservable.notifyObservers(scene);
 
             // Bounce animation should be relative to new original position
-            assert.isTrue(mesh.position.y >= newPosition.y,
-                "Animation should use updated original position");
+            assert.isTrue(mesh.position.y >= newPosition.y, "Animation should use updated original position");
         });
     });
 

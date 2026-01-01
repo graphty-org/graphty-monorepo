@@ -3,22 +3,18 @@
  * @module ai/commands/QueryCommands
  */
 
-import {z} from "zod";
+import { z } from "zod";
 
-import type {Graph} from "../../Graph";
-import {SchemaExtractor} from "../schema/SchemaExtractor";
-import type {CommandResult, GraphCommand} from "./types";
+import type { Graph } from "../../Graph";
+import { SchemaExtractor } from "../schema/SchemaExtractor";
+import type { CommandResult, GraphCommand } from "./types";
 
 /**
  * Query types supported by the queryGraph command.
  */
-const QueryTypeSchema = z.enum([
-    "nodeCount",
-    "edgeCount",
-    "currentLayout",
-    "all",
-    "summary",
-]).describe("Type of information to query about the graph");
+const QueryTypeSchema = z
+    .enum(["nodeCount", "edgeCount", "currentLayout", "all", "summary"])
+    .describe("Type of information to query about the graph");
 
 /**
  * Command to query graph information.
@@ -26,23 +22,21 @@ const QueryTypeSchema = z.enum([
  */
 export const queryGraph: GraphCommand = {
     name: "queryGraph",
-    description: "Query information about the graph structure, including node count, edge count, current layout, and overall statistics.",
+    description:
+        "Query information about the graph structure, including node count, edge count, current layout, and overall statistics.",
     parameters: z.object({
         query: QueryTypeSchema,
     }),
     examples: [
-        {input: "How many nodes are there?", params: {query: "nodeCount"}},
-        {input: "How many edges?", params: {query: "edgeCount"}},
-        {input: "What layout is being used?", params: {query: "currentLayout"}},
-        {input: "Show me the graph summary", params: {query: "summary"}},
-        {input: "Give me all the graph stats", params: {query: "all"}},
+        { input: "How many nodes are there?", params: { query: "nodeCount" } },
+        { input: "How many edges?", params: { query: "edgeCount" } },
+        { input: "What layout is being used?", params: { query: "currentLayout" } },
+        { input: "Show me the graph summary", params: { query: "summary" } },
+        { input: "Give me all the graph stats", params: { query: "all" } },
     ],
 
-    execute(
-        graph: Graph,
-        params: Record<string, unknown>,
-    ): Promise<CommandResult> {
-        const {query} = params as {query: z.infer<typeof QueryTypeSchema>};
+    execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
+        const { query } = params as { query: z.infer<typeof QueryTypeSchema> };
 
         try {
             switch (query) {
@@ -51,7 +45,7 @@ export const queryGraph: GraphCommand = {
                     return Promise.resolve({
                         success: true,
                         message: `The graph has ${nodeCount} node${nodeCount !== 1 ? "s" : ""}.`,
-                        data: {nodeCount},
+                        data: { nodeCount },
                     });
                 }
 
@@ -60,7 +54,7 @@ export const queryGraph: GraphCommand = {
                     return Promise.resolve({
                         success: true,
                         message: `The graph has ${edgeCount} edge${edgeCount !== 1 ? "s" : ""}.`,
-                        data: {edgeCount},
+                        data: { edgeCount },
                     });
                 }
 
@@ -70,7 +64,7 @@ export const queryGraph: GraphCommand = {
                     return Promise.resolve({
                         success: true,
                         message: `The current layout is "${layout}".`,
-                        data: {layout},
+                        data: { layout },
                     });
                 }
 
@@ -105,7 +99,7 @@ export const queryGraph: GraphCommand = {
                     return Promise.resolve({
                         success: true,
                         message: `Unknown query type "${String(query)}". The graph has ${nodeCount} nodes and ${edgeCount} edges.`,
-                        data: {nodeCount, edgeCount},
+                        data: { nodeCount, edgeCount },
                     });
                 }
             }
@@ -124,22 +118,24 @@ export const queryGraph: GraphCommand = {
  */
 export const findNodes: GraphCommand = {
     name: "findNodes",
-    description: "Find nodes in the graph that match specific criteria. Returns matching node IDs and counts. Note: selectors search within node data directly, so use 'type' not 'data.type'.",
+    description:
+        "Find nodes in the graph that match specific criteria. Returns matching node IDs and counts. Note: selectors search within node data directly, so use 'type' not 'data.type'.",
     parameters: z.object({
-        selector: z.string().describe("Simple selector to match nodes (e.g., 'type == \"server\"'). Search is performed on node data directly, so use property names like 'type' not 'data.type'."),
+        selector: z
+            .string()
+            .describe(
+                "Simple selector to match nodes (e.g., 'type == \"server\"'). Search is performed on node data directly, so use property names like 'type' not 'data.type'.",
+            ),
         limit: z.number().optional().describe("Maximum number of results to return"),
     }),
     examples: [
-        {input: "Find all server nodes", params: {selector: "type == 'server'"}},
-        {input: "Find nodes with high degree", params: {selector: "degree > 5"}},
-        {input: "Get first 10 nodes", params: {selector: "", limit: 10}},
+        { input: "Find all server nodes", params: { selector: "type == 'server'" } },
+        { input: "Find nodes with high degree", params: { selector: "degree > 5" } },
+        { input: "Get first 10 nodes", params: { selector: "", limit: 10 } },
     ],
 
-    execute(
-        graph: Graph,
-        params: Record<string, unknown>,
-    ): Promise<CommandResult> {
-        const {selector, limit} = params as {selector: string, limit?: number};
+    execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
+        const { selector, limit } = params as { selector: string; limit?: number };
 
         try {
             const dataManager = graph.getDataManager();
@@ -176,11 +172,16 @@ export const findNodes: GraphCommand = {
                             const compareValue = Number(valueStr);
 
                             switch (op) {
-                                case ">": return nodeValue > compareValue;
-                                case "<": return nodeValue < compareValue;
-                                case ">=": return nodeValue >= compareValue;
-                                case "<=": return nodeValue <= compareValue;
-                                default: return false;
+                                case ">":
+                                    return nodeValue > compareValue;
+                                case "<":
+                                    return nodeValue < compareValue;
+                                case ">=":
+                                    return nodeValue >= compareValue;
+                                case "<=":
+                                    return nodeValue <= compareValue;
+                                default:
+                                    return false;
                             }
                         }
 
@@ -220,13 +221,9 @@ export const findNodes: GraphCommand = {
 /**
  * Schema query types supported by the getSchema command.
  */
-const SchemaQueryTypeSchema = z.enum([
-    "nodeTypes",
-    "edgeTypes",
-    "nodeProperties",
-    "edgeProperties",
-    "all",
-]).describe("Type of schema information to retrieve");
+const SchemaQueryTypeSchema = z
+    .enum(["nodeTypes", "edgeTypes", "nodeProperties", "edgeProperties", "all"])
+    .describe("Type of schema information to retrieve");
 
 /**
  * Command to get schema information about the graph data.
@@ -234,23 +231,21 @@ const SchemaQueryTypeSchema = z.enum([
  */
 export const getSchema: GraphCommand = {
     name: "getSchema",
-    description: "Get schema information about the graph data including node types, edge types, and available properties. Use this to discover what types of nodes exist or what properties are available for filtering.",
+    description:
+        "Get schema information about the graph data including node types, edge types, and available properties. Use this to discover what types of nodes exist or what properties are available for filtering.",
     parameters: z.object({
         query: SchemaQueryTypeSchema,
     }),
     examples: [
-        {input: "What types of nodes are there?", params: {query: "nodeTypes"}},
-        {input: "What node types exist in the graph?", params: {query: "nodeTypes"}},
-        {input: "What properties do nodes have?", params: {query: "nodeProperties"}},
-        {input: "What edge properties are available?", params: {query: "edgeProperties"}},
-        {input: "Show me the data schema", params: {query: "all"}},
+        { input: "What types of nodes are there?", params: { query: "nodeTypes" } },
+        { input: "What node types exist in the graph?", params: { query: "nodeTypes" } },
+        { input: "What properties do nodes have?", params: { query: "nodeProperties" } },
+        { input: "What edge properties are available?", params: { query: "edgeProperties" } },
+        { input: "Show me the data schema", params: { query: "all" } },
     ],
 
-    execute(
-        graph: Graph,
-        params: Record<string, unknown>,
-    ): Promise<CommandResult> {
-        const {query} = params as {query: z.infer<typeof SchemaQueryTypeSchema>};
+    execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
+        const { query } = params as { query: z.infer<typeof SchemaQueryTypeSchema> };
 
         try {
             const extractor = new SchemaExtractor(graph);
@@ -260,7 +255,7 @@ export const getSchema: GraphCommand = {
             // Helper to collect unique values for a property when enum detection fails
             // (e.g., sample size too small for statistical detection)
             const collectUniqueValues = (
-                items: Iterable<{data?: Record<string, unknown>}>,
+                items: Iterable<{ data?: Record<string, unknown> }>,
                 propertyName: string,
                 maxUnique = 20,
             ): string[] => {
@@ -291,15 +286,16 @@ export const getSchema: GraphCommand = {
                     if (types.length === 0) {
                         return Promise.resolve({
                             success: true,
-                            message: "No distinct node types found. Nodes may not have a 'type' property, or there are too many unique values to categorize.",
-                            data: {nodeTypes: []},
+                            message:
+                                "No distinct node types found. Nodes may not have a 'type' property, or there are too many unique values to categorize.",
+                            data: { nodeTypes: [] },
                         });
                     }
 
                     return Promise.resolve({
                         success: true,
                         message: `Found ${types.length} node type${types.length !== 1 ? "s" : ""}: ${types.join(", ")}`,
-                        data: {nodeTypes: types},
+                        data: { nodeTypes: types },
                     });
                 }
 
@@ -316,15 +312,16 @@ export const getSchema: GraphCommand = {
                     if (types.length === 0) {
                         return Promise.resolve({
                             success: true,
-                            message: "No distinct edge types found. Edges may not have a 'type' property, or there are too many unique values to categorize.",
-                            data: {edgeTypes: []},
+                            message:
+                                "No distinct edge types found. Edges may not have a 'type' property, or there are too many unique values to categorize.",
+                            data: { edgeTypes: [] },
                         });
                     }
 
                     return Promise.resolve({
                         success: true,
                         message: `Found ${types.length} edge type${types.length !== 1 ? "s" : ""}: ${types.join(", ")}`,
-                        data: {edgeTypes: types},
+                        data: { edgeTypes: types },
                     });
                 }
 
@@ -345,7 +342,7 @@ export const getSchema: GraphCommand = {
                     return Promise.resolve({
                         success: true,
                         message: `Node properties:\n${props.map((p) => `- ${p}`).join("\n")}`,
-                        data: {nodeProperties: schema.nodeProperties},
+                        data: { nodeProperties: schema.nodeProperties },
                     });
                 }
 
@@ -367,14 +364,14 @@ export const getSchema: GraphCommand = {
                         return Promise.resolve({
                             success: true,
                             message: "No edge properties found.",
-                            data: {edgeProperties: []},
+                            data: { edgeProperties: [] },
                         });
                     }
 
                     return Promise.resolve({
                         success: true,
                         message: `Edge properties:\n${props.map((p) => `- ${p}`).join("\n")}`,
-                        data: {edgeProperties: schema.edgeProperties},
+                        data: { edgeProperties: schema.edgeProperties },
                     });
                 }
 

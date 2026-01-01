@@ -1,8 +1,17 @@
-import {Graph} from "../../core/graph.js";
-import {PriorityQueue} from "../../data-structures/priority-queue.js";
-import type {Edge, NodeId} from "../../types/index.js";
-import type {MSTResult} from "./kruskal.js";
+import { Graph } from "../../core/graph.js";
+import { PriorityQueue } from "../../data-structures/priority-queue.js";
+import type { Edge, NodeId } from "../../types/index.js";
+import type { MSTResult } from "./kruskal.js";
 
+/**
+ * Computes the minimum spanning tree of an undirected graph using Prim's algorithm.
+ * The algorithm grows the MST from a starting node by repeatedly adding the minimum
+ * weight edge that connects a node in the tree to a node outside the tree.
+ * @param graph - The undirected graph to compute the MST for
+ * @param startNode - Optional starting node; if not provided, uses the first node in the graph
+ * @returns The minimum spanning tree as a set of edges and the total weight
+ * @throws Error if the graph is directed, the start node is not found, or the graph is not connected
+ */
 export function primMST(graph: Graph, startNode?: NodeId): MSTResult {
     if (graph.isDirected) {
         throw new Error("Prim's algorithm requires an undirected graph");

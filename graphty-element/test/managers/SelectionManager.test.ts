@@ -1,12 +1,12 @@
-/* eslint-disable @typescript-eslint/no-unnecessary-condition -- Chai assertions don't narrow types */
-import {afterEach, assert, beforeEach, describe, it, vi} from "vitest";
+ 
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
-import type {AdHocData} from "../../src/config";
-import {Graph} from "../../src/Graph";
-import {EventManager} from "../../src/managers/EventManager";
-import {SelectionManager} from "../../src/managers/SelectionManager";
-import type {Node} from "../../src/Node";
-import {cleanupTestGraph, createTestGraph} from "../helpers/testSetup";
+import type { AdHocData } from "../../src/config";
+import { Graph } from "../../src/Graph";
+import { EventManager } from "../../src/managers/EventManager";
+import { SelectionManager } from "../../src/managers/SelectionManager";
+import type { Node } from "../../src/Node";
+import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 /**
  * Create a mock node for testing.
@@ -36,7 +36,7 @@ describe("SelectionManager", () => {
     });
 
     describe("initialization", () => {
-        it("should initialize without errors", async() => {
+        it("should initialize without errors", async () => {
             await selectionManager.init();
             assert.isNotNull(selectionManager);
         });
@@ -227,7 +227,7 @@ describe("SelectionManager", () => {
             const layer = selectionManager.getSelectionStyleLayer();
             assert.isNotNull(layer);
             assert.isDefined(layer.metadata);
-            assert.isTrue((layer.metadata as unknown as {isSelectionLayer: boolean}).isSelectionLayer);
+            assert.isTrue((layer.metadata as unknown as { isSelectionLayer: boolean }).isSelectionLayer);
         });
 
         it("selection layer has correct node selector", () => {
@@ -246,7 +246,7 @@ describe("SelectionManager", () => {
     describe("selectById", () => {
         let graph: Graph;
 
-        beforeEach(async() => {
+        beforeEach(async () => {
             graph = await createTestGraph();
             // Create a new SelectionManager connected to the graph's data manager
             selectionManager.setDataManager(graph.getDataManager());
@@ -256,9 +256,9 @@ describe("SelectionManager", () => {
             cleanupTestGraph(graph);
         });
 
-        it("selectById() selects a node by its ID", async() => {
+        it("selectById() selects a node by its ID", async () => {
             // Add a node to the graph
-            await graph.addNode({id: "test-node-1"} as unknown as AdHocData);
+            await graph.addNode({ id: "test-node-1" } as unknown as AdHocData);
 
             // Select by ID
             const result = selectionManager.selectById("test-node-1");
@@ -280,7 +280,7 @@ describe("SelectionManager", () => {
 describe("SelectionManager integration with Graph", () => {
     let graph: Graph;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         graph = await createTestGraph();
     });
 
@@ -288,9 +288,9 @@ describe("SelectionManager integration with Graph", () => {
         cleanupTestGraph(graph);
     });
 
-    it("node removal while selected deselects the node", async() => {
+    it("node removal while selected deselects the node", async () => {
         // Add a node
-        await graph.addNode({id: "node-to-remove"} as unknown as AdHocData);
+        await graph.addNode({ id: "node-to-remove" } as unknown as AdHocData);
 
         // Select it
         graph.selectNode("node-to-remove");
@@ -303,9 +303,9 @@ describe("SelectionManager integration with Graph", () => {
         assert.isNull(graph.getSelectedNode());
     });
 
-    it("selection persists across style template changes", async() => {
+    it("selection persists across style template changes", async () => {
         // Add nodes
-        await graph.addNode({id: "persistent-node"} as unknown as AdHocData);
+        await graph.addNode({ id: "persistent-node" } as unknown as AdHocData);
 
         // Select a node
         graph.selectNode("persistent-node");
@@ -317,7 +317,7 @@ describe("SelectionManager integration with Graph", () => {
             majorVersion: "1",
             graph: {
                 addDefaultStyle: true,
-                background: {backgroundType: "color", color: "#000000"},
+                background: { backgroundType: "color", color: "#000000" },
                 startingCameraDistance: 200,
                 viewMode: "3d",
                 twoD: false,

@@ -4,13 +4,9 @@
  * Requirement: Option validation overhead < 1ms
  */
 
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {
-    type OptionsSchema,
-    resolveOptions,
-    validateOption,
-} from "../../../src/algorithms/types/OptionSchema";
+import { type OptionsSchema, resolveOptions, validateOption } from "../../../src/algorithms/types/OptionSchema";
 
 describe("Option Schema Performance", () => {
     // Create a large schema for testing
@@ -109,13 +105,13 @@ describe("Option Schema Performance", () => {
             };
 
             // Warm up
-            resolveOptions(schema, {dampingFactor: 0.9});
+            resolveOptions(schema, { dampingFactor: 0.9 });
 
             // Measure
             const iterations = 1000;
             const start = performance.now();
             for (let i = 0; i < iterations; i++) {
-                resolveOptions(schema, {dampingFactor: 0.9, maxIterations: 200});
+                resolveOptions(schema, { dampingFactor: 0.9, maxIterations: 200 });
             }
             const end = performance.now();
 
@@ -127,7 +123,7 @@ describe("Option Schema Performance", () => {
             const schema = createLargeSchema();
 
             // Warm up
-            resolveOptions(schema, {numberOpt0: 0.7, integerOpt0: 50});
+            resolveOptions(schema, { numberOpt0: 0.7, integerOpt0: 50 });
 
             // Measure
             const iterations = 1000;
@@ -143,7 +139,11 @@ describe("Option Schema Performance", () => {
             const end = performance.now();
 
             const avgTime = (end - start) / iterations;
-            assert.isBelow(avgTime, 1, `Average resolve time for 20 options should be < 1ms, was ${avgTime.toFixed(4)}ms`);
+            assert.isBelow(
+                avgTime,
+                1,
+                `Average resolve time for 20 options should be < 1ms, was ${avgTime.toFixed(4)}ms`,
+            );
         });
 
         it("handles empty options efficiently", () => {
@@ -167,7 +167,11 @@ describe("Option Schema Performance", () => {
             const end = performance.now();
 
             const avgTime = (end - start) / iterations;
-            assert.isBelow(avgTime, 0.5, `Average resolve time for empty options should be < 0.5ms, was ${avgTime.toFixed(4)}ms`);
+            assert.isBelow(
+                avgTime,
+                0.5,
+                `Average resolve time for empty options should be < 0.5ms, was ${avgTime.toFixed(4)}ms`,
+            );
         });
     });
 
@@ -191,7 +195,7 @@ describe("Option Schema Performance", () => {
 
             // Run many validations
             for (let i = 0; i < 10000; i++) {
-                resolveOptions(schema, {value: 0.5});
+                resolveOptions(schema, { value: 0.5 });
             }
 
             // If we got here without OOM, the test passes
@@ -217,7 +221,7 @@ describe("Option Schema Performance", () => {
             const start = performance.now();
             for (let i = 0; i < iterations; i++) {
                 try {
-                    resolveOptions(schema, {value: 999}); // Invalid value
+                    resolveOptions(schema, { value: 999 }); // Invalid value
                 } catch {
                     // Expected - validation should fail
                 }

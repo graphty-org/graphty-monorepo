@@ -7,8 +7,8 @@
  */
 
 // Re-export canonical defaults from utils for single source of truth
-export {DEFAULT_COLOR, DEFAULT_SHAPE} from "../utils/style-defaults";
-import {DEFAULT_COLOR, DEFAULT_SHAPE} from "../utils/style-defaults";
+export { DEFAULT_COLOR, DEFAULT_SHAPE } from "../utils/style-defaults";
+import { DEFAULT_COLOR, DEFAULT_SHAPE } from "../utils/style-defaults";
 
 /**
  * Node shape and size defaults.

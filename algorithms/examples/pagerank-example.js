@@ -1,37 +1,37 @@
 // PageRank Algorithm Example
-import { Graph, pageRank, personalizedPageRank, pageRankCentrality, topPageRankNodes } from '../dist/algorithms.js';
+import { Graph, pageRank, personalizedPageRank, pageRankCentrality, topPageRankNodes } from "../dist/algorithms.js";
 
-console.log('=== PageRank Example ===');
+console.log("=== PageRank Example ===");
 
 // Create a directed graph representing a web of pages
 const graph = new Graph({ directed: true });
 
 // Add edges representing links between pages
-graph.addEdge('HomePage', 'About');
-graph.addEdge('HomePage', 'Products');
-graph.addEdge('HomePage', 'Contact');
-graph.addEdge('About', 'HomePage');
-graph.addEdge('About', 'Contact');
-graph.addEdge('Products', 'HomePage');
-graph.addEdge('Products', 'ProductA');
-graph.addEdge('Products', 'ProductB');
-graph.addEdge('ProductA', 'Products');
-graph.addEdge('ProductB', 'Products');
-graph.addEdge('Contact', 'HomePage');
+graph.addEdge("HomePage", "About");
+graph.addEdge("HomePage", "Products");
+graph.addEdge("HomePage", "Contact");
+graph.addEdge("About", "HomePage");
+graph.addEdge("About", "Contact");
+graph.addEdge("Products", "HomePage");
+graph.addEdge("Products", "ProductA");
+graph.addEdge("Products", "ProductB");
+graph.addEdge("ProductA", "Products");
+graph.addEdge("ProductB", "Products");
+graph.addEdge("Contact", "HomePage");
 
-console.log('Directed Graph (Web Pages):');
-console.log('HomePage <--> About');
-console.log('   |           |');
-console.log('   v           v');
-console.log('Products <-> Contact');
-console.log('   |');
-console.log('   +-> ProductA');
-console.log('   +-> ProductB');
+console.log("Directed Graph (Web Pages):");
+console.log("HomePage <--> About");
+console.log("   |           |");
+console.log("   v           v");
+console.log("Products <-> Contact");
+console.log("   |");
+console.log("   +-> ProductA");
+console.log("   +-> ProductB");
 
 // Calculate basic PageRank
-console.log('\n1. Basic PageRank (default damping factor 0.85):');
+console.log("\n1. Basic PageRank (default damping factor 0.85):");
 const pageRankResult = pageRank(graph);
-console.log('PageRank scores:');
+console.log("PageRank scores:");
 Object.entries(pageRankResult.ranks)
     .sort((a, b) => b[1] - a[1])
     .forEach(([page, score]) => {
@@ -39,9 +39,9 @@ Object.entries(pageRankResult.ranks)
     });
 
 // Calculate PageRank with different damping factor
-console.log('\n2. PageRank with damping factor 0.5:');
+console.log("\n2. PageRank with damping factor 0.5:");
 const lowDampingResult = pageRank(graph, { dampingFactor: 0.5 });
-console.log('PageRank scores (damping 0.5):');
+console.log("PageRank scores (damping 0.5):");
 Object.entries(lowDampingResult.ranks)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
@@ -50,9 +50,9 @@ Object.entries(lowDampingResult.ranks)
     });
 
 // Calculate Personalized PageRank
-console.log('\n3. Personalized PageRank (biased toward Products):');
-const personalizedResult = personalizedPageRank(graph, ['Products']);
-console.log('Personalized PageRank scores:');
+console.log("\n3. Personalized PageRank (biased toward Products):");
+const personalizedResult = personalizedPageRank(graph, ["Products"]);
+console.log("Personalized PageRank scores:");
 Object.entries(personalizedResult.ranks)
     .sort((a, b) => b[1] - a[1])
     .forEach(([page, score]) => {
@@ -60,9 +60,9 @@ Object.entries(personalizedResult.ranks)
     });
 
 // Get PageRank as centrality measure
-console.log('\n4. PageRank Centrality:');
+console.log("\n4. PageRank Centrality:");
 const centrality = pageRankCentrality(graph);
-console.log('Centrality scores:');
+console.log("Centrality scores:");
 Object.entries(centrality)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
@@ -71,23 +71,23 @@ Object.entries(centrality)
     });
 
 // Get top k nodes by PageRank
-console.log('\n5. Top 3 pages by PageRank:');
+console.log("\n5. Top 3 pages by PageRank:");
 const topPages = topPageRankNodes(graph, 3);
-console.log('Top pages:');
+console.log("Top pages:");
 topPages.forEach(({ node, rank }, index) => {
     console.log(`  ${index + 1}. ${node}: ${rank.toFixed(4)}`);
 });
 
 // Test with weighted edges
-console.log('\n6. Weighted PageRank:');
+console.log("\n6. Weighted PageRank:");
 const weightedGraph = new Graph({ directed: true });
-weightedGraph.addEdge('A', 'B', 3);
-weightedGraph.addEdge('A', 'C', 1);
-weightedGraph.addEdge('B', 'C', 2);
-weightedGraph.addEdge('C', 'A', 1);
+weightedGraph.addEdge("A", "B", 3);
+weightedGraph.addEdge("A", "C", 1);
+weightedGraph.addEdge("B", "C", 2);
+weightedGraph.addEdge("C", "A", 1);
 
 const weightedResult = pageRank(weightedGraph, { weighted: true });
-console.log('Weighted PageRank scores:');
+console.log("Weighted PageRank scores:");
 Object.entries(weightedResult.ranks)
     .sort((a, b) => b[1] - a[1])
     .forEach(([node, score]) => {
@@ -95,11 +95,15 @@ Object.entries(weightedResult.ranks)
     });
 
 // Verify results
-console.log('\n=== Verification ===');
+console.log("\n=== Verification ===");
 const totalScore = Object.values(pageRankResult.ranks).reduce((sum, score) => sum + score, 0);
-console.log('✓ PageRank scores sum to ~1.0:', Math.abs(totalScore - 1.0) < 0.001);
-console.log('✓ All scores are positive:', Object.values(pageRankResult.ranks).every(score => score > 0));
-console.log('✓ HomePage should have high PageRank (many incoming links):', 
-    pageRankResult.ranks.HomePage > 0.15);
-console.log('✓ Products should be highly ranked in personalized PageRank:', 
-    personalizedResult.ranks.Products > personalizedResult.ranks.About);
+console.log("✓ PageRank scores sum to ~1.0:", Math.abs(totalScore - 1.0) < 0.001);
+console.log(
+    "✓ All scores are positive:",
+    Object.values(pageRankResult.ranks).every((score) => score > 0),
+);
+console.log("✓ HomePage should have high PageRank (many incoming links):", pageRankResult.ranks.HomePage > 0.15);
+console.log(
+    "✓ Products should be highly ranked in personalized PageRank:",
+    personalizedResult.ranks.Products > personalizedResult.ranks.About,
+);

@@ -3,10 +3,10 @@
  * @module test/ai/schema/SchemaFormatter.test
  */
 
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {formatSchemaForPrompt} from "../../../src/ai/schema/SchemaFormatter";
-import type {PropertySummary, SchemaSummary} from "../../../src/ai/schema/types";
+import { formatSchemaForPrompt } from "../../../src/ai/schema/SchemaFormatter";
+import type { PropertySummary, SchemaSummary } from "../../../src/ai/schema/types";
 
 /**
  * Helper to create a minimal schema for testing.
@@ -17,7 +17,7 @@ function createTestSchema(overrides: Partial<SchemaSummary> = {}): SchemaSummary
         edgeProperties: [],
         nodeCount: 0,
         edgeCount: 0,
-        ... overrides,
+        ...overrides,
     };
 }
 
@@ -29,7 +29,7 @@ function createTestProperty(overrides: Partial<PropertySummary>): PropertySummar
         name: "testProperty",
         type: "string",
         nullable: false,
-        ... overrides,
+        ...overrides,
     };
 }
 
@@ -41,8 +41,8 @@ describe("SchemaFormatter", () => {
                     nodeCount: 10,
                     edgeCount: 5,
                     nodeProperties: [
-                        createTestProperty({name: "name", type: "string"}),
-                        createTestProperty({name: "age", type: "integer"}),
+                        createTestProperty({ name: "name", type: "string" }),
+                        createTestProperty({ name: "age", type: "integer" }),
                     ],
                 });
 
@@ -60,8 +60,8 @@ describe("SchemaFormatter", () => {
                     nodeCount: 10,
                     edgeCount: 5,
                     edgeProperties: [
-                        createTestProperty({name: "weight", type: "number"}),
-                        createTestProperty({name: "relation", type: "string"}),
+                        createTestProperty({ name: "weight", type: "number" }),
+                        createTestProperty({ name: "relation", type: "string" }),
                     ],
                 });
 
@@ -111,7 +111,7 @@ describe("SchemaFormatter", () => {
                         createTestProperty({
                             name: "score",
                             type: "number",
-                            range: {min: 0, max: 100},
+                            range: { min: 0, max: 100 },
                         }),
                     ],
                 });
@@ -120,14 +120,15 @@ describe("SchemaFormatter", () => {
 
                 assert.ok(result.includes("0"), "Should include min value");
                 assert.ok(result.includes("100"), "Should include max value");
-                assert.ok(result.includes("range") || result.includes("min") || result.includes(".."), "Should indicate range");
+                assert.ok(
+                    result.includes("range") || result.includes("min") || result.includes(".."),
+                    "Should indicate range",
+                );
             });
 
             it("includes nullable indicator", () => {
                 const schema = createTestSchema({
-                    nodeProperties: [
-                        createTestProperty({name: "optional", type: "string", nullable: true}),
-                    ],
+                    nodeProperties: [createTestProperty({ name: "optional", type: "string", nullable: true })],
                 });
 
                 const result = formatSchemaForPrompt(schema);
@@ -140,23 +141,22 @@ describe("SchemaFormatter", () => {
 
             it("includes item type for array properties", () => {
                 const schema = createTestSchema({
-                    nodeProperties: [
-                        createTestProperty({name: "tags", type: "array", itemType: "string"}),
-                    ],
+                    nodeProperties: [createTestProperty({ name: "tags", type: "array", itemType: "string" })],
                 });
 
                 const result = formatSchemaForPrompt(schema);
 
                 // Formatter outputs "string[]" which is more readable than "array"
-                assert.ok(result.includes("string[]") || result.includes("array"), "Should include array type notation");
+                assert.ok(
+                    result.includes("string[]") || result.includes("array"),
+                    "Should include array type notation",
+                );
                 assert.ok(result.includes("string"), "Should include item type");
             });
 
             it("includes format for string properties", () => {
                 const schema = createTestSchema({
-                    nodeProperties: [
-                        createTestProperty({name: "email", type: "string", format: "email"}),
-                    ],
+                    nodeProperties: [createTestProperty({ name: "email", type: "string", format: "email" })],
                 });
 
                 const result = formatSchemaForPrompt(schema);
@@ -185,7 +185,7 @@ describe("SchemaFormatter", () => {
                     nodeCount: 10,
                     edgeCount: 5,
                     nodeProperties: [],
-                    edgeProperties: [createTestProperty({name: "weight", type: "number"})],
+                    edgeProperties: [createTestProperty({ name: "weight", type: "number" })],
                 });
 
                 const result = formatSchemaForPrompt(schema);
@@ -197,7 +197,7 @@ describe("SchemaFormatter", () => {
 
             it("limits enum values displayed", () => {
                 // Create property with many enum values
-                const manyEnumValues = Array.from({length: 20}, (_, i) => `value_${i}`);
+                const manyEnumValues = Array.from({ length: 20 }, (_, i) => `value_${i}`);
                 const schema = createTestSchema({
                     nodeProperties: [
                         createTestProperty({
@@ -221,9 +221,7 @@ describe("SchemaFormatter", () => {
             it("truncates long property names", () => {
                 const longName = "this_is_a_very_long_property_name_that_should_be_truncated_for_display";
                 const schema = createTestSchema({
-                    nodeProperties: [
-                        createTestProperty({name: longName, type: "string"}),
-                    ],
+                    nodeProperties: [createTestProperty({ name: longName, type: "string" })],
                 });
 
                 const result = formatSchemaForPrompt(schema);
@@ -240,12 +238,8 @@ describe("SchemaFormatter", () => {
                 const schema = createTestSchema({
                     nodeCount: 10,
                     edgeCount: 5,
-                    nodeProperties: [
-                        createTestProperty({name: "name", type: "string"}),
-                    ],
-                    edgeProperties: [
-                        createTestProperty({name: "weight", type: "number"}),
-                    ],
+                    nodeProperties: [createTestProperty({ name: "name", type: "string" })],
+                    edgeProperties: [createTestProperty({ name: "weight", type: "number" })],
                 });
 
                 const result = formatSchemaForPrompt(schema);
@@ -257,13 +251,13 @@ describe("SchemaFormatter", () => {
             it("uses consistent formatting across all property types", () => {
                 const schema = createTestSchema({
                     nodeProperties: [
-                        createTestProperty({name: "str", type: "string"}),
-                        createTestProperty({name: "num", type: "number"}),
-                        createTestProperty({name: "bool", type: "boolean"}),
-                        createTestProperty({name: "arr", type: "array", itemType: "string"}),
-                        createTestProperty({name: "obj", type: "object"}),
-                        createTestProperty({name: "int", type: "integer"}),
-                        createTestProperty({name: "mix", type: "mixed"}),
+                        createTestProperty({ name: "str", type: "string" }),
+                        createTestProperty({ name: "num", type: "number" }),
+                        createTestProperty({ name: "bool", type: "boolean" }),
+                        createTestProperty({ name: "arr", type: "array", itemType: "string" }),
+                        createTestProperty({ name: "obj", type: "object" }),
+                        createTestProperty({ name: "int", type: "integer" }),
+                        createTestProperty({ name: "mix", type: "mixed" }),
                     ],
                 });
 

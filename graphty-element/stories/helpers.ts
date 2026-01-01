@@ -3,19 +3,30 @@
  * This approach prevents race conditions while maintaining backwards compatibility
  */
 
-import type {Meta} from "@storybook/web-components-vite";
+import type { Meta } from "@storybook/web-components-vite";
 import isChromatic from "chromatic/isChromatic";
 import lodash from "lodash";
-const {set: deepSet, merge} = lodash;
+// Using direct property access instead of destructuring to avoid unbound-method warnings
+const deepSet = lodash.set.bind(lodash);
+const merge = lodash.merge.bind(lodash);
 
-import {type AdHocData, type CalculatedStyleConfig, type StyleLayerType, type StyleSchema, StyleTemplate} from "../src/config";
-import type {Graphty} from "../src/graphty-element";
+import {
+    type AdHocData,
+    type CalculatedStyleConfig,
+    type StyleLayerType,
+    type StyleSchema,
+    StyleTemplate,
+} from "../src/config";
+import type { Graphty } from "../src/graphty-element";
 
 // Global storage for event promises set up by decorators
-const eventWaitingState = new WeakMap<HTMLElement, {
-    promises: Map<string, Promise<void>>;
-    resolvers: Map<string, () => void>;
-}>();
+const eventWaitingState = new WeakMap<
+    HTMLElement,
+    {
+        promises: Map<string, Promise<void>>;
+        resolvers: Map<string, () => void>;
+    }
+>();
 
 /**
  * Set up event listeners for a graphty-element to capture events early.
@@ -43,15 +54,19 @@ function setupEventListenersForElement(element: HTMLElement): void {
         resolvers.set(eventName, resolver as () => void);
 
         // Attach listener immediately
-        element.addEventListener(eventName, () => {
-            if (resolver) {
-                resolver();
-            }
-        }, {once: true});
+        element.addEventListener(
+            eventName,
+            () => {
+                if (resolver) {
+                    resolver();
+                }
+            },
+            { once: true },
+        );
     });
 
     // Store state for this element
-    eventWaitingState.set(element, {promises, resolvers});
+    eventWaitingState.set(element, { promises, resolvers });
 }
 
 /**
@@ -79,7 +94,7 @@ export const eventWaitingDecorator = (story: any): any => {
         });
     });
 
-    observer.observe(document.body, {childList: true, subtree: true});
+    observer.observe(document.body, { childList: true, subtree: true });
 
     // Run the story
     const result = story();
@@ -135,7 +150,7 @@ export async function waitForDataLoaded(canvasElement: HTMLElement): Promise<voi
                 }
             };
 
-            graphtyElement.addEventListener("data-loaded", handleDataLoaded, {once: true});
+            graphtyElement.addEventListener("data-loaded", handleDataLoaded, { once: true });
         });
     }
 }
@@ -200,7 +215,7 @@ export async function waitForGraphSettled(canvasElement: HTMLElement): Promise<v
                 }
             };
 
-            graphtyElement.addEventListener("graph-settled", handleSettled, {once: true});
+            graphtyElement.addEventListener("graph-settled", handleSettled, { once: true });
         });
     }
 
@@ -208,8 +223,9 @@ export async function waitForGraphSettled(canvasElement: HTMLElement): Promise<v
     // Only needed for Chromatic visual testing - skip for regular tests to improve performance
     if (isChromatic()) {
         // Access private updateManager for Chromatic rendering - using type assertion since this is test-only code
-        const {graph} = graphtyElement as Graphty;
-        const updateMgr = (graph as unknown as {updateManager: {renderFixedFrames: (n: number) => void}}).updateManager;
+        const { graph } = graphtyElement as Graphty;
+        const updateMgr = (graph as unknown as { updateManager: { renderFixedFrames: (n: number) => void } })
+            .updateManager;
         updateMgr.renderFixedFrames(30); // 30 frames = 0.5s at 60fps
     }
 }
@@ -245,7 +261,7 @@ export async function waitForSkyboxLoaded(canvasElement: HTMLElement): Promise<v
             }
         };
 
-        graphtyElement.addEventListener("skybox-loaded", handleSkyboxLoaded, {once: true});
+        graphtyElement.addEventListener("skybox-loaded", handleSkyboxLoaded, { once: true });
 
         // Check if the skybox might have already loaded
         // Give it a tiny delay to see if the event fires immediately
@@ -321,7 +337,7 @@ export function templateCreator(opts: TemplateOpts): StyleSchema {
 
     if (opts.graph) {
         // Merge with existing graph config instead of overwriting
-        config.graph = {... config.graph, ... opts.graph};
+        config.graph = { ...config.graph, ...opts.graph };
     }
 
     if (opts.behavior) {
@@ -332,7 +348,7 @@ export function templateCreator(opts: TemplateOpts): StyleSchema {
 
     if (opts.data) {
         // Merge with any existing data config
-        config.data = {... config.data, ... opts.data};
+        config.data = { ...config.data, ...opts.data };
     }
 
     const template = StyleTemplate.parse(config);
@@ -340,22 +356,15 @@ export function templateCreator(opts: TemplateOpts): StyleSchema {
     return template;
 }
 
-export const nodeData = [
-    {id: 0},
-    {id: 1},
-    {id: 2},
-    {id: 3},
-    {id: 4},
-    {id: 5},
-];
+export const nodeData = [{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }];
 
 export const edgeData = [
-    {src: 0, dst: 1},
-    {src: 0, dst: 2},
-    {src: 2, dst: 3},
-    {src: 3, dst: 0},
-    {src: 3, dst: 4},
-    {src: 3, dst: 5},
+    { src: 0, dst: 1 },
+    { src: 0, dst: 2 },
+    { src: 2, dst: 3 },
+    { src: 3, dst: 0 },
+    { src: 3, dst: 4 },
+    { src: 3, dst: 5 },
 ];
 
 type RenderArg1 = Parameters<NonNullable<Meta["render"]>>[0];
@@ -375,7 +384,7 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
 
     // if argTypes have a name like "texture.color", apply that value to the node style
     for (const arg of Object.getOwnPropertyNames(args)) {
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+         
         const name = storyConfig.argTypes[arg]?.name;
 
         // if the arg has a name...
@@ -398,7 +407,12 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
                 } else if (t.layers) {
                     deepSet(t, `layers[0].node.style.${name}`, val);
                 }
-            } else if (name.startsWith("line.") || name.startsWith("arrowHead.") || name.startsWith("arrowTail.") || name.startsWith("tooltip.")) {
+            } else if (
+                name.startsWith("line.") ||
+                name.startsWith("arrowHead.") ||
+                name.startsWith("arrowTail.") ||
+                name.startsWith("tooltip.")
+            ) {
                 // For edge properties (including tail and tooltip)
                 if (t.edgeStyle) {
                     deepSet(t, `edgeStyle.${name}`, val);
@@ -411,7 +425,21 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
                 if (val !== undefined) {
                     deepSet(t, `graph.layoutOptions.${configKey}`, val);
                 }
-            } else if (!["dataSource", "dataSourceConfig", "layout", "layoutConfig", "styleTemplate", "nodeData", "edgeData", "runAlgorithmsOnLoad", "onGraphSettled", "onSkyboxLoaded", "xr"].includes(arg)) {
+            } else if (
+                ![
+                    "dataSource",
+                    "dataSourceConfig",
+                    "layout",
+                    "layoutConfig",
+                    "styleTemplate",
+                    "nodeData",
+                    "edgeData",
+                    "runAlgorithmsOnLoad",
+                    "onGraphSettled",
+                    "onSkyboxLoaded",
+                    "xr",
+                ].includes(arg)
+            ) {
                 // For other properties, apply directly (but skip component-level props and event handlers)
                 deepSet(t, name, val);
             }
@@ -480,16 +508,16 @@ export const remoteLoggingDecorator = (story: any): any => {
  */
 function enableRemoteLoggingInBrowser(): void {
     // Don't enable twice
-    if ((window as unknown as {__remoteLoggingEnabled?: boolean}).__remoteLoggingEnabled) {
+    if ((window as unknown as { __remoteLoggingEnabled?: boolean }).__remoteLoggingEnabled) {
         return;
     }
 
-    (window as unknown as {__remoteLoggingEnabled?: boolean}).__remoteLoggingEnabled = true;
+    (window as unknown as { __remoteLoggingEnabled?: boolean }).__remoteLoggingEnabled = true;
 
     // Use VITE_REMOTE_LOG_URL env var or fall back to localhost
     const SERVER_URL = (import.meta.env.VITE_REMOTE_LOG_URL as string | undefined) ?? "https://localhost:9077/log";
     const SESSION_ID = `storybook-${Date.now().toString(36)}`;
-    const LOG_BUFFER: {time: string, level: string, message: string}[] = [];
+    const LOG_BUFFER: { time: string; level: string; message: string }[] = [];
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
     // Throttling for repeated messages
@@ -522,26 +550,28 @@ function enableRemoteLoggingInBrowser(): void {
         const logsToSend = LOG_BUFFER.splice(0, LOG_BUFFER.length);
         fetch(SERVER_URL, {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({sessionId: SESSION_ID, logs: logsToSend}),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId: SESSION_ID, logs: logsToSend }),
         }).catch(() => {
             // Put logs back on failure
-            LOG_BUFFER.unshift(... logsToSend);
+            LOG_BUFFER.unshift(...logsToSend);
         });
     }
 
     function formatArgs(args: unknown[]): string {
-        return args.map((arg) => {
-            if (typeof arg === "object" && arg !== null) {
-                try {
-                    return JSON.stringify(arg, null, 2);
-                } catch {
-                    return "[Circular or non-serializable object]";
+        return args
+            .map((arg) => {
+                if (typeof arg === "object" && arg !== null) {
+                    try {
+                        return JSON.stringify(arg, null, 2);
+                    } catch {
+                        return "[Circular or non-serializable object]";
+                    }
                 }
-            }
 
-            return String(arg);
-        }).join(" ");
+                return String(arg);
+            })
+            .join(" ");
     }
 
     function queueLog(level: string, args: unknown[]): void {
@@ -573,20 +603,20 @@ function enableRemoteLoggingInBrowser(): void {
     };
 
     // Override console methods
-    console.log = (... args: unknown[]) => {
-        originalConsole.log(... args);
+    console.log = (...args: unknown[]) => {
+        originalConsole.log(...args);
         queueLog("LOG", args);
     };
-    console.warn = (... args: unknown[]) => {
-        originalConsole.warn(... args);
+    console.warn = (...args: unknown[]) => {
+        originalConsole.warn(...args);
         queueLog("WARN", args);
     };
-    console.error = (... args: unknown[]) => {
-        originalConsole.error(... args);
+    console.error = (...args: unknown[]) => {
+        originalConsole.error(...args);
         queueLog("ERROR", args);
     };
-    console.info = (... args: unknown[]) => {
-        originalConsole.info(... args);
+    console.info = (...args: unknown[]) => {
+        originalConsole.info(...args);
         queueLog("INFO", args);
     };
 
@@ -620,4 +650,3 @@ export const nodeShapes = [
     "icosphere",
     "geodesic",
 ] as const;
-

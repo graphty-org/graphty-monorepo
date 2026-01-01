@@ -5,10 +5,10 @@ import {
     type Sink as LogTapeSink,
 } from "@logtape/logtape";
 
-import {resolveDataObject} from "./LazyEval.js";
-import {configureLogging, getLoggingConfig, isModuleEnabled} from "./LoggerConfig.js";
-import {createRemoteSink} from "./sinks/RemoteSink.js";
-import {LOG_LEVEL_TO_NAME, type LoggerConfig, LogLevel, type LogRecord, type Sink} from "./types.js";
+import { resolveDataObject } from "./LazyEval.js";
+import { configureLogging, getLoggingConfig, isModuleEnabled } from "./LoggerConfig.js";
+import { createRemoteSink } from "./sinks/RemoteSink.js";
+import { LOG_LEVEL_TO_NAME, type LoggerConfig, LogLevel, type LogRecord, type Sink } from "./types.js";
 
 /* eslint-disable no-console -- This is a logging module, console usage is intentional */
 
@@ -227,7 +227,7 @@ function createLoggerWrapper(category: string[], logTapeLogger: LogTapeLogger): 
             const resolvedData = data ? resolveDataObject(data) : undefined;
 
             const formattedMessage = formatLogMessage(category, LogLevel.ERROR, message);
-            const logData = error ? {... resolvedData, error: error.stack ?? error.message} : resolvedData;
+            const logData = error ? { ...resolvedData, error: error.stack ?? error.message } : resolvedData;
             logTapeLogger.error(formattedMessage, logData);
 
             // Dispatch to custom sinks
@@ -295,13 +295,13 @@ async function configureGraphtyLogging(config: GraphtyLoggerConfig): Promise<voi
     }
 
     // Configure remote logging if URL is provided
-    const {remoteLogUrl: newRemoteLogUrl} = config;
+    const { remoteLogUrl: newRemoteLogUrl } = config;
     if (newRemoteLogUrl && newRemoteLogUrl !== remoteLogUrl) {
         remoteLogUrl = newRemoteLogUrl;
         // Remove existing remote sink if any
         sinkRegistry.delete("remote");
         // Add new remote sink
-        const remoteSink = createRemoteSink({serverUrl: newRemoteLogUrl});
+        const remoteSink = createRemoteSink({ serverUrl: newRemoteLogUrl });
         sinkRegistry.set(remoteSink.name, remoteSink);
     }
 

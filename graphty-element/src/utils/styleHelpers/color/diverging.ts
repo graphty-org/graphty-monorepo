@@ -2,12 +2,8 @@
  * Diverging color helpers for data with meaningful midpoints
  */
 
-import {
-    BLUE_ORANGE_COLORS,
-    PURPLE_GREEN_COLORS,
-    RED_BLUE_COLORS,
-} from "../../../config/palettes/diverging";
-import {interpolatePalette} from "./interpolation";
+import { BLUE_ORANGE_COLORS, PURPLE_GREEN_COLORS, RED_BLUE_COLORS } from "../../../config/palettes/diverging";
+import { interpolatePalette } from "./interpolation";
 
 /**
  * Purple-Green diverging gradient (Paul Tol)
@@ -90,5 +86,5 @@ function normalizeDivergingValue(value: number, midpoint: number): number {
         return 1;
     }
 
-    return 0.5 + (((clampedValue - clampedMidpoint) / (1 - clampedMidpoint)) * 0.5);
+    return 0.5 + ((clampedValue - clampedMidpoint) / (1 - clampedMidpoint)) * 0.5;
 }

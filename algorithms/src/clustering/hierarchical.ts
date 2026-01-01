@@ -6,10 +6,12 @@
  * structure in graphs.
  */
 
-import type {Graph} from "../core/graph.js";
+import type { Graph } from "../core/graph.js";
 
 /**
  * Convert Graph to adjacency set representation for clustering
+ * @param graph - The input graph to convert
+ * @returns Map of node IDs to sets of neighbor node IDs
  */
 function graphToAdjacencySet(graph: Graph): Map<string, Set<string>> {
     const adjacency = new Map<string, Set<string>>();
@@ -62,11 +64,10 @@ export type LinkageMethod = "single" | "complete" | "average" | "ward";
 
 /**
  * Compute distance between two nodes based on graph structure
+ * @param graph - Adjacency map representation of the graph
+ * @param distances - Map to store computed distances between nodes
  */
-function computeGraphDistance<T>(
-    graph: Map<T, Set<T>>,
-    distances: Map<T, Map<T, number>>,
-): void {
+function computeGraphDistance<T>(graph: Map<T, Set<T>>, distances: Map<T, Map<T, number>>): void {
     // Use BFS to compute shortest path distances
     for (const start of graph.keys()) {
         const dist = new Map<T, number>();
@@ -97,6 +98,11 @@ function computeGraphDistance<T>(
 
 /**
  * Compute distance between two clusters based on linkage method
+ * @param cluster1 - First cluster node
+ * @param cluster2 - Second cluster node
+ * @param distances - Precomputed distance matrix between nodes
+ * @param linkage - Linkage method to use for computing cluster distance
+ * @returns The distance between the two clusters
  */
 function clusterDistance<T>(
     cluster1: ClusterNode<T>,
@@ -126,9 +132,9 @@ function clusterDistance<T>(
 
     switch (linkage) {
         case "single":
-            return Math.min(... allDistances);
+            return Math.min(...allDistances);
         case "complete":
-            return Math.max(... allDistances);
+            return Math.max(...allDistances);
         case "average":
             return allDistances.reduce((a, b) => a + b, 0) / allDistances.length;
         case "ward": {
@@ -139,12 +145,15 @@ function clusterDistance<T>(
             return avgDist * ((size1 * size2) / (size1 + size2));
         }
         default:
-            return Math.min(... allDistances);
+            return Math.min(...allDistances);
     }
 }
 
 /**
  * Internal implementation of agglomerative hierarchical clustering
+ * @param graph - Adjacency map representation of the graph
+ * @param linkage - Linkage method for cluster distance computation
+ * @returns Hierarchical clustering result with dendrogram and cluster assignments
  */
 function hierarchicalClusteringImpl<T>(
     graph: Map<T, Set<T>>,
@@ -155,7 +164,7 @@ function hierarchicalClusteringImpl<T>(
 
     if (n === 0) {
         return {
-            root: {id: "empty", members: new Set(), distance: 0, height: 0},
+            root: { id: "empty", members: new Set(), distance: 0, height: 0 },
             dendrogram: [],
             clusters: new Map(),
         };
@@ -173,7 +182,7 @@ function hierarchicalClusteringImpl<T>(
         height: 0,
     }));
 
-    const dendrogram: ClusterNode<T>[] = [... clusters];
+    const dendrogram: ClusterNode<T>[] = [...clusters];
     let clusterCount = n;
 
     // Distance matrix between clusters
@@ -220,9 +229,8 @@ function hierarchicalClusteringImpl<T>(
                     continue;
                 }
 
-                const dist = distMap.get(cluster2.id) ??
-                    clusterDistances.get(cluster2.id)?.get(cluster1.id) ??
-                    Infinity;
+                const dist =
+                    distMap.get(cluster2.id) ?? clusterDistances.get(cluster2.id)?.get(cluster1.id) ?? Infinity;
 
                 if (dist < minDist) {
                     minDist = dist;
@@ -239,7 +247,7 @@ function hierarchicalClusteringImpl<T>(
                 id: `forest-${String(clusterCount++)}`,
                 members: new Set(nodes),
                 distance: Infinity,
-                height: Math.max(... trees.map((t) => t.height)) + 1,
+                height: Math.max(...trees.map((t) => t.height)) + 1,
                 trees,
             };
             dendrogram.push(forestRoot);
@@ -251,7 +259,7 @@ function hierarchicalClusteringImpl<T>(
         // Create new cluster
         const newCluster: ClusterNode<T> = {
             id: `cluster-${String(clusterCount++)}`,
-            members: new Set([... mergeCluster1.members, ... mergeCluster2.members]),
+            members: new Set([...mergeCluster1.members, ...mergeCluster2.members]),
             left: mergeCluster1,
             right: mergeCluster2,
             distance: minDist,
@@ -301,7 +309,7 @@ function hierarchicalClusteringImpl<T>(
 
     if (!root) {
         return {
-            root: {id: "empty", members: new Set(), distance: 0, height: 0},
+            root: { id: "empty", members: new Set(), distance: 0, height: 0 },
             dendrogram: [],
             clusters: new Map(),
         };
@@ -320,11 +328,11 @@ function hierarchicalClusteringImpl<T>(
 
 /**
  * Cut dendrogram at specific height to get clusters
+ * @param root - Root node of the dendrogram
+ * @param height - Height at which to cut the dendrogram
+ * @returns Array of sets representing clusters at the specified height
  */
-export function cutDendrogram<T>(
-    root: ClusterNode<T>,
-    height: number,
-): Set<T>[] {
+export function cutDendrogram<T>(root: ClusterNode<T>, height: number): Set<T>[] {
     const clusters: Set<T>[] = [];
 
     function traverse(node: ClusterNode<T>): void {
@@ -354,11 +362,11 @@ export function cutDendrogram<T>(
 
 /**
  * Cut dendrogram to get exactly k clusters
+ * @param root - Root node of the dendrogram
+ * @param k - Target number of clusters
+ * @returns Array of sets representing exactly k clusters
  */
-export function cutDendrogramKClusters<T>(
-    root: ClusterNode<T>,
-    k: number,
-): Set<T>[] {
+export function cutDendrogramKClusters<T>(root: ClusterNode<T>, k: number): Set<T>[] {
     if (k <= 0) {
         return [];
     }
@@ -390,17 +398,17 @@ export function cutDendrogramKClusters<T>(
 /**
  * Compute modularity-based hierarchical clustering
  * Uses modularity gain to decide merges
+ * @param graph - The input graph to cluster
+ * @returns Hierarchical clustering result with dendrogram and cluster assignments
  */
-export function modularityHierarchicalClustering(
-    graph: Graph,
-): HierarchicalClusteringResult<string> {
+export function modularityHierarchicalClustering(graph: Graph): HierarchicalClusteringResult<string> {
     const adjacencySet = graphToAdjacencySet(graph);
     const nodes = Array.from(adjacencySet.keys());
     const n = nodes.length;
 
     if (n === 0) {
         return {
-            root: {id: "empty", members: new Set(), distance: 0, height: 0},
+            root: { id: "empty", members: new Set(), distance: 0, height: 0 },
             dendrogram: [],
             clusters: new Map(),
         };
@@ -426,7 +434,7 @@ export function modularityHierarchicalClustering(
         height: 0,
     }));
 
-    const dendrogram: ClusterNode<string>[] = [... clusters];
+    const dendrogram: ClusterNode<string>[] = [...clusters];
     let clusterCount = n;
 
     // Active clusters
@@ -466,8 +474,7 @@ export function modularityHierarchicalClustering(
                     }
                 }
 
-                const gain = (edgesBetween / totalEdges) -
-                    (degreeProduct / (4 * totalEdges * totalEdges));
+                const gain = edgesBetween / totalEdges - degreeProduct / (4 * totalEdges * totalEdges);
 
                 if (gain > maxGain) {
                     maxGain = gain;
@@ -484,7 +491,7 @@ export function modularityHierarchicalClustering(
         // Create new cluster
         const newCluster: ClusterNode<string> = {
             id: `cluster-${String(clusterCount++)}`,
-            members: new Set([... mergeCluster1.members, ... mergeCluster2.members]),
+            members: new Set([...mergeCluster1.members, ...mergeCluster2.members]),
             left: mergeCluster1,
             right: mergeCluster2,
             distance: -maxGain, // Use negative gain as distance
@@ -507,7 +514,7 @@ export function modularityHierarchicalClustering(
 
     if (!root) {
         return {
-            root: {id: "empty", members: new Set(), distance: 0, height: 0},
+            root: { id: "empty", members: new Set(), distance: 0, height: 0 },
             dendrogram: [],
             clusters: new Map(),
         };
@@ -527,7 +534,6 @@ export function modularityHierarchicalClustering(
 /**
  * Agglomerative hierarchical clustering
  * Builds clusters bottom-up by merging closest pairs
- *
  * @param graph - Undirected graph - accepts Graph class or Map<T, Set<T>>
  * @param linkage - Linkage method for cluster distance
  * @returns Hierarchical clustering result

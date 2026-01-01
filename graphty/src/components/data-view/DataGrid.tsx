@@ -1,13 +1,15 @@
-import {Box, Tooltip, useMantineColorScheme} from "@mantine/core";
-import JSONGrid, {type keyPathNode} from "@redheadphone/react-json-grid";
-import React, {useCallback, useEffect, useRef, useState} from "react";
+import { Box, Tooltip, useMantineColorScheme } from "@mantine/core";
+import JSONGrid, { type keyPathNode } from "@redheadphone/react-json-grid";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import {CopyButton} from "./CopyButton";
-import {mantineJsonGridDarkTheme, mantineJsonGridLightTheme} from "./mantineTheme";
-import {getValueAtPath, keyPathToJMESPath} from "./pathUtils";
+import { CopyButton } from "./CopyButton";
+import { mantineJsonGridDarkTheme, mantineJsonGridLightTheme } from "./mantineTheme";
+import { getValueAtPath, keyPathToJMESPath } from "./pathUtils";
 
 /**
  * Formats a value for copying to clipboard.
+ * @param value - The value to format for clipboard
+ * @returns The formatted string representation
  */
 function formatValueForClipboard(value: unknown): string {
     if (value === null) {
@@ -37,10 +39,11 @@ function formatValueForClipboard(value: unknown): string {
     return typeof value === "function" ? "[Function]" : "[Unknown]";
 }
 
-export type {keyPathNode};
+export type { keyPathNode };
 
 /**
  * Gets the color scheme from the DOM data-mantine-color-scheme attribute.
+ * @returns The current color scheme or null if not found
  */
 function getSchemeFromDOM(): "light" | "dark" | null {
     if (typeof document === "undefined") {
@@ -58,9 +61,11 @@ function getSchemeFromDOM(): "light" | "dark" | null {
 /**
  * Hook that detects the actual Mantine color scheme.
  * Uses the Mantine hook first, then falls back to reading DOM attribute.
+ * @param fallback - The fallback color scheme if none is detected
+ * @returns The detected color scheme
  */
 function useActualColorScheme(fallback: "light" | "dark" = "dark"): "light" | "dark" {
-    const {colorScheme: mantineScheme} = useMantineColorScheme();
+    const { colorScheme: mantineScheme } = useMantineColorScheme();
     const [domScheme, setDomScheme] = useState<"light" | "dark" | null>(() => getSchemeFromDOM());
 
     useEffect(() => {
@@ -142,7 +147,7 @@ export const DataGrid = React.memo(function DataGrid({
             if (showCopyButton) {
                 const value = getValueAtPath(data, keyPath);
                 const jmesPath = keyPathToJMESPath(keyPath);
-                setSelection({keyPath, value, jmesPath});
+                setSelection({ keyPath, value, jmesPath });
             }
 
             onSelect?.(keyPath);
@@ -162,8 +167,7 @@ export const DataGrid = React.memo(function DataGrid({
         }
 
         const handleKeyDown = (event: KeyboardEvent): void => {
-            const isCopyShortcut =
-                (event.ctrlKey || event.metaKey) && event.key === "c" && !event.shiftKey;
+            const isCopyShortcut = (event.ctrlKey || event.metaKey) && event.key === "c" && !event.shiftKey;
 
             if (isCopyShortcut) {
                 // Don't prevent default - allow normal copy if text is selected
@@ -191,13 +195,7 @@ export const DataGrid = React.memo(function DataGrid({
     }, [showCopyButton, selection]);
 
     return (
-        <Box
-            ref={containerRef}
-            tabIndex={0}
-            role="grid"
-            aria-label="JSON data viewer"
-            style={{outline: "none"}}
-        >
+        <Box ref={containerRef} tabIndex={0} role="grid" aria-label="JSON data viewer" style={{ outline: "none" }}>
             {/* Sticky copy button container - placed before JSONGrid for proper sticky behavior */}
             {showCopyButton && selection && (
                 <Box
@@ -212,13 +210,7 @@ export const DataGrid = React.memo(function DataGrid({
                         overflow: "visible",
                     }}
                 >
-                    <Tooltip
-                        label="Copied!"
-                        opened={keyboardCopyFeedback}
-                        position="left"
-                        withArrow
-                        color="green"
-                    >
+                    <Tooltip label="Copied!" opened={keyboardCopyFeedback} position="left" withArrow color="green">
                         <Box
                             style={{
                                 pointerEvents: "auto",

@@ -1,6 +1,6 @@
-import type {Graph} from "../../core/graph.js";
-import type {NodeId, ShortestPathResult} from "../../types/index.js";
-import {reconstructPath} from "../../utils/graph-utilities.js";
+import type { Graph } from "../../core/graph.js";
+import type { NodeId, ShortestPathResult } from "../../types/index.js";
+import { reconstructPath } from "../../utils/graph-utilities.js";
 
 /**
  * Bellman-Ford algorithm implementation for single-source shortest paths
@@ -44,12 +44,12 @@ export interface BellmanFordResult {
 
 /**
  * Find shortest paths from source using Bellman-Ford algorithm
+ * @param graph - The graph to search
+ * @param source - The starting node for the search
+ * @param options - Algorithm options including optional target for early termination
+ * @returns The distances, predecessors, and negative cycle information
  */
-export function bellmanFord(
-    graph: Graph,
-    source: NodeId,
-    options: BellmanFordOptions = {},
-): BellmanFordResult {
+export function bellmanFord(graph: Graph, source: NodeId, options: BellmanFordOptions = {}): BellmanFordResult {
     if (!graph.hasNode(source)) {
         throw new Error(`Source node ${String(source)} not found in graph`);
     }
@@ -130,12 +130,12 @@ export function bellmanFord(
 
 /**
  * Find shortest path between two specific nodes using Bellman-Ford
+ * @param graph - The graph to search
+ * @param source - The starting node for the path
+ * @param target - The destination node for the path
+ * @returns The shortest path result or null if no path exists
  */
-export function bellmanFordPath(
-    graph: Graph,
-    source: NodeId,
-    target: NodeId,
-): ShortestPathResult | null {
+export function bellmanFordPath(graph: Graph, source: NodeId, target: NodeId): ShortestPathResult | null {
     if (!graph.hasNode(source)) {
         throw new Error(`Source node ${String(source)} not found in graph`);
     }
@@ -144,7 +144,7 @@ export function bellmanFordPath(
         throw new Error(`Target node ${String(target)} not found in graph`);
     }
 
-    const result = bellmanFord(graph, source, {target});
+    const result = bellmanFord(graph, source, { target });
 
     if (result.hasNegativeCycle) {
         throw new Error("Graph contains a negative cycle");
@@ -168,6 +168,8 @@ export function bellmanFordPath(
 
 /**
  * Check if graph has negative cycles using Bellman-Ford
+ * @param graph - The graph to check for negative cycles
+ * @returns True if the graph contains a negative cycle
  */
 export function hasNegativeCycle(graph: Graph): boolean {
     const nodes = Array.from(graph.nodes());
@@ -198,4 +200,3 @@ export function hasNegativeCycle(graph: Graph): boolean {
 
     return false;
 }
-

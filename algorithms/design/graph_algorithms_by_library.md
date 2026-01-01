@@ -1,9 +1,11 @@
 # Graph Algorithms by Library
 
 ## 1. NetworkX
+
 NetworkX offers one of the most comprehensive collections of graph algorithms:
 
 ### Community Detection
+
 - Bipartitions
 - Divisive Communities
 - K-Clique
@@ -16,6 +18,7 @@ NetworkX offers one of the most comprehensive collections of graph algorithms:
 - Local Community Detection
 
 ### Centrality Measures
+
 - Degree Centrality
 - Eigenvector Centrality
 - Closeness Centrality
@@ -36,6 +39,7 @@ NetworkX offers one of the most comprehensive collections of graph algorithms:
 - Laplacian Centrality
 
 ### Path Finding Algorithms
+
 - Shortest Paths (single source, all pairs)
 - Dijkstra's Algorithm
 - Bellman-Ford Algorithm
@@ -45,6 +49,7 @@ NetworkX offers one of the most comprehensive collections of graph algorithms:
 - Breadth First Search (BFS)
 
 ### Clustering Algorithms
+
 - Clustering Coefficient
 - Transitivity
 - Triangles
@@ -52,6 +57,7 @@ NetworkX offers one of the most comprehensive collections of graph algorithms:
 - Generalized Degree
 
 ### Connectivity Algorithms
+
 - Flow-based Connectivity
 - Disjoint Paths
 - Connected Components
@@ -62,16 +68,19 @@ NetworkX offers one of the most comprehensive collections of graph algorithms:
 - Bridges
 
 ### Matching Algorithms
+
 - Maximum Matching
 - Maximum Weight Matching
 - Maximal Matching
 
 ### Flow Algorithms
+
 - Maximum Flow
 - Minimum Cost Flow
 - Network Simplex
 
 ### Approximation Algorithms
+
 - Vertex Cover
 - Dominating Set
 - Clique
@@ -81,6 +90,7 @@ NetworkX offers one of the most comprehensive collections of graph algorithms:
 - Treewidth
 
 ### Other Algorithms
+
 - Graph Coloring
 - Planarity Testing
 - Isomorphism Testing
@@ -92,9 +102,11 @@ NetworkX offers one of the most comprehensive collections of graph algorithms:
 - Vitality Measures
 
 ## 2. Cytoscape.js
+
 Cytoscape.js provides essential graph algorithms with a focus on web-based visualization:
 
 ### Core Algorithms
+
 - Breadth-First Search (BFS)
 - Dijkstra's Shortest Path
 - PageRank
@@ -102,6 +114,7 @@ Cytoscape.js provides essential graph algorithms with a focus on web-based visua
 - Neighborhood Traversal
 
 ### Clustering Algorithms (v3.3.0+)
+
 - Markov Clustering
 - K-means
 - K-medoids
@@ -110,14 +123,17 @@ Cytoscape.js provides essential graph algorithms with a focus on web-based visua
 - Affinity Propagation
 
 ### Layout Algorithms
+
 - CoSE (Compound Spring Embedder)
 - COSE-Bilkent (enhanced version)
 - fCoSE (fast Compound Spring Embedder)
 
 ## 3. igraph
+
 igraph offers comprehensive network analysis tools across multiple programming languages:
 
 ### Community Detection
+
 - Leiden Algorithm
 - Louvain Algorithm
 - Edge Betweenness (Girvan-Newman)
@@ -131,34 +147,41 @@ igraph offers comprehensive network analysis tools across multiple programming l
 - Infomap
 
 ### Centrality Measures
+
 - Betweenness Centrality
 - Degree Centrality
 - Closeness Centrality
 - Eigenvector Centrality
 
 ### Path Finding
+
 - Shortest Paths
 - All Pairs Shortest Paths
 
 ### Clustering
+
 - Clustering Coefficient
 - Transitivity
 
 ### Other Algorithms
+
 - Connected Components
 - Graph Generation
 - Random Walks
 - Spanning Trees
 
 ## 4. Gephi
+
 Gephi focuses on essential network metrics for visual analysis:
 
 ### Centrality Measures
+
 - Degree Centrality
 - Betweenness Centrality
 - Closeness Centrality
 
 ### Network Metrics
+
 - Network Density
 - Path Length
 - Network Diameter
@@ -167,28 +190,34 @@ Gephi focuses on essential network metrics for visual analysis:
 - Clustering Coefficient
 
 ## 5. Boost Graph Library (BGL)
+
 BGL provides fundamental graph algorithms with C++ performance:
 
 ### Path Finding
+
 - Dijkstra's Shortest Paths
 - Bellman-Ford Shortest Paths
 - Johnson's All-Pairs Shortest Paths
 
 ### Graph Traversal
+
 - Breadth First Search
 - Depth First Search
 - Uniform Cost Search
 
 ### Minimum Spanning Tree
+
 - Kruskal's Algorithm
 - Prim's Algorithm
 
 ### Connectivity
+
 - Connected Components
 - Strongly Connected Components
 - Dynamic Connected Components (Disjoint Sets)
 
 ### Other Algorithms
+
 - Topological Sort
 - Transpose
 - Reverse Cuthill McKee Ordering
@@ -196,9 +225,11 @@ BGL provides fundamental graph algorithms with C++ performance:
 - Sequential Vertex Coloring
 
 ## 6. TigerGraph
+
 TigerGraph offers extensive graph algorithms optimized for large-scale graph databases:
 
 ### Centrality Algorithms
+
 - Approximate Closeness Centrality
 - ArticleRank
 - Betweenness Centrality
@@ -213,6 +244,7 @@ TigerGraph offers extensive graph algorithms optimized for large-scale graph dat
 - Weighted PageRank
 
 ### Community Detection
+
 - Weakly Connected Components
 - k-Core Decomposition
 - k-Means Clustering
@@ -224,7 +256,8 @@ TigerGraph offers extensive graph algorithms optimized for large-scale graph dat
 - Triangle Counting
 
 ### Path Finding
-- A* Algorithm
+
+- A\* Algorithm
 - All-Pairs Shortest Path
 - All Paths (Single-Pair)
 - Breadth-First Search
@@ -236,16 +269,19 @@ TigerGraph offers extensive graph algorithms optimized for large-scale graph dat
 - Single-source Shortest Path (weighted/unweighted)
 
 ### Classification
+
 - Greedy Graph Coloring
 - k-Nearest Neighbors (single, batch, cross-validation)
 - Maximal Independent Set
 - Weisfeiler-Lehman Isomorphism
 
 ### Similarity Algorithms
+
 - Cosine Similarity of Neighborhoods
 - Jaccard Similarity of Neighborhoods
 
 ### Link Prediction
+
 - Adamic Adar
 - Common Neighbors
 - Preferential Attachment
@@ -254,5 +290,6 @@ TigerGraph offers extensive graph algorithms optimized for large-scale graph dat
 - Total Neighbors
 
 ### Node Embedding
+
 - Fast Random Projection
 - NodePiece Models

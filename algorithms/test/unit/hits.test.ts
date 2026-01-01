@@ -1,12 +1,12 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {hits, nodeHITS} from "../../src/algorithms/centrality/hits.js";
-import {Graph} from "../../src/core/graph.js";
+import { hits, nodeHITS } from "../../src/algorithms/centrality/hits.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("HITS Algorithm", () => {
     describe("hits", () => {
         it("should calculate hub and authority scores for directed graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "b");
             graph.addEdge("a", "c");
             graph.addEdge("b", "c");
@@ -25,7 +25,7 @@ describe("HITS Algorithm", () => {
         });
 
         it("should handle simple hub-authority structure", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             // Create a hub pointing to multiple authorities
             graph.addEdge("hub", "auth1");
             graph.addEdge("hub", "auth2");
@@ -49,7 +49,7 @@ describe("HITS Algorithm", () => {
         });
 
         it("should handle chain structure", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
             graph.addEdge("c", "d");
@@ -68,7 +68,7 @@ describe("HITS Algorithm", () => {
         });
 
         it("should handle cycle structure", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
             graph.addEdge("c", "a");
@@ -83,23 +83,23 @@ describe("HITS Algorithm", () => {
         });
 
         it("should respect maxIterations parameter", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const result = hits(graph, {maxIterations: 5});
+            const result = hits(graph, { maxIterations: 5 });
 
             expect(Object.keys(result.hubs)).toHaveLength(3);
             expect(Object.keys(result.authorities)).toHaveLength(3);
         });
 
         it("should respect tolerance parameter", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const looseTolerance = hits(graph, {tolerance: 1e-2});
-            const strictTolerance = hits(graph, {tolerance: 1e-8});
+            const looseTolerance = hits(graph, { tolerance: 1e-2 });
+            const strictTolerance = hits(graph, { tolerance: 1e-8 });
 
             // Both should converge to valid results
             expect(Object.keys(looseTolerance.hubs)).toHaveLength(3);
@@ -107,29 +107,28 @@ describe("HITS Algorithm", () => {
         });
 
         it("should handle normalization", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "b");
             graph.addEdge("a", "c");
 
-            const normalized = hits(graph, {normalized: true});
-            const unnormalized = hits(graph, {normalized: false});
+            const normalized = hits(graph, { normalized: true });
+            const unnormalized = hits(graph, { normalized: false });
 
             // Normalized values should be in [0, 1] range
             const normalizedHubValues = Object.values(normalized.hubs);
             const normalizedAuthValues = Object.values(normalized.authorities);
 
-            expect(Math.max(... normalizedHubValues)).toBeLessThanOrEqual(1.01); // Small tolerance for floating point
-            expect(Math.max(... normalizedAuthValues)).toBeLessThanOrEqual(1.01);
-            expect(Math.min(... normalizedHubValues)).toBeGreaterThanOrEqual(0);
-            expect(Math.min(... normalizedAuthValues)).toBeGreaterThanOrEqual(0);
+            expect(Math.max(...normalizedHubValues)).toBeLessThanOrEqual(1.01); // Small tolerance for floating point
+            expect(Math.max(...normalizedAuthValues)).toBeLessThanOrEqual(1.01);
+            expect(Math.min(...normalizedHubValues)).toBeGreaterThanOrEqual(0);
+            expect(Math.min(...normalizedAuthValues)).toBeGreaterThanOrEqual(0);
 
             // Relative ordering should be preserved
-            expect((normalized.hubs.a > normalized.hubs.b) ===
-                   (unnormalized.hubs.a > unnormalized.hubs.b)).toBe(true);
+            expect(normalized.hubs.a > normalized.hubs.b === unnormalized.hubs.a > unnormalized.hubs.b).toBe(true);
         });
 
         it("should handle undirected graphs by treating them as bidirectional", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
@@ -143,7 +142,7 @@ describe("HITS Algorithm", () => {
 
     describe("edge cases", () => {
         it("should handle empty graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             const result = hits(graph);
 
             expect(result.hubs).toEqual({});
@@ -151,7 +150,7 @@ describe("HITS Algorithm", () => {
         });
 
         it("should handle single node", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addNode("a");
 
             const result = hits(graph);
@@ -161,7 +160,7 @@ describe("HITS Algorithm", () => {
         });
 
         it("should handle disconnected components", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "b");
             graph.addEdge("c", "d");
 
@@ -176,7 +175,7 @@ describe("HITS Algorithm", () => {
         });
 
         it("should handle isolated nodes", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "b");
             graph.addNode("isolated");
 
@@ -189,7 +188,7 @@ describe("HITS Algorithm", () => {
         });
 
         it("should handle self-loops", () => {
-            const graph = new Graph({directed: true, allowSelfLoops: true});
+            const graph = new Graph({ directed: true, allowSelfLoops: true });
             graph.addEdge("a", "a");
             graph.addEdge("a", "b");
 
@@ -200,7 +199,7 @@ describe("HITS Algorithm", () => {
         });
 
         it("should handle graph with no edges", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addNode("a");
             graph.addNode("b");
             graph.addNode("c");
@@ -218,7 +217,7 @@ describe("HITS Algorithm", () => {
 
     describe("nodeHITS", () => {
         it("should calculate hub and authority scores for specific node", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "b");
             graph.addEdge("a", "c");
             graph.addEdge("b", "c");
@@ -230,7 +229,7 @@ describe("HITS Algorithm", () => {
         });
 
         it("should throw error for non-existent node", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "b");
 
             expect(() => {
@@ -239,7 +238,7 @@ describe("HITS Algorithm", () => {
         });
 
         it("should match full HITS calculation", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
@@ -253,7 +252,7 @@ describe("HITS Algorithm", () => {
 
     describe("mathematical properties", () => {
         it("should maintain score normalization", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "b");
             graph.addEdge("a", "c");
             graph.addEdge("b", "c");
@@ -262,17 +261,17 @@ describe("HITS Algorithm", () => {
 
             // Hub scores should be normalized (sum of squares = 1)
             const hubValues = Object.values(result.hubs);
-            const hubNormSquared = hubValues.reduce((sum, val) => sum + (val * val), 0);
+            const hubNormSquared = hubValues.reduce((sum, val) => sum + val * val, 0);
             expect(hubNormSquared).toBeCloseTo(1, 3);
 
             // Authority scores should be normalized (sum of squares = 1)
             const authValues = Object.values(result.authorities);
-            const authNormSquared = authValues.reduce((sum, val) => sum + (val * val), 0);
+            const authNormSquared = authValues.reduce((sum, val) => sum + val * val, 0);
             expect(authNormSquared).toBeCloseTo(1, 3);
         });
 
         it("should satisfy mutual reinforcement property", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("hub1", "auth1");
             graph.addEdge("hub1", "auth2");
             graph.addEdge("hub2", "auth1");
@@ -292,7 +291,7 @@ describe("HITS Algorithm", () => {
 
     describe("performance", () => {
         it("should handle moderately large graphs", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a directed graph with 100 nodes
             for (let i = 0; i < 100; i++) {
@@ -302,7 +301,7 @@ describe("HITS Algorithm", () => {
             }
 
             const start = Date.now();
-            const result = hits(graph, {maxIterations: 50});
+            const result = hits(graph, { maxIterations: 50 });
             const duration = Date.now() - start;
 
             expect(duration).toBeLessThan(5000); // Should complete within 5 seconds

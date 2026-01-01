@@ -3,12 +3,12 @@
  * @module test/ai/commands/SchemaCommands.integration.test
  */
 
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {CommandRegistry} from "../../../src/ai/commands/CommandRegistry";
-import {describeProperty, sampleData} from "../../../src/ai/commands/SchemaCommands";
-import type {Graph} from "../../../src/Graph";
-import {createMockGraphWithCustomData} from "../../helpers/mock-graph-custom-data";
+import { CommandRegistry } from "../../../src/ai/commands/CommandRegistry";
+import { describeProperty, sampleData } from "../../../src/ai/commands/SchemaCommands";
+import type { Graph } from "../../../src/Graph";
+import { createMockGraphWithCustomData } from "../../helpers/mock-graph-custom-data";
 
 /**
  * Create a command registry with schema commands registered.
@@ -130,7 +130,7 @@ describe("SchemaCommands integration", () => {
             });
         }
 
-        it("sampleData command can be executed from registry", async() => {
+        it("sampleData command can be executed from registry", async () => {
             graph = createTestGraph();
             const registry = createRegistryWithSchemaCommands();
 
@@ -138,21 +138,27 @@ describe("SchemaCommands integration", () => {
             assert.ok(cmd);
 
             // Execute the command directly
-            const noop = (): void => { /* no-op */ };
-            const result = await cmd.execute(graph, {target: "nodes", count: 3}, {
+            const noop = (): void => {
+                /* no-op */
+            };
+            const result = await cmd.execute(
                 graph,
-                abortSignal: new AbortController().signal,
-                emitEvent: noop,
-                updateStatus: noop,
-            });
+                { target: "nodes", count: 3 },
+                {
+                    graph,
+                    abortSignal: new AbortController().signal,
+                    emitEvent: noop,
+                    updateStatus: noop,
+                },
+            );
 
             assert.strictEqual(result.success, true);
-            const data = result.data as {nodes: unknown[]};
+            const data = result.data as { nodes: unknown[] };
             assert.ok(Array.isArray(data.nodes));
             assert.strictEqual(data.nodes.length, 3);
         });
 
-        it("describeProperty command can be executed from registry", async() => {
+        it("describeProperty command can be executed from registry", async () => {
             graph = createTestGraph();
             const registry = createRegistryWithSchemaCommands();
 
@@ -160,24 +166,32 @@ describe("SchemaCommands integration", () => {
             assert.ok(cmd);
 
             // Execute the command directly - property is inside data object
-            const noop = (): void => { /* no-op */ };
-            const result = await cmd.execute(graph, {property: "type", target: "nodes"}, {
+            const noop = (): void => {
+                /* no-op */
+            };
+            const result = await cmd.execute(
                 graph,
-                abortSignal: new AbortController().signal,
-                emitEvent: noop,
-                updateStatus: noop,
-            });
+                { property: "type", target: "nodes" },
+                {
+                    graph,
+                    abortSignal: new AbortController().signal,
+                    emitEvent: noop,
+                    updateStatus: noop,
+                },
+            );
 
             assert.strictEqual(result.success, true);
-            const data = result.data as {type: string, property: string};
+            const data = result.data as { type: string; property: string };
             assert.strictEqual(data.type, "string");
             assert.strictEqual(data.property, "type");
         });
 
-        it("commands execute independently", async() => {
+        it("commands execute independently", async () => {
             graph = createTestGraph();
             const registry = createRegistryWithSchemaCommands();
-            const noop = (): void => { /* no-op */ };
+            const noop = (): void => {
+                /* no-op */
+            };
             const context = {
                 graph,
                 abortSignal: new AbortController().signal,
@@ -188,13 +202,13 @@ describe("SchemaCommands integration", () => {
             // Execute sampleData
             const sampleCmd = registry.get("sampleData");
             assert.ok(sampleCmd);
-            const sampleResult = await sampleCmd.execute(graph, {target: "nodes", count: 2}, context);
+            const sampleResult = await sampleCmd.execute(graph, { target: "nodes", count: 2 }, context);
             assert.strictEqual(sampleResult.success, true);
 
             // Execute describeProperty - property is inside data object
             const describeCmd = registry.get("describeProperty");
             assert.ok(describeCmd);
-            const describeResult = await describeCmd.execute(graph, {property: "active", target: "nodes"}, context);
+            const describeResult = await describeCmd.execute(graph, { property: "active", target: "nodes" }, context);
             assert.strictEqual(describeResult.success, true);
         });
     });

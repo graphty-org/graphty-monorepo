@@ -1,8 +1,19 @@
-import {ActionIcon, Box, ColorPicker, ColorSwatch, Group, NumberInput, Popover, Stack, Text, TextInput} from "@mantine/core";
-import React, {useEffect, useState} from "react";
+import {
+    ActionIcon,
+    Box,
+    ColorPicker,
+    ColorSwatch,
+    Group,
+    NumberInput,
+    Popover,
+    Stack,
+    Text,
+    TextInput,
+} from "@mantine/core";
+import React, { useEffect, useState } from "react";
 
-import {SWATCH_COLORS_HEXA} from "../../../constants/colors";
-import {opacityToAlphaHex, parseAlphaFromHexa} from "../../../utils/color-utils";
+import { SWATCH_COLORS_HEXA } from "../../../constants/colors";
+import { opacityToAlphaHex, parseAlphaFromHexa } from "../../../utils/color-utils";
 
 export interface CompactColorInputProps {
     /** Hex color value (e.g., "#5B8FF9") */
@@ -24,6 +35,15 @@ export interface CompactColorInputProps {
 /**
  * Compact color input with connected swatch, hex input, and opacity.
  * Figma-style layout: [color swatch] [hex input] | [opacity%]
+ * @param root0 - Component props
+ * @param root0.color - Hex color value (e.g., "#5B8FF9")
+ * @param root0.opacity - Opacity value from 0-100
+ * @param root0.onColorChange - Called when color changes
+ * @param root0.onOpacityChange - Called when opacity changes
+ * @param root0.onColorAndOpacityChange - Called when both color and opacity change together
+ * @param root0.label - Optional label displayed above the input
+ * @param root0.showOpacity - Control visibility of opacity input
+ * @returns The compact color input component
  */
 export function CompactColorInput({
     color,
@@ -124,12 +144,7 @@ export function CompactColorInput({
     const colorInput = (
         <Group gap={0}>
             {/* Color swatch with popover */}
-            <Popover
-                opened={colorPickerOpen}
-                onChange={setColorPickerOpen}
-                position="bottom-start"
-                shadow="md"
-            >
+            <Popover opened={colorPickerOpen} onChange={setColorPickerOpen} position="bottom-start" shadow="md">
                 <Popover.Target>
                     <ActionIcon
                         variant="filled"
@@ -159,7 +174,7 @@ export function CompactColorInput({
                         format="hexa"
                         value={getHexaValue()}
                         onChange={handleColorPickerChange}
-                        swatches={[... SWATCH_COLORS_HEXA]}
+                        swatches={[...SWATCH_COLORS_HEXA]}
                     />
                 </Popover.Dropdown>
             </Popover>
@@ -220,7 +235,9 @@ export function CompactColorInput({
     if (label) {
         return (
             <Stack gap={0}>
-                <Text size="xs" c="dimmed" mb={1} lh={1.2}>{label}</Text>
+                <Text size="xs" c="dimmed" mb={1} lh={1.2}>
+                    {label}
+                </Text>
                 {colorInput}
             </Stack>
         );

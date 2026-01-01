@@ -2,4 +2,4 @@
  * Basic layout algorithms
  */
 
-export { randomLayout } from './random';
+export { randomLayout } from "./random";

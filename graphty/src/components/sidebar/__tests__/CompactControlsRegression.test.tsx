@@ -1,8 +1,8 @@
-import {ActionIcon, Button, Checkbox, SegmentedControl, Slider, Switch} from "@mantine/core";
-import {Check} from "lucide-react";
-import {describe, expect, it} from "vitest";
+import { ActionIcon, Button, Checkbox, SegmentedControl, Slider, Switch } from "@mantine/core";
+import { Check } from "lucide-react";
+import { describe, expect, it } from "vitest";
 
-import {render, screen} from "../../../test/test-utils";
+import { render, screen } from "../../../test/test-utils";
 
 /**
  * Regression tests for compact size styling on additional Mantine components.
@@ -42,12 +42,7 @@ describe("Compact Controls Style Regression", () => {
         });
 
         it("SegmentedControl label has correct compact font size", () => {
-            render(
-                <SegmentedControl
-                    size="compact"
-                    data={["Option 1", "Option 2", "Option 3"]}
-                />,
-            );
+            render(<SegmentedControl size="compact" data={["Option 1", "Option 2", "Option 3"]} />);
 
             // Find a label element
             const label = document.querySelector(".mantine-SegmentedControl-label");
@@ -62,13 +57,7 @@ describe("Compact Controls Style Regression", () => {
 
     describe("Checkbox compact styles", () => {
         it("Checkbox has correct compact size", () => {
-            render(
-                <Checkbox
-                    label="Test checkbox"
-                    aria-label="Test checkbox"
-                    size="compact"
-                />,
-            );
+            render(<Checkbox label="Test checkbox" aria-label="Test checkbox" size="compact" />);
 
             const checkbox = screen.getByRole("checkbox");
             const computed = window.getComputedStyle(checkbox);
@@ -85,14 +74,7 @@ describe("Compact Controls Style Regression", () => {
 
     describe("Switch compact styles", () => {
         it("Switch has correct compact CSS variables", () => {
-            render(
-                <Switch
-                    label="Test switch"
-                    aria-label="Test switch"
-                    size="compact"
-                    data-testid="test-switch"
-                />,
-            );
+            render(<Switch label="Test switch" aria-label="Test switch" size="compact" data-testid="test-switch" />);
 
             // Find the root element which has the CSS variables
             const root = document.querySelector(".mantine-Switch-root");
@@ -114,13 +96,7 @@ describe("Compact Controls Style Regression", () => {
 
     describe("Slider compact styles", () => {
         it("Slider track has correct compact height", () => {
-            render(
-                <Slider
-                    aria-label="Test slider"
-                    defaultValue={50}
-                    size="compact"
-                />,
-            );
+            render(<Slider aria-label="Test slider" defaultValue={50} size="compact" />);
 
             const slider = screen.getByRole("slider");
             const track = slider.closest(".mantine-Slider-root")?.querySelector(".mantine-Slider-track");
@@ -133,13 +109,7 @@ describe("Compact Controls Style Regression", () => {
         });
 
         it("Slider thumb has correct compact size", () => {
-            render(
-                <Slider
-                    aria-label="Test slider"
-                    defaultValue={50}
-                    size="compact"
-                />,
-            );
+            render(<Slider aria-label="Test slider" defaultValue={50} size="compact" />);
 
             const slider = screen.getByRole("slider");
             const thumb = slider.closest(".mantine-Slider-root")?.querySelector(".mantine-Slider-thumb");
@@ -218,7 +188,9 @@ describe("Compact Controls Style Regression", () => {
         it("All compact height-based controls have consistent 24px height", () => {
             render(
                 <>
-                    <Button size="compact" data-testid="button">Button</Button>
+                    <Button size="compact" data-testid="button">
+                        Button
+                    </Button>
                     <ActionIcon size="compact" aria-label="Action" data-testid="action">
                         <Check size={14} />
                     </ActionIcon>
@@ -228,9 +200,7 @@ describe("Compact Controls Style Regression", () => {
             const button = screen.getByTestId("button");
             const actionIcon = screen.getByTestId("action");
 
-            const heights = [button, actionIcon].map(
-                (el) => window.getComputedStyle(el).height,
-            );
+            const heights = [button, actionIcon].map((el) => window.getComputedStyle(el).height);
 
             // All should be 24px
             expect(new Set(heights).size).toBe(1);

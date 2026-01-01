@@ -1,7 +1,7 @@
-import {Mesh, NullEngine, Scene, ShaderMaterial, StandardMaterial} from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { Mesh, NullEngine, Scene, ShaderMaterial, StandardMaterial } from "@babylonjs/core";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import {MaterialHelper} from "../src/meshes/MaterialHelper";
+import { MaterialHelper } from "../src/meshes/MaterialHelper";
 
 describe("MaterialHelper", () => {
     let scene: Scene;
@@ -57,18 +57,14 @@ describe("MaterialHelper", () => {
         test("delegates to FilledArrowRenderer and creates ShaderMaterial", () => {
             // Use a simple mesh instead of createTriangle for this test
             const mesh = new Mesh("test", scene);
-            MaterialHelper.apply3DMaterial(mesh, {size: 1.0, color: "#ff0000"}, scene);
+            MaterialHelper.apply3DMaterial(mesh, { size: 1.0, color: "#ff0000" }, scene);
 
             assert(mesh.material instanceof ShaderMaterial);
         });
 
         test("applies correct shader properties", () => {
             const mesh = new Mesh("test", scene);
-            MaterialHelper.apply3DMaterial(
-                mesh,
-                {size: 2.0, color: "#00ff00", opacity: 0.7},
-                scene,
-            );
+            MaterialHelper.apply3DMaterial(mesh, { size: 2.0, color: "#00ff00", opacity: 0.7 }, scene);
 
             const material = mesh.material as ShaderMaterial;
             assert.exists(material);

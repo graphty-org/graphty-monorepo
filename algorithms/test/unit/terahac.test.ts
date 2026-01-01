@@ -1,7 +1,7 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {Graph} from "../../src/core/graph.js";
-import {teraHAC, type TeraHACConfig} from "../../src/research/terahac.js";
+import { Graph } from "../../src/core/graph.js";
+import { teraHAC, type TeraHACConfig } from "../../src/research/terahac.js";
 
 describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
     describe("Basic functionality", () => {
@@ -31,7 +31,7 @@ describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
             graph.addNode("A");
             graph.addNode("B");
 
-            const config: TeraHACConfig = {numClusters: 2};
+            const config: TeraHACConfig = { numClusters: 2 };
             const result = teraHAC(graph, config);
 
             expect(result.dendrogram.members.size).toBe(2);
@@ -48,7 +48,7 @@ describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
             graph.addNode("B");
             graph.addEdge("A", "B");
 
-            const config: TeraHACConfig = {numClusters: 1};
+            const config: TeraHACConfig = { numClusters: 1 };
             const result = teraHAC(graph, config);
 
             expect(result.dendrogram.members.size).toBe(2);
@@ -180,7 +180,7 @@ describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
                 graph.addEdge(nodes[i], nodes[i + 1]);
             }
 
-            const config: TeraHACConfig = {numClusters: 3};
+            const config: TeraHACConfig = { numClusters: 3 };
             const result = teraHAC(graph, config);
 
             expect(result.numClusters).toBe(3);
@@ -222,7 +222,7 @@ describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
 
             const result = teraHAC(graph);
 
-            const {dendrogram} = result;
+            const { dendrogram } = result;
 
             // Root should contain all nodes
             expect(dendrogram.members.size).toBe(3);
@@ -251,7 +251,7 @@ describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
             const result = teraHAC(graph);
 
             // Distances should be non-decreasing in merge order
-            const {distances} = result;
+            const { distances } = result;
             for (let i = 1; i < distances.length; i++) {
                 expect(distances[i]).toBeGreaterThanOrEqual(distances[i - 1]);
             }
@@ -275,7 +275,7 @@ describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
             graph.addNode("E");
             graph.addEdge("D", "E");
 
-            const config: TeraHACConfig = {numClusters: 2};
+            const config: TeraHACConfig = { numClusters: 2 };
             const result = teraHAC(graph, config);
 
             expect(result.clusters.size).toBe(5);
@@ -303,7 +303,7 @@ describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
                 graph.addEdge("center", leaf);
             }
 
-            const config: TeraHACConfig = {numClusters: 2};
+            const config: TeraHACConfig = { numClusters: 2 };
             const result = teraHAC(graph, config);
 
             expect(result.clusters.size).toBe(5);
@@ -325,7 +325,7 @@ describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
                 }
             }
 
-            const config: TeraHACConfig = {numClusters: 2};
+            const config: TeraHACConfig = { numClusters: 2 };
             const result = teraHAC(graph, config);
 
             expect(result.clusters.size).toBe(4);
@@ -335,7 +335,7 @@ describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
 
     describe("Edge cases", () => {
         it("should handle self-loops", () => {
-            const graph = new Graph({allowSelfLoops: true});
+            const graph = new Graph({ allowSelfLoops: true });
             graph.addNode("A");
             graph.addNode("B");
             graph.addEdge("A", "A"); // Self-loop
@@ -357,7 +357,7 @@ describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
                 graph.addEdge(`node${i}`, `node${i + 1}`);
             }
 
-            const config: TeraHACConfig = {maxNodes: 50};
+            const config: TeraHACConfig = { maxNodes: 50 };
 
             // Should not throw, but may log warning
             expect(() => {
@@ -425,7 +425,7 @@ describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
             }
 
             const startTime = performance.now();
-            const config: TeraHACConfig = {numClusters: 5};
+            const config: TeraHACConfig = { numClusters: 5 };
             const result = teraHAC(graph, config);
             const endTime = performance.now();
 
@@ -465,7 +465,7 @@ describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
                 graph.addNode(`isolated_${i}`);
             }
 
-            const config: TeraHACConfig = {distanceThreshold: 0.5};
+            const config: TeraHACConfig = { distanceThreshold: 0.5 };
             const result = teraHAC(graph, config);
 
             // Should complete without hanging
@@ -479,7 +479,7 @@ describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
             graph.addNode("B");
             // No edges - disconnected
 
-            const config: TeraHACConfig = {numClusters: 1};
+            const config: TeraHACConfig = { numClusters: 1 };
             const result = teraHAC(graph, config);
 
             // Should complete and have dendrogram
@@ -500,7 +500,7 @@ describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
             graph.addEdge("A", "B");
 
             // Request merging to a single cluster - all candidates will be consumed
-            const config: TeraHACConfig = {numClusters: 1};
+            const config: TeraHACConfig = { numClusters: 1 };
 
             // Should complete without throwing "No merge candidates available"
             expect(() => teraHAC(graph, config)).not.toThrow();
@@ -519,12 +519,12 @@ describe("TeraHAC (Hierarchical Agglomerative Clustering)", () => {
             graph.addNode("C");
             graph.addEdge("A", "B");
 
-            const config: TeraHACConfig = {numClusters: 2};
+            const config: TeraHACConfig = { numClusters: 2 };
             const result = teraHAC(graph, config);
 
             const clusterIds = Array.from(result.clusters.values());
-            const minId = Math.min(... clusterIds);
-            const maxId = Math.max(... clusterIds);
+            const minId = Math.min(...clusterIds);
+            const maxId = Math.max(...clusterIds);
 
             expect(minId).toBe(0);
             expect(maxId).toBe(result.numClusters - 1);

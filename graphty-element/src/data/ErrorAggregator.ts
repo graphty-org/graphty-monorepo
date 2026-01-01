@@ -105,7 +105,7 @@ export class ErrorAggregator {
      * @returns Array of all accumulated errors
      */
     getErrors(): DataLoadingError[] {
-        return [... this.errors];
+        return [...this.errors];
     }
 
     /**
@@ -126,7 +126,7 @@ export class ErrorAggregator {
         }
 
         // Generate user-friendly message and suggestion
-        const {message, suggestion} = this.generateUserFriendlyMessage(
+        const { message, suggestion } = this.generateUserFriendlyMessage(
             totalErrors,
             primaryCategory,
             this.errorsByCategory,
@@ -217,9 +217,9 @@ export class ErrorAggregator {
         primaryCategory: string | undefined,
         errorsByCategory: Map<string, DataLoadingError[]>,
         errorsByField: Map<string, DataLoadingError[]>,
-    ): {message: string, suggestion?: string} {
+    ): { message: string; suggestion?: string } {
         if (totalErrors === 0) {
-            return {message: "No errors"};
+            return { message: "No errors" };
         }
 
         // Check for common error patterns
@@ -232,34 +232,37 @@ export class ErrorAggregator {
         if (missingColumnErrors > 0) {
             const fields = Array.from(errorsByField.keys());
             const message = `Found ${totalErrors} errors (${missingColumnErrors} missing column errors)`;
-            const suggestion = fields.length > 0 ?
-                `Check that your data has the required columns: ${fields.join(", ")}` :
-                "Check that your data has the required columns (e.g., 'source', 'target' for edges)";
-            return {message, suggestion};
+            const suggestion =
+                fields.length > 0
+                    ? `Check that your data has the required columns: ${fields.join(", ")}`
+                    : "Check that your data has the required columns (e.g., 'source', 'target' for edges)";
+            return { message, suggestion };
         }
 
         // Pattern: Parse errors
         if (parseErrors > totalErrors * 0.5) {
             const message = `Found ${totalErrors} errors (mostly parsing errors)`;
-            const suggestion = "Check your file format and encoding. Common issues: incorrect delimiter, malformed quotes, or encoding problems (try UTF-8)";
-            return {message, suggestion};
+            const suggestion =
+                "Check your file format and encoding. Common issues: incorrect delimiter, malformed quotes, or encoding problems (try UTF-8)";
+            return { message, suggestion };
         }
 
         // Pattern: Missing values
         if (missingValueErrors > 0) {
             const fields = Array.from(errorsByField.keys());
             const message = `Found ${totalErrors} errors (${missingValueErrors} missing required values)`;
-            const suggestion = fields.length > 0 ?
-                `Check that rows have values for: ${fields.join(", ")}` :
-                "Check that rows have all required values";
-            return {message, suggestion};
+            const suggestion =
+                fields.length > 0
+                    ? `Check that rows have values for: ${fields.join(", ")}`
+                    : "Check that rows have all required values";
+            return { message, suggestion };
         }
 
         // Pattern: Validation errors
         if (validationErrors > 0) {
             const message = `Found ${totalErrors} errors (${validationErrors} validation errors)`;
             const suggestion = "Check that your data values match the expected format and types";
-            return {message, suggestion};
+            return { message, suggestion };
         }
 
         // Generic message based on primary category

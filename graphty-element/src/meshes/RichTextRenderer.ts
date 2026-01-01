@@ -1,4 +1,4 @@
-import type {TextSegment} from "./RichTextLabel.ts";
+import type { TextSegment } from "./RichTextLabel.ts";
 
 export interface RenderOptions {
     textAlignment: "left" | "center" | "right";
@@ -42,7 +42,7 @@ export class RichTextRenderer {
     drawText(
         ctx: CanvasRenderingContext2D,
         parsedContent: TextSegment[][],
-        contentArea: {x: number, y: number, width: number, height: number},
+        contentArea: { x: number; y: number; width: number; height: number },
     ): void {
         const textAreaWidth = contentArea.width - this.options.marginLeft - this.options.marginRight;
         const textAreaX = contentArea.x + this.options.marginLeft;
@@ -53,7 +53,7 @@ export class RichTextRenderer {
                 continue;
             }
 
-            const {totalWidth, maxLineHeight} = this.measureLine(ctx, lineSegments);
+            const { totalWidth, maxLineHeight } = this.measureLine(ctx, lineSegments);
             const startX = this.calculateLineStartX(textAreaX, textAreaWidth, totalWidth);
 
             this.drawLine(ctx, lineSegments, startX, currentY, maxLineHeight);
@@ -64,23 +64,23 @@ export class RichTextRenderer {
     private measureLine(
         ctx: CanvasRenderingContext2D,
         lineSegments: TextSegment[],
-    ): {totalWidth: number, maxLineHeight: number} {
+    ): { totalWidth: number; maxLineHeight: number } {
         let totalWidth = 0;
         let maxLineHeight = 0;
 
         for (const segment of lineSegments) {
-            const {style} = segment;
+            const { style } = segment;
             ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
             const metrics = ctx.measureText(segment.text);
             totalWidth += metrics.width;
             maxLineHeight = Math.max(maxLineHeight, style.size);
         }
 
-        return {totalWidth, maxLineHeight};
+        return { totalWidth, maxLineHeight };
     }
 
     private calculateLineStartX(textAreaX: number, textAreaWidth: number, totalWidth: number): number {
-        const contentCenter = textAreaX + (textAreaWidth / 2);
+        const contentCenter = textAreaX + textAreaWidth / 2;
 
         switch (this.options.textAlignment) {
             case "left":
@@ -89,7 +89,7 @@ export class RichTextRenderer {
                 return textAreaX + textAreaWidth - totalWidth;
             case "center":
             default:
-                return contentCenter - (totalWidth / 2);
+                return contentCenter - totalWidth / 2;
         }
     }
 
@@ -103,7 +103,7 @@ export class RichTextRenderer {
         let currentX = startX;
 
         for (const segment of lineSegments) {
-            const {style} = segment;
+            const { style } = segment;
 
             ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
             ctx.textBaseline = "top";
@@ -129,13 +129,7 @@ export class RichTextRenderer {
         }
     }
 
-    private drawTextWithShadow(
-        ctx: CanvasRenderingContext2D,
-        text: string,
-        x: number,
-        y: number,
-        color: string,
-    ): void {
+    private drawTextWithShadow(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string): void {
         ctx.save();
         ctx.shadowColor = this.options.textShadowColor;
         ctx.shadowBlur = this.options.textShadowBlur;

@@ -25,12 +25,14 @@ This creates several problems:
 ### Current State
 
 The `queryGraph` tool provides basic information:
+
 - Node count
 - Edge count
 - Current layout type
 - 2D/3D mode
 
 But it doesn't expose:
+
 - Style layers (names, order, selectors, styles)
 - Camera position/target details
 - Selection state
@@ -40,6 +42,7 @@ But it doesn't expose:
 ### Goal
 
 Enable LLMs to query comprehensive system state so they can:
+
 - Make informed decisions about modifications
 - Avoid redundant operations
 - Reference existing state in responses
@@ -53,59 +56,59 @@ Enable LLMs to query comprehensive system state so they can:
 
 Information about the styling system:
 
-| Property | Description | Use Case |
-|----------|-------------|----------|
-| Layer count | Number of style layers | Understanding style complexity |
-| Layer order | List of layers from lowest to highest priority | Understanding style precedence |
-| Layer metadata | Name, source (AI vs user), timestamp | Identifying layers for removal |
-| Layer selectors | What each layer targets | Understanding what's styled |
-| Layer styles | What styles are applied | Debugging appearance |
-| Computed style | Final merged style for a specific node/edge | Debugging "why does X look like Y?" |
+| Property        | Description                                    | Use Case                            |
+| --------------- | ---------------------------------------------- | ----------------------------------- |
+| Layer count     | Number of style layers                         | Understanding style complexity      |
+| Layer order     | List of layers from lowest to highest priority | Understanding style precedence      |
+| Layer metadata  | Name, source (AI vs user), timestamp           | Identifying layers for removal      |
+| Layer selectors | What each layer targets                        | Understanding what's styled         |
+| Layer styles    | What styles are applied                        | Debugging appearance                |
+| Computed style  | Final merged style for a specific node/edge    | Debugging "why does X look like Y?" |
 
 ### 2. View State
 
 Information about the camera and display:
 
-| Property | Description | Use Case |
-|----------|-------------|----------|
-| Camera position | X, Y, Z coordinates | Understanding current viewpoint |
-| Camera target | What camera is looking at | Understanding focus |
-| 2D/3D mode | Current dimension mode | Avoiding redundant switches |
-| Zoom level | Current zoom/distance | Context for "zoom in/out" |
-| Active preset | If a preset is active | Understanding view context |
-| Viewport size | Canvas dimensions | Screenshot planning |
+| Property        | Description               | Use Case                        |
+| --------------- | ------------------------- | ------------------------------- |
+| Camera position | X, Y, Z coordinates       | Understanding current viewpoint |
+| Camera target   | What camera is looking at | Understanding focus             |
+| 2D/3D mode      | Current dimension mode    | Avoiding redundant switches     |
+| Zoom level      | Current zoom/distance     | Context for "zoom in/out"       |
+| Active preset   | If a preset is active     | Understanding view context      |
+| Viewport size   | Canvas dimensions         | Screenshot planning             |
 
 ### 3. Layout State
 
 Information about the layout system:
 
-| Property | Description | Use Case |
-|----------|-------------|----------|
-| Layout type | Current algorithm (ngraph, circular, etc.) | Avoiding redundant changes |
-| Layout options | Options passed to layout | Understanding configuration |
-| Settled state | Whether layout animation is complete | Timing operations |
-| Available layouts | What layouts are registered | Suggesting alternatives |
+| Property          | Description                                | Use Case                    |
+| ----------------- | ------------------------------------------ | --------------------------- |
+| Layout type       | Current algorithm (ngraph, circular, etc.) | Avoiding redundant changes  |
+| Layout options    | Options passed to layout                   | Understanding configuration |
+| Settled state     | Whether layout animation is complete       | Timing operations           |
+| Available layouts | What layouts are registered                | Suggesting alternatives     |
 
 ### 4. Selection State
 
 Information about user selection:
 
-| Property | Description | Use Case |
-|----------|-------------|----------|
-| Selected nodes | List of selected node IDs | Operating on selection |
-| Selected edges | List of selected edge IDs | Operating on selection |
-| Selection count | Number of selected items | Quick check |
-| Hover target | Currently hovered item | Context for interactions |
+| Property        | Description               | Use Case                 |
+| --------------- | ------------------------- | ------------------------ |
+| Selected nodes  | List of selected node IDs | Operating on selection   |
+| Selected edges  | List of selected edge IDs | Operating on selection   |
+| Selection count | Number of selected items  | Quick check              |
+| Hover target    | Currently hovered item    | Context for interactions |
 
 ### 5. Algorithm State
 
 Information about algorithm execution:
 
-| Property | Description | Use Case |
-|----------|-------------|----------|
-| Algorithms run | List of algorithms that have been executed | Knowing available data |
+| Property              | Description                                     | Use Case                              |
+| --------------------- | ----------------------------------------------- | ------------------------------------- |
+| Algorithms run        | List of algorithms that have been executed      | Knowing available data                |
 | Data properties added | What properties algorithms added to nodes/edges | Enabling styling by algorithm results |
-| Available algorithms | What algorithms are registered | Suggesting options |
+| Available algorithms  | What algorithms are registered                  | Suggesting options                    |
 
 ---
 
@@ -118,40 +121,40 @@ Information about algorithm execution:
 Add more query types to existing tool.
 
 ```typescript
-queryGraph({ query: "styles" })
-queryGraph({ query: "camera" })
-queryGraph({ query: "selection" })
+queryGraph({ query: "styles" });
+queryGraph({ query: "camera" });
+queryGraph({ query: "selection" });
 ```
 
-*Pros:* Single tool, familiar pattern
-*Cons:* Bloated; output varies wildly; hard to document
+_Pros:_ Single tool, familiar pattern
+_Cons:_ Bloated; output varies wildly; hard to document
 
 **Option B: Dedicated State Tools**
 
 Separate tool for each state category.
 
 ```typescript
-describeStyles()
-describeViewState()
-describeSelection()
-describeAlgorithmState()
+describeStyles();
+describeViewState();
+describeSelection();
+describeAlgorithmState();
 ```
 
-*Pros:* Focused outputs; clear purpose; LLM calls only what needed
-*Cons:* More tools to maintain
+_Pros:_ Focused outputs; clear purpose; LLM calls only what needed
+_Cons:_ More tools to maintain
 
 **Option C: Single `describeState` Tool**
 
 One tool with category parameter.
 
 ```typescript
-describeState({ category: "styles" })
-describeState({ category: "view" })
-describeState({ category: "all" })
+describeState({ category: "styles" });
+describeState({ category: "view" });
+describeState({ category: "all" });
 ```
 
-*Pros:* Single entry point; flexible
-*Cons:* Complex output schema; similar problems to Option A
+_Pros:_ Single entry point; flexible
+_Cons:_ Complex output schema; similar problems to Option A
 
 ### Chosen Approach: Hybrid
 
@@ -179,14 +182,15 @@ File: `src/ai/commands/StateCommands.ts`
 ```typescript
 export const describeStyles: GraphCommand = {
     name: "describeStyles",
-    description: "Get information about the current style layers applied to the graph. Shows layer order (later layers override earlier ones), selectors, and what styles each layer applies. Useful for understanding why nodes/edges look a certain way or identifying layers to modify/remove.",
+    description:
+        "Get information about the current style layers applied to the graph. Shows layer order (later layers override earlier ones), selectors, and what styles each layer applies. Useful for understanding why nodes/edges look a certain way or identifying layers to modify/remove.",
     parameters: z.object({
-        verbose: z.boolean().optional()
+        verbose: z
+            .boolean()
+            .optional()
             .describe("Include full style details for each layer (default: false, shows summary)"),
-        layerName: z.string().optional()
-            .describe("Get details for a specific layer by name"),
-        computeFor: z.string().optional()
-            .describe("Compute the final merged style for a specific node or edge ID"),
+        layerName: z.string().optional().describe("Get details for a specific layer by name"),
+        computeFor: z.string().optional().describe("Compute the final merged style for a specific node or edge ID"),
     }),
     examples: [
         { input: "What styles are applied?", params: {} },
@@ -197,7 +201,7 @@ export const describeStyles: GraphCommand = {
 
     execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
         // Implementation
-    }
+    },
 };
 ```
 
@@ -304,7 +308,11 @@ When `computeFor` is provided:
         },
         "contributingLayers": [
             { "index": 0, "name": "default", "contributed": ["shape.type", "enabled"] },
-            { "index": 2, "name": "ai-node-style-1701234567890", "contributed": ["texture.color", "shape.size", "effect.glow"] }
+            {
+                "index": 2,
+                "name": "ai-node-style-1701234567890",
+                "contributed": ["texture.color", "shape.size", "effect.glow"]
+            }
         ]
     }
 }
@@ -313,6 +321,7 @@ When `computeFor` is provided:
 #### Implementation Notes
 
 **Layer source detection:**
+
 ```typescript
 function getLayerSource(layer: StyleLayer): "system" | "user" | "ai" {
     const name = layer.metadata?.name;
@@ -323,6 +332,7 @@ function getLayerSource(layer: StyleLayer): "system" | "user" | "ai" {
 ```
 
 **Style summary generation:**
+
 ```typescript
 function summarizeStyle(nodeStyle?: NodeStyleConfig, edgeStyle?: EdgeStyleConfig): string {
     const parts: string[] = [];
@@ -348,10 +358,10 @@ Returns information about currently selected nodes and edges.
 ```typescript
 export const describeSelection: GraphCommand = {
     name: "describeSelection",
-    description: "Get information about currently selected nodes and edges. Useful for operating on user's selection or understanding context.",
+    description:
+        "Get information about currently selected nodes and edges. Useful for operating on user's selection or understanding context.",
     parameters: z.object({
-        includeData: z.boolean().optional()
-            .describe("Include data properties for selected items (default: false)"),
+        includeData: z.boolean().optional().describe("Include data properties for selected items (default: false)"),
     }),
     examples: [
         { input: "What's selected?", params: {} },
@@ -361,7 +371,7 @@ export const describeSelection: GraphCommand = {
 
     execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
         // Implementation
-    }
+    },
 };
 ```
 
@@ -394,9 +404,7 @@ export const describeSelection: GraphCommand = {
             { "id": "node-5", "data": { "type": "server", "name": "web-02" } },
             { "id": "node-12", "data": { "type": "database", "name": "db-01" } }
         ],
-        "edges": [
-            { "id": "edge-7", "source": "node-1", "target": "node-12", "data": { "latency": 45 } }
-        ]
+        "edges": [{ "id": "edge-7", "source": "node-1", "target": "node-12", "data": { "latency": 45 } }]
     }
 }
 ```
@@ -426,16 +434,18 @@ export const describeSelection: GraphCommand = {
 Add to existing `QueryTypeSchema`:
 
 ```typescript
-const QueryTypeSchema = z.enum([
-    "nodeCount",
-    "edgeCount",
-    "currentLayout",
-    "all",
-    "summary",
-    // New query types:
-    "view",
-    "layout",
-]).describe("Type of information to query about the graph");
+const QueryTypeSchema = z
+    .enum([
+        "nodeCount",
+        "edgeCount",
+        "currentLayout",
+        "all",
+        "summary",
+        // New query types:
+        "view",
+        "layout",
+    ])
+    .describe("Type of information to query about the graph");
 ```
 
 #### View Query Output
@@ -494,7 +504,13 @@ Add execution history to the response:
     "success": true,
     "message": "Found 5 available algorithm(s). 2 have been run.",
     "data": {
-        "algorithms": ["graphty:degree", "graphty:pagerank", "graphty:betweenness", "graphty:clustering", "graphty:components"],
+        "algorithms": [
+            "graphty:degree",
+            "graphty:pagerank",
+            "graphty:betweenness",
+            "graphty:clustering",
+            "graphty:components"
+        ],
         "count": 5,
         "history": [
             {
@@ -540,7 +556,7 @@ interface AlgorithmRun {
 class AlgorithmTracker {
     private runs: AlgorithmRun[] = [];
 
-    recordRun(namespace: string, type: string, addedProperties: { nodes: string[], edges: string[] }): void {
+    recordRun(namespace: string, type: string, addedProperties: { nodes: string[]; edges: string[] }): void {
         this.runs.push({
             namespace,
             type,
@@ -553,12 +569,12 @@ class AlgorithmTracker {
         return [...this.runs];
     }
 
-    getAvailableDataProperties(): { nodes: string[], edges: string[] } {
+    getAvailableDataProperties(): { nodes: string[]; edges: string[] } {
         const nodes = new Set<string>();
         const edges = new Set<string>();
         for (const run of this.runs) {
-            run.addedProperties.nodes.forEach(p => nodes.add(p));
-            run.addedProperties.edges.forEach(p => edges.add(p));
+            run.addedProperties.nodes.forEach((p) => nodes.add(p));
+            run.addedProperties.edges.forEach((p) => edges.add(p));
         }
         return { nodes: [...nodes], edges: [...edges] };
     }
@@ -576,11 +592,10 @@ class AlgorithmTracker {
 **LLM:** Calls `describeStyles({})`
 
 **Result shows:**
+
 ```json
 {
-    "layers": [
-        { "index": 2, "name": "highlight-servers", "source": "ai", "summary": "Node color: #ff0000" }
-    ]
+    "layers": [{ "index": 2, "name": "highlight-servers", "source": "ai", "summary": "Node color: #ff0000" }]
 }
 ```
 
@@ -597,14 +612,13 @@ class AlgorithmTracker {
 **LLM:** Calls `describeStyles({ computeFor: "node-5" })`
 
 **Result shows:**
+
 ```json
 {
     "computedStyle": {
         "effect": { "glow": { "color": "#00ff00", "strength": 2 } }
     },
-    "contributingLayers": [
-        { "name": "critical-alerts", "contributed": ["effect.glow"] }
-    ]
+    "contributingLayers": [{ "name": "critical-alerts", "contributed": ["effect.glow"] }]
 }
 ```
 
@@ -619,6 +633,7 @@ class AlgorithmTracker {
 **LLM:** Calls `describeSelection({})`
 
 **Result shows:**
+
 ```json
 {
     "hasSelection": true,
@@ -638,6 +653,7 @@ class AlgorithmTracker {
 **LLM:** Calls `queryGraph({ query: "view" })`
 
 **Result shows:**
+
 ```json
 {
     "mode": "3D"
@@ -655,6 +671,7 @@ class AlgorithmTracker {
 **LLM:** Calls `listAlgorithms({})`
 
 **Result shows:**
+
 ```json
 {
     "history": [],
@@ -739,29 +756,29 @@ const isSettled = layoutManager.isSettled();
 ### Unit Tests
 
 1. **describeStyles tests:**
-   - Returns correct layer count and order
-   - Correctly identifies layer source (system/user/ai)
-   - Summary generation is accurate
-   - Verbose mode includes full style details
-   - computeFor correctly merges styles
-   - Handles empty style state
+    - Returns correct layer count and order
+    - Correctly identifies layer source (system/user/ai)
+    - Summary generation is accurate
+    - Verbose mode includes full style details
+    - computeFor correctly merges styles
+    - Handles empty style state
 
 2. **describeSelection tests:**
-   - Returns correct selection state
-   - Handles no selection
-   - includeData properly includes/excludes data
-   - Handles large selections (truncation?)
+    - Returns correct selection state
+    - Handles no selection
+    - includeData properly includes/excludes data
+    - Handles large selections (truncation?)
 
 3. **queryGraph view/layout tests:**
-   - Returns correct camera position
-   - Returns correct 2D/3D mode
-   - Returns correct layout type and options
-   - Handles missing optional data
+    - Returns correct camera position
+    - Returns correct 2D/3D mode
+    - Returns correct layout type and options
+    - Handles missing optional data
 
 4. **AlgorithmTracker tests:**
-   - Records runs correctly
-   - Returns history in order
-   - Aggregates available properties correctly
+    - Records runs correctly
+    - Returns history in order
+    - Aggregates available properties correctly
 
 ### Integration Tests
 
@@ -774,12 +791,14 @@ const isSettled = layoutManager.isSettled();
 ## Implementation Checklist
 
 ### Phase 1: State Infrastructure
+
 - [ ] Create `src/ai/state/` directory
 - [ ] Implement `AlgorithmTracker` class
 - [ ] Define state-related TypeScript types
 - [ ] Verify access to selection state (implement if needed)
 
 ### Phase 2: describeStyles Command
+
 - [ ] Implement `describeStyles` command
 - [ ] Add layer source detection logic
 - [ ] Add style summary generation
@@ -789,6 +808,7 @@ const isSettled = layoutManager.isSettled();
 - [ ] Register command
 
 ### Phase 3: describeSelection Command
+
 - [ ] Implement `describeSelection` command
 - [ ] Add includeData option
 - [ ] Handle no selection case
@@ -796,6 +816,7 @@ const isSettled = layoutManager.isSettled();
 - [ ] Register command
 
 ### Phase 4: Expand queryGraph
+
 - [ ] Add "view" query type
 - [ ] Add "layout" query type
 - [ ] Access camera state
@@ -803,12 +824,14 @@ const isSettled = layoutManager.isSettled();
 - [ ] Update tests
 
 ### Phase 5: Expand listAlgorithms
+
 - [ ] Integrate AlgorithmTracker
 - [ ] Record algorithm runs in runAlgorithm
 - [ ] Add history and availableDataProperties to output
 - [ ] Update tests
 
 ### Phase 6: Testing & Documentation
+
 - [ ] Write integration tests
 - [ ] Create Storybook stories demonstrating state queries
 - [ ] Update command documentation
@@ -830,14 +853,15 @@ const isSettled = layoutManager.isSettled();
 
 This design complements the [AI Tool Schema Discovery Design](./ai-tool-schema-design.md):
 
-| Schema Discovery | System State Discovery |
-|------------------|----------------------|
+| Schema Discovery                | System State Discovery                      |
+| ------------------------------- | ------------------------------------------- |
 | What data exists in nodes/edges | What styles/view/selection currently active |
-| Static structure of the dataset | Dynamic runtime state |
-| Enables writing selectors | Enables understanding current context |
-| "What can I query?" | "What is currently happening?" |
+| Static structure of the dataset | Dynamic runtime state                       |
+| Enables writing selectors       | Enables understanding current context       |
+| "What can I query?"             | "What is currently happening?"              |
 
 Together, these provide complete situational awareness for the LLM:
+
 1. Schema tells the LLM what data is available to work with
 2. State tells the LLM what's currently configured/active
 

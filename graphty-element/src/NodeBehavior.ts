@@ -10,9 +10,9 @@ import {
     Vector3,
 } from "@babylonjs/core";
 
-import type {Graph} from "./Graph";
-import type {GraphContext} from "./managers/GraphContext";
-import type {Node as GraphNode, NodeIdType} from "./Node";
+import type { Graph } from "./Graph";
+import type { GraphContext } from "./managers/GraphContext";
+import type { Node as GraphNode, NodeIdType } from "./Node";
 
 interface NodeBehaviorOptions {
     pinOnDrag?: boolean;
@@ -29,7 +29,7 @@ interface DragState {
 // Click detection state
 interface ClickState {
     pointerDownTime: number;
-    pointerDownPosition: {x: number, y: number};
+    pointerDownPosition: { x: number; y: number };
     hasMoved: boolean;
     pointerEvent: PointerEvent | null;
 }
@@ -119,7 +119,7 @@ export class NodeDragHandler {
             const pos = this.node.mesh.position;
             eventManager.emitNodeEvent("node-drag-start", {
                 node: this.node,
-                position: {x: pos.x, y: pos.y, z: pos.z},
+                position: { x: pos.x, y: pos.y, z: pos.z },
             });
         }
     }
@@ -129,7 +129,11 @@ export class NodeDragHandler {
      * @param worldPosition - Current world space position of the drag pointer
      */
     public onDragUpdate(worldPosition: Vector3): void {
-        if (!this.dragState.dragging || !this.dragState.dragStartWorldPosition || !this.dragState.dragStartMeshPosition) {
+        if (
+            !this.dragState.dragging ||
+            !this.dragState.dragStartWorldPosition ||
+            !this.dragState.dragStartMeshPosition
+        ) {
             return;
         }
 
@@ -201,7 +205,7 @@ export class NodeDragHandler {
             const pos = this.node.mesh.position;
             eventManager.emitNodeEvent("node-drag-end", {
                 node: this.node,
-                position: {x: pos.x, y: pos.y, z: pos.z},
+                position: { x: pos.x, y: pos.y, z: pos.z },
             });
         }
 
@@ -262,10 +266,7 @@ export class NodeDragHandler {
             switch (pointerInfo.type) {
                 case PointerEventTypes.POINTERDOWN: {
                     // Check if we clicked on this node
-                    const pickInfo = this.scene.pick(
-                        this.scene.pointerX,
-                        this.scene.pointerY,
-                    );
+                    const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
 
                     // Use nodeId from mesh metadata for comparison
                     // This works with both regular and instanced meshes
@@ -303,7 +304,7 @@ export class NodeDragHandler {
                         if (this.clickState && !this.clickState.hasMoved) {
                             const dx = this.scene.pointerX - this.clickState.pointerDownPosition.x;
                             const dy = this.scene.pointerY - this.clickState.pointerDownPosition.y;
-                            const distance = Math.sqrt((dx * dx) + (dy * dy));
+                            const distance = Math.sqrt(dx * dx + dy * dy);
                             if (distance > CLICK_MAX_MOVEMENT_PX) {
                                 this.clickState.hasMoved = true;
                             }
@@ -365,10 +366,7 @@ export class NodeDragHandler {
             }
 
             // Check if we're hovering over this node
-            const pickInfo = this.scene.pick(
-                this.scene.pointerX,
-                this.scene.pointerY,
-            );
+            const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
             const pickedNodeId = pickInfo.pickedMesh?.metadata?.nodeId;
             const isOverThisNode = pickedNodeId === this.node.id;
 
@@ -463,10 +461,7 @@ export class NodeDragHandler {
             return this.node.mesh.position.clone();
         }
 
-        const t = Vector3.Dot(
-            planePoint.subtract(ray.origin),
-            planeNormal,
-        ) / denominator;
+        const t = Vector3.Dot(planePoint.subtract(ray.origin), planeNormal) / denominator;
 
         return ray.origin.add(ray.direction.scale(t));
     }
@@ -546,9 +541,9 @@ export class NodeBehavior {
 
         // Only Graph has fetchNodes/fetchEdges, not GraphContext
         // For now, check if parentGraph is the full Graph instance
-        const graph = node.parentGraph as Graph & {fetchNodes?: unknown, fetchEdges?: unknown};
+        const graph = node.parentGraph as Graph & { fetchNodes?: unknown; fetchEdges?: unknown };
         if (graph.fetchNodes && graph.fetchEdges) {
-            const {fetchNodes, fetchEdges} = graph;
+            const { fetchNodes, fetchEdges } = graph;
 
             node.mesh.actionManager.registerAction(
                 new ExecuteCodeAction(
@@ -577,8 +572,8 @@ export class NodeBehavior {
 
                         // add all the nodes and edges we collected
                         const dataManager = context.getDataManager();
-                        dataManager.addNodes([... nodes]);
-                        dataManager.addEdges([... edges]);
+                        dataManager.addNodes([...nodes]);
+                        dataManager.addEdges([...edges]);
 
                         // TODO: fetch and add secondary edges
                     },

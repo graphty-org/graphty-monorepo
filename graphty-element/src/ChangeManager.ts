@@ -1,8 +1,8 @@
 import onChange from "on-change";
 import * as z4 from "zod/v4/core";
 
-import {CalculatedValue} from "./CalculatedValue";
-import {AdHocData} from "./config";
+import { CalculatedValue } from "./CalculatedValue";
+import { AdHocData } from "./config";
 
 /**
  * Manages reactive data changes and calculated values.
@@ -24,7 +24,8 @@ export class ChangeManager {
         const watchedData = onChange(data, (path, value, prevVal /* applyData */) => {
             // ignore all the intermediate steps of setting a new deep path on
             // an object
-            if (typeof value === "object" &&
+            if (
+                typeof value === "object" &&
                 value !== null &&
                 Object.keys(value).length === 0 &&
                 prevVal === undefined

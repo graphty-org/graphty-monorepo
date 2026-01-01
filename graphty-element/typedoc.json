@@ -25,12 +25,6 @@
     "sanitizeComments": true,
     "categorizeByGroup": true,
     "sort": ["alphabetical"],
-    "kindSortOrder": [
-        "Class",
-        "Interface",
-        "TypeAlias",
-        "Function",
-        "Variable"
-    ],
+    "kindSortOrder": ["Class", "Interface", "TypeAlias", "Function", "Variable"],
     "docsRoot": "./docs"
 }

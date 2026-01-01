@@ -1,4 +1,4 @@
-import {type LoggerConfig, LogLevel} from "./types.js";
+import { type LoggerConfig, LogLevel } from "./types.js";
 
 /**
  * Default configuration when logging is not explicitly configured.
@@ -18,7 +18,7 @@ const DEFAULT_CONFIG: LoggerConfig = {
  * Current logging configuration. This is mutable and can be updated
  * by calling configureLogging().
  */
-let currentConfig: LoggerConfig = {... DEFAULT_CONFIG, format: {... DEFAULT_CONFIG.format}};
+let currentConfig: LoggerConfig = { ...DEFAULT_CONFIG, format: { ...DEFAULT_CONFIG.format } };
 
 /**
  * Configure the logging system.
@@ -43,7 +43,7 @@ export function configureLogging(config: Partial<LoggerConfig>): void {
  * @returns The current configuration (readonly copy)
  */
 export function getLoggingConfig(): LoggerConfig {
-    return {... currentConfig, format: {... currentConfig.format}};
+    return { ...currentConfig, format: { ...currentConfig.format } };
 }
 
 /**
@@ -88,8 +88,8 @@ export function isModuleEnabled(category: string[]): boolean {
  * Primarily useful for testing.
  */
 export function resetLoggingConfig(): void {
-    currentConfig = {... DEFAULT_CONFIG, format: {... DEFAULT_CONFIG.format}};
+    currentConfig = { ...DEFAULT_CONFIG, format: { ...DEFAULT_CONFIG.format } };
 }
 
 // Re-export types for convenience
-export type {LoggerConfig} from "./types.js";
+export type { LoggerConfig } from "./types.js";

@@ -1,9 +1,9 @@
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {DOTDataSource} from "../../src/data/DOTDataSource.js";
+import { DOTDataSource } from "../../src/data/DOTDataSource.js";
 
 describe("DOTDataSource", () => {
-    test("parses basic undirected graph", async() => {
+    test("parses basic undirected graph", async () => {
         const dot = `graph {
   a;
   b;
@@ -12,7 +12,7 @@ describe("DOTDataSource", () => {
   b -- c;
 }`;
 
-        const source = new DOTDataSource({data: dot});
+        const source = new DOTDataSource({ data: dot });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -31,7 +31,7 @@ describe("DOTDataSource", () => {
         assert.equal(chunks[0].edges[1].dst, "c");
     });
 
-    test("parses basic directed graph", async() => {
+    test("parses basic directed graph", async () => {
         const dot = `digraph {
   a;
   b;
@@ -40,7 +40,7 @@ describe("DOTDataSource", () => {
   b -> c;
 }`;
 
-        const source = new DOTDataSource({data: dot});
+        const source = new DOTDataSource({ data: dot });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -54,13 +54,13 @@ describe("DOTDataSource", () => {
         assert.equal(chunks[0].edges[0].dst, "b");
     });
 
-    test("parses strict graph", async() => {
+    test("parses strict graph", async () => {
         const dot = `strict digraph {
   a -> b;
   b -> c;
 }`;
 
-        const source = new DOTDataSource({data: dot});
+        const source = new DOTDataSource({ data: dot });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -70,14 +70,14 @@ describe("DOTDataSource", () => {
         assert.equal(chunks[0].edges.length, 2);
     });
 
-    test("parses node attributes", async() => {
+    test("parses node attributes", async () => {
         const dot = `digraph {
   a [label="Node A", color="red", size=10];
   b [label="Node B", color="blue", size=20];
   a -> b;
 }`;
 
-        const source = new DOTDataSource({data: dot});
+        const source = new DOTDataSource({ data: dot });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -92,13 +92,13 @@ describe("DOTDataSource", () => {
         assert.equal(chunks[0].nodes[1].label, "Node B");
     });
 
-    test("parses edge attributes", async() => {
+    test("parses edge attributes", async () => {
         const dot = `digraph {
   a -> b [weight=1.5, label="edge1", color="green"];
   b -> c [weight=2.0, label="edge2"];
 }`;
 
-        const source = new DOTDataSource({data: dot});
+        const source = new DOTDataSource({ data: dot });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -112,14 +112,14 @@ describe("DOTDataSource", () => {
         assert.equal(chunks[0].edges[1].label, "edge2");
     });
 
-    test("parses quoted node IDs", async() => {
+    test("parses quoted node IDs", async () => {
         const dot = `digraph {
   "node a";
   "node b";
   "node a" -> "node b";
 }`;
 
-        const source = new DOTDataSource({data: dot});
+        const source = new DOTDataSource({ data: dot });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -132,12 +132,12 @@ describe("DOTDataSource", () => {
         assert.equal(chunks[0].edges[0].dst, "node b");
     });
 
-    test("parses graph with named graph ID", async() => {
+    test("parses graph with named graph ID", async () => {
         const dot = `digraph G {
   a -> b;
 }`;
 
-        const source = new DOTDataSource({data: dot});
+        const source = new DOTDataSource({ data: dot });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -147,13 +147,13 @@ describe("DOTDataSource", () => {
         assert.equal(chunks[0].edges.length, 1);
     });
 
-    test("parses implicit nodes from edges", async() => {
+    test("parses implicit nodes from edges", async () => {
         const dot = `digraph {
   a -> b;
   b -> c;
 }`;
 
-        const source = new DOTDataSource({data: dot});
+        const source = new DOTDataSource({ data: dot });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -165,7 +165,7 @@ describe("DOTDataSource", () => {
         assert.equal(chunks[0].edges.length, 2);
     });
 
-    test("handles comments", async() => {
+    test("handles comments", async () => {
         const dot = `digraph {
   // This is a comment
   a -> b; // inline comment
@@ -174,7 +174,7 @@ describe("DOTDataSource", () => {
   b -> c;
 }`;
 
-        const source = new DOTDataSource({data: dot});
+        const source = new DOTDataSource({ data: dot });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -184,7 +184,7 @@ describe("DOTDataSource", () => {
         assert.equal(chunks[0].edges.length, 2);
     });
 
-    test("yields nodes in chunks for large graphs", async() => {
+    test("yields nodes in chunks for large graphs", async () => {
         let dot = "digraph {\n";
 
         for (let i = 0; i < 5000; i++) {
@@ -193,7 +193,7 @@ describe("DOTDataSource", () => {
 
         dot += "}";
 
-        const source = new DOTDataSource({data: dot});
+        const source = new DOTDataSource({ data: dot });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -208,7 +208,7 @@ describe("DOTDataSource", () => {
         assert.equal(totalNodes, 5000);
     });
 
-    test("handles subgraphs", async() => {
+    test("handles subgraphs", async () => {
         const dot = `digraph {
   subgraph cluster_0 {
     a;
@@ -223,7 +223,7 @@ describe("DOTDataSource", () => {
   b -> c;
 }`;
 
-        const source = new DOTDataSource({data: dot});
+        const source = new DOTDataSource({ data: dot });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -234,13 +234,13 @@ describe("DOTDataSource", () => {
         assert.equal(chunks[0].edges.length, 3);
     });
 
-    test("handles HTML-like labels", async() => {
+    test("handles HTML-like labels", async () => {
         const dot = `digraph {
   a [label=<<B>Bold</B> text>];
   a -> b;
 }`;
 
-        const source = new DOTDataSource({data: dot});
+        const source = new DOTDataSource({ data: dot });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -252,7 +252,7 @@ describe("DOTDataSource", () => {
         assert.isTrue(chunks[0].nodes[0].label.includes("Bold"));
     });
 
-    test("handles numeric node IDs", async() => {
+    test("handles numeric node IDs", async () => {
         const dot = `digraph {
   1;
   2;
@@ -261,7 +261,7 @@ describe("DOTDataSource", () => {
   2 -> 3;
 }`;
 
-        const source = new DOTDataSource({data: dot});
+        const source = new DOTDataSource({ data: dot });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -272,10 +272,10 @@ describe("DOTDataSource", () => {
         assert.equal(chunks[0].edges.length, 2);
     });
 
-    test("handles empty graph", async() => {
+    test("handles empty graph", async () => {
         const dot = "digraph {}";
 
-        const source = new DOTDataSource({data: dot});
+        const source = new DOTDataSource({ data: dot });
         const chunks = [];
 
         for await (const chunk of source.getData()) {

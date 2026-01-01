@@ -1,11 +1,11 @@
-import {labelPropagation} from "@graphty/algorithms";
-import {z} from "zod/v4";
+import { labelPropagation } from "@graphty/algorithms";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig} from "../config";
-import {Algorithm} from "./Algorithm";
-import type {OptionsSchema} from "./types/OptionSchema";
-import {countUniqueCommunities} from "./utils/communityUtils";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import { Algorithm } from "./Algorithm";
+import type { OptionsSchema } from "./types/OptionSchema";
+import { countUniqueCommunities } from "./utils/communityUtils";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for Label Propagation algorithm
@@ -105,10 +105,10 @@ export class LabelPropagationAlgorithm extends Algorithm<LabelPropagationOptions
         }
 
         // Get options from schema
-        const {maxIterations, randomSeed} = this.schemaOptions;
+        const { maxIterations, randomSeed } = this.schemaOptions;
 
         // Convert to @graphty/algorithms Graph format (undirected for community detection)
-        const graphData = toAlgorithmGraph(g, {addReverseEdges: false});
+        const graphData = toAlgorithmGraph(g, { addReverseEdges: false });
 
         // Run Label Propagation algorithm - accepts Graph directly in new version
         const result = labelPropagation(graphData, {

@@ -1,9 +1,17 @@
-import {Box} from "@mantine/core";
-import {forwardRef, useEffect, useImperativeHandle, useRef} from "react";
+import { Box } from "@mantine/core";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
-import {DEFAULT_GRAPH_NODE_COLOR} from "../constants/colors";
-import type {ArrowConfig, ColorConfig, EdgeLineConfig, EdgeStyle, NodeEffectsConfig, RichTextStyle, ShapeConfig} from "../types/style-layer";
-import type {LayerItem} from "./layout/LeftSidebar";
+import { DEFAULT_GRAPH_NODE_COLOR } from "../constants/colors";
+import type {
+    ArrowConfig,
+    ColorConfig,
+    EdgeLineConfig,
+    EdgeStyle,
+    NodeEffectsConfig,
+    RichTextStyle,
+    ShapeConfig,
+} from "../types/style-layer";
+import type { LayerItem } from "./layout/LeftSidebar";
 
 interface GraphNode {
     id: string | number;
@@ -18,8 +26,8 @@ interface GraphEdge {
 }
 
 interface GraphtyElementType extends HTMLElement {
-    nodeData?: {id: number | string, [key: string]: unknown}[];
-    edgeData?: {src: number | string, dst: number | string, [key: string]: unknown}[];
+    nodeData?: { id: number | string; [key: string]: unknown }[];
+    edgeData?: { src: number | string; dst: number | string; [key: string]: unknown }[];
     layout?: string;
     layout2d?: boolean;
     layoutConfig?: Record<string, unknown>;
@@ -47,8 +55,10 @@ const SHAPE_TYPE_MAP: Record<string, string> = {
 
 /**
  * Convert ShapeConfig to graphty-element format.
+ * @param shape - The shape configuration to convert
+ * @returns The converted shape config for graphty-element
  */
-function convertShapeConfig(shape: ShapeConfig): {type?: string, size?: number} {
+function convertShapeConfig(shape: ShapeConfig): { type?: string; size?: number } {
     const type = SHAPE_TYPE_MAP[shape.type] ?? shape.type;
     return {
         type,
@@ -58,12 +68,16 @@ function convertShapeConfig(shape: ShapeConfig): {type?: string, size?: number} 
 
 /**
  * Convert ColorConfig to graphty-element texture.color format.
+ * @param colorConfig - The color configuration to convert
+ * @returns The converted color config for graphty-element texture
  */
-function convertColorConfig(colorConfig: ColorConfig): string | {colorType: string, value?: string, colors?: string[], direction?: number, opacity?: number} {
+function convertColorConfig(
+    colorConfig: ColorConfig,
+): string | { colorType: string; value?: string; colors?: string[]; direction?: number; opacity?: number } {
     switch (colorConfig.mode) {
         case "solid": {
             // For solid colors, we can use either a simple string or the advanced format
-            const {opacity, color} = colorConfig;
+            const { opacity, color } = colorConfig;
             if (opacity === 1.0) {
                 // Use simple string format
                 return color;
@@ -101,8 +115,15 @@ function convertColorConfig(colorConfig: ColorConfig): string | {colorType: stri
 /**
  * Convert EdgeLineConfig to graphty-element line format.
  * Converts opacity from 0-100 to 0-1.
+ * @param line - The edge line configuration to convert
+ * @returns The converted line config for graphty-element
  */
-function convertEdgeLineConfig(line: EdgeLineConfig): {type?: string, width?: number, color?: string, opacity?: number} {
+function convertEdgeLineConfig(line: EdgeLineConfig): {
+    type?: string;
+    width?: number;
+    color?: string;
+    opacity?: number;
+} {
     return {
         type: line.type,
         width: line.width,
@@ -114,8 +135,12 @@ function convertEdgeLineConfig(line: EdgeLineConfig): {type?: string, width?: nu
 /**
  * Convert ArrowConfig to graphty-element arrow format.
  * Converts opacity from 0-100 to 0-1.
+ * @param arrow - The arrow configuration to convert
+ * @returns The converted arrow config for graphty-element, or undefined if type is "none"
  */
-function convertArrowConfig(arrow: ArrowConfig): {type?: string, size?: number, color?: string, opacity?: number} | undefined {
+function convertArrowConfig(
+    arrow: ArrowConfig,
+): { type?: string; size?: number; color?: string; opacity?: number } | undefined {
     // Don't include arrow config if type is "none"
     if (arrow.type === "none") {
         return undefined;
@@ -131,6 +156,8 @@ function convertArrowConfig(arrow: ArrowConfig): {type?: string, size?: number, 
 
 /**
  * Convert EdgeStyle to graphty-element edge style format.
+ * @param edgeStyle - The edge style configuration to convert
+ * @returns The converted edge style for graphty-element
  */
 function convertEdgeStyle(edgeStyle: EdgeStyle): Record<string, unknown> {
     const result: Record<string, unknown> = {};
@@ -174,6 +201,8 @@ function convertEdgeStyle(edgeStyle: EdgeStyle): Record<string, unknown> {
 
 /**
  * Convert NodeEffectsConfig to graphty-element effect format.
+ * @param effects - The node effects configuration to convert
+ * @returns The converted effects config for graphty-element, or undefined if no effects are set
  */
 function convertEffectsConfig(effects: NodeEffectsConfig): Record<string, unknown> | undefined {
     const result: Record<string, unknown> = {};
@@ -226,6 +255,8 @@ const ATTACH_POSITION_MAP: Record<string, string> = {
 /**
  * Convert RichTextStyle to graphty-element text format.
  * Returns undefined if the text style is not enabled.
+ * @param textStyle - The rich text style configuration to convert
+ * @returns The converted text style for graphty-element, or undefined if not enabled
  */
 function convertRichTextStyle(textStyle: RichTextStyle): Record<string, unknown> | undefined {
     // Don't include if not enabled or no text
@@ -320,7 +351,7 @@ const FORMAT_EXTENSIONS: Record<string, FormatType> = {
 };
 
 function detectFormatFromFilename(filename: string): FormatType | null {
-    const ext = (/\.[^.]+$/.exec(filename.toLowerCase()))?.[0];
+    const ext = /\.[^.]+$/.exec(filename.toLowerCase())?.[0];
     if (ext && ext in FORMAT_EXTENSIONS) {
         return FORMAT_EXTENSIONS[ext];
     }
@@ -333,11 +364,11 @@ function detectFormatFromContent(content: string): FormatType | null {
 
     // XML-based formats
     if (trimmed.startsWith("<?xml") || trimmed.startsWith("<")) {
-        if (trimmed.includes("xmlns=\"http://graphml.graphdrawing.org")) {
+        if (trimmed.includes('xmlns="http://graphml.graphdrawing.org')) {
             return "graphml";
         }
 
-        if (trimmed.includes("xmlns=\"http://gexf.net")) {
+        if (trimmed.includes('xmlns="http://gexf.net')) {
             return "gexf";
         }
 
@@ -420,117 +451,123 @@ declare module "react" {
 }
 
 export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
-    {layers, layout2d = false, dataSource, dataSourceConfig, replaceExisting, layout = "d3", layoutConfig},
+    { layers, layout2d = false, dataSource, dataSourceConfig, replaceExisting, layout = "d3", layoutConfig },
     ref,
 ): React.JSX.Element {
     const containerRef = useRef<HTMLDivElement>(null);
     const graphtyRef = useRef<GraphtyElementType>(null);
-    const prevDataSourceRef = useRef<{dataSource?: string, dataSourceConfig?: Record<string, unknown>} | undefined>(undefined);
+    const prevDataSourceRef = useRef<{ dataSource?: string; dataSourceConfig?: Record<string, unknown> } | undefined>(
+        undefined,
+    );
 
-    useImperativeHandle(ref, () => ({
-        getData: () => {
-            const dataManager = graphtyRef.current?.graph?.dataManager;
-            if (!dataManager) {
-                return {nodes: [], edges: []};
-            }
-
-            // Extract node data from the Map
-            const nodes = Array.from(dataManager.nodes.values()).map((node) => ({
-                id: node.id,
-                ... node.data,
-            }));
-
-            // Extract edge data from the Map
-            const edges = Array.from(dataManager.edges.values()).map((edge) => ({
-                id: edge.id,
-                src: edge.srcId,
-                dst: edge.dstId,
-                ... edge.data,
-            }));
-
-            return {nodes, edges};
-        },
-        loadFromUrl: async(url: string, format?: string) => {
-            if (!graphtyRef.current) {
-                throw new Error("Graph element not initialized");
-            }
-
-            let detectedFormat = format;
-
-            // If no format provided, try to detect from URL extension
-            detectedFormat ??= detectFormatFromFilename(url) ?? undefined;
-
-            // If still no format, fetch content and detect from content
-            if (!detectedFormat) {
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
+    useImperativeHandle(
+        ref,
+        () => ({
+            getData: () => {
+                const dataManager = graphtyRef.current?.graph?.dataManager;
+                if (!dataManager) {
+                    return { nodes: [], edges: [] };
                 }
 
-                const content = await response.text();
-                const sample = content.slice(0, 2048);
-                detectedFormat = detectFormatFromContent(sample) ?? undefined;
+                // Extract node data from the Map
+                const nodes = Array.from(dataManager.nodes.values()).map((node) => ({
+                    id: node.id,
+                    ...node.data,
+                }));
 
+                // Extract edge data from the Map
+                const edges = Array.from(dataManager.edges.values()).map((edge) => ({
+                    id: edge.id,
+                    src: edge.srcId,
+                    dst: edge.dstId,
+                    ...edge.data,
+                }));
+
+                return { nodes, edges };
+            },
+            loadFromUrl: async (url: string, format?: string) => {
+                if (!graphtyRef.current) {
+                    throw new Error("Graph element not initialized");
+                }
+
+                let detectedFormat = format;
+
+                // If no format provided, try to detect from URL extension
+                detectedFormat ??= detectFormatFromFilename(url) ?? undefined;
+
+                // If still no format, fetch content and detect from content
                 if (!detectedFormat) {
-                    throw new Error(
-                        `Could not detect file format from URL '${url}'. ` +
-                        "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek.",
-                    );
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
+                    }
+
+                    const content = await response.text();
+                    const sample = content.slice(0, 2048);
+                    detectedFormat = detectFormatFromContent(sample) ?? undefined;
+
+                    if (!detectedFormat) {
+                        throw new Error(
+                            `Could not detect file format from URL '${url}'. ` +
+                                "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek.",
+                        );
+                    }
+
+                    // Pass content directly to avoid double-fetch
+                    graphtyRef.current.dataSource = detectedFormat;
+                    graphtyRef.current.dataSourceConfig = { data: content };
+                    return;
                 }
 
-                // Pass content directly to avoid double-fetch
+                // Pass URL for graphty-element to fetch
                 graphtyRef.current.dataSource = detectedFormat;
-                graphtyRef.current.dataSourceConfig = {data: content};
-                return;
-            }
-
-            // Pass URL for graphty-element to fetch
-            graphtyRef.current.dataSource = detectedFormat;
-            graphtyRef.current.dataSourceConfig = {url};
-        },
-        loadFromFile: async(file: File, format?: string) => {
-            if (!graphtyRef.current) {
-                throw new Error("Graph element not initialized");
-            }
-
-            let detectedFormat = format;
-
-            // If no format provided, try to detect from filename
-            detectedFormat ??= detectFormatFromFilename(file.name) ?? undefined;
-
-            // If still no format, read content and detect from content
-            if (!detectedFormat) {
-                const sample = await file.slice(0, 2048).text();
-                detectedFormat = detectFormatFromContent(sample) ?? undefined;
-
-                if (!detectedFormat) {
-                    throw new Error(
-                        `Could not detect file format from '${file.name}'. ` +
-                        "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek.",
-                    );
+                graphtyRef.current.dataSourceConfig = { url };
+            },
+            loadFromFile: async (file: File, format?: string) => {
+                if (!graphtyRef.current) {
+                    throw new Error("Graph element not initialized");
                 }
-            }
 
-            // Read full file content
-            const content = await file.text();
-            graphtyRef.current.dataSource = detectedFormat;
-            graphtyRef.current.dataSourceConfig = {data: content};
-        },
-        loadData: (format: string, config: Record<string, unknown>) => {
-            if (!graphtyRef.current) {
-                throw new Error("Graph element not initialized");
-            }
+                let detectedFormat = format;
 
-            graphtyRef.current.dataSource = format;
-            graphtyRef.current.dataSourceConfig = config;
-        },
-        clearData: () => {
-            graphtyRef.current?.graph?.dataManager.clear();
-        },
-        get graph() {
-            return graphtyRef.current?.graph ?? null;
-        },
-    }), []);
+                // If no format provided, try to detect from filename
+                detectedFormat ??= detectFormatFromFilename(file.name) ?? undefined;
+
+                // If still no format, read content and detect from content
+                if (!detectedFormat) {
+                    const sample = await file.slice(0, 2048).text();
+                    detectedFormat = detectFormatFromContent(sample) ?? undefined;
+
+                    if (!detectedFormat) {
+                        throw new Error(
+                            `Could not detect file format from '${file.name}'. ` +
+                                "Supported formats: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek.",
+                        );
+                    }
+                }
+
+                // Read full file content
+                const content = await file.text();
+                graphtyRef.current.dataSource = detectedFormat;
+                graphtyRef.current.dataSourceConfig = { data: content };
+            },
+            loadData: (format: string, config: Record<string, unknown>) => {
+                if (!graphtyRef.current) {
+                    throw new Error("Graph element not initialized");
+                }
+
+                graphtyRef.current.dataSource = format;
+                graphtyRef.current.dataSourceConfig = config;
+            },
+            clearData: () => {
+                graphtyRef.current?.graph?.dataManager.clear();
+            },
+            get graph() {
+                return graphtyRef.current?.graph ?? null;
+            },
+        }),
+        [],
+    );
 
     // Handle data source changes from props
     useEffect(() => {
@@ -541,7 +578,10 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
         // Check if data source actually changed
         const prev = prevDataSourceRef.current;
         if (prev !== undefined) {
-            if (prev.dataSource === dataSource && JSON.stringify(prev.dataSourceConfig) === JSON.stringify(dataSourceConfig)) {
+            if (
+                prev.dataSource === dataSource &&
+                JSON.stringify(prev.dataSourceConfig) === JSON.stringify(dataSourceConfig)
+            ) {
                 return;
             }
         }
@@ -556,7 +596,7 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
             graphtyRef.current.dataSourceConfig = dataSourceConfig;
         }
 
-        prevDataSourceRef.current = {dataSource, dataSourceConfig};
+        prevDataSourceRef.current = { dataSource, dataSourceConfig };
     }, [dataSource, dataSourceConfig, replaceExisting]);
 
     // Handle layout changes
@@ -580,15 +620,15 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
                 graph: {
                     addDefaultStyle: true,
                 },
-                layers: [... layers]
+                layers: [...layers]
                     .reverse()
                     .map((layer) => {
-                        const layerObj: {node?: unknown, edge?: unknown} = {};
+                        const layerObj: { node?: unknown; edge?: unknown } = {};
 
                         // Convert node style if present - check for undefined, not falsy (allow empty string)
                         if (layer.styleLayer.node !== undefined) {
                             const nodeStyle: Record<string, unknown> = {};
-                            const {style} = layer.styleLayer.node;
+                            const { style } = layer.styleLayer.node;
 
                             // Convert shape if present
                             if (style.shape) {

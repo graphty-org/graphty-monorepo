@@ -3,14 +3,14 @@ import "../src/algorithms/index";
 import "../src/data/index";
 import "../src/layout/index";
 
-import {Preview, setCustomElementsManifest} from "@storybook/web-components-vite";
+import { Preview, setCustomElementsManifest } from "@storybook/web-components-vite";
 // @ts-expect-error TS doesn't recognize virtual imports?
 import manifest from "virtual:vite-plugin-cem/custom-elements-manifest";
 
-import {StyleTemplate} from "../src/config";
+import { StyleTemplate } from "../src/config";
 // Force import and registration of graphty-element and all its dependencies
-import {Graphty} from "../src/graphty-element";
-import {initConsoleCaptureUI} from "./console-capture-ui";
+import { Graphty } from "../src/graphty-element";
+import { initConsoleCaptureUI } from "./console-capture-ui";
 // @ts-expect-error MDX files are handled by Storybook's build system
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
 
@@ -30,7 +30,7 @@ initConsoleCaptureUI();
 setCustomElementsManifest(manifest);
 
 // Global play function to wait for graph to settle
-async function waitForGraphSettled({canvasElement}: {canvasElement: HTMLElement}): Promise<void> {
+async function waitForGraphSettled({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> {
     const graphtyElement = canvasElement.querySelector("graphty-element");
     if (!graphtyElement) {
         // No graphty-element in this story
@@ -57,7 +57,7 @@ async function waitForGraphSettled({canvasElement}: {canvasElement: HTMLElement}
         };
 
         // Add the event listener
-        graphtyElement.addEventListener("graph-settled", handleSettled, {once: true});
+        graphtyElement.addEventListener("graph-settled", handleSettled, { once: true });
     });
 }
 
@@ -69,7 +69,12 @@ const preview: Preview = {
             const originalStory = Story();
 
             // If the story returns a graphty-element, ensure it has preSteps
-            if (originalStory && typeof originalStory === "object" && "tagName" in originalStory && originalStory.tagName === "GRAPHTY-ELEMENT") {
+            if (
+                originalStory &&
+                typeof originalStory === "object" &&
+                "tagName" in originalStory &&
+                originalStory.tagName === "GRAPHTY-ELEMENT"
+            ) {
                 const graphty = originalStory as Graphty;
 
                 // If no styleTemplate is set, create a minimal one with preSteps
@@ -104,8 +109,8 @@ const preview: Preview = {
             pauseAnimationAtEnd: true,
         },
         // Add play function to all stories to wait for graph settling
-        play: async({canvasElement}: {canvasElement: HTMLElement}) => {
-            await waitForGraphSettled({canvasElement});
+        play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+            await waitForGraphSettled({ canvasElement });
         },
         options: {
             storySort: {
@@ -144,4 +149,4 @@ const preview: Preview = {
 export default preview;
 
 // Export the play function for use in stories
-export {waitForGraphSettled};
+export { waitForGraphSettled };

@@ -1,5 +1,5 @@
-import {ActionIcon, Group, NativeSelect} from "@mantine/core";
-import {ChevronDown, X} from "lucide-react";
+import { ActionIcon, Group, NativeSelect } from "@mantine/core";
+import { ChevronDown, X } from "lucide-react";
 import React from "react";
 
 export interface StyleSelectOption {
@@ -26,16 +26,17 @@ export interface StyleSelectProps {
  * Features:
  * - Shows muted styling when using default value (value is undefined)
  * - Shows normal styling when an explicit value is set
- * - Shows a reset button (×) only when an explicit value is set
+ * - Shows a reset button (x) only when an explicit value is set
  * - Clicking reset calls onChange(undefined) to revert to default
+ * @param root0 - Component props
+ * @param root0.label - Label for the select
+ * @param root0.value - Current value - undefined means using default
+ * @param root0.defaultValue - Default value to show when value is undefined
+ * @param root0.options - Available options
+ * @param root0.onChange - Called when value changes
+ * @returns The style select component
  */
-export function StyleSelect({
-    label,
-    value,
-    defaultValue,
-    options,
-    onChange,
-}: StyleSelectProps): React.JSX.Element {
+export function StyleSelect({ label, value, defaultValue, options, onChange }: StyleSelectProps): React.JSX.Element {
     const isDefault = value === undefined;
     const displayValue = value ?? defaultValue;
 
@@ -60,12 +61,14 @@ export function StyleSelect({
                 rightSectionPointerEvents="none"
                 data-is-default={isDefault ? "true" : "false"}
                 styles={{
-                    input: isDefault ? {
-                        fontStyle: "italic",
-                        color: "var(--mantine-color-dimmed)",
-                    } : undefined,
+                    input: isDefault
+                        ? {
+                              fontStyle: "italic",
+                              color: "var(--mantine-color-dimmed)",
+                          }
+                        : undefined,
                 }}
-                style={{flex: 1}}
+                style={{ flex: 1 }}
             />
             {!isDefault && (
                 <ActionIcon
@@ -74,7 +77,7 @@ export function StyleSelect({
                     c="dimmed"
                     aria-label={`Reset ${label} to default`}
                     onClick={handleReset}
-                    style={{marginBottom: 2}}
+                    style={{ marginBottom: 2 }}
                 >
                     <X size={12} />
                 </ActionIcon>

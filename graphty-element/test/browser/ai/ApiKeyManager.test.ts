@@ -1,6 +1,6 @@
-import {assert, beforeEach, describe, it} from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 
-import {ApiKeyManager} from "../../../src/ai/keys/ApiKeyManager";
+import { ApiKeyManager } from "../../../src/ai/keys/ApiKeyManager";
 
 describe("ApiKeyManager", () => {
     let manager: ApiKeyManager;

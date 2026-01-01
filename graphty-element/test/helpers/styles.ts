@@ -69,14 +69,14 @@ export const TwoLayersOfNodeColors = [
     {
         node: {
             selector: "",
-            style: {texture: {color: "#FF000000"}},
+            style: { texture: { color: "#FF000000" } },
         },
     },
     // layer 2: color blue
     {
         node: {
             selector: "",
-            style: {texture: {color: "#0000FF00"}},
+            style: { texture: { color: "#0000FF00" } },
         },
     },
 ];

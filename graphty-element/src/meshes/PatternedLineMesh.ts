@@ -17,9 +17,9 @@
  * - Phase 4: Connected patterns (sinewave, zigzag) positioning
  */
 
-import {Mesh, Scene, ShaderMaterial, Vector3} from "@babylonjs/core";
+import { Mesh, Scene, ShaderMaterial, Vector3 } from "@babylonjs/core";
 
-import {FilledArrowRenderer} from "./FilledArrowRenderer";
+import { FilledArrowRenderer } from "./FilledArrowRenderer";
 import {
     PATTERN_DEFINITIONS,
     type PatternDefinition,
@@ -274,7 +274,7 @@ export class PatternedLineMesh {
     private calculateDiscretePositions(
         start: Vector3,
         end: Vector3,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+         
         _patternDef: PatternDefinition,
     ): Vector3[] {
         const direction = end.subtract(start).normalize();
@@ -315,8 +315,8 @@ export class PatternedLineMesh {
         // IMPORTANT: Spacing should be based on parallel dash length (meshWidth), not perpendicular width
         // This ensures gaps scale proportionally to the dash length for visually balanced spacing
         const minSpacing = meshWidth * 0.5;
-        const remainder = dynamicLength - (numInterior * meshWidth) - (numGaps * minSpacing);
-        const actualSpacing = minSpacing + (remainder / numGaps);
+        const remainder = dynamicLength - numInterior * meshWidth - numGaps * minSpacing;
+        const actualSpacing = minSpacing + remainder / numGaps;
 
         // Build positions
         const positions: Vector3[] = [];
@@ -353,7 +353,7 @@ export class PatternedLineMesh {
     private calculateConnectedPositions(
         start: Vector3,
         end: Vector3,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+         
         _patternDef: PatternDefinition,
     ): Vector3[] {
         const direction = end.subtract(start).normalize();
@@ -424,10 +424,7 @@ export class PatternedLineMesh {
      * @param patternDef - Pattern definition containing spacing configuration
      * @returns Optimal number of meshes for the line
      */
-    private calculateOptimalMeshCount(
-        lineLength: number,
-        patternDef: PatternDefinition,
-    ): number {
+    private calculateOptimalMeshCount(lineLength: number, patternDef: PatternDefinition): number {
         if (patternDef.connected) {
             // For connected patterns, use fixed 0.75 segment length
             // Last segment will be scaled to fit remainder (see scaleLastSegment)
@@ -442,7 +439,7 @@ export class PatternedLineMesh {
         const adjustedLength = lineLength;
 
         // Dynamic line length (space between first and last mesh)
-        const dynamicLength = adjustedLength - (2 * meshWidth);
+        const dynamicLength = adjustedLength - 2 * meshWidth;
 
         // Handle edge case: line too short for interior meshes
         if (dynamicLength < 0) {
@@ -457,9 +454,7 @@ export class PatternedLineMesh {
         // Formula: K interior meshes create K+1 gaps
         // K × W + (K + 1) × min_spacing ≤ dynamic_length
         // Solving: K ≤ (dynamic_length - min_spacing) / (W + min_spacing)
-        const numInterior = Math.floor(
-            (dynamicLength - minSpacing) / (meshWidth + minSpacing),
-        );
+        const numInterior = Math.floor((dynamicLength - minSpacing) / (meshWidth + minSpacing));
 
         // Total meshes = first + last + interior
         const totalMeshes = 2 + Math.max(0, numInterior);

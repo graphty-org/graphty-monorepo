@@ -22,12 +22,15 @@ export const DIALOG_WIDTH = 400;
 export const DIALOG_HEIGHT = 500;
 export const DIALOG_MIN_HEIGHT = 300;
 
-/** Get saved dialog position from localStorage */
-export function getSavedDialogPosition(): {x: number, y: number} | null {
+/**
+ * Get saved dialog position from localStorage.
+ * @returns The saved dialog position, or null if not found
+ */
+export function getSavedDialogPosition(): { x: number; y: number } | null {
     try {
         const saved = localStorage.getItem(DIALOG_POSITION_KEY);
         if (saved) {
-            return JSON.parse(saved) as {x: number, y: number};
+            return JSON.parse(saved) as { x: number; y: number };
         }
     } catch {
         // Ignore parsing errors
@@ -35,30 +38,46 @@ export function getSavedDialogPosition(): {x: number, y: number} | null {
     return null;
 }
 
-/** Save dialog position to localStorage */
-export function saveDialogPosition(position: {x: number, y: number}): void {
+/**
+ * Save dialog position to localStorage.
+ * @param position - The position object to save
+ * @param position.x - The x coordinate
+ * @param position.y - The y coordinate
+ */
+export function saveDialogPosition(position: { x: number; y: number }): void {
     localStorage.setItem(DIALOG_POSITION_KEY, JSON.stringify(position));
 }
 
-/** Get default dialog position (bottom-right corner) */
-export function getDefaultDialogPosition(): {x: number, y: number} {
+/**
+ * Get default dialog position (bottom-right corner).
+ * @returns The default dialog position
+ */
+export function getDefaultDialogPosition(): { x: number; y: number } {
     return {
         x: window.innerWidth - DIALOG_WIDTH - 20,
         y: window.innerHeight - DIALOG_HEIGHT - 20,
     };
 }
 
-/** Get saved default provider from localStorage */
+/**
+ * Get saved default provider from localStorage.
+ * @returns The saved provider name, or null if not found
+ */
 export function getSavedDefaultProvider(): string | null {
     return localStorage.getItem(DEFAULT_PROVIDER_KEY);
 }
 
-/** Save default provider to localStorage */
+/**
+ * Save default provider to localStorage.
+ * @param provider - The provider name to save
+ */
 export function saveDefaultProvider(provider: string): void {
     localStorage.setItem(DEFAULT_PROVIDER_KEY, provider);
 }
 
-/** Clear default provider from localStorage */
+/**
+ * Clear default provider from localStorage.
+ */
 export function clearDefaultProvider(): void {
     localStorage.removeItem(DEFAULT_PROVIDER_KEY);
 }

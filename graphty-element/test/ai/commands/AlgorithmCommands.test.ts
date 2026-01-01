@@ -6,55 +6,71 @@
 // Import algorithms to register them
 import "../../../src/algorithms";
 
-import {assert, beforeEach, describe, it} from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 
-import {listAlgorithms, runAlgorithm} from "../../../src/ai/commands/AlgorithmCommands";
-import type {CommandContext} from "../../../src/ai/commands/types";
-import type {Graph} from "../../../src/Graph";
-import {createMockContext, createTestGraph} from "../../helpers/test-graph";
+import { listAlgorithms, runAlgorithm } from "../../../src/ai/commands/AlgorithmCommands";
+import type { CommandContext } from "../../../src/ai/commands/types";
+import type { Graph } from "../../../src/Graph";
+import { createMockContext, createTestGraph } from "../../helpers/test-graph";
 
 describe("AlgorithmCommands", () => {
     let graph: Graph;
     let context: CommandContext;
 
     beforeEach(() => {
-        graph = createTestGraph({nodes: 10, edges: 15});
+        graph = createTestGraph({ nodes: 10, edges: 15 });
         context = createMockContext(graph);
     });
 
     describe("runAlgorithm", () => {
-        it("runs degree algorithm", async() => {
-            const result = await runAlgorithm.execute(graph, {
-                namespace: "graphty",
-                type: "degree",
-            }, context);
+        it("runs degree algorithm", async () => {
+            const result = await runAlgorithm.execute(
+                graph,
+                {
+                    namespace: "graphty",
+                    type: "degree",
+                },
+                context,
+            );
             assert.strictEqual(result.success, true);
             assert.ok(result.message.includes("degree"));
         });
 
-        it("runs pagerank algorithm", async() => {
-            const result = await runAlgorithm.execute(graph, {
-                namespace: "graphty",
-                type: "pagerank",
-            }, context);
+        it("runs pagerank algorithm", async () => {
+            const result = await runAlgorithm.execute(
+                graph,
+                {
+                    namespace: "graphty",
+                    type: "pagerank",
+                },
+                context,
+            );
             assert.strictEqual(result.success, true);
             assert.ok(result.message.includes("pagerank"));
         });
 
-        it("handles unknown namespace", async() => {
-            const result = await runAlgorithm.execute(graph, {
-                namespace: "unknown",
-                type: "degree",
-            }, context);
+        it("handles unknown namespace", async () => {
+            const result = await runAlgorithm.execute(
+                graph,
+                {
+                    namespace: "unknown",
+                    type: "degree",
+                },
+                context,
+            );
             assert.strictEqual(result.success, false);
             assert.ok(result.message.includes("not found") || result.message.includes("unknown"));
         });
 
-        it("handles unknown type", async() => {
-            const result = await runAlgorithm.execute(graph, {
-                namespace: "graphty",
-                type: "unknownAlgorithm",
-            }, context);
+        it("handles unknown type", async () => {
+            const result = await runAlgorithm.execute(
+                graph,
+                {
+                    namespace: "graphty",
+                    type: "unknownAlgorithm",
+                },
+                context,
+            );
             assert.strictEqual(result.success, false);
             assert.ok(result.message.includes("not found") || result.message.includes("unknown"));
         });
@@ -69,32 +85,35 @@ describe("AlgorithmCommands", () => {
     });
 
     describe("listAlgorithms", () => {
-        it("lists available algorithms", async() => {
+        it("lists available algorithms", async () => {
             const result = await listAlgorithms.execute(graph, {}, context);
             assert.strictEqual(result.success, true);
 
-            const data = result.data as {algorithms: string[]};
+            const data = result.data as { algorithms: string[] };
             assert.ok(Array.isArray(data.algorithms));
             assert.ok(data.algorithms.length > 0);
         });
 
-        it("includes degree algorithm in list", async() => {
+        it("includes degree algorithm in list", async () => {
             const result = await listAlgorithms.execute(graph, {}, context);
             assert.strictEqual(result.success, true);
 
-            const data = result.data as {algorithms: string[]};
-            const hasDegreeLike = data.algorithms.some((alg) =>
-                alg.toLowerCase().includes("degree"));
+            const data = result.data as { algorithms: string[] };
+            const hasDegreeLike = data.algorithms.some((alg) => alg.toLowerCase().includes("degree"));
             assert.ok(hasDegreeLike);
         });
 
-        it("can filter by namespace", async() => {
-            const result = await listAlgorithms.execute(graph, {
-                namespace: "graphty",
-            }, context);
+        it("can filter by namespace", async () => {
+            const result = await listAlgorithms.execute(
+                graph,
+                {
+                    namespace: "graphty",
+                },
+                context,
+            );
             assert.strictEqual(result.success, true);
 
-            const data = result.data as {algorithms: string[]};
+            const data = result.data as { algorithms: string[] };
             assert.ok(Array.isArray(data.algorithms));
         });
 

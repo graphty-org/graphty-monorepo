@@ -1,6 +1,6 @@
-import type {Meta, StoryObj} from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 
-import {DataAccordion} from "./DataAccordion";
+import { DataAccordion } from "./DataAccordion";
 
 const meta: Meta<typeof DataAccordion> = {
     title: "Components/DataView/DataAccordion",
@@ -10,7 +10,7 @@ const meta: Meta<typeof DataAccordion> = {
     },
     decorators: [
         (Story) => (
-            <div style={{width: "300px", backgroundColor: "var(--mantine-color-dark-7)"}}>
+            <div style={{ width: "300px", backgroundColor: "var(--mantine-color-dark-7)" }}>
                 <Story />
             </div>
         ),
@@ -23,7 +23,7 @@ type Story = StoryObj<typeof meta>;
 /** Accordion with node data */
 export const WithNodeData: Story = {
     args: {
-        data: {id: "1", label: "Node", x: 100, y: 200},
+        data: { id: "1", label: "Node", x: 100, y: 200 },
     },
 };
 
@@ -38,20 +38,20 @@ export const NoSelection: Story = {
 export const NarrowWidth: Story = {
     decorators: [
         (Story) => (
-            <div style={{width: "300px", backgroundColor: "var(--mantine-color-dark-7)"}}>
+            <div style={{ width: "300px", backgroundColor: "var(--mantine-color-dark-7)" }}>
                 <Story />
             </div>
         ),
     ],
     args: {
-        data: {nested: {deeply: {value: "test"}}},
+        data: { nested: { deeply: { value: "test" } } },
     },
 };
 
 /** Accordion with custom title */
 export const CustomTitle: Story = {
     args: {
-        data: {id: "edge-1", src: "a", dst: "b", weight: 1.5},
+        data: { id: "edge-1", src: "a", dst: "b", weight: 1.5 },
         title: "Edge Properties",
     },
 };

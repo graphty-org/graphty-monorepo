@@ -1,14 +1,14 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {ClosenessCentralityAlgorithm} from "../../../src/algorithms/ClosenessCentralityAlgorithm";
-import type {AdHocData} from "../../../src/config";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { ClosenessCentralityAlgorithm } from "../../../src/algorithms/ClosenessCentralityAlgorithm";
+import type { AdHocData } from "../../../src/config";
 
 interface MockGraphOpts {
     dataPath?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
     const nodes = new Map<string | number, AdHocData>();
     const edges = new Map<string | number, AdHocData>();
@@ -55,12 +55,12 @@ describe("ClosenessCentralityAlgorithm", () => {
     });
 
     describe("Algorithm Execution", () => {
-        it("exists", async() => {
+        it("exists", async () => {
             new ClosenessCentralityAlgorithm(await mockGraph());
         });
 
-        it("calculates closeness scores for all nodes", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("calculates closeness scores for all nodes", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new ClosenessCentralityAlgorithm(fakeGraph);
             await algo.run();
 
@@ -76,15 +76,15 @@ describe("ClosenessCentralityAlgorithm", () => {
             }
         });
 
-        it("handles empty graph", async() => {
+        it("handles empty graph", async () => {
             const emptyGraph = await mockGraph();
             const algo = new ClosenessCentralityAlgorithm(emptyGraph);
             await algo.run();
             // Should not throw
         });
 
-        it("central nodes have higher closeness", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("central nodes have higher closeness", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new ClosenessCentralityAlgorithm(fakeGraph);
             await algo.run();
 
@@ -126,9 +126,11 @@ describe("ClosenessCentralityAlgorithm", () => {
             const layer = styles.layers[0];
             assert.ok(layer.node);
             assert.property(layer.node, "calculatedStyle");
-            assert.ok(layer.node.calculatedStyle?.inputs.some((input) =>
-                input.includes("algorithmResults.graphty.closeness"),
-            ));
+            assert.ok(
+                layer.node.calculatedStyle?.inputs.some((input) =>
+                    input.includes("algorithmResults.graphty.closeness"),
+                ),
+            );
         });
     });
 });

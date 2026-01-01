@@ -6,14 +6,14 @@ This document outlines a comprehensive interaction testing strategy for graphty-
 
 ### Key Scenarios We Must Catch
 
-| Scenario | Input Type | What Could Go Wrong |
-|----------|------------|---------------------|
-| Controller joystick direction | XR | Left input rotates scene right instead of left |
-| Touch controls in 2D | Touch | Pinch/pan gestures stop working |
-| Keyboard speed | Keyboard | WASD controls too fast or too slow |
-| XR gestures | XR | Zoom/pan/rotate with two-hand gestures breaks |
-| Hand tracking | XR | Pinch gestures don't trigger node drag |
-| Mouse controls | Mouse | Click-and-drag stops working |
+| Scenario                      | Input Type | What Could Go Wrong                            |
+| ----------------------------- | ---------- | ---------------------------------------------- |
+| Controller joystick direction | XR         | Left input rotates scene right instead of left |
+| Touch controls in 2D          | Touch      | Pinch/pan gestures stop working                |
+| Keyboard speed                | Keyboard   | WASD controls too fast or too slow             |
+| XR gestures                   | XR         | Zoom/pan/rotate with two-hand gestures breaks  |
+| Hand tracking                 | XR         | Pinch gestures don't trigger node drag         |
+| Mouse controls                | Mouse      | Click-and-drag stops working                   |
 
 ## Current Input Implementation Architecture
 
@@ -69,14 +69,15 @@ Browser Events / WebXR API
 
 **Files**: `TwoDInputController.ts`, `OrbitInputController.ts`
 
-| Action | 2D Mode | 3D Mode |
-|--------|---------|---------|
-| Left drag | Pan camera | Orbit camera |
-| Wheel | Zoom in/out | Zoom in/out |
-| Click node | Select | Select |
-| Drag node | Move node (SixDofDragBehavior) | Move node |
+| Action     | 2D Mode                        | 3D Mode      |
+| ---------- | ------------------------------ | ------------ |
+| Left drag  | Pan camera                     | Orbit camera |
+| Wheel      | Zoom in/out                    | Zoom in/out  |
+| Click node | Select                         | Select       |
+| Drag node  | Move node (SixDofDragBehavior) | Move node    |
 
 **Regression Tests**:
+
 - Verify left-drag in 2D pans camera (not rotates)
 - Verify left-drag in 3D orbits camera
 - Verify wheel zoom direction is consistent
@@ -86,18 +87,19 @@ Browser Events / WebXR API
 
 **Files**: `TwoDInputController.ts`, `OrbitInputController.ts`
 
-| Key | 2D Mode | 3D Mode |
-|-----|---------|---------|
-| W/↑ | Pan up | Zoom in |
-| S/↓ | Pan down | Zoom out |
-| A/← | Pan left | Rotate left |
-| D/→ | Pan right | Rotate right |
-| Q | Rotate CCW | - |
-| E | Rotate CW | - |
-| +/= | Zoom in | - |
-| -/_ | Zoom out | - |
+| Key  | 2D Mode    | 3D Mode      |
+| ---- | ---------- | ------------ |
+| W/↑  | Pan up     | Zoom in      |
+| S/↓  | Pan down   | Zoom out     |
+| A/←  | Pan left   | Rotate left  |
+| D/→  | Pan right  | Rotate right |
+| Q    | Rotate CCW | -            |
+| E    | Rotate CW  | -            |
+| +/=  | Zoom in    | -            |
+| -/\_ | Zoom out   | -            |
 
 **Regression Tests**:
+
 - Verify each key produces expected movement direction
 - Verify velocity/inertia feels reasonable (not too fast/slow)
 - Verify keyboard only works when canvas is focused
@@ -106,13 +108,14 @@ Browser Events / WebXR API
 
 **Files**: `TwoDInputController.ts` (uses Hammer.js)
 
-| Gesture | 2D Mode | 3D Mode |
-|---------|---------|---------|
-| Single finger | Pan | Pan |
-| Pinch | Zoom | Zoom |
-| Two-finger rotate | Rotate view | Yaw |
+| Gesture           | 2D Mode     | 3D Mode |
+| ----------------- | ----------- | ------- |
+| Single finger     | Pan         | Pan     |
+| Pinch             | Zoom        | Zoom    |
+| Two-finger rotate | Rotate view | Yaw     |
 
 **Regression Tests**:
+
 - Verify single-finger pan works
 - Verify pinch zoom direction is correct (spread = zoom in)
 - Verify two-finger rotation works
@@ -124,14 +127,15 @@ Browser Events / WebXR API
 
 #### 4.1 Thumbstick Controls
 
-| Stick | Axis | Action |
-|-------|------|--------|
-| Left | X | Yaw (rotate scene left/right) |
-| Left | Y | Pitch (tilt scene up/down) |
-| Right | X | Pan left/right |
-| Right | Y | Zoom in/out |
+| Stick | Axis | Action                        |
+| ----- | ---- | ----------------------------- |
+| Left  | X    | Yaw (rotate scene left/right) |
+| Left  | Y    | Pitch (tilt scene up/down)    |
+| Right | X    | Pan left/right                |
+| Right | Y    | Zoom in/out                   |
 
 **Regression Tests**:
+
 - **CRITICAL**: Left stick X positive (push right) → scene rotates right (not left!)
 - Left stick Y forward → pitch up
 - Right stick Y forward → zoom in
@@ -140,12 +144,13 @@ Browser Events / WebXR API
 
 #### 4.2 Controller Trigger Gestures
 
-| Gesture | Action |
-|---------|--------|
-| Single trigger (point at node) | Pick and drag node |
+| Gesture                          | Action               |
+| -------------------------------- | -------------------- |
+| Single trigger (point at node)   | Pick and drag node   |
 | Both triggers (pinch both hands) | Two-hand zoom/rotate |
 
 **Regression Tests**:
+
 - Single-hand trigger picks nodes correctly
 - Node follows controller movement during drag
 - Two-hand pinch-apart zooms out
@@ -153,12 +158,13 @@ Browser Events / WebXR API
 
 #### 4.3 Hand Tracking Gestures
 
-| Gesture | Action |
-|---------|--------|
-| Single-hand pinch | Pick and drag node |
-| Two-hand pinch | Zoom and rotate scene |
+| Gesture           | Action                |
+| ----------------- | --------------------- |
+| Single-hand pinch | Pick and drag node    |
+| Two-hand pinch    | Zoom and rotate scene |
 
 **Regression Tests**:
+
 - Pinch detection threshold works (start: 4cm, release: 6cm)
 - Node drag follows hand position
 - Two-hand gestures work with hysteresis
@@ -167,12 +173,13 @@ Browser Events / WebXR API
 
 **Files**: `NodeBehavior.ts`, `NodeDragHandler`
 
-| Action | Behavior |
-|--------|----------|
-| Drag node | Moves node, pins to location |
+| Action       | Behavior                              |
+| ------------ | ------------------------------------- |
+| Drag node    | Moves node, pins to location          |
 | Double-click | Expands node (if fetchNodes provided) |
 
 **Regression Tests**:
+
 - Drag updates node position
 - `pinOnDrag` setting works
 - Physics pauses during drag
@@ -206,13 +213,13 @@ mockInput.simulateMouseUp(MouseButton.Left);
 mockInput.simulateWheel(deltaY, deltaX);
 
 // Simulate touch events
-mockInput.simulateTouchStart([{id: 1, x: 100, y: 100}]);
-mockInput.simulateTouchMove([{id: 1, x: 150, y: 150}]);
+mockInput.simulateTouchStart([{ id: 1, x: 100, y: 100 }]);
+mockInput.simulateTouchMove([{ id: 1, x: 150, y: 150 }]);
 mockInput.simulateTouchEnd([1]);
 
 // Simulate keyboard events
-mockInput.simulateKeyDown('w', {ctrlKey: false});
-mockInput.simulateKeyUp('w');
+mockInput.simulateKeyDown("w", { ctrlKey: false });
+mockInput.simulateKeyUp("w");
 ```
 
 ## Implementation Plan
@@ -229,13 +236,13 @@ describe("Input Direction Verification", () => {
     describe("2D Camera Controls", () => {
         test("W key pans camera UP (positive Y)", () => {
             const initialY = cameraController.camera.position.y;
-            simulateKeyHold('w', 100); // Hold for 100ms
+            simulateKeyHold("w", 100); // Hold for 100ms
             assert.isTrue(cameraController.camera.position.y > initialY);
         });
 
         test("mouse drag RIGHT pans camera RIGHT", () => {
             const initialX = cameraController.camera.position.x;
-            simulateMouseDrag({from: {x: 100, y: 100}, to: {x: 200, y: 100}});
+            simulateMouseDrag({ from: { x: 100, y: 100 }, to: { x: 200, y: 100 } });
             // Camera pans opposite to drag direction in screen space
             assert.isTrue(cameraController.camera.position.x < initialX);
         });
@@ -244,7 +251,7 @@ describe("Input Direction Verification", () => {
     describe("3D Camera Controls", () => {
         test("left arrow rotates camera LEFT (positive alpha)", () => {
             const initialAlpha = cameraController.camera.alpha;
-            simulateKeyHold('ArrowLeft', 100);
+            simulateKeyHold("ArrowLeft", 100);
             assert.isTrue(cameraController.camera.alpha > initialAlpha);
         });
     });
@@ -252,7 +259,7 @@ describe("Input Direction Verification", () => {
     describe("XR Controls", () => {
         test("left stick X positive rotates scene RIGHT", () => {
             const initialYaw = pivotController.pivot.rotationQuaternion.toEulerAngles().y;
-            xrInputHandler.leftStick = {x: 1.0, y: 0}; // Push right
+            xrInputHandler.leftStick = { x: 1.0, y: 0 }; // Push right
             xrInputHandler.update();
             const newYaw = pivotController.pivot.rotationQuaternion.toEulerAngles().y;
             // Positive X should increase yaw (rotate right when looking down Y axis)
@@ -272,7 +279,7 @@ describe("Input Speed and Sensitivity", () => {
 
         // Simulate 1 second of W key held
         for (let i = 0; i < 60; i++) {
-            inputController.keyState['w'] = true;
+            inputController.keyState["w"] = true;
             inputController.update();
         }
 
@@ -284,14 +291,14 @@ describe("Input Speed and Sensitivity", () => {
     });
 
     test("XR thumbstick deadzone filters small movements", () => {
-        xrInputHandler.leftStick = {x: 0.1, y: 0.1}; // Below deadzone (0.15)
+        xrInputHandler.leftStick = { x: 0.1, y: 0.1 }; // Below deadzone (0.15)
         const initialRotation = pivotController.pivot.rotationQuaternion.clone();
         xrInputHandler.update();
 
         // Should not have changed
         assert.isTrue(
             initialRotation.equals(pivotController.pivot.rotationQuaternion),
-            "Deadzone should filter small inputs"
+            "Deadzone should filter small inputs",
         );
     });
 });
@@ -305,10 +312,10 @@ Test real browser input in headed/headless mode.
 
 ```typescript
 // test/integration/mouse-controls.test.ts
-import {test, expect} from "@playwright/test";
+import { test, expect } from "@playwright/test";
 
 test.describe("Mouse Controls Integration", () => {
-    test("drag to pan in 2D mode", async ({page}) => {
+    test("drag to pan in 2D mode", async ({ page }) => {
         await page.goto("http://dev.ato.ms:9025/?path=/story/viewmode--2d-view");
         await page.waitForSelector("graphty-element");
 
@@ -324,8 +331,8 @@ test.describe("Mouse Controls Integration", () => {
         // Perform drag
         const canvas = page.locator("canvas");
         await canvas.dragTo(canvas, {
-            sourcePosition: {x: 300, y: 300},
-            targetPosition: {x: 400, y: 300}, // Drag right
+            sourcePosition: { x: 300, y: 300 },
+            targetPosition: { x: 400, y: 300 }, // Drag right
         });
 
         // Verify camera moved
@@ -347,7 +354,7 @@ test.describe("Mouse Controls Integration", () => {
 
 ```typescript
 // test/integration/touch-controls.test.ts
-test("pinch to zoom in 2D mode", async ({page}) => {
+test("pinch to zoom in 2D mode", async ({ page }) => {
     await page.goto("http://dev.ato.ms:9025/?path=/story/viewmode--2d-view");
 
     const client = await page.context().newCDPSession(page);
@@ -361,16 +368,16 @@ test("pinch to zoom in 2D mode", async ({page}) => {
     await client.send("Input.dispatchTouchEvent", {
         type: "touchStart",
         touchPoints: [
-            {x: 350, y: 300, id: 0},
-            {x: 450, y: 300, id: 1},
+            { x: 350, y: 300, id: 0 },
+            { x: 450, y: 300, id: 1 },
         ],
     });
 
     await client.send("Input.dispatchTouchEvent", {
         type: "touchMove",
         touchPoints: [
-            {x: 300, y: 300, id: 0},  // Spread apart
-            {x: 500, y: 300, id: 1},
+            { x: 300, y: 300, id: 0 }, // Spread apart
+            { x: 500, y: 300, id: 1 },
         ],
     });
 
@@ -407,9 +414,7 @@ export async function setupIWER(page: Page, device = "metaQuest3") {
 
     // Configure device
     await page.evaluate((deviceName) => {
-        const xrDevice = new (window as any).IWER.XRDevice(
-            (window as any).IWER[deviceName]
-        );
+        const xrDevice = new (window as any).IWER.XRDevice((window as any).IWER[deviceName]);
         xrDevice.installRuntime();
         xrDevice.stereoEnabled = true;
 
@@ -418,12 +423,12 @@ export async function setupIWER(page: Page, device = "metaQuest3") {
             {
                 handedness: "left",
                 profiles: ["oculus-touch-v3"],
-                pose: {position: [-0.3, 1.4, -0.3], orientation: [0, 0, 0, 1]},
+                pose: { position: [-0.3, 1.4, -0.3], orientation: [0, 0, 0, 1] },
             },
             {
                 handedness: "right",
                 profiles: ["oculus-touch-v3"],
-                pose: {position: [0.3, 1.4, -0.3], orientation: [0, 0, 0, 1]},
+                pose: { position: [0.3, 1.4, -0.3], orientation: [0, 0, 0, 1] },
             },
         ];
 
@@ -443,7 +448,7 @@ export async function setupIWER(page: Page, device = "metaQuest3") {
 ```typescript
 // test/integration/xr-thumbstick.test.ts
 test.describe("XR Thumbstick Controls", () => {
-    test.beforeEach(async ({page}) => {
+    test.beforeEach(async ({ page }) => {
         await setupIWER(page);
         await page.goto("http://dev.ato.ms:9025/?path=/story/viewmode--xr-view");
 
@@ -456,10 +461,9 @@ test.describe("XR Thumbstick Controls", () => {
         await page.waitForTimeout(500); // Wait for XR session
     });
 
-    test("left stick X positive rotates scene RIGHT", async ({page}) => {
+    test("left stick X positive rotates scene RIGHT", async ({ page }) => {
         const initialYaw = await page.evaluate(() => {
-            const pivot = document.querySelector("graphty-element").graph
-                .camera.xrPivotController.pivot;
+            const pivot = document.querySelector("graphty-element").graph.camera.xrPivotController.pivot;
             return pivot.rotationQuaternion.toEulerAngles().y;
         });
 
@@ -467,15 +471,14 @@ test.describe("XR Thumbstick Controls", () => {
         await page.evaluate(() => {
             const device = (window as any).xrDevice;
             // Set left controller thumbstick to right
-            device.controllers[0].axes = {x: 1.0, y: 0};
+            device.controllers[0].axes = { x: 1.0, y: 0 };
         });
 
         // Wait for input to process
         await page.waitForTimeout(200);
 
         const finalYaw = await page.evaluate(() => {
-            const pivot = document.querySelector("graphty-element").graph
-                .camera.xrPivotController.pivot;
+            const pivot = document.querySelector("graphty-element").graph.camera.xrPivotController.pivot;
             return pivot.rotationQuaternion.toEulerAngles().y;
         });
 
@@ -483,23 +486,21 @@ test.describe("XR Thumbstick Controls", () => {
         expect(finalYaw).toBeGreaterThan(initialYaw);
     });
 
-    test("right stick Y forward zooms IN", async ({page}) => {
+    test("right stick Y forward zooms IN", async ({ page }) => {
         const initialScale = await page.evaluate(() => {
-            const pivot = document.querySelector("graphty-element").graph
-                .camera.xrPivotController.pivot;
+            const pivot = document.querySelector("graphty-element").graph.camera.xrPivotController.pivot;
             return pivot.scaling.x;
         });
 
         await page.evaluate(() => {
             const device = (window as any).xrDevice;
-            device.controllers[1].axes = {x: 0, y: 1.0}; // Push forward
+            device.controllers[1].axes = { x: 0, y: 1.0 }; // Push forward
         });
 
         await page.waitForTimeout(200);
 
         const finalScale = await page.evaluate(() => {
-            const pivot = document.querySelector("graphty-element").graph
-                .camera.xrPivotController.pivot;
+            const pivot = document.querySelector("graphty-element").graph.camera.xrPivotController.pivot;
             return pivot.scaling.x;
         });
 
@@ -514,7 +515,7 @@ test.describe("XR Thumbstick Controls", () => {
 ```typescript
 // test/integration/xr-gestures.test.ts
 test.describe("XR Controller Gestures", () => {
-    test("single trigger picks and drags node", async ({page}) => {
+    test("single trigger picks and drags node", async ({ page }) => {
         await setupIWER(page);
         await setupXRScene(page);
 
@@ -529,15 +530,14 @@ test.describe("XR Controller Gestures", () => {
 
         // Get initial node position
         const initialNodePos = await page.evaluate(() => {
-            const node = document.querySelector("graphty-element").graph
-                .dataManager.nodes.get("node1");
-            return {x: node.mesh.position.x, y: node.mesh.position.y};
+            const node = document.querySelector("graphty-element").graph.dataManager.nodes.get("node1");
+            return { x: node.mesh.position.x, y: node.mesh.position.y };
         });
 
         // Press trigger
         await page.evaluate(() => {
             const device = (window as any).xrDevice;
-            device.controllers[1].buttons[0] = {pressed: true, value: 1.0};
+            device.controllers[1].buttons[0] = { pressed: true, value: 1.0 };
         });
 
         await page.waitForTimeout(100);
@@ -553,20 +553,19 @@ test.describe("XR Controller Gestures", () => {
         // Release trigger
         await page.evaluate(() => {
             const device = (window as any).xrDevice;
-            device.controllers[1].buttons[0] = {pressed: false, value: 0};
+            device.controllers[1].buttons[0] = { pressed: false, value: 0 };
         });
 
         // Verify node moved
         const finalNodePos = await page.evaluate(() => {
-            const node = document.querySelector("graphty-element").graph
-                .dataManager.nodes.get("node1");
-            return {x: node.mesh.position.x, y: node.mesh.position.y};
+            const node = document.querySelector("graphty-element").graph.dataManager.nodes.get("node1");
+            return { x: node.mesh.position.x, y: node.mesh.position.y };
         });
 
         expect(finalNodePos.x).not.toEqual(initialNodePos.x);
     });
 
-    test("two-hand pinch zooms scene", async ({page}) => {
+    test("two-hand pinch zooms scene", async ({ page }) => {
         await setupIWER(page);
         await setupXRScene(page);
 
@@ -577,8 +576,8 @@ test.describe("XR Controller Gestures", () => {
             const device = (window as any).xrDevice;
             device.controllers[0].pose.position = [-0.2, 1.5, -0.3];
             device.controllers[1].pose.position = [0.2, 1.5, -0.3];
-            device.controllers[0].buttons[0] = {pressed: true, value: 1.0};
-            device.controllers[1].buttons[0] = {pressed: true, value: 1.0};
+            device.controllers[0].buttons[0] = { pressed: true, value: 1.0 };
+            device.controllers[1].buttons[0] = { pressed: true, value: 1.0 };
         });
 
         await page.waitForTimeout(100);
@@ -605,7 +604,7 @@ test.describe("XR Controller Gestures", () => {
 ```typescript
 // test/integration/xr-hand-tracking.test.ts
 test.describe("XR Hand Tracking", () => {
-    test("pinch gesture triggers node drag", async ({page}) => {
+    test("pinch gesture triggers node drag", async ({ page }) => {
         await setupIWER(page, "metaQuest3");
         await setupXRScene(page);
 
@@ -615,9 +614,9 @@ test.describe("XR Hand Tracking", () => {
             device.hands = {
                 left: {
                     joints: {
-                        wrist: {position: [-0.2, 1.4, -0.3]},
-                        "thumb-tip": {position: [-0.18, 1.42, -0.28]},
-                        "index-finger-tip": {position: [-0.18, 1.42, -0.28]}, // Same pos = pinch
+                        wrist: { position: [-0.2, 1.4, -0.3] },
+                        "thumb-tip": { position: [-0.18, 1.42, -0.28] },
+                        "index-finger-tip": { position: [-0.18, 1.42, -0.28] }, // Same pos = pinch
                     },
                 },
                 right: null,
@@ -628,8 +627,7 @@ test.describe("XR Hand Tracking", () => {
 
         // Verify pinch was detected
         const isPinching = await page.evaluate(() => {
-            const handler = document.querySelector("graphty-element").graph
-                .camera.xrInputHandler;
+            const handler = document.querySelector("graphty-element").graph.camera.xrInputHandler;
             return handler.leftHand?.isPinching;
         });
 
@@ -645,7 +643,7 @@ Capture screenshots to detect visual regressions in input feedback.
 ```typescript
 // test/visual/input-feedback.test.ts
 test.describe("Input Visual Feedback", () => {
-    test("node highlights on hover", async ({page}) => {
+    test("node highlights on hover", async ({ page }) => {
         await page.goto("http://dev.ato.ms:9025/?path=/story/interactions--node-hover");
         await page.waitForSelector("graphty-element");
 
@@ -660,7 +658,7 @@ test.describe("Input Visual Feedback", () => {
         });
     });
 
-    test("node drag feedback", async ({page}) => {
+    test("node drag feedback", async ({ page }) => {
         await page.goto("http://dev.ato.ms:9025/?path=/story/interactions--node-drag");
 
         const nodePos = await getNodeScreenPosition(page, "node1");
@@ -678,62 +676,62 @@ test.describe("Input Visual Feedback", () => {
 
 ### Input Method Coverage
 
-| Feature | Unit Test | Integration | XR (IWER) | Visual |
-|---------|-----------|-------------|-----------|--------|
-| Mouse pan (2D) | ✅ | ✅ | - | ✅ |
-| Mouse orbit (3D) | ✅ | ✅ | - | ✅ |
-| Mouse wheel zoom | ✅ | ✅ | - | - |
-| Keyboard WASD | ✅ | ✅ | - | - |
-| Keyboard arrows | ✅ | ✅ | - | - |
-| Touch pan | ✅ | ✅ (CDP) | - | - |
-| Touch pinch | ✅ | ✅ (CDP) | - | - |
-| Touch rotate | ✅ | ✅ (CDP) | - | - |
-| XR thumbstick | ✅ | - | ✅ | - |
-| XR trigger pick | ✅ | - | ✅ | - |
-| XR two-hand gesture | ✅ | - | ✅ | - |
-| XR hand tracking | ✅ | - | ✅ | - |
-| Node drag | ✅ | ✅ | ✅ | ✅ |
-| Node double-click | ✅ | ✅ | - | - |
+| Feature             | Unit Test | Integration | XR (IWER) | Visual |
+| ------------------- | --------- | ----------- | --------- | ------ |
+| Mouse pan (2D)      | ✅        | ✅          | -         | ✅     |
+| Mouse orbit (3D)    | ✅        | ✅          | -         | ✅     |
+| Mouse wheel zoom    | ✅        | ✅          | -         | -      |
+| Keyboard WASD       | ✅        | ✅          | -         | -      |
+| Keyboard arrows     | ✅        | ✅          | -         | -      |
+| Touch pan           | ✅        | ✅ (CDP)    | -         | -      |
+| Touch pinch         | ✅        | ✅ (CDP)    | -         | -      |
+| Touch rotate        | ✅        | ✅ (CDP)    | -         | -      |
+| XR thumbstick       | ✅        | -           | ✅        | -      |
+| XR trigger pick     | ✅        | -           | ✅        | -      |
+| XR two-hand gesture | ✅        | -           | ✅        | -      |
+| XR hand tracking    | ✅        | -           | ✅        | -      |
+| Node drag           | ✅        | ✅          | ✅        | ✅     |
+| Node double-click   | ✅        | ✅          | -         | -      |
 
 ### Edge Case and State Transition Coverage
 
-| Feature | Integration | XR (IWER) | Priority |
-|---------|-------------|-----------|----------|
-| Edges move with dragged node | ✅ | ✅ | HIGH |
-| Node drag doesn't rotate camera | ✅ | - | **CRITICAL** |
-| pinOnDrag=true pins node | ✅ | ✅ | HIGH |
-| pinOnDrag=false doesn't pin | ✅ | ✅ | HIGH |
-| Node beyond bounds handled | ✅ | - | MEDIUM |
-| 2D → 3D mode transition | ✅ | - | HIGH |
-| 3D → 2D mode transition | ✅ | - | HIGH |
-| 3D → XR → 3D camera preserved | - | ✅ | HIGH |
-| Rapid mode switching | ✅ | - | MEDIUM |
-| Controllers → hands transition | - | ✅ | HIGH |
-| Hands → controllers transition | - | ✅ | HIGH |
-| Controller disconnect mid-drag | - | ✅ | **CRITICAL** |
-| Keyboard → mouse → keyboard | ✅ | - | HIGH |
-| Mouse → touch → mouse | ✅ | - | HIGH |
-| Touch interrupted by mouse | ✅ | - | HIGH |
-| Rapid key switching | ✅ | - | MEDIUM |
-| XR pan relative to local view | - | ✅ | **CRITICAL** |
-| XR rotation relative to user up | - | ✅ | HIGH |
-| XR node drag relative to pivot | - | ✅ | HIGH |
+| Feature                         | Integration | XR (IWER) | Priority     |
+| ------------------------------- | ----------- | --------- | ------------ |
+| Edges move with dragged node    | ✅          | ✅        | HIGH         |
+| Node drag doesn't rotate camera | ✅          | -         | **CRITICAL** |
+| pinOnDrag=true pins node        | ✅          | ✅        | HIGH         |
+| pinOnDrag=false doesn't pin     | ✅          | ✅        | HIGH         |
+| Node beyond bounds handled      | ✅          | -         | MEDIUM       |
+| 2D → 3D mode transition         | ✅          | -         | HIGH         |
+| 3D → 2D mode transition         | ✅          | -         | HIGH         |
+| 3D → XR → 3D camera preserved   | -           | ✅        | HIGH         |
+| Rapid mode switching            | ✅          | -         | MEDIUM       |
+| Controllers → hands transition  | -           | ✅        | HIGH         |
+| Hands → controllers transition  | -           | ✅        | HIGH         |
+| Controller disconnect mid-drag  | -           | ✅        | **CRITICAL** |
+| Keyboard → mouse → keyboard     | ✅          | -         | HIGH         |
+| Mouse → touch → mouse           | ✅          | -         | HIGH         |
+| Touch interrupted by mouse      | ✅          | -         | HIGH         |
+| Rapid key switching             | ✅          | -         | MEDIUM       |
+| XR pan relative to local view   | -           | ✅        | **CRITICAL** |
+| XR rotation relative to user up | -           | ✅        | HIGH         |
+| XR node drag relative to pivot  | -           | ✅        | HIGH         |
 
 ### Direction Verification Tests (Critical)
 
 These tests verify that input directions map to expected output directions:
 
-| Input | Expected Output | Test Priority |
-|-------|-----------------|---------------|
-| Mouse drag right | Camera pans left | HIGH |
-| W key | Camera/scene moves up | HIGH |
-| Wheel scroll down | Zoom out | HIGH |
-| Left stick X+ (right) | Scene rotates right | **CRITICAL** |
-| Left stick Y+ (forward) | Scene pitches up | HIGH |
-| Right stick Y+ (forward) | Zoom in | HIGH |
-| Pinch spread | Zoom in | HIGH |
-| Two-finger rotate CW | Scene rotates CW | MEDIUM |
-| XR pan when rotated 90° | Moves in user's local direction | **CRITICAL** |
+| Input                    | Expected Output                 | Test Priority |
+| ------------------------ | ------------------------------- | ------------- |
+| Mouse drag right         | Camera pans left                | HIGH          |
+| W key                    | Camera/scene moves up           | HIGH          |
+| Wheel scroll down        | Zoom out                        | HIGH          |
+| Left stick X+ (right)    | Scene rotates right             | **CRITICAL**  |
+| Left stick Y+ (forward)  | Scene pitches up                | HIGH          |
+| Right stick Y+ (forward) | Zoom in                         | HIGH          |
+| Pinch spread             | Zoom in                         | HIGH          |
+| Two-finger rotate CW     | Scene rotates CW                | MEDIUM        |
+| XR pan when rotated 90°  | Moves in user's local direction | **CRITICAL**  |
 
 ## Test Helpers
 
@@ -771,8 +769,7 @@ export async function getCameraState(page: Page) {
 
 export async function getSceneScale(page: Page) {
     return page.evaluate(() => {
-        const pivot = document.querySelector("graphty-element").graph
-            .camera.xrPivotController?.pivot;
+        const pivot = document.querySelector("graphty-element").graph.camera.xrPivotController?.pivot;
         return pivot?.scaling.x ?? 1;
     });
 }
@@ -831,10 +828,13 @@ These tests verify complex interactions, state transitions, and edge cases that 
 ```typescript
 // test/interactions/node-drag-drop.test.ts
 test.describe("Node Drag and Drop", () => {
-    test("edges move with node while dragging", async ({page}) => {
+    test("edges move with node while dragging", async ({ page }) => {
         await setupTestGraph(page, {
-            nodes: [{id: "a", x: 0, y: 0}, {id: "b", x: 10, y: 0}],
-            edges: [{src: "a", dst: "b"}],
+            nodes: [
+                { id: "a", x: 0, y: 0 },
+                { id: "b", x: 10, y: 0 },
+            ],
+            edges: [{ src: "a", dst: "b" }],
         });
 
         // Get initial edge endpoint positions
@@ -853,7 +853,7 @@ test.describe("Node Drag and Drop", () => {
         const nodePos = await getNodeScreenPosition(page, "a");
         await page.mouse.move(nodePos.x, nodePos.y);
         await page.mouse.down();
-        await page.mouse.move(nodePos.x + 100, nodePos.y + 50, {steps: 5});
+        await page.mouse.move(nodePos.x + 100, nodePos.y + 50, { steps: 5 });
 
         // Check edge moved WITH the node (don't release mouse yet)
         const duringDragEdge = await page.evaluate(() => {
@@ -871,75 +871,73 @@ test.describe("Node Drag and Drop", () => {
         await page.mouse.up();
     });
 
-    test("dragging node does NOT rotate camera in 3D mode", async ({page}) => {
-        await setupTestGraph(page, {mode: "3d"});
+    test("dragging node does NOT rotate camera in 3D mode", async ({ page }) => {
+        await setupTestGraph(page, { mode: "3d" });
 
         // Get initial camera orientation
         const initialCamera = await page.evaluate(() => {
             const cam = document.querySelector("graphty-element").graph.camera.camera;
-            return {alpha: cam.alpha, beta: cam.beta};
+            return { alpha: cam.alpha, beta: cam.beta };
         });
 
         // Drag a node
         const nodePos = await getNodeScreenPosition(page, "node1");
         await page.mouse.move(nodePos.x, nodePos.y);
         await page.mouse.down();
-        await page.mouse.move(nodePos.x + 100, nodePos.y + 100, {steps: 10});
+        await page.mouse.move(nodePos.x + 100, nodePos.y + 100, { steps: 10 });
         await page.mouse.up();
 
         // Camera orientation should NOT have changed
         const finalCamera = await page.evaluate(() => {
             const cam = document.querySelector("graphty-element").graph.camera.camera;
-            return {alpha: cam.alpha, beta: cam.beta};
+            return { alpha: cam.alpha, beta: cam.beta };
         });
 
         expect(finalCamera.alpha).toBeCloseTo(initialCamera.alpha, 5);
         expect(finalCamera.beta).toBeCloseTo(initialCamera.beta, 5);
     });
 
-    test("dragging node does NOT pan camera in 2D mode", async ({page}) => {
-        await setupTestGraph(page, {mode: "2d"});
+    test("dragging node does NOT pan camera in 2D mode", async ({ page }) => {
+        await setupTestGraph(page, { mode: "2d" });
 
         const initialCamera = await page.evaluate(() => {
             const cam = document.querySelector("graphty-element").graph.camera.camera;
-            return {x: cam.position.x, y: cam.position.y};
+            return { x: cam.position.x, y: cam.position.y };
         });
 
         // Drag a node
         const nodePos = await getNodeScreenPosition(page, "node1");
         await page.mouse.move(nodePos.x, nodePos.y);
         await page.mouse.down();
-        await page.mouse.move(nodePos.x + 100, nodePos.y + 100, {steps: 10});
+        await page.mouse.move(nodePos.x + 100, nodePos.y + 100, { steps: 10 });
         await page.mouse.up();
 
         const finalCamera = await page.evaluate(() => {
             const cam = document.querySelector("graphty-element").graph.camera.camera;
-            return {x: cam.position.x, y: cam.position.y};
+            return { x: cam.position.x, y: cam.position.y };
         });
 
         expect(finalCamera.x).toBeCloseTo(initialCamera.x, 5);
         expect(finalCamera.y).toBeCloseTo(initialCamera.y, 5);
     });
 
-    test("node beyond scene bounds is handled gracefully", async ({page}) => {
+    test("node beyond scene bounds is handled gracefully", async ({ page }) => {
         await setupTestGraph(page);
 
         // Drag node FAR outside normal bounds
         const nodePos = await getNodeScreenPosition(page, "node1");
         await page.mouse.move(nodePos.x, nodePos.y);
         await page.mouse.down();
-        await page.mouse.move(nodePos.x + 2000, nodePos.y + 2000, {steps: 20});
+        await page.mouse.move(nodePos.x + 2000, nodePos.y + 2000, { steps: 20 });
         await page.mouse.up();
 
         // Node should still exist and have finite position
         const nodeState = await page.evaluate(() => {
-            const node = document.querySelector("graphty-element").graph
-                .dataManager.nodes.get("node1");
+            const node = document.querySelector("graphty-element").graph.dataManager.nodes.get("node1");
             return {
                 exists: !!node,
-                positionFinite: isFinite(node.mesh.position.x) &&
-                                isFinite(node.mesh.position.y) &&
-                                isFinite(node.mesh.position.z),
+                positionFinite:
+                    isFinite(node.mesh.position.x) && isFinite(node.mesh.position.y) && isFinite(node.mesh.position.z),
             };
         });
 
@@ -954,63 +952,58 @@ test.describe("Node Drag and Drop", () => {
 ```typescript
 // test/interactions/pin-on-drag.test.ts
 test.describe("pinOnDrag Behavior", () => {
-    test("pinOnDrag=true pins node after drag", async ({page}) => {
-        await setupTestGraph(page, {pinOnDrag: true});
+    test("pinOnDrag=true pins node after drag", async ({ page }) => {
+        await setupTestGraph(page, { pinOnDrag: true });
 
         // Verify node is NOT pinned initially
         const initialPinned = await page.evaluate(() => {
-            const node = document.querySelector("graphty-element").graph
-                .dataManager.nodes.get("node1");
+            const node = document.querySelector("graphty-element").graph.dataManager.nodes.get("node1");
             return node.isPinned;
         });
         expect(initialPinned).toBe(false);
 
         // Drag node
-        await dragNode(page, "node1", {dx: 50, dy: 50});
+        await dragNode(page, "node1", { dx: 50, dy: 50 });
 
         // Verify node IS pinned after drag
         const afterDragPinned = await page.evaluate(() => {
-            const node = document.querySelector("graphty-element").graph
-                .dataManager.nodes.get("node1");
+            const node = document.querySelector("graphty-element").graph.dataManager.nodes.get("node1");
             return node.isPinned;
         });
         expect(afterDragPinned).toBe(true);
     });
 
-    test("pinOnDrag=false does NOT pin node after drag", async ({page}) => {
-        await setupTestGraph(page, {pinOnDrag: false});
+    test("pinOnDrag=false does NOT pin node after drag", async ({ page }) => {
+        await setupTestGraph(page, { pinOnDrag: false });
 
         // Drag node
-        await dragNode(page, "node1", {dx: 50, dy: 50});
+        await dragNode(page, "node1", { dx: 50, dy: 50 });
 
         // Verify node is NOT pinned
         const afterDragPinned = await page.evaluate(() => {
-            const node = document.querySelector("graphty-element").graph
-                .dataManager.nodes.get("node1");
+            const node = document.querySelector("graphty-element").graph.dataManager.nodes.get("node1");
             return node.isPinned;
         });
         expect(afterDragPinned).toBe(false);
     });
 
-    test("pinned node stays at position during layout settling", async ({page}) => {
-        await setupTestGraph(page, {pinOnDrag: true, layout: "ngraph"});
+    test("pinned node stays at position during layout settling", async ({ page }) => {
+        await setupTestGraph(page, { pinOnDrag: true, layout: "ngraph" });
 
         // Drag node to specific position
-        await dragNode(page, "node1", {dx: 100, dy: 100});
+        await dragNode(page, "node1", { dx: 100, dy: 100 });
 
         const positionAfterDrag = await page.evaluate(() => {
-            const node = document.querySelector("graphty-element").graph
-                .dataManager.nodes.get("node1");
-            return {x: node.mesh.position.x, y: node.mesh.position.y};
+            const node = document.querySelector("graphty-element").graph.dataManager.nodes.get("node1");
+            return { x: node.mesh.position.x, y: node.mesh.position.y };
         });
 
         // Wait for layout to run several iterations
         await page.waitForTimeout(500);
 
         const positionAfterLayout = await page.evaluate(() => {
-            const node = document.querySelector("graphty-element").graph
-                .dataManager.nodes.get("node1");
-            return {x: node.mesh.position.x, y: node.mesh.position.y};
+            const node = document.querySelector("graphty-element").graph.dataManager.nodes.get("node1");
+            return { x: node.mesh.position.x, y: node.mesh.position.y };
         });
 
         // Position should NOT have changed (node is pinned)
@@ -1025,8 +1018,8 @@ test.describe("pinOnDrag Behavior", () => {
 ```typescript
 // test/interactions/view-mode-transitions.test.ts
 test.describe("View Mode Transitions", () => {
-    test("2D → 3D transition cleans up 2D input state", async ({page}) => {
-        await setupTestGraph(page, {mode: "2d"});
+    test("2D → 3D transition cleans up 2D input state", async ({ page }) => {
+        await setupTestGraph(page, { mode: "2d" });
 
         // Hold keyboard key
         await page.keyboard.down("w");
@@ -1050,12 +1043,12 @@ test.describe("View Mode Transitions", () => {
         expect(has2DVelocity).toBe(false);
     });
 
-    test("3D → 2D transition cleans up orbit state", async ({page}) => {
-        await setupTestGraph(page, {mode: "3d"});
+    test("3D → 2D transition cleans up orbit state", async ({ page }) => {
+        await setupTestGraph(page, { mode: "3d" });
 
         // Start orbit drag
         const canvas = page.locator("canvas");
-        await canvas.click({position: {x: 300, y: 300}});
+        await canvas.click({ position: { x: 300, y: 300 } });
         await page.mouse.down();
         await page.mouse.move(350, 350);
 
@@ -1078,9 +1071,9 @@ test.describe("View Mode Transitions", () => {
         expect(isPointerDown).toBe(false);
     });
 
-    test("camera maintains approximate position 3D → XR → 3D", async ({page}) => {
+    test("camera maintains approximate position 3D → XR → 3D", async ({ page }) => {
         await setupIWER(page);
-        await setupTestGraph(page, {mode: "3d"});
+        await setupTestGraph(page, { mode: "3d" });
 
         // Set specific camera position in 3D
         await page.evaluate(() => {
@@ -1092,7 +1085,7 @@ test.describe("View Mode Transitions", () => {
 
         const initial3DCamera = await page.evaluate(() => {
             const cam = document.querySelector("graphty-element").graph.camera.camera;
-            return {alpha: cam.alpha, beta: cam.beta, radius: cam.radius};
+            return { alpha: cam.alpha, beta: cam.beta, radius: cam.radius };
         });
 
         // Enter XR
@@ -1112,7 +1105,7 @@ test.describe("View Mode Transitions", () => {
         // Camera should return to approximate previous position
         const final3DCamera = await page.evaluate(() => {
             const cam = document.querySelector("graphty-element").graph.camera.camera;
-            return {alpha: cam.alpha, beta: cam.beta, radius: cam.radius};
+            return { alpha: cam.alpha, beta: cam.beta, radius: cam.radius };
         });
 
         // Allow some tolerance for rounding
@@ -1121,8 +1114,8 @@ test.describe("View Mode Transitions", () => {
         expect(final3DCamera.radius).toBeCloseTo(initial3DCamera.radius, 0);
     });
 
-    test("rapid mode switching does not corrupt state", async ({page}) => {
-        await setupTestGraph(page, {mode: "2d"});
+    test("rapid mode switching does not corrupt state", async ({ page }) => {
+        await setupTestGraph(page, { mode: "2d" });
 
         // Rapidly switch modes
         for (let i = 0; i < 5; i++) {
@@ -1159,14 +1152,14 @@ test.describe("View Mode Transitions", () => {
 ```typescript
 // test/interactions/xr-input-switching.test.ts
 test.describe("XR Input Method Switching", () => {
-    test("controllers → hands transition preserves scene state", async ({page}) => {
+    test("controllers → hands transition preserves scene state", async ({ page }) => {
         await setupIWER(page);
         await setupXRScene(page);
 
         // Use controllers to rotate scene
         await page.evaluate(() => {
             const device = window.xrDevice;
-            device.controllers[0].axes = {x: 0.5, y: 0}; // Rotate
+            device.controllers[0].axes = { x: 0.5, y: 0 }; // Rotate
         });
         await page.waitForTimeout(200);
 
@@ -1190,7 +1183,7 @@ test.describe("XR Input Method Switching", () => {
         expect(rotationAfterSwitch.y).toBeCloseTo(rotationAfterController.y, 3);
     });
 
-    test("hands → controllers transition during pinch ends drag cleanly", async ({page}) => {
+    test("hands → controllers transition during pinch ends drag cleanly", async ({ page }) => {
         await setupIWER(page);
         await setupXRScene(page);
 
@@ -1207,39 +1200,34 @@ test.describe("XR Input Method Switching", () => {
 
         // Verify dragging started
         const isDraggingBefore = await page.evaluate(() => {
-            return document.querySelector("graphty-element").graph
-                .camera.xrInputHandler?.isDragging() ?? false;
+            return document.querySelector("graphty-element").graph.camera.xrInputHandler?.isDragging() ?? false;
         });
 
         // Switch to controllers mid-pinch
         await page.evaluate(() => {
             const device = window.xrDevice;
-            device.hands = {left: null, right: null};
-            device.controllers = [
-                createMockController("left"),
-                createMockController("right"),
-            ];
+            device.hands = { left: null, right: null };
+            device.controllers = [createMockController("left"), createMockController("right")];
         });
 
         await page.waitForTimeout(150);
 
         // Drag should have ended cleanly
         const isDraggingAfter = await page.evaluate(() => {
-            return document.querySelector("graphty-element").graph
-                .camera.xrInputHandler?.isDragging() ?? false;
+            return document.querySelector("graphty-element").graph.camera.xrInputHandler?.isDragging() ?? false;
         });
 
         expect(isDraggingAfter).toBe(false);
     });
 
-    test("controller disconnect mid-drag releases node", async ({page}) => {
+    test("controller disconnect mid-drag releases node", async ({ page }) => {
         await setupIWER(page);
         await setupXRScene(page);
 
         // Start drag with controller trigger
         await page.evaluate(() => {
             const device = window.xrDevice;
-            device.controllers[1].buttons[0] = {pressed: true, value: 1.0};
+            device.controllers[1].buttons[0] = { pressed: true, value: 1.0 };
         });
         await page.waitForTimeout(100);
 
@@ -1252,8 +1240,7 @@ test.describe("XR Input Method Switching", () => {
 
         // Verify drag ended
         const isDragging = await page.evaluate(() => {
-            return document.querySelector("graphty-element").graph
-                .camera.xrInputHandler?.isDragging() ?? false;
+            return document.querySelector("graphty-element").graph.camera.xrInputHandler?.isDragging() ?? false;
         });
 
         expect(isDragging).toBe(false);
@@ -1266,8 +1253,8 @@ test.describe("XR Input Method Switching", () => {
 ```typescript
 // test/interactions/input-sequences.test.ts
 test.describe("Input Sequence Combinations", () => {
-    test("keyboard → mouse → keyboard maintains keyboard velocity", async ({page}) => {
-        await setupTestGraph(page, {mode: "2d"});
+    test("keyboard → mouse → keyboard maintains keyboard velocity", async ({ page }) => {
+        await setupTestGraph(page, { mode: "2d" });
 
         // Start keyboard panning
         await page.keyboard.down("w");
@@ -1275,8 +1262,7 @@ test.describe("Input Sequence Combinations", () => {
 
         // Get velocity during keyboard
         const velocityDuringKey = await page.evaluate(() => {
-            const controller = document.querySelector("graphty-element").graph
-                .camera.activeCameraController;
+            const controller = document.querySelector("graphty-element").graph.camera.activeCameraController;
             return controller.velocity?.y ?? 0;
         });
 
@@ -1288,8 +1274,7 @@ test.describe("Input Sequence Combinations", () => {
 
         // Keyboard should still be active
         const velocityAfterMouse = await page.evaluate(() => {
-            const controller = document.querySelector("graphty-element").graph
-                .camera.activeCameraController;
+            const controller = document.querySelector("graphty-element").graph.camera.activeCameraController;
             return controller.velocity?.y ?? 0;
         });
 
@@ -1299,8 +1284,8 @@ test.describe("Input Sequence Combinations", () => {
         expect(Math.abs(velocityAfterMouse)).toBeGreaterThan(0);
     });
 
-    test("mouse → touch → mouse does not corrupt pointer state", async ({page}) => {
-        await setupTestGraph(page, {mode: "2d"});
+    test("mouse → touch → mouse does not corrupt pointer state", async ({ page }) => {
+        await setupTestGraph(page, { mode: "2d" });
         const client = await page.context().newCDPSession(page);
 
         // Mouse pan
@@ -1312,11 +1297,11 @@ test.describe("Input Sequence Combinations", () => {
         // Touch pan
         await client.send("Input.dispatchTouchEvent", {
             type: "touchStart",
-            touchPoints: [{x: 300, y: 300, id: 0}],
+            touchPoints: [{ x: 300, y: 300, id: 0 }],
         });
         await client.send("Input.dispatchTouchEvent", {
             type: "touchMove",
-            touchPoints: [{x: 350, y: 350, id: 0}],
+            touchPoints: [{ x: 350, y: 350, id: 0 }],
         });
         await client.send("Input.dispatchTouchEvent", {
             type: "touchEnd",
@@ -1337,14 +1322,14 @@ test.describe("Input Sequence Combinations", () => {
         expect(finalPos.x).not.toBeCloseTo(initialPos.x, 1);
     });
 
-    test("touch interrupted by mouse does not leave touch state stuck", async ({page}) => {
-        await setupTestGraph(page, {mode: "2d"});
+    test("touch interrupted by mouse does not leave touch state stuck", async ({ page }) => {
+        await setupTestGraph(page, { mode: "2d" });
         const client = await page.context().newCDPSession(page);
 
         // Start touch
         await client.send("Input.dispatchTouchEvent", {
             type: "touchStart",
-            touchPoints: [{x: 300, y: 300, id: 0}],
+            touchPoints: [{ x: 300, y: 300, id: 0 }],
         });
 
         // Mouse click interrupts
@@ -1358,8 +1343,7 @@ test.describe("Input Sequence Combinations", () => {
 
         // Verify no stuck gesture state
         const gestureState = await page.evaluate(() => {
-            const handler = document.querySelector("graphty-element").graph
-                .camera.activeInputHandler;
+            const handler = document.querySelector("graphty-element").graph.camera.activeInputHandler;
             return {
                 gestureSession: handler.gestureSession ?? null,
                 isPanning: handler.isPanning ?? false,
@@ -1369,8 +1353,8 @@ test.describe("Input Sequence Combinations", () => {
         expect(gestureState.gestureSession).toBeNull();
     });
 
-    test("rapid keyboard key switching does not accumulate velocity", async ({page}) => {
-        await setupTestGraph(page, {mode: "2d"});
+    test("rapid keyboard key switching does not accumulate velocity", async ({ page }) => {
+        await setupTestGraph(page, { mode: "2d" });
 
         // Rapidly press different keys
         for (let i = 0; i < 10; i++) {
@@ -1386,8 +1370,7 @@ test.describe("Input Sequence Combinations", () => {
 
         // Velocity should be near zero (all keys released)
         const velocity = await page.evaluate(() => {
-            const controller = document.querySelector("graphty-element").graph
-                .camera.activeCameraController;
+            const controller = document.querySelector("graphty-element").graph.camera.activeCameraController;
             return Math.abs(controller.velocity?.y ?? 0);
         });
 
@@ -1401,7 +1384,7 @@ test.describe("Input Sequence Combinations", () => {
 ```typescript
 // test/interactions/xr-local-space.test.ts
 test.describe("XR Input Local Space", () => {
-    test("thumbstick pan is relative to user view, not world", async ({page}) => {
+    test("thumbstick pan is relative to user view, not world", async ({ page }) => {
         await setupIWER(page);
         await setupXRScene(page);
 
@@ -1415,22 +1398,20 @@ test.describe("XR Input Local Space", () => {
 
         // Get initial scene position
         const initialPos = await page.evaluate(() => {
-            const pivot = document.querySelector("graphty-element").graph
-                .camera.xrPivotController.pivot;
-            return {x: pivot.position.x, z: pivot.position.z};
+            const pivot = document.querySelector("graphty-element").graph.camera.xrPivotController.pivot;
+            return { x: pivot.position.x, z: pivot.position.z };
         });
 
         // Push right stick to "right" (user's local right)
         await page.evaluate(() => {
             const device = window.xrDevice;
-            device.controllers[1].axes = {x: 1.0, y: 0}; // Pan right
+            device.controllers[1].axes = { x: 1.0, y: 0 }; // Pan right
         });
         await page.waitForTimeout(200);
 
         const finalPos = await page.evaluate(() => {
-            const pivot = document.querySelector("graphty-element").graph
-                .camera.xrPivotController.pivot;
-            return {x: pivot.position.x, z: pivot.position.z};
+            const pivot = document.querySelector("graphty-element").graph.camera.xrPivotController.pivot;
+            return { x: pivot.position.x, z: pivot.position.z };
         });
 
         // Since user is rotated 90 degrees, their "right" is world "forward" (negative Z)
@@ -1442,7 +1423,7 @@ test.describe("XR Input Local Space", () => {
         expect(deltaZ).toBeGreaterThan(deltaX);
     });
 
-    test("thumbstick rotation is relative to user up vector", async ({page}) => {
+    test("thumbstick rotation is relative to user up vector", async ({ page }) => {
         await setupIWER(page);
         await setupXRScene(page);
 
@@ -1459,7 +1440,7 @@ test.describe("XR Input Local Space", () => {
         // Rotate with left stick
         await page.evaluate(() => {
             const device = window.xrDevice;
-            device.controllers[0].axes = {x: 1.0, y: 0}; // Yaw right
+            device.controllers[0].axes = { x: 1.0, y: 0 }; // Yaw right
         });
         await page.waitForTimeout(200);
 
@@ -1471,30 +1452,28 @@ test.describe("XR Input Local Space", () => {
         expect(deltaY).toBeGreaterThan(0.01);
     });
 
-    test("node drag in XR moves relative to pivot rotation", async ({page}) => {
+    test("node drag in XR moves relative to pivot rotation", async ({ page }) => {
         await setupIWER(page);
         await setupXRScene(page);
 
         // Rotate the pivot/scene 90 degrees
         await page.evaluate(() => {
-            const pivot = document.querySelector("graphty-element").graph
-                .camera.xrPivotController.pivot;
+            const pivot = document.querySelector("graphty-element").graph.camera.xrPivotController.pivot;
             pivot.rotationQuaternion = new BABYLON.Quaternion(0, 0.707, 0, 0.707);
         });
         await page.waitForTimeout(100);
 
         // Get node's initial position
         const initialNodePos = await page.evaluate(() => {
-            const node = document.querySelector("graphty-element").graph
-                .dataManager.nodes.get("node1");
-            return {x: node.mesh.position.x, z: node.mesh.position.z};
+            const node = document.querySelector("graphty-element").graph.dataManager.nodes.get("node1");
+            return { x: node.mesh.position.x, z: node.mesh.position.z };
         });
 
         // Move controller "right" in XR space (user's right)
         await page.evaluate(() => {
             const device = window.xrDevice;
             // Start drag
-            device.controllers[1].buttons[0] = {pressed: true, value: 1.0};
+            device.controllers[1].buttons[0] = { pressed: true, value: 1.0 };
         });
         await page.waitForTimeout(50);
 
@@ -1506,9 +1485,8 @@ test.describe("XR Input Local Space", () => {
         await page.waitForTimeout(100);
 
         const finalNodePos = await page.evaluate(() => {
-            const node = document.querySelector("graphty-element").graph
-                .dataManager.nodes.get("node1");
-            return {x: node.mesh.position.x, z: node.mesh.position.z};
+            const node = document.querySelector("graphty-element").graph.dataManager.nodes.get("node1");
+            return { x: node.mesh.position.x, z: node.mesh.position.z };
         });
 
         // Because pivot is rotated 90 degrees, user's "right" (+X in XR)

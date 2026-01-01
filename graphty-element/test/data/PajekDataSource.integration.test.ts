@@ -1,16 +1,16 @@
-import {readFileSync} from "node:fs";
-import {join} from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {PajekDataSource} from "../../src/data/PajekDataSource.js";
+import { PajekDataSource } from "../../src/data/PajekDataSource.js";
 
 describe("PajekDataSource Integration Tests", () => {
-    it("should load simple-graph.net file", async() => {
+    it("should load simple-graph.net file", async () => {
         const filePath = join(__dirname, "../helpers/simple-graph.net");
         const data = readFileSync(filePath, "utf-8");
 
-        const source = new PajekDataSource({data});
+        const source = new PajekDataSource({ data });
         const gen = source.sourceFetchData();
         const chunk = await gen.next();
 
@@ -51,11 +51,11 @@ describe("PajekDataSource Integration Tests", () => {
         assert.equal(chunk.value.edges[3].directed, false);
     });
 
-    it("should load mixed-graph.net file", async() => {
+    it("should load mixed-graph.net file", async () => {
         const filePath = join(__dirname, "../helpers/mixed-graph.net");
         const data = readFileSync(filePath, "utf-8");
 
-        const source = new PajekDataSource({data});
+        const source = new PajekDataSource({ data });
         const gen = source.sourceFetchData();
         const chunk = await gen.next();
 

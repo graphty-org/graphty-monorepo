@@ -12,6 +12,6 @@
  *   npx graphty-log-server --help
  */
 
-import {main} from "../dist/src/logging/server/log-server.js";
+import { main } from "../dist/src/logging/server/log-server.js";
 
 main();

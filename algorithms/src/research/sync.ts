@@ -1,6 +1,6 @@
-import type {Graph} from "../core/graph.js";
-import type {NodeId} from "../types/index.js";
-import {euclideanDistance, SeededRandom} from "../utils/math-utilities.js";
+import type { Graph } from "../core/graph.js";
+import type { NodeId } from "../types/index.js";
+import { euclideanDistance, SeededRandom } from "../utils/math-utilities.js";
 
 /**
  * Configuration options for the SynC (Synergistic Deep Graph Clustering) algorithm
@@ -44,20 +44,12 @@ export interface SynCResult {
  * embeddings and cluster assignments while preserving graph structure.
  *
  * Based on: "Synergistic Deep Graph Clustering" (arXiv:2406.15797, June 2024)
- *
  * @param graph - Input graph to cluster
  * @param config - Configuration options
  * @returns Clustering result with assignments and embeddings
  */
 export function syncClustering(graph: Graph, config: SynCConfig): SynCResult {
-    const {
-        numClusters,
-        maxIterations = 100,
-        tolerance = 1e-6,
-        seed = 42,
-        learningRate = 0.01,
-        lambda = 0.1,
-    } = config;
+    const { numClusters, maxIterations = 100, tolerance = 1e-6, seed = 42, learningRate = 0.01, lambda = 0.1 } = config;
 
     // Set random seed for reproducibility (save original)
     const originalRandom = Math.random;
@@ -78,7 +70,9 @@ export function syncClustering(graph: Graph, config: SynCConfig): SynCResult {
     }
 
     if (numClusters <= 0 || numClusters > nodeCount) {
-        throw new Error(`Invalid number of clusters: ${String(numClusters)}. Must be between 1 and ${String(nodeCount)}`);
+        throw new Error(
+            `Invalid number of clusters: ${String(numClusters)}. Must be between 1 and ${String(nodeCount)}`,
+        );
     }
 
     // Initialize node embeddings (simplified version using graph features)
@@ -184,6 +178,10 @@ export function syncClustering(graph: Graph, config: SynCConfig): SynCResult {
 
 /**
  * Initialize node embedding based on graph structure and features
+ * @param graph - The input graph
+ * @param nodeId - The node ID to initialize embedding for
+ * @param dim - The embedding dimension
+ * @returns The initialized embedding vector
  */
 function initializeNodeEmbedding(graph: Graph, nodeId: NodeId, dim: number): number[] {
     const embedding = new Array<number>(dim).fill(0);
@@ -194,7 +192,7 @@ function initializeNodeEmbedding(graph: Graph, nodeId: NodeId, dim: number): num
 
     // Initialize with small random values influenced by graph structure
     for (let i = 0; i < dim; i++) {
-        embedding[i] = ((Math.random() - 0.5) * 0.1) + (normalizedDegree * 0.1);
+        embedding[i] = (Math.random() - 0.5) * 0.1 + normalizedDegree * 0.1;
     }
 
     return embedding;
@@ -202,6 +200,9 @@ function initializeNodeEmbedding(graph: Graph, nodeId: NodeId, dim: number): num
 
 /**
  * Initialize cluster centers using k-means++ style initialization
+ * @param embeddings - Map of node IDs to embedding vectors
+ * @param numClusters - Number of cluster centers to initialize
+ * @returns Array of initialized cluster center vectors
  */
 function initializeClusterCenters(embeddings: Map<NodeId, number[]>, numClusters: number): number[][] {
     const embeddingArray = Array.from(embeddings.values());
@@ -210,7 +211,7 @@ function initializeClusterCenters(embeddings: Map<NodeId, number[]>, numClusters
     // Choose first center randomly
     const firstCenter = embeddingArray[Math.floor(Math.random() * embeddingArray.length)];
     if (firstCenter) {
-        centers.push([... firstCenter] as number[]);
+        centers.push([...firstCenter] as number[]);
     }
 
     // Choose remaining centers using k-means++ initialization
@@ -239,7 +240,7 @@ function initializeClusterCenters(embeddings: Map<NodeId, number[]>, numClusters
             if (randomValue <= 0) {
                 const newCenter = embeddingArray[i];
                 if (newCenter) {
-                    centers.push([... newCenter] as number[]);
+                    centers.push([...newCenter] as number[]);
                 }
 
                 break;
@@ -252,6 +253,11 @@ function initializeClusterCenters(embeddings: Map<NodeId, number[]>, numClusters
 
 /**
  * Update node embeddings using gradient descent
+ * @param graph - The input graph
+ * @param embeddings - Map of node IDs to embedding vectors
+ * @param clusters - Map of node IDs to cluster assignments
+ * @param learningRate - Learning rate for gradient descent
+ * @param lambda - Regularization parameter
  */
 function updateEmbeddings(
     graph: Graph,
@@ -293,7 +299,7 @@ function updateEmbeddings(
                 const gradVal = gradient[i];
                 const diffVal = diff[i];
                 if (gradVal !== undefined && diffVal !== undefined) {
-                    gradient[i] = gradVal + (lambda * diffVal);
+                    gradient[i] = gradVal + lambda * diffVal;
                 }
             }
         }
@@ -303,7 +309,7 @@ function updateEmbeddings(
             const gradVal = gradient[i];
             const nodeVal = nodeEmbedding[i];
             if (gradVal !== undefined && nodeVal !== undefined) {
-                gradient[i] = gradVal + (lambda * nodeVal);
+                gradient[i] = gradVal + lambda * nodeVal;
             }
         }
     }
@@ -319,7 +325,7 @@ function updateEmbeddings(
             const embVal = embedding[i];
             const gradVal = gradient[i];
             if (embVal !== undefined && gradVal !== undefined) {
-                embedding[i] = embVal - (learningRate * gradVal);
+                embedding[i] = embVal - learningRate * gradVal;
             }
         }
     }
@@ -327,6 +333,10 @@ function updateEmbeddings(
 
 /**
  * Update cluster centers based on current assignments
+ * @param embeddings - Map of node IDs to embedding vectors
+ * @param clusters - Map of node IDs to cluster assignments
+ * @param clusterCenters - Array of cluster center vectors to update
+ * @param numClusters - Number of clusters
  */
 function updateClusterCenters(
     embeddings: Map<NodeId, number[]>,
@@ -335,8 +345,9 @@ function updateClusterCenters(
     numClusters: number,
 ): void {
     const dimensions = clusterCenters[0]?.length ?? 0;
-    const clusterSums: number[][] = Array.from({length: numClusters}, () =>
-        new Array(dimensions).fill(0) as number[],
+    const clusterSums: number[][] = Array.from(
+        { length: numClusters },
+        () => new Array(dimensions).fill(0) as number[],
     );
     const clusterCounts = new Array<number>(numClusters).fill(0);
 
@@ -382,6 +393,12 @@ function updateClusterCenters(
 
 /**
  * Calculate the total loss function
+ * @param graph - The input graph
+ * @param embeddings - Map of node IDs to embedding vectors
+ * @param clusters - Map of node IDs to cluster assignments
+ * @param clusterCenters - Array of cluster center vectors
+ * @param lambda - Regularization parameter
+ * @returns The total loss value
  */
 function calculateLoss(
     graph: Graph,
@@ -435,6 +452,5 @@ function calculateLoss(
         }
     }
 
-    return clusteringLoss + (lambda * reconstructionLoss) + (lambda * regularizationLoss);
+    return clusteringLoss + lambda * reconstructionLoss + lambda * regularizationLoss;
 }
-

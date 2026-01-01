@@ -1,22 +1,28 @@
-import type {Meta, StoryObj} from "@storybook/web-components-vite";
+import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import {Graphty} from "../../src/graphty-element";
-import {eventWaitingDecorator, remoteLoggingDecorator, renderFn, templateCreator, waitForGraphSettled} from "../helpers";
+import { Graphty } from "../../src/graphty-element";
+import {
+    eventWaitingDecorator,
+    remoteLoggingDecorator,
+    renderFn,
+    templateCreator,
+    waitForGraphSettled,
+} from "../helpers";
 
 // Seeded random number generator for deterministic edge generation
 function seededRandom(seed: number): () => number {
     return (): number => {
-        seed = ((seed * 9301) + 49297) % 233280;
+        seed = (seed * 9301 + 49297) % 233280;
         return seed / 233280;
     };
 }
 
 // Generate deterministic edge data using a fixed seed
 const random = seededRandom(42);
-const xrEdgeData = Array.from({length: 45}, () => {
+const xrEdgeData = Array.from({ length: 45 }, () => {
     const src = `${Math.floor(random() * 30)}`;
     const dst = `${Math.floor(random() * 30)}`;
-    return {src, dst};
+    return { src, dst };
 });
 
 const meta: Meta = {
@@ -61,7 +67,7 @@ type Story = StoryObj<Graphty>;
  */
 export const Default: Story = {
     args: {
-        nodeData: Array.from({length: 30}, (_, i) => ({
+        nodeData: Array.from({ length: 30 }, (_, i) => ({
             id: `${i}`,
             label: `Node ${i}`,
         })),
@@ -86,7 +92,7 @@ export const Default: Story = {
         }),
         xr: {
             enabled: true,
-            ui: {enabled: true, position: "bottom-right", showAvailabilityWarning: true},
+            ui: { enabled: true, position: "bottom-right", showAvailabilityWarning: true },
             input: {
                 handTracking: true, // Required for two-hand gestures
                 controllers: true, // For thumbstick pan and squeeze drag
@@ -97,7 +103,7 @@ export const Default: Story = {
             },
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         // Wait for the graph to fully settle before taking the screenshot
         await waitForGraphSettled(canvasElement);
     },

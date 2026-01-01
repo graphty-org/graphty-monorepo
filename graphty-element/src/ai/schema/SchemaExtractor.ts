@@ -6,10 +6,10 @@
  * @module ai/schema/SchemaExtractor
  */
 
-import {inferSchema} from "@jsonhero/schema-infer";
+import { inferSchema } from "@jsonhero/schema-infer";
 
-import type {Graph} from "../../Graph";
-import type {PropertySummary, PropertyType, SchemaExtractorOptions, SchemaSummary} from "./types";
+import type { Graph } from "../../Graph";
+import type { PropertySummary, PropertyType, SchemaExtractorOptions, SchemaSummary } from "./types";
 
 /**
  * Internal type for schema-infer's InferredSchema.
@@ -17,8 +17,8 @@ import type {PropertySummary, PropertyType, SchemaExtractorOptions, SchemaSummar
  */
 interface InferredSchema {
     type: "unknown" | "any" | "boolean" | "int" | "float" | "string" | "array" | "object" | "nullable";
-    range?: {min: number, max: number};
-    format?: {name: string};
+    range?: { min: number; max: number };
+    format?: { name: string };
     items?: InferredSchema;
     schema?: InferredSchema;
     schemas?: Set<InferredSchema>;
@@ -116,29 +116,28 @@ class EnumTracker {
      * @param path - Property path to analyze
      * @returns Enum analysis result with isEnum flag and optional values
      */
-    getEnumAnalysis(path: string): {isEnum: boolean, values?: string[]} {
+    getEnumAnalysis(path: string): { isEnum: boolean; values?: string[] } {
         const values = this.values.get(path);
 
         if (!values || values.length < this.options.enumMinSampleSize) {
-            return {isEnum: false};
+            return { isEnum: false };
         }
 
-        const unique = [... new Set(values)];
+        const unique = [...new Set(values)];
         const uniqueRatio = unique.length / values.length;
 
         // Capital One's dual-threshold approach
         const passesCardinalityCheck =
-            unique.length <= this.options.enumMaxAbsoluteUnique ||
-            uniqueRatio <= this.options.enumMaxUniqueRatio;
+            unique.length <= this.options.enumMaxAbsoluteUnique || uniqueRatio <= this.options.enumMaxUniqueRatio;
 
         // Our addition: enum values should be short identifiers, not paragraphs
         const allValuesShort = unique.every((v) => v.length <= this.options.enumMaxStringLength);
 
         if (passesCardinalityCheck && allValuesShort) {
-            return {isEnum: true, values: unique.sort()};
+            return { isEnum: true, values: unique.sort() };
         }
 
-        return {isEnum: false};
+        return { isEnum: false };
     }
 }
 
@@ -159,7 +158,7 @@ export class SchemaExtractor {
      */
     constructor(graph: Graph, options: SchemaExtractorOptions = {}) {
         this.graph = graph;
-        this.options = {... DEFAULT_OPTIONS, ... options};
+        this.options = { ...DEFAULT_OPTIONS, ...options };
     }
 
     /**
@@ -174,14 +173,14 @@ export class SchemaExtractor {
         const edgeCount = this.graph.getEdgeCount();
 
         // Extract node data
-        const nodeData = Array.from(dataManager.nodes.values()).map(
-            (n) => (n as {data?: Record<string, unknown>}).data,
-        ).filter((d): d is Record<string, unknown> => d !== undefined);
+        const nodeData = Array.from(dataManager.nodes.values())
+            .map((n) => (n as { data?: Record<string, unknown> }).data)
+            .filter((d): d is Record<string, unknown> => d !== undefined);
 
         // Extract edge data
-        const edgeData = Array.from(dataManager.edges.values()).map(
-            (e) => (e as {data?: Record<string, unknown>}).data,
-        ).filter((d): d is Record<string, unknown> => d !== undefined);
+        const edgeData = Array.from(dataManager.edges.values())
+            .map((e) => (e as { data?: Record<string, unknown> }).data)
+            .filter((d): d is Record<string, unknown> => d !== undefined);
 
         return {
             nodeProperties: this.extractFromCollection(nodeData),
@@ -203,17 +202,18 @@ export class SchemaExtractor {
 
         // Sample if too large
         const samples =
-            items.length <= this.options.maxSampleSize ?
-                items :
-                this.sampleEvenly(items, this.options.maxSampleSize);
+            items.length <= this.options.maxSampleSize ? items : this.sampleEvenly(items, this.options.maxSampleSize);
 
         // Track 1: Use schema-infer for types, ranges, formats
         // Process first item to initialize the inferrer, then continue with rest
-        const [firstItem, ... restItems] = samples;
+        const [firstItem, ...restItems] = samples;
         let schemaInferrer = inferSchema(firstItem) as unknown as SchemaInferrerLike;
 
         for (const item of restItems) {
-            schemaInferrer = inferSchema(item, schemaInferrer as Parameters<typeof inferSchema>[1]) as unknown as SchemaInferrerLike;
+            schemaInferrer = inferSchema(
+                item,
+                schemaInferrer as Parameters<typeof inferSchema>[1],
+            ) as unknown as SchemaInferrerLike;
         }
 
         const inferredSchema = schemaInferrer.toSnapshot();
@@ -235,10 +235,7 @@ export class SchemaExtractor {
      * @param enumTracker - Enum tracker with detected categorical values
      * @returns Array of merged property summaries
      */
-    private mergeResults(
-        schema: InferredSchema,
-        enumTracker: EnumTracker,
-    ): PropertySummary[] {
+    private mergeResults(schema: InferredSchema, enumTracker: EnumTracker): PropertySummary[] {
         const properties: PropertySummary[] = [];
 
         if (schema.type === "object" && schema.properties) {

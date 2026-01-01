@@ -1,6 +1,6 @@
-import type {Graph} from "../../core/graph.js";
-import type {NodeId} from "../../types/index.js";
-import {SimpleDeltaPageRank} from "./delta-pagerank-simple.js";
+import type { Graph } from "../../core/graph.js";
+import type { NodeId } from "../../types/index.js";
+import { SimpleDeltaPageRank } from "./delta-pagerank-simple.js";
 
 /**
  * PageRank algorithm implementation
@@ -76,11 +76,11 @@ export interface PageRankResult {
  *
  * For initial computation on small-medium graphs, standard algorithm may be faster
  * due to lower overhead.
+ * @param graph - The directed input graph to analyze
+ * @param options - Algorithm configuration options
+ * @returns PageRank result containing ranks, iteration count, and convergence status
  */
-export function pageRank(
-    graph: Graph,
-    options: PageRankOptions = {},
-): PageRankResult {
+export function pageRank(graph: Graph, options: PageRankOptions = {}): PageRankResult {
     const {
         dampingFactor = 0.85,
         maxIterations = 100,
@@ -102,7 +102,7 @@ export function pageRank(
     const n = nodes.length;
 
     if (n === 0) {
-        return {ranks: {}, iterations: 0, converged: true};
+        return { ranks: {}, iterations: 0, converged: true };
     }
 
     // Use delta-based optimization by default for larger graphs
@@ -221,7 +221,7 @@ export function pageRank(
         }
 
         if (danglingSum > 0) {
-            const danglingContribution = dampingFactor * danglingSum / n;
+            const danglingContribution = (dampingFactor * danglingSum) / n;
             for (const nodeId of nodes) {
                 const currentRank = newRanks.get(nodeId) ?? 0;
                 if (personalVector) {
@@ -284,6 +284,10 @@ export function pageRank(
 
 /**
  * Calculate Personalized PageRank for a specific set of source nodes
+ * @param graph - The directed input graph to analyze
+ * @param personalNodes - Nodes to personalize the PageRank towards
+ * @param options - Algorithm configuration options
+ * @returns PageRank result containing ranks, iteration count, and convergence status
  */
 export function personalizedPageRank(
     graph: Graph,
@@ -314,35 +318,39 @@ export function personalizedPageRank(
     }
 
     return pageRank(graph, {
-        ... options,
+        ...options,
         personalization,
     });
 }
 
 /**
  * Calculate PageRank centrality (normalized PageRank scores)
+ * @param graph - The directed input graph to analyze
+ * @param options - Algorithm configuration options
+ * @returns PageRank scores for each node keyed by node ID
  */
-export function pageRankCentrality(
-    graph: Graph,
-    options: PageRankOptions = {},
-): Record<string, number> {
+export function pageRankCentrality(graph: Graph, options: PageRankOptions = {}): Record<string, number> {
     const result = pageRank(graph, options);
     return result.ranks;
 }
 
 /**
  * Get the top-k nodes by PageRank score
+ * @param graph - The directed input graph to analyze
+ * @param k - Number of top nodes to return
+ * @param options - Algorithm configuration options
+ * @returns Array of top-k nodes with their PageRank scores, sorted descending
  */
 export function topPageRankNodes(
     graph: Graph,
     k: number,
     options: PageRankOptions = {},
-): {node: NodeId, rank: number}[] {
+): { node: NodeId; rank: number }[] {
     const result = pageRank(graph, options);
 
-    const nodeRanks: {node: NodeId, rank: number}[] = [];
+    const nodeRanks: { node: NodeId; rank: number }[] = [];
     for (const [nodeStr, rank] of Object.entries(result.ranks)) {
-        nodeRanks.push({node: nodeStr as NodeId, rank});
+        nodeRanks.push({ node: nodeStr as NodeId, rank });
     }
 
     // Sort by rank in descending order
@@ -353,6 +361,7 @@ export function topPageRankNodes(
 
 /**
  * Normalize ranks so they sum to 1
+ * @param ranks - The ranks map to normalize in place
  */
 function normalizeRanks(ranks: Map<NodeId, number>): void {
     let sum = 0;

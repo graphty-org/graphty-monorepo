@@ -1,29 +1,28 @@
-import {act, renderHook} from "@testing-library/react";
-import {describe, expect, it} from "vitest";
+import { act, renderHook } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
-import {useLocalValue} from "../useLocalValue";
+import { useLocalValue } from "../useLocalValue";
 
 describe("useLocalValue", () => {
     it("initializes with external value", () => {
-        const {result} = renderHook(() => useLocalValue(5, 10));
+        const { result } = renderHook(() => useLocalValue(5, 10));
 
         expect(result.current.localValue).toBe(5);
     });
 
     it("syncs local state with external prop changes", () => {
-        const {result, rerender} = renderHook(
-            ({value}) => useLocalValue(value, 10),
-            {initialProps: {value: 5}},
-        );
+        const { result, rerender } = renderHook(({ value }) => useLocalValue(value, 10), {
+            initialProps: { value: 5 },
+        });
 
         expect(result.current.localValue).toBe(5);
 
-        rerender({value: 15});
+        rerender({ value: 15 });
         expect(result.current.localValue).toBe(15);
     });
 
     it("allows setting local value to string", () => {
-        const {result} = renderHook(() => useLocalValue(5, 5));
+        const { result } = renderHook(() => useLocalValue(5, 5));
 
         act(() => {
             result.current.setLocalValue("10.5");
@@ -33,7 +32,7 @@ describe("useLocalValue", () => {
     });
 
     it("allows setting local value to number", () => {
-        const {result} = renderHook(() => useLocalValue(5, 5));
+        const { result } = renderHook(() => useLocalValue(5, 5));
 
         act(() => {
             result.current.setLocalValue(20);
@@ -43,7 +42,7 @@ describe("useLocalValue", () => {
     });
 
     it("returns parsed numeric value on commit", () => {
-        const {result} = renderHook(() => useLocalValue(5, 5));
+        const { result } = renderHook(() => useLocalValue(5, 5));
 
         act(() => {
             result.current.setLocalValue("10.5");
@@ -54,7 +53,7 @@ describe("useLocalValue", () => {
     });
 
     it("returns fallback for invalid string input", () => {
-        const {result} = renderHook(() => useLocalValue(5, 10));
+        const { result } = renderHook(() => useLocalValue(5, 10));
 
         act(() => {
             result.current.setLocalValue("invalid");
@@ -65,7 +64,7 @@ describe("useLocalValue", () => {
     });
 
     it("returns fallback for empty string input", () => {
-        const {result} = renderHook(() => useLocalValue(5, 10));
+        const { result } = renderHook(() => useLocalValue(5, 10));
 
         act(() => {
             result.current.setLocalValue("");
@@ -76,7 +75,7 @@ describe("useLocalValue", () => {
     });
 
     it("returns numeric value directly when local value is number", () => {
-        const {result} = renderHook(() => useLocalValue(5, 10));
+        const { result } = renderHook(() => useLocalValue(5, 10));
 
         act(() => {
             result.current.setLocalValue(25);
@@ -87,7 +86,7 @@ describe("useLocalValue", () => {
     });
 
     it("handles negative numbers correctly", () => {
-        const {result} = renderHook(() => useLocalValue(-5, 0));
+        const { result } = renderHook(() => useLocalValue(-5, 0));
 
         expect(result.current.localValue).toBe(-5);
 
@@ -100,13 +99,13 @@ describe("useLocalValue", () => {
     });
 
     it("handles zero as external value", () => {
-        const {result} = renderHook(() => useLocalValue(0, 5));
+        const { result } = renderHook(() => useLocalValue(0, 5));
 
         expect(result.current.localValue).toBe(0);
     });
 
     it("handles zero as fallback value", () => {
-        const {result} = renderHook(() => useLocalValue(5, 0));
+        const { result } = renderHook(() => useLocalValue(5, 0));
 
         act(() => {
             result.current.setLocalValue("invalid");

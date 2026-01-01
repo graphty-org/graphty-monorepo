@@ -7,16 +7,11 @@
  * @module test/browser/ai/commands-e2e
  */
 
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import type {MockLlmProvider} from "../../../src/ai/providers/MockLlmProvider";
-import type {Graph} from "../../../src/Graph";
-import {
-    cleanupE2EGraph,
-    createE2EGraph,
-    DEFAULT_TEST_EDGES,
-    DEFAULT_TEST_NODES,
-} from "../../helpers/e2e-graph-setup";
+import type { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
+import type { Graph } from "../../../src/Graph";
+import { cleanupE2EGraph, createE2EGraph, DEFAULT_TEST_EDGES, DEFAULT_TEST_NODES } from "../../helpers/e2e-graph-setup";
 
 /**
  * Type for data returned by queryGraph command.
@@ -39,14 +34,14 @@ interface FindNodesData {
 describe("AI Commands End-to-End", () => {
     let graph: Graph;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Create a real graphty-element with test data
         const result = await createE2EGraph({
             nodes: DEFAULT_TEST_NODES,
             edges: DEFAULT_TEST_EDGES,
             enableAi: true,
         });
-        ({graph} = result);
+        ({ graph } = result);
     });
 
     afterEach(() => {
@@ -68,12 +63,12 @@ describe("AI Commands End-to-End", () => {
     }
 
     describe("queryGraph command", () => {
-        it("returns correct node count from real graph", async() => {
+        it("returns correct node count from real graph", async () => {
             const provider = getProvider();
 
             provider.setResponse("count nodes", {
                 text: "",
-                toolCalls: [{id: "1", name: "queryGraph", arguments: {query: "nodeCount"}}],
+                toolCalls: [{ id: "1", name: "queryGraph", arguments: { query: "nodeCount" } }],
             });
 
             const result = await graph.aiCommand("count nodes");
@@ -82,12 +77,12 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual((result.data as QueryData).nodeCount, 5);
         });
 
-        it("returns correct edge count from real graph", async() => {
+        it("returns correct edge count from real graph", async () => {
             const provider = getProvider();
 
             provider.setResponse("count edges", {
                 text: "",
-                toolCalls: [{id: "1", name: "queryGraph", arguments: {query: "edgeCount"}}],
+                toolCalls: [{ id: "1", name: "queryGraph", arguments: { query: "edgeCount" } }],
             });
 
             const result = await graph.aiCommand("count edges");
@@ -96,12 +91,12 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual((result.data as QueryData).edgeCount, 5);
         });
 
-        it("returns graph summary with all statistics", async() => {
+        it("returns graph summary with all statistics", async () => {
             const provider = getProvider();
 
             provider.setResponse("summary", {
                 text: "",
-                toolCalls: [{id: "1", name: "queryGraph", arguments: {query: "summary"}}],
+                toolCalls: [{ id: "1", name: "queryGraph", arguments: { query: "summary" } }],
             });
 
             const result = await graph.aiCommand("summary");
@@ -112,12 +107,12 @@ describe("AI Commands End-to-End", () => {
             assert.ok(data.edgeCount !== undefined);
         });
 
-        it("returns current layout information", async() => {
+        it("returns current layout information", async () => {
             const provider = getProvider();
 
             provider.setResponse("layout", {
                 text: "",
-                toolCalls: [{id: "1", name: "queryGraph", arguments: {query: "currentLayout"}}],
+                toolCalls: [{ id: "1", name: "queryGraph", arguments: { query: "currentLayout" } }],
             });
 
             const result = await graph.aiCommand("what layout");
@@ -128,12 +123,12 @@ describe("AI Commands End-to-End", () => {
     });
 
     describe("setLayout command", () => {
-        it("changes to circular layout", async() => {
+        it("changes to circular layout", async () => {
             const provider = getProvider();
 
             provider.setResponse("circular", {
                 text: "",
-                toolCalls: [{id: "1", name: "setLayout", arguments: {type: "circular"}}],
+                toolCalls: [{ id: "1", name: "setLayout", arguments: { type: "circular" } }],
             });
 
             const result = await graph.aiCommand("circular");
@@ -145,12 +140,12 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(layoutManager.layoutEngine?.type, "circular");
         });
 
-        it("changes to force-directed layout", async() => {
+        it("changes to force-directed layout", async () => {
             const provider = getProvider();
 
             provider.setResponse("force", {
                 text: "",
-                toolCalls: [{id: "1", name: "setLayout", arguments: {type: "ngraph"}}],
+                toolCalls: [{ id: "1", name: "setLayout", arguments: { type: "ngraph" } }],
             });
 
             const result = await graph.aiCommand("force");
@@ -160,12 +155,12 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(layoutManager.layoutEngine?.type, "ngraph");
         });
 
-        it("rejects invalid layout type with helpful error", async() => {
+        it("rejects invalid layout type with helpful error", async () => {
             const provider = getProvider();
 
             provider.setResponse("invalid", {
                 text: "",
-                toolCalls: [{id: "1", name: "setLayout", arguments: {type: "nonexistent"}}],
+                toolCalls: [{ id: "1", name: "setLayout", arguments: { type: "nonexistent" } }],
             });
 
             const result = await graph.aiCommand("invalid");
@@ -173,18 +168,18 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, false);
             assert.ok(
                 result.message.includes("Invalid layout") ||
-                result.message.includes("not found") ||
-                result.message.includes("unknown") ||
-                result.message.toLowerCase().includes("layout"),
+                    result.message.includes("not found") ||
+                    result.message.includes("unknown") ||
+                    result.message.toLowerCase().includes("layout"),
             );
         });
 
-        it("changes to spiral layout", async() => {
+        it("changes to spiral layout", async () => {
             const provider = getProvider();
 
             provider.setResponse("spiral", {
                 text: "",
-                toolCalls: [{id: "1", name: "setLayout", arguments: {type: "spiral"}}],
+                toolCalls: [{ id: "1", name: "setLayout", arguments: { type: "spiral" } }],
             });
 
             const result = await graph.aiCommand("spiral");
@@ -194,12 +189,12 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(layoutManager.layoutEngine?.type, "spiral");
         });
 
-        it("changes to shell layout", async() => {
+        it("changes to shell layout", async () => {
             const provider = getProvider();
 
             provider.setResponse("shell", {
                 text: "",
-                toolCalls: [{id: "1", name: "setLayout", arguments: {type: "shell"}}],
+                toolCalls: [{ id: "1", name: "setLayout", arguments: { type: "shell" } }],
             });
 
             const result = await graph.aiCommand("shell");
@@ -209,12 +204,12 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(layoutManager.layoutEngine?.type, "shell");
         });
 
-        it("changes to random layout", async() => {
+        it("changes to random layout", async () => {
             const provider = getProvider();
 
             provider.setResponse("random", {
                 text: "",
-                toolCalls: [{id: "1", name: "setLayout", arguments: {type: "random"}}],
+                toolCalls: [{ id: "1", name: "setLayout", arguments: { type: "random" } }],
             });
 
             const result = await graph.aiCommand("random");
@@ -226,7 +221,7 @@ describe("AI Commands End-to-End", () => {
     });
 
     describe("setDimension command", () => {
-        it("switches to 2D mode", async() => {
+        it("switches to 2D mode", async () => {
             const provider = getProvider();
 
             // Ensure we start in 3D
@@ -234,7 +229,7 @@ describe("AI Commands End-to-End", () => {
 
             provider.setResponse("2d", {
                 text: "",
-                toolCalls: [{id: "1", name: "setDimension", arguments: {dimension: "2d"}}],
+                toolCalls: [{ id: "1", name: "setDimension", arguments: { dimension: "2d" } }],
             });
 
             const result = await graph.aiCommand("2d");
@@ -243,13 +238,13 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(graph.getViewMode() === "2d", true);
         });
 
-        it("switches to 3D mode", async() => {
+        it("switches to 3D mode", async () => {
             const provider = getProvider();
 
             // First switch to 2D
             provider.setResponse("2d", {
                 text: "",
-                toolCalls: [{id: "1", name: "setDimension", arguments: {dimension: "2d"}}],
+                toolCalls: [{ id: "1", name: "setDimension", arguments: { dimension: "2d" } }],
             });
             await graph.aiCommand("2d");
             assert.strictEqual(graph.getViewMode() === "2d", true);
@@ -257,7 +252,7 @@ describe("AI Commands End-to-End", () => {
             // Now switch back to 3D
             provider.setResponse("3d", {
                 text: "",
-                toolCalls: [{id: "1", name: "setDimension", arguments: {dimension: "3d"}}],
+                toolCalls: [{ id: "1", name: "setDimension", arguments: { dimension: "3d" } }],
             });
 
             const result = await graph.aiCommand("3d");
@@ -266,12 +261,12 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(graph.getViewMode() === "2d", false);
         });
 
-        it("handles 2d string dimension parameter", async() => {
+        it("handles 2d string dimension parameter", async () => {
             const provider = getProvider();
 
             provider.setResponse("flat", {
                 text: "",
-                toolCalls: [{id: "1", name: "setDimension", arguments: {dimension: "2d"}}],
+                toolCalls: [{ id: "1", name: "setDimension", arguments: { dimension: "2d" } }],
             });
 
             const result = await graph.aiCommand("flat");
@@ -280,19 +275,19 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(graph.getViewMode() === "2d", true);
         });
 
-        it("handles 3d string dimension parameter", async() => {
+        it("handles 3d string dimension parameter", async () => {
             const provider = getProvider();
 
             // First switch to 2D
             provider.setResponse("2d", {
                 text: "",
-                toolCalls: [{id: "1", name: "setDimension", arguments: {dimension: "2d"}}],
+                toolCalls: [{ id: "1", name: "setDimension", arguments: { dimension: "2d" } }],
             });
             await graph.aiCommand("2d");
 
             provider.setResponse("3d", {
                 text: "",
-                toolCalls: [{id: "1", name: "setDimension", arguments: {dimension: "3d"}}],
+                toolCalls: [{ id: "1", name: "setDimension", arguments: { dimension: "3d" } }],
             });
 
             const result = await graph.aiCommand("3d");
@@ -303,12 +298,12 @@ describe("AI Commands End-to-End", () => {
     });
 
     describe("setImmersiveMode command", () => {
-        it("gracefully handles VR when WebXR not available", async() => {
+        it("gracefully handles VR when WebXR not available", async () => {
             const provider = getProvider();
 
             provider.setResponse("vr", {
                 text: "",
-                toolCalls: [{id: "1", name: "setImmersiveMode", arguments: {mode: "vr"}}],
+                toolCalls: [{ id: "1", name: "setImmersiveMode", arguments: { mode: "vr" } }],
             });
 
             const result = await graph.aiCommand("vr");
@@ -316,18 +311,18 @@ describe("AI Commands End-to-End", () => {
             // Should fail gracefully since WebXR is not available in test environment
             assert.ok(
                 result.message.includes("VR") ||
-                result.message.includes("WebXR") ||
-                result.message.includes("not") ||
-                result.message.toLowerCase().includes("support"),
+                    result.message.includes("WebXR") ||
+                    result.message.includes("not") ||
+                    result.message.toLowerCase().includes("support"),
             );
         });
 
-        it("gracefully handles AR when WebXR not available", async() => {
+        it("gracefully handles AR when WebXR not available", async () => {
             const provider = getProvider();
 
             provider.setResponse("ar", {
                 text: "",
-                toolCalls: [{id: "1", name: "setImmersiveMode", arguments: {mode: "ar"}}],
+                toolCalls: [{ id: "1", name: "setImmersiveMode", arguments: { mode: "ar" } }],
             });
 
             const result = await graph.aiCommand("ar");
@@ -335,18 +330,18 @@ describe("AI Commands End-to-End", () => {
             // Should fail gracefully since WebXR is not available in test environment
             assert.ok(
                 result.message.includes("AR") ||
-                result.message.includes("WebXR") ||
-                result.message.includes("not") ||
-                result.message.toLowerCase().includes("support"),
+                    result.message.includes("WebXR") ||
+                    result.message.includes("not") ||
+                    result.message.toLowerCase().includes("support"),
             );
         });
 
-        it("handles exit immersive mode", async() => {
+        it("handles exit immersive mode", async () => {
             const provider = getProvider();
 
             provider.setResponse("exit", {
                 text: "",
-                toolCalls: [{id: "1", name: "setImmersiveMode", arguments: {mode: "exit"}}],
+                toolCalls: [{ id: "1", name: "setImmersiveMode", arguments: { mode: "exit" } }],
             });
 
             const result = await graph.aiCommand("exit");
@@ -354,21 +349,21 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, true);
             assert.ok(
                 result.message.includes("exit") ||
-                result.message.includes("Exit") ||
-                result.message.includes("normal") ||
-                result.message.includes("returned"),
+                    result.message.includes("Exit") ||
+                    result.message.includes("normal") ||
+                    result.message.includes("returned"),
             );
         });
     });
 
     describe("multiple commands in sequence", () => {
-        it("executes layout then dimension change", async() => {
+        it("executes layout then dimension change", async () => {
             const provider = getProvider();
 
             // Change layout
             provider.setResponse("circular", {
                 text: "",
-                toolCalls: [{id: "1", name: "setLayout", arguments: {type: "circular"}}],
+                toolCalls: [{ id: "1", name: "setLayout", arguments: { type: "circular" } }],
             });
             const layoutResult = await graph.aiCommand("circular");
             assert.strictEqual(layoutResult.success, true);
@@ -376,7 +371,7 @@ describe("AI Commands End-to-End", () => {
             // Change dimension
             provider.setResponse("2d", {
                 text: "",
-                toolCalls: [{id: "1", name: "setDimension", arguments: {dimension: "2d"}}],
+                toolCalls: [{ id: "1", name: "setDimension", arguments: { dimension: "2d" } }],
             });
             const dimResult = await graph.aiCommand("2d");
             assert.strictEqual(dimResult.success, true);
@@ -386,20 +381,20 @@ describe("AI Commands End-to-End", () => {
             // Note: dimension change may reset layout to default, which is expected behavior
         });
 
-        it("query works after layout change", async() => {
+        it("query works after layout change", async () => {
             const provider = getProvider();
 
             // Change layout
             provider.setResponse("spiral", {
                 text: "",
-                toolCalls: [{id: "1", name: "setLayout", arguments: {type: "spiral"}}],
+                toolCalls: [{ id: "1", name: "setLayout", arguments: { type: "spiral" } }],
             });
             await graph.aiCommand("spiral");
 
             // Query should still work
             provider.setResponse("count", {
                 text: "",
-                toolCalls: [{id: "1", name: "queryGraph", arguments: {query: "nodeCount"}}],
+                toolCalls: [{ id: "1", name: "queryGraph", arguments: { query: "nodeCount" } }],
             });
             const result = await graph.aiCommand("count");
 
@@ -407,20 +402,20 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual((result.data as QueryData).nodeCount, 5);
         });
 
-        it("executes dimension then layout change", async() => {
+        it("executes dimension then layout change", async () => {
             const provider = getProvider();
 
             // Change dimension first
             provider.setResponse("2d", {
                 text: "",
-                toolCalls: [{id: "1", name: "setDimension", arguments: {dimension: "2d"}}],
+                toolCalls: [{ id: "1", name: "setDimension", arguments: { dimension: "2d" } }],
             });
             await graph.aiCommand("2d");
 
             // Then change layout
             provider.setResponse("shell", {
                 text: "",
-                toolCalls: [{id: "1", name: "setLayout", arguments: {type: "shell"}}],
+                toolCalls: [{ id: "1", name: "setLayout", arguments: { type: "shell" } }],
             });
             await graph.aiCommand("shell");
 
@@ -432,49 +427,48 @@ describe("AI Commands End-to-End", () => {
     });
 
     describe("error handling", () => {
-        it("handles command execution errors gracefully", async() => {
+        it("handles command execution errors gracefully", async () => {
             const provider = getProvider();
 
             // Try to call a non-existent command
             provider.setResponse("bad", {
                 text: "",
-                toolCalls: [{id: "1", name: "nonExistentCommand", arguments: {}}],
+                toolCalls: [{ id: "1", name: "nonExistentCommand", arguments: {} }],
             });
 
             const result = await graph.aiCommand("bad");
 
             assert.strictEqual(result.success, false);
             assert.ok(
-                result.message.toLowerCase().includes("unknown") ||
-                result.message.toLowerCase().includes("not found"),
+                result.message.toLowerCase().includes("unknown") || result.message.toLowerCase().includes("not found"),
             );
         });
 
-        it("recovers after error and can execute new commands", async() => {
+        it("recovers after error and can execute new commands", async () => {
             const provider = getProvider();
 
             // First, cause an error
             provider.setResponse("bad", {
                 text: "",
-                toolCalls: [{id: "1", name: "nonExistentCommand", arguments: {}}],
+                toolCalls: [{ id: "1", name: "nonExistentCommand", arguments: {} }],
             });
             await graph.aiCommand("bad");
 
             // Now execute a valid command
             provider.setResponse("circular", {
                 text: "",
-                toolCalls: [{id: "1", name: "setLayout", arguments: {type: "circular"}}],
+                toolCalls: [{ id: "1", name: "setLayout", arguments: { type: "circular" } }],
             });
             const result = await graph.aiCommand("circular");
 
             assert.strictEqual(result.success, true);
         });
 
-        it("handles AI not enabled gracefully", async() => {
+        it("handles AI not enabled gracefully", async () => {
             // Create a graph without AI enabled
             cleanupE2EGraph();
             const noAiResult = await createE2EGraph({
-                nodes: [{id: "A"}],
+                nodes: [{ id: "A" }],
                 edges: [],
                 enableAi: false,
             });
@@ -484,18 +478,18 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, false);
             assert.ok(
                 result.message.toLowerCase().includes("not enabled") ||
-                result.message.toLowerCase().includes("enableaicontrol"),
+                    result.message.toLowerCase().includes("enableaicontrol"),
             );
         });
     });
 
     describe("findNodes command", () => {
-        it("finds all nodes with empty selector", async() => {
+        it("finds all nodes with empty selector", async () => {
             const provider = getProvider();
 
             provider.setResponse("find all", {
                 text: "",
-                toolCalls: [{id: "1", name: "findNodes", arguments: {selector: ""}}],
+                toolCalls: [{ id: "1", name: "findNodes", arguments: { selector: "" } }],
             });
 
             const result = await graph.aiCommand("find all nodes");
@@ -504,12 +498,12 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual((result.data as FindNodesData).count, 5);
         });
 
-        it("finds nodes with type selector", async() => {
+        it("finds nodes with type selector", async () => {
             const provider = getProvider();
 
             provider.setResponse("find servers", {
                 text: "",
-                toolCalls: [{id: "1", name: "findNodes", arguments: {selector: "type == 'server'"}}],
+                toolCalls: [{ id: "1", name: "findNodes", arguments: { selector: "type == 'server'" } }],
             });
 
             const result = await graph.aiCommand("find servers");
@@ -519,12 +513,12 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual((result.data as FindNodesData).count, 2);
         });
 
-        it("limits results when specified", async() => {
+        it("limits results when specified", async () => {
             const provider = getProvider();
 
             provider.setResponse("find first", {
                 text: "",
-                toolCalls: [{id: "1", name: "findNodes", arguments: {selector: "", limit: 2}}],
+                toolCalls: [{ id: "1", name: "findNodes", arguments: { selector: "", limit: 2 } }],
             });
 
             const result = await graph.aiCommand("find first 2");
@@ -535,16 +529,22 @@ describe("AI Commands End-to-End", () => {
     });
 
     describe("findAndStyleNodes command", () => {
-        it("styles all nodes with empty selector", async() => {
+        it("styles all nodes with empty selector", async () => {
             const provider = getProvider();
 
             provider.setResponse("make red", {
                 text: "",
-                toolCalls: [{id: "1", name: "findAndStyleNodes", arguments: {
-                    selector: "",
-                    style: {color: "#ff0000"},
-                    layerName: "red-nodes",
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "findAndStyleNodes",
+                        arguments: {
+                            selector: "",
+                            style: { color: "#ff0000" },
+                            layerName: "red-nodes",
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("make all nodes red");
@@ -552,17 +552,23 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("styles nodes matching selector", async() => {
+        it("styles nodes matching selector", async () => {
             const provider = getProvider();
 
             // Use a selector that matches the E2E data structure
             provider.setResponse("highlight servers", {
                 text: "",
-                toolCalls: [{id: "1", name: "findAndStyleNodes", arguments: {
-                    selector: "type == 'server'",
-                    style: {color: "#0000ff", glowColor: "#0000ff", glowStrength: 1},
-                    layerName: "server-highlight",
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "findAndStyleNodes",
+                        arguments: {
+                            selector: "type == 'server'",
+                            style: { color: "#0000ff", glowColor: "#0000ff", glowStrength: 1 },
+                            layerName: "server-highlight",
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("highlight servers in blue");
@@ -570,16 +576,22 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("applies size style to nodes", async() => {
+        it("applies size style to nodes", async () => {
             const provider = getProvider();
 
             provider.setResponse("bigger", {
                 text: "",
-                toolCalls: [{id: "1", name: "findAndStyleNodes", arguments: {
-                    selector: "",
-                    style: {size: 2},
-                    layerName: "big-nodes",
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "findAndStyleNodes",
+                        arguments: {
+                            selector: "",
+                            style: { size: 2 },
+                            layerName: "big-nodes",
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("make nodes bigger");
@@ -587,15 +599,21 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("handles non-matching selector gracefully", async() => {
+        it("handles non-matching selector gracefully", async () => {
             const provider = getProvider();
 
             provider.setResponse("no match", {
                 text: "",
-                toolCalls: [{id: "1", name: "findAndStyleNodes", arguments: {
-                    selector: "type == 'nonexistent'",
-                    style: {color: "#ff0000"},
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "findAndStyleNodes",
+                        arguments: {
+                            selector: "type == 'nonexistent'",
+                            style: { color: "#ff0000" },
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("style nonexistent nodes");
@@ -605,16 +623,22 @@ describe("AI Commands End-to-End", () => {
     });
 
     describe("findAndStyleEdges command", () => {
-        it("styles all edges with empty selector", async() => {
+        it("styles all edges with empty selector", async () => {
             const provider = getProvider();
 
             provider.setResponse("green edges", {
                 text: "",
-                toolCalls: [{id: "1", name: "findAndStyleEdges", arguments: {
-                    selector: "",
-                    style: {color: "#00ff00"},
-                    layerName: "green-edges",
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "findAndStyleEdges",
+                        arguments: {
+                            selector: "",
+                            style: { color: "#00ff00" },
+                            layerName: "green-edges",
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("make all edges green");
@@ -622,16 +646,22 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("applies width style to edges", async() => {
+        it("applies width style to edges", async () => {
             const provider = getProvider();
 
             provider.setResponse("thick edges", {
                 text: "",
-                toolCalls: [{id: "1", name: "findAndStyleEdges", arguments: {
-                    selector: "",
-                    style: {width: 3},
-                    layerName: "thick-edges",
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "findAndStyleEdges",
+                        arguments: {
+                            selector: "",
+                            style: { width: 3 },
+                            layerName: "thick-edges",
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("make edges thicker");
@@ -641,17 +671,23 @@ describe("AI Commands End-to-End", () => {
     });
 
     describe("clearStyles command", () => {
-        it("clears specific style layer by name", async() => {
+        it("clears specific style layer by name", async () => {
             const provider = getProvider();
 
             // First add a style
             provider.setResponse("add red", {
                 text: "",
-                toolCalls: [{id: "1", name: "findAndStyleNodes", arguments: {
-                    selector: "",
-                    style: {color: "#ff0000"},
-                    layerName: "red-nodes",
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "findAndStyleNodes",
+                        arguments: {
+                            selector: "",
+                            style: { color: "#ff0000" },
+                            layerName: "red-nodes",
+                        },
+                    },
+                ],
             });
             const addResult = await graph.aiCommand("make red");
             assert.strictEqual(addResult.success, true);
@@ -659,9 +695,15 @@ describe("AI Commands End-to-End", () => {
             // Now clear it
             provider.setResponse("clear red", {
                 text: "",
-                toolCalls: [{id: "1", name: "clearStyles", arguments: {
-                    layerName: "red-nodes",
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "clearStyles",
+                        arguments: {
+                            layerName: "red-nodes",
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("clear red styling");
@@ -669,17 +711,23 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("clears all AI-added styles", async() => {
+        it("clears all AI-added styles", async () => {
             const provider = getProvider();
 
             // Add a style
             provider.setResponse("add red", {
                 text: "",
-                toolCalls: [{id: "1", name: "findAndStyleNodes", arguments: {
-                    selector: "",
-                    style: {color: "#ff0000"},
-                    layerName: "ai-red-nodes",
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "findAndStyleNodes",
+                        arguments: {
+                            selector: "",
+                            style: { color: "#ff0000" },
+                            layerName: "ai-red-nodes",
+                        },
+                    },
+                ],
             });
             const addResult = await graph.aiCommand("make red");
             assert.strictEqual(addResult.success, true);
@@ -687,7 +735,7 @@ describe("AI Commands End-to-End", () => {
             // Clear all
             provider.setResponse("clear all", {
                 text: "",
-                toolCalls: [{id: "1", name: "clearStyles", arguments: {}}],
+                toolCalls: [{ id: "1", name: "clearStyles", arguments: {} }],
             });
 
             const result = await graph.aiCommand("clear all styling");
@@ -697,15 +745,21 @@ describe("AI Commands End-to-End", () => {
     });
 
     describe("setCameraPosition command", () => {
-        it("applies topView preset", async() => {
+        it("applies topView preset", async () => {
             const provider = getProvider();
 
             provider.setResponse("top view", {
                 text: "",
-                toolCalls: [{id: "1", name: "setCameraPosition", arguments: {
-                    preset: "topView",
-                    animate: false,
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "setCameraPosition",
+                        arguments: {
+                            preset: "topView",
+                            animate: false,
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("show from top");
@@ -713,15 +767,21 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("applies sideView preset", async() => {
+        it("applies sideView preset", async () => {
             const provider = getProvider();
 
             provider.setResponse("side view", {
                 text: "",
-                toolCalls: [{id: "1", name: "setCameraPosition", arguments: {
-                    preset: "sideView",
-                    animate: false,
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "setCameraPosition",
+                        arguments: {
+                            preset: "sideView",
+                            animate: false,
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("view from side");
@@ -729,15 +789,21 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("applies frontView preset", async() => {
+        it("applies frontView preset", async () => {
             const provider = getProvider();
 
             provider.setResponse("front view", {
                 text: "",
-                toolCalls: [{id: "1", name: "setCameraPosition", arguments: {
-                    preset: "frontView",
-                    animate: false,
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "setCameraPosition",
+                        arguments: {
+                            preset: "frontView",
+                            animate: false,
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("view from front");
@@ -745,15 +811,21 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("applies isometric preset", async() => {
+        it("applies isometric preset", async () => {
             const provider = getProvider();
 
             provider.setResponse("isometric", {
                 text: "",
-                toolCalls: [{id: "1", name: "setCameraPosition", arguments: {
-                    preset: "isometric",
-                    animate: false,
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "setCameraPosition",
+                        arguments: {
+                            preset: "isometric",
+                            animate: false,
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("isometric view");
@@ -761,15 +833,21 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("applies fitToGraph preset", async() => {
+        it("applies fitToGraph preset", async () => {
             const provider = getProvider();
 
             provider.setResponse("fit", {
                 text: "",
-                toolCalls: [{id: "1", name: "setCameraPosition", arguments: {
-                    preset: "fitToGraph",
-                    animate: false,
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "setCameraPosition",
+                        arguments: {
+                            preset: "fitToGraph",
+                            animate: false,
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("fit all in view");
@@ -777,16 +855,22 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("sets camera to custom position", async() => {
+        it("sets camera to custom position", async () => {
             const provider = getProvider();
 
             provider.setResponse("custom pos", {
                 text: "",
-                toolCalls: [{id: "1", name: "setCameraPosition", arguments: {
-                    position: {x: 10, y: 20, z: 30},
-                    target: {x: 0, y: 0, z: 0},
-                    animate: false,
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "setCameraPosition",
+                        arguments: {
+                            position: { x: 10, y: 20, z: 30 },
+                            target: { x: 0, y: 0, z: 0 },
+                            animate: false,
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("move camera to 10,20,30");
@@ -794,15 +878,21 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("handles animation option", async() => {
+        it("handles animation option", async () => {
             const provider = getProvider();
 
             provider.setResponse("animated", {
                 text: "",
-                toolCalls: [{id: "1", name: "setCameraPosition", arguments: {
-                    preset: "topView",
-                    animate: true,
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "setCameraPosition",
+                        arguments: {
+                            preset: "topView",
+                            animate: true,
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("smoothly show from top");
@@ -810,14 +900,20 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("handles invalid preset gracefully", async() => {
+        it("handles invalid preset gracefully", async () => {
             const provider = getProvider();
 
             provider.setResponse("bad preset", {
                 text: "",
-                toolCalls: [{id: "1", name: "setCameraPosition", arguments: {
-                    preset: "invalidPreset123",
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "setCameraPosition",
+                        arguments: {
+                            preset: "invalidPreset123",
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("bad camera preset");
@@ -827,12 +923,12 @@ describe("AI Commands End-to-End", () => {
             assert.ok(typeof result.message === "string");
         });
 
-        it("handles missing parameters gracefully", async() => {
+        it("handles missing parameters gracefully", async () => {
             const provider = getProvider();
 
             provider.setResponse("no params", {
                 text: "",
-                toolCalls: [{id: "1", name: "setCameraPosition", arguments: {}}],
+                toolCalls: [{ id: "1", name: "setCameraPosition", arguments: {} }],
             });
 
             const result = await graph.aiCommand("move camera");
@@ -843,15 +939,21 @@ describe("AI Commands End-to-End", () => {
     });
 
     describe("zoomToNodes command", () => {
-        it("zooms to fit all nodes", async() => {
+        it("zooms to fit all nodes", async () => {
             const provider = getProvider();
 
             provider.setResponse("zoom all", {
                 text: "",
-                toolCalls: [{id: "1", name: "zoomToNodes", arguments: {
-                    selector: "",
-                    animate: false,
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "zoomToNodes",
+                        arguments: {
+                            selector: "",
+                            animate: false,
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("zoom to fit all");
@@ -859,17 +961,23 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("zooms to nodes matching selector", async() => {
+        it("zooms to nodes matching selector", async () => {
             const provider = getProvider();
 
             // Note: E2E data has type at top level, so selector is "type == 'server'"
             // But the command expects "data.type" - this tests how the system handles selectors
             provider.setResponse("zoom servers", {
                 text: "",
-                toolCalls: [{id: "1", name: "zoomToNodes", arguments: {
-                    selector: "type == 'server'",
-                    animate: false,
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "zoomToNodes",
+                        arguments: {
+                            selector: "type == 'server'",
+                            animate: false,
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("zoom to servers");
@@ -878,15 +986,21 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("handles animation option", async() => {
+        it("handles animation option", async () => {
             const provider = getProvider();
 
             provider.setResponse("smooth zoom", {
                 text: "",
-                toolCalls: [{id: "1", name: "zoomToNodes", arguments: {
-                    selector: "",
-                    animate: true,
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "zoomToNodes",
+                        arguments: {
+                            selector: "",
+                            animate: true,
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("smoothly zoom to fit");
@@ -894,14 +1008,20 @@ describe("AI Commands End-to-End", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("handles non-matching selector gracefully", async() => {
+        it("handles non-matching selector gracefully", async () => {
             const provider = getProvider();
 
             provider.setResponse("zoom none", {
                 text: "",
-                toolCalls: [{id: "1", name: "zoomToNodes", arguments: {
-                    selector: "type == 'nonexistent'",
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "zoomToNodes",
+                        arguments: {
+                            selector: "type == 'nonexistent'",
+                        },
+                    },
+                ],
             });
 
             const result = await graph.aiCommand("zoom to nonexistent");
@@ -912,17 +1032,23 @@ describe("AI Commands End-to-End", () => {
     });
 
     describe("style and camera commands in sequence", () => {
-        it("styles nodes then changes camera view", async() => {
+        it("styles nodes then changes camera view", async () => {
             const provider = getProvider();
 
             // Style nodes
             provider.setResponse("style", {
                 text: "",
-                toolCalls: [{id: "1", name: "findAndStyleNodes", arguments: {
-                    selector: "",
-                    style: {color: "#ff0000"},
-                    layerName: "red-nodes",
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "findAndStyleNodes",
+                        arguments: {
+                            selector: "",
+                            style: { color: "#ff0000" },
+                            layerName: "red-nodes",
+                        },
+                    },
+                ],
             });
             const styleResult = await graph.aiCommand("make red");
             assert.strictEqual(styleResult.success, true);
@@ -930,10 +1056,16 @@ describe("AI Commands End-to-End", () => {
             // Change camera
             provider.setResponse("camera", {
                 text: "",
-                toolCalls: [{id: "1", name: "setCameraPosition", arguments: {
-                    preset: "topView",
-                    animate: false,
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "setCameraPosition",
+                        arguments: {
+                            preset: "topView",
+                            animate: false,
+                        },
+                    },
+                ],
             });
             const cameraResult = await graph.aiCommand("top view");
             assert.strictEqual(cameraResult.success, true);
@@ -941,44 +1073,62 @@ describe("AI Commands End-to-End", () => {
             // Both commands should succeed - style persistence depends on implementation
         });
 
-        it("zooms to styled nodes", async() => {
+        it("zooms to styled nodes", async () => {
             const provider = getProvider();
 
             // Style nodes (using empty selector for all nodes)
             provider.setResponse("style servers", {
                 text: "",
-                toolCalls: [{id: "1", name: "findAndStyleNodes", arguments: {
-                    selector: "",
-                    style: {color: "#0000ff"},
-                    layerName: "server-style",
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "findAndStyleNodes",
+                        arguments: {
+                            selector: "",
+                            style: { color: "#0000ff" },
+                            layerName: "server-style",
+                        },
+                    },
+                ],
             });
             await graph.aiCommand("highlight servers");
 
             // Zoom to all nodes
             provider.setResponse("zoom servers", {
                 text: "",
-                toolCalls: [{id: "1", name: "zoomToNodes", arguments: {
-                    selector: "",
-                    animate: false,
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "zoomToNodes",
+                        arguments: {
+                            selector: "",
+                            animate: false,
+                        },
+                    },
+                ],
             });
             const result = await graph.aiCommand("zoom to servers");
 
             assert.strictEqual(result.success, true);
         });
 
-        it("clears styles then reapplies new ones", async() => {
+        it("clears styles then reapplies new ones", async () => {
             const provider = getProvider();
 
             // Add red style
             provider.setResponse("red", {
                 text: "",
-                toolCalls: [{id: "1", name: "findAndStyleNodes", arguments: {
-                    selector: "",
-                    style: {color: "#ff0000"},
-                    layerName: "ai-color",
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "findAndStyleNodes",
+                        arguments: {
+                            selector: "",
+                            style: { color: "#ff0000" },
+                            layerName: "ai-color",
+                        },
+                    },
+                ],
             });
             const redResult = await graph.aiCommand("red");
             assert.strictEqual(redResult.success, true);
@@ -986,7 +1136,7 @@ describe("AI Commands End-to-End", () => {
             // Clear all
             provider.setResponse("clear", {
                 text: "",
-                toolCalls: [{id: "1", name: "clearStyles", arguments: {}}],
+                toolCalls: [{ id: "1", name: "clearStyles", arguments: {} }],
             });
             const clearResult = await graph.aiCommand("clear");
             assert.strictEqual(clearResult.success, true);
@@ -994,11 +1144,17 @@ describe("AI Commands End-to-End", () => {
             // Add blue style
             provider.setResponse("blue", {
                 text: "",
-                toolCalls: [{id: "1", name: "findAndStyleNodes", arguments: {
-                    selector: "",
-                    style: {color: "#0000ff"},
-                    layerName: "ai-blue",
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "findAndStyleNodes",
+                        arguments: {
+                            selector: "",
+                            style: { color: "#0000ff" },
+                            layerName: "ai-blue",
+                        },
+                    },
+                ],
             });
             const result = await graph.aiCommand("blue");
 

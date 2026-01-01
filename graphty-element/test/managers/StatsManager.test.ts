@@ -1,7 +1,7 @@
-import {assert, beforeEach, describe, it, vi} from "vitest";
+import { assert, beforeEach, describe, it, vi } from "vitest";
 
-import type {EventManager} from "../../src/managers/EventManager";
-import {StatsManager} from "../../src/managers/StatsManager";
+import type { EventManager } from "../../src/managers/EventManager";
+import { StatsManager } from "../../src/managers/StatsManager";
 
 describe("StatsManager", () => {
     let statsManager: StatsManager;
@@ -17,7 +17,7 @@ describe("StatsManager", () => {
     });
 
     describe("initialization", () => {
-        it("should initialize without errors", async() => {
+        it("should initialize without errors", async () => {
             await statsManager.init();
             assert.isNotNull(statsManager);
         });
@@ -36,42 +36,42 @@ describe("StatsManager", () => {
         });
 
         it("should provide access to nodeUpdate PerfCounter", () => {
-            const {nodeUpdate} = statsManager;
+            const { nodeUpdate } = statsManager;
             assert.isDefined(nodeUpdate);
             assert.isDefined(nodeUpdate.beginMonitoring);
             assert.isDefined(nodeUpdate.endMonitoring);
         });
 
         it("should provide access to edgeUpdate PerfCounter", () => {
-            const {edgeUpdate} = statsManager;
+            const { edgeUpdate } = statsManager;
             assert.isDefined(edgeUpdate);
             assert.isDefined(edgeUpdate.beginMonitoring);
             assert.isDefined(edgeUpdate.endMonitoring);
         });
 
         it("should provide access to graphStep PerfCounter", () => {
-            const {graphStep} = statsManager;
+            const { graphStep } = statsManager;
             assert.isDefined(graphStep);
             assert.isDefined(graphStep.beginMonitoring);
             assert.isDefined(graphStep.endMonitoring);
         });
 
         it("should provide access to arrowCapUpdate PerfCounter", () => {
-            const {arrowCapUpdate} = statsManager;
+            const { arrowCapUpdate } = statsManager;
             assert.isDefined(arrowCapUpdate);
             assert.isDefined(arrowCapUpdate.beginMonitoring);
             assert.isDefined(arrowCapUpdate.endMonitoring);
         });
 
         it("should provide access to intersectCalc PerfCounter", () => {
-            const {intersectCalc} = statsManager;
+            const { intersectCalc } = statsManager;
             assert.isDefined(intersectCalc);
             assert.isDefined(intersectCalc.beginMonitoring);
             assert.isDefined(intersectCalc.endMonitoring);
         });
 
         it("should provide access to loadTime PerfCounter", () => {
-            const {loadTime} = statsManager;
+            const { loadTime } = statsManager;
             assert.isDefined(loadTime);
             assert.isDefined(loadTime.beginMonitoring);
             assert.isDefined(loadTime.endMonitoring);

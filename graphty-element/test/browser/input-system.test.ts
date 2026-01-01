@@ -1,22 +1,22 @@
 // @ts-nocheck
-import {KeyboardEventTypes, PointerEventTypes, PointerInfo, Scene} from "@babylonjs/core";
-import {afterEach, assert, beforeEach, describe, test, vi} from "vitest";
+import { KeyboardEventTypes, PointerEventTypes, PointerInfo, Scene } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
-import {Graph} from "../../src/Graph";
-import {BabylonInputSystem} from "../../src/input/babylon-input-system";
-import {MockDeviceInputSystem} from "../../src/input/mock-device-input-system";
-import {DeviceType, MouseButton} from "../../src/input/types";
-import {cleanupTestGraph, createTestGraph} from "../helpers/testSetup";
+import { Graph } from "../../src/Graph";
+import { BabylonInputSystem } from "../../src/input/babylon-input-system";
+import { MockDeviceInputSystem } from "../../src/input/mock-device-input-system";
+import { DeviceType, MouseButton } from "../../src/input/types";
+import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("Input System Architecture", () => {
     let graph: Graph;
     let scene: Scene;
     let canvas: HTMLCanvasElement;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         graph = await createTestGraph();
         scene = graph.getScene();
-        ({canvas} = graph);
+        ({ canvas } = graph);
     });
 
     afterEach(() => {
@@ -58,10 +58,10 @@ describe("Input System Architecture", () => {
         });
 
         test("converts Babylon.js pointer events", () => {
-            const pointerEvents: {type: string, info: unknown}[] = [];
-            inputSystem.onPointerDown.add((info) => pointerEvents.push({type: "down", info}));
-            inputSystem.onPointerMove.add((info) => pointerEvents.push({type: "move", info}));
-            inputSystem.onPointerUp.add((info) => pointerEvents.push({type: "up", info}));
+            const pointerEvents: { type: string; info: unknown }[] = [];
+            inputSystem.onPointerDown.add((info) => pointerEvents.push({ type: "down", info }));
+            inputSystem.onPointerMove.add((info) => pointerEvents.push({ type: "move", info }));
+            inputSystem.onPointerUp.add((info) => pointerEvents.push({ type: "up", info }));
 
             // Simulate Babylon.js scene pointer events
             scene.onPointerObservable.notifyObservers({
@@ -124,9 +124,9 @@ describe("Input System Architecture", () => {
         });
 
         test("converts Babylon.js keyboard events", () => {
-            const keyboardEvents: {type: string, info: unknown}[] = [];
-            inputSystem.onKeyDown.add((info) => keyboardEvents.push({type: "down", info}));
-            inputSystem.onKeyUp.add((info) => keyboardEvents.push({type: "up", info}));
+            const keyboardEvents: { type: string; info: unknown }[] = [];
+            inputSystem.onKeyDown.add((info) => keyboardEvents.push({ type: "down", info }));
+            inputSystem.onKeyUp.add((info) => keyboardEvents.push({ type: "up", info }));
 
             // Simulate Babylon.js scene keyboard events
             scene.onKeyboardObservable.notifyObservers({
@@ -168,7 +168,7 @@ describe("Input System Architecture", () => {
         });
 
         test("handles wheel events", () => {
-            const wheelEvents: {info: unknown}[] = [];
+            const wheelEvents: { info: unknown }[] = [];
             inputSystem.onWheel.add((info) => wheelEvents.push(info));
 
             // Simulate wheel event
@@ -208,7 +208,10 @@ describe("Input System Architecture", () => {
             } as unknown as PointerInfo);
 
             assert.isTrue(inputSystem.isPointerDown(), "Some pointer should be down after pointer down event");
-            assert.isTrue(inputSystem.isPointerDown(MouseButton.Left), "Left button should be down after pointer down event");
+            assert.isTrue(
+                inputSystem.isPointerDown(MouseButton.Left),
+                "Left button should be down after pointer down event",
+            );
             assert.isFalse(inputSystem.isPointerDown(MouseButton.Right), "Right button should not be down");
 
             // Simulate pointer up
@@ -226,7 +229,10 @@ describe("Input System Architecture", () => {
             } as unknown as PointerInfo);
 
             assert.isFalse(inputSystem.isPointerDown(), "No pointer should be down after pointer up event");
-            assert.isFalse(inputSystem.isPointerDown(MouseButton.Left), "Left button should not be down after pointer up event");
+            assert.isFalse(
+                inputSystem.isPointerDown(MouseButton.Left),
+                "Left button should not be down after pointer up event",
+            );
         });
 
         test("tracks pointer position", () => {
@@ -264,19 +270,43 @@ describe("Input System Architecture", () => {
             inputSystem.attach(mockElement);
 
             assert.equal(addEventListenerSpy.mock.calls.length, 4, "Should add 4 touch event listeners");
-            assert.isTrue(addEventListenerSpy.mock.calls.some((call) => call[0] === "touchstart"), "Should add touchstart listener");
-            assert.isTrue(addEventListenerSpy.mock.calls.some((call) => call[0] === "touchmove"), "Should add touchmove listener");
-            assert.isTrue(addEventListenerSpy.mock.calls.some((call) => call[0] === "touchend"), "Should add touchend listener");
-            assert.isTrue(addEventListenerSpy.mock.calls.some((call) => call[0] === "touchcancel"), "Should add touchcancel listener");
+            assert.isTrue(
+                addEventListenerSpy.mock.calls.some((call) => call[0] === "touchstart"),
+                "Should add touchstart listener",
+            );
+            assert.isTrue(
+                addEventListenerSpy.mock.calls.some((call) => call[0] === "touchmove"),
+                "Should add touchmove listener",
+            );
+            assert.isTrue(
+                addEventListenerSpy.mock.calls.some((call) => call[0] === "touchend"),
+                "Should add touchend listener",
+            );
+            assert.isTrue(
+                addEventListenerSpy.mock.calls.some((call) => call[0] === "touchcancel"),
+                "Should add touchcancel listener",
+            );
 
             // Detach should remove event listeners
             inputSystem.detach();
 
             assert.equal(removeEventListenerSpy.mock.calls.length, 4, "Should remove 4 touch event listeners");
-            assert.isTrue(removeEventListenerSpy.mock.calls.some((call) => call[0] === "touchstart"), "Should remove touchstart listener");
-            assert.isTrue(removeEventListenerSpy.mock.calls.some((call) => call[0] === "touchmove"), "Should remove touchmove listener");
-            assert.isTrue(removeEventListenerSpy.mock.calls.some((call) => call[0] === "touchend"), "Should remove touchend listener");
-            assert.isTrue(removeEventListenerSpy.mock.calls.some((call) => call[0] === "touchcancel"), "Should remove touchcancel listener");
+            assert.isTrue(
+                removeEventListenerSpy.mock.calls.some((call) => call[0] === "touchstart"),
+                "Should remove touchstart listener",
+            );
+            assert.isTrue(
+                removeEventListenerSpy.mock.calls.some((call) => call[0] === "touchmove"),
+                "Should remove touchmove listener",
+            );
+            assert.isTrue(
+                removeEventListenerSpy.mock.calls.some((call) => call[0] === "touchend"),
+                "Should remove touchend listener",
+            );
+            assert.isTrue(
+                removeEventListenerSpy.mock.calls.some((call) => call[0] === "touchcancel"),
+                "Should remove touchcancel listener",
+            );
         });
     });
 
@@ -313,10 +343,10 @@ describe("Input System Architecture", () => {
         });
 
         test("simulates mouse events", () => {
-            const events: {button: MouseButton, screenX: number, screenY: number}[] = [];
-            mockInputSystem.onPointerMove.add((info) => events.push({type: "move", info}));
-            mockInputSystem.onPointerDown.add((info) => events.push({type: "down", info}));
-            mockInputSystem.onPointerUp.add((info) => events.push({type: "up", info}));
+            const events: { button: MouseButton; screenX: number; screenY: number }[] = [];
+            mockInputSystem.onPointerMove.add((info) => events.push({ type: "move", info }));
+            mockInputSystem.onPointerDown.add((info) => events.push({ type: "down", info }));
+            mockInputSystem.onPointerUp.add((info) => events.push({ type: "up", info }));
 
             // Simulate mouse interaction
             mockInputSystem.simulateMouseMove(100, 200);
@@ -343,14 +373,14 @@ describe("Input System Architecture", () => {
         });
 
         test("simulates keyboard events", () => {
-            const events: {button: MouseButton, screenX: number, screenY: number}[] = [];
-            mockInputSystem.onKeyDown.add((info) => events.push({type: "down", info}));
-            mockInputSystem.onKeyUp.add((info) => events.push({type: "up", info}));
+            const events: { button: MouseButton; screenX: number; screenY: number }[] = [];
+            mockInputSystem.onKeyDown.add((info) => events.push({ type: "down", info }));
+            mockInputSystem.onKeyUp.add((info) => events.push({ type: "up", info }));
 
             // Simulate keyboard interaction
             mockInputSystem.simulateKeyDown("w");
             mockInputSystem.simulateKeyUp("w");
-            mockInputSystem.simulateKeyDown("ctrl", {ctrlKey: true});
+            mockInputSystem.simulateKeyDown("ctrl", { ctrlKey: true });
 
             assert.equal(events.length, 3, "Should have received 3 keyboard events");
 
@@ -368,7 +398,7 @@ describe("Input System Architecture", () => {
         });
 
         test("simulates wheel events", () => {
-            const events: {button: MouseButton, screenX: number, screenY: number}[] = [];
+            const events: { button: MouseButton; screenX: number; screenY: number }[] = [];
             mockInputSystem.onWheel.add((info) => events.push(info));
 
             mockInputSystem.simulateWheel(-100, 10);
@@ -381,17 +411,17 @@ describe("Input System Architecture", () => {
         });
 
         test("simulates touch events", () => {
-            const touchStartEvents: {identifier: number, screenX: number, screenY: number}[] = [];
-            const touchMoveEvents: {identifier: number, screenX: number, screenY: number}[] = [];
-            const touchEndEvents: {identifier: number}[] = [];
+            const touchStartEvents: { identifier: number; screenX: number; screenY: number }[] = [];
+            const touchMoveEvents: { identifier: number; screenX: number; screenY: number }[] = [];
+            const touchEndEvents: { identifier: number }[] = [];
 
             mockInputSystem.onTouchStart.add((touches) => touchStartEvents.push(touches));
             mockInputSystem.onTouchMove.add((touches) => touchMoveEvents.push(touches));
             mockInputSystem.onTouchEnd.add((touchIds) => touchEndEvents.push(touchIds));
 
             // Simulate touch interaction
-            mockInputSystem.simulateTouchStart([{id: 1, x: 100, y: 200}]);
-            mockInputSystem.simulateTouchMove([{id: 1, x: 150, y: 250}]);
+            mockInputSystem.simulateTouchStart([{ id: 1, x: 100, y: 200 }]);
+            mockInputSystem.simulateTouchMove([{ id: 1, x: 150, y: 250 }]);
             mockInputSystem.simulateTouchEnd([1]);
 
             assert.equal(touchStartEvents.length, 1, "Should have received 1 touch start event");
@@ -425,14 +455,20 @@ describe("Input System Architecture", () => {
             assert.equal(mockInputSystem.getActiveTouches().length, 0, "No touches should be active initially");
 
             mockInputSystem.simulateTouchStart([
-                {id: 1, x: 100, y: 200},
-                {id: 2, x: 300, y: 400},
+                { id: 1, x: 100, y: 200 },
+                { id: 2, x: 300, y: 400 },
             ]);
 
             const activeTouches = mockInputSystem.getActiveTouches();
             assert.equal(activeTouches.length, 2, "Should have 2 active touches");
-            assert.isTrue(activeTouches.some((t) => t.id === 1), "Touch 1 should be active");
-            assert.isTrue(activeTouches.some((t) => t.id === 2), "Touch 2 should be active");
+            assert.isTrue(
+                activeTouches.some((t) => t.id === 1),
+                "Touch 1 should be active",
+            );
+            assert.isTrue(
+                activeTouches.some((t) => t.id === 2),
+                "Touch 2 should be active",
+            );
 
             mockInputSystem.simulateTouchEnd([1]);
             const remainingTouches = mockInputSystem.getActiveTouches();
@@ -441,10 +477,10 @@ describe("Input System Architecture", () => {
         });
 
         test("helper methods for common gestures", () => {
-            const events: {button: MouseButton, screenX: number, screenY: number}[] = [];
-            mockInputSystem.onPointerMove.add((info) => events.push({type: "move", info}));
-            mockInputSystem.onPointerDown.add((info) => events.push({type: "down", info}));
-            mockInputSystem.onPointerUp.add((info) => events.push({type: "up", info}));
+            const events: { button: MouseButton; screenX: number; screenY: number }[] = [];
+            mockInputSystem.onPointerMove.add((info) => events.push({ type: "move", info }));
+            mockInputSystem.onPointerDown.add((info) => events.push({ type: "down", info }));
+            mockInputSystem.onPointerUp.add((info) => events.push({ type: "up", info }));
 
             // Test drag simulation
             mockInputSystem.simulateDrag(0, 0, 100, 100, 5);
@@ -459,13 +495,21 @@ describe("Input System Architecture", () => {
         test("requires attachment for operation", () => {
             const unattachedSystem = new MockDeviceInputSystem();
 
-            assert.throws(() => {
-                unattachedSystem.simulateMouseMove(100, 200);
-            }, "Input system not attached", "Should throw when not attached");
+            assert.throws(
+                () => {
+                    unattachedSystem.simulateMouseMove(100, 200);
+                },
+                "Input system not attached",
+                "Should throw when not attached",
+            );
 
-            assert.throws(() => {
-                unattachedSystem.simulateMouseDown();
-            }, "Input system not attached", "Should throw for mouse down when not attached");
+            assert.throws(
+                () => {
+                    unattachedSystem.simulateMouseDown();
+                },
+                "Input system not attached",
+                "Should throw for mouse down when not attached",
+            );
 
             // Attach and verify it works
             unattachedSystem.attach(canvas);
@@ -480,7 +524,7 @@ describe("Input System Architecture", () => {
             // Set up some state
             mockInputSystem.simulateMouseMove(100, 200);
             mockInputSystem.simulateMouseDown(MouseButton.Left);
-            mockInputSystem.simulateTouchStart([{id: 1, x: 50, y: 50}]);
+            mockInputSystem.simulateTouchStart([{ id: 1, x: 50, y: 50 }]);
             mockInputSystem.simulateKeyDown("w");
 
             // Verify state exists
@@ -537,8 +581,8 @@ describe("Input System Architecture", () => {
             const mockSystem = new MockDeviceInputSystem();
             mockSystem.attach(canvas);
 
-            let babylonPointerInfo: {button: MouseButton, screenX: number, screenY: number} | null = null;
-            let mockPointerInfo: {button: MouseButton, screenX: number, screenY: number} | null = null;
+            let babylonPointerInfo: { button: MouseButton; screenX: number; screenY: number } | null = null;
+            let mockPointerInfo: { button: MouseButton; screenX: number; screenY: number } | null = null;
 
             babylonSystem.onPointerDown.add((info) => {
                 babylonPointerInfo = info;
@@ -571,12 +615,20 @@ describe("Input System Architecture", () => {
             assert.equal(typeof babylonPointerInfo.x, "number", "Babylon pointer info should have numeric x");
             assert.equal(typeof babylonPointerInfo.y, "number", "Babylon pointer info should have numeric y");
             assert.equal(typeof babylonPointerInfo.button, "number", "Babylon pointer info should have numeric button");
-            assert.equal(typeof babylonPointerInfo.deviceType, "number", "Babylon pointer info should have numeric deviceType");
+            assert.equal(
+                typeof babylonPointerInfo.deviceType,
+                "number",
+                "Babylon pointer info should have numeric deviceType",
+            );
 
             assert.equal(typeof mockPointerInfo.x, "number", "Mock pointer info should have numeric x");
             assert.equal(typeof mockPointerInfo.y, "number", "Mock pointer info should have numeric y");
             assert.equal(typeof mockPointerInfo.button, "number", "Mock pointer info should have numeric button");
-            assert.equal(typeof mockPointerInfo.deviceType, "number", "Mock pointer info should have numeric deviceType");
+            assert.equal(
+                typeof mockPointerInfo.deviceType,
+                "number",
+                "Mock pointer info should have numeric deviceType",
+            );
 
             babylonSystem.dispose();
             mockSystem.dispose();

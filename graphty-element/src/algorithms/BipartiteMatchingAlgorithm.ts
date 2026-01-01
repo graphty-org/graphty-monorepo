@@ -6,11 +6,11 @@
  * Maximum matching has the largest possible number of edges.
  */
 
-import {bipartitePartition, maximumBipartiteMatching} from "@graphty/algorithms";
+import { bipartitePartition, maximumBipartiteMatching } from "@graphty/algorithms";
 
-import {SuggestedStylesConfig} from "../config";
-import {Algorithm} from "./Algorithm";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import { SuggestedStylesConfig } from "../config";
+import { Algorithm } from "./Algorithm";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Bipartite Matching algorithm for finding maximum matchings
@@ -27,7 +27,7 @@ export class BipartiteMatchingAlgorithm extends Algorithm {
             {
                 edge: {
                     selector: "",
-                    style: {enabled: true},
+                    style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.bipartite-matching.inMatching"],
                         output: "style.line.color",
@@ -41,7 +41,7 @@ export class BipartiteMatchingAlgorithm extends Algorithm {
             },
             {
                 edge: {
-                    selector: "algorithmResults.graphty.\"bipartite-matching\".inMatching == `false`",
+                    selector: 'algorithmResults.graphty."bipartite-matching".inMatching == `false`',
                     style: {
                         enabled: true,
                         line: {
@@ -57,7 +57,7 @@ export class BipartiteMatchingAlgorithm extends Algorithm {
             {
                 node: {
                     selector: "",
-                    style: {enabled: true},
+                    style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.bipartite-matching.partition"],
                         output: "style.texture.color",
@@ -89,7 +89,7 @@ export class BipartiteMatchingAlgorithm extends Algorithm {
 
         // Convert to @graphty/algorithms format
         // Use undirected graph without reverse edges for bipartite matching
-        const graphData = toAlgorithmGraph(g, {directed: false, addReverseEdges: false});
+        const graphData = toAlgorithmGraph(g, { directed: false, addReverseEdges: false });
 
         // First check if the graph is bipartite
         const partition = bipartitePartition(graphData);

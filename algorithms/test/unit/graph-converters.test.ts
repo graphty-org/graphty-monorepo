@@ -1,12 +1,12 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {Graph} from "../../src/core/graph.js";
-import {GraphAdapter, graphToMap, mapToGraph} from "../../src/utils/graph-converters.js";
+import { Graph } from "../../src/core/graph.js";
+import { GraphAdapter, graphToMap, mapToGraph } from "../../src/utils/graph-converters.js";
 
 describe("Graph Converters", () => {
     describe("graphToMap", () => {
         it("should convert undirected graph to map representation", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addEdge("A", "B", 2);
             graph.addEdge("B", "C", 3);
             graph.addEdge("A", "C", 1);
@@ -23,7 +23,7 @@ describe("Graph Converters", () => {
         });
 
         it("should convert directed graph to map representation", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B", 2);
             graph.addEdge("B", "C", 3);
             graph.addEdge("C", "A", 1);
@@ -66,9 +66,27 @@ describe("Graph Converters", () => {
     describe("mapToGraph", () => {
         it("should convert map to undirected graph", () => {
             const map = new Map([
-                ["A", new Map([["B", 2], ["C", 1]])],
-                ["B", new Map([["A", 2], ["C", 3]])],
-                ["C", new Map([["A", 1], ["B", 3]])],
+                [
+                    "A",
+                    new Map([
+                        ["B", 2],
+                        ["C", 1],
+                    ]),
+                ],
+                [
+                    "B",
+                    new Map([
+                        ["A", 2],
+                        ["C", 3],
+                    ]),
+                ],
+                [
+                    "C",
+                    new Map([
+                        ["A", 1],
+                        ["B", 3],
+                    ]),
+                ],
             ]);
 
             const graph = mapToGraph(map, false);
@@ -119,9 +137,27 @@ describe("Graph Converters", () => {
 
     describe("GraphAdapter", () => {
         const map = new Map([
-            ["A", new Map([["B", 2], ["C", 1]])],
-            ["B", new Map([["A", 2], ["C", 3]])],
-            ["C", new Map([["A", 1], ["B", 3]])],
+            [
+                "A",
+                new Map([
+                    ["B", 2],
+                    ["C", 1],
+                ]),
+            ],
+            [
+                "B",
+                new Map([
+                    ["A", 2],
+                    ["C", 3],
+                ]),
+            ],
+            [
+                "C",
+                new Map([
+                    ["A", 1],
+                    ["B", 3],
+                ]),
+            ],
         ]);
 
         it("should provide nodes() method", () => {
@@ -157,7 +193,7 @@ describe("Graph Converters", () => {
             const adapter = new GraphAdapter(map);
 
             const edge = adapter.getEdge("A", "B");
-            expect(edge).toEqual({source: "A", target: "B", weight: 2});
+            expect(edge).toEqual({ source: "A", target: "B", weight: 2 });
 
             expect(adapter.getEdge("A", "D")).toBeNull();
             expect(adapter.getEdge("D", "A")).toBeNull();
@@ -176,9 +212,9 @@ describe("Graph Converters", () => {
             const edges = adapter.edges();
 
             expect(edges.length).toBe(3); // Each edge counted once
-            expect(edges).toContainEqual({source: "A", target: "B", weight: 2});
-            expect(edges).toContainEqual({source: "A", target: "C", weight: 1});
-            expect(edges).toContainEqual({source: "B", target: "C", weight: 3});
+            expect(edges).toContainEqual({ source: "A", target: "B", weight: 2 });
+            expect(edges).toContainEqual({ source: "A", target: "C", weight: 1 });
+            expect(edges).toContainEqual({ source: "B", target: "C", weight: 3 });
         });
 
         it("should provide edges() method for directed graph", () => {
@@ -191,9 +227,9 @@ describe("Graph Converters", () => {
             const edges = adapter.edges();
 
             expect(edges.length).toBe(3);
-            expect(edges).toContainEqual({source: "A", target: "B", weight: 2});
-            expect(edges).toContainEqual({source: "B", target: "C", weight: 3});
-            expect(edges).toContainEqual({source: "C", target: "A", weight: 1});
+            expect(edges).toContainEqual({ source: "A", target: "B", weight: 2 });
+            expect(edges).toContainEqual({ source: "B", target: "C", weight: 3 });
+            expect(edges).toContainEqual({ source: "C", target: "A", weight: 1 });
         });
 
         it("should provide edgeCount property", () => {
@@ -215,7 +251,13 @@ describe("Graph Converters", () => {
 
         it("should provide in/out degree for directed graphs", () => {
             const directedMap = new Map([
-                ["A", new Map([["B", 1], ["C", 1]])],
+                [
+                    "A",
+                    new Map([
+                        ["B", 1],
+                        ["C", 1],
+                    ]),
+                ],
                 ["B", new Map([["C", 1]])],
                 ["C", new Map()],
             ]);
@@ -247,7 +289,7 @@ describe("Graph Converters", () => {
 
     describe("Round-trip conversion", () => {
         it("should preserve graph structure through conversions", () => {
-            const original = new Graph({directed: false});
+            const original = new Graph({ directed: false });
             original.addEdge("A", "B", 2);
             original.addEdge("B", "C", 3);
             original.addEdge("A", "C", 1);

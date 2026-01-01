@@ -2,15 +2,15 @@
 // See: https://github.com/graphty-org/graphty-element/issues/54
 import "@babylonjs/core/Meshes/instancedMesh";
 
-import {LitElement} from "lit";
-import {customElement, property} from "lit/decorators.js";
-import {set as setDeep} from "lodash";
+import { LitElement } from "lit";
+import { customElement, property } from "lit/decorators.js";
+import { set as setDeep } from "lodash";
 
-import type {StyleSchema, ViewMode} from "./config";
-import type {PartialXRConfig} from "./config/xr-config-schema";
-import {Graph} from "./Graph";
-import {GraphtyLogger, LogLevel, parseLoggingURLParams} from "./logging";
-import type {ScreenshotOptions, ScreenshotResult} from "./screenshot/types.js";
+import type { StyleSchema, ViewMode } from "./config";
+import type { PartialXRConfig } from "./config/xr-config-schema";
+import { Graph } from "./Graph";
+import { GraphtyLogger, LogLevel, parseLoggingURLParams } from "./logging";
+import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 
 /**
  * Graphty creates a graph
@@ -69,7 +69,7 @@ export class Graphty extends LitElement {
                 enabled: true,
                 modules: loggingParams.modules,
                 level: loggingParams.level ?? LogLevel.INFO,
-                format: {timestamp: true, module: true, colors: true},
+                format: { timestamp: true, module: true, colors: true },
             });
         }
     }
@@ -87,10 +87,9 @@ export class Graphty extends LitElement {
         super.firstUpdated(changedProperties);
         // console.log(`firstUpdated: ${[... changedProperties.keys()].join(", ")}`);
 
-        this.asyncFirstUpdated()
-            .catch((e: unknown) => {
-                throw e;
-            });
+        this.asyncFirstUpdated().catch((e: unknown) => {
+            throw e;
+        });
     }
 
     /**
@@ -101,11 +100,13 @@ export class Graphty extends LitElement {
         // This allows external code (e.g., React) to listen for any graph event
         // using standard DOM addEventListener (e.g., "style-changed", "graph-settled", etc.)
         this.#graph.eventManager.onGraphEvent.add((event) => {
-            this.dispatchEvent(new CustomEvent(event.type, {
-                detail: event,
-                bubbles: true,
-                composed: true,
-            }));
+            this.dispatchEvent(
+                new CustomEvent(event.type, {
+                    detail: event,
+                    bubbles: true,
+                    composed: true,
+                }),
+            );
         });
 
         // Note: Property setters now forward to Graph methods automatically,
@@ -116,9 +117,11 @@ export class Graphty extends LitElement {
         await this.#graph.init();
 
         // Wait for first render frame to ensure graph is visible
-        await new Promise((resolve) => requestAnimationFrame(() => {
-            requestAnimationFrame(resolve);
-        }));
+        await new Promise((resolve) =>
+            requestAnimationFrame(() => {
+                requestAnimationFrame(resolve);
+            }),
+        );
 
         this.#graph.engine.resize();
     }
@@ -187,7 +190,7 @@ export class Graphty extends LitElement {
      * ```
      * @returns Array of node data objects or undefined if not set
      */
-    @property({attribute: "node-data"})
+    @property({ attribute: "node-data" })
     get nodeData(): Record<string, unknown>[] | undefined {
         return this.#nodeData;
     }
@@ -233,7 +236,7 @@ export class Graphty extends LitElement {
      * ```
      * @returns Array of edge data objects or undefined if not set
      */
-    @property({attribute: "edge-data"})
+    @property({ attribute: "edge-data" })
     get edgeData(): Record<string, unknown>[] | undefined {
         return this.#edgeData;
     }
@@ -257,7 +260,7 @@ export class Graphty extends LitElement {
      * data sources for more information.
      * @returns Data source type string or undefined if not set
      */
-    @property({attribute: "data-source"})
+    @property({ attribute: "data-source" })
     get dataSource(): string | undefined {
         return this.#dataSource;
     }
@@ -279,7 +282,7 @@ export class Graphty extends LitElement {
      * data sources for more information.
      * @returns Data source configuration object or undefined if not set
      */
-    @property({attribute: "data-source-config"})
+    @property({ attribute: "data-source-config" })
     get dataSourceConfig(): Record<string, unknown> | undefined {
         return this.#dataSourceConfig;
     }
@@ -314,7 +317,7 @@ export class Graphty extends LitElement {
      * the node.
      * @returns JMESPath string or undefined if not set
      */
-    @property({attribute: "node-id-path"})
+    @property({ attribute: "node-id-path" })
     get nodeIdPath(): string | undefined {
         return this.#nodeIdPath;
     }
@@ -338,7 +341,7 @@ export class Graphty extends LitElement {
      * Defaults to "src", as in `{src: 42, dst: 31337}`
      * @returns JMESPath string or undefined if not set
      */
-    @property({attribute: "edge-src-id-path"})
+    @property({ attribute: "edge-src-id-path" })
     get edgeSrcIdPath(): string | undefined {
         return this.#edgeSrcIdPath;
     }
@@ -362,7 +365,7 @@ export class Graphty extends LitElement {
      * Defaults to "dst", as in `{src: 42, dst: 31337}`
      * @returns JMESPath string or undefined if not set
      */
-    @property({attribute: "edge-dst-id-path"})
+    @property({ attribute: "edge-dst-id-path" })
     get edgeDstIdPath(): string | undefined {
         return this.#edgeDstIdPath;
     }
@@ -419,7 +422,7 @@ export class Graphty extends LitElement {
         // Forward to Graph method (which queues operation)
         if (value) {
             const templateLayoutOptions = this.#graph.styles.config.graph.layoutOptions ?? {};
-            const mergedConfig = {... templateLayoutOptions, ... (this.#layoutConfig ?? {})};
+            const mergedConfig = { ...templateLayoutOptions, ...(this.#layoutConfig ?? {}) };
             void this.#graph.setLayout(value, mergedConfig);
         }
 
@@ -431,7 +434,7 @@ export class Graphty extends LitElement {
      * more information.
      * @returns Layout configuration object or undefined if not set
      */
-    @property({attribute: "layout-config"})
+    @property({ attribute: "layout-config" })
     get layoutConfig(): Record<string, unknown> | undefined {
         return this.#layoutConfig;
     }
@@ -445,7 +448,7 @@ export class Graphty extends LitElement {
         // If layout is already set, update it with new config
         if (this.#layout) {
             const templateLayoutOptions = this.#graph.styles.config.graph.layoutOptions ?? {};
-            const mergedConfig = {... templateLayoutOptions, ... (value ?? {})};
+            const mergedConfig = { ...templateLayoutOptions, ...(value ?? {}) };
             void this.#graph.setLayout(this.#layout, mergedConfig);
         }
 
@@ -471,7 +474,7 @@ export class Graphty extends LitElement {
      * ```
      * @returns Current view mode or undefined if not set
      */
-    @property({attribute: "view-mode"})
+    @property({ attribute: "view-mode" })
     get viewMode(): ViewMode | undefined {
         return this.#viewMode;
     }
@@ -497,7 +500,7 @@ export class Graphty extends LitElement {
      * opposed to 3D)
      * @returns True if in 2D mode, false if 3D, undefined otherwise
      */
-    @property({attribute: "layout-2d"})
+    @property({ attribute: "layout-2d" })
     get layout2d(): boolean | undefined {
         // Return true if viewMode is "2d", false if "3d", undefined otherwise
         if (this.#viewMode === "2d") {
@@ -516,7 +519,7 @@ export class Graphty extends LitElement {
     set layout2d(value: boolean | undefined) {
         console.warn(
             "[graphty-element] layout2d is deprecated. Use viewMode instead. " +
-            "layout2d: true → viewMode: \"2d\", layout2d: false → viewMode: \"3d\"",
+                'layout2d: true → viewMode: "2d", layout2d: false → viewMode: "3d"',
         );
 
         if (value !== undefined) {
@@ -550,7 +553,7 @@ export class Graphty extends LitElement {
      * ```
      * @returns Style template configuration or undefined if not set
      */
-    @property({attribute: "style-template"})
+    @property({ attribute: "style-template" })
     get styleTemplate(): StyleSchema | undefined {
         return this.#styleTemplate;
     }
@@ -574,7 +577,7 @@ export class Graphty extends LitElement {
      * template is loaded.
      * @returns Boolean flag or undefined if not set
      */
-    @property({attribute: "run-algorithms-on-load"})
+    @property({ attribute: "run-algorithms-on-load" })
     get runAlgorithmsOnLoad(): boolean | undefined {
         return this.#runAlgorithmsOnLoad;
     }
@@ -601,7 +604,7 @@ export class Graphty extends LitElement {
      * graph.getStatsManager().reportDetailed().
      * @returns Boolean flag or undefined if not set
      */
-    @property({attribute: "enable-detailed-profiling", type: Boolean})
+    @property({ attribute: "enable-detailed-profiling", type: Boolean })
     get enableDetailedProfiling(): boolean | undefined {
         return this.#enableDetailedProfiling;
     }
@@ -639,7 +642,7 @@ export class Graphty extends LitElement {
      * ```
      * @returns XR configuration object or undefined if not set
      */
-    @property({attribute: false})
+    @property({ attribute: false })
     get xr(): PartialXRConfig | undefined {
         return this.#xr;
     }
@@ -705,7 +708,9 @@ export class Graphty extends LitElement {
      * }
      * ```
      */
-    async canCaptureScreenshot(options?: ScreenshotOptions): Promise<import("./screenshot/capability-check.js").CapabilityCheck> {
+    async canCaptureScreenshot(
+        options?: ScreenshotOptions,
+    ): Promise<import("./screenshot/capability-check.js").CapabilityCheck> {
         return this.#graph.canCaptureScreenshot(options);
     }
 
@@ -736,7 +741,9 @@ export class Graphty extends LitElement {
      * });
      * ```
      */
-    async captureAnimation(options: import("./video/VideoCapture.js").AnimationOptions): Promise<import("./video/VideoCapture.js").AnimationResult> {
+    async captureAnimation(
+        options: import("./video/VideoCapture.js").AnimationOptions,
+    ): Promise<import("./video/VideoCapture.js").AnimationResult> {
         return this.#graph.captureAnimation(options);
     }
 
@@ -807,7 +814,9 @@ export class Graphty extends LitElement {
      * }
      * ```
      */
-    async estimateAnimationCapture(options: Pick<import("./video/VideoCapture.js").AnimationOptions, "duration" | "fps" | "width" | "height">): Promise<import("./video/estimation.js").CaptureEstimate> {
+    async estimateAnimationCapture(
+        options: Pick<import("./video/VideoCapture.js").AnimationOptions, "duration" | "fps" | "width" | "height">,
+    ): Promise<import("./video/estimation.js").CaptureEstimate> {
         return this.#graph.estimateAnimationCapture(options);
     }
 
@@ -907,7 +916,7 @@ export class Graphty extends LitElement {
      * @returns Promise that resolves when the camera state is applied (or animation completes)
      */
     async setCameraState(
-        state: import("./screenshot/types.js").CameraState | {preset: string},
+        state: import("./screenshot/types.js").CameraState | { preset: string },
         options?: import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         return this.#graph.setCameraState(state, options);
@@ -923,7 +932,7 @@ export class Graphty extends LitElement {
      * @returns Promise that resolves when the position is applied (or animation completes)
      */
     async setCameraPosition(
-        position: {x: number, y: number, z: number},
+        position: { x: number; y: number; z: number },
         options?: import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         return this.#graph.setCameraPosition(position, options);
@@ -939,7 +948,7 @@ export class Graphty extends LitElement {
      * @returns Promise that resolves when the target is applied (or animation completes)
      */
     async setCameraTarget(
-        target: {x: number, y: number, z: number},
+        target: { x: number; y: number; z: number },
         options?: import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         return this.#graph.setCameraTarget(target, options);
@@ -951,10 +960,7 @@ export class Graphty extends LitElement {
      * @param options - Animation options
      * @returns Promise that resolves when the zoom is applied (or animation completes)
      */
-    async setCameraZoom(
-        zoom: number,
-        options?: import("./screenshot/types.js").CameraAnimationOptions,
-    ): Promise<void> {
+    async setCameraZoom(zoom: number, options?: import("./screenshot/types.js").CameraAnimationOptions): Promise<void> {
         return this.#graph.setCameraZoom(zoom, options);
     }
 
@@ -967,7 +973,7 @@ export class Graphty extends LitElement {
      * @returns Promise that resolves when the pan is applied (or animation completes)
      */
     async setCameraPan(
-        pan: {x: number, y: number},
+        pan: { x: number; y: number },
         options?: import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         return this.#graph.setCameraPan(pan, options);
@@ -998,7 +1004,10 @@ export class Graphty extends LitElement {
      * @param options - Animation options
      * @returns Promise that resolves when preset is loaded
      */
-    async loadCameraPreset(name: string, options?: import("./screenshot/types.js").CameraAnimationOptions): Promise<void> {
+    async loadCameraPreset(
+        name: string,
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
         return this.#graph.loadCameraPreset(name, options);
     }
 
@@ -1007,7 +1016,7 @@ export class Graphty extends LitElement {
      * Available from Phase 5 onwards.
      * @returns Record of preset names to their state (built-in presets are marked)
      */
-    getCameraPresets(): Record<string, import("./screenshot/types.js").CameraState | {builtin: true}> {
+    getCameraPresets(): Record<string, import("./screenshot/types.js").CameraState | { builtin: true }> {
         return this.#graph.getCameraPresets();
     }
 
@@ -1163,7 +1172,7 @@ export class Graphty extends LitElement {
      * ```
      */
     async updateNodes(
-        updates: {id: string | number, [key: string]: unknown}[],
+        updates: { id: string | number; [key: string]: unknown }[],
         options?: import("./utils/queue-migration").QueueableOptions,
     ): Promise<void> {
         return this.#graph.updateNodes(updates, options);
@@ -1554,10 +1563,7 @@ export class Graphty extends LitElement {
      * });
      * ```
      */
-    on(
-        type: import("./events").EventType,
-        callback: import("./events").EventCallbackType,
-    ): void {
+    on(type: import("./events").EventType, callback: import("./events").EventCallbackType): void {
         this.#graph.on(type, callback);
     }
 
@@ -1567,10 +1573,7 @@ export class Graphty extends LitElement {
      * @param callback - Callback function
      * @since 1.5.0
      */
-    addListener(
-        type: import("./events").EventType,
-        callback: import("./events").EventCallbackType,
-    ): void {
+    addListener(type: import("./events").EventType, callback: import("./events").EventCallbackType): void {
         this.#graph.addListener(type, callback);
     }
 
@@ -1738,7 +1741,7 @@ export class Graphty extends LitElement {
      * // Position a tooltip at screenPos
      * ```
      */
-    worldToScreen(worldPos: {x: number, y: number, z: number}): {x: number, y: number} {
+    worldToScreen(worldPos: { x: number; y: number; z: number }): { x: number; y: number } {
         return this.#graph.worldToScreen(worldPos);
     }
 
@@ -1757,7 +1760,7 @@ export class Graphty extends LitElement {
      * }
      * ```
      */
-    screenToWorld(screenPos: {x: number, y: number}): {x: number, y: number, z: number} | null {
+    screenToWorld(screenPos: { x: number; y: number }): { x: number; y: number; z: number } | null {
         return this.#graph.screenToWorld(screenPos);
     }
 
@@ -1779,7 +1782,7 @@ export class Graphty extends LitElement {
      * });
      * ```
      */
-    setData(data: {nodes: Record<string, unknown>[], edges: Record<string, unknown>[]}): void {
+    setData(data: { nodes: Record<string, unknown>[]; edges: Record<string, unknown>[] }): void {
         this.#graph.setData(data);
     }
 

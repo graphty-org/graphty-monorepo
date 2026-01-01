@@ -2,11 +2,11 @@
  * Dynamic form generator component that creates form fields based on Zod schemas.
  * Used by RunLayoutsModal to display layout-specific configuration options.
  */
-import {Checkbox, NumberInput, Select, Stack} from "@mantine/core";
-import {useCallback, useMemo} from "react";
-import type {z} from "zod";
+import { Checkbox, NumberInput, Select, Stack } from "@mantine/core";
+import { useCallback, useMemo } from "react";
+import type { z } from "zod";
 
-import {camelToTitle, getDefaultValues, type ParsedField, parseZodSchema} from "../../utils/zodSchemaParser";
+import { camelToTitle, getDefaultValues, type ParsedField, parseZodSchema } from "../../utils/zodSchemaParser";
 
 export interface LayoutOptionsFormProps {
     /** The Zod schema defining the form structure */
@@ -28,9 +28,22 @@ interface FieldRendererProps {
 }
 
 /**
- * Renders a single form field based on its parsed type
+ * Renders a single form field based on its parsed type.
+ * @param root0 - Component props
+ * @param root0.fieldName - Name of the field
+ * @param root0.field - Parsed field metadata
+ * @param root0.value - Current field value
+ * @param root0.defaultValue - Default value for the field
+ * @param root0.onChange - Callback when field value changes
+ * @returns The form field component or null if the field type is not supported
  */
-function FieldRenderer({fieldName, field, value, defaultValue, onChange}: FieldRendererProps): React.JSX.Element | null {
+function FieldRenderer({
+    fieldName,
+    field,
+    value,
+    defaultValue,
+    onChange,
+}: FieldRendererProps): React.JSX.Element | null {
     const label = camelToTitle(fieldName);
 
     // Determine the effective value (use provided value, fall back to default)
@@ -38,9 +51,8 @@ function FieldRenderer({fieldName, field, value, defaultValue, onChange}: FieldR
 
     switch (field.type) {
         case "number": {
-            const numValue = effectiveValue !== null && effectiveValue !== undefined ?
-                Number(effectiveValue) :
-                undefined;
+            const numValue =
+                effectiveValue !== null && effectiveValue !== undefined ? Number(effectiveValue) : undefined;
 
             return (
                 <NumberInput
@@ -51,10 +63,14 @@ function FieldRenderer({fieldName, field, value, defaultValue, onChange}: FieldR
                     }}
                     min={field.min}
                     max={field.max}
-                    step={field.min !== undefined && field.min >= 0 && field.max !== undefined && field.max <= 1 ? 0.01 : undefined}
+                    step={
+                        field.min !== undefined && field.min >= 0 && field.max !== undefined && field.max <= 1
+                            ? 0.01
+                            : undefined
+                    }
                     decimalScale={4}
                     styles={{
-                        label: {color: "var(--mantine-color-gray-3)"},
+                        label: { color: "var(--mantine-color-gray-3)" },
                     }}
                 />
             );
@@ -71,17 +87,18 @@ function FieldRenderer({fieldName, field, value, defaultValue, onChange}: FieldR
                         onChange(event.currentTarget.checked);
                     }}
                     styles={{
-                        label: {color: "var(--mantine-color-gray-3)"},
+                        label: { color: "var(--mantine-color-gray-3)" },
                     }}
                 />
             );
         }
 
         case "enum": {
-            const enumOptions = field.enumValues?.map((val) => ({
-                value: val,
-                label: camelToTitle(val),
-            })) ?? [];
+            const enumOptions =
+                field.enumValues?.map((val) => ({
+                    value: val,
+                    label: camelToTitle(val),
+                })) ?? [];
 
             return (
                 <Select
@@ -92,7 +109,7 @@ function FieldRenderer({fieldName, field, value, defaultValue, onChange}: FieldR
                     }}
                     data={enumOptions}
                     styles={{
-                        label: {color: "var(--mantine-color-gray-3)"},
+                        label: { color: "var(--mantine-color-gray-3)" },
                     }}
                 />
             );
@@ -111,6 +128,15 @@ function FieldRenderer({fieldName, field, value, defaultValue, onChange}: FieldR
     }
 }
 
+/**
+ * Dynamic form generator that creates form fields based on Zod schemas.
+ * @param root0 - Component props
+ * @param root0.schema - The Zod schema defining the form structure
+ * @param root0.values - Current form values
+ * @param root0.onChange - Callback when form values change
+ * @param root0.hiddenFields - Fields to hide from the form
+ * @returns The layout options form component
+ */
 export function LayoutOptionsForm({
     schema,
     values,
@@ -146,14 +172,17 @@ export function LayoutOptionsForm({
     }, [parsedFields, hiddenFields]);
 
     // Handle field value changes
-    const handleFieldChange = useCallback((fieldName: string, newValue: unknown) => {
-        const updatedValues = {
-            ... defaultValues,
-            ... values,
-            [fieldName]: newValue,
-        };
-        onChange(updatedValues);
-    }, [values, defaultValues, onChange]);
+    const handleFieldChange = useCallback(
+        (fieldName: string, newValue: unknown) => {
+            const updatedValues = {
+                ...defaultValues,
+                ...values,
+                [fieldName]: newValue,
+            };
+            onChange(updatedValues);
+        },
+        [values, defaultValues, onChange],
+    );
 
     return (
         <Stack gap="sm">

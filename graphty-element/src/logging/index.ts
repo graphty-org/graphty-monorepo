@@ -44,8 +44,8 @@
  */
 
 // Core exports
-export {GraphtyLogger, type GraphtyLoggerConfig, type Logger} from "./GraphtyLogger.js";
-export {isLazy, lazy, LAZY_SYMBOL, type LazyValue, resolveDataObject, resolveLazy} from "./LazyEval.js";
+export { GraphtyLogger, type GraphtyLoggerConfig, type Logger } from "./GraphtyLogger.js";
+export { isLazy, lazy, LAZY_SYMBOL, type LazyValue, resolveDataObject, resolveLazy } from "./LazyEval.js";
 export {
     configureLogging,
     getLoggingConfig,
@@ -53,15 +53,8 @@ export {
     type LoggerConfig,
     resetLoggingConfig,
 } from "./LoggerConfig.js";
-export {type ConsoleSinkOptions, createConsoleSink} from "./sinks/ConsoleSink.js";
-export {createRemoteSink, type RemoteSinkOptions} from "./sinks/RemoteSink.js";
-export {clearLoggingConfig, loadLoggingConfig, saveLoggingConfig} from "./storage.js";
-export {
-    LOG_LEVEL_NAMES,
-    LOG_LEVEL_TO_NAME,
-    LogLevel,
-    type LogRecord,
-    parseLogLevel,
-    type Sink,
-} from "./types.js";
-export {type ParsedLoggingParams, parseLoggingURLParams} from "./URLParamParser.js";
+export { type ConsoleSinkOptions, createConsoleSink } from "./sinks/ConsoleSink.js";
+export { createRemoteSink, type RemoteSinkOptions } from "./sinks/RemoteSink.js";
+export { clearLoggingConfig, loadLoggingConfig, saveLoggingConfig } from "./storage.js";
+export { LOG_LEVEL_NAMES, LOG_LEVEL_TO_NAME, LogLevel, type LogRecord, parseLogLevel, type Sink } from "./types.js";
+export { type ParsedLoggingParams, parseLoggingURLParams } from "./URLParamParser.js";

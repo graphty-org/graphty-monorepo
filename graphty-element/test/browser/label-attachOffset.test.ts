@@ -1,7 +1,7 @@
-import {NullEngine, Scene, Vector3} from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import {type AttachPosition, RichTextLabel} from "../../src/meshes/RichTextLabel";
+import { type AttachPosition, RichTextLabel } from "../../src/meshes/RichTextLabel";
 
 /**
  * Regression tests for label attachOffset functionality.
@@ -178,8 +178,8 @@ describe("Label attachOffset Regression Tests", () => {
 
     describe("attachOffset direction by position", () => {
         test("'top' position: offset increases Y", () => {
-            const label1 = new RichTextLabel(scene, {text: "Test", fontSize: 12});
-            const label2 = new RichTextLabel(scene, {text: "Test", fontSize: 12});
+            const label1 = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
+            const label2 = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
 
             const targetPos = new Vector3(0, 0, 0);
             label1.attachTo(targetPos, "top", 1.0);
@@ -195,8 +195,8 @@ describe("Label attachOffset Regression Tests", () => {
         });
 
         test("'bottom' position: offset decreases Y", () => {
-            const label1 = new RichTextLabel(scene, {text: "Test", fontSize: 12});
-            const label2 = new RichTextLabel(scene, {text: "Test", fontSize: 12});
+            const label1 = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
+            const label2 = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
 
             const targetPos = new Vector3(0, 0, 0);
             label1.attachTo(targetPos, "bottom", 1.0);
@@ -212,8 +212,8 @@ describe("Label attachOffset Regression Tests", () => {
         });
 
         test("'left' position: offset decreases X", () => {
-            const label1 = new RichTextLabel(scene, {text: "Test", fontSize: 12});
-            const label2 = new RichTextLabel(scene, {text: "Test", fontSize: 12});
+            const label1 = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
+            const label2 = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
 
             const targetPos = new Vector3(0, 0, 0);
             label1.attachTo(targetPos, "left", 1.0);
@@ -229,8 +229,8 @@ describe("Label attachOffset Regression Tests", () => {
         });
 
         test("'right' position: offset increases X", () => {
-            const label1 = new RichTextLabel(scene, {text: "Test", fontSize: 12});
-            const label2 = new RichTextLabel(scene, {text: "Test", fontSize: 12});
+            const label1 = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
+            const label2 = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
 
             const targetPos = new Vector3(0, 0, 0);
             label1.attachTo(targetPos, "right", 1.0);

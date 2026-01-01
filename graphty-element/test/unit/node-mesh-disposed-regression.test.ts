@@ -14,10 +14,10 @@
  * @module test/unit/node-mesh-disposed-regression
  */
 
-import {assert, describe, it, vi} from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
-import type {AdHocData} from "../../src/config";
-import type {Node} from "../../src/Node";
+import type { AdHocData } from "../../src/config";
+import type { Node } from "../../src/Node";
 
 describe("Node.update() mesh disposal regression", () => {
     /**
@@ -35,17 +35,21 @@ describe("Node.update() mesh disposal regression", () => {
 
         const mockMesh = {
             isDisposed: () => meshIsDisposed,
-            position: {x: 0, y: 0, z: 0},
+            position: { x: 0, y: 0, z: 0 },
         };
 
         interface LayoutEngineResult {
-            layoutEngine: {
-                getNodePosition: (node: Node) => {
-                    x: number;
-                    y: number;
-                    z?: number;
-                } | undefined;
-            } | undefined;
+            layoutEngine:
+                | {
+                      getNodePosition: (node: Node) =>
+                          | {
+                                x: number;
+                                y: number;
+                                z?: number;
+                            }
+                          | undefined;
+                  }
+                | undefined;
         }
 
         const mockContext = {
@@ -55,7 +59,7 @@ describe("Node.update() mesh disposal regression", () => {
             }),
             getLayoutManager: (): LayoutEngineResult => ({
                 layoutEngine: {
-                    getNodePosition: () => ({x: 1, y: 2, z: 3}),
+                    getNodePosition: () => ({ x: 1, y: 2, z: 3 }),
                 },
             }),
         };
@@ -130,7 +134,7 @@ describe("Node.update() mesh disposal regression", () => {
 
     describe("regression: update() should recreate disposed mesh", () => {
         it("should NOT call updateStyle when mesh is valid and no style updates", () => {
-            const {node, updateStyleCalls} = createMockNode();
+            const { node, updateStyleCalls } = createMockNode();
 
             // Mesh is valid, no style updates
             node.update?.();
@@ -139,12 +143,12 @@ describe("Node.update() mesh disposal regression", () => {
         });
 
         it("should call updateStyle when mesh is disposed even without style updates", () => {
-            const {node, updateStyleCalls} = createMockNode();
+            const { node, updateStyleCalls } = createMockNode();
 
             // Dispose the mesh (simulating what happens during 2D/3D switch)
-            (node as {_disposeMeshForTesting: () => void})._disposeMeshForTesting();
+            (node as { _disposeMeshForTesting: () => void })._disposeMeshForTesting();
             assert.strictEqual(
-                (node as {_isMeshDisposedForTesting: () => boolean})._isMeshDisposedForTesting(),
+                (node as { _isMeshDisposedForTesting: () => boolean })._isMeshDisposedForTesting(),
                 true,
                 "Mesh should be disposed before update",
             );
@@ -154,14 +158,14 @@ describe("Node.update() mesh disposal regression", () => {
 
             assert.strictEqual(updateStyleCalls.length, 1, "updateStyle should be called to recreate disposed mesh");
             assert.strictEqual(
-                (node as {_isMeshDisposedForTesting: () => boolean})._isMeshDisposedForTesting(),
+                (node as { _isMeshDisposedForTesting: () => boolean })._isMeshDisposedForTesting(),
                 false,
                 "Mesh should be recreated after update",
             );
         });
 
         it("should call updateStyle when there are style updates (normal case)", () => {
-            const {node, updateStyleCalls} = createMockNode();
+            const { node, updateStyleCalls } = createMockNode();
 
             // Add a style update
             (node.styleUpdates as Record<string, unknown>).color = "red";
@@ -172,10 +176,10 @@ describe("Node.update() mesh disposal regression", () => {
         });
 
         it("should call updateStyle twice when mesh is disposed AND there are style updates", () => {
-            const {node, updateStyleCalls} = createMockNode();
+            const { node, updateStyleCalls } = createMockNode();
 
             // Dispose mesh AND add style update
-            (node as {_disposeMeshForTesting: () => void})._disposeMeshForTesting();
+            (node as { _disposeMeshForTesting: () => void })._disposeMeshForTesting();
             (node.styleUpdates as Record<string, unknown>).color = "red";
 
             node.update?.();
@@ -187,10 +191,10 @@ describe("Node.update() mesh disposal regression", () => {
         });
 
         it("should update position after mesh is recreated", () => {
-            const {node} = createMockNode();
+            const { node } = createMockNode();
 
             // Dispose the mesh
-            (node as {_disposeMeshForTesting: () => void})._disposeMeshForTesting();
+            (node as { _disposeMeshForTesting: () => void })._disposeMeshForTesting();
 
             // Initial position
             assert.strictEqual(node.mesh?.position.x, 0);
@@ -209,7 +213,7 @@ describe("Node.update() mesh disposal regression", () => {
 
     describe("behavior verification", () => {
         it("should not update position when dragging", () => {
-            const {node} = createMockNode();
+            const { node } = createMockNode();
 
             node.dragging = true;
 
@@ -223,7 +227,7 @@ describe("Node.update() mesh disposal regression", () => {
         });
 
         it("should clear styleUpdates after processing", () => {
-            const {node} = createMockNode();
+            const { node } = createMockNode();
 
             // Add style updates
             (node.styleUpdates as Record<string, unknown>).color = "red";

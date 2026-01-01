@@ -3,8 +3,8 @@
  * @module test/helpers/mock-graph-custom-data
  */
 
-import type {Graph} from "../../src/Graph";
-import type {DataManager} from "../../src/managers";
+import type { Graph } from "../../src/Graph";
+import type { DataManager } from "../../src/managers";
 
 /**
  * Options for creating a mock graph with custom data.
@@ -46,12 +46,7 @@ interface MockEdgeData {
  * @returns A mock graph for testing
  */
 export function createMockGraphWithCustomData(options: MockGraphCustomDataOptions = {}): Graph {
-    const {
-        nodeCount = 10,
-        edgeCount = 15,
-        nodeDataGenerator = () => ({}),
-        edgeDataGenerator = () => ({}),
-    } = options;
+    const { nodeCount = 10, edgeCount = 15, nodeDataGenerator = () => ({}), edgeDataGenerator = () => ({}) } = options;
 
     // Create mock nodes with custom data
     const mockNodes = new Map<string, MockNodeData>();
@@ -62,7 +57,7 @@ export function createMockGraphWithCustomData(options: MockGraphCustomDataOption
             id,
             data: {
                 id,
-                ... customData,
+                ...customData,
             },
         });
     }
@@ -83,7 +78,7 @@ export function createMockGraphWithCustomData(options: MockGraphCustomDataOption
             dstId,
             data: {
                 id,
-                ... customData,
+                ...customData,
             },
         });
     }
@@ -103,13 +98,13 @@ export function createMockGraphWithCustomData(options: MockGraphCustomDataOption
         getDataManager: () => mockDataManager,
         // Other methods return minimal mocks
         getLayoutManager: () => ({
-            layoutEngine: {type: "ngraph"},
+            layoutEngine: { type: "ngraph" },
             running: false,
             isSettled: true,
         }),
         getStyles: () => ({
             config: {
-                graph: {twoD: false, layout: "ngraph"},
+                graph: { twoD: false, layout: "ngraph" },
             },
             layers: [],
         }),

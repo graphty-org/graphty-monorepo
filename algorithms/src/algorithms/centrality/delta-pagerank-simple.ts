@@ -1,5 +1,5 @@
-import type {Graph} from "../../core/graph.js";
-import type {NodeId} from "../../types/index.js";
+import type { Graph } from "../../core/graph.js";
+import type { NodeId } from "../../types/index.js";
 
 /**
  * Simplified Delta-based PageRank that matches the standard algorithm
@@ -13,6 +13,10 @@ export class SimpleDeltaPageRank {
     private nodeCount: number;
     private previousScores: Map<NodeId, number> | null = null;
 
+    /**
+     * Creates a new SimpleDeltaPageRank instance for the given graph.
+     * @param graph - The directed graph to compute PageRank on
+     */
     constructor(graph: Graph) {
         if (!graph.isDirected) {
             throw new Error("PageRank requires a directed graph");
@@ -22,20 +26,26 @@ export class SimpleDeltaPageRank {
         this.nodeCount = graph.nodeCount;
     }
 
-    public compute(options: {
-        dampingFactor?: number;
-        tolerance?: number;
-        maxIterations?: number;
-        personalization?: Map<NodeId, number>;
-        weight?: string;
-    } = {}): Map<NodeId, number> {
-        const {
-            dampingFactor = 0.85,
-            tolerance = 1e-6,
-            maxIterations = 100,
-            personalization,
-            weight,
-        } = options;
+    /**
+     * Computes PageRank scores for all nodes in the graph using power iteration.
+     * @param options - Configuration options for PageRank computation
+     * @param options.dampingFactor - Probability of following a link (default: 0.85)
+     * @param options.tolerance - Convergence tolerance threshold (default: 1e-6)
+     * @param options.maxIterations - Maximum number of iterations (default: 100)
+     * @param options.personalization - Personalization vector for Personalized PageRank
+     * @param options.weight - Edge attribute name for weighted PageRank
+     * @returns Map of node IDs to their PageRank scores
+     */
+    public compute(
+        options: {
+            dampingFactor?: number;
+            tolerance?: number;
+            maxIterations?: number;
+            personalization?: Map<NodeId, number>;
+            weight?: string;
+        } = {},
+    ): Map<NodeId, number> {
+        const { dampingFactor = 0.85, tolerance = 1e-6, maxIterations = 100, personalization, weight } = options;
 
         if (this.nodeCount === 0) {
             return new Map();
@@ -97,7 +107,7 @@ export class SimpleDeltaPageRank {
             }
 
             if (danglingSum > 0) {
-                const danglingContribution = dampingFactor * danglingSum / this.nodeCount;
+                const danglingContribution = (dampingFactor * danglingSum) / this.nodeCount;
                 for (const nodeId of scores.keys()) {
                     const current = newScores.get(nodeId) ?? 0;
                     if (personalVector) {
@@ -175,9 +185,13 @@ export class SimpleDeltaPageRank {
     /**
      * Perform incremental update after graph modification.
      * This is where delta-based approach provides significant speedup.
-     *
-     * @param modifiedNodes Set of nodes that were modified (edges added/removed)
-     * @param options Computation options
+     * @param modifiedNodes - Set of nodes that were modified (edges added/removed)
+     * @param options - Computation options
+     * @param options.dampingFactor - Probability of following a link (default: 0.85)
+     * @param options.tolerance - Convergence tolerance threshold (default: 1e-6)
+     * @param options.maxIterations - Maximum number of iterations (default: 100)
+     * @param options.personalization - Personalization vector for Personalized PageRank
+     * @param options.weight - Edge attribute name for weighted PageRank
      * @returns Updated PageRank scores
      */
     public update(
@@ -195,13 +209,7 @@ export class SimpleDeltaPageRank {
             return this.compute(options);
         }
 
-        const {
-            dampingFactor = 0.85,
-            tolerance = 1e-6,
-            maxIterations = 100,
-            personalization,
-            weight,
-        } = options;
+        const { dampingFactor = 0.85, tolerance = 1e-6, maxIterations = 100, personalization, weight } = options;
 
         // Initialize scores from previous computation
         const scores = new Map(this.previousScores);
@@ -275,7 +283,7 @@ export class SimpleDeltaPageRank {
             }
 
             if (danglingSum > 0) {
-                const danglingContribution = dampingFactor * danglingSum / this.nodeCount;
+                const danglingContribution = (dampingFactor * danglingSum) / this.nodeCount;
                 for (const nodeId of scores.keys()) {
                     const current = newScores.get(nodeId) ?? 0;
                     if (personalVector) {

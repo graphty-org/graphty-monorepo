@@ -1,8 +1,8 @@
-import {z} from "zod/v4";
+import { z } from "zod/v4";
 
-import type {OptionsSchema} from "../config";
-import type {Edge} from "../Edge";
-import type {Node} from "../Node";
+import type { OptionsSchema } from "../config";
+import type { Edge } from "../Edge";
+import type { Node } from "../Node";
 
 export interface Position {
     x: number;
@@ -145,7 +145,7 @@ export abstract class LayoutEngine {
             return null;
         }
 
-        return ((SourceClass as unknown) as typeof LayoutEngine).getOptionsForDimension(dimension);
+        return (SourceClass as unknown as typeof LayoutEngine).getOptionsForDimension(dimension);
     }
 
     /**
@@ -178,7 +178,7 @@ export abstract class LayoutEngine {
      * @returns The layout engine class or null if not found
      */
     static getClass(type: string): (LayoutEngineClass & LayoutEngineStatics) | null {
-        return layoutEngineRegistry.get(type) as (LayoutEngineClass & LayoutEngineStatics) | null ?? null;
+        return (layoutEngineRegistry.get(type) as (LayoutEngineClass & LayoutEngineStatics) | null) ?? null;
     }
 }
 
@@ -221,7 +221,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
         }
 
         // Most simple layouts use 'dim' parameter
-        return {dim: dimension};
+        return { dim: dimension };
     }
 
     // basic functionality
@@ -242,7 +242,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     addNode(n: Node): void {
         this._nodes.push(n);
         this.stale = true;
-    };
+    }
 
     /**
      * Add an edge to the layout and mark positions as stale
@@ -251,7 +251,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     addEdge(e: Edge): void {
         this._edges.push(e);
         this.stale = true;
-    };
+    }
 
     /**
      * Get the position of a node, computing layout if stale
@@ -264,7 +264,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
         }
 
         return posToCoords(this.positions[n.id], this.scalingFactor);
-    };
+    }
 
     /**
      * Set node position
@@ -274,14 +274,14 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      */
     setNodePosition(): void {
         // No-op for simple layouts
-    };
+    }
 
     /**
      * Get the position of an edge based on its endpoints
      * @param e - The edge to get position for
      * @returns The edge's source and destination positions
      */
-    getEdgePosition(e: Edge): EdgePosition{
+    getEdgePosition(e: Edge): EdgePosition {
         if (this.stale) {
             this.doLayout();
         }
@@ -290,7 +290,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
             src: posToCoords(this.positions[e.srcId], this.scalingFactor),
             dst: posToCoords(this.positions[e.dstId], this.scalingFactor),
         };
-    };
+    }
 
     // for animated layouts
 
@@ -301,16 +301,16 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      */
     step(): void {
         // No-op for simple layouts
-    };
+    }
 
     /**
      * Pin a node in place
      *
      * Simple layouts are static and don't support interactive node pinning.
      */
-    pin(): void{
+    pin(): void {
         // No-op for simple layouts
-    };
+    }
 
     /**
      * Unpin a node
@@ -319,7 +319,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      */
     unpin(): void {
         // No-op for simple layouts
-    };
+    }
 
     // properties
     /**
@@ -328,7 +328,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      */
     get nodes(): Iterable<Node> {
         return this._nodes;
-    };
+    }
 
     /**
      * Get all edges in the layout
@@ -336,7 +336,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      */
     get edges(): Iterable<Edge> {
         return this._edges;
-    };
+    }
 
     readonly isSettled = true;
 
@@ -352,7 +352,7 @@ interface Coords {
 function posToCoords(pos: number[] | undefined, scale: number): Coords {
     if (!pos || pos.length === 0) {
         // Return default position if pos is undefined or empty
-        return {x: 0, y: 0, z: 0};
+        return { x: 0, y: 0, z: 0 };
     }
 
     const x = pos[0] * scale;
@@ -361,5 +361,5 @@ function posToCoords(pos: number[] | undefined, scale: number): Coords {
     // const z = pos[0] * scale;
     // const x = (pos[2] ?? 0) * scale;
 
-    return {x, y, z};
+    return { x, y, z };
 }

@@ -1,8 +1,8 @@
-import {closenessCentrality} from "@graphty/algorithms";
+import { closenessCentrality } from "@graphty/algorithms";
 
-import type {SuggestedStylesConfig} from "../config";
-import {Algorithm} from "./Algorithm";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import type { SuggestedStylesConfig } from "../config";
+import { Algorithm } from "./Algorithm";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Closeness Centrality Algorithm

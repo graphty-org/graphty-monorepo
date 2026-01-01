@@ -4,8 +4,5 @@
     "graph": {
         "addDefaultStyle": false
     },
-    "layers": [
-        {
-        }
-    ]
+    "layers": [{}]
 }

@@ -1,16 +1,16 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {render, screen} from "../../../test/test-utils";
-import type {GraphInfo} from "../../../types/selection";
-import type {LayerItem} from "../../layout/LeftSidebar";
-import {RightSidebar} from "../../layout/RightSidebar";
+import { render, screen } from "../../../test/test-utils";
+import type { GraphInfo } from "../../../types/selection";
+import type { LayerItem } from "../../layout/LeftSidebar";
+import { RightSidebar } from "../../layout/RightSidebar";
 
 describe("RightSidebar", () => {
     const mockGraphInfo: GraphInfo = {
         nodeCount: 100,
         edgeCount: 250,
         density: 0.0505,
-        dataSources: [{name: "test.json", type: "json"}],
+        dataSources: [{ name: "test.json", type: "json" }],
         graphType: {
             directed: true,
             weighted: false,
@@ -24,7 +24,7 @@ describe("RightSidebar", () => {
         styleLayer: {
             node: {
                 selector: "id == `1`",
-                style: {color: "#ff0000"},
+                style: { color: "#ff0000" },
             },
             edge: {
                 selector: "",
@@ -65,9 +65,9 @@ describe("RightSidebar", () => {
     it("displays color mode options when layer is selected", () => {
         render(<RightSidebar selectedLayer={mockLayer} />);
 
-        expect(screen.getByRole("radio", {name: "Solid"})).toBeInTheDocument();
-        expect(screen.getByRole("radio", {name: "Gradient"})).toBeInTheDocument();
-        expect(screen.getByRole("radio", {name: "Radial"})).toBeInTheDocument();
+        expect(screen.getByRole("radio", { name: "Solid" })).toBeInTheDocument();
+        expect(screen.getByRole("radio", { name: "Gradient" })).toBeInTheDocument();
+        expect(screen.getByRole("radio", { name: "Radial" })).toBeInTheDocument();
     });
 
     it("displays GraphPropertiesPanel when no layer is selected but graphInfo is provided", () => {

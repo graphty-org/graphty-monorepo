@@ -1,8 +1,8 @@
-import {Edge as LayoutEdge, kamadaKawaiLayout, Node as LayoutNode} from "@graphty/layout";
-import {z} from "zod/v4";
+import { Edge as LayoutEdge, kamadaKawaiLayout, Node as LayoutNode } from "@graphty/layout";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema} from "../config";
-import {SimpleLayoutConfig, SimpleLayoutEngine} from "./LayoutEngine";
+import { defineOptions, type OptionsSchema } from "../config";
+import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for Kamada-Kawai Layout
@@ -41,7 +41,7 @@ export const kamadaKawaiLayoutOptionsSchema = defineOptions({
 });
 
 export const KamadaKawaiLayoutConfig = z.strictObject({
-    ... SimpleLayoutConfig.shape,
+    ...SimpleLayoutConfig.shape,
     dist: z.record(z.number(), z.record(z.number(), z.number())).or(z.null()).default(null),
     pos: z.record(z.number(), z.array(z.number()).min(1).max(3)).or(z.null()).default(null),
     weightProperty: z.string().optional(),
@@ -77,7 +77,7 @@ export class KamadaKawaiLayout extends SimpleLayoutEngine {
      * @returns Options object with dim parameter
      */
     static getOptionsForDimension(dimension: 2 | 3): object {
-        return {dim: dimension};
+        return { dim: dimension };
     }
 
     /**
@@ -89,7 +89,7 @@ export class KamadaKawaiLayout extends SimpleLayoutEngine {
         const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
 
         this.positions = kamadaKawaiLayout(
-            {nodes, edges},
+            { nodes, edges },
             this.config.dist,
             this.config.pos,
             this.config.weightProperty,

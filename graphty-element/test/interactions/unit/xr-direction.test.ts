@@ -12,14 +12,14 @@
  * - Right stick Y: Zoom in/out - Y+ (forward) = zoom IN
  */
 
-import {Quaternion, Vector3} from "@babylonjs/core";
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test, vi} from "vitest";
+import { Quaternion, Vector3 } from "@babylonjs/core";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import {applyDeadzone} from "../../../src/cameras/InputUtils";
-import {PivotController} from "../../../src/cameras/PivotController";
-import type {Graph} from "../../../src/Graph";
-import {cleanupTestGraph, createTestGraph} from "../../helpers/testSetup";
+import { applyDeadzone } from "../../../src/cameras/InputUtils";
+import { PivotController } from "../../../src/cameras/PivotController";
+import type { Graph } from "../../../src/Graph";
+import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
 
 /**
  * Mock XRInputHandler for unit testing.
@@ -29,8 +29,8 @@ class MockXRInputHandler {
     private pivotController: PivotController;
 
     // Thumbstick values
-    public leftStick = {x: 0, y: 0};
-    public rightStick = {x: 0, y: 0};
+    public leftStick = { x: 0, y: 0 };
+    public rightStick = { x: 0, y: 0 };
 
     // Sensitivity settings (matching XRInputHandler)
     private readonly DEADZONE = 0.15;
@@ -74,7 +74,7 @@ class MockXRInputHandler {
         // RIGHT STICK: Zoom and Pan
         // Y = zoom (push forward = zoom in = scale up)
         if (Math.abs(rightY) > 0.0001) {
-            const zoomFactor = 1.0 + (rightY * this.ZOOM_SPEED);
+            const zoomFactor = 1.0 + rightY * this.ZOOM_SPEED;
             this.pivotController.zoom(zoomFactor);
         }
 
@@ -89,10 +89,10 @@ class MockXRInputHandler {
 /**
  * Helper to get pivot rotation as Euler angles
  */
-function getPivotEuler(pivot: PivotController): {x: number, y: number, z: number} {
+function getPivotEuler(pivot: PivotController): { x: number; y: number; z: number } {
     const quat = pivot.pivot.rotationQuaternion ?? Quaternion.Identity();
     const euler = quat.toEulerAngles();
-    return {x: euler.x, y: euler.y, z: euler.z};
+    return { x: euler.x, y: euler.y, z: euler.z };
 }
 
 /**
@@ -114,7 +114,7 @@ describe("XR Input Direction Verification", () => {
     let pivotController: PivotController;
     let mockHandler: MockXRInputHandler;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Create a test graph to get a valid scene
         graph = await createTestGraph();
 
@@ -135,7 +135,7 @@ describe("XR Input Direction Verification", () => {
         const initialEuler = getPivotEuler(pivotController);
 
         // Set left stick to right (X+)
-        mockHandler.leftStick = {x: 0.8, y: 0};
+        mockHandler.leftStick = { x: 0.8, y: 0 };
 
         // Process several frames of input
         for (let i = 0; i < 10; i++) {
@@ -151,11 +151,7 @@ describe("XR Input Direction Verification", () => {
         // So leftX > 0 means yawDelta > 0
         // And in PivotController.rotate(), yawDelta > 0 means pivot.rotate(Axis.Y, yawDelta)
         // This rotates the scene RIGHT from the user's perspective
-        assert.isAbove(
-            finalEuler.y,
-            initialEuler.y,
-            "Left stick X+ should rotate scene RIGHT (positive yaw)",
-        );
+        assert.isAbove(finalEuler.y, initialEuler.y, "Left stick X+ should rotate scene RIGHT (positive yaw)");
     });
 
     test("left stick X- rotates scene LEFT", () => {
@@ -163,7 +159,7 @@ describe("XR Input Direction Verification", () => {
         const initialEuler = getPivotEuler(pivotController);
 
         // Set left stick to left (X-)
-        mockHandler.leftStick = {x: -0.8, y: 0};
+        mockHandler.leftStick = { x: -0.8, y: 0 };
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
@@ -174,11 +170,7 @@ describe("XR Input Direction Verification", () => {
         const finalEuler = getPivotEuler(pivotController);
 
         // X- should produce negative yaw (rotate LEFT around Y axis)
-        assert.isBelow(
-            finalEuler.y,
-            initialEuler.y,
-            "Left stick X- should rotate scene LEFT (negative yaw)",
-        );
+        assert.isBelow(finalEuler.y, initialEuler.y, "Left stick X- should rotate scene LEFT (negative yaw)");
     });
 
     test("left stick Y+ (forward) pitches scene DOWN", () => {
@@ -186,7 +178,7 @@ describe("XR Input Direction Verification", () => {
         const initialEuler = getPivotEuler(pivotController);
 
         // Set left stick forward (Y+)
-        mockHandler.leftStick = {x: 0, y: 0.8};
+        mockHandler.leftStick = { x: 0, y: 0.8 };
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
@@ -213,7 +205,7 @@ describe("XR Input Direction Verification", () => {
         const initialEuler = getPivotEuler(pivotController);
 
         // Set left stick back (Y-)
-        mockHandler.leftStick = {x: 0, y: -0.8};
+        mockHandler.leftStick = { x: 0, y: -0.8 };
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
@@ -224,11 +216,7 @@ describe("XR Input Direction Verification", () => {
         const finalEuler = getPivotEuler(pivotController);
 
         // Y- should produce positive pitch (pitch UP - looking down at the scene)
-        assert.isAbove(
-            finalEuler.x,
-            initialEuler.x,
-            "Left stick Y- (back) should pitch scene UP (positive pitch)",
-        );
+        assert.isAbove(finalEuler.x, initialEuler.x, "Left stick Y- (back) should pitch scene UP (positive pitch)");
     });
 
     test("right stick X+ pans scene RIGHT", () => {
@@ -236,7 +224,7 @@ describe("XR Input Direction Verification", () => {
         const initialPos = getPivotPosition(pivotController);
 
         // Set right stick to right (X+)
-        mockHandler.rightStick = {x: 0.8, y: 0};
+        mockHandler.rightStick = { x: 0.8, y: 0 };
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
@@ -252,11 +240,7 @@ describe("XR Input Direction Verification", () => {
         // this.pivotController.panViewRelative(panAmount, 0);
         // And in PivotController.panViewRelative with initial yaw=0:
         // worldX = right * cosYaw = right * 1 = positive
-        assert.isAbove(
-            finalPos.x,
-            initialPos.x,
-            "Right stick X+ should pan scene RIGHT (positive X)",
-        );
+        assert.isAbove(finalPos.x, initialPos.x, "Right stick X+ should pan scene RIGHT (positive X)");
     });
 
     test("right stick X- pans scene LEFT", () => {
@@ -264,7 +248,7 @@ describe("XR Input Direction Verification", () => {
         const initialPos = getPivotPosition(pivotController);
 
         // Set right stick to left (X-)
-        mockHandler.rightStick = {x: -0.8, y: 0};
+        mockHandler.rightStick = { x: -0.8, y: 0 };
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
@@ -275,11 +259,7 @@ describe("XR Input Direction Verification", () => {
         const finalPos = getPivotPosition(pivotController);
 
         // X- should pan LEFT (negative X)
-        assert.isBelow(
-            finalPos.x,
-            initialPos.x,
-            "Right stick X- should pan scene LEFT (negative X)",
-        );
+        assert.isBelow(finalPos.x, initialPos.x, "Right stick X- should pan scene LEFT (negative X)");
     });
 
     test("right stick Y+ (forward) zooms IN", () => {
@@ -287,7 +267,7 @@ describe("XR Input Direction Verification", () => {
         const initialScale = getPivotScale(pivotController);
 
         // Set right stick forward (Y+)
-        mockHandler.rightStick = {x: 0, y: 0.8};
+        mockHandler.rightStick = { x: 0, y: 0.8 };
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
@@ -302,11 +282,7 @@ describe("XR Input Direction Verification", () => {
         // const zoomFactor = 1.0 + rightY * this.ZOOM_SPEED;
         // So rightY > 0 means zoomFactor > 1
         // this.pivotController.zoom(zoomFactor) with factor > 1 increases scale
-        assert.isAbove(
-            finalScale,
-            initialScale,
-            "Right stick Y+ (forward) should zoom IN (larger scale)",
-        );
+        assert.isAbove(finalScale, initialScale, "Right stick Y+ (forward) should zoom IN (larger scale)");
     });
 
     test("right stick Y- (back) zooms OUT", () => {
@@ -314,7 +290,7 @@ describe("XR Input Direction Verification", () => {
         const initialScale = getPivotScale(pivotController);
 
         // Set right stick back (Y-)
-        mockHandler.rightStick = {x: 0, y: -0.8};
+        mockHandler.rightStick = { x: 0, y: -0.8 };
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
@@ -325,11 +301,7 @@ describe("XR Input Direction Verification", () => {
         const finalScale = getPivotScale(pivotController);
 
         // Y- should zoom OUT (smaller scale)
-        assert.isBelow(
-            finalScale,
-            initialScale,
-            "Right stick Y- (back) should zoom OUT (smaller scale)",
-        );
+        assert.isBelow(finalScale, initialScale, "Right stick Y- (back) should zoom OUT (smaller scale)");
     });
 
     // Additional tests for deadzone behavior
@@ -339,8 +311,8 @@ describe("XR Input Direction Verification", () => {
         const initialScale = getPivotScale(pivotController);
 
         // Set thumbstick values below deadzone
-        mockHandler.leftStick = {x: 0.1, y: 0.1};
-        mockHandler.rightStick = {x: 0.1, y: 0.1};
+        mockHandler.leftStick = { x: 0.1, y: 0.1 };
+        mockHandler.rightStick = { x: 0.1, y: 0.1 };
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
@@ -358,12 +330,7 @@ describe("XR Input Direction Verification", () => {
             0.0001,
             "Deadzone should filter inputs below 0.15 (yaw unchanged)",
         );
-        assert.closeTo(
-            finalScale,
-            initialScale,
-            0.0001,
-            "Deadzone should filter inputs below 0.15 (scale unchanged)",
-        );
+        assert.closeTo(finalScale, initialScale, 0.0001, "Deadzone should filter inputs below 0.15 (scale unchanged)");
     });
 
     test("deadzone passes inputs above threshold", () => {
@@ -371,7 +338,7 @@ describe("XR Input Direction Verification", () => {
         const initialEuler = getPivotEuler(pivotController);
 
         // Set thumbstick values above deadzone
-        mockHandler.leftStick = {x: 0.5, y: 0};
+        mockHandler.leftStick = { x: 0.5, y: 0 };
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
@@ -383,11 +350,7 @@ describe("XR Input Direction Verification", () => {
 
         // Yaw should have changed - verify the difference is significant
         const yawDiff = Math.abs(finalEuler.y - initialEuler.y);
-        assert.isAbove(
-            yawDiff,
-            0.0001,
-            "Inputs above deadzone should be processed (yaw changed)",
-        );
+        assert.isAbove(yawDiff, 0.0001, "Inputs above deadzone should be processed (yaw changed)");
     });
 
     // Test combined inputs
@@ -396,7 +359,7 @@ describe("XR Input Direction Verification", () => {
         const initialEuler = getPivotEuler(pivotController);
 
         // Set left stick to diagonal (both X and Y)
-        mockHandler.leftStick = {x: 0.5, y: 0.5};
+        mockHandler.leftStick = { x: 0.5, y: 0.5 };
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
@@ -409,16 +372,8 @@ describe("XR Input Direction Verification", () => {
         // Both yaw and pitch should have changed - verify differences are significant
         const yawDiff = Math.abs(finalEuler.y - initialEuler.y);
         const pitchDiff = Math.abs(finalEuler.x - initialEuler.x);
-        assert.isAbove(
-            yawDiff,
-            0.0001,
-            "Diagonal input should change yaw",
-        );
-        assert.isAbove(
-            pitchDiff,
-            0.0001,
-            "Diagonal input should change pitch",
-        );
+        assert.isAbove(yawDiff, 0.0001, "Diagonal input should change yaw");
+        assert.isAbove(pitchDiff, 0.0001, "Diagonal input should change pitch");
     });
 
     test("both thumbsticks can be used simultaneously", () => {
@@ -427,8 +382,8 @@ describe("XR Input Direction Verification", () => {
         const initialScale = getPivotScale(pivotController);
 
         // Set both thumbsticks
-        mockHandler.leftStick = {x: 0.5, y: 0}; // Yaw
-        mockHandler.rightStick = {x: 0, y: 0.5}; // Zoom
+        mockHandler.leftStick = { x: 0.5, y: 0 }; // Yaw
+        mockHandler.rightStick = { x: 0, y: 0.5 }; // Zoom
 
         // Process several frames
         for (let i = 0; i < 10; i++) {
@@ -442,16 +397,8 @@ describe("XR Input Direction Verification", () => {
         // Both yaw and scale should have changed - verify differences are significant
         const yawDiff = Math.abs(finalEuler.y - initialEuler.y);
         const scaleDiff = Math.abs(finalScale - initialScale);
-        assert.isAbove(
-            yawDiff,
-            0.0001,
-            "Simultaneous input: yaw should change",
-        );
-        assert.isAbove(
-            scaleDiff,
-            0.0001,
-            "Simultaneous input: scale should change",
-        );
+        assert.isAbove(yawDiff, 0.0001, "Simultaneous input: yaw should change");
+        assert.isAbove(scaleDiff, 0.0001, "Simultaneous input: scale should change");
     });
 });
 

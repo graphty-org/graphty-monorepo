@@ -17,17 +17,11 @@
  * - Phase 4: Connected patterns (sinewave, zigzag) with seamless connection
  */
 
-import {
-    Mesh,
-    Scene,
-    ShaderMaterial,
-    Vector3,
-    VertexData,
-} from "@babylonjs/core";
+import { Mesh, Scene, ShaderMaterial, Vector3, VertexData } from "@babylonjs/core";
 
-import {FilledArrowRenderer} from "./FilledArrowRenderer";
-import {MaterialHelper} from "./MaterialHelper";
-import {PatternedLineMesh} from "./PatternedLineMesh";
+import { FilledArrowRenderer } from "./FilledArrowRenderer";
+import { MaterialHelper } from "./MaterialHelper";
+import { PatternedLineMesh } from "./PatternedLineMesh";
 
 /**
  * Wrapper for continuous pattern meshes (zigzag, sinewave)
@@ -54,14 +48,7 @@ export class ContinuousPatternMesh {
      * @param opacity - Line opacity (0-1)
      * @param scene - Babylon.js scene
      */
-    constructor(
-        mesh: Mesh,
-        pattern: PatternType,
-        width: number,
-        color: string,
-        opacity: number,
-        scene: Scene,
-    ) {
+    constructor(mesh: Mesh, pattern: PatternType, width: number, color: string, opacity: number, scene: Scene) {
         this.mesh = mesh;
         this.pattern = pattern;
         this.width = width;
@@ -92,9 +79,10 @@ export class ContinuousPatternMesh {
             const geometryLength = lineLength / size;
 
             // Recreate the geometry
-            const vertexData = this.pattern === "zigzag" ?
-                PatternedLineRenderer.createContinuousZigzag(geometryLength) :
-                PatternedLineRenderer.createContinuousSinewave(geometryLength);
+            const vertexData =
+                this.pattern === "zigzag"
+                    ? PatternedLineRenderer.createContinuousZigzag(geometryLength)
+                    : PatternedLineRenderer.createContinuousSinewave(geometryLength);
 
             vertexData.applyToMesh(this.mesh, true); // true = updatable
         }
@@ -144,47 +132,47 @@ export interface PatternDefinition {
 // ==========================================
 
 export const PATTERN_DEFINITIONS: Record<PatternType, PatternDefinition> = {
-    "dot": {
-        shapes: [{type: "circle", size: 1.0}],
-        spacing: {min: 0.2, ideal: 0.5, max: 1.0},
+    dot: {
+        shapes: [{ type: "circle", size: 1.0 }],
+        spacing: { min: 0.2, ideal: 0.5, max: 1.0 },
         connected: false,
     },
-    "star": {
-        shapes: [{type: "star", size: 1.0, points: 5}],
-        spacing: {min: 0.3, ideal: 0.6, max: 1.2},
+    star: {
+        shapes: [{ type: "star", size: 1.0, points: 5 }],
+        spacing: { min: 0.3, ideal: 0.6, max: 1.2 },
         connected: false,
     },
-    "box": {
-        shapes: [{type: "box", size: 1.0, aspectRatio: 1.0}],
-        spacing: {min: 0.2, ideal: 0.5, max: 1.0},
+    box: {
+        shapes: [{ type: "box", size: 1.0, aspectRatio: 1.0 }],
+        spacing: { min: 0.2, ideal: 0.5, max: 1.0 },
         connected: false,
     },
-    "dash": {
-        shapes: [{type: "box", size: 1.0, aspectRatio: 3.0}],
-        spacing: {min: 0.2, ideal: 0.4, max: 0.8},
+    dash: {
+        shapes: [{ type: "box", size: 1.0, aspectRatio: 3.0 }],
+        spacing: { min: 0.2, ideal: 0.4, max: 0.8 },
         connected: false,
     },
-    "diamond": {
-        shapes: [{type: "diamond", size: 1.0}],
-        spacing: {min: 0.2, ideal: 0.5, max: 1.0},
+    diamond: {
+        shapes: [{ type: "diamond", size: 1.0 }],
+        spacing: { min: 0.2, ideal: 0.5, max: 1.0 },
         connected: false,
     },
     "dash-dot": {
         shapes: [
-            {type: "box", size: 1.0, aspectRatio: 3.0},
-            {type: "circle", size: 0.6},
+            { type: "box", size: 1.0, aspectRatio: 3.0 },
+            { type: "circle", size: 0.6 },
         ],
-        spacing: {min: 0.15, ideal: 0.3, max: 0.6},
+        spacing: { min: 0.15, ideal: 0.3, max: 0.6 },
         connected: false,
     },
-    "sinewave": {
-        shapes: [{type: "sinewave-segment", size: 1.0, periods: 0.5}],
-        spacing: {min: 0, ideal: 0, max: 0},
+    sinewave: {
+        shapes: [{ type: "sinewave-segment", size: 1.0, periods: 0.5 }],
+        spacing: { min: 0, ideal: 0, max: 0 },
         connected: true,
     },
-    "zigzag": {
-        shapes: [{type: "zigzag-segment", size: 1.0, angle: 90}],
-        spacing: {min: 0, ideal: 0, max: 0},
+    zigzag: {
+        shapes: [{ type: "zigzag-segment", size: 1.0, angle: 90 }],
+        spacing: { min: 0, ideal: 0, max: 0 },
         connected: true, // Connected pattern - no gaps between segments
     },
 };
@@ -315,7 +303,7 @@ export class PatternedLineRenderer {
                 }
             } else {
                 // Use shader size=1.0 since geometry is already at correct scale
-                FilledArrowRenderer.applyShader(mesh, {size: 1.0, color, opacity}, scene);
+                FilledArrowRenderer.applyShader(mesh, { size: 1.0, color, opacity }, scene);
 
                 const material = mesh.material as ShaderMaterial;
                 this.activeMaterials.add(material);
@@ -327,9 +315,7 @@ export class PatternedLineRenderer {
         // For discrete patterns, use standard scaling approach
         // Get geometry for pattern type
         // Phase 3: Use shapeType if provided, otherwise derive from pattern
-        const geometry = shapeType ?
-            this.getGeometryForShapeType(shapeType) :
-            this.getGeometryForPattern(pattern);
+        const geometry = shapeType ? this.getGeometryForShapeType(shapeType) : this.getGeometryForPattern(pattern);
 
         // Create mesh from geometry
         const meshName = shapeType ? `pattern-${pattern}-${shapeType}` : `pattern-${pattern}`;
@@ -363,7 +349,7 @@ export class PatternedLineRenderer {
             const geometryDiameter = this.getGeometryDiameter(pattern, shapeType);
             const size = width / geometryDiameter;
 
-            FilledArrowRenderer.applyShader(mesh, {size, color, opacity}, scene);
+            FilledArrowRenderer.applyShader(mesh, { size, color, opacity }, scene);
 
             // Track material for batched updates
             const material = mesh.material as ShaderMaterial;
@@ -500,11 +486,7 @@ export class PatternedLineRenderer {
      * @param outerRadius - Outer radius of the star
      * @returns VertexData for a star
      */
-    private static createStarGeometry(
-        points = 5,
-        innerRadius = 0.4,
-        outerRadius = 1.0,
-    ): VertexData {
+    private static createStarGeometry(points = 5, innerRadius = 0.4, outerRadius = 1.0): VertexData {
         const positions: number[] = [0, 0, 0]; // Center
         const indices: number[] = [];
         const totalPoints = points * 2;
@@ -648,7 +630,7 @@ export class PatternedLineRenderer {
             const t = i / segments;
             const x = t * segmentLength;
             // Use absolute X position for phase to ensure continuity between segments
-            const z = amplitude * Math.sin(2 * Math.PI * x / wavelength);
+            const z = amplitude * Math.sin((2 * Math.PI * x) / wavelength);
 
             // Calculate the tangent (derivative) to apply thickness perpendicular to curve
             // dz/dx = amplitude * cos(2π * x / wavelength) * (2π / wavelength)
@@ -657,13 +639,13 @@ export class PatternedLineRenderer {
             // Tangent vector in XZ plane: (1, dz/dx)
             // Normal (perpendicular) vector: (-dz/dx, 1)
             // Normalize to get unit normal
-            const normalLength = Math.sqrt((derivative * derivative) + 1);
+            const normalLength = Math.sqrt(derivative * derivative + 1);
             const nx = -derivative / normalLength;
             const nz = 1 / normalLength;
 
             // Apply thickness along the normal direction (perpendicular to curve)
-            positions.push(x + (nx * thickness), 0, z + (nz * thickness)); // Bottom
-            positions.push(x - (nx * thickness), 0, z - (nz * thickness)); // Top
+            positions.push(x + nx * thickness, 0, z + nz * thickness); // Bottom
+            positions.push(x - nx * thickness, 0, z - nz * thickness); // Top
         }
 
         // Create triangle indices for quad strip
@@ -734,7 +716,7 @@ export class PatternedLineRenderer {
 
                 // Interpolate to find Z at exact lineLength
                 const t = (lineLength - prevX) / (x - prevX);
-                const finalZ = prevZ + (t * (currZ - prevZ));
+                const finalZ = prevZ + t * (currZ - prevZ);
 
                 points.push([lineLength, 0, finalZ]);
                 break;
@@ -793,7 +775,7 @@ export class PatternedLineRenderer {
         for (let i = 0; i <= segments; i++) {
             const t = i / segments;
             const x = t * lineLength;
-            const z = amplitude * Math.sin((2 * Math.PI * periods * lineLength) * t);
+            const z = amplitude * Math.sin(2 * Math.PI * periods * lineLength * t);
 
             positions.push(x, 0, z - thickness); // Bottom
             positions.push(x, 0, z + thickness); // Top
@@ -821,11 +803,7 @@ export class PatternedLineRenderer {
      * @param thickness - Line thickness (quad strip width), default 0.05
      * @returns VertexData with positions and indices for quad strip
      */
-    private static createZigzagSegmentGeometry(
-        segmentLength = 1.0,
-        amplitude = 0.5,
-        thickness = 0.05,
-    ): VertexData {
+    private static createZigzagSegmentGeometry(segmentLength = 1.0, amplitude = 0.5, thickness = 0.05): VertexData {
         const positions: number[] = [];
         const indices: number[] = [];
 

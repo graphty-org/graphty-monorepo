@@ -1,4 +1,4 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
 import * as categorical from "../../src/utils/styleHelpers/color/categorical";
 import * as diverging from "../../src/utils/styleHelpers/color/diverging";
@@ -195,7 +195,7 @@ describe("Combined Helpers", () => {
             const result = combined.edgeFlow(0.8);
             assert.strictEqual(result.color, sequential.viridis(0.8));
             // Default range is 0.2-20, so 0.8 * (20-0.2) + 0.2 = 16.04
-            assert.strictEqual(result.width, 0.2 + (0.8 * (20 - 0.2)));
+            assert.strictEqual(result.width, 0.2 + 0.8 * (20 - 0.2));
         });
 
         it("handles minimum flow", () => {
@@ -216,7 +216,7 @@ describe("Combined Helpers", () => {
             const result = combined.edgeFlow(0.5, sequential.inferno);
             assert.strictEqual(result.color, sequential.inferno(0.5));
             // 0.5 * (20-0.2) + 0.2 = 10.1
-            assert.strictEqual(result.width, 0.2 + (0.5 * (20 - 0.2)));
+            assert.strictEqual(result.width, 0.2 + 0.5 * (20 - 0.2));
         });
 
         it("accepts custom width range", () => {

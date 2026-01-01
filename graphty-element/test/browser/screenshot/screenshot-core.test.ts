@@ -1,8 +1,8 @@
-import {afterEach, expect, test} from "vitest";
+import { afterEach, expect, test } from "vitest";
 
-import type {Graph} from "../../../src/Graph";
-import type {ScreenshotResult} from "../../../src/screenshot/types.js";
-import {cleanupTestGraphWithData, createTestGraphWithData} from "./test-setup.js";
+import type { Graph } from "../../../src/Graph";
+import type { ScreenshotResult } from "../../../src/screenshot/types.js";
+import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
 
@@ -10,7 +10,7 @@ afterEach(() => {
     cleanupTestGraphWithData(graph);
 });
 
-test("captureScreenshot returns valid ScreenshotResult with blob", async() => {
+test("captureScreenshot returns valid ScreenshotResult with blob", async () => {
     graph = await createTestGraphWithData();
 
     const result: ScreenshotResult = await graph.captureScreenshot();
@@ -29,34 +29,34 @@ test("captureScreenshot returns valid ScreenshotResult with blob", async() => {
     ).toBeTruthy();
 });
 
-test("captureScreenshot supports PNG format", async() => {
+test("captureScreenshot supports PNG format", async () => {
     graph = await createTestGraphWithData();
 
-    const result = await graph.captureScreenshot({format: "png"});
+    const result = await graph.captureScreenshot({ format: "png" });
 
     expect(result.blob.type, "blob type should be image/png").toBe("image/png");
     expect(result.metadata.format, "metadata.format should be png").toBe("png");
 });
 
-test("captureScreenshot supports JPEG format", async() => {
+test("captureScreenshot supports JPEG format", async () => {
     graph = await createTestGraphWithData();
 
-    const result = await graph.captureScreenshot({format: "jpeg"});
+    const result = await graph.captureScreenshot({ format: "jpeg" });
 
     expect(result.blob.type, "blob type should be image/jpeg").toBe("image/jpeg");
     expect(result.metadata.format, "metadata.format should be jpeg").toBe("jpeg");
 });
 
-test("captureScreenshot supports WebP format", async() => {
+test("captureScreenshot supports WebP format", async () => {
     graph = await createTestGraphWithData();
 
-    const result = await graph.captureScreenshot({format: "webp"});
+    const result = await graph.captureScreenshot({ format: "webp" });
 
     expect(result.blob.type, "blob type should be image/webp").toBe("image/webp");
     expect(result.metadata.format, "metadata.format should be webp").toBe("webp");
 });
 
-test("captureScreenshot defaults to PNG format", async() => {
+test("captureScreenshot defaults to PNG format", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot();
@@ -65,7 +65,7 @@ test("captureScreenshot defaults to PNG format", async() => {
     expect(result.metadata.format, "metadata should reflect PNG").toBe("png");
 });
 
-test("captureScreenshot uses canvas dimensions by default", async() => {
+test("captureScreenshot uses canvas dimensions by default", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot();
@@ -75,23 +75,17 @@ test("captureScreenshot uses canvas dimensions by default", async() => {
     expect(result.metadata.height > 0, "height should be positive").toBeTruthy();
 });
 
-test("captureScreenshot with multiplier increases resolution", async() => {
+test("captureScreenshot with multiplier increases resolution", async () => {
     graph = await createTestGraphWithData();
 
-    const base = await graph.captureScreenshot({multiplier: 1});
-    const double = await graph.captureScreenshot({multiplier: 2});
+    const base = await graph.captureScreenshot({ multiplier: 1 });
+    const double = await graph.captureScreenshot({ multiplier: 2 });
 
-    expect(
-        double.metadata.width,
-        "width should be doubled with multiplier: 2",
-    ).toBe(base.metadata.width * 2);
-    expect(
-        double.metadata.height,
-        "height should be doubled with multiplier: 2",
-    ).toBe(base.metadata.height * 2);
+    expect(double.metadata.width, "width should be doubled with multiplier: 2").toBe(base.metadata.width * 2);
+    expect(double.metadata.height, "height should be doubled with multiplier: 2").toBe(base.metadata.height * 2);
 });
 
-test("captureScreenshot with explicit width/height overrides multiplier", async() => {
+test("captureScreenshot with explicit width/height overrides multiplier", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot({
@@ -104,7 +98,7 @@ test("captureScreenshot with explicit width/height overrides multiplier", async(
     expect(result.metadata.height, "height should be 600 (explicit)").toBe(600);
 });
 
-test("captureScreenshot returns blob destination by default", async() => {
+test("captureScreenshot returns blob destination by default", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot();

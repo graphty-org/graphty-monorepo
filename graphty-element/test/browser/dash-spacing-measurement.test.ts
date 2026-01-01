@@ -3,12 +3,12 @@
  * This test renders a dash pattern and measures actual pixel spacing
  */
 
-import {chromium} from "playwright";
-import {PNG} from "pngjs";
-import {describe, expect, test} from "vitest";
+import { chromium } from "playwright";
+import { PNG } from "pngjs";
+import { describe, expect, test } from "vitest";
 
 describe("Dash Pattern Spacing", () => {
-    test("measure dash pattern spacing in pixels", {timeout: 30000}, async() => {
+    test("measure dash pattern spacing in pixels", { timeout: 30000 }, async () => {
         const browser = await chromium.launch();
         const page = await browser.newPage();
 
@@ -25,14 +25,14 @@ describe("Dash Pattern Spacing", () => {
 
             // Parse the PNG to get pixel data
             const png = PNG.sync.read(Buffer.from(screenshot));
-            const {width, height, data: pixels} = png;
+            const { width, height, data: pixels } = png;
 
             // Read pixel data from the center horizontal line (where the edge should be)
             const centerY = Math.floor(height / 2);
 
             // Helper to get pixel brightness
             const getBrightness = (x: number, y: number): number => {
-                const idx = ((y * width) + x) * 4;
+                const idx = (y * width + x) * 4;
                 const r = pixels[idx];
                 const g = pixels[idx + 1];
                 const b = pixels[idx + 2];
@@ -42,8 +42,8 @@ describe("Dash Pattern Spacing", () => {
             // Find all dash segments by looking for non-background pixels
             // Background is typically dark/black, dashes are light/grey
             const threshold = 50; // Pixel brightness threshold
-            const segments: {start: number, end: number, length: number}[] = [];
-            const gaps: {start: number, end: number, length: number}[] = [];
+            const segments: { start: number; end: number; length: number }[] = [];
+            const gaps: { start: number; end: number; length: number }[] = [];
 
             let inDash = false;
             let dashStart = 0;
@@ -86,18 +86,15 @@ describe("Dash Pattern Spacing", () => {
             }
 
             // Calculate statistics
-            const avgDashLength = segments.length > 0 ?
-                segments.reduce((sum, s) => sum + s.length, 0) / segments.length :
-                0;
-            const avgGapLength = gaps.length > 0 ?
-                gaps.reduce((sum, g) => sum + g.length, 0) / gaps.length :
-                0;
+            const avgDashLength =
+                segments.length > 0 ? segments.reduce((sum, s) => sum + s.length, 0) / segments.length : 0;
+            const avgGapLength = gaps.length > 0 ? gaps.reduce((sum, g) => sum + g.length, 0) / gaps.length : 0;
 
             const gapToDashRatio = avgDashLength > 0 ? avgGapLength / avgDashLength : 0;
             const expectedRatio = 2.0 / 3.0; // We set gap=2x, dash=3x
 
             const measurements = {
-                canvasSize: {width, height},
+                canvasSize: { width, height },
                 centerY,
                 dashSegments: segments,
                 gaps,

@@ -2,7 +2,7 @@
  * TypeScript types for interaction testing
  */
 
-import type {ViewMode} from "../../src/config";
+import type { ViewMode } from "../../src/config";
 
 /**
  * Options for creating a test graph
@@ -48,7 +48,7 @@ export interface CameraState {
     /** Current view mode */
     mode: "2d" | "3d";
     /** Camera position in world space */
-    position: {x: number, y: number, z: number};
+    position: { x: number; y: number; z: number };
     /** Alpha angle (horizontal orbit) - 3D mode only */
     alpha?: number;
     /** Beta angle (vertical tilt) - 3D mode only */
@@ -100,7 +100,7 @@ export interface MockController {
     handedness: "left" | "right";
     position: Vector3D;
     rotation: Vector3D;
-    thumbstick: {x: number, y: number};
-    trigger: {value: number, pressed: boolean};
-    grip: {value: number, pressed: boolean};
+    thumbstick: { x: number; y: number };
+    trigger: { value: number; pressed: boolean };
+    grip: { value: number; pressed: boolean };
 }

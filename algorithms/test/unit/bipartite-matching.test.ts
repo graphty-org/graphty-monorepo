@@ -1,11 +1,11 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
     bipartitePartition,
     greedyBipartiteMatching,
     maximumBipartiteMatching,
 } from "../../src/algorithms/matching/bipartite.js";
-import {Graph} from "../../src/core/graph.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Bipartite Matching", () => {
     describe("bipartitePartition", () => {
@@ -152,7 +152,7 @@ describe("Bipartite Matching", () => {
             const leftNodes = new Set(["a", "b"]);
             const rightNodes = new Set(["1", "2"]);
 
-            const result = maximumBipartiteMatching(graph, {leftNodes, rightNodes});
+            const result = maximumBipartiteMatching(graph, { leftNodes, rightNodes });
 
             expect(result.size).toBe(2);
         });
@@ -236,7 +236,7 @@ describe("Bipartite Matching", () => {
             const leftNodes = new Set(["a", "b"]);
             const rightNodes = new Set(["1", "2"]);
 
-            const result = greedyBipartiteMatching(graph, {leftNodes, rightNodes});
+            const result = greedyBipartiteMatching(graph, { leftNodes, rightNodes });
 
             expect(result.size).toBe(2);
         });
@@ -279,7 +279,7 @@ describe("Bipartite Matching", () => {
 
     describe("edge cases", () => {
         it("should handle directed graphs", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "1");
             graph.addEdge("b", "2");
 
@@ -289,7 +289,7 @@ describe("Bipartite Matching", () => {
         });
 
         it("should handle self-loops in bipartite check", () => {
-            const graph = new Graph({allowSelfLoops: true});
+            const graph = new Graph({ allowSelfLoops: true });
             graph.addEdge("a", "a");
 
             const partition = bipartitePartition(graph);

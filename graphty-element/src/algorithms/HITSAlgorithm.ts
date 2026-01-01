@@ -1,10 +1,10 @@
-import {hits} from "@graphty/algorithms";
-import {z} from "zod/v4";
+import { hits } from "@graphty/algorithms";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig} from "../config";
-import {Algorithm} from "./Algorithm";
-import type {OptionsSchema} from "./types/OptionSchema";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import { Algorithm } from "./Algorithm";
+import type { OptionsSchema } from "./types/OptionSchema";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for HITS algorithm
@@ -121,9 +121,9 @@ export class HITSAlgorithm extends Algorithm<HITSOptions> {
             label: "Direction Mode",
             description: "Direction mode for directed graphs",
             options: [
-                {value: "total", label: "Total (both directions)"},
-                {value: "in", label: "In-degree (incoming edges)"},
-                {value: "out", label: "Out-degree (outgoing edges)"},
+                { value: "total", label: "Total (both directions)" },
+                { value: "in", label: "In-degree (incoming edges)" },
+                { value: "out", label: "Out-degree (outgoing edges)" },
             ],
             advanced: true,
         },
@@ -191,11 +191,11 @@ export class HITSAlgorithm extends Algorithm<HITSOptions> {
         }
 
         // Get options from schema
-        const {maxIterations, tolerance, normalized, mode, endpoints} = this.schemaOptions;
+        const { maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
 
         // Convert to @graphty/algorithms format and run
         // HITS works best on directed graphs, but we'll run it anyway
-        const graphData = toAlgorithmGraph(g, {directed: true});
+        const graphData = toAlgorithmGraph(g, { directed: true });
         const results = hits(graphData, {
             maxIterations,
             tolerance,
@@ -250,8 +250,16 @@ export class HITSAlgorithm extends Algorithm<HITSOptions> {
             this.addNodeResult(nodeId, "combinedScore", combinedScore);
 
             this.addNodeResult(nodeId, "hubScorePct", hubRange > 0 ? (hubScore - minHubScore) / hubRange : 0);
-            this.addNodeResult(nodeId, "authorityScorePct", authorityRange > 0 ? (authorityScore - minAuthorityScore) / authorityRange : 0);
-            this.addNodeResult(nodeId, "combinedScorePct", combinedRange > 0 ? (combinedScore - minCombinedScore) / combinedRange : 0);
+            this.addNodeResult(
+                nodeId,
+                "authorityScorePct",
+                authorityRange > 0 ? (authorityScore - minAuthorityScore) / authorityRange : 0,
+            );
+            this.addNodeResult(
+                nodeId,
+                "combinedScorePct",
+                combinedRange > 0 ? (combinedScore - minCombinedScore) / combinedRange : 0,
+            );
         }
     }
 }

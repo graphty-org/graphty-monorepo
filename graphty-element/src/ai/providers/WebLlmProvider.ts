@@ -143,7 +143,7 @@ export class WebLlmProvider implements LlmProvider {
                 return false;
             }
 
-            const {gpu} = navigator;
+            const { gpu } = navigator;
             if (!gpu) {
                 return false;
             }
@@ -276,7 +276,7 @@ export class WebLlmProvider implements LlmProvider {
         if (!webGpuAvailable) {
             throw new Error(
                 "WebGPU is not supported in this browser. " +
-                "Please use Chrome 113+ or another WebGPU-enabled browser.",
+                    "Please use Chrome 113+ or another WebGPU-enabled browser.",
             );
         }
 
@@ -290,7 +290,7 @@ export class WebLlmProvider implements LlmProvider {
             } catch {
                 throw new Error(
                     "Failed to load @mlc-ai/web-llm. This is an optional dependency for in-browser AI. " +
-                    "To use WebLLM, install it with: npm install @mlc-ai/web-llm",
+                        "To use WebLLM, install it with: npm install @mlc-ai/web-llm",
                 );
             }
 
@@ -300,9 +300,9 @@ export class WebLlmProvider implements LlmProvider {
 
             // Create engine with progress callback
             this.engine = await webllm.CreateMLCEngine(modelId, {
-                initProgressCallback: (report: {progress: number, text: string}) => {
+                initProgressCallback: (report: { progress: number; text: string }) => {
                     // Map progress from 0.1 to 1.0 (reserve 0-0.1 for module loading)
-                    const mappedProgress = 0.1 + (report.progress * 0.9);
+                    const mappedProgress = 0.1 + report.progress * 0.9;
                     this.emitProgress(mappedProgress, report.text);
                 },
             });
@@ -328,7 +328,7 @@ export class WebLlmProvider implements LlmProvider {
     async generate(
         messages: Message[],
         tools: ToolDefinition[],
-        options?: {signal?: AbortSignal},
+        options?: { signal?: AbortSignal },
     ): Promise<LlmResponse> {
         if (options?.signal?.aborted) {
             throw new Error("Request was aborted");
@@ -362,10 +362,10 @@ export class WebLlmProvider implements LlmProvider {
                 requestOptions.tool_choice = "auto";
             }
 
-            const response = await engine.chat.completions.create({
+            const response = (await engine.chat.completions.create({
                 messages: openaiMessages,
-                ... requestOptions,
-            }) as OpenAiResponse;
+                ...requestOptions,
+            })) as OpenAiResponse;
 
             // Check for abort after async operation
             if (options?.signal?.aborted) {
@@ -430,7 +430,7 @@ export class WebLlmProvider implements LlmProvider {
 
             const stream = await engine.chat.completions.create({
                 messages: openaiMessages,
-                ... requestOptions,
+                ...requestOptions,
             });
 
             let accumulatedText = "";
@@ -460,9 +460,10 @@ export class WebLlmProvider implements LlmProvider {
                             const toolCall: ToolCall = {
                                 id: tc.id ?? `call_${Date.now()}`,
                                 name: tc.function.name,
-                                arguments: typeof tc.function.arguments === "string" ?
-                                    JSON.parse(tc.function.arguments) as Record<string, unknown> :
-                                    tc.function.arguments ?? {},
+                                arguments:
+                                    typeof tc.function.arguments === "string"
+                                        ? (JSON.parse(tc.function.arguments) as Record<string, unknown>)
+                                        : (tc.function.arguments ?? {}),
                             };
                             toolCalls.push(toolCall);
                             callbacks.onToolCall(toolCall.name, toolCall.arguments);
@@ -587,9 +588,10 @@ export class WebLlmProvider implements LlmProvider {
                 toolCalls.push({
                     id: tc.id ?? `call_${Date.now()}`,
                     name: tc.function?.name ?? "",
-                    arguments: typeof tc.function?.arguments === "string" ?
-                        JSON.parse(tc.function.arguments) as Record<string, unknown> :
-                        tc.function?.arguments ?? {},
+                    arguments:
+                        typeof tc.function?.arguments === "string"
+                            ? (JSON.parse(tc.function.arguments) as Record<string, unknown>)
+                            : (tc.function?.arguments ?? {}),
                 });
             }
         }
@@ -601,12 +603,12 @@ export class WebLlmProvider implements LlmProvider {
         return {
             text: message.content ?? "",
             toolCalls,
-            usage: response.usage ?
-                {
-                    promptTokens: promptTokens ?? 0,
-                    completionTokens: completionTokens ?? 0,
-                } :
-                undefined,
+            usage: response.usage
+                ? {
+                      promptTokens: promptTokens ?? 0,
+                      completionTokens: completionTokens ?? 0,
+                  }
+                : undefined,
         };
     }
 
@@ -632,7 +634,7 @@ export class WebLlmProvider implements LlmProvider {
             // Don't actually call tools in basic mock
         }
 
-        return {text, toolCalls};
+        return { text, toolCalls };
     }
 
     /**

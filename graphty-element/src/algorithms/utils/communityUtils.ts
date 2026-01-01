@@ -2,7 +2,7 @@
  * @file Shared utilities for community detection algorithms
  */
 
-import type {GraphLike} from "./graphUtils";
+import type { GraphLike } from "./graphUtils";
 
 /**
  * Options for community utilities
@@ -36,9 +36,7 @@ export interface DegreeOptions {
  * // result: [["A", "B"], ["C"]]
  * ```
  */
-export function extractCommunities(
-    communities: Map<number | string, number>,
-): (number | string)[][] {
+export function extractCommunities(communities: Map<number | string, number>): (number | string)[][] {
     const communityArrays = new Map<number, (number | string)[]>();
 
     for (const [nodeId, communityId] of communities) {
@@ -65,12 +63,9 @@ export function extractCommunities(
  * const totalWeight = getTotalEdgeWeight(graph);
  * ```
  */
-export function getTotalEdgeWeight(
-    graph: GraphLike,
-    options: CommunityOptions = {},
-): number {
-    const {weightAttribute = "value"} = options;
-    const {edges} = graph.getDataManager();
+export function getTotalEdgeWeight(graph: GraphLike, options: CommunityOptions = {}): number {
+    const { weightAttribute = "value" } = options;
+    const { edges } = graph.getDataManager();
 
     let totalWeight = 0;
 
@@ -107,13 +102,9 @@ export function getTotalEdgeWeight(
  * const outDegree = getNodeDegree(graph, "A", { directed: true, countType: "out" });
  * ```
  */
-export function getNodeDegree(
-    graph: GraphLike,
-    nodeId: number | string,
-    options: DegreeOptions = {},
-): number {
-    const {directed = false, countType = "both"} = options;
-    const {edges} = graph.getDataManager();
+export function getNodeDegree(graph: GraphLike, nodeId: number | string, options: DegreeOptions = {}): number {
+    const { directed = false, countType = "both" } = options;
+    const { edges } = graph.getDataManager();
 
     let degree = 0;
     const nodeIdStr = String(nodeId);
@@ -154,9 +145,7 @@ export function getNodeDegree(
  * // count: 2
  * ```
  */
-export function countUniqueCommunities(
-    communities: Map<number | string, number>,
-): number {
+export function countUniqueCommunities(communities: Map<number | string, number>): number {
     const uniqueCommunities = new Set<number>();
 
     for (const communityId of communities.values()) {

@@ -7,6 +7,10 @@ export class SeededRandom {
     private readonly a = 1103515245;
     private readonly c = 12345;
 
+    /**
+     * Creates a new SeededRandom instance with the given seed.
+     * @param seed - The seed value for reproducible random number generation
+     */
     constructor(seed: number) {
         // Handle negative seeds correctly
         this.seed = ((seed % this.m) + this.m) % this.m;
@@ -14,14 +18,17 @@ export class SeededRandom {
 
     /**
      * Generate next random number between 0 and 1
+     * @returns A pseudo-random number in the range [0, 1]
      */
     next(): number {
-        this.seed = ((this.a * this.seed) + this.c) % this.m;
+        this.seed = (this.a * this.seed + this.c) % this.m;
         return this.seed / (this.m - 1);
     }
 
     /**
      * Create a generator function for backward compatibility
+     * @param seed - The seed value for reproducible random number generation
+     * @returns A function that returns the next random number when called
      */
     static createGenerator(seed: number): () => number {
         const rng = new SeededRandom(seed);
@@ -75,11 +82,12 @@ export function euclideanDistance(a: number[], b: number[]): number {
 export const normalize = {
     /**
      * Min-max normalization to [0, 1] range
+     * @param values - Map of values to normalize in place
      */
     minMax(values: Map<string, number>): void {
         const vals = Array.from(values.values());
-        const min = Math.min(... vals);
-        const max = Math.max(... vals);
+        const min = Math.min(...vals);
+        const max = Math.max(...vals);
         const range = max - min;
 
         if (range === 0) {
@@ -93,9 +101,10 @@ export const normalize = {
 
     /**
      * Normalize by maximum value
+     * @param values - Map of values to normalize in place
      */
     byMax(values: Map<string, number>): void {
-        const max = Math.max(... values.values());
+        const max = Math.max(...values.values());
         if (max === 0) {
             return;
         }
@@ -107,10 +116,10 @@ export const normalize = {
 
     /**
      * L2 (Euclidean) normalization
+     * @param values - Map of values to normalize in place
      */
     l2Norm(values: Map<string, number>): void {
-        const sumSquares = Array.from(values.values())
-            .reduce((sum, val) => sum + (val * val), 0);
+        const sumSquares = Array.from(values.values()).reduce((sum, val) => sum + val * val, 0);
         const norm = Math.sqrt(sumSquares);
 
         if (norm === 0) {
@@ -124,10 +133,10 @@ export const normalize = {
 
     /**
      * Normalize to sum to 1
+     * @param values - Map of values to normalize in place
      */
     sumToOne(values: Map<string, number>): void {
-        const sum = Array.from(values.values())
-            .reduce((acc, val) => acc + val, 0);
+        const sum = Array.from(values.values()).reduce((acc, val) => acc + val, 0);
 
         if (sum === 0) {
             return;

@@ -1,7 +1,7 @@
-import {afterEach, expect, test} from "vitest";
+import { afterEach, expect, test } from "vitest";
 
-import type {Graph} from "../../../src/Graph";
-import {cleanupTestGraphWithData, createTestGraphWithData} from "./test-setup.js";
+import type { Graph } from "../../../src/Graph";
+import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
 
@@ -9,32 +9,32 @@ afterEach(() => {
     cleanupTestGraphWithData(graph);
 });
 
-test("captureScreenshot with blob destination returns blob", async() => {
+test("captureScreenshot with blob destination returns blob", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot({
-        destination: {blob: true},
+        destination: { blob: true },
     });
 
     expect(result.blob instanceof Blob, "blob should be returned").toBeTruthy();
 });
 
-test("captureScreenshot with download destination", async() => {
+test("captureScreenshot with download destination", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot({
-        destination: {download: true},
+        destination: { download: true },
     });
 
     expect(result.blob instanceof Blob, "blob should still be returned").toBeTruthy();
     expect(typeof result.downloaded, "downloaded status should be boolean").toBe("boolean");
 });
 
-test("captureScreenshot with clipboard destination", async() => {
+test("captureScreenshot with clipboard destination", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot({
-        destination: {clipboard: true},
+        destination: { clipboard: true },
     });
 
     expect(result.blob instanceof Blob, "blob should still be returned").toBeTruthy();
@@ -51,7 +51,7 @@ test("captureScreenshot with clipboard destination", async() => {
     }
 });
 
-test("captureScreenshot with multiple destinations works", async() => {
+test("captureScreenshot with multiple destinations works", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot({
@@ -72,11 +72,11 @@ test("captureScreenshot with multiple destinations works", async() => {
     ).toBeTruthy();
 });
 
-test("captureScreenshot with custom filename", async() => {
+test("captureScreenshot with custom filename", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot({
-        destination: {download: true},
+        destination: { download: true },
         downloadFilename: "my-graph.png",
     });
 
@@ -85,11 +85,11 @@ test("captureScreenshot with custom filename", async() => {
     // This test mainly ensures the option doesn't cause errors
 });
 
-test("captureScreenshot clipboard handles not-secure-context gracefully", async() => {
+test("captureScreenshot clipboard handles not-secure-context gracefully", async () => {
     graph = await createTestGraphWithData();
 
     const result = await graph.captureScreenshot({
-        destination: {clipboard: true},
+        destination: { clipboard: true },
     });
 
     // In test environment, clipboard might not be supported or might fail

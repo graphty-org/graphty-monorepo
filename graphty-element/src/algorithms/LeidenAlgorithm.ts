@@ -1,11 +1,11 @@
-import {leiden} from "@graphty/algorithms";
-import {z} from "zod/v4";
+import { leiden } from "@graphty/algorithms";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig} from "../config";
-import {Algorithm} from "./Algorithm";
-import type {OptionsSchema} from "./types/OptionSchema";
-import {countUniqueCommunities} from "./utils/communityUtils";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import { Algorithm } from "./Algorithm";
+import type { OptionsSchema } from "./types/OptionSchema";
+import { countUniqueCommunities } from "./utils/communityUtils";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for Leiden algorithm
@@ -145,10 +145,10 @@ export class LeidenAlgorithm extends Algorithm<LeidenOptions> {
         }
 
         // Get options from schema
-        const {resolution, maxIterations, threshold} = this.schemaOptions;
+        const { resolution, maxIterations, threshold } = this.schemaOptions;
 
         // Convert to @graphty/algorithms Graph format (undirected for community detection)
-        const graphData = toAlgorithmGraph(g, {addReverseEdges: false});
+        const graphData = toAlgorithmGraph(g, { addReverseEdges: false });
 
         // Run Leiden algorithm - returns {communities: Map<string, number>, modularity, iterations}
         const result = leiden(graphData, {

@@ -1,11 +1,11 @@
-import {closestCenter, DndContext, DragEndEvent} from "@dnd-kit/core";
-import {SortableContext, useSortable, verticalListSortingStrategy} from "@dnd-kit/sortable";
-import {CSS} from "@dnd-kit/utilities";
-import {ActionIcon, Box, Group, Text, TextInput} from "@mantine/core";
-import {Layers, Plus} from "lucide-react";
-import React, {useEffect, useRef, useState} from "react";
+import { closestCenter, DndContext, DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { ActionIcon, Box, Group, Text, TextInput } from "@mantine/core";
+import { Layers, Plus } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
 
-import {LEFT_SIDEBAR_WIDTH} from "../../constants/layout";
+import { LEFT_SIDEBAR_WIDTH } from "../../constants/layout";
 
 interface LeftSidebarProps {
     className?: string;
@@ -39,15 +39,8 @@ interface SortableLayerItemProps {
     onNameChange: (layerId: string, newName: string) => void;
 }
 
-function SortableLayerItem({layer, isSelected, onSelect, onNameChange}: SortableLayerItemProps): React.JSX.Element {
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging,
-    } = useSortable({id: layer.id});
+function SortableLayerItem({ layer, isSelected, onSelect, onNameChange }: SortableLayerItemProps): React.JSX.Element {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: layer.id });
 
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(layer.name);
@@ -137,13 +130,11 @@ function SortableLayerItem({layer, isSelected, onSelect, onNameChange}: Sortable
                 />
             ) : (
                 <Group gap="xs" justify="space-between">
-                    <Text size="sm">
-                        {layer.name}
-                    </Text>
+                    <Text size="sm">{layer.name}</Text>
                     <Box
                         {...attributes}
                         {...listeners}
-                        style={{cursor: "grab", display: "flex", alignItems: "center"}}
+                        style={{ cursor: "grab", display: "flex", alignItems: "center" }}
                     >
                         <Text size="xs" c="dimmed">
                             ⋮⋮
@@ -155,6 +146,18 @@ function SortableLayerItem({layer, isSelected, onSelect, onNameChange}: Sortable
     );
 }
 
+/**
+ * Left sidebar showing the layers list with drag-and-drop reordering.
+ * @param root0 - Component props
+ * @param root0.className - Optional CSS class name
+ * @param root0.style - Optional inline styles
+ * @param root0.layers - List of layer items
+ * @param root0.selectedLayerId - ID of the currently selected layer
+ * @param root0.onLayersChange - Called when layers are reordered
+ * @param root0.onLayerSelect - Called when a layer is selected
+ * @param root0.onAddLayer - Called when add layer button is clicked
+ * @returns The left sidebar component
+ */
 export function LeftSidebar({
     className,
     style,
@@ -165,13 +168,13 @@ export function LeftSidebar({
     onAddLayer,
 }: LeftSidebarProps): React.JSX.Element {
     const handleDragEnd = (event: DragEndEvent): void => {
-        const {active, over} = event;
+        const { active, over } = event;
 
         if (over && active.id !== over.id) {
             const oldIndex = layers.findIndex((item) => item.id === active.id);
             const newIndex = layers.findIndex((item) => item.id === over.id);
 
-            const newItems = [... layers];
+            const newItems = [...layers];
             const [movedItem] = newItems.splice(oldIndex, 1);
             newItems.splice(newIndex, 0, movedItem);
 
@@ -180,9 +183,7 @@ export function LeftSidebar({
     };
 
     const handleNameChange = (layerId: string, newName: string): void => {
-        const updatedLayers = layers.map((layer) =>
-            layer.id === layerId ? {... layer, name: newName} : layer,
-        );
+        const updatedLayers = layers.map((layer) => (layer.id === layerId ? { ...layer, name: newName } : layer));
         onLayersChange(updatedLayers);
     };
 
@@ -199,7 +200,7 @@ export function LeftSidebar({
                 minWidth: `${LEFT_SIDEBAR_WIDTH}px`,
                 height: "100%",
                 overflow: "hidden",
-                ... style,
+                ...style,
             }}
         >
             {/* Sidebar Header */}
@@ -218,23 +219,17 @@ export function LeftSidebar({
                         Layers
                     </Text>
                 </Group>
-                <ActionIcon
-                    variant="subtle"
-                    color="gray"
-                    size="sm"
-                    onClick={onAddLayer}
-                    aria-label="Add layer"
-                >
+                <ActionIcon variant="subtle" color="gray" size="sm" onClick={onAddLayer} aria-label="Add layer">
                     <Plus size={16} />
                 </ActionIcon>
             </Box>
 
             {/* Sidebar Content */}
-            <Box style={{flex: 1, padding: "16px", overflowY: "auto"}}>
+            <Box style={{ flex: 1, padding: "16px", overflowY: "auto" }}>
                 {layers.length > 0 ? (
                     <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                         <SortableContext items={layers.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-                            <Box style={{display: "flex", flexDirection: "column", gap: "8px"}}>
+                            <Box style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                                 {layers.map((layer) => (
                                     <SortableLayerItem
                                         key={layer.id}
@@ -248,7 +243,7 @@ export function LeftSidebar({
                         </SortableContext>
                     </DndContext>
                 ) : (
-                    <Box style={{textAlign: "center", paddingTop: "32px", paddingBottom: "32px"}}>
+                    <Box style={{ textAlign: "center", paddingTop: "32px", paddingBottom: "32px" }}>
                         <Text size="sm" c="dimmed">
                             Click the + button to add layers
                         </Text>

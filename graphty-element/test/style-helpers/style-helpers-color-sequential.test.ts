@@ -1,8 +1,8 @@
 import assert from "node:assert";
 
-import {describe, it} from "vitest";
+import { describe, it } from "vitest";
 
-import {StyleHelpers} from "../../src/config";
+import { StyleHelpers } from "../../src/config";
 
 describe("StyleHelpers.color.sequential.viridis", () => {
     it("returns deep purple (#440154) for value 0", () => {

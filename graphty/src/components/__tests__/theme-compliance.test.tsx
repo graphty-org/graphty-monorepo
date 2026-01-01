@@ -1,10 +1,10 @@
-import {MantineProvider} from "@mantine/core";
-import {describe, expect, it, vi} from "vitest";
+import { MantineProvider } from "@mantine/core";
+import { describe, expect, it, vi } from "vitest";
 
-import {render, screen} from "../../test/test-utils";
-import {theme} from "../../theme";
-import {ErrorFallback} from "../ErrorFallback";
-import {RunLayoutsModal} from "../RunLayoutsModal";
+import { render, screen } from "../../test/test-utils";
+import { theme } from "../../theme";
+import { ErrorFallback } from "../ErrorFallback";
+import { RunLayoutsModal } from "../RunLayoutsModal";
 
 describe("theme compliance", () => {
     describe("semantic color variables", () => {
@@ -33,7 +33,7 @@ describe("theme compliance", () => {
 
     describe("light mode rendering", () => {
         it("should render in light mode without errors", () => {
-            const {container} = render(
+            const { container } = render(
                 <MantineProvider theme={theme} defaultColorScheme="light">
                     <div>Test</div>
                 </MantineProvider>,
@@ -42,7 +42,7 @@ describe("theme compliance", () => {
         });
 
         it("should render in dark mode without errors", () => {
-            const {container} = render(
+            const { container } = render(
                 <MantineProvider theme={theme} defaultColorScheme="dark">
                     <div>Test</div>
                 </MantineProvider>,
@@ -53,14 +53,7 @@ describe("theme compliance", () => {
 
     describe("Modal theme compliance", () => {
         it("RunLayoutsModal uses semantic color variables instead of dark-X colors", () => {
-            render(
-                <RunLayoutsModal
-                    opened={true}
-                    onClose={vi.fn()}
-                    onApply={vi.fn()}
-                    is2DMode={false}
-                />,
-            );
+            render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
             const modal = screen.getByRole("dialog");
             // Check that the modal rendered
             expect(modal).toBeInTheDocument();

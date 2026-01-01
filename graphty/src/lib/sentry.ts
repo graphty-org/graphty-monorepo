@@ -11,6 +11,7 @@ export interface SentryConfig {
 /**
  * Get the default configuration from environment variables.
  * This function is separated to allow for testing.
+ * @returns The default Sentry configuration
  */
 export function getDefaultConfig(): SentryConfig {
     return {
@@ -23,10 +24,11 @@ export function getDefaultConfig(): SentryConfig {
 /**
  * Initialize Sentry with the given configuration.
  * If no config is provided, uses environment variables.
+ * @param config - Optional Sentry configuration
  */
 export function initSentry(config?: SentryConfig): void {
     const effectiveConfig = config ?? getDefaultConfig();
-    const {dsn} = effectiveConfig;
+    const { dsn } = effectiveConfig;
 
     if (!dsn) {
         console.warn("Sentry DSN not configured, error tracking disabled");
@@ -43,6 +45,10 @@ export function initSentry(config?: SentryConfig): void {
     initialized = true;
 }
 
+/**
+ * Check if Sentry has been initialized.
+ * @returns True if Sentry is enabled
+ */
 export function isSentryEnabled(): boolean {
     return initialized;
 }
@@ -54,6 +60,9 @@ export function resetSentryState(): void {
     initialized = false;
 }
 
+/**
+ * Capture a test error to verify Sentry is working.
+ */
 export function testCaptureError(): void {
     Sentry.captureException(new Error("Test error from Graphty"));
 }
@@ -76,6 +85,11 @@ export interface FeedbackResult {
     message: string;
 }
 
+/**
+ * Capture user feedback and send it to Sentry.
+ * @param feedback - The feedback data to send
+ * @returns The result of the feedback submission
+ */
 export function captureUserFeedback(feedback: FeedbackData): FeedbackResult {
     // Check if Sentry is configured
     if (!initialized) {

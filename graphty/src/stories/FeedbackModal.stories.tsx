@@ -1,6 +1,6 @@
-import type {Meta, StoryObj} from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 
-import {FeedbackModal} from "../components/FeedbackModal";
+import { FeedbackModal } from "../components/FeedbackModal";
 
 const meta: Meta<typeof FeedbackModal> = {
     title: "Sentry",
@@ -9,8 +9,8 @@ const meta: Meta<typeof FeedbackModal> = {
         layout: "fullscreen",
     },
     argTypes: {
-        opened: {control: "boolean"},
-        onClose: {action: "onClose"},
+        opened: { control: "boolean" },
+        onClose: { action: "onClose" },
     },
 };
 

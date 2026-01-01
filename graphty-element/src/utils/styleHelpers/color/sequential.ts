@@ -10,7 +10,7 @@ import {
     PLASMA_COLORS,
     VIRIDIS_COLORS,
 } from "../../../config/palettes/sequential";
-import {interpolatePalette} from "./interpolation";
+import { interpolatePalette } from "./interpolation";
 
 /**
  * Viridis gradient - matplotlib default, perceptually uniform

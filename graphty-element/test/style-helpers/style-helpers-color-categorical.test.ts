@@ -1,8 +1,8 @@
 import assert from "node:assert";
 
-import {describe, it} from "vitest";
+import { describe, it } from "vitest";
 
-import {StyleHelpers} from "../../src/config";
+import { StyleHelpers } from "../../src/config";
 
 describe("StyleHelpers.color.categorical.okabeIto", () => {
     it("returns Orange (#E69F00) for category 0", () => {

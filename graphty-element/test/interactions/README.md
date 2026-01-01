@@ -8,46 +8,46 @@ This directory contains comprehensive tests for user input handling across all s
 
 Unit tests verify input-to-output direction mappings and speed/sensitivity settings using NullEngine (headless Babylon.js).
 
-| File | Description |
-|------|-------------|
+| File                   | Description                                                                 |
+| ---------------------- | --------------------------------------------------------------------------- |
 | `2d-direction.test.ts` | Verifies 2D camera controls (pan, zoom, rotate) respond correctly to inputs |
 | `3d-direction.test.ts` | Verifies 3D camera controls (orbit, zoom, tilt) respond correctly to inputs |
-| `xr-direction.test.ts` | Verifies XR thumbstick mappings for rotation, pan, and zoom |
-| `input-speed.test.ts` | Tests speed, sensitivity, and inertia behavior |
-| `deadzone.test.ts` | Tests deadzone filtering and threshold behavior |
+| `xr-direction.test.ts` | Verifies XR thumbstick mappings for rotation, pan, and zoom                 |
+| `input-speed.test.ts`  | Tests speed, sensitivity, and inertia behavior                              |
+| `deadzone.test.ts`     | Tests deadzone filtering and threshold behavior                             |
 
 ### Integration Tests (`integration/`)
 
 Integration tests use Playwright to test real browser input against a running Storybook instance.
 
-| File | Description |
-|------|-------------|
-| `mouse-controls.test.ts` | Mouse drag, wheel zoom, node selection |
-| `keyboard-controls.test.ts` | WASD and arrow key controls, focus handling |
-| `touch-controls.test.ts` | Touch pan, pinch zoom, two-finger rotate via CDP |
+| File                        | Description                                      |
+| --------------------------- | ------------------------------------------------ |
+| `mouse-controls.test.ts`    | Mouse drag, wheel zoom, node selection           |
+| `keyboard-controls.test.ts` | WASD and arrow key controls, focus handling      |
+| `touch-controls.test.ts`    | Touch pan, pinch zoom, two-finger rotate via CDP |
 
 ### XR Tests (`xr/`)
 
 WebXR tests use IWER (Immersive Web Emulation Runtime) to emulate VR controllers and hand tracking.
 
-| File | Description |
-|------|-------------|
-| `xr-thumbstick.test.ts` | Thumbstick rotation, pan, zoom |
-| `xr-gestures.test.ts` | Controller trigger, node drag, two-hand gestures |
-| `xr-hand-tracking.test.ts` | Pinch gestures, hand tracking |
+| File                       | Description                                      |
+| -------------------------- | ------------------------------------------------ |
+| `xr-thumbstick.test.ts`    | Thumbstick rotation, pan, zoom                   |
+| `xr-gestures.test.ts`      | Controller trigger, node drag, two-hand gestures |
+| `xr-hand-tracking.test.ts` | Pinch gestures, hand tracking                    |
 
 ### Edge Cases (`edge-cases/`)
 
 Tests for complex scenarios, state transitions, and edge cases.
 
-| File | Description |
-|------|-------------|
-| `node-drag-drop.test.ts` | Node drag behavior, camera isolation during drag |
-| `pin-on-drag.test.ts` | pinOnDrag configuration behavior |
-| `view-mode-transitions.test.ts` | 2D/3D/XR mode switching |
-| `xr-input-switching.test.ts` | Controller/hand input method changes |
-| `input-sequences.test.ts` | Input method combinations and rapid switching |
-| `xr-local-space.test.ts` | XR coordinate system relative to user view |
+| File                            | Description                                      |
+| ------------------------------- | ------------------------------------------------ |
+| `node-drag-drop.test.ts`        | Node drag behavior, camera isolation during drag |
+| `pin-on-drag.test.ts`           | pinOnDrag configuration behavior                 |
+| `view-mode-transitions.test.ts` | 2D/3D/XR mode switching                          |
+| `xr-input-switching.test.ts`    | Controller/hand input method changes             |
+| `input-sequences.test.ts`       | Input method combinations and rapid switching    |
+| `xr-local-space.test.ts`        | XR coordinate system relative to user view       |
 
 ## Running Tests
 
@@ -250,19 +250,19 @@ Some interactions are difficult to test automatically. Here are manual testing p
 2. Open Storybook XR story in Quest Browser
 3. Enter VR mode
 4. Verify:
-   - Left thumbstick rotates/pitches scene
-   - Right thumbstick pans/zooms
-   - Trigger picks and drags nodes
-   - Hand tracking pinch works
+    - Left thumbstick rotates/pitches scene
+    - Right thumbstick pans/zooms
+    - Trigger picks and drags nodes
+    - Hand tracking pinch works
 
 ### Testing Touch on Mobile
 
 1. Open Storybook on mobile device
 2. Navigate to 2D or 3D story
 3. Verify:
-   - Single finger pan works
-   - Pinch zoom works
-   - Two-finger rotate works (2D only)
+    - Single finger pan works
+    - Pinch zoom works
+    - Two-finger rotate works (2D only)
 
 ## Architecture
 

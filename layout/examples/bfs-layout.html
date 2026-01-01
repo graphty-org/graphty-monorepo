@@ -1,487 +1,484 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <!-- Eruda Mobile Console -->
-  <script src="https://cdn.jsdelivr.net/npm/eruda@3/eruda.min.js"></script>
-  <script>
-    // Initialize Eruda console for mobile debugging
-    if (typeof eruda !== "undefined") {
-      eruda.init();
-      // Auto-show on mobile devices
-      if (/mobile|android|ios|iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase())) {
-        eruda.show();
-      }
-    }
-  </script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BFS Layout Test</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: 250px 1fr 250px;
-            gap: 20px;
-        }
-        .graph-controls {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            height: fit-content;
-        }
-        .layout-controls {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            height: fit-content;
-        }
-        .visualization {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            padding: 20px;
-        }
-        .control-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #333;
-        }
-        input[type="range"], input[type="number"], select {
-            width: 100%;
-            padding: 5px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        button {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            width: 100%;
-            margin: 5px 0;
-        }
-        button:hover {
-            background: #45a049;
-        }
-        #graph-svg {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        .back-link {
-            margin-bottom: 20px;
-        }
-        .back-link a {
-            color: #2c5aa0;
-            text-decoration: none;
-        }
-        .bfs-info {
-            background: #f0f7ff;
-            border: 1px solid #c0d7f0;
-            border-radius: 4px;
-            padding: 10px;
-            margin-top: 15px;
-            font-size: 0.85em;
-        }
-        .start-node {
-            stroke: #FF5722 !important;
-            stroke-width: 4px !important;
-        }
-    </style>
-</head>
-<body>
-    <div class="back-link">
-        <a href="index.html">← Back to Index</a>
-    </div>
-    
-    <h1>BFS Layout Test</h1>
-    
-    <div class="container">
-        <div class="graph-controls">
-            <h3>Graph Settings</h3>
-            
-            <div class="control-group">
-                <label for="num-nodes">Number of nodes:</label>
-                <input type="range" id="num-nodes" min="5" max="20" value="12">
-                <span id="num-nodes-value">12</span>
-            </div>
-            
-            <div class="control-group">
-                <label for="graph-type">Graph type:</label>
-                <select id="graph-type">
-                    <option value="tree">Tree</option>
-                    <option value="connected">Connected</option>
-                    <option value="grid">Grid</option>
-                    <option value="star">Star</option>
-                </select>
-            </div>
-            
-            <button onclick="newGraph()">New Graph</button>
-        </div>
-        
-        <div class="visualization">
-            <svg id="graph-svg" width="800" height="600"></svg>
+    <head>
+        <!-- Eruda Mobile Console -->
+        <script src="https://cdn.jsdelivr.net/npm/eruda@3/eruda.min.js"></script>
+        <script>
+            // Initialize Eruda console for mobile debugging
+            if (typeof eruda !== "undefined") {
+                eruda.init();
+                // Auto-show on mobile devices
+                if (/mobile|android|ios|iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase())) {
+                    eruda.show();
+                }
+            }
+        </script>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>BFS Layout Test</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+                background-color: #f5f5f5;
+            }
+            .container {
+                max-width: 1400px;
+                margin: 0 auto;
+                display: grid;
+                grid-template-columns: 250px 1fr 250px;
+                gap: 20px;
+            }
+            .graph-controls {
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                height: fit-content;
+            }
+            .layout-controls {
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                height: fit-content;
+            }
+            .visualization {
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                padding: 20px;
+            }
+            .control-group {
+                margin-bottom: 15px;
+            }
+            label {
+                display: block;
+                margin-bottom: 5px;
+                font-weight: bold;
+                color: #333;
+            }
+            input[type="range"],
+            input[type="number"],
+            select {
+                width: 100%;
+                padding: 5px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            button {
+                background: #4caf50;
+                color: white;
+                border: none;
+                padding: 10px 15px;
+                border-radius: 4px;
+                cursor: pointer;
+                width: 100%;
+                margin: 5px 0;
+            }
+            button:hover {
+                background: #45a049;
+            }
+            #graph-svg {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            .back-link {
+                margin-bottom: 20px;
+            }
+            .back-link a {
+                color: #2c5aa0;
+                text-decoration: none;
+            }
+            .bfs-info {
+                background: #f0f7ff;
+                border: 1px solid #c0d7f0;
+                border-radius: 4px;
+                padding: 10px;
+                margin-top: 15px;
+                font-size: 0.85em;
+            }
+            .start-node {
+                stroke: #ff5722 !important;
+                stroke-width: 4px !important;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="back-link">
+            <a href="index.html">← Back to Index</a>
         </div>
 
-        <div class="layout-controls">
-            <h3>Layout Parameters</h3>
-            
-            <div class="control-group">
-                <label for="root-selection">Root selection:</label>
-                <select id="root-selection">
-                    <option value="auto">Auto (best root)</option>
-                    <option value="manual">Manual selection</option>
-                </select>
-            </div>
-            
-            <div class="control-group" id="manual-node-group">
-                <label for="start-node">Starting node:</label>
-                <select id="start-node">
-                    <!-- Dynamically populated -->
-                </select>
-            </div>
-            
-            <div class="control-group">
-                <label for="alignment">Alignment:</label>
-                <select id="alignment">
-                    <option value="vertical">Vertical</option>
-                    <option value="horizontal">Horizontal</option>
-                </select>
-            </div>
-            
-            <button onclick="applyLayout()">Apply Layout</button>
-            <div id="bfs-info" class="bfs-info"></div>
-        </div>
-    </div>
+        <h1>BFS Layout Test</h1>
 
-    <script type="module">
-        import { bfsLayout, scaleFreeGraph, randomGraph, gridGraph, starGraph } from "../dist/layout.js";
-        
-        let currentGraph = null;
-        let bestRoot = null;
-        
-        function generateGraph(type, numNodes) {
-            let graph;
-            switch(type) {
-                case 'tree':
-                    // Generate tree-like structure using scale-free with low m
-                    graph = scaleFreeGraph(numNodes, 1, Date.now());
-                    break;
-                
-                case 'connected':
-                    // Generate connected random graph
-                    graph = randomGraph(numNodes, 0.15, Date.now());
-                    break;
-                
-                case 'grid':
-                    // Create grid
-                    const size = Math.ceil(Math.sqrt(numNodes));
-                    const gridG = gridGraph(size, size);
-                    // Convert string node IDs to numbers for consistency
-                    const nodeMap = new Map();
-                    gridG.nodes().forEach((node, i) => nodeMap.set(node, i));
-                    graph = {
-                        nodes: () => Array.from({length: gridG.nodes().length}, (_, i) => i),
-                        edges: () => gridG.edges().map(([u, v]) => [nodeMap.get(u), nodeMap.get(v)])
-                    };
-                    break;
-                
-                case 'star':
-                    graph = starGraph(numNodes);
-                    break;
-                
-                default:
-                    graph = randomGraph(numNodes, 0.2, Date.now());
-                    break;
+        <div class="container">
+            <div class="graph-controls">
+                <h3>Graph Settings</h3>
+
+                <div class="control-group">
+                    <label for="num-nodes">Number of nodes:</label>
+                    <input type="range" id="num-nodes" min="5" max="20" value="12" />
+                    <span id="num-nodes-value">12</span>
+                </div>
+
+                <div class="control-group">
+                    <label for="graph-type">Graph type:</label>
+                    <select id="graph-type">
+                        <option value="tree">Tree</option>
+                        <option value="connected">Connected</option>
+                        <option value="grid">Grid</option>
+                        <option value="star">Star</option>
+                    </select>
+                </div>
+
+                <button onclick="newGraph()">New Graph</button>
+            </div>
+
+            <div class="visualization">
+                <svg id="graph-svg" width="800" height="600"></svg>
+            </div>
+
+            <div class="layout-controls">
+                <h3>Layout Parameters</h3>
+
+                <div class="control-group">
+                    <label for="root-selection">Root selection:</label>
+                    <select id="root-selection">
+                        <option value="auto">Auto (best root)</option>
+                        <option value="manual">Manual selection</option>
+                    </select>
+                </div>
+
+                <div class="control-group" id="manual-node-group">
+                    <label for="start-node">Starting node:</label>
+                    <select id="start-node">
+                        <!-- Dynamically populated -->
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="alignment">Alignment:</label>
+                    <select id="alignment">
+                        <option value="vertical">Vertical</option>
+                        <option value="horizontal">Horizontal</option>
+                    </select>
+                </div>
+
+                <button onclick="applyLayout()">Apply Layout</button>
+                <div id="bfs-info" class="bfs-info"></div>
+            </div>
+        </div>
+
+        <script type="module">
+            import { bfsLayout, scaleFreeGraph, randomGraph, gridGraph, starGraph } from "../dist/layout.js";
+
+            let currentGraph = null;
+            let bestRoot = null;
+
+            function generateGraph(type, numNodes) {
+                let graph;
+                switch (type) {
+                    case "tree":
+                        // Generate tree-like structure using scale-free with low m
+                        graph = scaleFreeGraph(numNodes, 1, Date.now());
+                        break;
+
+                    case "connected":
+                        // Generate connected random graph
+                        graph = randomGraph(numNodes, 0.15, Date.now());
+                        break;
+
+                    case "grid":
+                        // Create grid
+                        const size = Math.ceil(Math.sqrt(numNodes));
+                        const gridG = gridGraph(size, size);
+                        // Convert string node IDs to numbers for consistency
+                        const nodeMap = new Map();
+                        gridG.nodes().forEach((node, i) => nodeMap.set(node, i));
+                        graph = {
+                            nodes: () => Array.from({ length: gridG.nodes().length }, (_, i) => i),
+                            edges: () => gridG.edges().map(([u, v]) => [nodeMap.get(u), nodeMap.get(v)]),
+                        };
+                        break;
+
+                    case "star":
+                        graph = starGraph(numNodes);
+                        break;
+
+                    default:
+                        graph = randomGraph(numNodes, 0.2, Date.now());
+                        break;
+                }
+
+                // Add getNeighbors method to the graph
+                graph.getNeighbors = function (node) {
+                    const edges = this.edges();
+                    return edges.filter(([s, t]) => s === node || t === node).map(([s, t]) => (s === node ? t : s));
+                };
+
+                return graph;
             }
-            
-            // Add getNeighbors method to the graph
-            graph.getNeighbors = function(node) {
-                const edges = this.edges();
-                return edges
-                    .filter(([s, t]) => s === node || t === node)
-                    .map(([s, t]) => s === node ? t : s);
-            };
-            
-            return graph;
-        }
-        
-        function updateStartNodeOptions() {
-            const startSelect = document.getElementById('start-node');
-            startSelect.innerHTML = '';
-            
-            if (currentGraph) {
-                const nodes = currentGraph.nodes();
-                nodes.forEach(node => {
-                    const option = document.createElement('option');
-                    option.value = node;
-                    option.textContent = `Node ${node}`;
-                    startSelect.appendChild(option);
-                });
+
+            function updateStartNodeOptions() {
+                const startSelect = document.getElementById("start-node");
+                startSelect.innerHTML = "";
+
+                if (currentGraph) {
+                    const nodes = currentGraph.nodes();
+                    nodes.forEach((node) => {
+                        const option = document.createElement("option");
+                        option.value = node;
+                        option.textContent = `Node ${node}`;
+                        startSelect.appendChild(option);
+                    });
+                }
             }
-        }
-        
-        function computeBFSLayers(graph, startNode) {
-            const layers = {};
-            const visited = new Set();
-            let currentLayer = 0;
-            
-            // Initial layer
-            layers[currentLayer] = [startNode];
-            visited.add(startNode);
-            
-            // BFS traversal
-            while (Object.values(layers).flat().length < graph.nodes().length) {
-                const nextLayer = [];
-                const currentNodes = layers[currentLayer] || [];
-                
-                for (const node of currentNodes) {
-                    const neighbors = graph.getNeighbors(node);
-                    
-                    for (const neighbor of neighbors) {
-                        if (!visited.has(neighbor)) {
-                            nextLayer.push(neighbor);
-                            visited.add(neighbor);
+
+            function computeBFSLayers(graph, startNode) {
+                const layers = {};
+                const visited = new Set();
+                let currentLayer = 0;
+
+                // Initial layer
+                layers[currentLayer] = [startNode];
+                visited.add(startNode);
+
+                // BFS traversal
+                while (Object.values(layers).flat().length < graph.nodes().length) {
+                    const nextLayer = [];
+                    const currentNodes = layers[currentLayer] || [];
+
+                    for (const node of currentNodes) {
+                        const neighbors = graph.getNeighbors(node);
+
+                        for (const neighbor of neighbors) {
+                            if (!visited.has(neighbor)) {
+                                nextLayer.push(neighbor);
+                                visited.add(neighbor);
+                            }
                         }
                     }
-                }
-                
-                if (nextLayer.length === 0) {
-                    // No more connected nodes
-                    const unvisited = graph.nodes().filter(node => !visited.has(node));
-                    if (unvisited.length > 0) {
-                        console.warn("Graph not fully connected, some nodes may not be reached");
-                        // Add unvisited nodes to current layer
-                        unvisited.forEach(node => {
-                            visited.add(node);
-                            nextLayer.push(node);
-                        });
+
+                    if (nextLayer.length === 0) {
+                        // No more connected nodes
+                        const unvisited = graph.nodes().filter((node) => !visited.has(node));
+                        if (unvisited.length > 0) {
+                            console.warn("Graph not fully connected, some nodes may not be reached");
+                            // Add unvisited nodes to current layer
+                            unvisited.forEach((node) => {
+                                visited.add(node);
+                                nextLayer.push(node);
+                            });
+                        }
+                        if (nextLayer.length === 0) break;
                     }
-                    if (nextLayer.length === 0) break;
+
+                    currentLayer++;
+                    layers[currentLayer] = nextLayer;
                 }
-                
-                currentLayer++;
-                layers[currentLayer] = nextLayer;
+
+                return layers;
             }
-            
-            return layers;
-        }
-        
-        function visualizeGraph(graph, positions, startNode, bfsLayers) {
-            const svg = document.getElementById('graph-svg');
-            const svgRect = svg.getBoundingClientRect();
-            const width = svgRect.width;
-            const height = svgRect.height;
-            
-            svg.innerHTML = '';
-            
-            const margin = 50;
-            const scaleX = (width - 2 * margin);
-            const scaleY = (height - 2 * margin);
-            
-            const nodes = graph.nodes();
-            const posValues = nodes.map(n => positions[n]);
-            const minX = Math.min(...posValues.map(p => p[0]));
-            const maxX = Math.max(...posValues.map(p => p[0]));
-            const minY = Math.min(...posValues.map(p => p[1]));
-            const maxY = Math.max(...posValues.map(p => p[1]));
-            
-            const rangeX = maxX - minX || 1;
-            const rangeY = maxY - minY || 1;
-            
-            // Draw BFS layer guidelines
-            const layerColors = ['#FF5722', '#FF9800', '#FFC107', '#FFEB3B', '#CDDC39', '#8BC34A'];
-            Object.entries(bfsLayers).forEach(([layerIdx, layerNodes]) => {
-                if (layerNodes.length > 1) {
-                    const layerPositions = layerNodes.map(node => positions[node]);
-                    const layerMinX = Math.min(...layerPositions.map(p => p[0]));
-                    const layerMaxX = Math.max(...layerPositions.map(p => p[0]));
-                    const layerMinY = Math.min(...layerPositions.map(p => p[1]));
-                    const layerMaxY = Math.max(...layerPositions.map(p => p[1]));
-                    
-                    const x1 = margin + (layerMinX - minX) / rangeX * scaleX - 15;
-                    const y1 = margin + (layerMinY - minY) / rangeY * scaleY - 15;
-                    const x2 = margin + (layerMaxX - minX) / rangeX * scaleX + 15;
-                    const y2 = margin + (layerMaxY - minY) / rangeY * scaleY + 15;
-                    
-                    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                    rect.setAttribute('x', x1);
-                    rect.setAttribute('y', y1);
-                    rect.setAttribute('width', x2 - x1);
-                    rect.setAttribute('height', y2 - y1);
-                    rect.setAttribute('fill', layerColors[layerIdx % layerColors.length]);
-                    rect.setAttribute('fill-opacity', '0.15');
-                    rect.setAttribute('stroke', layerColors[layerIdx % layerColors.length]);
-                    rect.setAttribute('stroke-width', '1');
-                    rect.setAttribute('stroke-dasharray', '3,3');
-                    svg.appendChild(rect);
-                }
-            });
-            
-            // Draw edges
-            const edges = graph.edges();
-            edges.forEach(([source, target]) => {
-                const sourcePos = positions[source];
-                const targetPos = positions[target];
-                
-                const x1 = margin + (sourcePos[0] - minX) / rangeX * scaleX;
-                const y1 = margin + (sourcePos[1] - minY) / rangeY * scaleY;
-                const x2 = margin + (targetPos[0] - minX) / rangeX * scaleX;
-                const y2 = margin + (targetPos[1] - minY) / rangeY * scaleY;
-                
-                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.setAttribute('x1', x1);
-                line.setAttribute('y1', y1);
-                line.setAttribute('x2', x2);
-                line.setAttribute('y2', y2);
-                line.setAttribute('stroke', '#999');
-                line.setAttribute('stroke-width', '2');
-                svg.appendChild(line);
-            });
-            
-            // Draw nodes
-            nodes.forEach(node => {
-                const pos = positions[node];
-                const x = margin + (pos[0] - minX) / rangeX * scaleX;
-                const y = margin + (pos[1] - minY) / rangeY * scaleY;
-                
-                // Determine color based on BFS layer
-                let nodeColor = '#666';
-                let layerIdx = 0;
-                Object.entries(bfsLayers).forEach(([idx, layerNodes]) => {
-                    if (layerNodes.includes(node)) {
-                        layerIdx = parseInt(idx);
-                        nodeColor = layerColors[layerIdx % layerColors.length];
+
+            function visualizeGraph(graph, positions, startNode, bfsLayers) {
+                const svg = document.getElementById("graph-svg");
+                const svgRect = svg.getBoundingClientRect();
+                const width = svgRect.width;
+                const height = svgRect.height;
+
+                svg.innerHTML = "";
+
+                const margin = 50;
+                const scaleX = width - 2 * margin;
+                const scaleY = height - 2 * margin;
+
+                const nodes = graph.nodes();
+                const posValues = nodes.map((n) => positions[n]);
+                const minX = Math.min(...posValues.map((p) => p[0]));
+                const maxX = Math.max(...posValues.map((p) => p[0]));
+                const minY = Math.min(...posValues.map((p) => p[1]));
+                const maxY = Math.max(...posValues.map((p) => p[1]));
+
+                const rangeX = maxX - minX || 1;
+                const rangeY = maxY - minY || 1;
+
+                // Draw BFS layer guidelines
+                const layerColors = ["#FF5722", "#FF9800", "#FFC107", "#FFEB3B", "#CDDC39", "#8BC34A"];
+                Object.entries(bfsLayers).forEach(([layerIdx, layerNodes]) => {
+                    if (layerNodes.length > 1) {
+                        const layerPositions = layerNodes.map((node) => positions[node]);
+                        const layerMinX = Math.min(...layerPositions.map((p) => p[0]));
+                        const layerMaxX = Math.max(...layerPositions.map((p) => p[0]));
+                        const layerMinY = Math.min(...layerPositions.map((p) => p[1]));
+                        const layerMaxY = Math.max(...layerPositions.map((p) => p[1]));
+
+                        const x1 = margin + ((layerMinX - minX) / rangeX) * scaleX - 15;
+                        const y1 = margin + ((layerMinY - minY) / rangeY) * scaleY - 15;
+                        const x2 = margin + ((layerMaxX - minX) / rangeX) * scaleX + 15;
+                        const y2 = margin + ((layerMaxY - minY) / rangeY) * scaleY + 15;
+
+                        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                        rect.setAttribute("x", x1);
+                        rect.setAttribute("y", y1);
+                        rect.setAttribute("width", x2 - x1);
+                        rect.setAttribute("height", y2 - y1);
+                        rect.setAttribute("fill", layerColors[layerIdx % layerColors.length]);
+                        rect.setAttribute("fill-opacity", "0.15");
+                        rect.setAttribute("stroke", layerColors[layerIdx % layerColors.length]);
+                        rect.setAttribute("stroke-width", "1");
+                        rect.setAttribute("stroke-dasharray", "3,3");
+                        svg.appendChild(rect);
                     }
                 });
-                
-                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                circle.setAttribute('cx', x);
-                circle.setAttribute('cy', y);
-                circle.setAttribute('r', '8');
-                circle.setAttribute('fill', nodeColor);
-                circle.setAttribute('stroke', '#333');
-                circle.setAttribute('stroke-width', '2');
-                
-                // Highlight starting node
-                if (node == startNode) {
-                    circle.setAttribute('class', 'start-node');
-                }
-                
-                svg.appendChild(circle);
-                
-                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                text.setAttribute('x', x);
-                text.setAttribute('y', y + 4);
-                text.setAttribute('text-anchor', 'middle');
-                text.setAttribute('font-size', '11');
-                text.setAttribute('fill', 'white');
-                text.textContent = node;
-                svg.appendChild(text);
-            });
-            
-            // Update BFS info
-            const infoDiv = document.getElementById('bfs-info');
-            const layerInfo = Object.entries(bfsLayers).map(([idx, nodes]) => 
-                `Level ${idx}: ${nodes.length} nodes`
-            ).join('<br>');
-            
-            infoDiv.innerHTML = `
+
+                // Draw edges
+                const edges = graph.edges();
+                edges.forEach(([source, target]) => {
+                    const sourcePos = positions[source];
+                    const targetPos = positions[target];
+
+                    const x1 = margin + ((sourcePos[0] - minX) / rangeX) * scaleX;
+                    const y1 = margin + ((sourcePos[1] - minY) / rangeY) * scaleY;
+                    const x2 = margin + ((targetPos[0] - minX) / rangeX) * scaleX;
+                    const y2 = margin + ((targetPos[1] - minY) / rangeY) * scaleY;
+
+                    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    line.setAttribute("x1", x1);
+                    line.setAttribute("y1", y1);
+                    line.setAttribute("x2", x2);
+                    line.setAttribute("y2", y2);
+                    line.setAttribute("stroke", "#999");
+                    line.setAttribute("stroke-width", "2");
+                    svg.appendChild(line);
+                });
+
+                // Draw nodes
+                nodes.forEach((node) => {
+                    const pos = positions[node];
+                    const x = margin + ((pos[0] - minX) / rangeX) * scaleX;
+                    const y = margin + ((pos[1] - minY) / rangeY) * scaleY;
+
+                    // Determine color based on BFS layer
+                    let nodeColor = "#666";
+                    let layerIdx = 0;
+                    Object.entries(bfsLayers).forEach(([idx, layerNodes]) => {
+                        if (layerNodes.includes(node)) {
+                            layerIdx = parseInt(idx);
+                            nodeColor = layerColors[layerIdx % layerColors.length];
+                        }
+                    });
+
+                    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    circle.setAttribute("cx", x);
+                    circle.setAttribute("cy", y);
+                    circle.setAttribute("r", "8");
+                    circle.setAttribute("fill", nodeColor);
+                    circle.setAttribute("stroke", "#333");
+                    circle.setAttribute("stroke-width", "2");
+
+                    // Highlight starting node
+                    if (node == startNode) {
+                        circle.setAttribute("class", "start-node");
+                    }
+
+                    svg.appendChild(circle);
+
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", x);
+                    text.setAttribute("y", y + 4);
+                    text.setAttribute("text-anchor", "middle");
+                    text.setAttribute("font-size", "11");
+                    text.setAttribute("fill", "white");
+                    text.textContent = node;
+                    svg.appendChild(text);
+                });
+
+                // Update BFS info
+                const infoDiv = document.getElementById("bfs-info");
+                const layerInfo = Object.entries(bfsLayers)
+                    .map(([idx, nodes]) => `Level ${idx}: ${nodes.length} nodes`)
+                    .join("<br>");
+
+                infoDiv.innerHTML = `
                 <strong>BFS from node ${startNode}:</strong><br>
                 ${layerInfo}<br>
                 <strong>Total edges:</strong> ${currentGraph.edges().length}
             `;
-        }
-        
-        window.newGraph = function() {
-            const numNodes = parseInt(document.getElementById('num-nodes').value);
-            const graphType = document.getElementById('graph-type').value;
-            
-            currentGraph = generateGraph(graphType, numNodes);
-            updateStartNodeOptions();
-            
-            // Just visualize with random positions initially
-            const positions = {};
-            currentGraph.nodes().forEach(node => {
-                positions[node] = [
-                    (Math.random() - 0.5) * 1.5,
-                    (Math.random() - 0.5) * 1.5
-                ];
-            });
-            
-            visualizeGraph(currentGraph, positions, 0, {});
-        };
-        
-        window.applyLayout = function() {
-            if (!currentGraph) return;
-            
-            const startNode = parseInt(document.getElementById('start-node').value);
-            const alignment = document.getElementById('alignment').value;
-            
-            const actualStartNode = isNaN(startNode) ? 0 : startNode;
-            const bfsLayers = computeBFSLayers(currentGraph, actualStartNode);
-            
-            try {
-                const positions = bfsLayout(currentGraph, actualStartNode, alignment, 1, [0, 0]);
-                visualizeGraph(currentGraph, positions, actualStartNode, bfsLayers);
-                
-                // Update BFS info
-                const infoDiv = document.getElementById('bfs-info');
-                const layerInfo = Object.entries(bfsLayers).map(([idx, nodes]) => 
-                    `Level ${idx}: ${nodes.length} nodes`
-                ).join('<br>');
-                
-                infoDiv.innerHTML = `
+            }
+
+            window.newGraph = function () {
+                const numNodes = parseInt(document.getElementById("num-nodes").value);
+                const graphType = document.getElementById("graph-type").value;
+
+                currentGraph = generateGraph(graphType, numNodes);
+                updateStartNodeOptions();
+
+                // Just visualize with random positions initially
+                const positions = {};
+                currentGraph.nodes().forEach((node) => {
+                    positions[node] = [(Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 1.5];
+                });
+
+                visualizeGraph(currentGraph, positions, 0, {});
+            };
+
+            window.applyLayout = function () {
+                if (!currentGraph) return;
+
+                const startNode = parseInt(document.getElementById("start-node").value);
+                const alignment = document.getElementById("alignment").value;
+
+                const actualStartNode = isNaN(startNode) ? 0 : startNode;
+                const bfsLayers = computeBFSLayers(currentGraph, actualStartNode);
+
+                try {
+                    const positions = bfsLayout(currentGraph, actualStartNode, alignment, 1, [0, 0]);
+                    visualizeGraph(currentGraph, positions, actualStartNode, bfsLayers);
+
+                    // Update BFS info
+                    const infoDiv = document.getElementById("bfs-info");
+                    const layerInfo = Object.entries(bfsLayers)
+                        .map(([idx, nodes]) => `Level ${idx}: ${nodes.length} nodes`)
+                        .join("<br>");
+
+                    infoDiv.innerHTML = `
                     <strong>BFS from node ${actualStartNode}:</strong><br>
                     ${layerInfo}<br>
                     <strong>Total edges:</strong> ${currentGraph.edges().length}
                 `;
-            } catch (error) {
-                console.error('Error in BFS layout:', error);
-                // Fallback to a simpler layout
-                const infoDiv = document.getElementById('bfs-info');
-                infoDiv.innerHTML = `<span style="color: red;">Error: ${error.message}</span>`;
-            }
-        };
-        
-        function setupControls() {
-            const controls = ['num-nodes'];
-            controls.forEach(id => {
-                const slider = document.getElementById(id);
-                const valueSpan = document.getElementById(id + '-value');
-                slider.oninput = function() {
-                    valueSpan.textContent = this.value;
-                };
-            });
-            
-            // Root selection handler
-            document.getElementById('root-selection').onchange = function() {
-                const manualGroup = document.getElementById('manual-node-group');
-                manualGroup.style.opacity = this.value === 'auto' ? '0.5' : '1';
-                manualGroup.style.pointerEvents = this.value === 'auto' ? 'none' : 'auto';
+                } catch (error) {
+                    console.error("Error in BFS layout:", error);
+                    // Fallback to a simpler layout
+                    const infoDiv = document.getElementById("bfs-info");
+                    infoDiv.innerHTML = `<span style="color: red;">Error: ${error.message}</span>`;
+                }
             };
-            
-            document.getElementById('graph-type').onchange = null;
-            document.getElementById('start-node').onchange = null;
-            document.getElementById('alignment').onchange = null;
-        }
-        
-        setupControls();
-        newGraph();
-    </script>
-</body>
+
+            function setupControls() {
+                const controls = ["num-nodes"];
+                controls.forEach((id) => {
+                    const slider = document.getElementById(id);
+                    const valueSpan = document.getElementById(id + "-value");
+                    slider.oninput = function () {
+                        valueSpan.textContent = this.value;
+                    };
+                });
+
+                // Root selection handler
+                document.getElementById("root-selection").onchange = function () {
+                    const manualGroup = document.getElementById("manual-node-group");
+                    manualGroup.style.opacity = this.value === "auto" ? "0.5" : "1";
+                    manualGroup.style.pointerEvents = this.value === "auto" ? "none" : "auto";
+                };
+
+                document.getElementById("graph-type").onchange = null;
+                document.getElementById("start-node").onchange = null;
+                document.getElementById("alignment").onchange = null;
+            }
+
+            setupControls();
+            newGraph();
+        </script>
+    </body>
 </html>

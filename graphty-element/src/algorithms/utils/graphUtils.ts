@@ -51,13 +51,10 @@ export interface AdjacencyOptions {
  * const directedAdj = buildAdjacencyList(graph, { directed: true });
  * ```
  */
-export function buildAdjacencyList(
-    graph: GraphLike,
-    options: AdjacencyOptions = {},
-): Map<string, Set<string>> {
-    const {directed = false} = options;
+export function buildAdjacencyList(graph: GraphLike, options: AdjacencyOptions = {}): Map<string, Set<string>> {
+    const { directed = false } = options;
     const adjacency = new Map<string, Set<string>>();
-    const {nodes, edges} = graph.getDataManager();
+    const { nodes, edges } = graph.getDataManager();
 
     // Initialize all nodes with empty sets
     for (const nodeId of nodes.keys()) {
@@ -101,9 +98,9 @@ export function buildWeightedAdjacencyList(
     graph: GraphLike,
     options: AdjacencyOptions = {},
 ): Map<string, Map<string, number>> {
-    const {directed = false, weightAttribute = "value"} = options;
+    const { directed = false, weightAttribute = "value" } = options;
     const adjacency = new Map<string, Map<string, number>>();
-    const {nodes, edges} = graph.getDataManager();
+    const { nodes, edges } = graph.getDataManager();
 
     // Initialize all nodes with empty maps
     for (const nodeId of nodes.keys()) {

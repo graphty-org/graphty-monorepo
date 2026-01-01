@@ -5,14 +5,14 @@
  * preventing drift and ensuring consistent input behavior.
  */
 
-import {Quaternion, Vector3} from "@babylonjs/core";
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test, vi} from "vitest";
+import { Quaternion, Vector3 } from "@babylonjs/core";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import {applyDeadzone} from "../../../src/cameras/InputUtils";
-import {PivotController} from "../../../src/cameras/PivotController";
-import type {Graph} from "../../../src/Graph";
-import {cleanupTestGraph, createTestGraph} from "../../helpers/testSetup";
+import { applyDeadzone } from "../../../src/cameras/InputUtils";
+import { PivotController } from "../../../src/cameras/PivotController";
+import type { Graph } from "../../../src/Graph";
+import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
 
 /**
  * Mock XRInputHandler for deadzone testing.
@@ -22,8 +22,8 @@ class MockXRInputHandler {
     private pivotController: PivotController;
 
     // Thumbstick values
-    public leftStick = {x: 0, y: 0};
-    public rightStick = {x: 0, y: 0};
+    public leftStick = { x: 0, y: 0 };
+    public rightStick = { x: 0, y: 0 };
 
     // Sensitivity settings (matching XRInputHandler constants)
     public readonly DEADZONE = 0.15;
@@ -61,7 +61,7 @@ class MockXRInputHandler {
 
         // RIGHT STICK: Zoom and Pan
         if (Math.abs(rightY) > 0.0001) {
-            const zoomFactor = 1.0 + (rightY * this.ZOOM_SPEED);
+            const zoomFactor = 1.0 + rightY * this.ZOOM_SPEED;
             this.pivotController.zoom(zoomFactor);
         }
 
@@ -75,10 +75,10 @@ class MockXRInputHandler {
 /**
  * Helper to get pivot rotation as Euler angles
  */
-function getPivotEuler(pivot: PivotController): {x: number, y: number, z: number} {
+function getPivotEuler(pivot: PivotController): { x: number; y: number; z: number } {
     const quat = pivot.pivot.rotationQuaternion ?? Quaternion.Identity();
     const euler = quat.toEulerAngles();
-    return {x: euler.x, y: euler.y, z: euler.z};
+    return { x: euler.x, y: euler.y, z: euler.z };
 }
 
 /**
@@ -101,7 +101,7 @@ describe("Deadzone and Threshold Behavior", () => {
         let pivotController: PivotController;
         let mockHandler: MockXRInputHandler;
 
-        beforeEach(async() => {
+        beforeEach(async () => {
             // Create a test graph to get a valid scene
             graph = await createTestGraph();
 
@@ -124,8 +124,8 @@ describe("Deadzone and Threshold Behavior", () => {
             const initialPos = getPivotPosition(pivotController);
 
             // Set thumbstick values below deadzone (0.15)
-            mockHandler.leftStick = {x: 0.1, y: 0.1};
-            mockHandler.rightStick = {x: 0.1, y: 0.1};
+            mockHandler.leftStick = { x: 0.1, y: 0.1 };
+            mockHandler.rightStick = { x: 0.1, y: 0.1 };
 
             // Process several frames
             for (let i = 0; i < 10; i++) {
@@ -169,7 +169,7 @@ describe("Deadzone and Threshold Behavior", () => {
             const initialEuler = getPivotEuler(pivotController);
 
             // Set thumbstick values above deadzone
-            mockHandler.leftStick = {x: 0.5, y: 0};
+            mockHandler.leftStick = { x: 0.5, y: 0 };
 
             // Process several frames
             for (let i = 0; i < 10; i++) {
@@ -181,20 +181,12 @@ describe("Deadzone and Threshold Behavior", () => {
 
             // Yaw should have changed
             const yawDiff = Math.abs(finalEuler.y - initialEuler.y);
-            assert.isAbove(
-                yawDiff,
-                0.001,
-                "Inputs above deadzone should be processed (yaw changed)",
-            );
+            assert.isAbove(yawDiff, 0.001, "Inputs above deadzone should be processed (yaw changed)");
         });
 
         test("XR deadzone is 0.15 (matches DEADZONE constant)", () => {
             // The mockHandler exposes the DEADZONE constant
-            assert.equal(
-                mockHandler.DEADZONE,
-                0.15,
-                "XR deadzone should be 0.15",
-            );
+            assert.equal(mockHandler.DEADZONE, 0.15, "XR deadzone should be 0.15");
         });
 
         test("deadzone applies per-axis, not radially", () => {
@@ -205,7 +197,7 @@ describe("Deadzone and Threshold Behavior", () => {
             // If deadzone were radial, magnitude would be sqrt(0.5^2 + 0.1^2) ≈ 0.51
             // which is above threshold, so both would pass
             // But with per-axis, only X should pass
-            mockHandler.leftStick = {x: 0.5, y: 0.1};
+            mockHandler.leftStick = { x: 0.5, y: 0.1 };
 
             // Process several frames
             for (let i = 0; i < 10; i++) {
@@ -217,19 +209,10 @@ describe("Deadzone and Threshold Behavior", () => {
 
             // Yaw should have changed (X was above deadzone)
             const yawDiff = Math.abs(finalEuler.y - initialEuler.y);
-            assert.isAbove(
-                yawDiff,
-                0.001,
-                "X axis input above deadzone should affect yaw",
-            );
+            assert.isAbove(yawDiff, 0.001, "X axis input above deadzone should affect yaw");
 
             // Pitch should NOT have changed (Y was below deadzone)
-            assert.closeTo(
-                finalEuler.x,
-                initialEuler.x,
-                0.0001,
-                "Y axis input below deadzone should not affect pitch",
-            );
+            assert.closeTo(finalEuler.x, initialEuler.x, 0.0001, "Y axis input below deadzone should not affect pitch");
         });
     });
 
@@ -237,56 +220,20 @@ describe("Deadzone and Threshold Behavior", () => {
         test("returns 0 for inputs below threshold", () => {
             const threshold = 0.15;
 
-            assert.equal(
-                applyDeadzone(0.0, threshold),
-                0,
-                "Zero should return 0",
-            );
-            assert.equal(
-                applyDeadzone(0.1, threshold),
-                0,
-                "0.1 should be filtered by 0.15 deadzone",
-            );
-            assert.equal(
-                applyDeadzone(-0.1, threshold),
-                0,
-                "-0.1 should be filtered by 0.15 deadzone",
-            );
-            assert.equal(
-                applyDeadzone(0.14, threshold),
-                0,
-                "0.14 should be filtered by 0.15 deadzone",
-            );
-            assert.equal(
-                applyDeadzone(-0.14, threshold),
-                0,
-                "-0.14 should be filtered by 0.15 deadzone",
-            );
+            assert.equal(applyDeadzone(0.0, threshold), 0, "Zero should return 0");
+            assert.equal(applyDeadzone(0.1, threshold), 0, "0.1 should be filtered by 0.15 deadzone");
+            assert.equal(applyDeadzone(-0.1, threshold), 0, "-0.1 should be filtered by 0.15 deadzone");
+            assert.equal(applyDeadzone(0.14, threshold), 0, "0.14 should be filtered by 0.15 deadzone");
+            assert.equal(applyDeadzone(-0.14, threshold), 0, "-0.14 should be filtered by 0.15 deadzone");
         });
 
         test("returns non-zero for inputs above threshold", () => {
             const threshold = 0.15;
 
-            assert.notEqual(
-                applyDeadzone(0.5, threshold),
-                0,
-                "0.5 should pass 0.15 deadzone",
-            );
-            assert.notEqual(
-                applyDeadzone(-0.5, threshold),
-                0,
-                "-0.5 should pass 0.15 deadzone",
-            );
-            assert.notEqual(
-                applyDeadzone(0.2, threshold),
-                0,
-                "0.2 should pass 0.15 deadzone",
-            );
-            assert.notEqual(
-                applyDeadzone(1.0, threshold),
-                0,
-                "1.0 should pass 0.15 deadzone",
-            );
+            assert.notEqual(applyDeadzone(0.5, threshold), 0, "0.5 should pass 0.15 deadzone");
+            assert.notEqual(applyDeadzone(-0.5, threshold), 0, "-0.5 should pass 0.15 deadzone");
+            assert.notEqual(applyDeadzone(0.2, threshold), 0, "0.2 should pass 0.15 deadzone");
+            assert.notEqual(applyDeadzone(1.0, threshold), 0, "1.0 should pass 0.15 deadzone");
         });
 
         test("returns non-zero for inputs at threshold boundary", () => {
@@ -294,26 +241,14 @@ describe("Deadzone and Threshold Behavior", () => {
 
             // Values at exactly the threshold should be filtered (it's <, not <=)
             // Values just above should pass
-            assert.notEqual(
-                applyDeadzone(0.16, threshold),
-                0,
-                "0.16 should just pass 0.15 deadzone",
-            );
+            assert.notEqual(applyDeadzone(0.16, threshold), 0, "0.16 should just pass 0.15 deadzone");
         });
 
         test("preserves sign of input", () => {
             const threshold = 0.15;
 
-            assert.isAbove(
-                applyDeadzone(0.5, threshold),
-                0,
-                "Positive input should produce positive output",
-            );
-            assert.isBelow(
-                applyDeadzone(-0.5, threshold),
-                0,
-                "Negative input should produce negative output",
-            );
+            assert.isAbove(applyDeadzone(0.5, threshold), 0, "Positive input should produce positive output");
+            assert.isBelow(applyDeadzone(-0.5, threshold), 0, "Negative input should produce negative output");
         });
 
         test("remaps input range from [threshold, 1] to [0, 1]", () => {
@@ -341,58 +276,29 @@ describe("Deadzone and Threshold Behavior", () => {
 
             // With quadratic curve, output should be less than linear (square of value < 1)
             assert.isAbove(midOutput, 0, "Mid-range should produce positive output");
-            assert.isBelow(
-                midOutput,
-                linearExpected,
-                "Quadratic curve should produce output less than linear",
-            );
+            assert.isBelow(midOutput, linearExpected, "Quadratic curve should produce output less than linear");
 
             // Verify it's approximately the expected quadratic value
             const expectedQuadratic = linearExpected * linearExpected;
-            assert.closeTo(
-                midOutput,
-                expectedQuadratic,
-                0.001,
-                "Output should match quadratic curve formula",
-            );
+            assert.closeTo(midOutput, expectedQuadratic, 0.001, "Output should match quadratic curve formula");
         });
 
         test("default threshold is 0.15", () => {
             // When called without second argument, should use 0.15
-            assert.equal(
-                applyDeadzone(0.1),
-                0,
-                "Default threshold should filter 0.1",
-            );
-            assert.notEqual(
-                applyDeadzone(0.2),
-                0,
-                "Default threshold should pass 0.2",
-            );
+            assert.equal(applyDeadzone(0.1), 0, "Default threshold should filter 0.1");
+            assert.notEqual(applyDeadzone(0.2), 0, "Default threshold should pass 0.2");
         });
 
         test("handles edge cases", () => {
             const threshold = 0.15;
 
             // Exactly at threshold
-            assert.equal(
-                applyDeadzone(0.15, threshold),
-                0,
-                "Input exactly at threshold should be filtered",
-            );
+            assert.equal(applyDeadzone(0.15, threshold), 0, "Input exactly at threshold should be filtered");
 
             // Negative threshold (edge case - shouldn't happen but should handle gracefully)
             // The function should still work with any threshold value
-            assert.equal(
-                applyDeadzone(0.1, 0.2),
-                0,
-                "Custom threshold of 0.2 should filter 0.1",
-            );
-            assert.notEqual(
-                applyDeadzone(0.3, 0.2),
-                0,
-                "Custom threshold of 0.2 should pass 0.3",
-            );
+            assert.equal(applyDeadzone(0.1, 0.2), 0, "Custom threshold of 0.2 should filter 0.1");
+            assert.notEqual(applyDeadzone(0.3, 0.2), 0, "Custom threshold of 0.2 should pass 0.3");
         });
     });
 
@@ -400,15 +306,15 @@ describe("Deadzone and Threshold Behavior", () => {
         // Note: The 2D input controller doesn't have an explicit deadzone,
         // but we should verify small movements don't accumulate to cause drift
 
-        test("2D input small velocities decay to zero", async() => {
+        test("2D input small velocities decay to zero", async () => {
             const graph = await createTestGraph();
 
             try {
                 // Apply very small velocity
                 const controller = graph.camera.getActiveController() as {
-                    velocity?: {x: number, y: number, zoom: number, rotate: number};
+                    velocity?: { x: number; y: number; zoom: number; rotate: number };
                     applyInertia?: () => void;
-                    config?: {panDamping: number};
+                    config?: { panDamping: number };
                 };
 
                 if (controller.velocity && controller.applyInertia) {
@@ -420,11 +326,7 @@ describe("Deadzone and Threshold Behavior", () => {
                     }
 
                     // Velocity should decay to effectively zero
-                    assert.isBelow(
-                        Math.abs(controller.velocity.x),
-                        1e-10,
-                        "Small velocity should decay to near-zero",
-                    );
+                    assert.isBelow(Math.abs(controller.velocity.x), 1e-10, "Small velocity should decay to near-zero");
                 }
             } finally {
                 cleanupTestGraph(graph);
@@ -442,19 +344,11 @@ describe("Deadzone and Threshold Behavior", () => {
             // The actual implementation is in XRInputHandler
 
             // Start threshold should be higher than end threshold
-            assert.isAbove(
-                PINCH_START,
-                PINCH_END,
-                "Pinch start threshold should be higher than end threshold",
-            );
+            assert.isAbove(PINCH_START, PINCH_END, "Pinch start threshold should be higher than end threshold");
 
             // The difference provides hysteresis to prevent flickering
             const hysteresis = PINCH_START - PINCH_END;
-            assert.isAbove(
-                hysteresis,
-                0.1,
-                "Hysteresis gap should be significant (at least 0.1)",
-            );
+            assert.isAbove(hysteresis, 0.1, "Hysteresis gap should be significant (at least 0.1)");
         });
 
         test("pinch hysteresis prevents rapid state changes", () => {
@@ -467,9 +361,9 @@ describe("Deadzone and Threshold Behavior", () => {
             let stateChanges = 0;
 
             for (const value of oscillatingValues) {
-                const shouldPinch: boolean = isPinching ?
-                    value > PINCH_END : // Already pinching, release below 0.5
-                    value > PINCH_START; // Not pinching, start above 0.7
+                const shouldPinch: boolean = isPinching
+                    ? value > PINCH_END // Already pinching, release below 0.5
+                    : value > PINCH_START; // Not pinching, start above 0.7
 
                 if (shouldPinch !== isPinching) {
                     stateChanges++;
@@ -479,11 +373,7 @@ describe("Deadzone and Threshold Behavior", () => {
 
             // With hysteresis, oscillating between 0.6 and 0.65 should not change state
             // Since both are between PINCH_END (0.5) and PINCH_START (0.7)
-            assert.equal(
-                stateChanges,
-                0,
-                "Oscillations within hysteresis band should not change state",
-            );
+            assert.equal(stateChanges, 0, "Oscillations within hysteresis band should not change state");
         });
     });
 });

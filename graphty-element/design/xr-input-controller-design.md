@@ -15,10 +15,10 @@ This document outlines the design for a unified drag interaction system that wor
 1. **VR Z-axis drag is too slow**: In WebXR VR mode, pushing/pulling nodes along the Z-axis (depth) requires excessive physical movement. A 1:1 mapping between controller movement and node movement feels unnatural and requires users to move their arms several feet to achieve noticeable depth changes.
 
 2. **BabylonJS SixDofDragBehavior incompatible with VR Z-axis amplification**: Attempts to amplify Z-axis movement while using `SixDofDragBehavior` result in:
-   - Exponential position growth (positions escalating to 10^39)
-   - Unexpected rotation when positions don't stick
-   - Nodes flickering or disappearing
-   - Positions snapping back after drag ends
+    - Exponential position growth (positions escalating to 10^39)
+    - Unexpected rotation when positions don't stick
+    - Nodes flickering or disappearing
+    - Positions snapping back after drag ends
 
 3. **Code duplication risk**: Implementing separate drag handlers for desktop (SixDofDragBehavior) and XR (custom controller) would create maintenance burden.
 
@@ -38,54 +38,61 @@ This document outlines the design for a unified drag interaction system that wor
 Research into BabylonJS forums and issue trackers revealed:
 
 1. **Z-axis regression in v6.0+**: The Z-axis drag functionality broke in BabylonJS v6.0 and later versions
-   - Source: Multiple forum posts from users experiencing same issues
-   - Timeline: Issue reported since v6.0 release, partial fix in Feb 2025
+    - Source: Multiple forum posts from users experiencing same issues
+    - Timeline: Issue reported since v6.0 release, partial fix in Feb 2025
 
 2. **zDragFactor non-functional in WebXR**: The `zDragFactor` property that should control Z-axis sensitivity does not work in VR mode
-   - This is by design, not a bug
-   - The property was designed for desktop 2D pointer input, not 3D VR controllers
+    - This is by design, not a bug
+    - The property was designed for desktop 2D pointer input, not 3D VR controllers
 
 3. **BabylonJS team recommendation**: RaananW (BabylonJS team member) recommended using "parenting approach" for VR drag
-   - Attach grabbed object as child of controller
-   - Move with controller naturally
-   - However, this approach has its own complexities with world-space positioning
+    - Attach grabbed object as child of controller
+    - Move with controller naturally
+    - However, this approach has its own complexities with world-space positioning
 
 4. **Fix status**: A fix was implemented in Feb 2025 but remains "subtle" and requires "several seconds of movement to notice"
-   - Not sufficient for good UX
-   - Still 1:1 mapping, not configurable amplification
+    - Not sufficient for good UX
+    - Still 1:1 mapping, not configurable amplification
 
 ### Attempted Solutions (This Session)
 
 We attempted multiple approaches to work with SixDofDragBehavior:
 
 #### Attempt 1: Increase zDragFactor
+
 ```typescript
 node.meshDragBehavior.zDragFactor = 15.0;
 ```
+
 **Result**: No effect. User reported "the push / pull along z-axis didn't change at all"
 **Root cause**: zDragFactor is non-functional in WebXR VR mode
 
 #### Attempt 2: Custom Z-axis amplification with previousPosition tracking
+
 ```typescript
 const previousPosition = {...};
 const delta = event.position.subtract(previousPosition);
 delta.z *= Z_AXIS_AMPLIFICATION;
 mesh.position.add(delta);
 ```
+
 **Result**: Exponential growth. Z-coordinates escalated to 10^39
 **Root cause**: Feedback loop - we modified position, SixDofDragBehavior calculated next event from that modified position, we amplified again, creating exponential growth
 
 #### Attempt 3: Track basePosition to avoid feedback
+
 ```typescript
 const basePosition = mesh.position.clone(); // At drag start
 const delta = event.position.subtract(basePosition);
 delta.z *= Z_AXIS_AMPLIFICATION;
 mesh.position = basePosition.add(delta);
 ```
+
 **Result**: Nodes rotated instead of translating
 **Root cause**: SixDofDragBehavior and manual position control fighting over mesh transform
 
 #### Attempt 4: Disable rotation, track first event position
+
 ```typescript
 meshDragBehavior.rotateDraggedObject = false;
 const dragStartMeshPosition = mesh.position.clone();
@@ -94,6 +101,7 @@ const delta = event.position.subtract(firstEventPosition);
 delta.z *= Z_AXIS_AMPLIFICATION;
 mesh.position = dragStartMeshPosition.add(delta);
 ```
+
 **Result**: With position setting enabled - rotation artifacts. With position setting disabled - positions don't persist (snap back after drag ends)
 **Root cause**: SixDofDragBehavior is fundamentally incompatible with external position manipulation
 
@@ -116,12 +124,14 @@ We will **completely replace SixDofDragBehavior** with a custom drag handler tha
 ### Why Not Keep SixDofDragBehavior for Desktop?
 
 While SixDofDragBehavior works fine in desktop mode, maintaining two separate systems would:
+
 - Complicate the codebase
 - Create potential bugs at mode boundaries
 - Require duplicate testing
 - Make future enhancements harder
 
 Benefits of unified approach:
+
 - Z-axis amplification could be useful in desktop 3D navigation too
 - Single set of tests
 - Consistent behavior across all modes
@@ -233,6 +243,7 @@ Benefits of unified approach:
 #### Remove SixDofDragBehavior
 
 **Current code to remove**:
+
 ```typescript
 node.meshDragBehavior = new SixDofDragBehavior();
 node.meshDragBehavior.rotateDraggedObject = false;
@@ -299,7 +310,7 @@ class NodeDragHandler {
                             scene.pointerX,
                             scene.pointerY,
                             Matrix.Identity(),
-                            this.node.mesh.getScene().activeCamera
+                            this.node.mesh.getScene().activeCamera,
                         );
 
                         // Cast ray and get world position
@@ -335,7 +346,7 @@ class NodeDragHandler {
         console.log(`[DRAG START] Node ${this.node.id}`, {
             meshPosition: this.node.mesh.position,
             worldPosition,
-            mode: this.isXRMode() ? 'XR' : 'Desktop',
+            mode: this.isXRMode() ? "XR" : "Desktop",
         });
     }
 
@@ -378,7 +389,7 @@ class NodeDragHandler {
 
         console.log(`[DRAG END] Node ${this.node.id}`, {
             finalPosition: this.node.mesh.position,
-            mode: this.isXRMode() ? 'XR' : 'Desktop',
+            mode: this.isXRMode() ? "XR" : "Desktop",
         });
 
         // Pin if configured
@@ -412,14 +423,11 @@ class NodeDragHandler {
         const depth = Vector3.Dot(cameraToNode, camera.getForwardRay().direction);
 
         // Intersect ray with plane at that depth
-        const planePoint = camera.position.add(
-            camera.getForwardRay().direction.scale(depth)
-        );
+        const planePoint = camera.position.add(camera.getForwardRay().direction.scale(depth));
         const planeNormal = camera.getForwardRay().direction;
 
         // Ray-plane intersection
-        const t = Vector3.Dot(planePoint.subtract(ray.origin), planeNormal) /
-                  Vector3.Dot(ray.direction, planeNormal);
+        const t = Vector3.Dot(planePoint.subtract(ray.origin), planeNormal) / Vector3.Dot(ray.direction, planeNormal);
 
         return ray.origin.add(ray.direction.scale(t));
     }
@@ -465,23 +473,21 @@ export class XRInputController implements InputHandler {
         if (!xrHelper) return;
 
         // Subscribe to squeeze events (grab)
-        xrHelper.input.controllers.forEach(controller => {
+        xrHelper.input.controllers.forEach((controller) => {
             this.setupControllerDrag(controller);
         });
 
         // Watch for new controllers
-        const controllerObserver = xrHelper.input.onControllerAddedObservable.add(
-            (controller) => {
-                this.setupControllerDrag(controller);
-            }
-        );
+        const controllerObserver = xrHelper.input.onControllerAddedObservable.add((controller) => {
+            this.setupControllerDrag(controller);
+        });
         this.observers.push(controllerObserver);
     }
 
     private setupControllerDrag(controller: WebXRInputSource): void {
         // Squeeze start = grab
         controller.onMotionControllerInitObservable.add((motionController) => {
-            const squeezeComponent = motionController.getComponent('squeeze');
+            const squeezeComponent = motionController.getComponent("squeeze");
             if (!squeezeComponent) return;
 
             squeezeComponent.onButtonStateChangedObservable.add((component) => {
@@ -508,7 +514,7 @@ export class XRInputController implements InputHandler {
 
         const node = pickInfo.pickedMesh.metadata.graphNode as GraphNode;
         if (!node.dragHandler) {
-            console.warn('Node has no drag handler');
+            console.warn("Node has no drag handler");
             return;
         }
 
@@ -593,38 +599,38 @@ export interface XRInputConfig {
 #### test/NodeBehavior-unified-drag.test.ts (new file)
 
 ```typescript
-describe('Unified Drag Handler', () => {
-    test('should handle desktop drag with pointer events', () => {
+describe("Unified Drag Handler", () => {
+    test("should handle desktop drag with pointer events", () => {
         // Test pointer down → move → up sequence
         // Verify position updates
         // Verify layout engine updates
     });
 
-    test('should apply Z-axis amplification in XR mode', () => {
+    test("should apply Z-axis amplification in XR mode", () => {
         // Mock XR session active
         // Simulate drag with Z movement
         // Verify Z-axis is amplified 10×
     });
 
-    test('should NOT apply Z-axis amplification in desktop mode by default', () => {
+    test("should NOT apply Z-axis amplification in desktop mode by default", () => {
         // Mock desktop mode
         // Simulate drag with Z movement
         // Verify Z-axis is NOT amplified
     });
 
-    test('should pin node after drag when configured', () => {
+    test("should pin node after drag when configured", () => {
         // Set pinOnDrag = true
         // Drag node
         // Verify node.pin() called
     });
 
-    test('should update layout engine during drag', () => {
+    test("should update layout engine during drag", () => {
         // Mock layout engine
         // Drag node
         // Verify setNodePosition called with new position
     });
 
-    test('should set node.dragging flag during drag', () => {
+    test("should set node.dragging flag during drag", () => {
         // Start drag
         // Verify node.dragging = true
         // End drag
@@ -636,26 +642,26 @@ describe('Unified Drag Handler', () => {
 #### test/cameras/XRInputController-drag.test.ts (new file)
 
 ```typescript
-describe('XRInputController Drag Integration', () => {
-    test('should route controller squeeze to node drag handler', () => {
+describe("XRInputController Drag Integration", () => {
+    test("should route controller squeeze to node drag handler", () => {
         // Mock XR controller
         // Simulate squeeze on node
         // Verify dragHandler.onDragStart called
     });
 
-    test('should update drag position every frame while squeezing', () => {
+    test("should update drag position every frame while squeezing", () => {
         // Start drag
         // Call update() multiple times
         // Verify dragHandler.onDragUpdate called each frame
     });
 
-    test('should end drag when squeeze released', () => {
+    test("should end drag when squeeze released", () => {
         // Start drag
         // Release squeeze
         // Verify dragHandler.onDragEnd called
     });
 
-    test('should handle multiple controllers independently', () => {
+    test("should handle multiple controllers independently", () => {
         // Two controllers
         // Each grabs different node
         // Verify both drags work independently
@@ -668,8 +674,8 @@ describe('XRInputController Drag Integration', () => {
 #### test/integration/drag-edges-realtime.test.ts (new file)
 
 ```typescript
-describe('Real-time Edge Updates During Drag', () => {
-    test('edges should update position during node drag', async () => {
+describe("Real-time Edge Updates During Drag", () => {
+    test("edges should update position during node drag", async () => {
         // Create graph with connected nodes
         // Start dragging node
         // Verify connected edges update positions in real-time
@@ -688,7 +694,7 @@ Update existing stories:
 export const UnifiedDragDesktop: Story = {
     args: {
         // Test desktop drag with unified handler
-    }
+    },
 };
 
 export const UnifiedDragXR: Story = {
@@ -698,9 +704,9 @@ export const UnifiedDragXR: Story = {
             enabled: true,
             input: {
                 zAxisAmplification: 10.0,
-            }
-        }
-    }
+            },
+        },
+    },
 };
 ```
 
@@ -761,17 +767,18 @@ export const UnifiedDragXR: Story = {
 **Question**: What's the best raycast strategy for desktop drag to maintain depth control?
 
 **Options**:
+
 - **A**: Plane intersection parallel to camera (used by SixDofDragBehavior)
-  - Pros: Simple, predictable
-  - Cons: Depth changes as you move mouse up/down
+    - Pros: Simple, predictable
+    - Cons: Depth changes as you move mouse up/down
 
 - **B**: Depth-locked raycast (maintain initial camera-to-node distance)
-  - Pros: More intuitive for 3D, maintains depth
-  - Cons: More complex math
+    - Pros: More intuitive for 3D, maintains depth
+    - Cons: More complex math
 
 - **C**: Hybrid: X/Y from plane intersection, Z from scroll wheel or keyboard
-  - Pros: Explicit Z control
-  - Cons: Requires additional input
+    - Pros: Explicit Z control
+    - Cons: Requires additional input
 
 **Recommendation**: Start with option A (plane intersection) for consistency with SixDofDragBehavior. Can be made configurable later.
 
@@ -780,17 +787,18 @@ export const UnifiedDragXR: Story = {
 **Question**: Should Z-axis amplification be available in desktop mode?
 
 **Options**:
+
 - **A**: XR-only (default disabled in desktop)
-  - Pros: Simpler, matches current behavior
-  - Cons: Desktop users miss out on easier 3D navigation
+    - Pros: Simpler, matches current behavior
+    - Cons: Desktop users miss out on easier 3D navigation
 
 - **B**: Configurable per-mode
-  - Pros: Flexibility, users can enable if desired
-  - Cons: More config surface area
+    - Pros: Flexibility, users can enable if desired
+    - Cons: More config surface area
 
 - **C**: Auto-detect based on camera type (orbit vs VR)
-  - Pros: Smart defaults
-  - Cons: Coupling to camera system
+    - Pros: Smart defaults
+    - Cons: Coupling to camera system
 
 **Recommendation**: Option B (configurable), default to disabled in desktop for backward compatibility, enabled in XR.
 
@@ -799,13 +807,14 @@ export const UnifiedDragXR: Story = {
 **Question**: Should we support simultaneous two-controller drag (e.g., scale, rotate)?
 
 **Options**:
+
 - **A**: Single controller only (initial implementation)
-  - Pros: Simpler, covers 90% of use cases
-  - Cons: No two-hand gestures
+    - Pros: Simpler, covers 90% of use cases
+    - Cons: No two-hand gestures
 
 - **B**: Support two-hand gestures (scale, rotate)
-  - Pros: More powerful, better VR UX
-  - Cons: Complex, requires gesture detection
+    - Pros: More powerful, better VR UX
+    - Cons: Complex, requires gesture detection
 
 **Recommendation**: Option A for initial implementation. Option B as future enhancement.
 
@@ -814,13 +823,14 @@ export const UnifiedDragXR: Story = {
 **Question**: Should hand pinch gestures work the same as controller squeeze?
 
 **Options**:
+
 - **A**: Treat hand pinch identically to controller squeeze
-  - Pros: Consistent UX
-  - Cons: May not leverage hand tracking strengths
+    - Pros: Consistent UX
+    - Cons: May not leverage hand tracking strengths
 
 - **B**: Separate gesture system for hands
-  - Pros: Can optimize for hand interactions
-  - Cons: More code paths
+    - Pros: Can optimize for hand interactions
+    - Cons: More code paths
 
 **Recommendation**: Option A for consistency with unified approach.
 
@@ -847,26 +857,26 @@ export const UnifiedDragXR: Story = {
 ## Success Metrics
 
 1. **Functional**:
-   - Desktop drag works (pointer events)
-   - XR controller drag works (squeeze events)
-   - Z-axis amplified 10× in VR
-   - Edges update in real-time during drag
-   - Pin-on-drag works
+    - Desktop drag works (pointer events)
+    - XR controller drag works (squeeze events)
+    - Z-axis amplified 10× in VR
+    - Edges update in real-time during drag
+    - Pin-on-drag works
 
 2. **Performance**:
-   - No frame rate regression vs SixDofDragBehavior
-   - Drag feels responsive (< 16ms per frame update)
+    - No frame rate regression vs SixDofDragBehavior
+    - Drag feels responsive (< 16ms per frame update)
 
 3. **Code Quality**:
-   - Single drag handler implementation (no duplication)
-   - All tests pass
-   - No SixDofDragBehavior dependencies remain
+    - Single drag handler implementation (no duplication)
+    - All tests pass
+    - No SixDofDragBehavior dependencies remain
 
 4. **User Experience**:
-   - VR users can manipulate depth naturally (10× amplification)
-   - Desktop users experience no regression
-   - Dragging feels smooth and responsive
-   - Visual feedback (edges) updates in real-time
+    - VR users can manipulate depth naturally (10× amplification)
+    - Desktop users experience no regression
+    - Dragging feels smooth and responsive
+    - Visual feedback (edges) updates in real-time
 
 ## References
 

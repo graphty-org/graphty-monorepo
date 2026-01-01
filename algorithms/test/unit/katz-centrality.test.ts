@@ -1,7 +1,7 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {katzCentrality, nodeKatzCentrality} from "../../src/algorithms/centrality/katz.js";
-import {Graph} from "../../src/core/graph.js";
+import { katzCentrality, nodeKatzCentrality } from "../../src/algorithms/centrality/katz.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Katz Centrality", () => {
     describe("katzCentrality", () => {
@@ -42,7 +42,7 @@ describe("Katz Centrality", () => {
         });
 
         it("should handle directed graphs", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
             graph.addEdge("c", "a");
@@ -60,8 +60,8 @@ describe("Katz Centrality", () => {
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const lowAlpha = katzCentrality(graph, {alpha: 0.05, normalized: false});
-            const highAlpha = katzCentrality(graph, {alpha: 0.2, normalized: false});
+            const lowAlpha = katzCentrality(graph, { alpha: 0.05, normalized: false });
+            const highAlpha = katzCentrality(graph, { alpha: 0.2, normalized: false });
 
             // Higher alpha should lead to larger differences between connected nodes
             const lowDiff = Math.abs(lowAlpha.b - lowAlpha.a);
@@ -75,8 +75,8 @@ describe("Katz Centrality", () => {
             graph.addNode("isolated");
             graph.addEdge("a", "b");
 
-            const lowBeta = katzCentrality(graph, {beta: 0.5, normalized: false});
-            const highBeta = katzCentrality(graph, {beta: 2.0, normalized: false});
+            const lowBeta = katzCentrality(graph, { beta: 0.5, normalized: false });
+            const highBeta = katzCentrality(graph, { beta: 2.0, normalized: false });
 
             // Isolated node should have exactly beta centrality
             expect(lowBeta.isolated).toBeCloseTo(0.5, 3);
@@ -92,16 +92,16 @@ describe("Katz Centrality", () => {
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const normalized = katzCentrality(graph, {normalized: true});
-            const unnormalized = katzCentrality(graph, {normalized: false});
+            const normalized = katzCentrality(graph, { normalized: true });
+            const unnormalized = katzCentrality(graph, { normalized: false });
 
             // Normalized should be in [0, 1] range
             const normalizedValues = Object.values(normalized);
-            expect(Math.max(... normalizedValues)).toBeLessThanOrEqual(1);
-            expect(Math.min(... normalizedValues)).toBeGreaterThanOrEqual(0);
+            expect(Math.max(...normalizedValues)).toBeLessThanOrEqual(1);
+            expect(Math.min(...normalizedValues)).toBeGreaterThanOrEqual(0);
 
             // Relative ordering should be preserved
-            expect((normalized.b > normalized.a) === (unnormalized.b > unnormalized.a)).toBe(true);
+            expect(normalized.b > normalized.a === unnormalized.b > unnormalized.a).toBe(true);
         });
 
         it("should converge within maxIterations", () => {
@@ -110,7 +110,7 @@ describe("Katz Centrality", () => {
             graph.addEdge("b", "c");
             graph.addEdge("c", "a");
 
-            const centrality = katzCentrality(graph, {maxIterations: 10});
+            const centrality = katzCentrality(graph, { maxIterations: 10 });
 
             expect(Object.keys(centrality)).toHaveLength(3);
             expect(centrality.a).toBeGreaterThan(0);
@@ -121,8 +121,8 @@ describe("Katz Centrality", () => {
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const looseTolerance = katzCentrality(graph, {tolerance: 1e-2, maxIterations: 100});
-            const strictTolerance = katzCentrality(graph, {tolerance: 1e-8, maxIterations: 100});
+            const looseTolerance = katzCentrality(graph, { tolerance: 1e-2, maxIterations: 100 });
+            const strictTolerance = katzCentrality(graph, { tolerance: 1e-8, maxIterations: 100 });
 
             // Should get valid results with both tolerances
             expect(Object.keys(looseTolerance)).toHaveLength(3);
@@ -142,7 +142,7 @@ describe("Katz Centrality", () => {
             const graph = new Graph();
             graph.addNode("a");
 
-            const centrality = katzCentrality(graph, {beta: 1.0});
+            const centrality = katzCentrality(graph, { beta: 1.0 });
 
             expect(centrality.a).toBeCloseTo(1.0, 3);
         });
@@ -152,7 +152,7 @@ describe("Katz Centrality", () => {
             graph.addEdge("a", "b");
             graph.addEdge("c", "d");
 
-            const centrality = katzCentrality(graph, {beta: 1.0});
+            const centrality = katzCentrality(graph, { beta: 1.0 });
 
             expect(Object.keys(centrality)).toHaveLength(4);
 
@@ -166,7 +166,7 @@ describe("Katz Centrality", () => {
             graph.addEdge("a", "b");
             graph.addNode("isolated");
 
-            const centrality = katzCentrality(graph, {beta: 1.0, normalized: false});
+            const centrality = katzCentrality(graph, { beta: 1.0, normalized: false });
 
             // Isolated node should have exactly beta centrality
             expect(centrality.isolated).toBeCloseTo(1.0, 3);
@@ -180,7 +180,7 @@ describe("Katz Centrality", () => {
             graph.addNode("b");
             graph.addNode("c");
 
-            const centrality = katzCentrality(graph, {beta: 2.0});
+            const centrality = katzCentrality(graph, { beta: 2.0 });
 
             // All nodes should have exactly beta centrality
             expect(centrality.a).toBeCloseTo(2.0, 3);
@@ -189,7 +189,7 @@ describe("Katz Centrality", () => {
         });
 
         it("should handle self-loops", () => {
-            const graph = new Graph({allowSelfLoops: true});
+            const graph = new Graph({ allowSelfLoops: true });
             graph.addEdge("a", "a");
             graph.addEdge("a", "b");
 
@@ -239,10 +239,10 @@ describe("Katz Centrality", () => {
 
             const alpha = 0.1;
             const beta = 1.0;
-            const centrality = katzCentrality(graph, {alpha, beta, normalized: false});
+            const centrality = katzCentrality(graph, { alpha, beta, normalized: false });
 
             // For node 'a': should be approximately alpha * (centrality[b] + centrality[c]) + beta
-            const expectedA = (alpha * (centrality.b + centrality.c)) + beta;
+            const expectedA = alpha * (centrality.b + centrality.c) + beta;
             expect(centrality.a).toBeCloseTo(expectedA, 2);
         });
 
@@ -250,8 +250,8 @@ describe("Katz Centrality", () => {
             const graph = new Graph();
             graph.addEdge("a", "b");
 
-            const centralityBeta1 = katzCentrality(graph, {beta: 1.0, normalized: false});
-            const centralityBeta2 = katzCentrality(graph, {beta: 2.0, normalized: false});
+            const centralityBeta1 = katzCentrality(graph, { beta: 1.0, normalized: false });
+            const centralityBeta2 = katzCentrality(graph, { beta: 2.0, normalized: false });
 
             // All centrality values should increase with higher beta
             expect(centralityBeta2.a).toBeGreaterThan(centralityBeta1.a);
@@ -271,7 +271,7 @@ describe("Katz Centrality", () => {
             }
 
             const start = Date.now();
-            const centrality = katzCentrality(graph, {maxIterations: 50});
+            const centrality = katzCentrality(graph, { maxIterations: 50 });
             const duration = Date.now() - start;
 
             expect(duration).toBeLessThan(3000); // Should complete within 3 seconds

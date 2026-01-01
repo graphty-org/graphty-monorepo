@@ -2,6 +2,6 @@
  * Hierarchical layout algorithms
  */
 
-export { bipartiteLayout } from './bipartite';
-export { multipartiteLayout } from './multipartite';
-export { bfsLayout } from './bfs';
+export { bfsLayout } from "./bfs";
+export { bipartiteLayout } from "./bipartite";
+export { multipartiteLayout } from "./multipartite";

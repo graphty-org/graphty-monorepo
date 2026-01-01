@@ -3,10 +3,10 @@
  * @module test/ai/input/TextInputAdapter.test
  */
 
-import {assert, beforeEach, describe, it, vi} from "vitest";
+import { assert, beforeEach, describe, it, vi } from "vitest";
 
-import {TextInputAdapter} from "../../../src/ai/input/TextInputAdapter";
-import type {InputCallback} from "../../../src/ai/input/types";
+import { TextInputAdapter } from "../../../src/ai/input/TextInputAdapter";
+import type { InputCallback } from "../../../src/ai/input/types";
 
 describe("TextInputAdapter", () => {
     let adapter: TextInputAdapter;

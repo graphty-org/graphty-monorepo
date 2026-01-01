@@ -23,6 +23,7 @@ No critical issues found. The code has no security vulnerabilities, data loss ri
 ### 1. Hardcoded Colors Instead of Style Helpers
 
 **Files**:
+
 - `src/algorithms/DijkstraAlgorithm.ts:27-28,46-47,52-53`
 - `src/algorithms/KruskalAlgorithm.ts:27,44`
 - `src/algorithms/PrimAlgorithm.ts:36,53`
@@ -33,6 +34,7 @@ No critical issues found. The code has no security vulnerabilities, data loss ri
 **Description**: These algorithms use hardcoded hex color values in their `suggestedStyles` instead of using the StyleHelpers and palette system defined in the color-palettes-specification.md. This violates the established pattern where all colors should come from the preferred colorblind-safe palettes.
 
 **Example**: `src/algorithms/DijkstraAlgorithm.ts:27`
+
 ```typescript
 // Problem code - hardcoded color
 line: {
@@ -42,6 +44,7 @@ line: {
 ```
 
 **Fix**: Use style helpers for binary highlighting:
+
 ```typescript
 // Option 1: Use binary color helpers for boolean conditions
 calculatedStyle: {
@@ -56,14 +59,14 @@ calculatedStyle: {
 
 **Affected Colors to Replace**:
 
-| Current | Palette Alternative | Usage |
-|---------|-------------------|-------|
-| `#e74c3c` (red) | `#D55E00` (Okabe-Ito vermillion) or use binary helper | Path highlighting |
-| `#27ae60` (green) | `#009E73` (Okabe-Ito bluish green) | MST edges, source nodes |
-| `#95a5a6` (gray) | `#999999` (standard muted gray) | Non-highlighted elements |
-| `#3498db` (blue) | `#0072B2` (Okabe-Ito blue) | Partition colors |
-| `#9b59b6` (purple) | `#CC79A7` (Okabe-Ito reddish purple) | Matched edges |
-| `#e67e22` (orange) | `#E69F00` (Okabe-Ito orange) | Warning/cut edges |
+| Current            | Palette Alternative                                   | Usage                    |
+| ------------------ | ----------------------------------------------------- | ------------------------ |
+| `#e74c3c` (red)    | `#D55E00` (Okabe-Ito vermillion) or use binary helper | Path highlighting        |
+| `#27ae60` (green)  | `#009E73` (Okabe-Ito bluish green)                    | MST edges, source nodes  |
+| `#95a5a6` (gray)   | `#999999` (standard muted gray)                       | Non-highlighted elements |
+| `#3498db` (blue)   | `#0072B2` (Okabe-Ito blue)                            | Partition colors         |
+| `#9b59b6` (purple) | `#CC79A7` (Okabe-Ito reddish purple)                  | Matched edges            |
+| `#e67e22` (orange) | `#E69F00` (Okabe-Ito orange)                          | Warning/cut edges        |
 
 ---
 
@@ -74,21 +77,23 @@ calculatedStyle: {
 **Description**: The algorithm swaps in-degree and out-degree. For a directed edge `srcId → dstId`, the source node should have out-degree increased, and the destination node should have in-degree increased. The current code does the opposite.
 
 **Example**: `src/algorithms/DegreeAlgorithm.ts:47-52`
+
 ```typescript
 // Problem code - in/out degree swapped
 for (const e of g.getDataManager().edges.values()) {
-    incrementMap(inDegreeMap, e.srcId);   // Wrong: srcId should be outDegree
-    incrementMap(outDegreeMap, e.dstId);  // Wrong: dstId should be inDegree
+    incrementMap(inDegreeMap, e.srcId); // Wrong: srcId should be outDegree
+    incrementMap(outDegreeMap, e.dstId); // Wrong: dstId should be inDegree
     incrementMap(degreeMap, e.srcId);
     incrementMap(degreeMap, e.dstId);
 }
 ```
 
 **Fix**:
+
 ```typescript
 for (const e of g.getDataManager().edges.values()) {
-    incrementMap(outDegreeMap, e.srcId);  // Correct: source has outgoing edge
-    incrementMap(inDegreeMap, e.dstId);   // Correct: destination has incoming edge
+    incrementMap(outDegreeMap, e.srcId); // Correct: source has outgoing edge
+    incrementMap(inDegreeMap, e.dstId); // Correct: destination has incoming edge
     incrementMap(degreeMap, e.srcId);
     incrementMap(degreeMap, e.dstId);
 }
@@ -103,6 +108,7 @@ for (const e of g.getDataManager().edges.values()) {
 **Description**: The algorithm runs a full Dijkstra computation for each node to calculate distances, resulting in O(n²) Dijkstra runs. A single Dijkstra run from the source already computes distances to all nodes.
 
 **Example**: `src/algorithms/DijkstraAlgorithm.ts:93-100`
+
 ```typescript
 // Problem code - runs Dijkstra n times
 for (const nodeId of nodes) {
@@ -116,6 +122,7 @@ for (const nodeId of nodes) {
 ```
 
 **Fix**: Store distances from the initial Dijkstra run:
+
 ```typescript
 // Store all distances from a single run
 const { path, distances } = this.dijkstraWithAllDistances(source);
@@ -132,24 +139,27 @@ for (const nodeId of nodes) {
 ### 4. Potential NaN Division in Normalization
 
 **Files**:
+
 - `src/algorithms/DegreeAlgorithm.ts:54-56`
 - `src/algorithms/DegreeAlgorithm.ts:65-67`
 
 **Description**: When there are no edges, `Math.max(...inDegreeMap.values())` returns `-Infinity` because the iterator is empty. Then division by `-Infinity` produces `0`, but this is fragile. When there are nodes but no edges, `maxDegree` will be 0, causing division by zero (NaN).
 
 **Example**: `src/algorithms/DegreeAlgorithm.ts:54-67`
+
 ```typescript
 // Problem: maxDegree can be 0 if no edges, causing NaN
-const maxDegree = Math.max(... degreeMap.values());
+const maxDegree = Math.max(...degreeMap.values());
 // ...
-this.addNodeResult(n.id, "degreePct", degree / maxDegree);  // NaN if maxDegree is 0
+this.addNodeResult(n.id, "degreePct", degree / maxDegree); // NaN if maxDegree is 0
 ```
 
 **Fix**:
+
 ```typescript
-const maxInDegree = Math.max(0, ... inDegreeMap.values());
-const maxOutDegree = Math.max(0, ... outDegreeMap.values());
-const maxDegree = Math.max(0, ... degreeMap.values());
+const maxInDegree = Math.max(0, ...inDegreeMap.values());
+const maxOutDegree = Math.max(0, ...outDegreeMap.values());
+const maxDegree = Math.max(0, ...degreeMap.values());
 
 // Use safe division
 this.addNodeResult(n.id, "degreePct", maxDegree > 0 ? degree / maxDegree : 0);
@@ -162,10 +172,12 @@ this.addNodeResult(n.id, "degreePct", maxDegree > 0 ? degree / maxDegree : 0);
 ### 1. Duplicate Code: Louvain and Leiden Algorithms Share Identical Methods
 
 **Files**:
+
 - `src/algorithms/LouvainAlgorithm.ts`
 - `src/algorithms/LeidenAlgorithm.ts`
 
 **Description**: Both files contain identical implementations of:
+
 - `calculateModularity()`
 - `nodeModularityContribution()`
 - `getNeighborCommunities()`
@@ -186,17 +198,19 @@ this.addNodeResult(n.id, "degreePct", maxDegree > 0 ? degree / maxDegree : 0);
 **Description**: At least 5 algorithms implement their own `buildAdjacencyList()` or `buildDirectedAdjacency()` methods with nearly identical code.
 
 **Affected Files**:
+
 - `DijkstraAlgorithm.ts:197-220`
 - `DFSAlgorithm.ts:164-188`
 - `ConnectedComponentsAlgorithm.ts:126-153`
 - `StronglyConnectedComponentsAlgorithm.ts:151-172`
 
 **Recommendation**: Create a shared utility function in `algorithms/utils/`:
+
 ```typescript
 export function buildAdjacencyList(
     graph: Graph,
-    options?: { directed?: boolean }
-): Map<string | number, (string | number)[]>
+    options?: { directed?: boolean },
+): Map<string | number, (string | number)[]>;
 ```
 
 ---
@@ -204,12 +218,14 @@ export function buildAdjacencyList(
 ### 3. Test Mock Pattern Has eslint-disable Comment
 
 **Files**:
+
 - `test/style-helpers/suggested-styles.test.ts:14`
 - `test/algorithms/algorithm.test.ts:11`
 
 **Description**: Tests use `// eslint-disable-next-line @typescript-eslint/no-explicit-any` for mock graph objects. While this is acceptable in test code per the project guidelines, the mocks could be typed better.
 
 **Example**: `test/algorithms/algorithm.test.ts:11`
+
 ```typescript
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
@@ -226,6 +242,7 @@ async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
 **Description**: Node IDs are typed as `number | string` throughout, but there's inconsistent handling with some places calling `String(nodeId)` for comparisons and others using direct equality. This can cause bugs when numeric IDs are compared with string keys.
 
 **Example**: `src/algorithms/ConnectedComponentsAlgorithm.ts:105-109`
+
 ```typescript
 // Uses String() for lookup but stores original type
 const neighborNode = nodes.find((n) => String(n) === neighborStr);
@@ -241,12 +258,14 @@ if (neighborNode !== undefined) {
 ### 5. Missing Graph-Level Results in Some Algorithms
 
 **Files**:
+
 - `src/algorithms/DegreeAlgorithm.ts`
 - `src/algorithms/PageRankAlgorithm.ts`
 
 **Description**: These algorithms don't store graph-level results (like `maxDegree`, `convergenceIterations`) which other algorithms do store. This inconsistency makes the API less predictable.
 
 **Recommendation**: Add graph-level metadata to all algorithms consistently:
+
 ```typescript
 // Add to DegreeAlgorithm.run()
 this.addGraphResult("maxInDegree", maxInDegree);
@@ -255,7 +274,6 @@ this.addGraphResult("maxDegree", maxDegree);
 ```
 
 ---
-
 
 ## Low Priority Issues (Nice to Have)
 
@@ -270,8 +288,9 @@ Multiple algorithms have `const weight = 1; // Unweighted for now` comments. If 
 ### 2. Extra Semicolon in DegreeAlgorithm
 
 **File**: `src/algorithms/DegreeAlgorithm.ts:40`
+
 ```typescript
-let num = m.get(idx); ;  // Extra semicolon
+let num = m.get(idx); // Extra semicolon
 ```
 
 ---
@@ -303,7 +322,6 @@ There's no `src/config/palettes/index.ts` to export all palettes together, makin
 The `expr` field in `calculatedStyle` contains JavaScript code as a string. There's no validation that the referenced `StyleHelpers` methods actually exist, which could cause runtime errors.
 
 ---
-
 
 ### y. Test Data Files Imported at Runtime
 

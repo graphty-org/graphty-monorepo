@@ -1,12 +1,6 @@
-import {
-    AbstractMesh,
-    Color3,
-    HighlightLayer,
-    Mesh,
-    Scene,
-} from "@babylonjs/core";
+import { AbstractMesh, Color3, HighlightLayer, Mesh, Scene } from "@babylonjs/core";
 
-import type {NodeStyleConfig} from "../config";
+import type { NodeStyleConfig } from "../config";
 
 /**
  * Default outline configuration for selection highlight.
@@ -67,10 +61,7 @@ export class NodeEffects {
      * @param mesh The mesh to apply the effect to
      * @param effect The effect configuration from the node style
      */
-    static applyOutlineEffect(
-        mesh: AbstractMesh,
-        effect: NodeStyleConfig["effect"] | undefined,
-    ): void {
+    static applyOutlineEffect(mesh: AbstractMesh, effect: NodeStyleConfig["effect"] | undefined): void {
         const scene = mesh.getScene();
         const highlightLayer = this.getOrCreateHighlightLayer(scene);
 
@@ -124,7 +115,7 @@ export class NodeEffects {
         }
 
         if (typeof color === "object" && color !== null) {
-            const colorObj = color as {colorType?: string, value?: string};
+            const colorObj = color as { colorType?: string; value?: string };
             if (colorObj.colorType === "solid" && colorObj.value) {
                 return colorObj.value;
             }

@@ -1,5 +1,5 @@
 /* eslint-disable no-console -- This is a console sink, console usage is intentional */
-import {LOG_LEVEL_TO_NAME, LogLevel, type LogRecord, type Sink} from "../types.js";
+import { LOG_LEVEL_TO_NAME, LogLevel, type LogRecord, type Sink } from "../types.js";
 
 /**
  * Options for the console sink.

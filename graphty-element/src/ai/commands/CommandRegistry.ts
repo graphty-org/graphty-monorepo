@@ -3,8 +3,8 @@
  * @module ai/commands/CommandRegistry
  */
 
-import type {ToolDefinition} from "../providers/types";
-import type {GraphCommand} from "./types";
+import type { ToolDefinition } from "../providers/types";
+import type { GraphCommand } from "./types";
 
 /**
  * Registry for graph commands that can be executed via AI.

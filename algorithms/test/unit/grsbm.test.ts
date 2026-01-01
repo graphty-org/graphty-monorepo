@@ -1,7 +1,7 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {Graph} from "../../src/core/graph.js";
-import {grsbm, type GRSBMConfig} from "../../src/research/grsbm.js";
+import { Graph } from "../../src/core/graph.js";
+import { grsbm, type GRSBMConfig } from "../../src/research/grsbm.js";
 
 describe("GRSBM (Greedy Recursive Spectral Bisection with Modularity)", () => {
     describe("Basic functionality", () => {
@@ -84,7 +84,7 @@ describe("GRSBM (Greedy Recursive Spectral Bisection with Modularity)", () => {
             // Weak connection between communities
             graph.addEdge("D", "E");
 
-            const config: GRSBMConfig = {minClusterSize: 2, seed: 42};
+            const config: GRSBMConfig = { minClusterSize: 2, seed: 42 };
             const result = grsbm(graph, config);
 
             expect(result.root.members.size).toBe(8);
@@ -195,7 +195,7 @@ describe("GRSBM (Greedy Recursive Spectral Bisection with Modularity)", () => {
             graph.addEdge("D", "F");
             graph.addEdge("C", "D"); // Bridge
 
-            const config: GRSBMConfig = {minClusterSize: 2, seed: 42};
+            const config: GRSBMConfig = { minClusterSize: 2, seed: 42 };
             const result = grsbm(graph, config);
 
             expect(result.modularityScores.length).toBeGreaterThan(0);
@@ -226,7 +226,7 @@ describe("GRSBM (Greedy Recursive Spectral Bisection with Modularity)", () => {
             graph.addEdge("node6", "node7");
             graph.addEdge("node3", "node4"); // Bridge
 
-            const config: GRSBMConfig = {minClusterSize: 2, seed: 42};
+            const config: GRSBMConfig = { minClusterSize: 2, seed: 42 };
             const result = grsbm(graph, config);
 
             expect(result.root.spectralScore).toBeTypeOf("number");
@@ -279,7 +279,7 @@ describe("GRSBM (Greedy Recursive Spectral Bisection with Modularity)", () => {
             const nodes1 = ["A", "B", "C", "D"];
             const nodes2 = ["E", "F", "G", "H"];
 
-            for (const node of [... nodes1, ... nodes2]) {
+            for (const node of [...nodes1, ...nodes2]) {
                 graph.addNode(node);
             }
 
@@ -298,7 +298,7 @@ describe("GRSBM (Greedy Recursive Spectral Bisection with Modularity)", () => {
             // Sparse between communities
             graph.addEdge("D", "E");
 
-            const config: GRSBMConfig = {minClusterSize: 2, seed: 42};
+            const config: GRSBMConfig = { minClusterSize: 2, seed: 42 };
             const result = grsbm(graph, config);
 
             // Complex graphs should create some clusters, but explanations depend on successful splits
@@ -331,7 +331,7 @@ describe("GRSBM (Greedy Recursive Spectral Bisection with Modularity)", () => {
             }
             graph.addEdge("node4", "node5"); // Bridge
 
-            const config: GRSBMConfig = {minClusterSize: 2, seed: 42};
+            const config: GRSBMConfig = { minClusterSize: 2, seed: 42 };
             const result = grsbm(graph, config);
 
             for (const explanation of result.explanation) {
@@ -367,8 +367,8 @@ describe("GRSBM (Greedy Recursive Spectral Bisection with Modularity)", () => {
                 }
             }
 
-            const config1: GRSBMConfig = {seed: 123, minClusterSize: 2};
-            const config2: GRSBMConfig = {seed: 123, minClusterSize: 2};
+            const config1: GRSBMConfig = { seed: 123, minClusterSize: 2 };
+            const config2: GRSBMConfig = { seed: 123, minClusterSize: 2 };
 
             const result1 = grsbm(graph, config1);
             const result2 = grsbm(graph, config2);
@@ -387,8 +387,8 @@ describe("GRSBM (Greedy Recursive Spectral Bisection with Modularity)", () => {
                 }
             }
 
-            const config1: GRSBMConfig = {numEigenvectors: 1, minClusterSize: 2, seed: 42};
-            const config2: GRSBMConfig = {numEigenvectors: 3, minClusterSize: 2, seed: 42};
+            const config1: GRSBMConfig = { numEigenvectors: 1, minClusterSize: 2, seed: 42 };
+            const config2: GRSBMConfig = { numEigenvectors: 3, minClusterSize: 2, seed: 42 };
 
             const result1 = grsbm(graph, config1);
             const result2 = grsbm(graph, config2);
@@ -401,7 +401,7 @@ describe("GRSBM (Greedy Recursive Spectral Bisection with Modularity)", () => {
 
     describe("Edge cases", () => {
         it("should handle graphs with self-loops", () => {
-            const graph = new Graph({allowSelfLoops: true});
+            const graph = new Graph({ allowSelfLoops: true });
             graph.addNode("A");
             graph.addNode("B");
             graph.addNode("C");
@@ -483,7 +483,7 @@ describe("GRSBM (Greedy Recursive Spectral Bisection with Modularity)", () => {
             }
 
             const startTime = performance.now();
-            const config: GRSBMConfig = {minClusterSize: 3, seed: 42};
+            const config: GRSBMConfig = { minClusterSize: 3, seed: 42 };
             const result = grsbm(graph, config);
             const endTime = performance.now();
 
@@ -502,7 +502,7 @@ describe("GRSBM (Greedy Recursive Spectral Bisection with Modularity)", () => {
             graph.addEdge("node4", "node5");
             graph.addEdge("node2", "node3");
 
-            const config: GRSBMConfig = {seed: 42, minClusterSize: 2};
+            const config: GRSBMConfig = { seed: 42, minClusterSize: 2 };
 
             const result1 = grsbm(graph, config);
             const result2 = grsbm(graph, config);
@@ -522,7 +522,7 @@ describe("GRSBM (Greedy Recursive Spectral Bisection with Modularity)", () => {
                 }
             }
 
-            const config: GRSBMConfig = {minClusterSize: 2};
+            const config: GRSBMConfig = { minClusterSize: 2 };
             const result = grsbm(graph, config);
 
             const clusterIds = Array.from(new Set(result.clusters.values())).sort();

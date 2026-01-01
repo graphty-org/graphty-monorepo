@@ -1,410 +1,398 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <!-- Eruda Mobile Console -->
-  <script src="https://cdn.jsdelivr.net/npm/eruda@3/eruda.min.js"></script>
-  <script>
-    // Initialize Eruda console for mobile debugging
-    if (typeof eruda !== "undefined") {
-      eruda.init();
-      // Auto-show on mobile devices
-      if (/mobile|android|ios|iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase())) {
-        eruda.show();
-      }
-    }
-  </script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multipartite Layout Test</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: 250px 1fr 250px;
-            gap: 20px;
-        }
-        .graph-controls {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            height: fit-content;
-        }
-        .layout-controls {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            height: fit-content;
-        }
-        .visualization {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            padding: 20px;
-        }
-        .control-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #333;
-        }
-        input[type="range"], input[type="number"], select {
-            width: 100%;
-            padding: 5px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        button {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            width: 100%;
-            margin: 5px 0;
-        }
-        button:hover {
-            background: #45a049;
-        }
-        #graph-svg {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        .back-link {
-            margin-bottom: 20px;
-        }
-        .back-link a {
-            color: #2c5aa0;
-            text-decoration: none;
-        }
-        .back-link a:hover {
-            text-decoration: underline;
-        }
-        .layers-info {
-            background: #f0f7ff;
-            border: 1px solid #c0d7f0;
-            border-radius: 4px;
-            padding: 10px;
-            margin-top: 15px;
-            font-size: 0.85em;
-        }
-    </style>
-</head>
-<body>
-    <div class="back-link">
-        <a href="index.html">← Back to Index</a>
-    </div>
-    
-    <h1>Multipartite Layout Test</h1>
-    
-    <div class="container">
-        <div class="graph-controls">
-            <h3>Graph Settings</h3>
-            
-            <div class="control-group">
-                <label for="num-layers">Number of layers:</label>
-                <input type="range" id="num-layers" min="2" max="5" value="3">
-                <span id="num-layers-value">3</span>
-            </div>
-            
-            <div class="control-group">
-                <label for="nodes-per-layer">Nodes per layer:</label>
-                <input type="range" id="nodes-per-layer" min="2" max="8" value="4">
-                <span id="nodes-per-layer-value">4</span>
-            </div>
-            
-            <div class="control-group">
-                <label for="graph-type">Graph type:</label>
-                <select id="graph-type">
-                    <option value="scale-free">Scale-Free (automatic layers)</option>
-                    <option value="tree">Tree-like</option>
-                    <option value="custom-layers">Custom Layers</option>
-                </select>
-            </div>
-            
-            <button onclick="newGraph()">New Graph</button>
+    <head>
+        <!-- Eruda Mobile Console -->
+        <script src="https://cdn.jsdelivr.net/npm/eruda@3/eruda.min.js"></script>
+        <script>
+            // Initialize Eruda console for mobile debugging
+            if (typeof eruda !== "undefined") {
+                eruda.init();
+                // Auto-show on mobile devices
+                if (/mobile|android|ios|iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase())) {
+                    eruda.show();
+                }
+            }
+        </script>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Multipartite Layout Test</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+                background-color: #f5f5f5;
+            }
+            .container {
+                max-width: 1400px;
+                margin: 0 auto;
+                display: grid;
+                grid-template-columns: 250px 1fr 250px;
+                gap: 20px;
+            }
+            .graph-controls {
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                height: fit-content;
+            }
+            .layout-controls {
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                height: fit-content;
+            }
+            .visualization {
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                padding: 20px;
+            }
+            .control-group {
+                margin-bottom: 15px;
+            }
+            label {
+                display: block;
+                margin-bottom: 5px;
+                font-weight: bold;
+                color: #333;
+            }
+            input[type="range"],
+            input[type="number"],
+            select {
+                width: 100%;
+                padding: 5px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            button {
+                background: #4caf50;
+                color: white;
+                border: none;
+                padding: 10px 15px;
+                border-radius: 4px;
+                cursor: pointer;
+                width: 100%;
+                margin: 5px 0;
+            }
+            button:hover {
+                background: #45a049;
+            }
+            #graph-svg {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            .back-link {
+                margin-bottom: 20px;
+            }
+            .back-link a {
+                color: #2c5aa0;
+                text-decoration: none;
+            }
+            .back-link a:hover {
+                text-decoration: underline;
+            }
+            .layers-info {
+                background: #f0f7ff;
+                border: 1px solid #c0d7f0;
+                border-radius: 4px;
+                padding: 10px;
+                margin-top: 15px;
+                font-size: 0.85em;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="back-link">
+            <a href="index.html">← Back to Index</a>
         </div>
-        
-        <div class="visualization">
-            <svg id="graph-svg" width="800" height="600"></svg>
-        </div>
-        
-        <div class="layout-controls">
-            <h3>Layout Parameters</h3>
-            
-            <div class="control-group">
-                <label for="alignment">Alignment:</label>
-                <select id="alignment">
-                    <option value="vertical">Vertical</option>
-                    <option value="horizontal">Horizontal</option>
-                </select>
-            </div>
-            
-            <div class="control-group">
-                <label for="layer-method">Layer assignment:</label>
-                <select id="layer-method">
-                    <option value="bfs">BFS (distance-based)</option>
-                    <option value="degree">Degree-based</option>
-                    <option value="community">Community-based</option>
-                </select>
-            </div>
-            
-            <button onclick="applyLayout()">Apply Layout</button>
-            <div id="layers-info" class="layers-info"></div>
-        </div>
-    </div>
 
-    <script type="module">
-        import { 
-            multipartiteLayout,
-            scaleFreeGraph,
-            starGraph,
-            randomGraph
-        } from "../dist/layout.js";
-        
-        import { 
-            groupNodes,
-            findBestRoot
-        } from "./layout-helpers.js";
-        
-        let currentGraph = null;
-        let currentLayers = null;
-        
-        function generateGraph(type, numLayers, nodesPerLayer) {
-            const totalNodes = numLayers * nodesPerLayer;
-            
-            switch(type) {
-                case 'scale-free':
-                    // Generate scale-free network
-                    return scaleFreeGraph(totalNodes, 2, Date.now());
-                    
-                case 'tree':
-                    // Generate tree-like structure
-                    return starGraph(totalNodes);
-                    
-                case 'custom-layers':
-                default:
-                    // Generate custom layered graph
-                    const nodes = [];
-                    const edges = [];
-                    
-                    // Create nodes
-                    for (let layer = 0; layer < numLayers; layer++) {
-                        for (let node = 0; node < nodesPerLayer; node++) {
-                            nodes.push(`L${layer}N${node}`);
+        <h1>Multipartite Layout Test</h1>
+
+        <div class="container">
+            <div class="graph-controls">
+                <h3>Graph Settings</h3>
+
+                <div class="control-group">
+                    <label for="num-layers">Number of layers:</label>
+                    <input type="range" id="num-layers" min="2" max="5" value="3" />
+                    <span id="num-layers-value">3</span>
+                </div>
+
+                <div class="control-group">
+                    <label for="nodes-per-layer">Nodes per layer:</label>
+                    <input type="range" id="nodes-per-layer" min="2" max="8" value="4" />
+                    <span id="nodes-per-layer-value">4</span>
+                </div>
+
+                <div class="control-group">
+                    <label for="graph-type">Graph type:</label>
+                    <select id="graph-type">
+                        <option value="scale-free">Scale-Free (automatic layers)</option>
+                        <option value="tree">Tree-like</option>
+                        <option value="custom-layers">Custom Layers</option>
+                    </select>
+                </div>
+
+                <button onclick="newGraph()">New Graph</button>
+            </div>
+
+            <div class="visualization">
+                <svg id="graph-svg" width="800" height="600"></svg>
+            </div>
+
+            <div class="layout-controls">
+                <h3>Layout Parameters</h3>
+
+                <div class="control-group">
+                    <label for="alignment">Alignment:</label>
+                    <select id="alignment">
+                        <option value="vertical">Vertical</option>
+                        <option value="horizontal">Horizontal</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="layer-method">Layer assignment:</label>
+                    <select id="layer-method">
+                        <option value="bfs">BFS (distance-based)</option>
+                        <option value="degree">Degree-based</option>
+                        <option value="community">Community-based</option>
+                    </select>
+                </div>
+
+                <button onclick="applyLayout()">Apply Layout</button>
+                <div id="layers-info" class="layers-info"></div>
+            </div>
+        </div>
+
+        <script type="module">
+            import { multipartiteLayout, scaleFreeGraph, starGraph, randomGraph } from "../dist/layout.js";
+
+            import { groupNodes, findBestRoot } from "./layout-helpers.js";
+
+            let currentGraph = null;
+            let currentLayers = null;
+
+            function generateGraph(type, numLayers, nodesPerLayer) {
+                const totalNodes = numLayers * nodesPerLayer;
+
+                switch (type) {
+                    case "scale-free":
+                        // Generate scale-free network
+                        return scaleFreeGraph(totalNodes, 2, Date.now());
+
+                    case "tree":
+                        // Generate tree-like structure
+                        return starGraph(totalNodes);
+
+                    case "custom-layers":
+                    default:
+                        // Generate custom layered graph
+                        const nodes = [];
+                        const edges = [];
+
+                        // Create nodes
+                        for (let layer = 0; layer < numLayers; layer++) {
+                            for (let node = 0; node < nodesPerLayer; node++) {
+                                nodes.push(`L${layer}N${node}`);
+                            }
                         }
-                    }
-                    
-                    // Connect adjacent layers
-                    for (let layer = 0; layer < numLayers - 1; layer++) {
-                        for (let n1 = 0; n1 < nodesPerLayer; n1++) {
-                            for (let n2 = 0; n2 < nodesPerLayer; n2++) {
-                                if (Math.random() < 0.3) {
-                                    edges.push([
-                                        `L${layer}N${n1}`,
-                                        `L${layer + 1}N${n2}`
-                                    ]);
+
+                        // Connect adjacent layers
+                        for (let layer = 0; layer < numLayers - 1; layer++) {
+                            for (let n1 = 0; n1 < nodesPerLayer; n1++) {
+                                for (let n2 = 0; n2 < nodesPerLayer; n2++) {
+                                    if (Math.random() < 0.3) {
+                                        edges.push([`L${layer}N${n1}`, `L${layer + 1}N${n2}`]);
+                                    }
                                 }
                             }
                         }
-                    }
-                    
-                    return { nodes: () => nodes, edges: () => edges };
-            }
-        }
-        
-        function visualizeGraph(graph, positions) {
-            const svg = document.getElementById('graph-svg');
-            const svgRect = svg.getBoundingClientRect();
-            const width = svgRect.width;
-            const height = svgRect.height;
-            
-            svg.innerHTML = '';
-            
-            const margin = 50;
-            const scaleX = (width - 2 * margin);
-            const scaleY = (height - 2 * margin);
-            
-            const nodes = graph.nodes();
-            const posValues = nodes.map(n => positions[n]);
-            const minX = Math.min(...posValues.map(p => p[0]));
-            const maxX = Math.max(...posValues.map(p => p[0]));
-            const minY = Math.min(...posValues.map(p => p[1]));
-            const maxY = Math.max(...posValues.map(p => p[1]));
-            
-            const rangeX = maxX - minX || 1;
-            const rangeY = maxY - minY || 1;
-            
-            // Draw layer guidelines
-            const layerColors = ['#F44336', '#9C27B0', '#3F51B5', '#009688', '#FF9800'];
-            if (currentLayers) {
-                currentLayers.forEach((layerNodes, layerIdx) => {
-                const layerPositions = layerNodes.map(node => positions[node]);
-                
-                if (layerPositions.length > 1) {
-                    // Find layer bounds
-                    const layerMinX = Math.min(...layerPositions.map(p => p[0]));
-                    const layerMaxX = Math.max(...layerPositions.map(p => p[0]));
-                    const layerMinY = Math.min(...layerPositions.map(p => p[1]));
-                    const layerMaxY = Math.max(...layerPositions.map(p => p[1]));
-                    
-                    // Draw layer rectangle
-                    const x1 = margin + (layerMinX - minX) / rangeX * scaleX - 20;
-                    const y1 = margin + (layerMinY - minY) / rangeY * scaleY - 20;
-                    const x2 = margin + (layerMaxX - minX) / rangeX * scaleX + 20;
-                    const y2 = margin + (layerMaxY - minY) / rangeY * scaleY + 20;
-                    
-                    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                    rect.setAttribute('x', x1);
-                    rect.setAttribute('y', y1);
-                    rect.setAttribute('width', x2 - x1);
-                    rect.setAttribute('height', y2 - y1);
-                    rect.setAttribute('fill', layerColors[layerIdx % layerColors.length]);
-                    rect.setAttribute('fill-opacity', '0.1');
-                    rect.setAttribute('stroke', layerColors[layerIdx % layerColors.length]);
-                    rect.setAttribute('stroke-width', '1');
-                    rect.setAttribute('stroke-dasharray', '5,5');
-                    svg.appendChild(rect);
+
+                        return { nodes: () => nodes, edges: () => edges };
                 }
-                });
             }
-            
-            // Draw edges
-            const edges = graph.edges();
-            edges.forEach(([source, target]) => {
-                const sourcePos = positions[source];
-                const targetPos = positions[target];
-                
-                const x1 = margin + (sourcePos[0] - minX) / rangeX * scaleX;
-                const y1 = margin + (sourcePos[1] - minY) / rangeY * scaleY;
-                const x2 = margin + (targetPos[0] - minX) / rangeX * scaleX;
-                const y2 = margin + (targetPos[1] - minY) / rangeY * scaleY;
-                
-                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.setAttribute('x1', x1);
-                line.setAttribute('y1', y1);
-                line.setAttribute('x2', x2);
-                line.setAttribute('y2', y2);
-                line.setAttribute('stroke', '#999');
-                line.setAttribute('stroke-width', '2');
-                svg.appendChild(line);
-            });
-            
-            // Draw nodes
-            nodes.forEach(node => {
-                const pos = positions[node];
-                const x = margin + (pos[0] - minX) / rangeX * scaleX;
-                const y = margin + (pos[1] - minY) / rangeY * scaleY;
-                
-                // Determine color based on layer
-                let nodeColor = '#666';
+
+            function visualizeGraph(graph, positions) {
+                const svg = document.getElementById("graph-svg");
+                const svgRect = svg.getBoundingClientRect();
+                const width = svgRect.width;
+                const height = svgRect.height;
+
+                svg.innerHTML = "";
+
+                const margin = 50;
+                const scaleX = width - 2 * margin;
+                const scaleY = height - 2 * margin;
+
+                const nodes = graph.nodes();
+                const posValues = nodes.map((n) => positions[n]);
+                const minX = Math.min(...posValues.map((p) => p[0]));
+                const maxX = Math.max(...posValues.map((p) => p[0]));
+                const minY = Math.min(...posValues.map((p) => p[1]));
+                const maxY = Math.max(...posValues.map((p) => p[1]));
+
+                const rangeX = maxX - minX || 1;
+                const rangeY = maxY - minY || 1;
+
+                // Draw layer guidelines
+                const layerColors = ["#F44336", "#9C27B0", "#3F51B5", "#009688", "#FF9800"];
                 if (currentLayers) {
                     currentLayers.forEach((layerNodes, layerIdx) => {
-                        if (layerNodes.includes(node)) {
-                            nodeColor = layerColors[layerIdx % layerColors.length];
+                        const layerPositions = layerNodes.map((node) => positions[node]);
+
+                        if (layerPositions.length > 1) {
+                            // Find layer bounds
+                            const layerMinX = Math.min(...layerPositions.map((p) => p[0]));
+                            const layerMaxX = Math.max(...layerPositions.map((p) => p[0]));
+                            const layerMinY = Math.min(...layerPositions.map((p) => p[1]));
+                            const layerMaxY = Math.max(...layerPositions.map((p) => p[1]));
+
+                            // Draw layer rectangle
+                            const x1 = margin + ((layerMinX - minX) / rangeX) * scaleX - 20;
+                            const y1 = margin + ((layerMinY - minY) / rangeY) * scaleY - 20;
+                            const x2 = margin + ((layerMaxX - minX) / rangeX) * scaleX + 20;
+                            const y2 = margin + ((layerMaxY - minY) / rangeY) * scaleY + 20;
+
+                            const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                            rect.setAttribute("x", x1);
+                            rect.setAttribute("y", y1);
+                            rect.setAttribute("width", x2 - x1);
+                            rect.setAttribute("height", y2 - y1);
+                            rect.setAttribute("fill", layerColors[layerIdx % layerColors.length]);
+                            rect.setAttribute("fill-opacity", "0.1");
+                            rect.setAttribute("stroke", layerColors[layerIdx % layerColors.length]);
+                            rect.setAttribute("stroke-width", "1");
+                            rect.setAttribute("stroke-dasharray", "5,5");
+                            svg.appendChild(rect);
                         }
                     });
                 }
-                
-                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                circle.setAttribute('cx', x);
-                circle.setAttribute('cy', y);
-                circle.setAttribute('r', '8');
-                circle.setAttribute('fill', nodeColor);
-                circle.setAttribute('stroke', '#333');
-                circle.setAttribute('stroke-width', '2');
-                svg.appendChild(circle);
-                
-                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                text.setAttribute('x', x);
-                text.setAttribute('y', y + 4);
-                text.setAttribute('text-anchor', 'middle');
-                text.setAttribute('font-size', '9');
-                text.setAttribute('fill', 'white');
-                text.textContent = String(node).replace(/L\d+N/, '') || String(node);
-                svg.appendChild(text);
-            });
-        }
-        
-        window.newGraph = function() {
-            const numLayers = parseInt(document.getElementById('num-layers').value);
-            const nodesPerLayer = parseInt(document.getElementById('nodes-per-layer').value);
-            const graphType = document.getElementById('graph-type').value;
-            
-            currentGraph = generateGraph(graphType, numLayers, nodesPerLayer);
-            
-            // Just visualize with random positions initially
-            const positions = {};
-            currentGraph.nodes().forEach(node => {
-                positions[node] = [
-                    (Math.random() - 0.5) * 1.5,
-                    (Math.random() - 0.5) * 1.5
-                ];
-            });
-            
-            // Generate layers for multipartite layout
-            const layerMethod = document.getElementById('layer-method').value;
-            
-            if (layerMethod === 'bfs') {
-                const root = findBestRoot(currentGraph);
-                currentLayers = groupNodes(currentGraph, 'bfs', 0, { root });
-            } else if (layerMethod === 'degree') {
-                currentLayers = groupNodes(currentGraph, 'degree', numLayers);
-            } else {
-                // community-based
-                currentLayers = groupNodes(currentGraph, 'community', numLayers);
+
+                // Draw edges
+                const edges = graph.edges();
+                edges.forEach(([source, target]) => {
+                    const sourcePos = positions[source];
+                    const targetPos = positions[target];
+
+                    const x1 = margin + ((sourcePos[0] - minX) / rangeX) * scaleX;
+                    const y1 = margin + ((sourcePos[1] - minY) / rangeY) * scaleY;
+                    const x2 = margin + ((targetPos[0] - minX) / rangeX) * scaleX;
+                    const y2 = margin + ((targetPos[1] - minY) / rangeY) * scaleY;
+
+                    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    line.setAttribute("x1", x1);
+                    line.setAttribute("y1", y1);
+                    line.setAttribute("x2", x2);
+                    line.setAttribute("y2", y2);
+                    line.setAttribute("stroke", "#999");
+                    line.setAttribute("stroke-width", "2");
+                    svg.appendChild(line);
+                });
+
+                // Draw nodes
+                nodes.forEach((node) => {
+                    const pos = positions[node];
+                    const x = margin + ((pos[0] - minX) / rangeX) * scaleX;
+                    const y = margin + ((pos[1] - minY) / rangeY) * scaleY;
+
+                    // Determine color based on layer
+                    let nodeColor = "#666";
+                    if (currentLayers) {
+                        currentLayers.forEach((layerNodes, layerIdx) => {
+                            if (layerNodes.includes(node)) {
+                                nodeColor = layerColors[layerIdx % layerColors.length];
+                            }
+                        });
+                    }
+
+                    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    circle.setAttribute("cx", x);
+                    circle.setAttribute("cy", y);
+                    circle.setAttribute("r", "8");
+                    circle.setAttribute("fill", nodeColor);
+                    circle.setAttribute("stroke", "#333");
+                    circle.setAttribute("stroke-width", "2");
+                    svg.appendChild(circle);
+
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", x);
+                    text.setAttribute("y", y + 4);
+                    text.setAttribute("text-anchor", "middle");
+                    text.setAttribute("font-size", "9");
+                    text.setAttribute("fill", "white");
+                    text.textContent = String(node).replace(/L\d+N/, "") || String(node);
+                    svg.appendChild(text);
+                });
             }
-            
-            visualizeGraph(currentGraph, positions);
-            
-            // Update layer info
-            const infoDiv = document.getElementById('layers-info');
-            const layerInfo = currentLayers ? currentLayers.map((nodes, idx) => 
-                `Layer ${idx}: ${nodes.length} nodes`
-            ).join('<br>') : 'No layers generated';
-            
-            infoDiv.innerHTML = `
+
+            window.newGraph = function () {
+                const numLayers = parseInt(document.getElementById("num-layers").value);
+                const nodesPerLayer = parseInt(document.getElementById("nodes-per-layer").value);
+                const graphType = document.getElementById("graph-type").value;
+
+                currentGraph = generateGraph(graphType, numLayers, nodesPerLayer);
+
+                // Just visualize with random positions initially
+                const positions = {};
+                currentGraph.nodes().forEach((node) => {
+                    positions[node] = [(Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 1.5];
+                });
+
+                // Generate layers for multipartite layout
+                const layerMethod = document.getElementById("layer-method").value;
+
+                if (layerMethod === "bfs") {
+                    const root = findBestRoot(currentGraph);
+                    currentLayers = groupNodes(currentGraph, "bfs", 0, { root });
+                } else if (layerMethod === "degree") {
+                    currentLayers = groupNodes(currentGraph, "degree", numLayers);
+                } else {
+                    // community-based
+                    currentLayers = groupNodes(currentGraph, "community", numLayers);
+                }
+
+                visualizeGraph(currentGraph, positions);
+
+                // Update layer info
+                const infoDiv = document.getElementById("layers-info");
+                const layerInfo = currentLayers
+                    ? currentLayers.map((nodes, idx) => `Layer ${idx}: ${nodes.length} nodes`).join("<br>")
+                    : "No layers generated";
+
+                infoDiv.innerHTML = `
                 <strong>Structure:</strong><br>
                 ${layerInfo}<br>
                 <strong>Total edges:</strong> ${currentGraph.edges().length}
             `;
-        }
-        
-        window.applyLayout = function() {
-            if(!currentGraph || !currentLayers) return;
-            
-            const alignment = document.getElementById('alignment').value;
-            
-            const positions = multipartiteLayout(currentGraph, currentLayers, alignment, 1, [0, 0]);
-            
-            visualizeGraph(currentGraph, positions);
-        }
-        
-        function setupControls() {
-            const controls = ['num-layers', 'nodes-per-layer'];
-            controls.forEach(id => {
-                const slider = document.getElementById(id);
-                const valueSpan = document.getElementById(id + '-value');
-                slider.oninput = function() {
-                    valueSpan.textContent = this.value;
-                };
-            });
-        }
-        
-        setupControls();
-        newGraph();
-    </script>
-</body>
+            };
+
+            window.applyLayout = function () {
+                if (!currentGraph || !currentLayers) return;
+
+                const alignment = document.getElementById("alignment").value;
+
+                const positions = multipartiteLayout(currentGraph, currentLayers, alignment, 1, [0, 0]);
+
+                visualizeGraph(currentGraph, positions);
+            };
+
+            function setupControls() {
+                const controls = ["num-layers", "nodes-per-layer"];
+                controls.forEach((id) => {
+                    const slider = document.getElementById(id);
+                    const valueSpan = document.getElementById(id + "-value");
+                    slider.oninput = function () {
+                        valueSpan.textContent = this.value;
+                    };
+                });
+            }
+
+            setupControls();
+            newGraph();
+        </script>
+    </body>
 </html>

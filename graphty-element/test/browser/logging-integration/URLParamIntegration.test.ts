@@ -1,14 +1,10 @@
-import {afterEach, assert, beforeEach, describe, type MockInstance, test, vi} from "vitest";
+import { afterEach, assert, beforeEach, describe, type MockInstance, test, vi } from "vitest";
 
-import {GraphtyLogger} from "../../../src/logging/GraphtyLogger.js";
-import {getLoggingConfig, resetLoggingConfig} from "../../../src/logging/LoggerConfig.js";
-import {
-    clearLoggingConfig,
-    loadLoggingConfig,
-    saveLoggingConfig,
-} from "../../../src/logging/storage.js";
-import {LogLevel} from "../../../src/logging/types.js";
-import {parseLoggingURLParams} from "../../../src/logging/URLParamParser.js";
+import { GraphtyLogger } from "../../../src/logging/GraphtyLogger.js";
+import { getLoggingConfig, resetLoggingConfig } from "../../../src/logging/LoggerConfig.js";
+import { clearLoggingConfig, loadLoggingConfig, saveLoggingConfig } from "../../../src/logging/storage.js";
+import { LogLevel } from "../../../src/logging/types.js";
+import { parseLoggingURLParams } from "../../../src/logging/URLParamParser.js";
 
 // Empty mock function to satisfy linter
 function noop(): void {
@@ -47,7 +43,7 @@ describe("URL Parameter Integration", () => {
     }
 
     describe("URL parameter enabling", () => {
-        test("should enable logging when ?graphty-element-logging=true", async() => {
+        test("should enable logging when ?graphty-element-logging=true", async () => {
             setURLParams("graphty-element-logging=true");
             const params = parseLoggingURLParams();
 
@@ -59,7 +55,7 @@ describe("URL Parameter Integration", () => {
                 enabled: params.enabled,
                 modules: params.modules,
                 level: params.level ?? LogLevel.INFO,
-                format: {timestamp: true, module: true, colors: true},
+                format: { timestamp: true, module: true, colors: true },
             });
 
             assert.strictEqual(GraphtyLogger.isEnabled(), true);
@@ -72,7 +68,7 @@ describe("URL Parameter Integration", () => {
             assert.isTrue(consoleInfoSpy.mock.calls.length > 0, "Expected info to be called");
         });
 
-        test("should filter to layout module with ?graphty-element-logging=layout", async() => {
+        test("should filter to layout module with ?graphty-element-logging=layout", async () => {
             setURLParams("graphty-element-logging=layout");
             const params = parseLoggingURLParams();
 
@@ -83,7 +79,7 @@ describe("URL Parameter Integration", () => {
                 enabled: params.enabled,
                 modules: params.modules,
                 level: params.level ?? LogLevel.INFO,
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             // Layout logger should log
@@ -100,7 +96,7 @@ describe("URL Parameter Integration", () => {
             assert.strictEqual(consoleInfoSpy.mock.calls.length, 0, "XR should not log");
         });
 
-        test("should set debug level with ?graphty-element-log-level=debug", async() => {
+        test("should set debug level with ?graphty-element-log-level=debug", async () => {
             setURLParams("graphty-element-logging=true&graphty-element-log-level=debug");
             const params = parseLoggingURLParams();
 
@@ -111,7 +107,7 @@ describe("URL Parameter Integration", () => {
                 enabled: params.enabled,
                 modules: params.modules,
                 level: params.level ?? LogLevel.INFO,
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
@@ -144,7 +140,7 @@ describe("URL Parameter Integration", () => {
             assert.isNull(params, "Expected null when logging=false");
         });
 
-        test("should NOT log when ?graphty-element-logging=false even with log-level set", async() => {
+        test("should NOT log when ?graphty-element-logging=false even with log-level set", async () => {
             setURLParams("graphty-element-logging=false&graphty-element-log-level=debug");
             const params = parseLoggingURLParams();
 
@@ -156,7 +152,7 @@ describe("URL Parameter Integration", () => {
                 enabled: false,
                 modules: "*",
                 level: LogLevel.DEBUG,
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
@@ -196,7 +192,7 @@ describe("URL Parameter Integration", () => {
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: ["layout", "xr"] as string[],
-                format: {timestamp: true, module: true, colors: true},
+                format: { timestamp: true, module: true, colors: true },
             };
 
             saveLoggingConfig(config);
@@ -219,7 +215,7 @@ describe("URL Parameter Integration", () => {
                 enabled: true,
                 level: LogLevel.INFO,
                 modules: "*" as const,
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             };
 
             saveLoggingConfig(config);
@@ -234,7 +230,7 @@ describe("URL Parameter Integration", () => {
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: ["layout"] as string[],
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             };
 
             saveLoggingConfig(config1);
@@ -243,7 +239,7 @@ describe("URL Parameter Integration", () => {
                 enabled: true,
                 level: LogLevel.TRACE,
                 modules: "*" as const,
-                format: {timestamp: false, module: true, colors: false},
+                format: { timestamp: false, module: true, colors: false },
             };
 
             saveLoggingConfig(config2);
@@ -257,7 +253,7 @@ describe("URL Parameter Integration", () => {
     });
 
     describe("Integration with getLoggingConfig", () => {
-        test("should reflect URL param config in getLoggingConfig", async() => {
+        test("should reflect URL param config in getLoggingConfig", async () => {
             setURLParams("graphty-element-logging=true&graphty-element-log-level=debug");
             const params = parseLoggingURLParams();
 
@@ -267,7 +263,7 @@ describe("URL Parameter Integration", () => {
                 enabled: params.enabled,
                 modules: params.modules,
                 level: params.level ?? LogLevel.INFO,
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const config = getLoggingConfig();

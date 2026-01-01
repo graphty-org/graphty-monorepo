@@ -5,11 +5,11 @@
  * through the CalculatedValue system, covering the main expression patterns
  * used in graph visualizations.
  */
-import {get as deepGet} from "lodash";
-import {assert, describe, it} from "vitest";
+import { get as deepGet } from "lodash";
+import { assert, describe, it } from "vitest";
 
-import {CalculatedValue} from "../src/CalculatedValue";
-import {AdHocData, EdgeStyle, NodeStyle} from "../src/config";
+import { CalculatedValue } from "../src/CalculatedValue";
+import { AdHocData, EdgeStyle, NodeStyle } from "../src/config";
 
 // Helper to get number value from style
 function getNum(obj: object, path: string): number {
@@ -27,9 +27,9 @@ describe("StyleHelpers Integration", () => {
             const expr = "StyleHelpers.color.sequential.viridis(arguments[0])";
             const cv = new CalculatedValue(["data.value"], "style.texture.color", expr);
 
-            const data = {value: 0.5};
+            const data = { value: 0.5 };
             const style = NodeStyle.parse({});
-            cv.run({style, algorithmResults: {}, data} as unknown as AdHocData);
+            cv.run({ style, algorithmResults: {}, data } as unknown as AdHocData);
 
             const color = getStr(style, "texture.color");
             assert.isString(color);
@@ -40,9 +40,9 @@ describe("StyleHelpers Integration", () => {
             const expr = "StyleHelpers.color.sequential.plasma(arguments[0])";
             const cv = new CalculatedValue(["data.value"], "style.texture.color", expr);
 
-            const data = {value: 0.75};
+            const data = { value: 0.75 };
             const style = NodeStyle.parse({});
-            cv.run({style, algorithmResults: {}, data} as unknown as AdHocData);
+            cv.run({ style, algorithmResults: {}, data } as unknown as AdHocData);
 
             const color = getStr(style, "texture.color");
             assert.isString(color);
@@ -53,9 +53,9 @@ describe("StyleHelpers Integration", () => {
             const expr = "StyleHelpers.color.sequential.inferno(arguments[0])";
             const cv = new CalculatedValue(["data.value"], "style.texture.color", expr);
 
-            const data = {value: 0.25};
+            const data = { value: 0.25 };
             const style = NodeStyle.parse({});
-            cv.run({style, algorithmResults: {}, data} as unknown as AdHocData);
+            cv.run({ style, algorithmResults: {}, data } as unknown as AdHocData);
 
             const color = getStr(style, "texture.color");
             assert.isString(color);
@@ -70,9 +70,9 @@ describe("StyleHelpers Integration", () => {
 
             const colors: string[] = [];
             for (let i = 0; i < 3; i++) {
-                const data = {communityId: i};
+                const data = { communityId: i };
                 const style = NodeStyle.parse({});
-                cv.run({style, algorithmResults: {}, data} as unknown as AdHocData);
+                cv.run({ style, algorithmResults: {}, data } as unknown as AdHocData);
                 colors.push(getStr(style, "texture.color"));
             }
 
@@ -84,9 +84,9 @@ describe("StyleHelpers Integration", () => {
             const expr = "StyleHelpers.color.categorical.tolVibrant(arguments[0])";
             const cv = new CalculatedValue(["data.communityId"], "style.texture.color", expr);
 
-            const data = {communityId: 2};
+            const data = { communityId: 2 };
             const style = NodeStyle.parse({});
-            cv.run({style, algorithmResults: {}, data} as unknown as AdHocData);
+            cv.run({ style, algorithmResults: {}, data } as unknown as AdHocData);
 
             const color = getStr(style, "texture.color");
             assert.isString(color);
@@ -101,12 +101,12 @@ describe("StyleHelpers Integration", () => {
 
             // Test below midpoint
             const styleLow = NodeStyle.parse({});
-            cv.run({style: styleLow, algorithmResults: {}, data: {value: 0.2}} as unknown as AdHocData);
+            cv.run({ style: styleLow, algorithmResults: {}, data: { value: 0.2 } } as unknown as AdHocData);
             const colorLow = getStr(styleLow, "texture.color");
 
             // Test above midpoint
             const styleHigh = NodeStyle.parse({});
-            cv.run({style: styleHigh, algorithmResults: {}, data: {value: 0.8}} as unknown as AdHocData);
+            cv.run({ style: styleHigh, algorithmResults: {}, data: { value: 0.8 } } as unknown as AdHocData);
             const colorHigh = getStr(styleHigh, "texture.color");
 
             assert.isString(colorLow);
@@ -119,7 +119,7 @@ describe("StyleHelpers Integration", () => {
             const cv = new CalculatedValue(["data.value"], "style.texture.color", expr);
 
             const style = NodeStyle.parse({});
-            cv.run({style, algorithmResults: {}, data: {value: 0.9}} as unknown as AdHocData);
+            cv.run({ style, algorithmResults: {}, data: { value: 0.9 } } as unknown as AdHocData);
 
             const color = getStr(style, "texture.color");
             assert.isString(color);
@@ -133,11 +133,11 @@ describe("StyleHelpers Integration", () => {
             const cv = new CalculatedValue(["data.isHighlighted"], "style.texture.color", expr);
 
             const styleTrue = NodeStyle.parse({});
-            cv.run({style: styleTrue, algorithmResults: {}, data: {isHighlighted: true}} as unknown as AdHocData);
+            cv.run({ style: styleTrue, algorithmResults: {}, data: { isHighlighted: true } } as unknown as AdHocData);
             const colorTrue = getStr(styleTrue, "texture.color");
 
             const styleFalse = NodeStyle.parse({});
-            cv.run({style: styleFalse, algorithmResults: {}, data: {isHighlighted: false}} as unknown as AdHocData);
+            cv.run({ style: styleFalse, algorithmResults: {}, data: { isHighlighted: false } } as unknown as AdHocData);
             const colorFalse = getStr(styleFalse, "texture.color");
 
             assert.isString(colorTrue);
@@ -150,7 +150,7 @@ describe("StyleHelpers Integration", () => {
             const cvGreen = new CalculatedValue(["data.success"], "style.texture.color", exprGreen);
 
             const style = NodeStyle.parse({});
-            cvGreen.run({style, algorithmResults: {}, data: {success: true}} as unknown as AdHocData);
+            cvGreen.run({ style, algorithmResults: {}, data: { success: true } } as unknown as AdHocData);
 
             const color = getStr(style, "texture.color");
             assert.isString(color);
@@ -164,7 +164,7 @@ describe("StyleHelpers Integration", () => {
             const cv = new CalculatedValue(["data.value"], "style.shape.size", expr);
 
             const style = NodeStyle.parse({});
-            cv.run({style, algorithmResults: {}, data: {value: 0.5}} as unknown as AdHocData);
+            cv.run({ style, algorithmResults: {}, data: { value: 0.5 } } as unknown as AdHocData);
 
             const size = getNum(style, "shape.size");
             assert.strictEqual(size, 3, "0.5 between 1-5 should yield 3");
@@ -175,7 +175,7 @@ describe("StyleHelpers Integration", () => {
             const cv = new CalculatedValue(["data.value"], "style.shape.size", expr);
 
             const style = NodeStyle.parse({});
-            cv.run({style, algorithmResults: {}, data: {value: 0.5}} as unknown as AdHocData);
+            cv.run({ style, algorithmResults: {}, data: { value: 0.5 } } as unknown as AdHocData);
 
             const size = getNum(style, "shape.size");
             assert.isNumber(size);
@@ -188,7 +188,7 @@ describe("StyleHelpers Integration", () => {
             const cv = new CalculatedValue(["data.value"], "style.shape.size", expr);
 
             const style = NodeStyle.parse({});
-            cv.run({style, algorithmResults: {}, data: {value: 0.5}} as unknown as AdHocData);
+            cv.run({ style, algorithmResults: {}, data: { value: 0.5 } } as unknown as AdHocData);
 
             const size = getNum(style, "shape.size");
             assert.isNumber(size);
@@ -203,7 +203,7 @@ describe("StyleHelpers Integration", () => {
             const sizes: number[] = [];
             for (const value of [0.1, 0.5, 0.9]) {
                 const style = NodeStyle.parse({});
-                cv.run({style, algorithmResults: {}, data: {value}} as unknown as AdHocData);
+                cv.run({ style, algorithmResults: {}, data: { value } } as unknown as AdHocData);
                 sizes.push(getNum(style, "shape.size"));
             }
 
@@ -218,7 +218,7 @@ describe("StyleHelpers Integration", () => {
             const sizes = new Set<number>();
             for (const value of [0.1, 0.3, 0.5, 0.7, 0.9]) {
                 const style = NodeStyle.parse({});
-                cv.run({style, algorithmResults: {}, data: {value}} as unknown as AdHocData);
+                cv.run({ style, algorithmResults: {}, data: { value } } as unknown as AdHocData);
                 sizes.add(getNum(style, "shape.size"));
             }
 
@@ -232,7 +232,7 @@ describe("StyleHelpers Integration", () => {
             const cv = new CalculatedValue(["data.value"], "style.texture.opacity", expr);
 
             const style = NodeStyle.parse({});
-            cv.run({style, algorithmResults: {}, data: {value: 0.5}} as unknown as AdHocData);
+            cv.run({ style, algorithmResults: {}, data: { value: 0.5 } } as unknown as AdHocData);
 
             const opacity = getNum(style, "texture.opacity");
             assert.isNumber(opacity);
@@ -245,11 +245,11 @@ describe("StyleHelpers Integration", () => {
             const cv = new CalculatedValue(["data.visible"], "style.texture.opacity", expr);
 
             const styleTrue = NodeStyle.parse({});
-            cv.run({style: styleTrue, algorithmResults: {}, data: {visible: true}} as unknown as AdHocData);
+            cv.run({ style: styleTrue, algorithmResults: {}, data: { visible: true } } as unknown as AdHocData);
             const opacityTrue = getNum(styleTrue, "texture.opacity");
 
             const styleFalse = NodeStyle.parse({});
-            cv.run({style: styleFalse, algorithmResults: {}, data: {visible: false}} as unknown as AdHocData);
+            cv.run({ style: styleFalse, algorithmResults: {}, data: { visible: false } } as unknown as AdHocData);
             const opacityFalse = getNum(styleFalse, "texture.opacity");
 
             assert.strictEqual(opacityTrue, 1);
@@ -266,11 +266,11 @@ describe("StyleHelpers Integration", () => {
             const cvSize = new CalculatedValue(["data.value"], "style.shape.size", exprSize);
 
             const styleColor = NodeStyle.parse({});
-            cvColor.run({style: styleColor, algorithmResults: {}, data: {value: 0.7}} as unknown as AdHocData);
+            cvColor.run({ style: styleColor, algorithmResults: {}, data: { value: 0.7 } } as unknown as AdHocData);
             const color = getStr(styleColor, "texture.color");
 
             const styleSize = NodeStyle.parse({});
-            cvSize.run({style: styleSize, algorithmResults: {}, data: {value: 0.7}} as unknown as AdHocData);
+            cvSize.run({ style: styleSize, algorithmResults: {}, data: { value: 0.7 } } as unknown as AdHocData);
             const size = getNum(styleSize, "shape.size");
 
             assert.isString(color);
@@ -288,16 +288,16 @@ describe("StyleHelpers Integration", () => {
             const cvSize = new CalculatedValue(["data.value"], "style.shape.size", exprSize);
             const cvOpacity = new CalculatedValue(["data.value"], "style.texture.opacity", exprOpacity);
 
-            const data = {value: 0.8};
+            const data = { value: 0.8 };
 
             const styleColor = NodeStyle.parse({});
-            cvColor.run({style: styleColor, algorithmResults: {}, data} as unknown as AdHocData);
+            cvColor.run({ style: styleColor, algorithmResults: {}, data } as unknown as AdHocData);
 
             const styleSize = NodeStyle.parse({});
-            cvSize.run({style: styleSize, algorithmResults: {}, data} as unknown as AdHocData);
+            cvSize.run({ style: styleSize, algorithmResults: {}, data } as unknown as AdHocData);
 
             const styleOpacity = NodeStyle.parse({});
-            cvOpacity.run({style: styleOpacity, algorithmResults: {}, data} as unknown as AdHocData);
+            cvOpacity.run({ style: styleOpacity, algorithmResults: {}, data } as unknown as AdHocData);
 
             const resColor = getStr(styleColor, "texture.color");
             const resSize = getNum(styleSize, "shape.size");
@@ -315,11 +315,11 @@ describe("StyleHelpers Integration", () => {
             const cvWidth = new CalculatedValue(["data.value"], "style.line.width", exprWidth);
 
             const styleColor = EdgeStyle.parse({});
-            cvColor.run({style: styleColor, algorithmResults: {}, data: {value: 0.5}} as unknown as AdHocData);
+            cvColor.run({ style: styleColor, algorithmResults: {}, data: { value: 0.5 } } as unknown as AdHocData);
             const color = getStr(styleColor, "line.color");
 
             const styleWidth = EdgeStyle.parse({});
-            cvWidth.run({style: styleWidth, algorithmResults: {}, data: {value: 0.5}} as unknown as AdHocData);
+            cvWidth.run({ style: styleWidth, algorithmResults: {}, data: { value: 0.5 } } as unknown as AdHocData);
             const width = getNum(styleWidth, "line.width");
 
             assert.isString(color);
@@ -329,27 +329,25 @@ describe("StyleHelpers Integration", () => {
         });
 
         it("categoryAndImportance combines categorical color with size", () => {
-            const exprColor = "(result => result.color)(StyleHelpers.combined.categoryAndImportance(arguments[0], arguments[1]))";
-            const exprSize = "(result => result.size)(StyleHelpers.combined.categoryAndImportance(arguments[0], arguments[1]))";
+            const exprColor =
+                "(result => result.color)(StyleHelpers.combined.categoryAndImportance(arguments[0], arguments[1]))";
+            const exprSize =
+                "(result => result.size)(StyleHelpers.combined.categoryAndImportance(arguments[0], arguments[1]))";
 
             const cvColor = new CalculatedValue(
                 ["data.communityId", "data.importance"],
                 "style.texture.color",
                 exprColor,
             );
-            const cvSize = new CalculatedValue(
-                ["data.communityId", "data.importance"],
-                "style.shape.size",
-                exprSize,
-            );
+            const cvSize = new CalculatedValue(["data.communityId", "data.importance"], "style.shape.size", exprSize);
 
-            const data = {communityId: 2, importance: 0.7};
+            const data = { communityId: 2, importance: 0.7 };
 
             const styleColor = NodeStyle.parse({});
-            cvColor.run({style: styleColor, algorithmResults: {}, data} as unknown as AdHocData);
+            cvColor.run({ style: styleColor, algorithmResults: {}, data } as unknown as AdHocData);
 
             const styleSize = NodeStyle.parse({});
-            cvSize.run({style: styleSize, algorithmResults: {}, data} as unknown as AdHocData);
+            cvSize.run({ style: styleSize, algorithmResults: {}, data } as unknown as AdHocData);
 
             const catColor = getStr(styleColor, "texture.color");
             const catSize = getNum(styleSize, "shape.size");
@@ -364,7 +362,7 @@ describe("StyleHelpers Integration", () => {
             const cv = new CalculatedValue(["data.value"], "style.texture.color", expr);
 
             const style = NodeStyle.parse({});
-            cv.run({style, algorithmResults: {}, data: {value: 0.6}} as unknown as AdHocData);
+            cv.run({ style, algorithmResults: {}, data: { value: 0.6 } } as unknown as AdHocData);
 
             const color = getStr(style, "texture.color");
             assert.isString(color);
@@ -372,26 +370,35 @@ describe("StyleHelpers Integration", () => {
         });
 
         it("block statement with conditional logic works", () => {
-            const expr = "{ if (arguments[0]) return '#009E73'; if (arguments[1]) return '#E69F00'; return '#999999'; }";
-            const cv = new CalculatedValue(
-                ["data.isSource", "data.isSink"],
-                "style.texture.color",
-                expr,
-            );
+            const expr =
+                "{ if (arguments[0]) return '#009E73'; if (arguments[1]) return '#E69F00'; return '#999999'; }";
+            const cv = new CalculatedValue(["data.isSource", "data.isSink"], "style.texture.color", expr);
 
             // Test source
             const styleSource = NodeStyle.parse({});
-            cv.run({style: styleSource, algorithmResults: {}, data: {isSource: true, isSink: false}} as unknown as AdHocData);
+            cv.run({
+                style: styleSource,
+                algorithmResults: {},
+                data: { isSource: true, isSink: false },
+            } as unknown as AdHocData);
             assert.strictEqual(deepGet(styleSource, "texture.color"), "#009E73");
 
             // Test sink
             const styleSink = NodeStyle.parse({});
-            cv.run({style: styleSink, algorithmResults: {}, data: {isSource: false, isSink: true}} as unknown as AdHocData);
+            cv.run({
+                style: styleSink,
+                algorithmResults: {},
+                data: { isSource: false, isSink: true },
+            } as unknown as AdHocData);
             assert.strictEqual(deepGet(styleSink, "texture.color"), "#E69F00");
 
             // Test neither
             const styleNeither = NodeStyle.parse({});
-            cv.run({style: styleNeither, algorithmResults: {}, data: {isSource: false, isSink: false}} as unknown as AdHocData);
+            cv.run({
+                style: styleNeither,
+                algorithmResults: {},
+                data: { isSource: false, isSink: false },
+            } as unknown as AdHocData);
             assert.strictEqual(deepGet(styleNeither, "texture.color"), "#999999");
         });
 
@@ -404,7 +411,7 @@ describe("StyleHelpers Integration", () => {
             const cv = new CalculatedValue(["data.value"], "style.texture.color", expr);
 
             const style = NodeStyle.parse({});
-            cv.run({style, algorithmResults: {}, data: {value: 0.5}} as unknown as AdHocData);
+            cv.run({ style, algorithmResults: {}, data: { value: 0.5 } } as unknown as AdHocData);
 
             const color = getStr(style, "texture.color");
             assert.isString(color);
@@ -418,7 +425,7 @@ describe("StyleHelpers Integration", () => {
             const cv = new CalculatedValue(["data.value"], "style.shape.size", expr);
 
             const style = NodeStyle.parse({});
-            cv.run({style, algorithmResults: {}, data: {value: 0.5}} as unknown as AdHocData);
+            cv.run({ style, algorithmResults: {}, data: { value: 0.5 } } as unknown as AdHocData);
 
             const size = getNum(style, "shape.size");
             assert.isNumber(size);
@@ -430,11 +437,7 @@ describe("StyleHelpers Integration", () => {
     describe("Algorithm Result Path Expressions", () => {
         it("reads from algorithmResults path correctly", () => {
             const expr = "StyleHelpers.color.sequential.viridis(arguments[0])";
-            const cv = new CalculatedValue(
-                ["algorithmResults.graphty.degree.degreePct"],
-                "style.texture.color",
-                expr,
-            );
+            const cv = new CalculatedValue(["algorithmResults.graphty.degree.degreePct"], "style.texture.color", expr);
 
             const style = NodeStyle.parse({});
             const algorithmResults = {
@@ -444,7 +447,7 @@ describe("StyleHelpers Integration", () => {
                     },
                 },
             };
-            cv.run({style, algorithmResults, data: {}} as unknown as AdHocData);
+            cv.run({ style, algorithmResults, data: {} } as unknown as AdHocData);
 
             const color = getStr(style, "texture.color");
             assert.isString(color);

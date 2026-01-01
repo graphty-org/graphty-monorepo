@@ -1,7 +1,7 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {BipartiteMatchingAlgorithm} from "../../../src/algorithms/BipartiteMatchingAlgorithm";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { BipartiteMatchingAlgorithm } from "../../../src/algorithms/BipartiteMatchingAlgorithm";
 
 describe("BipartiteMatchingAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -78,7 +78,7 @@ describe("BipartiteMatchingAlgorithm", () => {
             assert.ok(matchedEdgeLayer.edge);
 
             // First layer uses calculatedStyle with input referencing algorithmResults
-            const {calculatedStyle} = matchedEdgeLayer.edge;
+            const { calculatedStyle } = matchedEdgeLayer.edge;
             assert.ok(calculatedStyle);
 
             const input = calculatedStyle.inputs[0];
@@ -130,13 +130,13 @@ describe("BipartiteMatchingAlgorithm", () => {
 
             // Find the non-matching edge layer (already verified edge exists by first predicate)
             const nonMatchedLayer = styles.layers.find((l) => {
-                const {selector} = l.edge ?? {};
+                const { selector } = l.edge ?? {};
                 return selector?.includes("inMatching") && selector.includes("false");
             });
 
             if (nonMatchedLayer?.edge?.style) {
                 // Should have reduced opacity
-                const {style} = nonMatchedLayer.edge;
+                const { style } = nonMatchedLayer.edge;
                 const hasReducedOpacity = typeof style.line?.opacity === "number" && style.line.opacity < 1;
 
                 assert.ok(hasReducedOpacity, "Non-matched edges should have reduced opacity");

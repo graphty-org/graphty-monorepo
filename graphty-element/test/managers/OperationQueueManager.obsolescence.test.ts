@@ -1,12 +1,12 @@
-import {assert, beforeEach, describe, it} from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 
-import {EventManager} from "../../src/managers/EventManager";
-import {OperationQueueManager} from "../../src/managers/OperationQueueManager";
+import { EventManager } from "../../src/managers/EventManager";
+import { OperationQueueManager } from "../../src/managers/OperationQueueManager";
 
 describe("Obsolescence Rules", () => {
     let eventManager: EventManager;
     let queueManager: OperationQueueManager;
-    let obsoletedEvents: {id: string, category: string, reason: string}[];
+    let obsoletedEvents: { id: string; category: string; reason: string }[];
     let startedOperations: string[];
     let completedOperations: string[];
 
@@ -33,13 +33,13 @@ describe("Obsolescence Rules", () => {
         });
     });
 
-    it("should cancel layout-update when new data-add arrives", async() => {
+    it("should cancel layout-update when new data-add arrives", async () => {
         const executedOps: string[] = [];
 
         // Queue a layout-update
         queueManager.queueOperation(
             "layout-update",
-            async(context) => {
+            async (context) => {
                 // Simulate long-running layout calculation
                 for (let i = 0; i < 10; i++) {
                     if (context.signal.aborted) {
@@ -51,7 +51,7 @@ describe("Obsolescence Rules", () => {
                 }
                 executedOps.push("layout-update");
             },
-            {description: "Update layout positions"},
+            { description: "Update layout positions" },
         );
 
         // After a short delay, queue a data-add which should obsolete the layout
@@ -78,13 +78,13 @@ describe("Obsolescence Rules", () => {
         // (it may have completed if it was quick enough)
     });
 
-    it("should cancel algorithm-run when data changes", async() => {
+    it("should cancel algorithm-run when data changes", async () => {
         const executedOps: string[] = [];
 
         // Queue an algorithm operation
         queueManager.queueOperation(
             "algorithm-run",
-            async(context) => {
+            async (context) => {
                 // Simulate algorithm computation
                 for (let i = 0; i < 10; i++) {
                     if (context.signal.aborted) {
@@ -96,7 +96,7 @@ describe("Obsolescence Rules", () => {
                 }
                 executedOps.push("algorithm-run");
             },
-            {description: "Run graph algorithm"},
+            { description: "Run graph algorithm" },
         );
 
         // Queue data changes that should obsolete the algorithm
@@ -125,13 +125,13 @@ describe("Obsolescence Rules", () => {
         assert.include(executedOps, "data-update");
     });
 
-    it("should apply custom obsolescence rules", async() => {
+    it("should apply custom obsolescence rules", async () => {
         const executedOps: string[] = [];
 
         // Queue operation with custom obsolescence rule
         queueManager.queueOperation(
             "render-update",
-            async() => {
+            async () => {
                 await new Promise((resolve) => setTimeout(resolve, 50));
                 executedOps.push("render-1");
             },
@@ -166,20 +166,20 @@ describe("Obsolescence Rules", () => {
         assert.include(executedOps, "render-2");
     });
 
-    it("should track running vs queued operations separately", async() => {
+    it("should track running vs queued operations separately", async () => {
         const executedOps: string[] = [];
         const queuedOps: string[] = [];
 
         // Start a long-running operation
         queueManager.queueOperation(
             "data-add",
-            async(context) => {
+            async (context) => {
                 executedOps.push("running-data-add");
                 context.progress.setProgress(50);
                 await new Promise((resolve) => setTimeout(resolve, 100));
                 context.progress.setProgress(100);
             },
-            {description: "Currently running data operation"},
+            { description: "Currently running data operation" },
         );
 
         // Wait for it to start
@@ -191,7 +191,7 @@ describe("Obsolescence Rules", () => {
             () => {
                 queuedOps.push("queued-layout");
             },
-            {description: "Queued layout operation"},
+            { description: "Queued layout operation" },
         );
 
         queueManager.queueOperation(
@@ -199,7 +199,7 @@ describe("Obsolescence Rules", () => {
             () => {
                 queuedOps.push("queued-algorithm");
             },
-            {description: "Queued algorithm operation"},
+            { description: "Queued algorithm operation" },
         );
 
         // The implementation should track these separately
@@ -227,13 +227,13 @@ describe("Obsolescence Rules", () => {
         // Queued operations may be obsoleted
     });
 
-    it("should allow conditional obsolescence with shouldObsolete", async() => {
+    it("should allow conditional obsolescence with shouldObsolete", async () => {
         const results: string[] = [];
 
         // Queue multiple operations
         queueManager.queueOperation(
             "style-apply",
-            async() => {
+            async () => {
                 await new Promise((resolve) => setTimeout(resolve, 20));
                 results.push("style-1");
             },
@@ -245,7 +245,7 @@ describe("Obsolescence Rules", () => {
 
         queueManager.queueOperation(
             "style-apply",
-            async() => {
+            async () => {
                 await new Promise((resolve) => setTimeout(resolve, 20));
                 results.push("style-2");
             },
@@ -265,10 +265,7 @@ describe("Obsolescence Rules", () => {
                 description: "Apply global styles",
                 shouldObsolete: (operation) => {
                     // Only obsolete style operations for nodes
-                    return (
-                        operation.category === "style-apply" &&
-                        operation.metadata?.nodeSelector !== undefined
-                    );
+                    return operation.category === "style-apply" && operation.metadata?.nodeSelector !== undefined;
                 },
             },
         );

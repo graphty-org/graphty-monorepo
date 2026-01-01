@@ -3,7 +3,7 @@
  * This runs in the browser and sends logs to the graphty-log-server.
  */
 
-import {LOG_LEVEL_TO_NAME, type LogRecord, type Sink} from "../types.js";
+import { LOG_LEVEL_TO_NAME, type LogRecord, type Sink } from "../types.js";
 
 /**
  * Options for the remote sink.
@@ -125,8 +125,8 @@ export function createRemoteSink(options: RemoteSinkOptions): Sink {
         try {
             const response = await fetch(`${serverUrl}/log`, {
                 method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({sessionId, logs}),
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sessionId, logs }),
             });
 
             if (!response.ok) {

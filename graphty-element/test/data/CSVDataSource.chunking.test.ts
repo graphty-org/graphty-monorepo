@@ -1,23 +1,17 @@
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {CSVDataSource} from "../../src/data/CSVDataSource.js";
+import { CSVDataSource } from "../../src/data/CSVDataSource.js";
 
 describe("CSVDataSource paired files chunking", () => {
-    test("yields multiple chunks for large paired files", async() => {
+    test("yields multiple chunks for large paired files", async () => {
         // Create large CSV files
-        const nodeCSV = [
-            "id,label",
-            ... Array.from({length: 2500}, (_, i) => `n${i},Node ${i}`),
-        ].join("\n");
+        const nodeCSV = ["id,label", ...Array.from({ length: 2500 }, (_, i) => `n${i},Node ${i}`)].join("\n");
 
-        const edgeCSV = [
-            "source,target",
-            ... Array.from({length: 100}, (_, i) => `n${i},n${i + 1}`),
-        ].join("\n");
+        const edgeCSV = ["source,target", ...Array.from({ length: 100 }, (_, i) => `n${i},n${i + 1}`)].join("\n");
 
         // Create File objects
-        const nodeFile = new File([nodeCSV], "nodes.csv", {type: "text/csv"});
-        const edgeFile = new File([edgeCSV], "edges.csv", {type: "text/csv"});
+        const nodeFile = new File([nodeCSV], "nodes.csv", { type: "text/csv" });
+        const edgeFile = new File([edgeCSV], "edges.csv", { type: "text/csv" });
 
         const source = new CSVDataSource({
             nodeFile,
@@ -42,12 +36,12 @@ describe("CSVDataSource paired files chunking", () => {
         assert.strictEqual(chunks[2].edges.length, 0);
     });
 
-    test("handles small paired files", async() => {
+    test("handles small paired files", async () => {
         const nodeCSV = "id,label\nn1,Node 1\nn2,Node 2";
         const edgeCSV = "source,target\nn1,n2";
 
-        const nodeFile = new File([nodeCSV], "nodes.csv", {type: "text/csv"});
-        const edgeFile = new File([edgeCSV], "edges.csv", {type: "text/csv"});
+        const nodeFile = new File([nodeCSV], "nodes.csv", { type: "text/csv" });
+        const edgeFile = new File([edgeCSV], "edges.csv", { type: "text/csv" });
 
         const source = new CSVDataSource({
             nodeFile,

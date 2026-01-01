@@ -1,8 +1,8 @@
-import {Edge as LayoutEdge, Node as LayoutNode, shellLayout} from "@graphty/layout";
-import {z} from "zod/v4";
+import { Edge as LayoutEdge, Node as LayoutNode, shellLayout } from "@graphty/layout";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema} from "../config";
-import {SimpleLayoutConfig, SimpleLayoutEngine} from "./LayoutEngine";
+import { defineOptions, type OptionsSchema } from "../config";
+import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for Shell Layout
@@ -33,7 +33,7 @@ export const shellLayoutOptionsSchema = defineOptions({
 });
 
 export const ShellLayoutConfig = z.strictObject({
-    ... SimpleLayoutConfig.shape,
+    ...SimpleLayoutConfig.shape,
     nlist: z.array(z.array(z.number())).or(z.null()).default(null),
     dim: z.number().default(2),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
@@ -72,7 +72,7 @@ export class ShellLayout extends SimpleLayoutEngine {
             return null;
         }
 
-        return {dim: dimension};
+        return { dim: dimension };
     }
 
     /**
@@ -84,7 +84,7 @@ export class ShellLayout extends SimpleLayoutEngine {
         const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
 
         this.positions = shellLayout(
-            {nodes, edges},
+            { nodes, edges },
             this.config.nlist,
             this.config.scale,
             this.config.center,

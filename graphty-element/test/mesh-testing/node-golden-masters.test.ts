@@ -6,9 +6,9 @@
  * and shape-specific behaviors.
  */
 
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {NodeMeshFactory} from "./mesh-factory";
+import { NodeMeshFactory } from "./mesh-factory";
 
 describe("Node Golden Masters", () => {
     // Basic shape tests - all 27 registered shapes
@@ -22,8 +22,10 @@ describe("Node Golden Masters", () => {
                     size: 1,
                 });
 
-                assert.isTrue(result.validation.isValid,
-                    `${shape} validation failed: ${result.validation.errors.join(", ")}`);
+                assert.isTrue(
+                    result.validation.isValid,
+                    `${shape} validation failed: ${result.validation.errors.join(", ")}`,
+                );
                 assert.equal(result.mesh.metadata.shapeType, shape);
                 assert.equal(result.mesh.scaling.x, 1);
                 assert.isNotNull(result.material);

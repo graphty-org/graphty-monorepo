@@ -1,9 +1,9 @@
-import {describe, expect, it, vi} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {fireEvent, render, screen} from "../../../test/test-utils";
-import type {GraphInfo} from "../../../types/selection";
-import type {LayerItem} from "../../layout/LeftSidebar";
-import {RightSidebar} from "../../layout/RightSidebar";
+import { fireEvent, render, screen } from "../../../test/test-utils";
+import type { GraphInfo } from "../../../types/selection";
+import type { LayerItem } from "../../layout/LeftSidebar";
+import { RightSidebar } from "../../layout/RightSidebar";
 
 /**
  * Accessibility tests for the sidebar components.
@@ -14,7 +14,7 @@ describe("Sidebar Accessibility", () => {
         nodeCount: 100,
         edgeCount: 250,
         density: 0.0505,
-        dataSources: [{name: "test.json", type: "json"}],
+        dataSources: [{ name: "test.json", type: "json" }],
         graphType: {
             directed: true,
             weighted: false,
@@ -62,7 +62,7 @@ describe("Sidebar Accessibility", () => {
             render(<RightSidebar selectedLayer={mockLayer} />);
 
             // Check for collapse/expand buttons with proper labels
-            const collapseButtons = screen.getAllByRole("button", {name: /Collapse|Expand/});
+            const collapseButtons = screen.getAllByRole("button", { name: /Collapse|Expand/ });
             expect(collapseButtons.length).toBeGreaterThan(0);
         });
 
@@ -99,16 +99,11 @@ describe("Sidebar Accessibility", () => {
             // Test that Escape key behavior is wired up
             // The actual behavior is tested via the onLayerDeselect callback
             const onLayerDeselect = vi.fn();
-            render(
-                <RightSidebar
-                    selectedLayer={mockLayer}
-                    onLayerDeselect={onLayerDeselect}
-                />,
-            );
+            render(<RightSidebar selectedLayer={mockLayer} onLayerDeselect={onLayerDeselect} />);
 
             // Fire keydown on the sidebar
             const sidebar = screen.getByRole("complementary");
-            fireEvent.keyDown(sidebar, {key: "Escape"});
+            fireEvent.keyDown(sidebar, { key: "Escape" });
 
             expect(onLayerDeselect).toHaveBeenCalled();
         });
@@ -119,13 +114,13 @@ describe("Sidebar Accessibility", () => {
             render(<RightSidebar selectedLayer={mockLayer} />);
 
             // Effect checkboxes should be accessible
-            const glowCheckbox = screen.getByRole("checkbox", {name: "Glow"});
+            const glowCheckbox = screen.getByRole("checkbox", { name: "Glow" });
             expect(glowCheckbox).toBeInTheDocument();
 
-            const outlineCheckbox = screen.getByRole("checkbox", {name: "Outline"});
+            const outlineCheckbox = screen.getByRole("checkbox", { name: "Outline" });
             expect(outlineCheckbox).toBeInTheDocument();
 
-            const wireframeCheckbox = screen.getByRole("checkbox", {name: "Wireframe"});
+            const wireframeCheckbox = screen.getByRole("checkbox", { name: "Wireframe" });
             expect(wireframeCheckbox).toBeInTheDocument();
         });
     });

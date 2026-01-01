@@ -5,6 +5,7 @@
 This plan extends the existing `StatsManager` class to add detailed performance profiling capabilities. The system will provide hierarchical timing measurements, percentile statistics (P50/P95/P99), and enhanced console reporting to help diagnose performance bottlenecks. The implementation modifies only one existing file and adds comprehensive test coverage.
 
 **Key Goals:**
+
 - Zero overhead when disabled
 - <1% overhead when enabled
 - Backward compatible with existing StatsManager API
@@ -16,6 +17,7 @@ This plan extends the existing `StatsManager` class to add detailed performance 
 ## Phase Breakdown
 
 ### Phase 1: Core Measurement Infrastructure
+
 **Objective**: Add basic measurement tracking with enable/disable functionality
 **Duration**: 1 day
 **Estimated Effort**: 6-8 hours
@@ -23,9 +25,10 @@ This plan extends the existing `StatsManager` class to add detailed performance 
 **Tests to Write First**:
 
 `test/managers/StatsManager.profiling.test.ts` (new file):
+
 ```typescript
-import {assert, beforeEach, describe, it} from "vitest";
-import {StatsManager} from "../../src/managers/StatsManager";
+import { assert, beforeEach, describe, it } from "vitest";
+import { StatsManager } from "../../src/managers/StatsManager";
 
 describe("StatsManager - Profiling", () => {
     let statsManager: StatsManager;
@@ -97,7 +100,7 @@ describe("StatsManager - Profiling", () => {
 
         it("should return function result", () => {
             statsManager.enableProfiling();
-            const obj = {value: 123};
+            const obj = { value: 123 };
             const result = statsManager.measure("test", () => obj);
             assert.equal(result, obj);
         });
@@ -108,7 +111,7 @@ describe("StatsManager - Profiling", () => {
             statsManager.enableProfiling();
 
             const result = await statsManager.measureAsync("async-test", async () => {
-                await new Promise(resolve => setTimeout(resolve, 10));
+                await new Promise((resolve) => setTimeout(resolve, 10));
                 return "done";
             });
 
@@ -169,8 +172,8 @@ describe("StatsManager - Profiling", () => {
             statsManager.measure("operation-a", () => {});
 
             const snapshot = statsManager.getSnapshot();
-            const opA = snapshot.cpu.find(m => m.label === "operation-a")!;
-            const opB = snapshot.cpu.find(m => m.label === "operation-b")!;
+            const opA = snapshot.cpu.find((m) => m.label === "operation-a")!;
+            const opB = snapshot.cpu.find((m) => m.label === "operation-b")!;
 
             assert.equal(opA.count, 2);
             assert.equal(opB.count, 1);
@@ -182,6 +185,7 @@ describe("StatsManager - Profiling", () => {
 **Implementation**:
 
 `src/managers/StatsManager.ts` (extend existing file):
+
 ```typescript
 // Add to existing imports
 interface MeasurementStats {
@@ -303,7 +307,7 @@ export class StatsManager implements Manager {
 
     // NEW: Get comprehensive performance snapshot (stub for phase 1)
     getSnapshot(): PerformanceSnapshot {
-        const cpuMeasurements = Array.from(this.measurements.values()).map(m => ({
+        const cpuMeasurements = Array.from(this.measurements.values()).map((m) => ({
             label: m.label,
             count: m.count,
             total: m.total,
@@ -325,25 +329,28 @@ export class StatsManager implements Manager {
 ```
 
 **Dependencies**:
+
 - External: None (uses native performance.now())
 - Internal: Existing StatsManager infrastructure
 
 **Verification**:
+
 1. Run tests: `npm test test/managers/StatsManager.profiling.test.ts`
 2. Expected output: All tests pass (12+ tests)
 3. Verify zero overhead when disabled:
-   ```typescript
-   const start = performance.now();
-   for (let i = 0; i < 100000; i++) {
-       statsManager.measure("test", () => {});
-   }
-   const elapsed = performance.now() - start;
-   // Should be < 5ms when disabled
-   ```
+    ```typescript
+    const start = performance.now();
+    for (let i = 0; i < 100000; i++) {
+        statsManager.measure("test", () => {});
+    }
+    const elapsed = performance.now() - start;
+    // Should be < 5ms when disabled
+    ```
 
 ---
 
 ### Phase 2: Manual Timing & Stack Tracking
+
 **Objective**: Add start/end measurement API for manual timing with stack validation
 **Duration**: 0.5 day
 **Estimated Effort**: 3-4 hours
@@ -351,6 +358,7 @@ export class StatsManager implements Manager {
 **Tests to Write First**:
 
 Add to `test/managers/StatsManager.profiling.test.ts`:
+
 ```typescript
 describe("startMeasurement/endMeasurement - manual timing", () => {
     it("should measure time between start and end", () => {
@@ -363,7 +371,7 @@ describe("startMeasurement/endMeasurement - manual timing", () => {
         statsManager.endMeasurement("manual");
 
         const snapshot = statsManager.getSnapshot();
-        const stat = snapshot.cpu.find(m => m.label === "manual")!;
+        const stat = snapshot.cpu.find((m) => m.label === "manual")!;
         assert.isAtLeast(stat.total, 5);
         assert.equal(stat.count, 1);
     });
@@ -440,6 +448,7 @@ describe("resetMeasurements", () => {
 **Implementation**:
 
 Add to `src/managers/StatsManager.ts`:
+
 ```typescript
 export class StatsManager implements Manager {
     // ... existing code ...
@@ -493,25 +502,28 @@ export class StatsManager implements Manager {
 ```
 
 **Dependencies**:
+
 - External: None
 - Internal: Phase 1 (recordMeasurement)
 
 **Verification**:
+
 1. Run tests: `npm test test/managers/StatsManager.profiling.test.ts`
 2. Expected output: All tests pass (18+ tests)
 3. Manual verification:
-   ```typescript
-   statsManager.enableProfiling();
-   statsManager.startMeasurement("test");
-   // ... do work
-   statsManager.endMeasurement("test");
-   console.log(statsManager.getSnapshot().cpu[0]);
-   // Should show timing data
-   ```
+    ```typescript
+    statsManager.enableProfiling();
+    statsManager.startMeasurement("test");
+    // ... do work
+    statsManager.endMeasurement("test");
+    console.log(statsManager.getSnapshot().cpu[0]);
+    // Should show timing data
+    ```
 
 ---
 
 ### Phase 3: Percentile Statistics
+
 **Objective**: Implement P50/P95/P99 percentile calculation from stored durations
 **Duration**: 0.5 day
 **Estimated Effort**: 3-4 hours
@@ -519,6 +531,7 @@ export class StatsManager implements Manager {
 **Tests to Write First**:
 
 Add to `test/managers/StatsManager.profiling.test.ts`:
+
 ```typescript
 describe("percentile calculation", () => {
     it("should calculate p50 (median)", () => {
@@ -627,6 +640,7 @@ describe("percentile calculation", () => {
 **Implementation**:
 
 Add to `src/managers/StatsManager.ts`:
+
 ```typescript
 export class StatsManager implements Manager {
     // ... existing code ...
@@ -654,7 +668,7 @@ export class StatsManager implements Manager {
      * Get comprehensive performance snapshot
      */
     getSnapshot(): PerformanceSnapshot {
-        const cpuMeasurements = Array.from(this.measurements.values()).map(m => ({
+        const cpuMeasurements = Array.from(this.measurements.values()).map((m) => ({
             label: m.label,
             count: m.count,
             total: m.total,
@@ -669,34 +683,38 @@ export class StatsManager implements Manager {
 
         return {
             cpu: cpuMeasurements,
-            gpu: this.babylonInstrumentation ? {
-                gpuFrameTime: {
-                    current: this.babylonInstrumentation.gpuFrameTimeCounter.current * 0.000001,
-                    avg: this.babylonInstrumentation.gpuFrameTimeCounter.average * 0.000001,
-                    min: this.babylonInstrumentation.gpuFrameTimeCounter.min * 0.000001,
-                    max: this.babylonInstrumentation.gpuFrameTimeCounter.max * 0.000001,
-                },
-                shaderCompilation: {
-                    current: this.babylonInstrumentation.shaderCompilationTimeCounter.current,
-                    avg: this.babylonInstrumentation.shaderCompilationTimeCounter.average,
-                    total: this.babylonInstrumentation.shaderCompilationTimeCounter.total,
-                },
-            } : undefined,
-            scene: this.sceneInstrumentation ? {
-                drawCalls: {
-                    current: this.sceneInstrumentation.drawCallsCounter.current,
-                    avg: this.sceneInstrumentation.drawCallsCounter.average,
-                },
-                frameTime: {
-                    avg: this.sceneInstrumentation.frameTimeCounter.average,
-                },
-                renderTime: {
-                    avg: this.sceneInstrumentation.renderTimeCounter.average,
-                },
-                activeMeshesEvaluation: {
-                    avg: this.sceneInstrumentation.activeMeshesEvaluationTimeCounter.average,
-                },
-            } : undefined,
+            gpu: this.babylonInstrumentation
+                ? {
+                      gpuFrameTime: {
+                          current: this.babylonInstrumentation.gpuFrameTimeCounter.current * 0.000001,
+                          avg: this.babylonInstrumentation.gpuFrameTimeCounter.average * 0.000001,
+                          min: this.babylonInstrumentation.gpuFrameTimeCounter.min * 0.000001,
+                          max: this.babylonInstrumentation.gpuFrameTimeCounter.max * 0.000001,
+                      },
+                      shaderCompilation: {
+                          current: this.babylonInstrumentation.shaderCompilationTimeCounter.current,
+                          avg: this.babylonInstrumentation.shaderCompilationTimeCounter.average,
+                          total: this.babylonInstrumentation.shaderCompilationTimeCounter.total,
+                      },
+                  }
+                : undefined,
+            scene: this.sceneInstrumentation
+                ? {
+                      drawCalls: {
+                          current: this.sceneInstrumentation.drawCallsCounter.current,
+                          avg: this.sceneInstrumentation.drawCallsCounter.average,
+                      },
+                      frameTime: {
+                          avg: this.sceneInstrumentation.frameTimeCounter.average,
+                      },
+                      renderTime: {
+                          avg: this.sceneInstrumentation.renderTimeCounter.average,
+                      },
+                      activeMeshesEvaluation: {
+                          avg: this.sceneInstrumentation.activeMeshesEvaluationTimeCounter.average,
+                      },
+                  }
+                : undefined,
             timestamp: performance.now(),
         };
     }
@@ -704,22 +722,25 @@ export class StatsManager implements Manager {
 ```
 
 **Dependencies**:
+
 - External: None (uses native Array.sort)
 - Internal: Phase 1 (measurements Map, durations array)
 
 **Verification**:
+
 1. Run tests: `npm test test/managers/StatsManager.profiling.test.ts`
 2. Expected output: All tests pass (24+ tests)
 3. Verify percentiles are reasonable:
-   ```typescript
-   // Should show p50 < p95 < p99 for varied measurements
-   const snapshot = statsManager.getSnapshot();
-   console.log(snapshot.cpu[0]);
-   ```
+    ```typescript
+    // Should show p50 < p95 < p99 for varied measurements
+    const snapshot = statsManager.getSnapshot();
+    console.log(snapshot.cpu[0]);
+    ```
 
 ---
 
 ### Phase 4: Enhanced Console Reporting
+
 **Objective**: Implement reportDetailed() with formatted console output
 **Duration**: 0.5 day
 **Estimated Effort**: 3-4 hours
@@ -727,6 +748,7 @@ export class StatsManager implements Manager {
 **Tests to Write First**:
 
 Add to `test/managers/StatsManager.profiling.test.ts`:
+
 ```typescript
 describe("reportDetailed", () => {
     it("should not throw when called", () => {
@@ -821,6 +843,7 @@ describe("getSnapshot - full integration", () => {
 **Implementation**:
 
 Add to `src/managers/StatsManager.ts`:
+
 ```typescript
 export class StatsManager implements Manager {
     // ... existing code ...
@@ -831,39 +854,41 @@ export class StatsManager implements Manager {
     reportDetailed(): void {
         const snapshot = this.getSnapshot();
 
-        console.group('📊 Performance Report');
+        console.group("📊 Performance Report");
 
         // CPU metrics
         if (snapshot.cpu.length > 0) {
-            console.group('CPU Metrics');
-            console.table(snapshot.cpu.map(m => ({
-                Label: m.label,
-                Calls: m.count,
-                'Total (ms)': m.total.toFixed(2),
-                'Avg (ms)': m.avg.toFixed(2),
-                'Min (ms)': m.min === Infinity ? 0 : m.min.toFixed(2),
-                'Max (ms)': m.max === -Infinity ? 0 : m.max.toFixed(2),
-                'P95 (ms)': m.p95.toFixed(2),
-                'P99 (ms)': m.p99.toFixed(2),
-            })));
+            console.group("CPU Metrics");
+            console.table(
+                snapshot.cpu.map((m) => ({
+                    Label: m.label,
+                    Calls: m.count,
+                    "Total (ms)": m.total.toFixed(2),
+                    "Avg (ms)": m.avg.toFixed(2),
+                    "Min (ms)": m.min === Infinity ? 0 : m.min.toFixed(2),
+                    "Max (ms)": m.max === -Infinity ? 0 : m.max.toFixed(2),
+                    "P95 (ms)": m.p95.toFixed(2),
+                    "P99 (ms)": m.p99.toFixed(2),
+                })),
+            );
             console.groupEnd();
         }
 
         // GPU metrics
         if (snapshot.gpu) {
-            console.group('GPU Metrics');
-            console.log('Frame Time:', snapshot.gpu.gpuFrameTime.avg.toFixed(2), 'ms (avg)');
-            console.log('Shader Compilation:', snapshot.gpu.shaderCompilation.total.toFixed(2), 'ms (total)');
+            console.group("GPU Metrics");
+            console.log("Frame Time:", snapshot.gpu.gpuFrameTime.avg.toFixed(2), "ms (avg)");
+            console.log("Shader Compilation:", snapshot.gpu.shaderCompilation.total.toFixed(2), "ms (total)");
             console.groupEnd();
         }
 
         // Scene metrics
         if (snapshot.scene) {
-            console.group('Scene Metrics');
-            console.log('Draw Calls:', snapshot.scene.drawCalls.avg.toFixed(0), '(avg)');
-            console.log('Render Time:', snapshot.scene.renderTime.avg.toFixed(2), 'ms (avg)');
-            console.log('Frame Time:', snapshot.scene.frameTime.avg.toFixed(2), 'ms (avg)');
-            console.log('Active Meshes Evaluation:', snapshot.scene.activeMeshesEvaluation.avg.toFixed(2), 'ms (avg)');
+            console.group("Scene Metrics");
+            console.log("Draw Calls:", snapshot.scene.drawCalls.avg.toFixed(0), "(avg)");
+            console.log("Render Time:", snapshot.scene.renderTime.avg.toFixed(2), "ms (avg)");
+            console.log("Frame Time:", snapshot.scene.frameTime.avg.toFixed(2), "ms (avg)");
+            console.log("Active Meshes Evaluation:", snapshot.scene.activeMeshesEvaluation.avg.toFixed(2), "ms (avg)");
             console.groupEnd();
         }
 
@@ -873,27 +898,30 @@ export class StatsManager implements Manager {
 ```
 
 **Dependencies**:
+
 - External: None (uses console.table, console.group)
 - Internal: Phase 3 (getSnapshot with percentiles)
 
 **Verification**:
+
 1. Run tests: `npm test test/managers/StatsManager.profiling.test.ts`
 2. Expected output: All tests pass (30+ tests)
 3. Visual verification:
-   ```typescript
-   statsManager.enableProfiling();
-   for (let i = 0; i < 10; i++) {
-       statsManager.measure("operation", () => {
-           // simulate work
-       });
-   }
-   statsManager.reportDetailed();
-   // Should see formatted console output with table
-   ```
+    ```typescript
+    statsManager.enableProfiling();
+    for (let i = 0; i < 10; i++) {
+        statsManager.measure("operation", () => {
+            // simulate work
+        });
+    }
+    statsManager.reportDetailed();
+    // Should see formatted console output with table
+    ```
 
 ---
 
 ### Phase 5: Graph Integration & Configuration
+
 **Objective**: Add config option and integrate profiling into Graph update loop
 **Duration**: 1 day
 **Estimated Effort**: 4-6 hours
@@ -901,18 +929,22 @@ export class StatsManager implements Manager {
 **Tests to Write First**:
 
 `test/graph/Graph.profiling.integration.test.ts` (new file):
+
 ```typescript
-import {assert, beforeEach, describe, it} from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 // Note: This is an integration test that may need to run in browser context
 
 describe("Graph - Profiling Integration", () => {
     it("should enable profiling via config", () => {
         // Create graph with profiling enabled
         const element = document.createElement("graphty-element");
-        element.setAttribute("data", JSON.stringify({
-            nodes: [{id: "a"}, {id: "b"}],
-            edges: [{source: "a", target: "b"}],
-        }));
+        element.setAttribute(
+            "data",
+            JSON.stringify({
+                nodes: [{ id: "a" }, { id: "b" }],
+                edges: [{ source: "a", target: "b" }],
+            }),
+        );
         element.setAttribute("enable-detailed-profiling", "true");
 
         document.body.appendChild(element);
@@ -936,6 +968,7 @@ describe("Graph - Profiling Integration", () => {
 ```
 
 `test/config/GraphConfig.test.ts` (extend existing):
+
 ```typescript
 describe("GraphConfig - profiling", () => {
     it("should accept enableDetailedProfiling option", () => {
@@ -958,6 +991,7 @@ describe("GraphConfig - profiling", () => {
 **Implementation**:
 
 1. Update `src/config/GraphConfig.ts`:
+
 ```typescript
 export interface GraphConfig {
     // ... existing config properties ...
@@ -972,6 +1006,7 @@ export interface GraphConfig {
 ```
 
 2. Update `src/Graph.ts` (constructor):
+
 ```typescript
 export class Graph {
     constructor(config: GraphConfig) {
@@ -990,21 +1025,22 @@ export class Graph {
 ```
 
 3. Update `src/Graph.ts` (update loop):
+
 ```typescript
 export class Graph {
     private reported = false; // Track if we've reported on settlement
 
     update(): void {
-        this.statsManager.measure('Graph.update', () => {
-            this.statsManager.measure('Graph.updateManager', () => {
+        this.statsManager.measure("Graph.update", () => {
+            this.statsManager.measure("Graph.updateManager", () => {
                 this.updateManager.update();
             });
 
-            this.statsManager.measure('Graph.batchArrows', () => {
+            this.statsManager.measure("Graph.batchArrows", () => {
                 // ... existing arrow batching code ...
                 const thinInstanceMeshes: Mesh[] = [];
                 for (const mesh of this.scene.meshes) {
-                    if (mesh instanceof Mesh && mesh.thinInstanceCount > 0 && mesh.name.includes('arrow')) {
+                    if (mesh instanceof Mesh && mesh.thinInstanceCount > 0 && mesh.name.includes("arrow")) {
                         thinInstanceMeshes.push(mesh);
                     }
                 }
@@ -1015,7 +1051,7 @@ export class Graph {
                 }
             });
 
-            this.statsManager.measure('Graph.settlementCheck', () => {
+            this.statsManager.measure("Graph.settlementCheck", () => {
                 // ... settlement logic ...
             });
         });
@@ -1023,7 +1059,7 @@ export class Graph {
         // Report performance on layout settlement
         if (this.layoutEngine?.settled && !this.reported) {
             this.reported = true;
-            console.log('🎯 Layout settled!');
+            console.log("🎯 Layout settled!");
             this.statsManager.reportDetailed();
         }
     }
@@ -1031,13 +1067,14 @@ export class Graph {
 ```
 
 4. Add URL parameter support in `src/graphty-element.ts`:
+
 ```typescript
 export class GraphtyElement extends LitElement {
     private parseURLParams(): void {
         const urlParams = new URLSearchParams(window.location.search);
 
         // Check for profiling parameter
-        if (urlParams.get('profiling') === 'true') {
+        if (urlParams.get("profiling") === "true") {
             this.config.enableDetailedProfiling = true;
         }
     }
@@ -1051,28 +1088,31 @@ export class GraphtyElement extends LitElement {
 ```
 
 **Dependencies**:
+
 - External: None
 - Internal: Phases 1-4 (complete StatsManager profiling API)
 
 **Verification**:
+
 1. Run tests: `npm test test/graph/Graph.profiling.integration.test.ts`
 2. Manual test in Storybook:
-   - Open: `http://dev.ato.ms:9025/?path=/story/layout-3d--ngraph&profiling=true`
-   - Wait for layout to settle
-   - Check console for performance report
+    - Open: `http://dev.ato.ms:9025/?path=/story/layout-3d--ngraph&profiling=true`
+    - Wait for layout to settle
+    - Check console for performance report
 3. Expected output:
-   ```
-   🎯 Layout settled!
-   📊 Performance Report
-     CPU Metrics
-     [table with Graph.update, Graph.updateManager, etc.]
-     GPU Metrics
-     Scene Metrics
-   ```
+    ```
+    🎯 Layout settled!
+    📊 Performance Report
+      CPU Metrics
+      [table with Graph.update, Graph.updateManager, etc.]
+      GPU Metrics
+      Scene Metrics
+    ```
 
 ---
 
 ### Phase 6: Node and Edge Instrumentation (Required)
+
 **Objective**: Add detailed profiling to both Node and Edge update methods to diagnose performance bottlenecks and the observer chain hypothesis
 **Duration**: 1 day
 **Estimated Effort**: 5-6 hours
@@ -1080,6 +1120,7 @@ export class GraphtyElement extends LitElement {
 **Tests to Write First**:
 
 `test/Node.profiling.test.ts` (new file):
+
 ```typescript
 describe("Node - Profiling", () => {
     it("should measure node update when profiling enabled", () => {
@@ -1101,6 +1142,7 @@ describe("Node - Profiling", () => {
 ```
 
 `test/Edge.profiling.test.ts` (new file):
+
 ```typescript
 describe("Edge - Profiling", () => {
     it("should measure edge update when profiling enabled", () => {
@@ -1124,27 +1166,29 @@ describe("Edge - Profiling", () => {
 **Implementation**:
 
 Update `src/Node.ts`:
+
 ```typescript
 export class Node {
     update(): void {
-        this.graph.statsManager.startMeasurement('Node.update');
+        this.graph.statsManager.startMeasurement("Node.update");
 
         // ... existing node update code ...
 
-        this.graph.statsManager.endMeasurement('Node.update');
+        this.graph.statsManager.endMeasurement("Node.update");
     }
 
     private updateMesh(): void {
-        this.graph.statsManager.startMeasurement('Node.updateMesh');
+        this.graph.statsManager.startMeasurement("Node.updateMesh");
 
         // ... existing mesh update code ...
 
-        this.graph.statsManager.endMeasurement('Node.updateMesh');
+        this.graph.statsManager.endMeasurement("Node.updateMesh");
     }
 }
 ```
 
 Update `src/Edge.ts`:
+
 ```typescript
 export class Edge {
     update(): void {
@@ -1167,36 +1211,40 @@ export class Edge {
 ```
 
 **Dependencies**:
+
 - External: None
 - Internal: Phase 5 (Graph integration complete)
 
 **Verification**:
+
 1. Run full test suite: `npm test`
 2. Run specific profiling tests:
-   - `npm test test/Node.profiling.test.ts`
-   - `npm test test/Edge.profiling.test.ts`
+    - `npm test test/Node.profiling.test.ts`
+    - `npm test test/Edge.profiling.test.ts`
 3. Load graph with profiling enabled: `?profiling=true`
 4. Expected output should show:
-   ```
-   Node.update: ~99,060 calls (254 nodes × 390 frames)
-   Node.updateMesh: ~99,060 calls
-   Edge.update: ~99,060 calls (254 edges × 390 frames)
-   Edge.updateArrow: ~99,060 calls
-   ```
+    ```
+    Node.update: ~99,060 calls (254 nodes × 390 frames)
+    Node.updateMesh: ~99,060 calls
+    Edge.update: ~99,060 calls (254 edges × 390 frames)
+    Edge.updateArrow: ~99,060 calls
+    ```
 5. This confirms:
-   - If nodes/edges are being called from within layout loop
-   - Where performance bottlenecks occur in the update chain
-   - Observer chain behavior and call frequency
+    - If nodes/edges are being called from within layout loop
+    - Where performance bottlenecks occur in the update chain
+    - Observer chain behavior and call frequency
 
 ---
 
 ### Phase 7: Performance Optimization & Benchmarking
+
 **Objective**: Optimize ring buffer and benchmark overhead with platform-agnostic tests
 **Duration**: 0.5 day
 **Estimated Effort**: 3-4 hours
 
 **Cross-Platform Compatibility Note**:
 This phase has been updated to use platform-agnostic testing strategies. All timing-based tests use:
+
 - Generous timeouts (1-2 seconds) instead of strict thresholds to support slow CI/CD runners
 - Ratio comparisons (5x tolerance) instead of absolute percentages to handle system variance
 - Structural validation (measurement counts, statistics) alongside timing assertions
@@ -1205,6 +1253,7 @@ This phase has been updated to use platform-agnostic testing strategies. All tim
 **Tests to Write First**:
 
 Add to `test/managers/StatsManager.profiling.test.ts`:
+
 ```typescript
 describe("performance overhead", () => {
     it("should have minimal overhead when disabled", () => {
@@ -1282,6 +1331,7 @@ describe("performance overhead", () => {
 **Implementation**:
 
 Optimize ring buffer in `src/managers/StatsManager.ts`:
+
 ```typescript
 export class StatsManager implements Manager {
     private static readonly RING_BUFFER_SIZE = 1000;
@@ -1320,9 +1370,7 @@ export class StatsManager implements Manager {
 
     private getPercentile(durations: number[], percentile: number, filled: boolean, currentIndex: number): number {
         // Only use filled portion of ring buffer
-        const validDurations = filled ?
-            durations :
-            durations.slice(0, currentIndex);
+        const validDurations = filled ? durations : durations.slice(0, currentIndex);
 
         if (validDurations.length === 0) {
             return 0;
@@ -1334,7 +1382,7 @@ export class StatsManager implements Manager {
     }
 
     getSnapshot(): PerformanceSnapshot {
-        const cpuMeasurements = Array.from(this.measurements.values()).map(m => ({
+        const cpuMeasurements = Array.from(this.measurements.values()).map((m) => ({
             label: m.label,
             count: m.count,
             total: m.total,
@@ -1353,6 +1401,7 @@ export class StatsManager implements Manager {
 ```
 
 Update `MeasurementStats` interface:
+
 ```typescript
 interface MeasurementStats {
     label: string;
@@ -1363,36 +1412,39 @@ interface MeasurementStats {
     avg: number;
     lastDuration: number;
     durations: number[];
-    durationsIndex: number;      // NEW: Circular buffer index
-    durationsFilled: boolean;    // NEW: Track if buffer wrapped
+    durationsIndex: number; // NEW: Circular buffer index
+    durationsFilled: boolean; // NEW: Track if buffer wrapped
 }
 ```
 
 **Dependencies**:
+
 - External: None
 - Internal: All previous phases
 
 **Verification**:
+
 1. Run performance tests: `npm test test/managers/StatsManager.profiling.test.ts`
 2. Expected output: All performance tests pass (including overhead tests)
 3. **Platform-agnostic testing strategy**:
-   - Tests use generous timeouts (1000ms, 2000ms) instead of strict thresholds (<10ms, <100ms)
-   - Overhead tests use ratio comparisons (5x tolerance) instead of absolute percentages (<1%)
-   - Tests validate structural correctness (measurement counts, statistics) rather than absolute timing
-   - All tests should pass on fast/slow CPUs, CI/CD runners, and systems under load
+    - Tests use generous timeouts (1000ms, 2000ms) instead of strict thresholds (<10ms, <100ms)
+    - Overhead tests use ratio comparisons (5x tolerance) instead of absolute percentages (<1%)
+    - Tests validate structural correctness (measurement counts, statistics) rather than absolute timing
+    - All tests should pass on fast/slow CPUs, CI/CD runners, and systems under load
 4. Optional manual verification in production-like scenario:
-   ```typescript
-   // Load large graph (1000+ nodes) with profiling
-   // Measure frame time with/without profiling
-   // Observe overhead ratio (should be < 5x for typical workloads)
-   ```
+    ```typescript
+    // Load large graph (1000+ nodes) with profiling
+    // Measure frame time with/without profiling
+    // Observe overhead ratio (should be < 5x for typical workloads)
+    ```
 5. **Environment variable support** (optional future enhancement):
-   - `GRAPHTY_PERF_TIMEOUT_MS` - Override default timeout (default: 1000ms)
-   - `GRAPHTY_PERF_OVERHEAD_RATIO` - Override overhead tolerance (default: 5x)
+    - `GRAPHTY_PERF_TIMEOUT_MS` - Override default timeout (default: 1000ms)
+    - `GRAPHTY_PERF_OVERHEAD_RATIO` - Override overhead tolerance (default: 5x)
 
 ---
 
 ### Phase 8: Complete GPU and Scene Metrics Integration
+
 **Objective**: Add comprehensive BabylonJS instrumentation metrics to `getSnapshot()` and enhance `reportDetailed()` with verbose GPU and Scene reporting
 
 **Duration**: 0.5 day
@@ -1405,10 +1457,12 @@ interface MeasurementStats {
 Based on BabylonJS documentation research:
 
 **EngineInstrumentation Counters** (2 available):
+
 1. `gpuFrameTimeCounter` - GPU frame time (nanoseconds, convert with × 0.000001)
 2. `shaderCompilationTimeCounter` - Shader compilation time (milliseconds)
 
 **SceneInstrumentation Counters** (7 currently enabled):
+
 1. `frameTimeCounter` - Total frame time
 2. `renderTimeCounter` - Scene render time
 3. `interFrameTimeCounter` - Time between frames
@@ -1418,6 +1472,7 @@ Based on BabylonJS documentation research:
 7. `drawCallsCounter` - Number of draw calls (count + timing)
 
 **PerfCounter Properties** (7 per counter):
+
 - `current` - Most recent value
 - `average` - Mean value since start
 - `min` - Lowest value recorded
@@ -1460,9 +1515,13 @@ describe("getSnapshot - GPU and Scene metrics", () => {
 
         // Verify all 7 enabled scene counters
         const expectedCounters = [
-            "frameTime", "renderTime", "interFrameTime",
-            "cameraRenderTime", "activeMeshesEvaluation",
-            "renderTargetsRenderTime", "drawCalls"
+            "frameTime",
+            "renderTime",
+            "interFrameTime",
+            "cameraRenderTime",
+            "activeMeshesEvaluation",
+            "renderTargetsRenderTime",
+            "drawCalls",
         ];
 
         for (const counter of expectedCounters) {
@@ -1504,8 +1563,8 @@ describe("reportDetailed - verbose GPU and Scene output", () => {
         statsManager.reportDetailed();
 
         // Verify GPU Metrics group exists
-        const gpuGroupCall = groupSpy.mock.calls.find(call =>
-            call[0] === "GPU Metrics (BabylonJS EngineInstrumentation)"
+        const gpuGroupCall = groupSpy.mock.calls.find(
+            (call) => call[0] === "GPU Metrics (BabylonJS EngineInstrumentation)",
         );
         assert.isDefined(gpuGroupCall);
 
@@ -1521,14 +1580,18 @@ describe("reportDetailed - verbose GPU and Scene output", () => {
 
         // Verify all 7 scene metrics logged
         const expectedMetrics = [
-            "Frame Time", "Render Time", "Inter-Frame Time",
-            "Camera Render Time", "Active Meshes Evaluation",
-            "Render Targets Render Time", "Draw Calls"
+            "Frame Time",
+            "Render Time",
+            "Inter-Frame Time",
+            "Camera Render Time",
+            "Active Meshes Evaluation",
+            "Render Targets Render Time",
+            "Draw Calls",
         ];
 
         for (const metric of expectedMetrics) {
-            const found = logSpy.mock.calls.some(call =>
-                call.some(arg => typeof arg === "string" && arg.includes(metric))
+            const found = logSpy.mock.calls.some((call) =>
+                call.some((arg) => typeof arg === "string" && arg.includes(metric)),
             );
             assert.isTrue(found, `Missing metric: ${metric}`);
         }
@@ -1738,6 +1801,7 @@ if (snapshot.scene) {
 ```
 
 #### Dependencies
+
 - **External**: None
 - **Internal**: Phases 1-7 complete
 - **BabylonJS**: EngineInstrumentation, SceneInstrumentation (already integrated)
@@ -1750,6 +1814,7 @@ if (snapshot.scene) {
 4. **Integration test**: Verify end-to-end profiling with GPU/Scene metrics
 
 **Expected Console Output** (after settlement):
+
 ```
 📊 Performance Report
   CPU Metrics
@@ -1779,18 +1844,22 @@ if (snapshot.scene) {
 With comprehensive GPU/Scene metrics, diagnose:
 
 **Bottleneck Identification**:
+
 - CPU vs GPU time comparison
 - Layout engine vs rendering time
 
 **Draw Call Efficiency**:
+
 - Verify batching effectiveness
 - Monitor draw call counts
 
 **Frame Time Budget Analysis**:
+
 - Break down 16ms frame budget
 - Identify frame time components
 
 **Shader Compilation Impact**:
+
 - One-time vs ongoing costs
 - Total compilation overhead
 
@@ -1801,6 +1870,7 @@ With comprehensive GPU/Scene metrics, diagnose:
 None required - all functionality uses native browser APIs and existing StatsManager infrastructure.
 
 **Why no external libraries:**
+
 - `performance.now()` - Native high-resolution timing
 - `Array.sort()` - Native sorting for percentiles
 - `console.table()` - Native formatted output
@@ -1813,12 +1883,14 @@ None required - all functionality uses native browser APIs and existing StatsMan
 **No new external libraries needed.**
 
 The design intentionally avoids external dependencies by:
+
 - Using native `performance.now()` instead of a timing library
 - Using simple array sorting for percentiles instead of streaming quantile libraries (fast-stats, tdigest)
 - Using native console APIs instead of a reporting library (winston, pino)
 - Leveraging existing BabylonJS instrumentation instead of custom GPU profiling
 
 **Libraries considered but rejected:**
+
 - **fast-stats** or **tdigest** (streaming percentiles): Adds complexity for minimal benefit. Our ring buffer approach is simpler and sufficient for 1000 samples.
 - **pino** or **winston** (structured logging): Console.table is sufficient for debugging. We don't need production logging.
 - **benchmark.js** (performance testing): Native performance.now() is adequate for our needs.
@@ -1828,10 +1900,12 @@ The design intentionally avoids external dependencies by:
 ## Risk Mitigation
 
 ### Risk 1: Performance overhead exceeds 1%
+
 **Likelihood**: Low
 **Impact**: High (defeats purpose of profiling)
 
 **Mitigation**:
+
 - Phase 1 includes zero-overhead verification when disabled
 - Phase 7 includes explicit overhead benchmarking
 - Early return guards in all measurement methods
@@ -1839,49 +1913,59 @@ The design intentionally avoids external dependencies by:
 - If overhead exceeds 1%, implement sampling (only measure every Nth call)
 
 ### Risk 2: Ring buffer array.shift() causes GC pressure
+
 **Likelihood**: Medium
 **Impact**: Medium (affects percentile accuracy and performance)
 
 **Mitigation**:
+
 - Phase 7 replaces shift/push with circular indexing
 - Pre-allocate fixed-size array (1000 elements)
 - Use index pointer instead of modifying array structure
 - Test with 10K+ measurements to verify no GC pauses
 
 ### Risk 3: Console.table formatting breaks with large datasets
+
 **Likelihood**: Low
 **Impact**: Low (cosmetic issue only)
 
 **Mitigation**:
+
 - Test with 100+ measurements in Phase 4
 - Truncate table to top 50 entries if needed
 - Provide programmatic access via getSnapshot() for large datasets
 
 ### Risk 4: Percentile calculation slows down getSnapshot()
+
 **Likelihood**: Medium
 **Impact**: Low (only affects reporting, not measurement)
 
 **Mitigation**:
+
 - Sorting is done on-demand in getSnapshot(), not during measurement
 - Ring buffer limits sorting to max 1000 elements
 - Use native Array.sort (optimized by JS engine)
 - If needed, implement lazy percentile calculation (only compute when accessed)
 
 ### Risk 5: Integration breaks existing StatsManager functionality
+
 **Likelihood**: Low
 **Impact**: High (breaks existing code)
 
 **Mitigation**:
+
 - Extend existing tests in `test/managers/StatsManager.test.ts`
 - Run full test suite after each phase
 - All new methods are additive (no changes to existing methods)
 - Backward compatibility verified in Phase 1 tests
 
 ### Risk 6: Profiling interferes with layout settlement timing
+
 **Likelihood**: Low
 **Impact**: Medium (makes diagnosis unreliable)
 
 **Mitigation**:
+
 - Measure overhead in realistic scenario (Phase 7)
 - Use try/finally to ensure timing capture even on errors
 - Guard against recursive measurements (measure() doesn't measure itself)
@@ -1905,6 +1989,7 @@ This implementation plan extends StatsManager with profiling capabilities over 8
 **Total Effort**: 28-37 hours
 
 Each phase:
+
 - ✅ Delivers testable functionality
 - ✅ Includes comprehensive unit tests written first (TDD)
 - ✅ Builds on previous phases without breaking them
@@ -1922,6 +2007,7 @@ The implementation will immediately reveal whether edge updates are being called
 **Issue**: The `getSnapshot()` method only returns CPU measurements. GPU and Scene metrics from BabylonJS instrumentation are not included, even though `reportDetailed()` attempts to access them.
 
 **Impact**:
+
 - `reportDetailed()` never displays GPU/Scene metrics (always undefined)
 - Users cannot programmatically access BabylonJS performance data
 - Missing ~54 data points (2 GPU counters + 7 Scene counters × 6 properties each)
@@ -1929,6 +2015,7 @@ The implementation will immediately reveal whether edge updates are being called
 **Solution**: See detailed Phase 8 plan above
 
 **Completion Percentage**:
+
 - **Phases 1-7**: ✅ 100% Complete (90% of total design)
 - **Phase 8**: ⚠️ Not Implemented (10% of total design)
 - **Overall**: 90% Complete
@@ -1936,11 +2023,13 @@ The implementation will immediately reveal whether edge updates are being called
 ---
 
 ### Phase 9: Event Counter System
+
 **Objective**: Add event counting API for tracking discrete occurrences (cache hits/misses, skipped operations, state transitions)
 **Duration**: 1 day
 **Estimated Effort**: 5-6 hours
 
 **Background**: While timing measurements track "how long" operations take, counters track "how many times" events occur. This is essential for:
+
 - Cache performance (hits vs misses)
 - Optimization validation (skipped vs executed)
 - Behavior tracking (user interactions, state transitions)
@@ -1948,6 +2037,7 @@ The implementation will immediately reveal whether edge updates are being called
 - Resource tracking (allocations, deallocations)
 
 **Key Design Decisions**:
+
 1. **Separate from timing measurements**: Counters are conceptually different from measurements
 2. **Same enable/disable flag**: Counters respect `enableProfiling()` for consistency
 3. **Rich API**: Support increment, decrement, set, reset, and get operations
@@ -1957,6 +2047,7 @@ The implementation will immediately reveal whether edge updates are being called
 **Tests to Write First**:
 
 Add to `test/managers/StatsManager.profiling.test.ts`:
+
 ```typescript
 describe("Event Counters", () => {
     describe("basic counter operations", () => {
@@ -2059,15 +2150,15 @@ describe("Event Counters", () => {
 
             assert.equal(snapshot.length, 3);
 
-            const cacheHits = snapshot.find(c => c.label === "cache.hits")!;
+            const cacheHits = snapshot.find((c) => c.label === "cache.hits")!;
             assert.equal(cacheHits.value, 10);
             assert.equal(cacheHits.operations, 1); // incremented once (with amount 10)
 
-            const cacheMisses = snapshot.find(c => c.label === "cache.misses")!;
+            const cacheMisses = snapshot.find((c) => c.label === "cache.misses")!;
             assert.equal(cacheMisses.value, 2);
             assert.equal(cacheMisses.operations, 1);
 
-            const poolSize = snapshot.find(c => c.label === "pool.size")!;
+            const poolSize = snapshot.find((c) => c.label === "pool.size")!;
             assert.equal(poolSize.value, 50);
             assert.equal(poolSize.operations, 1); // set once
         });
@@ -2081,7 +2172,7 @@ describe("Event Counters", () => {
             statsManager.setCounter("test", 100);
 
             const snapshot = statsManager.getCountersSnapshot();
-            const counter = snapshot.find(c => c.label === "test")!;
+            const counter = snapshot.find((c) => c.label === "test")!;
 
             assert.equal(counter.value, 100);
             assert.equal(counter.operations, 4); // 2 increments + 1 decrement + 1 set
@@ -2106,15 +2197,13 @@ describe("Event Counters", () => {
             statsManager.reportDetailed();
 
             // Verify Counters group exists
-            const countersGroup = groupSpy.mock.calls.find(call =>
-                call[0] === "Event Counters"
-            );
+            const countersGroup = groupSpy.mock.calls.find((call) => call[0] === "Event Counters");
             assert.isDefined(countersGroup);
 
             // Verify table was called with counter data
-            const counterTableCall = tableSpy.mock.calls.find(call => {
+            const counterTableCall = tableSpy.mock.calls.find((call) => {
                 const data = call[0];
-                return Array.isArray(data) && data.some(row => row.Label === "cache.hits");
+                return Array.isArray(data) && data.some((row) => row.Label === "cache.hits");
             });
             assert.isDefined(counterTableCall);
 
@@ -2129,9 +2218,7 @@ describe("Event Counters", () => {
             statsManager.reportDetailed();
 
             // Verify Counters group NOT called
-            const countersGroup = groupSpy.mock.calls.find(call =>
-                call[0] === "Event Counters"
-            );
+            const countersGroup = groupSpy.mock.calls.find((call) => call[0] === "Event Counters");
             assert.isUndefined(countersGroup);
 
             groupSpy.mockRestore();
@@ -2145,14 +2232,14 @@ describe("Event Counters", () => {
             statsManager.incrementCounter("cache.misses", 10);
             statsManager.reportDetailed();
 
-            const tableData = tableSpy.mock.calls.find(call => {
+            const tableData = tableSpy.mock.calls.find((call) => {
                 const data = call[0];
-                return Array.isArray(data) && data.some(row => row.Label === "cache.hits");
+                return Array.isArray(data) && data.some((row) => row.Label === "cache.hits");
             })?.[0];
 
             // Verify derived metrics are calculated
             assert.isDefined(tableData);
-            const hitsRow = tableData.find(row => row.Label === "cache.hits");
+            const hitsRow = tableData.find((row) => row.Label === "cache.hits");
             assert.equal(hitsRow.Value, 90);
 
             tableSpy.mockRestore();
@@ -2427,7 +2514,7 @@ export class StatsManager implements Manager {
      * Get snapshot of all counters
      */
     getCountersSnapshot(): CounterSnapshot[] {
-        return Array.from(this.counters.values()).map(c => ({
+        return Array.from(this.counters.values()).map((c) => ({
             label: c.label,
             value: c.value,
             operations: c.operations,
@@ -2464,33 +2551,37 @@ export class StatsManager implements Manager {
     reportDetailed(): void {
         const snapshot = this.getSnapshot();
 
-        console.group('📊 Performance Report');
+        console.group("📊 Performance Report");
 
         // CPU metrics
         if (snapshot.cpu.length > 0) {
-            console.group('CPU Metrics');
-            console.table(snapshot.cpu.map(m => ({
-                Label: m.label,
-                Calls: m.count,
-                'Total (ms)': m.total.toFixed(2),
-                'Avg (ms)': m.avg.toFixed(2),
-                'Min (ms)': m.min === Infinity ? 0 : m.min.toFixed(2),
-                'Max (ms)': m.max === -Infinity ? 0 : m.max.toFixed(2),
-                'P95 (ms)': m.p95.toFixed(2),
-                'P99 (ms)': m.p99.toFixed(2),
-            })));
+            console.group("CPU Metrics");
+            console.table(
+                snapshot.cpu.map((m) => ({
+                    Label: m.label,
+                    Calls: m.count,
+                    "Total (ms)": m.total.toFixed(2),
+                    "Avg (ms)": m.avg.toFixed(2),
+                    "Min (ms)": m.min === Infinity ? 0 : m.min.toFixed(2),
+                    "Max (ms)": m.max === -Infinity ? 0 : m.max.toFixed(2),
+                    "P95 (ms)": m.p95.toFixed(2),
+                    "P99 (ms)": m.p99.toFixed(2),
+                })),
+            );
             console.groupEnd();
         }
 
         // NEW: Event Counters
         const countersSnapshot = this.getCountersSnapshot();
         if (countersSnapshot.length > 0) {
-            console.group('Event Counters');
-            console.table(countersSnapshot.map(c => ({
-                Label: c.label,
-                Value: c.value,
-                Operations: c.operations,
-            })));
+            console.group("Event Counters");
+            console.table(
+                countersSnapshot.map((c) => ({
+                    Label: c.label,
+                    Value: c.value,
+                    Operations: c.operations,
+                })),
+            );
             console.groupEnd();
         }
 
@@ -2509,6 +2600,7 @@ export class StatsManager implements Manager {
 ```
 
 **Dependencies**:
+
 - External: None
 - Internal: Phases 1-8 (complete profiling system)
 
@@ -2517,60 +2609,64 @@ export class StatsManager implements Manager {
 1. **Run tests**: `npm test test/managers/StatsManager.profiling.test.ts`
 2. **Expected output**: All counter tests pass (40+ new tests)
 3. **Manual verification**:
-   ```typescript
-   statsManager.enableProfiling();
 
-   // Track cache performance
-   statsManager.incrementCounter("cache.hits", 90);
-   statsManager.incrementCounter("cache.misses", 10);
+    ```typescript
+    statsManager.enableProfiling();
 
-   // Track optimization effectiveness
-   statsManager.incrementCounter("Edge.update.skipped", 150);
-   statsManager.incrementCounter("Edge.update.executed", 50);
+    // Track cache performance
+    statsManager.incrementCounter("cache.hits", 90);
+    statsManager.incrementCounter("cache.misses", 10);
 
-   statsManager.reportDetailed();
-   ```
+    // Track optimization effectiveness
+    statsManager.incrementCounter("Edge.update.skipped", 150);
+    statsManager.incrementCounter("Edge.update.executed", 50);
+
+    statsManager.reportDetailed();
+    ```
+
 4. **Expected console output**:
-   ```
-   📊 Performance Report
-     CPU Metrics
-     [timing table...]
 
-     Event Counters
-     ┌─────────┬────────────────────────┬─────────┬────────────┐
-     │ (index) │         Label          │  Value  │ Operations │
-     ├─────────┼────────────────────────┼─────────┼────────────┤
-     │    0    │     'cache.hits'       │   90    │     1      │
-     │    1    │    'cache.misses'      │   10    │     1      │
-     │    2    │ 'Edge.update.skipped'  │   150   │     1      │
-     │    3    │ 'Edge.update.executed' │   50    │     1      │
-     └─────────┴────────────────────────┴─────────┴────────────┘
+    ```
+    📊 Performance Report
+      CPU Metrics
+      [timing table...]
 
-     GPU Metrics
-     [gpu metrics...]
-   ```
+      Event Counters
+      ┌─────────┬────────────────────────┬─────────┬────────────┐
+      │ (index) │         Label          │  Value  │ Operations │
+      ├─────────┼────────────────────────┼─────────┼────────────┤
+      │    0    │     'cache.hits'       │   90    │     1      │
+      │    1    │    'cache.misses'      │   10    │     1      │
+      │    2    │ 'Edge.update.skipped'  │   150   │     1      │
+      │    3    │ 'Edge.update.executed' │   50    │     1      │
+      └─────────┴────────────────────────┴─────────┴────────────┘
+
+      GPU Metrics
+      [gpu metrics...]
+    ```
 
 **Integration with Edge.ts** (example usage from session 121):
 
 Update `src/Edge.ts`:
+
 ```typescript
 export class Edge {
     update(): void {
-        this.graph.statsManager.startMeasurement('Edge.update');
+        this.graph.statsManager.startMeasurement("Edge.update");
 
         // Check if edge needs updating (dirty tracking optimization)
         if (!this.needsUpdate()) {
-            this.graph.statsManager.incrementCounter('Edge.update.skipped');
-            this.graph.statsManager.endMeasurement('Edge.update');
+            this.graph.statsManager.incrementCounter("Edge.update.skipped");
+            this.graph.statsManager.endMeasurement("Edge.update");
             return;
         }
 
-        this.graph.statsManager.incrementCounter('Edge.update.executed');
+        this.graph.statsManager.incrementCounter("Edge.update.executed");
 
         this.updateLine();
         this.updateArrows();
 
-        this.graph.statsManager.endMeasurement('Edge.update');
+        this.graph.statsManager.endMeasurement("Edge.update");
     }
 }
 ```
@@ -2578,50 +2674,53 @@ export class Edge {
 **Example Use Cases**:
 
 1. **Cache Performance**:
-   ```typescript
-   // In cache lookup
-   if (cacheHit) {
-       statsManager.incrementCounter("mesh.cache.hits");
-   } else {
-       statsManager.incrementCounter("mesh.cache.misses");
-   }
-   ```
+
+    ```typescript
+    // In cache lookup
+    if (cacheHit) {
+        statsManager.incrementCounter("mesh.cache.hits");
+    } else {
+        statsManager.incrementCounter("mesh.cache.misses");
+    }
+    ```
 
 2. **Optimization Validation**:
-   ```typescript
-   // In dirty tracking system
-   if (isDirty) {
-       statsManager.incrementCounter("updates.executed");
-   } else {
-       statsManager.incrementCounter("updates.skipped");
-   }
-   ```
+
+    ```typescript
+    // In dirty tracking system
+    if (isDirty) {
+        statsManager.incrementCounter("updates.executed");
+    } else {
+        statsManager.incrementCounter("updates.skipped");
+    }
+    ```
 
 3. **Resource Tracking**:
-   ```typescript
-   // In mesh pool
-   onMeshAllocated() {
-       statsManager.incrementCounter("mesh.pool.size");
-       statsManager.incrementCounter("mesh.pool.allocations");
-   }
 
-   onMeshDeallocated() {
-       statsManager.decrementCounter("mesh.pool.size");
-       statsManager.incrementCounter("mesh.pool.deallocations");
-   }
-   ```
+    ```typescript
+    // In mesh pool
+    onMeshAllocated() {
+        statsManager.incrementCounter("mesh.pool.size");
+        statsManager.incrementCounter("mesh.pool.allocations");
+    }
+
+    onMeshDeallocated() {
+        statsManager.decrementCounter("mesh.pool.size");
+        statsManager.incrementCounter("mesh.pool.deallocations");
+    }
+    ```
 
 4. **Error Monitoring**:
-   ```typescript
-   // In error handlers
-   catch (error) {
-       if (error instanceof NetworkError) {
-           statsManager.incrementCounter("errors.network");
-       } else if (error instanceof ValidationError) {
-           statsManager.incrementCounter("errors.validation");
-       }
-   }
-   ```
+    ```typescript
+    // In error handlers
+    catch (error) {
+        if (error instanceof NetworkError) {
+            statsManager.incrementCounter("errors.network");
+        } else if (error instanceof ValidationError) {
+            statsManager.incrementCounter("errors.validation");
+        }
+    }
+    ```
 
 **Performance Considerations**:
 
@@ -2634,33 +2733,34 @@ export class Edge {
 **Design Rationale**:
 
 1. **Why separate from measurements?**
-   - Counters track "how many times" (discrete events)
-   - Measurements track "how long" (continuous durations)
-   - Conceptually different data types require different APIs
+    - Counters track "how many times" (discrete events)
+    - Measurements track "how long" (continuous durations)
+    - Conceptually different data types require different APIs
 
 2. **Why track operation count?**
-   - Helps identify frequently modified counters
-   - Useful for debugging counter behavior
-   - Minimal overhead (single increment)
+    - Helps identify frequently modified counters
+    - Useful for debugging counter behavior
+    - Minimal overhead (single increment)
 
 3. **Why allow negative values?**
-   - Resource tracking may temporarily go negative (over-release)
-   - Better to capture reality than clamp to 0
-   - User can detect bugs (negative when should be positive)
+    - Resource tracking may temporarily go negative (over-release)
+    - Better to capture reality than clamp to 0
+    - User can detect bugs (negative when should be positive)
 
 4. **Why no history/percentiles?**
-   - Counters are cumulative by nature
-   - If you need history, use timing measurements instead
-   - Keeps counter storage minimal
+    - Counters are cumulative by nature
+    - If you need history, use timing measurements instead
+    - Keeps counter storage minimal
 
 5. **Why no automatic reset?**
-   - Cumulative counters are more useful for most cases
-   - User can manually reset via `resetCounter()` or `resetAllCounters()`
-   - Layout session metrics can call reset at session boundaries
+    - Cumulative counters are more useful for most cases
+    - User can manually reset via `resetCounter()` or `resetAllCounters()`
+    - Layout session metrics can call reset at session boundaries
 
 **Testing Strategy**:
 
 Phase 9 includes comprehensive tests for:
+
 - ✅ Basic operations (increment, decrement, set, reset)
 - ✅ Disabled behavior (zero overhead verification)
 - ✅ Snapshot generation
@@ -2691,11 +2791,13 @@ This implementation plan extends StatsManager with profiling capabilities over 9
 **Total Effort**: 33-43 hours
 
 **Completion Status**:
+
 - **Phases 1-7**: ✅ Complete
 - **Phase 8**: ⚠️ Planned (GPU/Scene metrics)
 - **Phase 9**: ⚠️ Planned (Event counters) ✨ NEW
 
 Each phase:
+
 - ✅ Delivers testable functionality
 - ✅ Includes comprehensive unit tests (TDD)
 - ✅ Builds on previous phases

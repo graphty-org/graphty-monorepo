@@ -1,12 +1,13 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
     type ClusterNode,
     cutDendrogram,
     cutDendrogramKClusters,
     hierarchicalClustering,
-    modularityHierarchicalClustering} from "../../src/clustering/hierarchical";
-import {createGraphFromAdjacencySet} from "../helpers/graph-test-utils";
+    modularityHierarchicalClustering,
+} from "../../src/clustering/hierarchical";
+import { createGraphFromAdjacencySet } from "../helpers/graph-test-utils";
 
 describe("Hierarchical Clustering", () => {
     describe("hierarchicalClustering", () => {
@@ -97,9 +98,7 @@ describe("Hierarchical Clustering", () => {
         });
 
         it("should handle single node", () => {
-            const adjacencySet = new Map([
-                ["a", new Set<string>()],
-            ]);
+            const adjacencySet = new Map([["a", new Set<string>()]]);
             const graph = createGraphFromAdjacencySet(adjacencySet);
 
             const result = hierarchicalClustering(graph);
@@ -295,13 +294,13 @@ describe("Hierarchical Clustering", () => {
             // Create a graph with 50 nodes in 5 communities
             for (let c = 0; c < 5; c++) {
                 for (let i = 0; i < 10; i++) {
-                    const node = (c * 10) + i;
+                    const node = c * 10 + i;
                     adjacencySet.set(node, new Set());
 
                     // Connect within community
                     for (let j = 0; j < 10; j++) {
                         if (i !== j) {
-                            adjacencySet.get(node)!.add((c * 10) + j);
+                            adjacencySet.get(node)!.add(c * 10 + j);
                         }
                     }
 
@@ -350,7 +349,7 @@ describe("Hierarchical Clustering", () => {
                     expect(node.height).toBeGreaterThan(node.right.height);
 
                     // Members should be union of children
-                    const unionMembers = new Set([... node.left.members, ... node.right.members]);
+                    const unionMembers = new Set([...node.left.members, ...node.right.members]);
                     expect(node.members).toEqual(unionMembers);
                 }
             }

@@ -1,7 +1,7 @@
-import {ColorInput} from "@mantine/core";
-import {describe, expect, it} from "vitest";
+import { ColorInput } from "@mantine/core";
+import { describe, expect, it } from "vitest";
 
-import {render, screen} from "../../../test/test-utils";
+import { render, screen } from "../../../test/test-utils";
 
 /**
  * Regression tests for Phase 4 compact size styling.
@@ -15,13 +15,7 @@ import {render, screen} from "../../../test/test-utils";
 describe("Compact Phase 4 Style Regression", () => {
     describe("ColorInput compact styles", () => {
         it("ColorInput has correct compact height", () => {
-            render(
-                <ColorInput
-                    label="Test color"
-                    aria-label="Test color"
-                    size="compact"
-                />,
-            );
+            render(<ColorInput label="Test color" aria-label="Test color" size="compact" />);
 
             const input = screen.getByRole("textbox");
             const computed = window.getComputedStyle(input);
@@ -30,13 +24,7 @@ describe("Compact Phase 4 Style Regression", () => {
         });
 
         it("ColorInput has correct compact font size", () => {
-            render(
-                <ColorInput
-                    label="Test color"
-                    aria-label="Test color"
-                    size="compact"
-                />,
-            );
+            render(<ColorInput label="Test color" aria-label="Test color" size="compact" />);
 
             const input = screen.getByRole("textbox");
             const computed = window.getComputedStyle(input);
@@ -45,13 +33,8 @@ describe("Compact Phase 4 Style Regression", () => {
         });
 
         it("ColorInput wrapper has correct compact CSS variables", () => {
-            const {container} = render(
-                <ColorInput
-                    label="Test color"
-                    aria-label="Test color"
-                    size="compact"
-                    value="#ff0000"
-                />,
+            const { container } = render(
+                <ColorInput label="Test color" aria-label="Test color" size="compact" value="#ff0000" />,
             );
 
             // Check the wrapper has the correct CSS variables set
@@ -71,13 +54,9 @@ describe("Compact Phase 4 Style Regression", () => {
 
     describe("ColorInput consistent with other compact inputs", () => {
         it("ColorInput height matches TextInput compact height", () => {
-            const {container} = render(
+            const { container } = render(
                 <>
-                    <ColorInput
-                        label="Color"
-                        aria-label="Color"
-                        size="compact"
-                    />
+                    <ColorInput label="Color" aria-label="Color" size="compact" />
                 </>,
             );
 
@@ -92,13 +71,7 @@ describe("Compact Phase 4 Style Regression", () => {
         });
 
         it("ColorInput font size matches TextInput compact font size", () => {
-            const {container} = render(
-                <ColorInput
-                    label="Color"
-                    aria-label="Color"
-                    size="compact"
-                />,
-            );
+            const { container } = render(<ColorInput label="Color" aria-label="Color" size="compact" />);
 
             const colorInput = container.querySelector(".mantine-ColorInput-input");
             expect(colorInput).not.toBeNull();

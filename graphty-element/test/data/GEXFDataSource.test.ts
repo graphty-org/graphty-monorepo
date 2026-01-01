@@ -1,9 +1,9 @@
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {GEXFDataSource} from "../../src/data/GEXFDataSource.js";
+import { GEXFDataSource } from "../../src/data/GEXFDataSource.js";
 
 describe("GEXFDataSource", () => {
-    test("parses basic GEXF", async() => {
+    test("parses basic GEXF", async () => {
         const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <gexf xmlns="http://gexf.net/1.3" version="1.3">
   <graph mode="static" defaultedgetype="undirected">
@@ -17,7 +17,7 @@ describe("GEXFDataSource", () => {
   </graph>
 </gexf>`;
 
-        const source = new GEXFDataSource({data: xml});
+        const source = new GEXFDataSource({ data: xml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -34,7 +34,7 @@ describe("GEXFDataSource", () => {
         assert.equal(chunks[0].edges[0].dst, "n1");
     });
 
-    test("parses attributes from attvalues", async() => {
+    test("parses attributes from attvalues", async () => {
         const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <gexf xmlns="http://gexf.net/1.3" version="1.3">
   <graph mode="static">
@@ -69,7 +69,7 @@ describe("GEXFDataSource", () => {
   </graph>
 </gexf>`;
 
-        const source = new GEXFDataSource({data: xml});
+        const source = new GEXFDataSource({ data: xml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -83,7 +83,7 @@ describe("GEXFDataSource", () => {
         assert.equal(chunks[0].edges[0].weight, 1.5);
     });
 
-    test("parses viz namespace (position, color, size)", async() => {
+    test("parses viz namespace (position, color, size)", async () => {
         const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
   <graph mode="static">
@@ -105,22 +105,22 @@ describe("GEXFDataSource", () => {
   </graph>
 </gexf>`;
 
-        const source = new GEXFDataSource({data: xml});
+        const source = new GEXFDataSource({ data: xml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
             chunks.push(chunk);
         }
 
-        assert.deepEqual(chunks[0].nodes[0].position, {x: 100.0, y: 200.0, z: 0.0});
-        assert.deepEqual(chunks[0].nodes[0].color, {r: 255, g: 0, b: 0, a: 1.0});
+        assert.deepEqual(chunks[0].nodes[0].position, { x: 100.0, y: 200.0, z: 0.0 });
+        assert.deepEqual(chunks[0].nodes[0].color, { r: 255, g: 0, b: 0, a: 1.0 });
         assert.equal(chunks[0].nodes[0].size, 10.0);
-        assert.deepEqual(chunks[0].nodes[1].position, {x: 300.0, y: 400.0, z: 0.0});
-        assert.deepEqual(chunks[0].nodes[1].color, {r: 0, g: 255, b: 0, a: 1.0});
+        assert.deepEqual(chunks[0].nodes[1].position, { x: 300.0, y: 400.0, z: 0.0 });
+        assert.deepEqual(chunks[0].nodes[1].color, { r: 0, g: 255, b: 0, a: 1.0 });
         assert.equal(chunks[0].nodes[1].size, 20.0);
     });
 
-    test("parses directed graph", async() => {
+    test("parses directed graph", async () => {
         const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <gexf xmlns="http://gexf.net/1.3" version="1.3">
   <graph mode="static" defaultedgetype="directed">
@@ -134,7 +134,7 @@ describe("GEXFDataSource", () => {
   </graph>
 </gexf>`;
 
-        const source = new GEXFDataSource({data: xml});
+        const source = new GEXFDataSource({ data: xml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -142,10 +142,10 @@ describe("GEXFDataSource", () => {
         }
 
         assert.equal(chunks[0].edges.length, 1);
-    // Edge type can be stored in metadata
+        // Edge type can be stored in metadata
     });
 
-    test("yields nodes in chunks for large graphs", async() => {
+    test("yields nodes in chunks for large graphs", async () => {
         let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <gexf xmlns="http://gexf.net/1.3" version="1.3">
   <graph mode="static">
@@ -160,7 +160,7 @@ describe("GEXFDataSource", () => {
   </graph>
 </gexf>`;
 
-        const source = new GEXFDataSource({data: xml});
+        const source = new GEXFDataSource({ data: xml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -175,7 +175,7 @@ describe("GEXFDataSource", () => {
         assert.equal(totalNodes, 5000);
     });
 
-    test("handles missing nodes element", async() => {
+    test("handles missing nodes element", async () => {
         const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <gexf xmlns="http://gexf.net/1.3" version="1.3">
   <graph mode="static">
@@ -185,7 +185,7 @@ describe("GEXFDataSource", () => {
   </graph>
 </gexf>`;
 
-        const source = new GEXFDataSource({data: xml});
+        const source = new GEXFDataSource({ data: xml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -197,7 +197,7 @@ describe("GEXFDataSource", () => {
         assert.equal(chunks[0].edges.length, 1);
     });
 
-    test("handles missing edges element", async() => {
+    test("handles missing edges element", async () => {
         const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <gexf xmlns="http://gexf.net/1.3" version="1.3">
   <graph mode="static">
@@ -208,7 +208,7 @@ describe("GEXFDataSource", () => {
   </graph>
 </gexf>`;
 
-        const source = new GEXFDataSource({data: xml});
+        const source = new GEXFDataSource({ data: xml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -220,14 +220,14 @@ describe("GEXFDataSource", () => {
         assert.equal(chunks[0].edges.length, 0);
     });
 
-    test("handles empty graph", async() => {
+    test("handles empty graph", async () => {
         const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <gexf xmlns="http://gexf.net/1.3" version="1.3">
   <graph mode="static">
   </graph>
 </gexf>`;
 
-        const source = new GEXFDataSource({data: xml});
+        const source = new GEXFDataSource({ data: xml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {
@@ -237,7 +237,7 @@ describe("GEXFDataSource", () => {
         assert.equal(chunks.length, 0);
     });
 
-    test("handles edge weight attribute", async() => {
+    test("handles edge weight attribute", async () => {
         const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <gexf xmlns="http://gexf.net/1.3" version="1.3">
   <graph mode="static">
@@ -251,7 +251,7 @@ describe("GEXFDataSource", () => {
   </graph>
 </gexf>`;
 
-        const source = new GEXFDataSource({data: xml});
+        const source = new GEXFDataSource({ data: xml });
         const chunks = [];
 
         for await (const chunk of source.getData()) {

@@ -1,4 +1,4 @@
-import {type LoggerConfig, LogLevel} from "./types.js";
+import { type LoggerConfig, LogLevel } from "./types.js";
 
 /**
  * Storage key for logging configuration in sessionStorage.
@@ -72,9 +72,11 @@ export function loadLoggingConfig(): LoggerConfig | null {
         const parsed = JSON.parse(stored) as StoredConfig;
 
         // Validate the parsed data
-        if (typeof parsed.enabled !== "boolean" ||
+        if (
+            typeof parsed.enabled !== "boolean" ||
             typeof parsed.level !== "number" ||
-            (parsed.modules !== "*" && !Array.isArray(parsed.modules))) {
+            (parsed.modules !== "*" && !Array.isArray(parsed.modules))
+        ) {
             // Invalid data, clear it
             clearLoggingConfig();
             return null;

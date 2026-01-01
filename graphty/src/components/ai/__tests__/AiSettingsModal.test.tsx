@@ -1,7 +1,7 @@
-import {describe, expect, it, vi} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {fireEvent, render, screen, waitFor} from "../../../test/test-utils";
-import {AiSettingsModal} from "../AiSettingsModal";
+import { fireEvent, render, screen, waitFor } from "../../../test/test-utils";
+import { AiSettingsModal } from "../AiSettingsModal";
 
 describe("AiSettingsModal", () => {
     const defaultProps = {
@@ -49,25 +49,25 @@ describe("AiSettingsModal", () => {
         it("shows Save and Cancel buttons", () => {
             render(<AiSettingsModal {...defaultProps} />);
 
-            expect(screen.getByRole("button", {name: /save/i})).toBeInTheDocument();
-            expect(screen.getByRole("button", {name: /cancel/i})).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: /save/i })).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();
         });
     });
 
     describe("provider selection", () => {
-        it("shows all providers in the dropdown", async() => {
+        it("shows all providers in the dropdown", async () => {
             render(<AiSettingsModal {...defaultProps} />);
 
             // Find and click the provider selector
-            const providerSelect = screen.getByRole("textbox", {name: /ai provider/i});
+            const providerSelect = screen.getByRole("textbox", { name: /ai provider/i });
             fireEvent.click(providerSelect);
 
             // Wait for dropdown to open and check options
             await waitFor(() => {
-                expect(screen.getByRole("option", {name: /openai/i})).toBeInTheDocument();
-                expect(screen.getByRole("option", {name: /anthropic/i})).toBeInTheDocument();
-                expect(screen.getByRole("option", {name: /google/i})).toBeInTheDocument();
-                expect(screen.getByRole("option", {name: /webllm/i})).toBeInTheDocument();
+                expect(screen.getByRole("option", { name: /openai/i })).toBeInTheDocument();
+                expect(screen.getByRole("option", { name: /anthropic/i })).toBeInTheDocument();
+                expect(screen.getByRole("option", { name: /google/i })).toBeInTheDocument();
+                expect(screen.getByRole("option", { name: /webllm/i })).toBeInTheDocument();
             });
         });
     });
@@ -83,24 +83,24 @@ describe("AiSettingsModal", () => {
         it("shows Test Connection button", () => {
             render(<AiSettingsModal {...defaultProps} />);
 
-            expect(screen.getByRole("button", {name: /test connection/i})).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: /test connection/i })).toBeInTheDocument();
         });
 
         it("disables Test Connection when no key entered", () => {
             render(<AiSettingsModal {...defaultProps} />);
 
-            const testButton = screen.getByRole("button", {name: /test connection/i});
+            const testButton = screen.getByRole("button", { name: /test connection/i });
             expect(testButton).toBeDisabled();
         });
 
-        it("enables Test Connection when key is entered", async() => {
+        it("enables Test Connection when key is entered", async () => {
             render(<AiSettingsModal {...defaultProps} />);
 
             const keyInput = screen.getByLabelText("API Key");
-            fireEvent.change(keyInput, {target: {value: "sk-test-key-12345678901234567890"}});
+            fireEvent.change(keyInput, { target: { value: "sk-test-key-12345678901234567890" } });
 
             await waitFor(() => {
-                const testButton = screen.getByRole("button", {name: /test connection/i});
+                const testButton = screen.getByRole("button", { name: /test connection/i });
                 expect(testButton).not.toBeDisabled();
             });
         });
@@ -113,7 +113,7 @@ describe("AiSettingsModal", () => {
             expect(screen.getByLabelText(/remember api keys/i)).toBeInTheDocument();
         });
 
-        it("shows security notice when enabling persistence", async() => {
+        it("shows security notice when enabling persistence", async () => {
             render(<AiSettingsModal {...defaultProps} />);
 
             const checkbox = screen.getByLabelText(/remember api keys/i);
@@ -124,7 +124,7 @@ describe("AiSettingsModal", () => {
             });
         });
 
-        it("shows encryption password field when enabling persistence", async() => {
+        it("shows encryption password field when enabling persistence", async () => {
             render(<AiSettingsModal {...defaultProps} />);
 
             const checkbox = screen.getByLabelText(/remember api keys/i);
@@ -141,7 +141,7 @@ describe("AiSettingsModal", () => {
             const onClose = vi.fn();
             render(<AiSettingsModal {...defaultProps} onClose={onClose} />);
 
-            const cancelButton = screen.getByRole("button", {name: /cancel/i});
+            const cancelButton = screen.getByRole("button", { name: /cancel/i });
             fireEvent.click(cancelButton);
 
             expect(onClose).toHaveBeenCalledTimes(1);
@@ -151,7 +151,7 @@ describe("AiSettingsModal", () => {
             const onClose = vi.fn();
             render(<AiSettingsModal {...defaultProps} onClose={onClose} />);
 
-            const saveButton = screen.getByRole("button", {name: /save/i});
+            const saveButton = screen.getByRole("button", { name: /save/i });
             fireEvent.click(saveButton);
 
             expect(onClose).toHaveBeenCalledTimes(1);
@@ -163,10 +163,10 @@ describe("AiSettingsModal", () => {
 
             // Enter a key
             const keyInput = screen.getByLabelText("API Key");
-            fireEvent.change(keyInput, {target: {value: "sk-test-key-12345678901234567890"}});
+            fireEvent.change(keyInput, { target: { value: "sk-test-key-12345678901234567890" } });
 
             // Click save
-            const saveButton = screen.getByRole("button", {name: /save/i});
+            const saveButton = screen.getByRole("button", { name: /save/i });
             fireEvent.click(saveButton);
 
             expect(setKey).toHaveBeenCalledWith("openai", "sk-test-key-12345678901234567890");
@@ -176,7 +176,7 @@ describe("AiSettingsModal", () => {
     describe("default provider selection", () => {
         it("shows default provider dropdown when multiple providers configured", () => {
             const props = {
-                ... defaultProps,
+                ...defaultProps,
                 configuredProviders: ["openai", "anthropic"] as ("openai" | "anthropic")[],
                 hasKey: vi.fn().mockReturnValue(true),
                 getKey: vi.fn().mockReturnValue("sk-test"),
@@ -198,8 +198,8 @@ describe("AiSettingsModal", () => {
             const hasKeyMock = vi.fn((provider: string) => provider === "openai");
 
             const props = {
-                ... defaultProps,
-                configuredProviders: ["openai"] as ("openai")[],
+                ...defaultProps,
+                configuredProviders: ["openai"] as "openai"[],
                 hasKey: hasKeyMock,
                 getKey: getKeyMock,
             };

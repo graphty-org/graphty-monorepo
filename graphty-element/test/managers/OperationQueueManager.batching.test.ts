@@ -1,7 +1,7 @@
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {EventManager} from "../../src/managers/EventManager";
-import {OperationQueueManager} from "../../src/managers/OperationQueueManager";
+import type { EventManager } from "../../src/managers/EventManager";
+import { OperationQueueManager } from "../../src/managers/OperationQueueManager";
 
 describe("OperationQueueManager - Deferred Promise Batching", () => {
     let manager: OperationQueueManager;
@@ -47,7 +47,7 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
             expect(manager.isInBatchMode()).toBe(false);
         });
 
-        it("should queue operations without executing in batch mode", async() => {
+        it("should queue operations without executing in batch mode", async () => {
             manager.enterBatchMode();
 
             let executed = false;
@@ -56,7 +56,7 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
                 () => {
                     executed = true;
                 },
-                {description: "Test operation"},
+                { description: "Test operation" },
             );
 
             // Operation should be queued but not executed
@@ -70,20 +70,22 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
             expect(executed).toBe(true);
         });
 
-        it("should return deferred promises in batch mode", async() => {
+        it("should return deferred promises in batch mode", async () => {
             manager.enterBatchMode();
 
             const promises: Promise<void>[] = [];
             const operations = ["op1", "op2", "op3"];
 
             for (const op of operations) {
-                promises.push(manager.queueOperationAsync(
-                    "data-add",
-                    () => {
-                        executionOrder.push(op);
-                    },
-                    {description: `Operation ${op}`},
-                ));
+                promises.push(
+                    manager.queueOperationAsync(
+                        "data-add",
+                        () => {
+                            executionOrder.push(op);
+                        },
+                        { description: `Operation ${op}` },
+                    ),
+                );
             }
 
             // None should be executed yet
@@ -99,22 +101,19 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
     });
 
     describe("Dependency Ordering in Batches", () => {
-        it("should execute operations in dependency order, not queue order", async() => {
+        it("should execute operations in dependency order, not queue order", async () => {
             manager.enterBatchMode();
 
             // Queue in wrong order intentionally
-            const p1 = manager.queueOperationAsync("layout-set",
-                () => {
-                    executionOrder.push("layout");
-                });
-            const p2 = manager.queueOperationAsync("data-add",
-                () => {
-                    executionOrder.push("data");
-                });
-            const p3 = manager.queueOperationAsync("style-init",
-                () => {
-                    executionOrder.push("style");
-                });
+            const p1 = manager.queueOperationAsync("layout-set", () => {
+                executionOrder.push("layout");
+            });
+            const p2 = manager.queueOperationAsync("data-add", () => {
+                executionOrder.push("data");
+            });
+            const p3 = manager.queueOperationAsync("style-init", () => {
+                executionOrder.push("style");
+            });
 
             void manager.exitBatchMode();
             await manager.waitForCompletion();
@@ -128,30 +127,34 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
             expect(executionOrder.length).toBe(3);
         });
 
-        it("should handle multiple operations of the same category", async() => {
+        it("should handle multiple operations of the same category", async () => {
             manager.enterBatchMode();
 
             const promises: Promise<void>[] = [];
 
             // Queue multiple data operations
-            promises.push(manager.queueOperationAsync("data-add",
-                () => {
+            promises.push(
+                manager.queueOperationAsync("data-add", () => {
                     executionOrder.push("data1");
-                }));
-            promises.push(manager.queueOperationAsync("data-add",
-                () => {
+                }),
+            );
+            promises.push(
+                manager.queueOperationAsync("data-add", () => {
                     executionOrder.push("data2");
-                }));
-            promises.push(manager.queueOperationAsync("data-add",
-                () => {
+                }),
+            );
+            promises.push(
+                manager.queueOperationAsync("data-add", () => {
                     executionOrder.push("data3");
-                }));
+                }),
+            );
 
             // Add a layout operation
-            promises.push(manager.queueOperationAsync("layout-set",
-                () => {
+            promises.push(
+                manager.queueOperationAsync("layout-set", () => {
                     executionOrder.push("layout");
-                }));
+                }),
+            );
 
             void manager.exitBatchMode();
             await manager.waitForCompletion();
@@ -163,19 +166,16 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
     });
 
     describe("Promise Resolution", () => {
-        it("should complete operations after batch exits", async() => {
+        it("should complete operations after batch exits", async () => {
             manager.enterBatchMode();
 
             let executed = false;
 
             // In simplified batch mode, promises return immediately
-            void manager.queueOperationAsync(
-                "data-add",
-                async() => {
-                    await new Promise((resolve) => setTimeout(resolve, 50));
-                    executed = true;
-                },
-            );
+            void manager.queueOperationAsync("data-add", async () => {
+                await new Promise((resolve) => setTimeout(resolve, 50));
+                executed = true;
+            });
 
             // Operation shouldn't execute yet
             expect(executed).toBe(false);
@@ -187,7 +187,7 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
             expect(executed).toBe(true);
         });
 
-        it("should handle errors in batch operations", async() => {
+        it("should handle errors in batch operations", async () => {
             manager.enterBatchMode();
 
             let errorEmitted = false;
@@ -198,12 +198,9 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
                 errorEmitted = true;
             });
 
-            void manager.queueOperationAsync(
-                "data-add",
-                () => {
-                    throw error;
-                },
-            );
+            void manager.queueOperationAsync("data-add", () => {
+                throw error;
+            });
 
             void manager.exitBatchMode();
 
@@ -214,7 +211,7 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
             expect(errorEmitted).toBe(true);
         });
 
-        it("should execute operations in dependency order", async() => {
+        it("should execute operations in dependency order", async () => {
             manager.enterBatchMode();
 
             const localExecutionOrder: string[] = [];
@@ -223,20 +220,17 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
             // style-init has no dependencies
             // data-add depends on style-init
             // layout-set does NOT depend on data-add (stateless design)
-            void manager.queueOperationAsync("layout-set",
-                () => {
-                    localExecutionOrder.push("layout");
-                });
+            void manager.queueOperationAsync("layout-set", () => {
+                localExecutionOrder.push("layout");
+            });
 
-            void manager.queueOperationAsync("data-add",
-                () => {
-                    localExecutionOrder.push("data");
-                });
+            void manager.queueOperationAsync("data-add", () => {
+                localExecutionOrder.push("data");
+            });
 
-            void manager.queueOperationAsync("style-init",
-                () => {
-                    localExecutionOrder.push("style");
-                });
+            void manager.queueOperationAsync("style-init", () => {
+                localExecutionOrder.push("style");
+            });
 
             void manager.exitBatchMode();
             await manager.waitForCompletion();
@@ -251,52 +245,47 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
     });
 
     describe("Batch Isolation", () => {
-        it("should handle multiple sequential batches independently", async() => {
+        it("should handle multiple sequential batches independently", async () => {
             // First batch
             manager.enterBatchMode();
-            void manager.queueOperationAsync("data-add",
-                () => {
-                    executionOrder.push("batch1-data");
-                });
+            void manager.queueOperationAsync("data-add", () => {
+                executionOrder.push("batch1-data");
+            });
             void manager.exitBatchMode();
             await manager.waitForCompletion();
 
             // Second batch
             manager.enterBatchMode();
-            void manager.queueOperationAsync("data-add",
-                () => {
-                    executionOrder.push("batch2-data");
-                });
+            void manager.queueOperationAsync("data-add", () => {
+                executionOrder.push("batch2-data");
+            });
             void manager.exitBatchMode();
             await manager.waitForCompletion();
 
             expect(executionOrder).toEqual(["batch1-data", "batch2-data"]);
         });
 
-        it("should not affect normal operations outside batch mode", async() => {
+        it("should not affect normal operations outside batch mode", async () => {
             // Normal operation
-            const p1 = manager.queueOperationAsync("data-add",
-                () => {
-                    executionOrder.push("normal1");
-                });
+            const p1 = manager.queueOperationAsync("data-add", () => {
+                executionOrder.push("normal1");
+            });
 
             await p1;
             expect(executionOrder).toEqual(["normal1"]);
 
             // Batch operation
             manager.enterBatchMode();
-            const p2 = manager.queueOperationAsync("data-add",
-                () => {
-                    executionOrder.push("batch");
-                });
+            const p2 = manager.queueOperationAsync("data-add", () => {
+                executionOrder.push("batch");
+            });
             void manager.exitBatchMode();
             await p2;
 
             // Another normal operation
-            const p3 = manager.queueOperationAsync("data-add",
-                () => {
-                    executionOrder.push("normal2");
-                });
+            const p3 = manager.queueOperationAsync("data-add", () => {
+                executionOrder.push("normal2");
+            });
             await p3;
 
             expect(executionOrder).toEqual(["normal1", "batch", "normal2"]);
@@ -304,21 +293,18 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
     });
 
     describe("Error Handling", () => {
-        it("should continue executing after errors in batch operations", async() => {
+        it("should continue executing after errors in batch operations", async () => {
             manager.enterBatchMode();
 
-            void manager.queueOperationAsync("data-add",
-                () => {
-                    executionOrder.push("success1");
-                });
-            void manager.queueOperationAsync("data-add",
-                () => {
-                    throw new Error("Failed operation");
-                });
-            void manager.queueOperationAsync("data-add",
-                () => {
-                    executionOrder.push("success2");
-                });
+            void manager.queueOperationAsync("data-add", () => {
+                executionOrder.push("success1");
+            });
+            void manager.queueOperationAsync("data-add", () => {
+                throw new Error("Failed operation");
+            });
+            void manager.queueOperationAsync("data-add", () => {
+                executionOrder.push("success2");
+            });
 
             void manager.exitBatchMode();
             await manager.waitForCompletion();
@@ -328,13 +314,19 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
             expect(executionOrder).toContain("success2");
         });
 
-        it("should properly resolve all batch promises", async() => {
+        it("should properly resolve all batch promises", async () => {
             manager.enterBatchMode();
 
             const promises = [
-                manager.queueOperationAsync("data-add", () => { /* Test operation */ }),
-                manager.queueOperationAsync("data-add", () => { /* Test operation */ }),
-                manager.queueOperationAsync("data-add", () => { /* Test operation */ }),
+                manager.queueOperationAsync("data-add", () => {
+                    /* Test operation */
+                }),
+                manager.queueOperationAsync("data-add", () => {
+                    /* Test operation */
+                }),
+                manager.queueOperationAsync("data-add", () => {
+                    /* Test operation */
+                }),
             ];
 
             await manager.exitBatchMode();
@@ -345,20 +337,20 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
     });
 
     describe("Complex Scenarios", () => {
-        it("should handle async operations in batch", async() => {
+        it("should handle async operations in batch", async () => {
             manager.enterBatchMode();
 
-            const p1 = manager.queueOperationAsync("style-init", async() => {
+            const p1 = manager.queueOperationAsync("style-init", async () => {
                 await new Promise((resolve) => setTimeout(resolve, 10));
                 executionOrder.push("style");
             });
 
-            const p2 = manager.queueOperationAsync("data-add", async() => {
+            const p2 = manager.queueOperationAsync("data-add", async () => {
                 await new Promise((resolve) => setTimeout(resolve, 10));
                 executionOrder.push("data");
             });
 
-            const p3 = manager.queueOperationAsync("layout-set", async() => {
+            const p3 = manager.queueOperationAsync("layout-set", async () => {
                 await new Promise((resolve) => setTimeout(resolve, 10));
                 executionOrder.push("layout");
             });
@@ -371,17 +363,15 @@ describe("OperationQueueManager - Deferred Promise Batching", () => {
             expect(executionOrder).toEqual(["style", "data", "layout"]);
         });
 
-        it("should work with waitForCompletion in batch mode", async() => {
+        it("should work with waitForCompletion in batch mode", async () => {
             manager.enterBatchMode();
 
-            void manager.queueOperationAsync("data-add",
-                () => {
-                    executionOrder.push("op1");
-                });
-            void manager.queueOperationAsync("data-add",
-                () => {
-                    executionOrder.push("op2");
-                });
+            void manager.queueOperationAsync("data-add", () => {
+                executionOrder.push("op1");
+            });
+            void manager.queueOperationAsync("data-add", () => {
+                executionOrder.push("op2");
+            });
 
             void manager.exitBatchMode();
             await manager.waitForCompletion();

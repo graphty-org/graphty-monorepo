@@ -4,23 +4,23 @@
  * @module ai/AiManager
  */
 
-import {debounce} from "lodash";
+import { debounce } from "lodash";
 
-import type {Graph} from "../Graph";
-import {AiController, type ExecutionResult} from "./AiController";
-import {type AiStatus, AiStatusManager, type StatusChangeCallback} from "./AiStatus";
-import {CommandRegistry} from "./commands";
+import type { Graph } from "../Graph";
+import { AiController, type ExecutionResult } from "./AiController";
+import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
+import { CommandRegistry } from "./commands";
 // Import built-in commands
-import {setCameraPosition, zoomToNodes} from "./commands/CameraCommands";
-import {setDimension, setLayout} from "./commands/LayoutCommands";
-import {setImmersiveMode} from "./commands/ModeCommands";
-import {findNodes, getSchema, queryGraph} from "./commands/QueryCommands";
-import {describeProperty, sampleData} from "./commands/SchemaCommands";
-import {clearStyles, findAndStyleEdges, findAndStyleNodes} from "./commands/StyleCommands";
-import {ApiKeyManager} from "./keys";
-import {createProvider, type ProviderType} from "./providers";
-import type {LlmProvider} from "./providers/types";
-import {SchemaManager} from "./schema";
+import { setCameraPosition, zoomToNodes } from "./commands/CameraCommands";
+import { setDimension, setLayout } from "./commands/LayoutCommands";
+import { setImmersiveMode } from "./commands/ModeCommands";
+import { findNodes, getSchema, queryGraph } from "./commands/QueryCommands";
+import { describeProperty, sampleData } from "./commands/SchemaCommands";
+import { clearStyles, findAndStyleEdges, findAndStyleNodes } from "./commands/StyleCommands";
+import { ApiKeyManager } from "./keys";
+import { createProvider, type ProviderType } from "./providers";
+import type { LlmProvider } from "./providers/types";
+import { SchemaManager } from "./schema";
 
 /** Default debounce delay for schema updates in milliseconds */
 const SCHEMA_UPDATE_DEBOUNCE_MS = 300;
@@ -167,7 +167,7 @@ export class AiManager {
 
         // Listen for data-added events to update schema
         try {
-            const {eventManager} = this.graph;
+            const { eventManager } = this.graph;
             this.dataAddedListenerId = eventManager.addListener("data-added", () => {
                 this.debouncedSchemaUpdate?.();
             });
@@ -258,7 +258,7 @@ export class AiManager {
 
         // If this is the current provider, update it
         if (this.provider?.name === provider) {
-            this.provider.configure({apiKey: key});
+            this.provider.configure({ apiKey: key });
         }
     }
 
@@ -376,7 +376,7 @@ export class AiManager {
         // Remove event listener
         if (this.dataAddedListenerId && this.graph) {
             try {
-                const {eventManager} = this.graph;
+                const { eventManager } = this.graph;
                 eventManager.removeListener(this.dataAddedListenerId);
             } catch {
                 // EventManager may not be available

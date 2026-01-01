@@ -1,6 +1,6 @@
-import {assert, beforeEach, describe, it} from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 
-import {type DataLoadingError, ErrorAggregator} from "../../src/data/ErrorAggregator.js";
+import { type DataLoadingError, ErrorAggregator } from "../../src/data/ErrorAggregator.js";
 
 describe("ErrorAggregator", () => {
     let aggregator: ErrorAggregator;
@@ -65,15 +65,15 @@ describe("ErrorAggregator", () => {
         it("should return false when error limit is reached", () => {
             const smallAggregator = new ErrorAggregator(2);
 
-            assert.strictEqual(smallAggregator.addError({message: "Error 1"}), true);
-            assert.strictEqual(smallAggregator.addError({message: "Error 2"}), true);
-            assert.strictEqual(smallAggregator.addError({message: "Error 3"}), false);
+            assert.strictEqual(smallAggregator.addError({ message: "Error 1" }), true);
+            assert.strictEqual(smallAggregator.addError({ message: "Error 2" }), true);
+            assert.strictEqual(smallAggregator.addError({ message: "Error 3" }), false);
 
             assert.strictEqual(smallAggregator.getErrorCount(), 2);
         });
 
         it("should handle errors without category as 'unknown'", () => {
-            aggregator.addError({message: "Error without category"});
+            aggregator.addError({ message: "Error without category" });
 
             const summary = aggregator.getSummary();
             assert.strictEqual(summary.categories.has("unknown"), true);
@@ -83,10 +83,10 @@ describe("ErrorAggregator", () => {
 
     describe("getSummary", () => {
         it("should identify primary category", () => {
-            aggregator.addError({message: "E1", category: "parse-error"});
-            aggregator.addError({message: "E2", category: "parse-error"});
-            aggregator.addError({message: "E3", category: "parse-error"});
-            aggregator.addError({message: "E4", category: "validation-error"});
+            aggregator.addError({ message: "E1", category: "parse-error" });
+            aggregator.addError({ message: "E2", category: "parse-error" });
+            aggregator.addError({ message: "E3", category: "parse-error" });
+            aggregator.addError({ message: "E4", category: "validation-error" });
 
             const summary = aggregator.getSummary();
             assert.strictEqual(summary.primaryCategory, "parse-error");
@@ -162,8 +162,8 @@ describe("ErrorAggregator", () => {
         });
 
         it("should generate generic message for unknown category", () => {
-            aggregator.addError({message: "Generic error 1"});
-            aggregator.addError({message: "Generic error 2"});
+            aggregator.addError({ message: "Generic error 1" });
+            aggregator.addError({ message: "Generic error 2" });
 
             const summary = aggregator.getSummary();
             assert.match(summary.message, /Found \d+ errors/);
@@ -225,9 +225,9 @@ describe("ErrorAggregator", () => {
         });
 
         it("should show multiple categories", () => {
-            aggregator.addError({message: "E1", category: "cat1"});
-            aggregator.addError({message: "E2", category: "cat2"});
-            aggregator.addError({message: "E3", category: "cat1"});
+            aggregator.addError({ message: "E1", category: "cat1" });
+            aggregator.addError({ message: "E2", category: "cat2" });
+            aggregator.addError({ message: "E3", category: "cat1" });
 
             const report = aggregator.getDetailedReport();
             assert.match(report, /CAT1.*\(2 errors\)/s);
@@ -237,14 +237,14 @@ describe("ErrorAggregator", () => {
 
     describe("hasReachedLimit", () => {
         it("should return false when below limit", () => {
-            aggregator.addError({message: "Error 1"});
+            aggregator.addError({ message: "Error 1" });
             assert.strictEqual(aggregator.hasReachedLimit(), false);
         });
 
         it("should return true when limit reached", () => {
             const smallAggregator = new ErrorAggregator(2);
-            smallAggregator.addError({message: "Error 1"});
-            smallAggregator.addError({message: "Error 2"});
+            smallAggregator.addError({ message: "Error 1" });
+            smallAggregator.addError({ message: "Error 2" });
 
             assert.strictEqual(smallAggregator.hasReachedLimit(), true);
         });
@@ -252,8 +252,8 @@ describe("ErrorAggregator", () => {
 
     describe("getErrors", () => {
         it("should return copy of all errors", () => {
-            const error1: DataLoadingError = {message: "Error 1"};
-            const error2: DataLoadingError = {message: "Error 2"};
+            const error1: DataLoadingError = { message: "Error 1" };
+            const error2: DataLoadingError = { message: "Error 2" };
 
             aggregator.addError(error1);
             aggregator.addError(error2);
@@ -264,15 +264,15 @@ describe("ErrorAggregator", () => {
             assert.deepStrictEqual(errors[1], error2);
 
             // Verify it's a copy
-            errors.push({message: "Error 3"});
+            errors.push({ message: "Error 3" });
             assert.strictEqual(aggregator.getErrorCount(), 2);
         });
     });
 
     describe("clear", () => {
         it("should clear all errors and groups", () => {
-            aggregator.addError({message: "E1", category: "cat1", field: "field1"});
-            aggregator.addError({message: "E2", category: "cat2", field: "field2"});
+            aggregator.addError({ message: "E1", category: "cat1", field: "field1" });
+            aggregator.addError({ message: "E2", category: "cat2", field: "field2" });
 
             aggregator.clear();
 
@@ -309,10 +309,10 @@ describe("ErrorAggregator", () => {
         });
 
         it("should handle mixed error categories", () => {
-            aggregator.addError({message: "E1", category: "cat1"});
-            aggregator.addError({message: "E2", category: "cat2"});
-            aggregator.addError({message: "E3", category: "cat3"});
-            aggregator.addError({message: "E4"}); // no category
+            aggregator.addError({ message: "E1", category: "cat1" });
+            aggregator.addError({ message: "E2", category: "cat2" });
+            aggregator.addError({ message: "E3", category: "cat3" });
+            aggregator.addError({ message: "E4" }); // no category
 
             const summary = aggregator.getSummary();
             assert.strictEqual(summary.categories.size, 4); // cat1, cat2, cat3, unknown

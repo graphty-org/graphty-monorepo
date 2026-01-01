@@ -1,8 +1,8 @@
 import assert from "node:assert";
 
-import {describe, it} from "vitest";
+import { describe, it } from "vitest";
 
-import {StyleHelpers} from "../../src/config";
+import { StyleHelpers } from "../../src/config";
 
 describe("StyleHelpers.color.diverging.purpleGreen", () => {
     it("returns purple (#762a83) for value 0", () => {

@@ -1,23 +1,23 @@
-import {Vector3} from "@babylonjs/core";
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test} from "vitest";
+import { Vector3 } from "@babylonjs/core";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test } from "vitest";
 
-import type {AdHocData} from "../../src/config/common";
-import {Graph} from "../../src/Graph";
-import type {Node} from "../../src/Node";
-import {cleanupTestGraph, createTestGraph} from "../helpers/testSetup";
+import type { AdHocData } from "../../src/config/common";
+import { Graph } from "../../src/Graph";
+import type { Node } from "../../src/Node";
+import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("Unified Drag Handler", () => {
     let graph: Graph;
     let node: Node;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Create test graph using the helper (properly sets up styles)
         graph = await createTestGraph();
 
         // Create test node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({id: "test-node", label: "Test Node"} as unknown as AdHocData);
+        dataManager.addNode({ id: "test-node", label: "Test Node" } as unknown as AdHocData);
         const retrievedNode = dataManager.getNode("test-node");
         assert.exists(retrievedNode, "Node should be created");
         node = retrievedNode;
@@ -45,11 +45,7 @@ describe("Unified Drag Handler", () => {
 
         // Verify position updated (allowing for some tolerance)
         const currentPosition = node.mesh.position;
-        assert.notDeepEqual(
-            currentPosition,
-            startPosition,
-            "Mesh position should have changed",
-        );
+        assert.notDeepEqual(currentPosition, startPosition, "Mesh position should have changed");
 
         // Simulate drag end
         node.dragHandler.onDragEnd();
@@ -74,16 +70,16 @@ describe("Unified Drag Handler", () => {
     });
 
     test("should update layout engine during drag", () => {
-        const {layoutEngine} = graph.getLayoutManager();
+        const { layoutEngine } = graph.getLayoutManager();
         assert.exists(layoutEngine, "Layout engine should exist");
         assert.exists(node.dragHandler, "dragHandler should exist");
 
         let setPositionCalled = false;
-        let lastSetPosition: {x: number, y: number, z: number} | null = null;
+        let lastSetPosition: { x: number; y: number; z: number } | null = null;
 
         // Mock setNodePosition
         const originalSetNodePosition = layoutEngine.setNodePosition.bind(layoutEngine);
-        layoutEngine.setNodePosition = (n: Node, pos: {x: number, y: number, z: number}) => {
+        layoutEngine.setNodePosition = (n: Node, pos: { x: number; y: number; z: number }) => {
             setPositionCalled = true;
             lastSetPosition = pos;
             originalSetNodePosition(n, pos);

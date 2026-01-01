@@ -1,16 +1,19 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-    kargerMinCut,
-    minSTCut,
-    stoerWagner} from "../../src/flow/min-cut";
-import {createGraphFromMap} from "../helpers/graph-test-utils";
+import { kargerMinCut, minSTCut, stoerWagner } from "../../src/flow/min-cut";
+import { createGraphFromMap } from "../helpers/graph-test-utils";
 
 describe("Minimum Cut Algorithms", () => {
     describe("minSTCut", () => {
         it("should find minimum s-t cut in simple graph", () => {
             const graphMap = new Map([
-                ["s", new Map([["a", 3], ["b", 2]])],
+                [
+                    "s",
+                    new Map([
+                        ["a", 3],
+                        ["b", 2],
+                    ]),
+                ],
                 ["a", new Map([["t", 2]])],
                 ["b", new Map([["t", 3]])],
                 ["t", new Map()],
@@ -31,7 +34,13 @@ describe("Minimum Cut Algorithms", () => {
 
         it("should find bottleneck cut", () => {
             const graphMap = new Map([
-                ["s", new Map([["a", 10], ["b", 10]])],
+                [
+                    "s",
+                    new Map([
+                        ["a", 10],
+                        ["b", 10],
+                    ]),
+                ],
                 ["a", new Map([["c", 1]])], // Bottleneck
                 ["b", new Map([["c", 1]])], // Bottleneck
                 ["c", new Map([["t", 10]])],
@@ -63,13 +72,11 @@ describe("Minimum Cut Algorithms", () => {
 
             expect(result.cutValue).toBe(3);
             expect(result.cutEdges).toHaveLength(1);
-            expect(result.cutEdges[0]).toEqual({from: "a", to: "b", weight: 3});
+            expect(result.cutEdges[0]).toEqual({ from: "a", to: "b", weight: 3 });
         });
 
         it("should return empty cut for non-existent nodes", () => {
-            const graphMap = new Map([
-                ["a", new Map([["b", 10]])],
-            ]);
+            const graphMap = new Map([["a", new Map([["b", 10]])]]);
             const graph = createGraphFromMap(graphMap);
 
             const result = minSTCut(graph, "x", "y");
@@ -98,10 +105,36 @@ describe("Minimum Cut Algorithms", () => {
     describe("stoerWagner", () => {
         it("should find global minimum cut in simple graph", () => {
             const graph = new Map([
-                ["a", new Map([["b", 2], ["c", 3]])],
-                ["b", new Map([["a", 2], ["c", 1], ["d", 3]])],
-                ["c", new Map([["a", 3], ["b", 1], ["d", 1]])],
-                ["d", new Map([["b", 3], ["c", 1]])],
+                [
+                    "a",
+                    new Map([
+                        ["b", 2],
+                        ["c", 3],
+                    ]),
+                ],
+                [
+                    "b",
+                    new Map([
+                        ["a", 2],
+                        ["c", 1],
+                        ["d", 3],
+                    ]),
+                ],
+                [
+                    "c",
+                    new Map([
+                        ["a", 3],
+                        ["b", 1],
+                        ["d", 1],
+                    ]),
+                ],
+                [
+                    "d",
+                    new Map([
+                        ["b", 3],
+                        ["c", 1],
+                    ]),
+                ],
             ]);
 
             const result = stoerWagner(graph);
@@ -116,10 +149,38 @@ describe("Minimum Cut Algorithms", () => {
 
         it("should handle complete graph", () => {
             const graph = new Map([
-                ["a", new Map([["b", 1], ["c", 1], ["d", 1]])],
-                ["b", new Map([["a", 1], ["c", 1], ["d", 1]])],
-                ["c", new Map([["a", 1], ["b", 1], ["d", 1]])],
-                ["d", new Map([["a", 1], ["b", 1], ["c", 1]])],
+                [
+                    "a",
+                    new Map([
+                        ["b", 1],
+                        ["c", 1],
+                        ["d", 1],
+                    ]),
+                ],
+                [
+                    "b",
+                    new Map([
+                        ["a", 1],
+                        ["c", 1],
+                        ["d", 1],
+                    ]),
+                ],
+                [
+                    "c",
+                    new Map([
+                        ["a", 1],
+                        ["b", 1],
+                        ["d", 1],
+                    ]),
+                ],
+                [
+                    "d",
+                    new Map([
+                        ["a", 1],
+                        ["b", 1],
+                        ["c", 1],
+                    ]),
+                ],
             ]);
 
             const result = stoerWagner(graph);
@@ -129,9 +190,27 @@ describe("Minimum Cut Algorithms", () => {
 
         it("should handle graph with different weight edges", () => {
             const graph = new Map([
-                ["a", new Map([["b", 10], ["c", 1]])],
-                ["b", new Map([["a", 10], ["c", 1]])],
-                ["c", new Map([["a", 1], ["b", 1]])],
+                [
+                    "a",
+                    new Map([
+                        ["b", 10],
+                        ["c", 1],
+                    ]),
+                ],
+                [
+                    "b",
+                    new Map([
+                        ["a", 10],
+                        ["c", 1],
+                    ]),
+                ],
+                [
+                    "c",
+                    new Map([
+                        ["a", 1],
+                        ["b", 1],
+                    ]),
+                ],
             ]);
 
             const result = stoerWagner(graph);
@@ -162,9 +241,7 @@ describe("Minimum Cut Algorithms", () => {
         });
 
         it("should handle single node graph", () => {
-            const graph = new Map([
-                ["a", new Map()],
-            ]);
+            const graph = new Map([["a", new Map()]]);
 
             const result = stoerWagner(graph);
 
@@ -175,10 +252,34 @@ describe("Minimum Cut Algorithms", () => {
 
         it("should find correct cut in weighted cycle", () => {
             const graph = new Map([
-                ["a", new Map([["b", 3], ["d", 2]])],
-                ["b", new Map([["a", 3], ["c", 4]])],
-                ["c", new Map([["b", 4], ["d", 1]])],
-                ["d", new Map([["c", 1], ["a", 2]])],
+                [
+                    "a",
+                    new Map([
+                        ["b", 3],
+                        ["d", 2],
+                    ]),
+                ],
+                [
+                    "b",
+                    new Map([
+                        ["a", 3],
+                        ["c", 4],
+                    ]),
+                ],
+                [
+                    "c",
+                    new Map([
+                        ["b", 4],
+                        ["d", 1],
+                    ]),
+                ],
+                [
+                    "d",
+                    new Map([
+                        ["c", 1],
+                        ["a", 2],
+                    ]),
+                ],
             ]);
 
             const result = stoerWagner(graph);
@@ -190,10 +291,36 @@ describe("Minimum Cut Algorithms", () => {
     describe("kargerMinCut", () => {
         it("should find minimum cut with high probability", () => {
             const graph = new Map([
-                ["a", new Map([["b", 2], ["c", 3]])],
-                ["b", new Map([["a", 2], ["c", 1], ["d", 3]])],
-                ["c", new Map([["a", 3], ["b", 1], ["d", 1]])],
-                ["d", new Map([["b", 3], ["c", 1]])],
+                [
+                    "a",
+                    new Map([
+                        ["b", 2],
+                        ["c", 3],
+                    ]),
+                ],
+                [
+                    "b",
+                    new Map([
+                        ["a", 2],
+                        ["c", 1],
+                        ["d", 3],
+                    ]),
+                ],
+                [
+                    "c",
+                    new Map([
+                        ["a", 3],
+                        ["b", 1],
+                        ["d", 1],
+                    ]),
+                ],
+                [
+                    "d",
+                    new Map([
+                        ["b", 3],
+                        ["c", 1],
+                    ]),
+                ],
             ]);
 
             // Run multiple times to ensure we get the correct answer
@@ -208,9 +335,27 @@ describe("Minimum Cut Algorithms", () => {
 
         it("should handle simple triangle graph", () => {
             const graph = new Map([
-                ["a", new Map([["b", 1], ["c", 1]])],
-                ["b", new Map([["a", 1], ["c", 1]])],
-                ["c", new Map([["a", 1], ["b", 1]])],
+                [
+                    "a",
+                    new Map([
+                        ["b", 1],
+                        ["c", 1],
+                    ]),
+                ],
+                [
+                    "b",
+                    new Map([
+                        ["a", 1],
+                        ["c", 1],
+                    ]),
+                ],
+                [
+                    "c",
+                    new Map([
+                        ["a", 1],
+                        ["b", 1],
+                    ]),
+                ],
             ]);
 
             const result = kargerMinCut(graph, 100);
@@ -221,8 +366,20 @@ describe("Minimum Cut Algorithms", () => {
         it("should handle graph with multiple min cuts", () => {
             const graph = new Map([
                 ["a", new Map([["b", 1]])],
-                ["b", new Map([["a", 1], ["c", 1]])],
-                ["c", new Map([["b", 1], ["d", 1]])],
+                [
+                    "b",
+                    new Map([
+                        ["a", 1],
+                        ["c", 1],
+                    ]),
+                ],
+                [
+                    "c",
+                    new Map([
+                        ["b", 1],
+                        ["d", 1],
+                    ]),
+                ],
                 ["d", new Map([["c", 1]])],
             ]);
 
@@ -253,9 +410,27 @@ describe("Minimum Cut Algorithms", () => {
 
         it("should handle weighted edges correctly", () => {
             const graph = new Map([
-                ["a", new Map([["b", 10], ["c", 1]])],
-                ["b", new Map([["a", 10], ["c", 1]])],
-                ["c", new Map([["a", 1], ["b", 1]])],
+                [
+                    "a",
+                    new Map([
+                        ["b", 10],
+                        ["c", 1],
+                    ]),
+                ],
+                [
+                    "b",
+                    new Map([
+                        ["a", 10],
+                        ["c", 1],
+                    ]),
+                ],
+                [
+                    "c",
+                    new Map([
+                        ["a", 1],
+                        ["b", 1],
+                    ]),
+                ],
             ]);
 
             const result = kargerMinCut(graph, 200);
@@ -291,9 +466,27 @@ describe("Minimum Cut Algorithms", () => {
 
         it("should handle large weights", () => {
             const graph = new Map([
-                ["a", new Map([["b", 1e6], ["c", 1]])],
-                ["b", new Map([["a", 1e6], ["c", 1]])],
-                ["c", new Map([["a", 1], ["b", 1]])],
+                [
+                    "a",
+                    new Map([
+                        ["b", 1e6],
+                        ["c", 1],
+                    ]),
+                ],
+                [
+                    "b",
+                    new Map([
+                        ["a", 1e6],
+                        ["c", 1],
+                    ]),
+                ],
+                [
+                    "c",
+                    new Map([
+                        ["a", 1],
+                        ["b", 1],
+                    ]),
+                ],
             ]);
 
             const result = stoerWagner(graph);
@@ -303,9 +496,27 @@ describe("Minimum Cut Algorithms", () => {
 
         it("should handle fractional weights", () => {
             const graph = new Map([
-                ["a", new Map([["b", 2.5], ["c", 1.5]])],
-                ["b", new Map([["a", 2.5], ["c", 0.5]])],
-                ["c", new Map([["a", 1.5], ["b", 0.5]])],
+                [
+                    "a",
+                    new Map([
+                        ["b", 2.5],
+                        ["c", 1.5],
+                    ]),
+                ],
+                [
+                    "b",
+                    new Map([
+                        ["a", 2.5],
+                        ["c", 0.5],
+                    ]),
+                ],
+                [
+                    "c",
+                    new Map([
+                        ["a", 1.5],
+                        ["b", 0.5],
+                    ]),
+                ],
             ]);
 
             const result = stoerWagner(graph);
@@ -315,10 +526,34 @@ describe("Minimum Cut Algorithms", () => {
 
         it("should provide consistent partitions", () => {
             const graph = new Map([
-                ["a", new Map([["b", 3], ["c", 2]])],
-                ["b", new Map([["a", 3], ["d", 2]])],
-                ["c", new Map([["a", 2], ["d", 3]])],
-                ["d", new Map([["b", 2], ["c", 3]])],
+                [
+                    "a",
+                    new Map([
+                        ["b", 3],
+                        ["c", 2],
+                    ]),
+                ],
+                [
+                    "b",
+                    new Map([
+                        ["a", 3],
+                        ["d", 2],
+                    ]),
+                ],
+                [
+                    "c",
+                    new Map([
+                        ["a", 2],
+                        ["d", 3],
+                    ]),
+                ],
+                [
+                    "d",
+                    new Map([
+                        ["b", 2],
+                        ["c", 3],
+                    ]),
+                ],
             ]);
 
             const result = stoerWagner(graph);

@@ -1,12 +1,20 @@
-import {Graph} from "../../core/graph.js";
-import {UnionFind} from "../../data-structures/union-find.js";
-import type {Edge} from "../../types/index.js";
+import { Graph } from "../../core/graph.js";
+import { UnionFind } from "../../data-structures/union-find.js";
+import type { Edge } from "../../types/index.js";
 
 export interface MSTResult {
     edges: Edge[];
     totalWeight: number;
 }
 
+/**
+ * Computes the minimum spanning tree of an undirected graph using Kruskal's algorithm.
+ * The algorithm sorts edges by weight and greedily adds edges that don't create cycles,
+ * using a union-find data structure to efficiently detect cycles.
+ * @param graph - The undirected graph to compute the MST for
+ * @returns The minimum spanning tree as a set of edges and the total weight
+ * @throws Error if the graph is directed or not connected
+ */
 export function kruskalMST(graph: Graph): MSTResult {
     if (graph.isDirected) {
         throw new Error("Kruskal's algorithm requires an undirected graph");
@@ -16,9 +24,10 @@ export function kruskalMST(graph: Graph): MSTResult {
     const visitedEdges = new Set<string>();
 
     for (const edge of Array.from(graph.edges())) {
-        const edgeKey = edge.source < edge.target ?
-            `${String(edge.source)}-${String(edge.target)}` :
-            `${String(edge.target)}-${String(edge.source)}`;
+        const edgeKey =
+            edge.source < edge.target
+                ? `${String(edge.source)}-${String(edge.target)}`
+                : `${String(edge.target)}-${String(edge.source)}`;
 
         if (!visitedEdges.has(edgeKey)) {
             visitedEdges.add(edgeKey);
@@ -56,6 +65,12 @@ export function kruskalMST(graph: Graph): MSTResult {
     };
 }
 
+/**
+ * Alias for kruskalMST. Computes the minimum spanning tree of an undirected graph.
+ * @param graph - The undirected graph to compute the MST for
+ * @returns The minimum spanning tree as a set of edges and the total weight
+ * @throws Error if the graph is directed or not connected
+ */
 export function minimumSpanningTree(graph: Graph): MSTResult {
     return kruskalMST(graph);
 }

@@ -1,7 +1,16 @@
-import {Box, Stack, Text, TextInput} from "@mantine/core";
-import React, {useEffect, useState} from "react";
+import { Box, Stack, Text, TextInput } from "@mantine/core";
+import React, { useEffect, useState } from "react";
 
-import type {ArrowConfig, ColorConfig, EdgeLineConfig, EdgeStyle, NodeEffectsConfig, NodeStyle, RichTextStyle, ShapeConfig} from "../../../types/style-layer";
+import type {
+    ArrowConfig,
+    ColorConfig,
+    EdgeLineConfig,
+    EdgeStyle,
+    NodeEffectsConfig,
+    NodeStyle,
+    RichTextStyle,
+    ShapeConfig,
+} from "../../../types/style-layer";
 import {
     DEFAULT_ARROW_HEAD,
     DEFAULT_ARROW_TAIL,
@@ -11,18 +20,18 @@ import {
     DEFAULT_RICH_TEXT_STYLE,
     DEFAULT_SHAPE,
 } from "../../../utils/style-defaults";
-import type {LayerItem} from "../../layout/LeftSidebar";
-import {ControlGroup} from "../controls/ControlGroup";
-import {ControlSection} from "../controls/ControlSection";
-import {EdgeArrowControl} from "../edge-controls/EdgeArrowControl";
-import {EdgeLabelControl} from "../edge-controls/EdgeLabelControl";
-import {EdgeLineControl} from "../edge-controls/EdgeLineControl";
-import {EdgeTooltipControl} from "../edge-controls/EdgeTooltipControl";
-import {NodeColorControl} from "../node-controls/NodeColorControl";
-import {NodeEffectsControl} from "../node-controls/NodeEffectsControl";
-import {NodeLabelControl} from "../node-controls/NodeLabelControl";
-import {NodeShapeControl} from "../node-controls/NodeShapeControl";
-import {NodeTooltipControl} from "../node-controls/NodeTooltipControl";
+import type { LayerItem } from "../../layout/LeftSidebar";
+import { ControlGroup } from "../controls/ControlGroup";
+import { ControlSection } from "../controls/ControlSection";
+import { EdgeArrowControl } from "../edge-controls/EdgeArrowControl";
+import { EdgeLabelControl } from "../edge-controls/EdgeLabelControl";
+import { EdgeLineControl } from "../edge-controls/EdgeLineControl";
+import { EdgeTooltipControl } from "../edge-controls/EdgeTooltipControl";
+import { NodeColorControl } from "../node-controls/NodeColorControl";
+import { NodeEffectsControl } from "../node-controls/NodeEffectsControl";
+import { NodeLabelControl } from "../node-controls/NodeLabelControl";
+import { NodeShapeControl } from "../node-controls/NodeShapeControl";
+import { NodeTooltipControl } from "../node-controls/NodeTooltipControl";
 
 interface StyleLayerPropertiesPanelProps {
     layer: LayerItem;
@@ -34,6 +43,8 @@ type StyleRecord = Record<string, unknown>;
 
 /**
  * Converts legacy color format to new ColorConfig format.
+ * @param style - The style object to extract color config from
+ * @returns The color configuration
  */
 function getColorConfig(style: StyleRecord): ColorConfig {
     // Check if new color config exists
@@ -43,7 +54,7 @@ function getColorConfig(style: StyleRecord): ColorConfig {
 
     // Check legacy texture.color format
     if (style.texture && typeof style.texture === "object") {
-        const texture = style.texture as {color?: string};
+        const texture = style.texture as { color?: string };
         if (texture.color) {
             return {
                 mode: "solid",
@@ -67,18 +78,28 @@ function getColorConfig(style: StyleRecord): ColorConfig {
 
 /**
  * Converts ColorConfig to a format usable by graphty-element.
+ * @param colorConfig - The color configuration to convert
+ * @returns The node style object
  */
 function colorConfigToStyle(colorConfig: ColorConfig): NodeStyle {
     if (colorConfig.mode === "solid") {
         return {
             color: colorConfig,
-            texture: {color: colorConfig.color},
+            texture: { color: colorConfig.color },
         };
     }
 
-    return {color: colorConfig};
+    return { color: colorConfig };
 }
 
+/**
+ * Panel for editing style layer properties including node and edge styles.
+ * @param root0 - Component props
+ * @param root0.layer - The layer being edited
+ * @param root0.onUpdate - Called when node properties are updated
+ * @param root0.onEdgeUpdate - Called when edge properties are updated
+ * @returns The style layer properties panel component
+ */
 export function StyleLayerPropertiesPanel({
     layer,
     onUpdate,
@@ -96,9 +117,11 @@ export function StyleLayerPropertiesPanel({
     const currentStyle: StyleRecord = layer.styleLayer.node?.style ?? {};
     const shapeConfig: ShapeConfig = (currentStyle.shape as ShapeConfig | undefined) ?? DEFAULT_SHAPE;
     const colorConfig = getColorConfig(currentStyle);
-    const effectsConfig: NodeEffectsConfig = (currentStyle.effects as NodeEffectsConfig | undefined) ?? DEFAULT_NODE_EFFECTS;
+    const effectsConfig: NodeEffectsConfig =
+        (currentStyle.effects as NodeEffectsConfig | undefined) ?? DEFAULT_NODE_EFFECTS;
     const nodeLabelConfig: RichTextStyle = (currentStyle.label as RichTextStyle | undefined) ?? DEFAULT_RICH_TEXT_STYLE;
-    const nodeTooltipConfig: RichTextStyle = (currentStyle.tooltip as RichTextStyle | undefined) ?? DEFAULT_RICH_TEXT_STYLE;
+    const nodeTooltipConfig: RichTextStyle =
+        (currentStyle.tooltip as RichTextStyle | undefined) ?? DEFAULT_RICH_TEXT_STYLE;
 
     // Edge style extraction
     const currentEdgeStyle: EdgeStyle = (layer.styleLayer.edge?.style as EdgeStyle | undefined) ?? {};
@@ -125,7 +148,7 @@ export function StyleLayerPropertiesPanel({
                 selector: layer.styleLayer.node?.selector ?? "",
                 style: {
                     shape,
-                    ... colorStyle,
+                    ...colorStyle,
                     effects: effectsConfig,
                     label: nodeLabelConfig,
                     tooltip: nodeTooltipConfig,
@@ -142,7 +165,7 @@ export function StyleLayerPropertiesPanel({
                 selector: layer.styleLayer.node?.selector ?? "",
                 style: {
                     shape: shapeConfig,
-                    ... colorStyle,
+                    ...colorStyle,
                     effects: effectsConfig,
                     label: nodeLabelConfig,
                     tooltip: nodeTooltipConfig,
@@ -159,7 +182,7 @@ export function StyleLayerPropertiesPanel({
                 selector: layer.styleLayer.node?.selector ?? "",
                 style: {
                     shape: shapeConfig,
-                    ... colorStyle,
+                    ...colorStyle,
                     effects,
                     label: nodeLabelConfig,
                     tooltip: nodeTooltipConfig,
@@ -175,7 +198,7 @@ export function StyleLayerPropertiesPanel({
                 selector: layer.styleLayer.node?.selector ?? "",
                 style: {
                     shape: shapeConfig,
-                    ... colorStyle,
+                    ...colorStyle,
                     effects: effectsConfig,
                     label,
                     tooltip: nodeTooltipConfig,
@@ -191,7 +214,7 @@ export function StyleLayerPropertiesPanel({
                 selector: layer.styleLayer.node?.selector ?? "",
                 style: {
                     shape: shapeConfig,
-                    ... colorStyle,
+                    ...colorStyle,
                     effects: effectsConfig,
                     label: nodeLabelConfig,
                     tooltip,
@@ -215,7 +238,7 @@ export function StyleLayerPropertiesPanel({
             onEdgeUpdate(layer.id, {
                 selector: layer.styleLayer.edge?.selector ?? "",
                 style: {
-                    ... currentEdgeStyle,
+                    ...currentEdgeStyle,
                     line,
                 },
             });
@@ -227,7 +250,7 @@ export function StyleLayerPropertiesPanel({
             onEdgeUpdate(layer.id, {
                 selector: layer.styleLayer.edge?.selector ?? "",
                 style: {
-                    ... currentEdgeStyle,
+                    ...currentEdgeStyle,
                     arrowHead,
                 },
             });
@@ -239,7 +262,7 @@ export function StyleLayerPropertiesPanel({
             onEdgeUpdate(layer.id, {
                 selector: layer.styleLayer.edge?.selector ?? "",
                 style: {
-                    ... currentEdgeStyle,
+                    ...currentEdgeStyle,
                     arrowTail,
                 },
             });
@@ -251,7 +274,7 @@ export function StyleLayerPropertiesPanel({
             onEdgeUpdate(layer.id, {
                 selector: layer.styleLayer.edge?.selector ?? "",
                 style: {
-                    ... currentEdgeStyle,
+                    ...currentEdgeStyle,
                     label,
                 },
             });
@@ -263,7 +286,7 @@ export function StyleLayerPropertiesPanel({
             onEdgeUpdate(layer.id, {
                 selector: layer.styleLayer.edge?.selector ?? "",
                 style: {
-                    ... currentEdgeStyle,
+                    ...currentEdgeStyle,
                     tooltip,
                 },
             });
@@ -273,13 +296,8 @@ export function StyleLayerPropertiesPanel({
     return (
         <Stack gap={0}>
             {/* Layer Name Header */}
-            <Box style={{marginBottom: "0px"}}>
-                <Text
-                    size="xs"
-                    fw={500}
-                    c="dimmed"
-                    style={{fontSize: "10px"}}
-                >
+            <Box style={{ marginBottom: "0px" }}>
+                <Text size="xs" fw={500} c="dimmed" style={{ fontSize: "10px" }}>
                     Layer: {layer.name}
                 </Text>
             </Box>
@@ -288,7 +306,7 @@ export function StyleLayerPropertiesPanel({
             <Box>
                 <Text
                     mb={4}
-                    style={{fontSize: "12px", fontWeight: 500, color: "var(--mantine-color-text)", lineHeight: 1.2}}
+                    style={{ fontSize: "12px", fontWeight: 500, color: "var(--mantine-color-text)", lineHeight: 1.2 }}
                 >
                     Node Properties
                 </Text>
@@ -306,48 +324,33 @@ export function StyleLayerPropertiesPanel({
                         onBlur={handleSelectorBlur}
                         size="compact"
                         styles={{
-                            description: {fontSize: "9px", color: "var(--mantine-color-dimmed)", lineHeight: 1.2},
+                            description: { fontSize: "9px", color: "var(--mantine-color-dimmed)", lineHeight: 1.2 },
                         }}
                     />
 
                     {/* Shape */}
                     <ControlGroup label="Shape">
-                        <NodeShapeControl
-                            value={shapeConfig}
-                            onChange={handleShapeChange}
-                        />
+                        <NodeShapeControl value={shapeConfig} onChange={handleShapeChange} />
                     </ControlGroup>
 
                     {/* Color */}
                     <ControlGroup label="Color">
-                        <NodeColorControl
-                            value={colorConfig}
-                            onChange={handleColorChange}
-                        />
+                        <NodeColorControl value={colorConfig} onChange={handleColorChange} />
                     </ControlGroup>
 
                     {/* Effects */}
                     <ControlGroup label="Effects">
-                        <NodeEffectsControl
-                            value={effectsConfig}
-                            onChange={handleEffectsChange}
-                        />
+                        <NodeEffectsControl value={effectsConfig} onChange={handleEffectsChange} />
                     </ControlGroup>
 
                     {/* Label */}
                     <ControlGroup label="Label">
-                        <NodeLabelControl
-                            value={nodeLabelConfig}
-                            onChange={handleNodeLabelChange}
-                        />
+                        <NodeLabelControl value={nodeLabelConfig} onChange={handleNodeLabelChange} />
                     </ControlGroup>
 
                     {/* Tooltip */}
                     <ControlGroup label="Tooltip">
-                        <NodeTooltipControl
-                            value={nodeTooltipConfig}
-                            onChange={handleNodeTooltipChange}
-                        />
+                        <NodeTooltipControl value={nodeTooltipConfig} onChange={handleNodeTooltipChange} />
                     </ControlGroup>
                 </Stack>
             </Box>
@@ -367,50 +370,33 @@ export function StyleLayerPropertiesPanel({
                     onBlur={handleEdgeSelectorBlur}
                     size="compact"
                     styles={{
-                        description: {fontSize: "9px", color: "var(--mantine-color-dimmed)", lineHeight: 1.2},
+                        description: { fontSize: "9px", color: "var(--mantine-color-dimmed)", lineHeight: 1.2 },
                     }}
                 />
 
                 {/* Line Style */}
                 <ControlGroup label="Line">
-                    <EdgeLineControl
-                        value={edgeLineConfig}
-                        onChange={handleEdgeLineChange}
-                    />
+                    <EdgeLineControl value={edgeLineConfig} onChange={handleEdgeLineChange} />
                 </ControlGroup>
 
                 {/* Arrow Head */}
                 <ControlGroup label="Arrow Head">
-                    <EdgeArrowControl
-                        label="Arrow Head"
-                        value={arrowHeadConfig}
-                        onChange={handleArrowHeadChange}
-                    />
+                    <EdgeArrowControl label="Arrow Head" value={arrowHeadConfig} onChange={handleArrowHeadChange} />
                 </ControlGroup>
 
                 {/* Arrow Tail */}
                 <ControlGroup label="Arrow Tail">
-                    <EdgeArrowControl
-                        label="Arrow Tail"
-                        value={arrowTailConfig}
-                        onChange={handleArrowTailChange}
-                    />
+                    <EdgeArrowControl label="Arrow Tail" value={arrowTailConfig} onChange={handleArrowTailChange} />
                 </ControlGroup>
 
                 {/* Edge Label */}
                 <ControlGroup label="Label">
-                    <EdgeLabelControl
-                        value={edgeLabelConfig}
-                        onChange={handleEdgeLabelChange}
-                    />
+                    <EdgeLabelControl value={edgeLabelConfig} onChange={handleEdgeLabelChange} />
                 </ControlGroup>
 
                 {/* Edge Tooltip */}
                 <ControlGroup label="Tooltip">
-                    <EdgeTooltipControl
-                        value={edgeTooltipConfig}
-                        onChange={handleEdgeTooltipChange}
-                    />
+                    <EdgeTooltipControl value={edgeTooltipConfig} onChange={handleEdgeTooltipChange} />
                 </ControlGroup>
             </ControlSection>
         </Stack>

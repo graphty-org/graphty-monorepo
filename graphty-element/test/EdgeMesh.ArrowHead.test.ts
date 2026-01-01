@@ -1,8 +1,8 @@
-import {Mesh, NullEngine, Scene} from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { Mesh, NullEngine, Scene } from "@babylonjs/core";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import {EdgeMesh} from "../src/meshes/EdgeMesh";
-import {MeshCache} from "../src/meshes/MeshCache";
+import { EdgeMesh } from "../src/meshes/EdgeMesh";
+import { MeshCache } from "../src/meshes/MeshCache";
 
 describe("Arrow Shape Generation", () => {
     let scene: Scene;
@@ -18,7 +18,7 @@ describe("Arrow Shape Generation", () => {
         const arrowMesh = EdgeMesh.createArrowHead(
             meshCache,
             "test-inverted",
-            {type: "inverted", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0},
+            { type: "inverted", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
             scene,
         );
 
@@ -33,7 +33,7 @@ describe("Arrow Shape Generation", () => {
         const arrowMesh = EdgeMesh.createArrowHead(
             meshCache,
             "test-dot",
-            {type: "dot", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0},
+            { type: "dot", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
             scene,
         );
 
@@ -50,7 +50,7 @@ describe("Arrow Shape Generation", () => {
         const arrowMesh = EdgeMesh.createArrowHead(
             meshCache,
             "test-diamond",
-            {type: "diamond", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0},
+            { type: "diamond", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
             scene,
         );
 
@@ -67,7 +67,7 @@ describe("Arrow Shape Generation", () => {
         const arrowMesh = EdgeMesh.createArrowHead(
             meshCache,
             "test-box",
-            {type: "box", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0},
+            { type: "box", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
             scene,
         );
 
@@ -84,7 +84,7 @@ describe("Arrow Shape Generation", () => {
         const arrowMesh = EdgeMesh.createArrowHead(
             meshCache,
             "test-normal",
-            {type: "normal", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0},
+            { type: "normal", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
             scene,
         );
 
@@ -98,8 +98,8 @@ describe("Arrow Shape Generation", () => {
             EdgeMesh.createArrowHead(
                 meshCache,
                 "test-invalid",
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid input
-                {type: "invalid-type" as any, width: 1.0, color: "#FF0000"},
+                 
+                { type: "invalid-type" as any, width: 1.0, color: "#FF0000" },
                 scene,
             );
         });
@@ -109,7 +109,7 @@ describe("Arrow Shape Generation", () => {
         const arrowMesh = EdgeMesh.createArrowHead(
             meshCache,
             "test-sized",
-            {type: "normal", width: 1.0, color: "#FF0000", size: 2.0, opacity: 1.0},
+            { type: "normal", width: 1.0, color: "#FF0000", size: 2.0, opacity: 1.0 },
             scene,
         );
 
@@ -122,7 +122,7 @@ describe("Arrow Shape Generation", () => {
         const arrowMesh = EdgeMesh.createArrowHead(
             meshCache,
             "test-opacity",
-            {type: "normal", width: 1.0, color: "#FF0000", size: 1.0, opacity: 0.5},
+            { type: "normal", width: 1.0, color: "#FF0000", size: 1.0, opacity: 0.5 },
             scene,
         );
 
@@ -134,7 +134,7 @@ describe("Arrow Shape Generation", () => {
         const arrowMesh = EdgeMesh.createArrowHead(
             meshCache,
             "test-none",
-            {type: "none", width: 1.0, color: "#FF0000"},
+            { type: "none", width: 1.0, color: "#FF0000" },
             scene,
         );
 
@@ -145,14 +145,14 @@ describe("Arrow Shape Generation", () => {
         const arrow1 = EdgeMesh.createArrowHead(
             meshCache,
             "test-no-cache",
-            {type: "normal", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0},
+            { type: "normal", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
             scene,
         );
 
         const arrow2 = EdgeMesh.createArrowHead(
             meshCache,
             "test-no-cache",
-            {type: "normal", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0},
+            { type: "normal", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
             scene,
         );
 

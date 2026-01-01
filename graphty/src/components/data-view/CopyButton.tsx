@@ -1,6 +1,6 @@
-import {ActionIcon, Tooltip} from "@mantine/core";
-import {Check, Clipboard} from "lucide-react";
-import React, {useCallback, useEffect, useState} from "react";
+import { ActionIcon, Tooltip } from "@mantine/core";
+import { Check, Clipboard } from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
 
 export interface CopyButtonProps {
     /** The value to copy to clipboard. Objects/arrays will be JSON stringified. */
@@ -17,6 +17,8 @@ export interface CopyButtonProps {
  * - Objects and arrays: JSON stringified with 2-space indentation
  * - null: "null"
  * - undefined: "undefined"
+ * @param value - The value to format for clipboard
+ * @returns The formatted string representation
  */
 function formatValueForClipboard(value: unknown): string {
     if (value === null) {
@@ -59,7 +61,11 @@ function formatValueForClipboard(value: unknown): string {
  *
  * This component is wrapped with React.memo for performance optimization.
  */
-export const CopyButton = React.memo(function CopyButton({value, path, size = "compact"}: CopyButtonProps): React.JSX.Element {
+export const CopyButton = React.memo(function CopyButton({
+    value,
+    path,
+    size = "compact",
+}: CopyButtonProps): React.JSX.Element {
     const [copied, setCopied] = useState(false);
 
     // Reset copied state after a delay

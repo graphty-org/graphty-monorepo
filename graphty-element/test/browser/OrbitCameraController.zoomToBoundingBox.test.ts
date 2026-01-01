@@ -1,7 +1,7 @@
-import {NullEngine, Scene, Vector3} from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import {OrbitCameraController, OrbitConfig} from "../../src/cameras/OrbitCameraController";
+import { OrbitCameraController, OrbitConfig } from "../../src/cameras/OrbitCameraController";
 
 /**
  * Regression tests for OrbitCameraController.zoomToBoundingBox().
@@ -149,7 +149,11 @@ describe("OrbitCameraController.zoomToBoundingBox Regression Tests", () => {
 
             // Larger Z spread should require more distance because
             // elements closer to camera (negative Z relative to center) appear larger
-            assert.isAbove(distanceLargeZ, distanceSmallZ, "Scene with larger Z spread should require more camera distance");
+            assert.isAbove(
+                distanceLargeZ,
+                distanceSmallZ,
+                "Scene with larger Z spread should require more camera distance",
+            );
         });
     });
 
@@ -183,9 +187,9 @@ describe("OrbitCameraController.zoomToBoundingBox Regression Tests", () => {
 
             for (const corner of corners) {
                 const worldPos = new Vector3(
-                    center.x + (corner.x * halfSize.x),
-                    center.y + (corner.y * halfSize.y),
-                    center.z + (corner.z * halfSize.z),
+                    center.x + corner.x * halfSize.x,
+                    center.y + corner.y * halfSize.y,
+                    center.z + corner.z * halfSize.z,
                 );
 
                 // Position relative to pivot (which is at center)
@@ -206,8 +210,16 @@ describe("OrbitCameraController.zoomToBoundingBox Regression Tests", () => {
 
                 // Allow 5% padding (matching the implementation)
                 const paddingFactor = 1.05;
-                assert.isBelow(projectedX, maxProjectedX * paddingFactor, `Corner ${corner.toString()} X projection should be within FOV`);
-                assert.isBelow(projectedY, maxProjectedY * paddingFactor, `Corner ${corner.toString()} Y projection should be within FOV`);
+                assert.isBelow(
+                    projectedX,
+                    maxProjectedX * paddingFactor,
+                    `Corner ${corner.toString()} X projection should be within FOV`,
+                );
+                assert.isBelow(
+                    projectedY,
+                    maxProjectedY * paddingFactor,
+                    `Corner ${corner.toString()} Y projection should be within FOV`,
+                );
             }
         });
     });
@@ -245,7 +257,7 @@ describe("OrbitCameraController.zoomToBoundingBox Regression Tests", () => {
 
         test("respects maxZoomDistance config", () => {
             const customConfig: OrbitConfig = {
-                ... defaultConfig,
+                ...defaultConfig,
                 maxZoomDistance: 100,
             };
             const customController = new OrbitCameraController(canvas, scene, customConfig);
@@ -256,12 +268,16 @@ describe("OrbitCameraController.zoomToBoundingBox Regression Tests", () => {
 
             customController.zoomToBoundingBox(min, max);
 
-            assert.isAtMost(customController.cameraDistance, 100, "Camera distance should be clamped to maxZoomDistance");
+            assert.isAtMost(
+                customController.cameraDistance,
+                100,
+                "Camera distance should be clamped to maxZoomDistance",
+            );
         });
 
         test("respects minZoomDistance config", () => {
             const customConfig: OrbitConfig = {
-                ... defaultConfig,
+                ...defaultConfig,
                 minZoomDistance: 50,
             };
             const customController = new OrbitCameraController(canvas, scene, customConfig);
@@ -272,7 +288,11 @@ describe("OrbitCameraController.zoomToBoundingBox Regression Tests", () => {
 
             customController.zoomToBoundingBox(min, max);
 
-            assert.isAtLeast(customController.cameraDistance, 50, "Camera distance should be clamped to minZoomDistance");
+            assert.isAtLeast(
+                customController.cameraDistance,
+                50,
+                "Camera distance should be clamped to minZoomDistance",
+            );
         });
     });
 
@@ -296,7 +316,7 @@ describe("OrbitCameraController.zoomToBoundingBox Regression Tests", () => {
 
             // The vee row corner: y=-800 relative to center (y=-200), z=-600 relative to center (z=0)
             // So relative position is y=-600, z=-600
-            const veeRelativeY = -800 - (-200); // = -600
+            const veeRelativeY = -800 - -200; // = -600
             const veeRelativeZ = -600 - 0; // = -600
 
             // Depth from camera to vee row
@@ -307,7 +327,11 @@ describe("OrbitCameraController.zoomToBoundingBox Regression Tests", () => {
             const maxProjectedY = Math.tan(halfFovY);
 
             // Allow for 5% padding
-            assert.isBelow(projectedY, maxProjectedY * 1.05, "Vee row should project within vertical FOV (this was the original bug)");
+            assert.isBelow(
+                projectedY,
+                maxProjectedY * 1.05,
+                "Vee row should project within vertical FOV (this was the original bug)",
+            );
         });
     });
 });

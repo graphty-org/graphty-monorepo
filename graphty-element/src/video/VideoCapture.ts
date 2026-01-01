@@ -1,11 +1,11 @@
-import type {CameraState} from "../screenshot/types.js";
+import type { CameraState } from "../screenshot/types.js";
 
 // Re-export AnimationCancelledError for consumers
-export {AnimationCancelledError} from "./MediaRecorderCapture.js";
+export { AnimationCancelledError } from "./MediaRecorderCapture.js";
 
 export interface CameraWaypoint {
-    position: {x: number, y: number, z: number};
-    target: {x: number, y: number, z: number};
+    position: { x: number; y: number; z: number };
+    target: { x: number; y: number; z: number };
     /** Time to reach this waypoint from the previous one (ms) */
     duration?: number;
 }
@@ -49,7 +49,7 @@ export interface AnimationOptions {
     /** Camera behavior during capture: 'stationary' or 'animated' */
     cameraMode: "stationary" | "animated";
     /** Camera position/state or preset name for stationary mode */
-    camera?: CameraState | {preset: string};
+    camera?: CameraState | { preset: string };
     /** Waypoints for camera animation path (animated mode) */
     cameraPath?: CameraWaypoint[];
     /** Easing function for camera animations (default: 'easeInOut') */

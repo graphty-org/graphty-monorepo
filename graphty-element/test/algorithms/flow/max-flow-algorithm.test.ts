@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/no-deprecated */
-import {assert, describe, it} from "vitest";
+ 
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {MaxFlowAlgorithm} from "../../../src/algorithms/MaxFlowAlgorithm";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
 
 describe("MaxFlowAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -41,7 +41,7 @@ describe("MaxFlowAlgorithm", () => {
             assert.ok(edgeLayer.edge.calculatedStyle);
 
             // Check calculatedStyle uses flow percentage
-            const {calculatedStyle} = edgeLayer.edge;
+            const { calculatedStyle } = edgeLayer.edge;
             assert.ok(calculatedStyle.inputs);
             assert.ok(calculatedStyle.inputs.some((input) => input.includes("max-flow")));
             assert.ok(calculatedStyle.output);
@@ -91,7 +91,7 @@ describe("MaxFlowAlgorithm", () => {
             const edgeLayer = styles.layers.find((l) => l.edge?.calculatedStyle);
             assert.ok(edgeLayer?.edge?.calculatedStyle);
 
-            const {inputs} = edgeLayer.edge.calculatedStyle;
+            const { inputs } = edgeLayer.edge.calculatedStyle;
             assert.ok(inputs);
 
             // Should reference algorithmResults.graphty.max-flow

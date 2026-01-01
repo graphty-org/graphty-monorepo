@@ -1,16 +1,10 @@
-import type {Vector2} from "@babylonjs/core/Maths/math.vector";
-import {Observable} from "@babylonjs/core/Misc/observable";
+import type { Vector2 } from "@babylonjs/core/Maths/math.vector";
+import { Observable } from "@babylonjs/core/Misc/observable";
 
-import {BabylonInputSystem} from "../input/babylon-input-system";
-import {MockDeviceInputSystem} from "../input/mock-device-input-system";
-import type {
-    KeyboardInfo,
-    MouseButton,
-    PointerInfo,
-    TouchPoint,
-    WheelInfo,
-} from "../input/types";
-import type {Manager, ManagerContext} from "./interfaces";
+import { BabylonInputSystem } from "../input/babylon-input-system";
+import { MockDeviceInputSystem } from "../input/mock-device-input-system";
+import type { KeyboardInfo, MouseButton, PointerInfo, TouchPoint, WheelInfo } from "../input/types";
+import type { Manager, ManagerContext } from "./interfaces";
 
 /**
  * Recorded input event structure
@@ -84,9 +78,9 @@ export class InputManager implements Manager {
         private config: InputManagerConfig = {},
     ) {
         // Create appropriate input system based on config
-        this.inputSystem = this.config.useMockInput ?
-            new MockDeviceInputSystem() :
-            new BabylonInputSystem(this.context.scene);
+        this.inputSystem = this.config.useMockInput
+            ? new MockDeviceInputSystem()
+            : new BabylonInputSystem(this.context.scene);
 
         // Expose observables from the input system
         this.onPointerMove = this.inputSystem.onPointerMove;
@@ -123,12 +117,7 @@ export class InputManager implements Manager {
             });
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
-            this.context.eventManager.emitGraphError(
-                null,
-                err,
-                "init",
-                {component: "InputManager"},
-            );
+            this.context.eventManager.emitGraphError(null, err, "init", { component: "InputManager" });
             throw new Error(`Failed to initialize InputManager: ${err.message}`);
         }
     }
@@ -163,7 +152,7 @@ export class InputManager implements Manager {
             this.inputSystem.attach(this.context.canvas as HTMLElement);
         }
 
-        this.context.eventManager.emitGraphEvent("input-enabled-changed", {enabled});
+        this.context.eventManager.emitGraphEvent("input-enabled-changed", { enabled });
     }
 
     /**
@@ -222,7 +211,7 @@ export class InputManager implements Manager {
         this.context.eventManager.emitGraphEvent("input-recording-stopped", {
             eventCount: this.recordedEvents.length,
         });
-        return [... this.recordedEvents];
+        return [...this.recordedEvents];
     }
 
     /**
@@ -259,11 +248,7 @@ export class InputManager implements Manager {
      */
     private setupEventBridges(): void {
         // Only bridge events if enabled
-        const createBridge = <T>(
-            observable: Observable<T>,
-            eventName: string,
-            shouldRecord = true,
-        ): void => {
+        const createBridge = <T>(observable: Observable<T>, eventName: string, shouldRecord = true): void => {
             observable.add((data) => {
                 if (!this.enabled) {
                     return;
@@ -320,14 +305,20 @@ export class InputManager implements Manager {
      */
     private serializeEventData(data: unknown): Record<string, unknown> {
         // Handle Vector2 objects
-        if (data && typeof data === "object" && "x" in data && "y" in data &&
-            typeof data.x === "number" && typeof data.y === "number") {
-            return {x: data.x, y: data.y};
+        if (
+            data &&
+            typeof data === "object" &&
+            "x" in data &&
+            "y" in data &&
+            typeof data.x === "number" &&
+            typeof data.y === "number"
+        ) {
+            return { x: data.x, y: data.y };
         }
 
         // Handle arrays
         if (Array.isArray(data)) {
-            return {array: data.map((item) => this.serializeEventData(item))};
+            return { array: data.map((item) => this.serializeEventData(item)) };
         }
 
         // Handle objects
@@ -342,7 +333,7 @@ export class InputManager implements Manager {
         }
 
         // Primitives - wrap in object
-        return {value: data};
+        return { value: data };
     }
 
     /**

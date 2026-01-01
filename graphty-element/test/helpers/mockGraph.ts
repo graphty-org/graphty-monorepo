@@ -8,7 +8,7 @@
  * The return type is Graph to satisfy algorithm constructors, but internally it's
  * a simplified mock object.
  */
-import type {Graph} from "../../src/Graph";
+import type { Graph } from "../../src/Graph";
 
 /**
  * Options for creating a mock graph
@@ -123,7 +123,7 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
 
     // Import nodes and edges from data file
     if (typeof opts.dataPath === "string") {
-        const imp = await import(opts.dataPath) as {
+        const imp = (await import(opts.dataPath)) as {
             nodes: NodeData[];
             edges: EdgeData[];
         };
@@ -168,10 +168,10 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
  * @param resultKey - The specific result key
  * @returns The result value (any type, may be undefined)
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export function getGraphResult(graph: Graph, namespace: string, algorithm: string, resultKey: string): any {
     // Access the mock's internal graphResults through getDataManager()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const dm = graph.getDataManager() as any;
     return dm.graphResults?.[namespace]?.[algorithm]?.[resultKey];
 }
@@ -183,9 +183,9 @@ export function getGraphResult(graph: Graph, namespace: string, algorithm: strin
  * @param nodeId - The node ID to look up
  * @returns The node object with algorithmResults (any type)
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export function getMockNode(graph: Graph, nodeId: string | number): any {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const dm = graph.getDataManager() as any;
     return dm.nodes.get(nodeId);
 }
@@ -200,8 +200,14 @@ export function getMockNode(graph: Graph, nodeId: string | number): any {
  * @param resultKey - Result key
  * @returns The result value (any type, may be undefined)
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function getNodeResult(graph: Graph, nodeId: string | number, namespace: string, algorithm: string, resultKey: string): any {
+ 
+export function getNodeResult(
+    graph: Graph,
+    nodeId: string | number,
+    namespace: string,
+    algorithm: string,
+    resultKey: string,
+): any {
     const node = getMockNode(graph, nodeId);
     return node?.algorithmResults?.[namespace]?.[algorithm]?.[resultKey];
 }
@@ -217,9 +223,16 @@ export function getNodeResult(graph: Graph, nodeId: string | number, namespace: 
  * @param resultKey - Result key
  * @returns The result value (any type, may be undefined)
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function getEdgeResult(graph: Graph, srcId: string | number, dstId: string | number, namespace: string, algorithm: string, resultKey: string): any {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
+export function getEdgeResult(
+    graph: Graph,
+    srcId: string | number,
+    dstId: string | number,
+    namespace: string,
+    algorithm: string,
+    resultKey: string,
+): any {
+     
     const dm = graph.getDataManager() as any;
     const edge = dm.edges.get(`${srcId}:${dstId}`);
     return edge?.algorithmResults?.[namespace]?.[algorithm]?.[resultKey];

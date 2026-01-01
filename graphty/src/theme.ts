@@ -50,7 +50,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}, wrapper: {}};
+                return { root: {}, wrapper: {} };
             },
             styles: (_theme, props) => {
                 if (props.size === "compact") {
@@ -88,7 +88,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}, wrapper: {}, controls: {}};
+                return { root: {}, wrapper: {}, controls: {} };
             },
             styles: (_theme, props) => {
                 if (props.size === "compact") {
@@ -125,7 +125,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}, wrapper: {}};
+                return { root: {}, wrapper: {} };
             },
             styles: (_theme, props) => {
                 if (props.size === "compact") {
@@ -159,7 +159,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}};
+                return { root: {} };
             },
         }),
 
@@ -173,7 +173,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}};
+                return { root: {} };
             },
             styles: (_theme, props) => {
                 if (props.size === "compact") {
@@ -202,7 +202,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}};
+                return { root: {} };
             },
             styles: (_theme, props) => {
                 if (props.size === "compact") {
@@ -228,7 +228,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}};
+                return { root: {} };
             },
         }),
 
@@ -244,7 +244,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}};
+                return { root: {} };
             },
         }),
 
@@ -258,7 +258,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}};
+                return { root: {} };
             },
         }),
 
@@ -278,7 +278,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}, wrapper: {}};
+                return { root: {}, wrapper: {} };
             },
             styles: (_theme, props) => {
                 if (props.size === "compact") {
@@ -314,7 +314,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}, wrapper: {}};
+                return { root: {}, wrapper: {} };
             },
             styles: (_theme, props) => {
                 if (props.size === "compact") {
@@ -351,7 +351,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}, wrapper: {}};
+                return { root: {}, wrapper: {} };
             },
             styles: (_theme, props) => {
                 if (props.size === "compact") {
@@ -393,7 +393,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}, wrapper: {}};
+                return { root: {}, wrapper: {} };
             },
             styles: (_theme, props) => {
                 if (props.size === "compact") {
@@ -433,7 +433,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}, wrapper: {}, eyeDropperIcon: {}, eyeDropperButton: {}, colorPreview: {}};
+                return { root: {}, wrapper: {}, eyeDropperIcon: {}, eyeDropperButton: {}, colorPreview: {} };
             },
             styles: (_theme, props) => {
                 if (props.size === "compact") {
@@ -467,7 +467,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}};
+                return { root: {} };
             },
             styles: (_theme, props) => {
                 if (props.size === "compact") {
@@ -494,7 +494,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}};
+                return { root: {} };
             },
         }),
 
@@ -509,7 +509,7 @@ export const theme = createTheme({
                     };
                 }
 
-                return {root: {}};
+                return { root: {} };
             },
         }),
     },

@@ -1,7 +1,7 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {calculateMCLModularity, markovClustering} from "../../src/clustering/mcl.js";
-import {Graph} from "../../src/core/graph.js";
+import { calculateMCLModularity, markovClustering } from "../../src/clustering/mcl.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Markov Clustering (MCL)", () => {
     describe("markovClustering", () => {
@@ -70,8 +70,8 @@ describe("Markov Clustering (MCL)", () => {
             graph.addEdge("b", "c");
             graph.addEdge("c", "a");
 
-            const result1 = markovClustering(graph, {expansion: 2});
-            const result2 = markovClustering(graph, {expansion: 3});
+            const result1 = markovClustering(graph, { expansion: 2 });
+            const result2 = markovClustering(graph, { expansion: 3 });
 
             expect(result1.communities.length).toBeGreaterThan(0);
             expect(result2.communities.length).toBeGreaterThan(0);
@@ -84,8 +84,8 @@ describe("Markov Clustering (MCL)", () => {
             graph.addEdge("b", "c");
             graph.addEdge("c", "d");
 
-            const lowInflation = markovClustering(graph, {inflation: 1.5});
-            const highInflation = markovClustering(graph, {inflation: 3.0});
+            const lowInflation = markovClustering(graph, { inflation: 1.5 });
+            const highInflation = markovClustering(graph, { inflation: 3.0 });
 
             expect(lowInflation.communities.length).toBeGreaterThan(0);
             expect(highInflation.communities.length).toBeGreaterThan(0);
@@ -100,7 +100,7 @@ describe("Markov Clustering (MCL)", () => {
             graph.addEdge("b", "c");
             graph.addEdge("c", "a");
 
-            const result = markovClustering(graph, {maxIterations: 5});
+            const result = markovClustering(graph, { maxIterations: 5 });
 
             expect(result.iterations).toBeLessThanOrEqual(5);
             expect(result.communities.length).toBeGreaterThan(0);
@@ -111,7 +111,7 @@ describe("Markov Clustering (MCL)", () => {
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const result = markovClustering(graph, {tolerance: 1e-3, maxIterations: 100});
+            const result = markovClustering(graph, { tolerance: 1e-3, maxIterations: 100 });
 
             expect(result.converged).toBeDefined();
             expect(result.iterations).toBeGreaterThan(0);
@@ -122,8 +122,8 @@ describe("Markov Clustering (MCL)", () => {
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const withSelfLoops = markovClustering(graph, {selfLoops: true});
-            const withoutSelfLoops = markovClustering(graph, {selfLoops: false});
+            const withSelfLoops = markovClustering(graph, { selfLoops: true });
+            const withoutSelfLoops = markovClustering(graph, { selfLoops: false });
 
             expect(withSelfLoops.communities.length).toBeGreaterThan(0);
             expect(withoutSelfLoops.communities.length).toBeGreaterThan(0);
@@ -135,7 +135,7 @@ describe("Markov Clustering (MCL)", () => {
             graph.addEdge("b", "c");
             graph.addEdge("c", "d");
 
-            const result = markovClustering(graph, {pruningThreshold: 1e-3});
+            const result = markovClustering(graph, { pruningThreshold: 1e-3 });
 
             expect(result.communities.length).toBeGreaterThan(0);
         });
@@ -218,17 +218,17 @@ describe("Markov Clustering (MCL)", () => {
         });
 
         it("should handle self-loops", () => {
-            const graph = new Graph({allowSelfLoops: true});
+            const graph = new Graph({ allowSelfLoops: true });
             graph.addEdge("a", "a");
             graph.addEdge("a", "b");
 
-            const result = markovClustering(graph, {selfLoops: true});
+            const result = markovClustering(graph, { selfLoops: true });
 
             expect(result.communities.length).toBeGreaterThan(0);
         });
 
         it("should handle directed graphs", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
             graph.addEdge("c", "a");
@@ -292,7 +292,10 @@ describe("Markov Clustering (MCL)", () => {
             graph.addEdge("a", "b");
             graph.addEdge("c", "d");
 
-            const modularity = calculateMCLModularity(graph, [["a", "b"], ["c", "d"]]);
+            const modularity = calculateMCLModularity(graph, [
+                ["a", "b"],
+                ["c", "d"],
+            ]);
 
             expect(modularity).toBeGreaterThan(0); // Good separation should have positive modularity
         });
@@ -314,7 +317,7 @@ describe("Markov Clustering (MCL)", () => {
             // Weak connection between clusters
             graph.addEdge("a1", "b1");
 
-            const result = markovClustering(graph, {inflation: 2.0});
+            const result = markovClustering(graph, { inflation: 2.0 });
 
             expect(result.communities.length).toBeGreaterThanOrEqual(2);
 
@@ -367,7 +370,7 @@ describe("Markov Clustering (MCL)", () => {
             graph.addEdge("b", "c");
             graph.addEdge("c", "a");
 
-            const options = {inflation: 2.0, expansion: 2, maxIterations: 50};
+            const options = { inflation: 2.0, expansion: 2, maxIterations: 50 };
             const result1 = markovClustering(graph, options);
             const result2 = markovClustering(graph, options);
 
@@ -384,7 +387,7 @@ describe("Markov Clustering (MCL)", () => {
                 }
             }
 
-            const result = markovClustering(graph, {maxIterations: 100});
+            const result = markovClustering(graph, { maxIterations: 100 });
 
             expect(result.iterations).toBeLessThan(100); // Should converge before max
             expect(result.converged).toBe(true);
@@ -403,7 +406,7 @@ describe("Markov Clustering (MCL)", () => {
             }
 
             const start = Date.now();
-            const result = markovClustering(graph, {maxIterations: 50});
+            const result = markovClustering(graph, { maxIterations: 50 });
             const duration = Date.now() - start;
 
             expect(duration).toBeLessThan(10000); // Should complete within 10 seconds

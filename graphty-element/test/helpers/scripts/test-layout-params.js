@@ -1,9 +1,9 @@
-import {chromium} from "playwright";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 
 async function main() {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
     console.log("Testing NGraph layout with proper parameters...\n");
@@ -12,7 +12,7 @@ async function main() {
     await page.goto(`${STORYBOOK_URL}/iframe.html?id=layout-3d--ngraph&viewMode=story`);
 
     // Wait for graphty-element
-    await page.waitForSelector("graphty-element", {timeout: 10000});
+    await page.waitForSelector("graphty-element", { timeout: 10000 });
 
     // Give it time to initialize
     await page.waitForTimeout(2000);

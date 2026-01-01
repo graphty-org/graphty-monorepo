@@ -1,13 +1,13 @@
-import {createHash} from "crypto";
-import {existsSync} from "fs";
-import {mkdir} from "fs/promises";
-import {chromium} from "playwright";
+import { createHash } from "crypto";
+import { existsSync } from "fs";
+import { mkdir } from "fs/promises";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 
 async function ensureDir(dir) {
     if (!existsSync(dir)) {
-        await mkdir(dir, {recursive: true});
+        await mkdir(dir, { recursive: true });
     }
 }
 
@@ -34,7 +34,7 @@ async function captureStoryScreenshot(page, storyId, outputPath) {
     await page.goto(`${STORYBOOK_URL}/iframe.html?id=${storyId}&viewMode=story`);
 
     // Wait for graphty-element to exist
-    await page.waitForSelector("graphty-element", {timeout: 10000});
+    await page.waitForSelector("graphty-element", { timeout: 10000 });
 
     // Wait for graph-settled event
     const settled = await page.evaluate(() => {
@@ -48,10 +48,11 @@ async function captureStoryScreenshot(page, storyId, outputPath) {
             let settledCount = 0;
             const checkSettled = () => {
                 if (graphty.graph?.layoutManager?.layoutEngine) {
-                    const {isSettled} = graphty.graph.layoutManager.layoutEngine;
+                    const { isSettled } = graphty.graph.layoutManager.layoutEngine;
                     if (isSettled) {
                         settledCount++;
-                        if (settledCount >= 5) { // Wait for 5 consecutive settled checks
+                        if (settledCount >= 5) {
+                            // Wait for 5 consecutive settled checks
                             console.log("Graph is settled");
                             setTimeout(() => {
                                 resolve(true);
@@ -84,14 +85,18 @@ async function captureStoryScreenshot(page, storyId, outputPath) {
                 resolve(false);
             }, 30000);
 
-            graphty.addEventListener("graph-settled", () => {
-                clearTimeout(timeout);
-                clearInterval(interval);
-                console.log("Graph settled event received!");
-                setTimeout(() => {
-                    resolve(true);
-                }, 2000); // Extra wait for rendering
-            }, {once: true});
+            graphty.addEventListener(
+                "graph-settled",
+                () => {
+                    clearTimeout(timeout);
+                    clearInterval(interval);
+                    console.log("Graph settled event received!");
+                    setTimeout(() => {
+                        resolve(true);
+                    }, 2000); // Extra wait for rendering
+                },
+                { once: true },
+            );
         });
     });
 
@@ -99,11 +104,11 @@ async function captureStoryScreenshot(page, storyId, outputPath) {
         console.log("  Warning: Graph may not have settled properly");
     }
 
-    await page.locator("graphty-element").screenshot({path: outputPath});
+    await page.locator("graphty-element").screenshot({ path: outputPath });
 }
 
 async function main() {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
     await ensureDir("test/screenshots");
@@ -118,9 +123,8 @@ async function main() {
     };
 
     // Focus on stories with animated layouts
-    const animatedLayoutStories = stories.filter((story) =>
-        story.id === "layout-3d--ngraph" ||
-    story.id === "layout-3d--d-3",
+    const animatedLayoutStories = stories.filter(
+        (story) => story.id === "layout-3d--ngraph" || story.id === "layout-3d--d-3",
     );
 
     console.log(`Testing ${animatedLayoutStories.length} stories with potentially animated layouts\n`);
@@ -139,7 +143,7 @@ async function main() {
                 await captureStoryScreenshot(page, story.id, filename);
 
                 // Calculate hash of the image
-                const {readFileSync} = await import("fs");
+                const { readFileSync } = await import("fs");
                 const buffer = readFileSync(filename);
                 const hash = createHash("sha256").update(buffer).digest("hex");
                 hashes.push(hash);
@@ -161,7 +165,7 @@ async function main() {
             }
         } catch (error) {
             console.error(`  ❌ Error: ${error.message}`);
-            results.errors.push({story: story.id, error: error.message});
+            results.errors.push({ story: story.id, error: error.message });
         }
 
         console.log("");
@@ -182,7 +186,7 @@ async function main() {
 
     if (results.errors.length > 0) {
         console.log("\nErrors:");
-        results.errors.forEach(({story, error}) => {
+        results.errors.forEach(({ story, error }) => {
             console.log(`  - ${story}: ${error}`);
         });
     }

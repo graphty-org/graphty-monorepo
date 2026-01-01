@@ -7,30 +7,30 @@ import "@babylonjs/core/Meshes/instancedMesh";
 // IMPORTANT: Import the Graphty class to ensure the @customElement decorator runs
 // and registers the <graphty-element> custom element. A bare import like
 // `import "@graphty/graphty-element"` gets tree-shaken away because nothing uses the exports.
-import {Graphty} from "@graphty/graphty-element";
+import { Graphty } from "@graphty/graphty-element";
 
 // Force Graphty class to be retained (prevents tree-shaking of the custom element registration)
 if (typeof Graphty === "undefined") {
     throw new Error("Graphty class failed to load");
 }
 
-import {MantineProvider} from "@mantine/core";
+import { MantineProvider } from "@mantine/core";
 import React from "react";
 import ReactDOM from "react-dom/client";
 
-import {App} from "./App.tsx";
-import {initSentry} from "./lib/sentry";
-import {theme} from "./theme";
+import { App } from "./App.tsx";
+import { initSentry } from "./lib/sentry";
+import { theme } from "./theme";
 
 // Re-export theme for tests and other modules
-export {theme} from "./theme";
+export { theme } from "./theme";
 
 // Initialize Sentry before React render
 initSentry();
 
 // Initialize Eruda for development/testing (mobile console)
 if (import.meta.env.DEV) {
-    void import("eruda").then(({default: eruda}) => {
+    void import("eruda").then(({ default: eruda }) => {
         eruda.init();
     });
 }

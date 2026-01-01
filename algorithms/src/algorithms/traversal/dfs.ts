@@ -1,5 +1,5 @@
-import {Graph} from "../../core/graph.js";
-import type {NodeId, TraversalOptions, TraversalResult} from "../../types/index.js";
+import { Graph } from "../../core/graph.js";
+import type { NodeId, TraversalOptions, TraversalResult } from "../../types/index.js";
 
 /**
  * Depth-First Search (DFS) implementation
@@ -18,12 +18,12 @@ export interface DFSOptions extends TraversalOptions {
 
 /**
  * Perform depth-first search starting from a given node
+ * @param graph - The input graph to traverse
+ * @param startNode - The node to start the DFS from
+ * @param options - DFS options (recursive mode, pre/post order, etc.)
+ * @returns Traversal result with visited nodes, order, and tree structure
  */
-export function depthFirstSearch(
-    graph: Graph,
-    startNode: NodeId,
-    options: DFSOptions = {},
-): TraversalResult {
+export function depthFirstSearch(graph: Graph, startNode: NodeId, options: DFSOptions = {}): TraversalResult {
     if (!graph.hasNode(startNode)) {
         throw new Error(`Start node ${String(startNode)} not found in graph`);
     }
@@ -38,11 +38,17 @@ export function depthFirstSearch(
         dfsIterative(graph, startNode, visited, order, tree, options);
     }
 
-    return {visited, order, tree};
+    return { visited, order, tree };
 }
 
 /**
  * Iterative DFS implementation (safer for browsers)
+ * @param graph - The input graph to traverse
+ * @param startNode - The node to start the DFS from
+ * @param visited - Set to track visited nodes
+ * @param order - Array to store traversal order
+ * @param tree - Map to store parent relationships
+ * @param options - DFS options (recursive mode, pre/post order, etc.)
  */
 function dfsIterative(
     graph: Graph,
@@ -58,8 +64,8 @@ function dfsIterative(
         return;
     }
 
-    const stack: {node: NodeId, parent: NodeId | null, depth: number}[] = [];
-    stack.push({node: startNode, parent: null, depth: 0});
+    const stack: { node: NodeId; parent: NodeId | null; depth: number }[] = [];
+    stack.push({ node: startNode, parent: null, depth: 0 });
 
     while (stack.length > 0) {
         const current = stack.pop();
@@ -89,7 +95,7 @@ function dfsIterative(
             for (let i = neighbors.length - 1; i >= 0; i--) {
                 const neighbor = neighbors[i];
                 if (neighbor !== undefined && !visited.has(neighbor)) {
-                    stack.push({node: neighbor, parent: current.node, depth: current.depth + 1});
+                    stack.push({ node: neighbor, parent: current.node, depth: current.depth + 1 });
                 }
             }
         }
@@ -98,6 +104,14 @@ function dfsIterative(
 
 /**
  * Recursive DFS implementation
+ * @param graph - The input graph to traverse
+ * @param node - Current node being visited
+ * @param visited - Set to track visited nodes
+ * @param order - Array to store traversal order
+ * @param tree - Map to store parent relationships
+ * @param options - DFS options (recursive mode, pre/post order, etc.)
+ * @param depth - Current depth in the traversal tree
+ * @param parent - Parent node of the current node
  */
 function dfsRecursive(
     graph: Graph,
@@ -145,6 +159,8 @@ function dfsRecursive(
 
 /**
  * Detect cycles in a graph using DFS
+ * @param graph - The input graph to check for cycles
+ * @returns True if the graph contains a cycle, false otherwise
  */
 export function hasCycleDFS(graph: Graph): boolean {
     const visited = new Set<NodeId>();
@@ -170,13 +186,13 @@ export function hasCycleDFS(graph: Graph): boolean {
 
 /**
  * Utility function for cycle detection in directed graphs
+ * @param graph - The directed graph to check
+ * @param node - Current node being visited
+ * @param visited - Set of all visited nodes
+ * @param recursionStack - Set of nodes in the current recursion path
+ * @returns True if a cycle is found, false otherwise
  */
-function hasCycleUtilDirected(
-    graph: Graph,
-    node: NodeId,
-    visited: Set<NodeId>,
-    recursionStack: Set<NodeId>,
-): boolean {
+function hasCycleUtilDirected(graph: Graph, node: NodeId, visited: Set<NodeId>, recursionStack: Set<NodeId>): boolean {
     visited.add(node);
     recursionStack.add(node);
 
@@ -198,13 +214,13 @@ function hasCycleUtilDirected(
 
 /**
  * Utility function for cycle detection in undirected graphs
+ * @param graph - The undirected graph to check
+ * @param node - Current node being visited
+ * @param visited - Set of all visited nodes
+ * @param parent - Parent node of the current node
+ * @returns True if a cycle is found, false otherwise
  */
-function hasCycleUtilUndirected(
-    graph: Graph,
-    node: NodeId,
-    visited: Set<NodeId>,
-    parent: NodeId | null,
-): boolean {
+function hasCycleUtilUndirected(graph: Graph, node: NodeId, visited: Set<NodeId>, parent: NodeId | null): boolean {
     visited.add(node);
 
     // Check all neighbors
@@ -224,6 +240,8 @@ function hasCycleUtilUndirected(
 
 /**
  * Topological sorting using DFS (for directed acyclic graphs)
+ * @param graph - The directed acyclic graph to sort
+ * @returns Array of node IDs in topological order, or null if graph has cycles
  */
 export function topologicalSort(graph: Graph): NodeId[] | null {
     if (!graph.isDirected) {
@@ -251,13 +269,12 @@ export function topologicalSort(graph: Graph): NodeId[] | null {
 
 /**
  * Utility function for topological sorting
+ * @param graph - The directed graph being sorted
+ * @param node - Current node being visited
+ * @param visited - Set of visited nodes
+ * @param stack - Stack to store nodes in reverse topological order
  */
-function topologicalSortUtil(
-    graph: Graph,
-    node: NodeId,
-    visited: Set<NodeId>,
-    stack: NodeId[],
-): void {
+function topologicalSortUtil(graph: Graph, node: NodeId, visited: Set<NodeId>, stack: NodeId[]): void {
     visited.add(node);
 
     // Visit all neighbors first
@@ -273,6 +290,8 @@ function topologicalSortUtil(
 
 /**
  * Find strongly connected components using DFS (for directed graphs)
+ * @param graph - The directed graph to analyze
+ * @returns Array of strongly connected components (each is an array of node IDs)
  */
 export function findStronglyConnectedComponents(graph: Graph): NodeId[][] {
     if (!graph.isDirected) {
@@ -310,13 +329,12 @@ export function findStronglyConnectedComponents(graph: Graph): NodeId[][] {
 
 /**
  * DFS to record finish order
+ * @param graph - The graph being traversed
+ * @param node - Current node being visited
+ * @param visited - Set of visited nodes
+ * @param finishOrder - Array to store nodes in order of completion
  */
-function dfsFinishOrder(
-    graph: Graph,
-    node: NodeId,
-    visited: Set<NodeId>,
-    finishOrder: NodeId[],
-): void {
+function dfsFinishOrder(graph: Graph, node: NodeId, visited: Set<NodeId>, finishOrder: NodeId[]): void {
     visited.add(node);
 
     for (const neighbor of Array.from(graph.neighbors(node))) {
@@ -330,13 +348,12 @@ function dfsFinishOrder(
 
 /**
  * DFS to collect nodes in a component
+ * @param graph - The graph being traversed
+ * @param node - Current node being visited
+ * @param visited - Set of visited nodes
+ * @param component - Array to collect nodes in the current component
  */
-function dfsCollectComponent(
-    graph: Graph,
-    node: NodeId,
-    visited: Set<NodeId>,
-    component: NodeId[],
-): void {
+function dfsCollectComponent(graph: Graph, node: NodeId, visited: Set<NodeId>, component: NodeId[]): void {
     visited.add(node);
     component.push(node);
 
@@ -349,9 +366,11 @@ function dfsCollectComponent(
 
 /**
  * Create transpose (reverse) of a directed graph
+ * @param graph - The directed graph to transpose
+ * @returns A new graph with all edges reversed
  */
 function createTransposeGraph(graph: Graph): Graph {
-    const transpose = new Graph({directed: true});
+    const transpose = new Graph({ directed: true });
 
     // Add all nodes
     for (const node of Array.from(graph.nodes())) {

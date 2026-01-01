@@ -2,9 +2,9 @@
  * Simple Test to Validate Phase 1 Implementation
  */
 
-import {describe, expect, test} from "vitest";
+import { describe, expect, test } from "vitest";
 
-import {TrackingMockMaterial, TrackingMockMesh, TrackingMockTexture} from "./tracking-mocks";
+import { TrackingMockMaterial, TrackingMockMesh, TrackingMockTexture } from "./tracking-mocks";
 
 describe("Phase 1 Validation Tests", () => {
     test("TrackingMockMesh - Basic functionality", () => {

@@ -1,4 +1,4 @@
-import type {OperationCategory} from "../managers/OperationQueueManager";
+import type { OperationCategory } from "../managers/OperationQueueManager";
 
 export interface ObsolescenceRule {
     /**

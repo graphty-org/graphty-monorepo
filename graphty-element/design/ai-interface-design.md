@@ -12,29 +12,29 @@
 
 ### Functional Requirements
 
-| Requirement | Priority | Notes |
-|-------------|----------|-------|
-| Multi-LLM support (OpenAI, Anthropic, Gemini, in-browser) | Must | Use provider abstraction library |
-| Text input | Must | Primary input method |
-| Voice input | Must | Essential for WebXR |
-| Secure API key management | Must | User-provided keys (BYOK pattern) |
-| Style group operations | Must | "Find nodes with X, make them red" |
-| Layout/algorithm control | Must | Switch layouts, run algorithms |
-| Camera control | Must | Navigate, zoom, preset cameras |
-| Mode switching (2D/3D/VR/AR) | Must | Dimension and immersion modes |
-| Screenshot/video capture | Must | Media export commands |
-| Extensible command framework | Must | Support future features |
-| UI status for wrapper frameworks | Must | Loading states, progress indicators |
+| Requirement                                               | Priority | Notes                               |
+| --------------------------------------------------------- | -------- | ----------------------------------- |
+| Multi-LLM support (OpenAI, Anthropic, Gemini, in-browser) | Must     | Use provider abstraction library    |
+| Text input                                                | Must     | Primary input method                |
+| Voice input                                               | Must     | Essential for WebXR                 |
+| Secure API key management                                 | Must     | User-provided keys (BYOK pattern)   |
+| Style group operations                                    | Must     | "Find nodes with X, make them red"  |
+| Layout/algorithm control                                  | Must     | Switch layouts, run algorithms      |
+| Camera control                                            | Must     | Navigate, zoom, preset cameras      |
+| Mode switching (2D/3D/VR/AR)                              | Must     | Dimension and immersion modes       |
+| Screenshot/video capture                                  | Must     | Media export commands               |
+| Extensible command framework                              | Must     | Support future features             |
+| UI status for wrapper frameworks                          | Must     | Loading states, progress indicators |
 
 ### Non-Functional Requirements
 
-| Requirement | Priority | Notes |
-|-------------|----------|-------|
-| Streaming responses | Must | Reduce perceived latency |
-| Command cancellation | Must | User can abort mid-execution |
-| Error recovery with retry | Should | Graceful failure handling |
-| Offline capability (WebLLM) | Should | In-browser LLM after model download |
-| < 100ms UI response | Should | Throttled updates for smooth UX |
+| Requirement                 | Priority | Notes                               |
+| --------------------------- | -------- | ----------------------------------- |
+| Streaming responses         | Must     | Reduce perceived latency            |
+| Command cancellation        | Must     | User can abort mid-execution        |
+| Error recovery with retry   | Should   | Graceful failure handling           |
+| Offline capability (WebLLM) | Should   | In-browser LLM after model download |
+| < 100ms UI response         | Should   | Throttled updates for smooth UX     |
 
 ---
 
@@ -47,27 +47,29 @@ Before designing the AI interface, we thoroughly explored the existing graphty-e
 #### Key Findings
 
 **1. Core Architecture Pattern**
+
 - `graphty-element.ts` is a thin Lit Web Component wrapper
 - `Graph.ts` is the central orchestrator implementing `GraphContext` interface
 - All logic belongs in Graph.ts, not the web component
 
 **2. Manager System (10+ Specialized Managers)**
 
-| Manager | Purpose | AI Integration Point |
-|---------|---------|---------------------|
-| `EventManager` | Pub/sub via Babylon.js Observables | Emit AI events |
-| `OperationQueueManager` | Sequential ops with dependencies | Queue AI commands |
-| `StyleManager` + `Styles` | JMESPath selectors, layer composition | Apply AI-generated styles |
-| `LayoutManager` | Layout engine lifecycle | Switch layouts via AI |
-| `DataManager` | Node/edge CRUD | Query graph state for context |
-| `AlgorithmManager` | Execute registered algorithms | Run algorithms via AI |
-| `CameraManager` | Camera types and input | Control camera via AI |
-| `RenderManager` | Babylon.js engine/scene/camera | N/A (internal) |
-| `UpdateManager` | Render loop, layout stepping | N/A (internal) |
-| `StatsManager` | Performance profiling | N/A (internal) |
-| `InputManager` | Mouse/touch/keyboard | Voice input adapter |
+| Manager                   | Purpose                               | AI Integration Point          |
+| ------------------------- | ------------------------------------- | ----------------------------- |
+| `EventManager`            | Pub/sub via Babylon.js Observables    | Emit AI events                |
+| `OperationQueueManager`   | Sequential ops with dependencies      | Queue AI commands             |
+| `StyleManager` + `Styles` | JMESPath selectors, layer composition | Apply AI-generated styles     |
+| `LayoutManager`           | Layout engine lifecycle               | Switch layouts via AI         |
+| `DataManager`             | Node/edge CRUD                        | Query graph state for context |
+| `AlgorithmManager`        | Execute registered algorithms         | Run algorithms via AI         |
+| `CameraManager`           | Camera types and input                | Control camera via AI         |
+| `RenderManager`           | Babylon.js engine/scene/camera        | N/A (internal)                |
+| `UpdateManager`           | Render loop, layout stepping          | N/A (internal)                |
+| `StatsManager`            | Performance profiling                 | N/A (internal)                |
+| `InputManager`            | Mouse/touch/keyboard                  | Voice input adapter           |
 
 **3. Registry Patterns**
+
 - `LayoutEngine.register(class)` / `LayoutEngine.get(type, options)`
 - `Algorithm.register(class)` / `Algorithm.get(graph, namespace, type)`
 - `DataSource.register(class)` / `DataSource.get(type, options)`
@@ -75,6 +77,7 @@ Before designing the AI interface, we thoroughly explored the existing graphty-e
 This pattern will be replicated for AI commands: `CommandRegistry.register(command)`
 
 **4. Operation Queue System**
+
 - Operations have categories with dependency ordering
 - Supports batch mode via `graph.batchOperations(async () => { ... })`
 - AbortSignal support for cancellation
@@ -83,11 +86,13 @@ This pattern will be replicated for AI commands: `CommandRegistry.register(comma
 **Decision**: AI commands will execute through the existing operation queue, ensuring proper sequencing with other graph operations.
 
 **5. Style System (JMESPath-Based)**
+
 - Selectors use JMESPath expressions against node/edge data
 - Layer composition (last match wins)
 - Calculated styles from algorithm results
 
 Example selectors:
+
 - `""` - matches all
 - `"data.type == 'user'"` - match by data property
 - `"algorithmResults.graphty.degree > 5"` - match by algorithm result
@@ -95,16 +100,19 @@ Example selectors:
 **Decision**: LLM will generate JMESPath selectors. System prompt will include selector syntax documentation.
 
 **6. Camera Control**
+
 - Dual camera support: 3D (orbit) and 2D (orthographic)
 - State-based API: `getCameraState()`, `setCameraState(state, options)`
 - Presets: built-in + user-defined
 - Animation support with easing
 
 **7. Capture Capabilities**
+
 - Screenshots: `graph.captureScreenshot({ format, multiplier, destination })`
 - Video: `graph.captureAnimation({ duration, fps, cameraMode, cameraPath })`
 
 **8. No Existing Voice/Text NL Input**
+
 - This is a greenfield opportunity
 - InputManager handles mouse/touch/keyboard only
 
@@ -114,12 +122,12 @@ Example selectors:
 
 #### Research Findings
 
-| Library | Pros | Cons | Verdict |
-|---------|------|------|---------|
-| **Vercel AI SDK** | TypeScript-first, 15+ providers, unified API, streaming, tool calling, status states | Vercel ecosystem | **Selected** |
-| ModelFusion | Vendor-neutral, comprehensive | Less adoption | Alternative |
-| LangChain.js | Feature-rich, agents | Python-first, complex | Too heavy |
-| AnyLLM | Simple abstraction | Limited features | Too simple |
+| Library           | Pros                                                                                 | Cons                  | Verdict      |
+| ----------------- | ------------------------------------------------------------------------------------ | --------------------- | ------------ |
+| **Vercel AI SDK** | TypeScript-first, 15+ providers, unified API, streaming, tool calling, status states | Vercel ecosystem      | **Selected** |
+| ModelFusion       | Vendor-neutral, comprehensive                                                        | Less adoption         | Alternative  |
+| LangChain.js      | Feature-rich, agents                                                                 | Python-first, complex | Too heavy    |
+| AnyLLM            | Simple abstraction                                                                   | Limited features      | Too simple   |
 
 #### Why Vercel AI SDK
 
@@ -152,11 +160,11 @@ const result = await generateText({
 
 #### Research Findings
 
-| Option | Technology | Performance | Models |
-|--------|------------|-------------|--------|
-| **WebLLM** | WebGPU | ~80% native | Llama 3, Phi 3, Gemma, Mistral, Qwen |
-| Transformers.js | WASM/WebGPU | Good for NLP/vision | HuggingFace models |
-| MediaPipe LLM | Google's runtime | Unknown | Google models |
+| Option          | Technology       | Performance         | Models                               |
+| --------------- | ---------------- | ------------------- | ------------------------------------ |
+| **WebLLM**      | WebGPU           | ~80% native         | Llama 3, Phi 3, Gemma, Mistral, Qwen |
+| Transformers.js | WASM/WebGPU      | Good for NLP/vision | HuggingFace models                   |
+| MediaPipe LLM   | Google's runtime | Unknown             | Google models                        |
 
 #### Why WebLLM
 
@@ -176,6 +184,7 @@ const response = await engine.chat.completions.create({
 ```
 
 **Trade-offs**:
+
 - Initial download: 1-4GB depending on model
 - Hardware requirements: WebGPU-capable browser
 - Slower than cloud for complex queries
@@ -190,13 +199,13 @@ const response = await engine.chat.completions.create({
 
 **Web Speech API** is the only viable browser-native option:
 
-| Feature | Support | Notes |
-|---------|---------|-------|
-| Browser support | Chrome, Edge, Safari (partial) | Firefox lacks support |
-| Continuous mode | Yes | Essential for WebXR |
-| Interim results | Yes | Show transcription in progress |
-| On-device | Chrome 120+ | Privacy-preserving option |
-| Languages | 100+ | Configurable via `lang` property |
+| Feature         | Support                        | Notes                            |
+| --------------- | ------------------------------ | -------------------------------- |
+| Browser support | Chrome, Edge, Safari (partial) | Firefox lacks support            |
+| Continuous mode | Yes                            | Essential for WebXR              |
+| Interim results | Yes                            | Show transcription in progress   |
+| On-device       | Chrome 120+                    | Privacy-preserving option        |
+| Languages       | 100+                           | Configurable via `lang` property |
 
 #### Implementation Considerations
 
@@ -205,19 +214,20 @@ const response = await engine.chat.completions.create({
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 const recognition = new SpeechRecognition();
-recognition.continuous = true;        // Keep listening
-recognition.interimResults = true;    // Show partial results
-recognition.lang = 'en-US';
+recognition.continuous = true; // Keep listening
+recognition.interimResults = true; // Show partial results
+recognition.lang = "en-US";
 
 recognition.onresult = (event) => {
-  const result = event.results[event.results.length - 1];
-  const transcript = result[0].transcript;
-  const isFinal = result.isFinal;
-  // Handle transcript...
+    const result = event.results[event.results.length - 1];
+    const transcript = result[0].transcript;
+    const isFinal = result.isFinal;
+    // Handle transcript...
 };
 ```
 
 **WebXR Considerations**:
+
 - Voice is primary input when immersed (no keyboard)
 - May need wake word ("Hey Graphty...")
 - Audio feedback via SpeechSynthesis for responses
@@ -238,11 +248,13 @@ recognition.onresult = (event) => {
 **Industry Standard: BYOK (Bring Your Own Key)**
 
 Major tools using BYOK:
+
 - [GitHub Copilot](https://github.blog/changelog/2025-11-20-enterprise-bring-your-own-key-byok-for-github-copilot-is-now-in-public-preview/)
 - [JetBrains AI](https://blog.jetbrains.com/ai/2025/11/bring-your-own-key-byok-is-coming-soon-to-jetbrains-ai/)
 - [Warp Terminal](https://docs.warp.dev/support-and-billing/plans-and-pricing/bring-your-own-api-key)
 
 **BYOK Principles**:
+
 1. Keys stored **locally on user's device**, never sent to our servers
 2. Users control their own API costs and provider relationships
 3. Data flows directly between user and their chosen provider
@@ -250,18 +262,20 @@ Major tools using BYOK:
 
 **Existing Packages for Encrypted Storage**:
 
-| Package | Downloads/week | Features |
-|---------|---------------|----------|
-| `encrypt-storage` | 200K+ | AES encryption, TypeScript, localStorage/sessionStorage |
-| `secure-ls` | 150K+ | Multiple encryption (AES, DES, RC4), compression |
-| `react-secure-storage` | 50K+ | React-specific, browser-unique keys |
-| `@randlabs/encrypted-local-storage` | 10K+ | IndexedDB + WebCrypto |
+| Package                             | Downloads/week | Features                                                |
+| ----------------------------------- | -------------- | ------------------------------------------------------- |
+| `encrypt-storage`                   | 200K+          | AES encryption, TypeScript, localStorage/sessionStorage |
+| `secure-ls`                         | 150K+          | Multiple encryption (AES, DES, RC4), compression        |
+| `react-secure-storage`              | 50K+           | React-specific, browser-unique keys                     |
+| `@randlabs/encrypted-local-storage` | 10K+           | IndexedDB + WebCrypto                                   |
 
 **Security Reality**:
+
 > "Nothing on the front end is entirely secure. The library's proposal is to make it difficult for the user to see the data through the console, but as the secret key is on the front end, if the user searches hard enough, they will end up finding it."
 > — encrypt-storage documentation
 
 **Decision**:
+
 1. **Default**: Session-only storage (keys lost on page close) - highest security
 2. **Optional**: Encrypted localStorage via `encrypt-storage` package for user convenience
 3. **Document trade-offs** clearly so users can make informed decisions
@@ -269,11 +283,11 @@ Major tools using BYOK:
 
 #### Storage Strategy
 
-| Strategy | Persistence | Security | Use Case |
-|----------|-------------|----------|----------|
-| Session-only (default) | Page session | Highest | Most users, WebXR |
-| Encrypted localStorage | Browser | Medium | Repeat users who accept tradeoffs |
-| Environment variables | Build time | N/A | Development only |
+| Strategy               | Persistence  | Security | Use Case                          |
+| ---------------------- | ------------ | -------- | --------------------------------- |
+| Session-only (default) | Page session | Highest  | Most users, WebXR                 |
+| Encrypted localStorage | Browser      | Medium   | Repeat users who accept tradeoffs |
+| Environment variables  | Build time   | N/A      | Development only                  |
 
 ---
 
@@ -288,10 +302,12 @@ Major tools using BYOK:
 **AWS Cloudscape GenAI Loading States Pattern**:
 
 Two-stage loading model:
+
 1. **Processing Stage**: AI received prompt, no output yet
 2. **Generation Stage**: Output tokens being generated (streaming)
 
 Key recommendations:
+
 - Use avatar + loading text for processing stage
 - Streaming creates typing effect for generation
 - Avoid animations for < 1 second operations (jarring)
@@ -301,7 +317,7 @@ Key recommendations:
 
 ```typescript
 // useChat returns status with these values:
-type Status = 'submitted' | 'streaming' | 'ready' | 'error';
+type Status = "submitted" | "streaming" | "ready" | "error";
 
 // Plus error state and control functions:
 const { status, error, stop, reload } = useChat();
@@ -309,12 +325,12 @@ const { status, error, stop, reload } = useChat();
 
 **Loading Time Guidelines** (from research):
 
-| Duration | Indicator Type | Recommendation |
-|----------|---------------|----------------|
-| < 1s | None or subtle | Avoid jarring animations |
-| 1-3s | Typing indicator | Show avatar + "Thinking..." |
-| 3s+ | Progress text | Show stage: "Analyzing graph...", "Generating response..." |
-| 10s+ | Detailed progress | Show tool calls being executed |
+| Duration | Indicator Type    | Recommendation                                             |
+| -------- | ----------------- | ---------------------------------------------------------- |
+| < 1s     | None or subtle    | Avoid jarring animations                                   |
+| 1-3s     | Typing indicator  | Show avatar + "Thinking..."                                |
+| 3s+      | Progress text     | Show stage: "Analyzing graph...", "Generating response..." |
+| 10s+     | Detailed progress | Show tool calls being executed                             |
 
 **Decision**: Implement `AiStatus` object with state machine, expose via events and synchronous getter. Include timing, progress details, streaming content, tool call status, and control flags.
 
@@ -415,22 +431,22 @@ const { status, error, stop, reload } = useChat();
 #### Programmatic API
 
 ```typescript
-const graph = document.querySelector('graphty-element').graph;
+const graph = document.querySelector("graphty-element").graph;
 
 // Enable AI with configuration
 graph.enableAiControl({
-  provider: 'openai',
-  model: 'gpt-4o',
-  streamThrottleMs: 50,  // Default: 50ms (matches Vercel AI SDK)
+    provider: "openai",
+    model: "gpt-4o",
+    streamThrottleMs: 50, // Default: 50ms (matches Vercel AI SDK)
 });
 
 // Set API key (session-only by default)
-graph.aiController.setApiKey('openai', 'sk-...');
+graph.aiController.setApiKey("openai", "sk-...");
 
 // Optional: Enable encrypted persistence
 graph.aiController.enableKeyPersistence({
-  encryptionKey: 'user-provided-passphrase',
-  storage: 'localStorage'
+    encryptionKey: "user-provided-passphrase",
+    storage: "localStorage",
 });
 
 // Send a command
@@ -438,8 +454,8 @@ const result = await graph.aiCommand("Make all nodes with degree > 5 red and lar
 
 // Send command with streaming feedback
 await graph.aiCommand("Highlight the shortest path from A to B", {
-  onProgress: (status) => console.log(status.stageMessage),
-  onComplete: (result) => console.log('Done:', result)
+    onProgress: (status) => console.log(status.stageMessage),
+    onComplete: (result) => console.log("Done:", result),
 });
 
 // Cancel in-progress command
@@ -449,16 +465,18 @@ graph.cancelAiCommand();
 graph.retryLastAiCommand();
 
 // Voice input
-graph.startVoiceInput({ language: 'en-US', continuous: true });
+graph.startVoiceInput({ language: "en-US", continuous: true });
 graph.stopVoiceInput();
 graph.isVoiceActive();
 
 // Register custom command
 graph.registerAiCommand({
-  name: 'customAnalysis',
-  description: 'Run custom analysis on selected nodes',
-  parameters: z.object({ nodeIds: z.array(z.string()) }),
-  execute: async (graph, params) => { /* ... */ }
+    name: "customAnalysis",
+    description: "Run custom analysis on selected nodes",
+    parameters: z.object({ nodeIds: z.array(z.string()) }),
+    execute: async (graph, params) => {
+        /* ... */
+    },
 });
 ```
 
@@ -512,160 +530,152 @@ src/
 ```typescript
 // LLM Provider Interface
 interface LlmProvider {
-  readonly name: string;
-  readonly supportsStreaming: boolean;
-  readonly supportsTools: boolean;
+    readonly name: string;
+    readonly supportsStreaming: boolean;
+    readonly supportsTools: boolean;
 
-  configure(options: ProviderOptions): void;
+    configure(options: ProviderOptions): void;
 
-  generate(
-    messages: Message[],
-    tools: ToolDefinition[],
-    options?: GenerateOptions
-  ): Promise<LlmResponse>;
+    generate(messages: Message[], tools: ToolDefinition[], options?: GenerateOptions): Promise<LlmResponse>;
 
-  generateStream(
-    messages: Message[],
-    tools: ToolDefinition[],
-    callbacks: StreamCallbacks,
-    signal?: AbortSignal
-  ): Promise<void>;
+    generateStream(
+        messages: Message[],
+        tools: ToolDefinition[],
+        callbacks: StreamCallbacks,
+        signal?: AbortSignal,
+    ): Promise<void>;
 }
 
 // Graph Command Interface
 interface GraphCommand {
-  readonly name: string;
-  readonly description: string;
-  readonly parameters: ZodSchema;
-  readonly examples: CommandExample[];
+    readonly name: string;
+    readonly description: string;
+    readonly parameters: ZodSchema;
+    readonly examples: CommandExample[];
 
-  execute(
-    graph: Graph,
-    params: Record<string, unknown>,
-    context: CommandContext
-  ): Promise<CommandResult>;
+    execute(graph: Graph, params: Record<string, unknown>, context: CommandContext): Promise<CommandResult>;
 }
 
 interface CommandResult {
-  success: boolean;
-  message: string;
-  data?: unknown;
-  affectedNodes?: string[];
-  affectedEdges?: string[];
+    success: boolean;
+    message: string;
+    data?: unknown;
+    affectedNodes?: string[];
+    affectedEdges?: string[];
 }
 
 // AI Status (for UI frameworks)
 interface AiStatus {
-  state: 'ready' | 'submitted' | 'streaming' | 'executing' | 'error';
+    state: "ready" | "submitted" | "streaming" | "executing" | "error";
 
-  // Timing
-  startTime?: number;
-  elapsed?: number;
+    // Timing
+    startTime?: number;
+    elapsed?: number;
 
-  // Progress
-  stage?: 'processing' | 'generating' | 'executing';
-  stageMessage?: string;
+    // Progress
+    stage?: "processing" | "generating" | "executing";
+    stageMessage?: string;
 
-  // Streaming content
-  streamedText?: string;
-  toolCalls?: Array<{
-    name: string;
-    status: 'pending' | 'executing' | 'complete' | 'error';
-    result?: unknown;
-  }>;
+    // Streaming content
+    streamedText?: string;
+    toolCalls?: Array<{
+        name: string;
+        status: "pending" | "executing" | "complete" | "error";
+        result?: unknown;
+    }>;
 
-  // Error handling
-  error?: Error;
-  canRetry?: boolean;
+    // Error handling
+    error?: Error;
+    canRetry?: boolean;
 
-  // Control
-  canCancel: boolean;
+    // Control
+    canCancel: boolean;
 }
 
 // Supporting Interfaces
 
 interface Message {
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string;
-  toolCallId?: string;      // For tool responses
-  toolCalls?: ToolCall[];   // For assistant tool invocations
+    role: "system" | "user" | "assistant" | "tool";
+    content: string;
+    toolCallId?: string; // For tool responses
+    toolCalls?: ToolCall[]; // For assistant tool invocations
 }
 
 interface ToolCall {
-  id: string;
-  name: string;
-  arguments: Record<string, unknown>;
+    id: string;
+    name: string;
+    arguments: Record<string, unknown>;
 }
 
 interface ToolDefinition {
-  name: string;
-  description: string;
-  parameters: ZodSchema;
-  examples?: CommandExample[];
+    name: string;
+    description: string;
+    parameters: ZodSchema;
+    examples?: CommandExample[];
 }
 
 interface CommandExample {
-  input: string;           // Natural language input
-  params: Record<string, unknown>;  // Expected tool parameters
+    input: string; // Natural language input
+    params: Record<string, unknown>; // Expected tool parameters
 }
 
 interface CommandContext {
-  graph: Graph;
-  abortSignal: AbortSignal;
-  operationQueue: OperationQueueManager;
-  emitEvent: (type: string, data: unknown) => void;
-  updateStatus: (updates: Partial<AiStatus>) => void;
+    graph: Graph;
+    abortSignal: AbortSignal;
+    operationQueue: OperationQueueManager;
+    emitEvent: (type: string, data: unknown) => void;
+    updateStatus: (updates: Partial<AiStatus>) => void;
 }
 
 interface ProviderOptions {
-  apiKey?: string;
-  model?: string;
-  baseUrl?: string;        // For custom endpoints
-  maxTokens?: number;
-  temperature?: number;
+    apiKey?: string;
+    model?: string;
+    baseUrl?: string; // For custom endpoints
+    maxTokens?: number;
+    temperature?: number;
 }
 
 interface GenerateOptions {
-  maxTokens?: number;
-  temperature?: number;
-  signal?: AbortSignal;
+    maxTokens?: number;
+    temperature?: number;
+    signal?: AbortSignal;
 }
 
 interface StreamCallbacks {
-  onChunk: (text: string) => void;
-  onToolCall: (name: string, params: unknown) => void;
-  onToolResult: (name: string, result: unknown) => void;
-  onComplete: (response: LlmResponse) => void;
-  onError: (error: Error) => void;
+    onChunk: (text: string) => void;
+    onToolCall: (name: string, params: unknown) => void;
+    onToolResult: (name: string, result: unknown) => void;
+    onComplete: (response: LlmResponse) => void;
+    onError: (error: Error) => void;
 }
 
 interface LlmResponse {
-  text: string;
-  toolCalls: ToolCall[];
-  usage?: {
-    promptTokens: number;
-    completionTokens: number;
-  };
+    text: string;
+    toolCalls: ToolCall[];
+    usage?: {
+        promptTokens: number;
+        completionTokens: number;
+    };
 }
 
 interface InputAdapter {
-  readonly type: 'text' | 'voice';
-  readonly isActive: boolean;
+    readonly type: "text" | "voice";
+    readonly isActive: boolean;
 
-  start(options?: InputOptions): void;
-  stop(): void;
-  onInput(callback: (input: string, isFinal: boolean) => void): void;
+    start(options?: InputOptions): void;
+    stop(): void;
+    onInput(callback: (input: string, isFinal: boolean) => void): void;
 }
 
 interface VoiceInputOptions extends InputOptions {
-  language?: string;       // e.g., 'en-US'
-  continuous?: boolean;    // Keep listening after each phrase
-  interimResults?: boolean; // Show partial transcripts
+    language?: string; // e.g., 'en-US'
+    continuous?: boolean; // Keep listening after each phrase
+    interimResults?: boolean; // Show partial transcripts
 
-  // WebXR-specific
-  wakeWord?: string;       // e.g., 'Hey Graphty'
-  wakeWordTimeout?: number; // ms to wait for command after wake word
-  enableTTS?: boolean;     // Speak responses back
+    // WebXR-specific
+    wakeWord?: string; // e.g., 'Hey Graphty'
+    wakeWordTimeout?: number; // ms to wait for command after wake word
+    enableTTS?: boolean; // Speak responses back
 }
 ```
 
@@ -690,24 +700,24 @@ interface VoiceInputOptions extends InputOptions {
 
 ```typescript
 type AiEventTypes = {
-  // Main event for UI binding (single source of truth)
-  'ai-status-change': { status: AiStatus };
+    // Main event for UI binding (single source of truth)
+    "ai-status-change": { status: AiStatus };
 
-  // Lifecycle events
-  'ai-command-start': { input: string; timestamp: number };
-  'ai-command-complete': { result: CommandResult; duration: number };
-  'ai-command-error': { error: Error; input: string; canRetry: boolean };
-  'ai-command-cancelled': { input: string; reason: 'user' | 'timeout' };
+    // Lifecycle events
+    "ai-command-start": { input: string; timestamp: number };
+    "ai-command-complete": { result: CommandResult; duration: number };
+    "ai-command-error": { error: Error; input: string; canRetry: boolean };
+    "ai-command-cancelled": { input: string; reason: "user" | "timeout" };
 
-  // Streaming events (throttled)
-  'ai-stream-chunk': { text: string; accumulated: string };
-  'ai-stream-tool-call': { name: string; params: unknown };
-  'ai-stream-tool-result': { name: string; result: unknown; success: boolean };
+    // Streaming events (throttled)
+    "ai-stream-chunk": { text: string; accumulated: string };
+    "ai-stream-tool-call": { name: string; params: unknown };
+    "ai-stream-tool-result": { name: string; result: unknown; success: boolean };
 
-  // Voice events
-  'ai-voice-start': void;
-  'ai-voice-transcript': { transcript: string; isFinal: boolean };
-  'ai-voice-end': { reason: 'user' | 'timeout' | 'error' };
+    // Voice events
+    "ai-voice-start": void;
+    "ai-voice-transcript": { transcript: string; isFinal: boolean };
+    "ai-voice-end": { reason: "user" | "timeout" | "error" };
 };
 ```
 
@@ -785,8 +795,8 @@ For frameworks that prefer polling over events:
 const status = graph.getAiStatus();
 
 // Check periodically or on user interaction
-if (status.state === 'ready') {
-  // Safe to send new command
+if (status.state === "ready") {
+    // Safe to send new command
 }
 ```
 
@@ -794,12 +804,12 @@ if (status.state === 'ready') {
 
 Based on [Cloudscape GenAI patterns](https://cloudscape.design/patterns/genai/genai-loading-states/):
 
-| Duration | Indicator Type | `stageMessage` Example |
-|----------|---------------|------------------------|
-| < 1s | None or subtle | (no message) |
-| 1-3s | Typing indicator | "Thinking..." |
-| 3s+ | Progress text | "Analyzing graph structure..." |
-| 10s+ | Detailed progress | "Running betweenness centrality algorithm..." |
+| Duration | Indicator Type    | `stageMessage` Example                        |
+| -------- | ----------------- | --------------------------------------------- |
+| < 1s     | None or subtle    | (no message)                                  |
+| 1-3s     | Typing indicator  | "Thinking..."                                 |
+| 3s+      | Progress text     | "Analyzing graph structure..."                |
+| 10s+     | Detailed progress | "Running betweenness centrality algorithm..." |
 
 The `AiStatus.stageMessage` is automatically updated based on elapsed time and current operation.
 
@@ -823,7 +833,7 @@ ${commandDescriptions}
 - Node count: ${nodeCount}
 - Edge count: ${edgeCount}
 - Current layout: ${currentLayout}
-- Current dimension: ${is2D ? '2D' : '3D'}
+- Current dimension: ${is2D ? "2D" : "3D"}
 - Available node properties: ${availableProperties}
 - Algorithm results available: ${algorithmResults}
 
@@ -855,166 +865,187 @@ Selectors evaluate against node/edge data objects:
 
 ```typescript
 const tools: ToolDefinition[] = [
-  {
-    name: 'findAndStyleNodes',
-    description: 'Find nodes matching criteria and apply styles to them',
-    parameters: z.object({
-      selector: z.string().describe('JMESPath selector to match nodes'),
-      style: z.object({
-        color: z.string().optional().describe('Hex color like #ff0000'),
-        size: z.number().optional().describe('Relative size multiplier'),
-        shape: z.enum(['sphere', 'cube', 'cone', 'cylinder', 'torus']).optional(),
-        opacity: z.number().min(0).max(1).optional(),
-      }),
-      layerName: z.string().optional().describe('Name for the style layer'),
-    }),
-    examples: [
-      {
-        input: 'Make all nodes with type "server" blue and larger',
-        params: {
-          selector: "data.type == 'server'",
-          style: { color: '#0066cc', size: 1.5 },
-          layerName: 'highlighted-servers'
-        }
-      },
-      {
-        input: 'Highlight high-degree nodes in red',
-        params: {
-          selector: "algorithmResults.graphty.degree > 10",
-          style: { color: '#ff0000', size: 2.0 },
-          layerName: 'high-degree-highlight'
-        }
-      }
-    ]
-  },
+    {
+        name: "findAndStyleNodes",
+        description: "Find nodes matching criteria and apply styles to them",
+        parameters: z.object({
+            selector: z.string().describe("JMESPath selector to match nodes"),
+            style: z.object({
+                color: z.string().optional().describe("Hex color like #ff0000"),
+                size: z.number().optional().describe("Relative size multiplier"),
+                shape: z.enum(["sphere", "cube", "cone", "cylinder", "torus"]).optional(),
+                opacity: z.number().min(0).max(1).optional(),
+            }),
+            layerName: z.string().optional().describe("Name for the style layer"),
+        }),
+        examples: [
+            {
+                input: 'Make all nodes with type "server" blue and larger',
+                params: {
+                    selector: "data.type == 'server'",
+                    style: { color: "#0066cc", size: 1.5 },
+                    layerName: "highlighted-servers",
+                },
+            },
+            {
+                input: "Highlight high-degree nodes in red",
+                params: {
+                    selector: "algorithmResults.graphty.degree > 10",
+                    style: { color: "#ff0000", size: 2.0 },
+                    layerName: "high-degree-highlight",
+                },
+            },
+        ],
+    },
 
-  {
-    name: 'setLayout',
-    description: 'Change the graph layout algorithm',
-    parameters: z.object({
-      type: z.enum(['ngraph', 'd3-force', 'circular', 'random', 'fixed',
-                    'bfs', 'bipartite', 'kamada-kawai', 'spectral', 'shell',
-                    'spiral', 'spring', 'forceAtlas2']),
-      options: z.record(z.unknown()).optional(),
-    }),
-    examples: [
-      { input: 'Switch to circular layout', params: { type: 'circular' } },
-      { input: 'Use force-directed', params: { type: 'ngraph' } }
-    ]
-  },
+    {
+        name: "setLayout",
+        description: "Change the graph layout algorithm",
+        parameters: z.object({
+            type: z.enum([
+                "ngraph",
+                "d3-force",
+                "circular",
+                "random",
+                "fixed",
+                "bfs",
+                "bipartite",
+                "kamada-kawai",
+                "spectral",
+                "shell",
+                "spiral",
+                "spring",
+                "forceAtlas2",
+            ]),
+            options: z.record(z.unknown()).optional(),
+        }),
+        examples: [
+            { input: "Switch to circular layout", params: { type: "circular" } },
+            { input: "Use force-directed", params: { type: "ngraph" } },
+        ],
+    },
 
-  {
-    name: 'runAlgorithm',
-    description: 'Run a graph algorithm and store results on nodes/edges',
-    parameters: z.object({
-      namespace: z.string().describe('Algorithm namespace, usually "graphty"'),
-      type: z.string().describe('Algorithm type like "degree", "betweenness", "pagerank"'),
-    }),
-    examples: [
-      { input: 'Calculate degree centrality', params: { namespace: 'graphty', type: 'degree' } }
-    ]
-  },
+    {
+        name: "runAlgorithm",
+        description: "Run a graph algorithm and store results on nodes/edges",
+        parameters: z.object({
+            namespace: z.string().describe('Algorithm namespace, usually "graphty"'),
+            type: z.string().describe('Algorithm type like "degree", "betweenness", "pagerank"'),
+        }),
+        examples: [{ input: "Calculate degree centrality", params: { namespace: "graphty", type: "degree" } }],
+    },
 
-  {
-    name: 'setCameraPosition',
-    description: 'Move the camera to a position or load a preset',
-    parameters: z.object({
-      position: z.object({ x: z.number(), y: z.number(), z: z.number() }).optional(),
-      target: z.object({ x: z.number(), y: z.number(), z: z.number() }).optional(),
-      preset: z.enum(['top', 'front', 'side', 'isometric']).optional(),
-      animate: z.boolean().optional().default(true),
-      duration: z.number().optional().default(1000),
-    }),
-    examples: [
-      { input: 'Show from top', params: { preset: 'top', animate: true } },
-      { input: 'Reset camera', params: { preset: 'isometric' } }
-    ]
-  },
+    {
+        name: "setCameraPosition",
+        description: "Move the camera to a position or load a preset",
+        parameters: z.object({
+            position: z.object({ x: z.number(), y: z.number(), z: z.number() }).optional(),
+            target: z.object({ x: z.number(), y: z.number(), z: z.number() }).optional(),
+            preset: z.enum(["top", "front", "side", "isometric"]).optional(),
+            animate: z.boolean().optional().default(true),
+            duration: z.number().optional().default(1000),
+        }),
+        examples: [
+            { input: "Show from top", params: { preset: "top", animate: true } },
+            { input: "Reset camera", params: { preset: "isometric" } },
+        ],
+    },
 
-  {
-    name: 'captureScreenshot',
-    description: 'Take a screenshot of the current view',
-    parameters: z.object({
-      format: z.enum(['png', 'jpeg']).optional().default('png'),
-      download: z.boolean().optional().default(true),
-    }),
-  },
+    {
+        name: "captureScreenshot",
+        description: "Take a screenshot of the current view",
+        parameters: z.object({
+            format: z.enum(["png", "jpeg"]).optional().default("png"),
+            download: z.boolean().optional().default(true),
+        }),
+    },
 
-  {
-    name: 'queryGraph',
-    description: 'Query information about the graph structure and data',
-    parameters: z.object({
-      query: z.enum([
-        'nodeCount', 'edgeCount', 'nodeTypes', 'edgeTypes',
-        'highDegreeNodes', 'connectedComponents', 'availableAlgorithms',
-        'currentLayout', 'availableProperties'
-      ])
-    }),
-  },
+    {
+        name: "queryGraph",
+        description: "Query information about the graph structure and data",
+        parameters: z.object({
+            query: z.enum([
+                "nodeCount",
+                "edgeCount",
+                "nodeTypes",
+                "edgeTypes",
+                "highDegreeNodes",
+                "connectedComponents",
+                "availableAlgorithms",
+                "currentLayout",
+                "availableProperties",
+            ]),
+        }),
+    },
 
-  {
-    name: 'setDimension',
-    description: 'Switch between 2D and 3D visualization',
-    parameters: z.object({
-      dimension: z.enum(['2d', '3d']),
-    }),
-  },
+    {
+        name: "setDimension",
+        description: "Switch between 2D and 3D visualization",
+        parameters: z.object({
+            dimension: z.enum(["2d", "3d"]),
+        }),
+    },
 
-  {
-    name: 'setImmersiveMode',
-    description: 'Enter or exit VR/AR immersive modes (WebXR)',
-    parameters: z.object({
-      mode: z.enum(['vr', 'ar', 'exit']).describe('VR for virtual reality, AR for augmented reality, exit to return to normal'),
-    }),
-    examples: [
-      { input: 'Enter VR mode', params: { mode: 'vr' } },
-      { input: 'Switch to AR', params: { mode: 'ar' } },
-      { input: 'Exit immersive mode', params: { mode: 'exit' } }
-    ]
-  },
+    {
+        name: "setImmersiveMode",
+        description: "Enter or exit VR/AR immersive modes (WebXR)",
+        parameters: z.object({
+            mode: z
+                .enum(["vr", "ar", "exit"])
+                .describe("VR for virtual reality, AR for augmented reality, exit to return to normal"),
+        }),
+        examples: [
+            { input: "Enter VR mode", params: { mode: "vr" } },
+            { input: "Switch to AR", params: { mode: "ar" } },
+            { input: "Exit immersive mode", params: { mode: "exit" } },
+        ],
+    },
 
-  {
-    name: 'captureVideo',
-    description: 'Record a video of the graph visualization',
-    parameters: z.object({
-      duration: z.number().describe('Duration in milliseconds'),
-      fps: z.number().optional().default(30),
-      cameraMode: z.enum(['stationary', 'animated']).optional().default('stationary'),
-      download: z.boolean().optional().default(true),
-    }),
-    examples: [
-      { input: 'Record a 5 second video', params: { duration: 5000, fps: 30 } },
-      { input: 'Capture 10 seconds of animation', params: { duration: 10000 } }
-    ]
-  },
+    {
+        name: "captureVideo",
+        description: "Record a video of the graph visualization",
+        parameters: z.object({
+            duration: z.number().describe("Duration in milliseconds"),
+            fps: z.number().optional().default(30),
+            cameraMode: z.enum(["stationary", "animated"]).optional().default("stationary"),
+            download: z.boolean().optional().default(true),
+        }),
+        examples: [
+            { input: "Record a 5 second video", params: { duration: 5000, fps: 30 } },
+            { input: "Capture 10 seconds of animation", params: { duration: 10000 } },
+        ],
+    },
 
-  {
-    name: 'findNodes',
-    description: 'Find and return information about nodes matching criteria',
-    parameters: z.object({
-      selector: z.string().describe('JMESPath selector to match nodes'),
-      limit: z.number().optional().default(10).describe('Maximum nodes to return'),
-    }),
-    examples: [
-      { input: 'Find all server nodes', params: { selector: "data.type == 'server'" } },
-      { input: 'Show me the top 5 highest degree nodes', params: { selector: "algorithmResults.graphty.degree > 0", limit: 5 } }
-    ]
-  },
+    {
+        name: "findNodes",
+        description: "Find and return information about nodes matching criteria",
+        parameters: z.object({
+            selector: z.string().describe("JMESPath selector to match nodes"),
+            limit: z.number().optional().default(10).describe("Maximum nodes to return"),
+        }),
+        examples: [
+            { input: "Find all server nodes", params: { selector: "data.type == 'server'" } },
+            {
+                input: "Show me the top 5 highest degree nodes",
+                params: { selector: "algorithmResults.graphty.degree > 0", limit: 5 },
+            },
+        ],
+    },
 
-  {
-    name: 'zoomToNodes',
-    description: 'Zoom camera to focus on specific nodes',
-    parameters: z.object({
-      selector: z.string().optional().describe('JMESPath selector for nodes to focus on'),
-      nodeIds: z.array(z.string()).optional().describe('Specific node IDs to focus on'),
-      padding: z.number().optional().default(1.2).describe('Padding multiplier around nodes'),
-      animate: z.boolean().optional().default(true),
-    }),
-    examples: [
-      { input: 'Zoom to the selected nodes', params: { selector: "selected == true" } },
-      { input: 'Focus on node ABC', params: { nodeIds: ['ABC'] } }
-    ]
-  },
+    {
+        name: "zoomToNodes",
+        description: "Zoom camera to focus on specific nodes",
+        parameters: z.object({
+            selector: z.string().optional().describe("JMESPath selector for nodes to focus on"),
+            nodeIds: z.array(z.string()).optional().describe("Specific node IDs to focus on"),
+            padding: z.number().optional().default(1.2).describe("Padding multiplier around nodes"),
+            animate: z.boolean().optional().default(true),
+        }),
+        examples: [
+            { input: "Zoom to the selected nodes", params: { selector: "selected == true" } },
+            { input: "Focus on node ABC", params: { nodeIds: ["ABC"] } },
+        ],
+    },
 ];
 ```
 
@@ -1094,10 +1125,10 @@ You have access to the following tools to control the graph:
 - **Node count**: ${nodeCount}
 - **Edge count**: ${edgeCount}
 - **Current layout**: ${currentLayout}
-- **Dimension**: ${is2D ? '2D' : '3D'}
-- **Node properties available**: ${nodeProperties.join(', ')}
-- **Edge properties available**: ${edgeProperties.join(', ')}
-- **Algorithm results on nodes**: ${algorithmResults.join(', ') || 'none'}
+- **Dimension**: ${is2D ? "2D" : "3D"}
+- **Node properties available**: ${nodeProperties.join(", ")}
+- **Edge properties available**: ${edgeProperties.join(", ")}
+- **Algorithm results on nodes**: ${algorithmResults.join(", ") || "none"}
 
 ## JMESPath Selector Syntax
 
@@ -1139,6 +1170,7 @@ User: "Show me from the top"
 #### Example 1: Styling Nodes - "Make all X nodes red"
 
 **User Input:**
+
 ```
 "Make all server nodes red"
 ```
@@ -1147,50 +1179,50 @@ User: "Show me from the top"
 
 ```json
 {
-  "messages": [
-    {
-      "role": "system",
-      "content": "You are Graphty AI... [full system prompt above with current state]"
-    },
-    {
-      "role": "user",
-      "content": "Make all server nodes red"
-    }
-  ],
-  "tools": [
-    {
-      "type": "function",
-      "function": {
-        "name": "findAndStyleNodes",
-        "description": "Find nodes matching criteria and apply styles to them",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "selector": {
-              "type": "string",
-              "description": "JMESPath selector to match nodes"
-            },
-            "style": {
-              "type": "object",
-              "properties": {
-                "color": { "type": "string" },
-                "size": { "type": "number" },
-                "shape": { "type": "string", "enum": ["sphere", "cube", "cone", "cylinder", "torus"] },
-                "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
-              }
-            },
-            "layerName": {
-              "type": "string",
-              "description": "Name for the style layer"
-            }
-          },
-          "required": ["selector", "style"]
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are Graphty AI... [full system prompt above with current state]"
+        },
+        {
+            "role": "user",
+            "content": "Make all server nodes red"
         }
-      }
-    }
-    // ... other tools
-  ],
-  "tool_choice": "auto"
+    ],
+    "tools": [
+        {
+            "type": "function",
+            "function": {
+                "name": "findAndStyleNodes",
+                "description": "Find nodes matching criteria and apply styles to them",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "selector": {
+                            "type": "string",
+                            "description": "JMESPath selector to match nodes"
+                        },
+                        "style": {
+                            "type": "object",
+                            "properties": {
+                                "color": { "type": "string" },
+                                "size": { "type": "number" },
+                                "shape": { "type": "string", "enum": ["sphere", "cube", "cone", "cylinder", "torus"] },
+                                "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+                            }
+                        },
+                        "layerName": {
+                            "type": "string",
+                            "description": "Name for the style layer"
+                        }
+                    },
+                    "required": ["selector", "style"]
+                }
+            }
+        }
+        // ... other tools
+    ],
+    "tool_choice": "auto"
 }
 ```
 
@@ -1198,18 +1230,18 @@ User: "Show me from the top"
 
 ```json
 {
-  "role": "assistant",
-  "content": null,
-  "tool_calls": [
-    {
-      "id": "call_abc123",
-      "type": "function",
-      "function": {
-        "name": "findAndStyleNodes",
-        "arguments": "{\"selector\": \"data.type == 'server'\", \"style\": {\"color\": \"#ff0000\"}, \"layerName\": \"server-highlight\"}"
-      }
-    }
-  ]
+    "role": "assistant",
+    "content": null,
+    "tool_calls": [
+        {
+            "id": "call_abc123",
+            "type": "function",
+            "function": {
+                "name": "findAndStyleNodes",
+                "arguments": "{\"selector\": \"data.type == 'server'\", \"style\": {\"color\": \"#ff0000\"}, \"layerName\": \"server-highlight\"}"
+            }
+        }
+    ]
 }
 ```
 
@@ -1217,9 +1249,9 @@ User: "Show me from the top"
 
 ```json
 {
-  "role": "tool",
-  "tool_call_id": "call_abc123",
-  "content": "{\"success\": true, \"message\": \"Styled 12 nodes matching selector\", \"affectedNodes\": [\"server-1\", \"server-2\", ...]}"
+    "role": "tool",
+    "tool_call_id": "call_abc123",
+    "content": "{\"success\": true, \"message\": \"Styled 12 nodes matching selector\", \"affectedNodes\": [\"server-1\", \"server-2\", ...]}"
 }
 ```
 
@@ -1227,8 +1259,8 @@ User: "Show me from the top"
 
 ```json
 {
-  "role": "assistant",
-  "content": "Done! I've made all 12 server nodes red."
+    "role": "assistant",
+    "content": "Done! I've made all 12 server nodes red."
 }
 ```
 
@@ -1237,6 +1269,7 @@ User: "Show me from the top"
 #### Example 2: Fit All Nodes on Screen
 
 **User Input:**
+
 ```
 "Fit all the nodes on the screen"
 ```
@@ -1245,10 +1278,10 @@ User: "Show me from the top"
 
 ```json
 {
-  "messages": [
-    { "role": "system", "content": "[system prompt]" },
-    { "role": "user", "content": "Fit all the nodes on the screen" }
-  ]
+    "messages": [
+        { "role": "system", "content": "[system prompt]" },
+        { "role": "user", "content": "Fit all the nodes on the screen" }
+    ]
 }
 ```
 
@@ -1256,15 +1289,15 @@ User: "Show me from the top"
 
 ```json
 {
-  "tool_calls": [
-    {
-      "id": "call_xyz789",
-      "function": {
-        "name": "zoomToNodes",
-        "arguments": "{\"selector\": \"\", \"padding\": 1.2, \"animate\": true}"
-      }
-    }
-  ]
+    "tool_calls": [
+        {
+            "id": "call_xyz789",
+            "function": {
+                "name": "zoomToNodes",
+                "arguments": "{\"selector\": \"\", \"padding\": 1.2, \"animate\": true}"
+            }
+        }
+    ]
 }
 ```
 
@@ -1272,8 +1305,8 @@ User: "Show me from the top"
 
 ```json
 {
-  "tool_call_id": "call_xyz789",
-  "content": "{\"success\": true, \"message\": \"Camera zoomed to fit all 150 nodes\"}"
+    "tool_call_id": "call_xyz789",
+    "content": "{\"success\": true, \"message\": \"Camera zoomed to fit all 150 nodes\"}"
 }
 ```
 
@@ -1288,6 +1321,7 @@ User: "Show me from the top"
 #### Example 3: Change Camera Angle
 
 **User Input:**
+
 ```
 "Show me the graph from above"
 ```
@@ -1296,15 +1330,15 @@ User: "Show me from the top"
 
 ```json
 {
-  "tool_calls": [
-    {
-      "id": "call_cam001",
-      "function": {
-        "name": "setCameraPosition",
-        "arguments": "{\"preset\": \"top\", \"animate\": true, \"duration\": 1000}"
-      }
-    }
-  ]
+    "tool_calls": [
+        {
+            "id": "call_cam001",
+            "function": {
+                "name": "setCameraPosition",
+                "arguments": "{\"preset\": \"top\", \"animate\": true, \"duration\": 1000}"
+            }
+        }
+    ]
 }
 ```
 
@@ -1319,6 +1353,7 @@ User: "Show me from the top"
 #### Example 4: Complex Query - "Highlight the most important nodes"
 
 **User Input:**
+
 ```
 "Highlight the most important nodes in the network"
 ```
@@ -1329,15 +1364,15 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_calls": [
-    {
-      "id": "call_alg001",
-      "function": {
-        "name": "runAlgorithm",
-        "arguments": "{\"namespace\": \"graphty\", \"type\": \"pagerank\"}"
-      }
-    }
-  ]
+    "tool_calls": [
+        {
+            "id": "call_alg001",
+            "function": {
+                "name": "runAlgorithm",
+                "arguments": "{\"namespace\": \"graphty\", \"type\": \"pagerank\"}"
+            }
+        }
+    ]
 }
 ```
 
@@ -1345,8 +1380,8 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_call_id": "call_alg001",
-  "content": "{\"success\": true, \"message\": \"PageRank computed for 150 nodes\"}"
+    "tool_call_id": "call_alg001",
+    "content": "{\"success\": true, \"message\": \"PageRank computed for 150 nodes\"}"
 }
 ```
 
@@ -1354,15 +1389,15 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_calls": [
-    {
-      "id": "call_style001",
-      "function": {
-        "name": "findAndStyleNodes",
-        "arguments": "{\"selector\": \"algorithmResults.graphty.pagerank > 0.02\", \"style\": {\"color\": \"#ffaa00\", \"size\": 2.0}, \"layerName\": \"important-nodes\"}"
-      }
-    }
-  ]
+    "tool_calls": [
+        {
+            "id": "call_style001",
+            "function": {
+                "name": "findAndStyleNodes",
+                "arguments": "{\"selector\": \"algorithmResults.graphty.pagerank > 0.02\", \"style\": {\"color\": \"#ffaa00\", \"size\": 2.0}, \"layerName\": \"important-nodes\"}"
+            }
+        }
+    ]
 }
 ```
 
@@ -1377,6 +1412,7 @@ This requires multiple steps: run an algorithm first, then style based on result
 #### Example 5: Change Layout
 
 **User Input:**
+
 ```
 "Arrange the nodes in a circle"
 ```
@@ -1385,15 +1421,15 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_calls": [
-    {
-      "id": "call_layout001",
-      "function": {
-        "name": "setLayout",
-        "arguments": "{\"type\": \"circular\"}"
-      }
-    }
-  ]
+    "tool_calls": [
+        {
+            "id": "call_layout001",
+            "function": {
+                "name": "setLayout",
+                "arguments": "{\"type\": \"circular\"}"
+            }
+        }
+    ]
 }
 ```
 
@@ -1408,6 +1444,7 @@ This requires multiple steps: run an algorithm first, then style based on result
 #### Example 6: Query Information
 
 **User Input:**
+
 ```
 "How many nodes are there?"
 ```
@@ -1416,15 +1453,15 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_calls": [
-    {
-      "id": "call_query001",
-      "function": {
-        "name": "queryGraph",
-        "arguments": "{\"query\": \"nodeCount\"}"
-      }
-    }
-  ]
+    "tool_calls": [
+        {
+            "id": "call_query001",
+            "function": {
+                "name": "queryGraph",
+                "arguments": "{\"query\": \"nodeCount\"}"
+            }
+        }
+    ]
 }
 ```
 
@@ -1432,8 +1469,8 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_call_id": "call_query001",
-  "content": "{\"success\": true, \"data\": {\"nodeCount\": 150}}"
+    "tool_call_id": "call_query001",
+    "content": "{\"success\": true, \"data\": {\"nodeCount\": 150}}"
 }
 ```
 
@@ -1448,6 +1485,7 @@ This requires multiple steps: run an algorithm first, then style based on result
 #### Example 7: Take a Screenshot
 
 **User Input:**
+
 ```
 "Take a screenshot"
 ```
@@ -1456,15 +1494,15 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_calls": [
-    {
-      "id": "call_capture001",
-      "function": {
-        "name": "captureScreenshot",
-        "arguments": "{\"format\": \"png\", \"download\": true}"
-      }
-    }
-  ]
+    "tool_calls": [
+        {
+            "id": "call_capture001",
+            "function": {
+                "name": "captureScreenshot",
+                "arguments": "{\"format\": \"png\", \"download\": true}"
+            }
+        }
+    ]
 }
 ```
 
@@ -1479,6 +1517,7 @@ This requires multiple steps: run an algorithm first, then style based on result
 #### Example 8: Enter VR Mode
 
 **User Input:**
+
 ```
 "Enter VR mode"
 ```
@@ -1487,15 +1526,15 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_calls": [
-    {
-      "id": "call_vr001",
-      "function": {
-        "name": "setImmersiveMode",
-        "arguments": "{\"mode\": \"vr\"}"
-      }
-    }
-  ]
+    "tool_calls": [
+        {
+            "id": "call_vr001",
+            "function": {
+                "name": "setImmersiveMode",
+                "arguments": "{\"mode\": \"vr\"}"
+            }
+        }
+    ]
 }
 ```
 
@@ -1510,6 +1549,7 @@ This requires multiple steps: run an algorithm first, then style based on result
 #### Example 9: Find Specific Nodes
 
 **User Input:**
+
 ```
 "Find all nodes connected to the main server"
 ```
@@ -1518,15 +1558,15 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_calls": [
-    {
-      "id": "call_find001",
-      "function": {
-        "name": "findNodes",
-        "arguments": "{\"selector\": \"data.connectedTo == 'main-server'\", \"limit\": 20}"
-      }
-    }
-  ]
+    "tool_calls": [
+        {
+            "id": "call_find001",
+            "function": {
+                "name": "findNodes",
+                "arguments": "{\"selector\": \"data.connectedTo == 'main-server'\", \"limit\": 20}"
+            }
+        }
+    ]
 }
 ```
 
@@ -1534,8 +1574,8 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_call_id": "call_find001",
-  "content": "{\"success\": true, \"data\": {\"nodes\": [{\"id\": \"client-1\", \"data\": {...}}, ...], \"total\": 8}}"
+    "tool_call_id": "call_find001",
+    "content": "{\"success\": true, \"data\": {\"nodes\": [{\"id\": \"client-1\", \"data\": {...}}, ...], \"total\": 8}}"
 }
 ```
 
@@ -1550,6 +1590,7 @@ This requires multiple steps: run an algorithm first, then style based on result
 #### Example 10: Complex Styling with Algorithm
 
 **User Input:**
+
 ```
 "Color the nodes by their degree - low degree blue, high degree red"
 ```
@@ -1558,15 +1599,15 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_calls": [
-    {
-      "id": "call_deg001",
-      "function": {
-        "name": "runAlgorithm",
-        "arguments": "{\"namespace\": \"graphty\", \"type\": \"degree\"}"
-      }
-    }
-  ]
+    "tool_calls": [
+        {
+            "id": "call_deg001",
+            "function": {
+                "name": "runAlgorithm",
+                "arguments": "{\"namespace\": \"graphty\", \"type\": \"degree\"}"
+            }
+        }
+    ]
 }
 ```
 
@@ -1574,29 +1615,29 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_calls": [
-    {
-      "id": "call_low001",
-      "function": {
-        "name": "findAndStyleNodes",
-        "arguments": "{\"selector\": \"algorithmResults.graphty.degree <= 2\", \"style\": {\"color\": \"#0066ff\"}, \"layerName\": \"degree-low\"}"
-      }
-    },
-    {
-      "id": "call_med001",
-      "function": {
-        "name": "findAndStyleNodes",
-        "arguments": "{\"selector\": \"algorithmResults.graphty.degree > 2 && algorithmResults.graphty.degree <= 5\", \"style\": {\"color\": \"#ffff00\"}, \"layerName\": \"degree-medium\"}"
-      }
-    },
-    {
-      "id": "call_high001",
-      "function": {
-        "name": "findAndStyleNodes",
-        "arguments": "{\"selector\": \"algorithmResults.graphty.degree > 5\", \"style\": {\"color\": \"#ff0000\"}, \"layerName\": \"degree-high\"}"
-      }
-    }
-  ]
+    "tool_calls": [
+        {
+            "id": "call_low001",
+            "function": {
+                "name": "findAndStyleNodes",
+                "arguments": "{\"selector\": \"algorithmResults.graphty.degree <= 2\", \"style\": {\"color\": \"#0066ff\"}, \"layerName\": \"degree-low\"}"
+            }
+        },
+        {
+            "id": "call_med001",
+            "function": {
+                "name": "findAndStyleNodes",
+                "arguments": "{\"selector\": \"algorithmResults.graphty.degree > 2 && algorithmResults.graphty.degree <= 5\", \"style\": {\"color\": \"#ffff00\"}, \"layerName\": \"degree-medium\"}"
+            }
+        },
+        {
+            "id": "call_high001",
+            "function": {
+                "name": "findAndStyleNodes",
+                "arguments": "{\"selector\": \"algorithmResults.graphty.degree > 5\", \"style\": {\"color\": \"#ff0000\"}, \"layerName\": \"degree-high\"}"
+            }
+        }
+    ]
 }
 ```
 
@@ -1614,6 +1655,7 @@ This requires multiple steps: run an algorithm first, then style based on result
 #### Example 11: Switch to 2D View
 
 **User Input:**
+
 ```
 "Show this in 2D"
 ```
@@ -1622,15 +1664,15 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_calls": [
-    {
-      "id": "call_2d001",
-      "function": {
-        "name": "setDimension",
-        "arguments": "{\"dimension\": \"2d\"}"
-      }
-    }
-  ]
+    "tool_calls": [
+        {
+            "id": "call_2d001",
+            "function": {
+                "name": "setDimension",
+                "arguments": "{\"dimension\": \"2d\"}"
+            }
+        }
+    ]
 }
 ```
 
@@ -1645,6 +1687,7 @@ This requires multiple steps: run an algorithm first, then style based on result
 #### Example 12: Record Video
 
 **User Input:**
+
 ```
 "Record a 10 second video of the graph"
 ```
@@ -1653,15 +1696,15 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_calls": [
-    {
-      "id": "call_vid001",
-      "function": {
-        "name": "captureVideo",
-        "arguments": "{\"duration\": 10000, \"fps\": 30, \"cameraMode\": \"stationary\", \"download\": true}"
-      }
-    }
-  ]
+    "tool_calls": [
+        {
+            "id": "call_vid001",
+            "function": {
+                "name": "captureVideo",
+                "arguments": "{\"duration\": 10000, \"fps\": 30, \"cameraMode\": \"stationary\", \"download\": true}"
+            }
+        }
+    ]
 }
 ```
 
@@ -1676,6 +1719,7 @@ This requires multiple steps: run an algorithm first, then style based on result
 #### Example 13: Focus on Specific Nodes
 
 **User Input:**
+
 ```
 "Zoom in on the database nodes"
 ```
@@ -1684,15 +1728,15 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_calls": [
-    {
-      "id": "call_zoom001",
-      "function": {
-        "name": "zoomToNodes",
-        "arguments": "{\"selector\": \"data.type == 'database'\", \"padding\": 1.5, \"animate\": true}"
-      }
-    }
-  ]
+    "tool_calls": [
+        {
+            "id": "call_zoom001",
+            "function": {
+                "name": "zoomToNodes",
+                "arguments": "{\"selector\": \"data.type == 'database'\", \"padding\": 1.5, \"animate\": true}"
+            }
+        }
+    ]
 }
 ```
 
@@ -1707,6 +1751,7 @@ This requires multiple steps: run an algorithm first, then style based on result
 #### Example 14: Clear Previous Styling
 
 **User Input:**
+
 ```
 "Remove the highlighting from the server nodes"
 ```
@@ -1715,15 +1760,15 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_calls": [
-    {
-      "id": "call_clear001",
-      "function": {
-        "name": "clearStyles",
-        "arguments": "{\"layerName\": \"server-highlight\"}"
-      }
-    }
-  ]
+    "tool_calls": [
+        {
+            "id": "call_clear001",
+            "function": {
+                "name": "clearStyles",
+                "arguments": "{\"layerName\": \"server-highlight\"}"
+            }
+        }
+    ]
 }
 ```
 
@@ -1738,6 +1783,7 @@ This requires multiple steps: run an algorithm first, then style based on result
 #### Example 15: Ambiguous Request - LLM Asks for Clarification
 
 **User Input:**
+
 ```
 "Highlight the important ones"
 ```
@@ -1746,7 +1792,7 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "content": "I can highlight important nodes in several ways:\n\n1. **By connectivity** - Nodes with many connections (degree centrality)\n2. **By influence** - Nodes that are central to information flow (betweenness)\n3. **By PageRank** - Nodes linked by other important nodes\n4. **By type** - A specific category of nodes\n\nWhich would you prefer, or should I use PageRank as a general measure of importance?"
+    "content": "I can highlight important nodes in several ways:\n\n1. **By connectivity** - Nodes with many connections (degree centrality)\n2. **By influence** - Nodes that are central to information flow (betweenness)\n3. **By PageRank** - Nodes linked by other important nodes\n4. **By type** - A specific category of nodes\n\nWhich would you prefer, or should I use PageRank as a general measure of importance?"
 }
 ```
 
@@ -1755,6 +1801,7 @@ This requires multiple steps: run an algorithm first, then style based on result
 #### Error Handling Example
 
 **User Input:**
+
 ```
 "Make the purple nodes bigger"
 ```
@@ -1763,8 +1810,8 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 ```json
 {
-  "tool_call_id": "call_err001",
-  "content": "{\"success\": false, \"message\": \"No nodes matched selector 'data.color == purple'. Available node types: server, client, database, cache\"}"
+    "tool_call_id": "call_err001",
+    "content": "{\"success\": false, \"message\": \"No nodes matched selector 'data.color == purple'. Available node types: server, client, database, cache\"}"
 }
 ```
 
@@ -1791,11 +1838,11 @@ This requires multiple steps: run an algorithm first, then style based on result
 
 1. Define `GraphCommand` interface and base class
 2. Implement core commands:
-   - `StyleCommands`: findAndStyleNodes, findAndStyleEdges, clearStyles
-   - `LayoutCommands`: setLayout, setDimension
-   - `ModeCommands`: setImmersiveMode (VR/AR/exit)
-   - `CameraCommands`: setCameraPosition, zoomToFit, zoomToNodes, loadPreset
-   - `QueryCommands`: getNodeCount, describeGraph, findNodes
+    - `StyleCommands`: findAndStyleNodes, findAndStyleEdges, clearStyles
+    - `LayoutCommands`: setLayout, setDimension
+    - `ModeCommands`: setImmersiveMode (VR/AR/exit)
+    - `CameraCommands`: setCameraPosition, zoomToFit, zoomToNodes, loadPreset
+    - `QueryCommands`: getNodeCount, describeGraph, findNodes
 3. Build `SystemPromptBuilder` with dynamic context injection
 4. Create comprehensive tool definitions with Zod schemas
 5. Wire commands to existing Graph methods via OperationQueueManager
@@ -1842,21 +1889,21 @@ When no explicit provider is specified, auto-select based on available keys:
 
 ```typescript
 function autoSelectProvider(keyManager: ApiKeyManager): string {
-  // Priority order: user preference > cloud providers > in-browser
-  const priority = ['openai', 'anthropic', 'google', 'webllm'];
+    // Priority order: user preference > cloud providers > in-browser
+    const priority = ["openai", "anthropic", "google", "webllm"];
 
-  for (const provider of priority) {
-    if (provider === 'webllm') {
-      // WebLLM doesn't need a key, always available as fallback
-      return 'webllm';
+    for (const provider of priority) {
+        if (provider === "webllm") {
+            // WebLLM doesn't need a key, always available as fallback
+            return "webllm";
+        }
+        if (keyManager.getKey(provider)) {
+            return provider;
+        }
     }
-    if (keyManager.getKey(provider)) {
-      return provider;
-    }
-  }
 
-  // No keys configured, default to WebLLM
-  return 'webllm';
+    // No keys configured, default to WebLLM
+    return "webllm";
 }
 ```
 
@@ -1893,17 +1940,17 @@ AI errors should include context categories matching the existing codebase patte
 
 ```typescript
 type AiErrorContext =
-  | 'provider-init'      // Failed to initialize LLM provider
-  | 'provider-generate'  // LLM generation failed
-  | 'command-validation' // Zod validation failed on LLM output
-  | 'command-execution'  // Command execute() threw
-  | 'voice-recognition'  // Web Speech API error
-  | 'key-storage';       // API key storage/retrieval error
+    | "provider-init" // Failed to initialize LLM provider
+    | "provider-generate" // LLM generation failed
+    | "command-validation" // Zod validation failed on LLM output
+    | "command-execution" // Command execute() threw
+    | "voice-recognition" // Web Speech API error
+    | "key-storage"; // API key storage/retrieval error
 
 interface AiError extends Error {
-  context: AiErrorContext;
-  canRetry: boolean;
-  originalError?: Error;
+    context: AiErrorContext;
+    canRetry: boolean;
+    originalError?: Error;
 }
 ```
 
@@ -1913,26 +1960,26 @@ The CommandRegistry should convert registered commands to LLM tool definitions:
 
 ```typescript
 class CommandRegistry {
-  private commands = new Map<string, GraphCommand>();
+    private commands = new Map<string, GraphCommand>();
 
-  register(command: GraphCommand): void {
-    this.commands.set(command.name, command);
-  }
+    register(command: GraphCommand): void {
+        this.commands.set(command.name, command);
+    }
 
-  // Convert all commands to tool definitions for LLM
-  toToolDefinitions(): ToolDefinition[] {
-    return Array.from(this.commands.values()).map(cmd => ({
-      name: cmd.name,
-      description: cmd.description,
-      parameters: cmd.parameters,
-      examples: cmd.examples,
-    }));
-  }
+    // Convert all commands to tool definitions for LLM
+    toToolDefinitions(): ToolDefinition[] {
+        return Array.from(this.commands.values()).map((cmd) => ({
+            name: cmd.name,
+            description: cmd.description,
+            parameters: cmd.parameters,
+            examples: cmd.examples,
+        }));
+    }
 
-  // Get command by name (called when LLM invokes a tool)
-  get(name: string): GraphCommand | undefined {
-    return this.commands.get(name);
-  }
+    // Get command by name (called when LLM invokes a tool)
+    get(name: string): GraphCommand | undefined {
+        return this.commands.get(name);
+    }
 }
 ```
 
@@ -1942,51 +1989,47 @@ For deterministic testing, implement a mock provider:
 
 ```typescript
 class MockLlmProvider implements LlmProvider {
-  readonly name = 'mock';
-  readonly supportsStreaming = true;
-  readonly supportsTools = true;
+    readonly name = "mock";
+    readonly supportsStreaming = true;
+    readonly supportsTools = true;
 
-  private responses: Map<string, LlmResponse> = new Map();
+    private responses: Map<string, LlmResponse> = new Map();
 
-  // Configure expected responses for testing
-  setResponse(inputPattern: string, response: LlmResponse): void {
-    this.responses.set(inputPattern, response);
-  }
-
-  async generate(messages: Message[], tools: ToolDefinition[]): Promise<LlmResponse> {
-    const lastMessage = messages[messages.length - 1];
-    const input = lastMessage.content;
-
-    // Find matching response
-    for (const [pattern, response] of this.responses) {
-      if (input.includes(pattern)) {
-        return response;
-      }
+    // Configure expected responses for testing
+    setResponse(inputPattern: string, response: LlmResponse): void {
+        this.responses.set(inputPattern, response);
     }
 
-    // Default: return empty response
-    return { text: '', toolCalls: [] };
-  }
+    async generate(messages: Message[], tools: ToolDefinition[]): Promise<LlmResponse> {
+        const lastMessage = messages[messages.length - 1];
+        const input = lastMessage.content;
 
-  async generateStream(
-    messages: Message[],
-    tools: ToolDefinition[],
-    callbacks: StreamCallbacks
-  ): Promise<void> {
-    const response = await this.generate(messages, tools);
+        // Find matching response
+        for (const [pattern, response] of this.responses) {
+            if (input.includes(pattern)) {
+                return response;
+            }
+        }
 
-    // Simulate streaming
-    for (const char of response.text) {
-      callbacks.onChunk(char);
-      await new Promise(r => setTimeout(r, 10));
+        // Default: return empty response
+        return { text: "", toolCalls: [] };
     }
 
-    for (const call of response.toolCalls) {
-      callbacks.onToolCall(call.name, call.arguments);
-    }
+    async generateStream(messages: Message[], tools: ToolDefinition[], callbacks: StreamCallbacks): Promise<void> {
+        const response = await this.generate(messages, tools);
 
-    callbacks.onComplete(response);
-  }
+        // Simulate streaming
+        for (const char of response.text) {
+            callbacks.onChunk(char);
+            await new Promise((r) => setTimeout(r, 10));
+        }
+
+        for (const call of response.toolCalls) {
+            callbacks.onToolCall(call.name, call.arguments);
+        }
+
+        callbacks.onComplete(response);
+    }
 }
 ```
 
@@ -2097,40 +2140,40 @@ For multi-turn conversations, maintain a sliding window of messages:
 
 ```typescript
 class ConversationHistory {
-  private messages: Message[] = [];
-  private maxMessages = 20;  // Keep last 20 messages
+    private messages: Message[] = [];
+    private maxMessages = 20; // Keep last 20 messages
 
-  add(message: Message): void {
-    this.messages.push(message);
+    add(message: Message): void {
+        this.messages.push(message);
 
-    // Trim to max, but always keep system message
-    while (this.messages.length > this.maxMessages) {
-      const firstNonSystem = this.messages.findIndex(m => m.role !== 'system');
-      if (firstNonSystem > 0) {
-        this.messages.splice(firstNonSystem, 1);
-      } else {
-        break;
-      }
+        // Trim to max, but always keep system message
+        while (this.messages.length > this.maxMessages) {
+            const firstNonSystem = this.messages.findIndex((m) => m.role !== "system");
+            if (firstNonSystem > 0) {
+                this.messages.splice(firstNonSystem, 1);
+            } else {
+                break;
+            }
+        }
     }
-  }
 
-  getMessages(): Message[] {
-    return [...this.messages];
-  }
-
-  clear(): void {
-    // Keep only system message
-    this.messages = this.messages.filter(m => m.role === 'system');
-  }
-
-  // Called when graph state changes significantly
-  invalidateContext(): void {
-    // Mark that context may be stale, rebuild system prompt
-    const systemIdx = this.messages.findIndex(m => m.role === 'system');
-    if (systemIdx >= 0) {
-      this.messages.splice(systemIdx, 1);
+    getMessages(): Message[] {
+        return [...this.messages];
     }
-  }
+
+    clear(): void {
+        // Keep only system message
+        this.messages = this.messages.filter((m) => m.role === "system");
+    }
+
+    // Called when graph state changes significantly
+    invalidateContext(): void {
+        // Mark that context may be stale, rebuild system prompt
+        const systemIdx = this.messages.findIndex((m) => m.role === "system");
+        if (systemIdx >= 0) {
+            this.messages.splice(systemIdx, 1);
+        }
+    }
 }
 ```
 
@@ -2192,42 +2235,42 @@ class ConversationHistory {
 
 ### Performance
 
-| Concern | Impact | Mitigation |
-|---------|--------|------------|
-| LLM Latency | 1-5s for cloud providers | Use streaming to show progress immediately |
-| WebLLM Download | 1-4GB initial download | Show progress, cache in IndexedDB |
-| Command Execution | Varies by operation | Use existing operation queue with priorities |
-| Stream Events | Can fire rapidly | Built-in throttling (50ms default) |
-| Voice Processing | Network latency | Show interim results, allow editing |
+| Concern           | Impact                   | Mitigation                                   |
+| ----------------- | ------------------------ | -------------------------------------------- |
+| LLM Latency       | 1-5s for cloud providers | Use streaming to show progress immediately   |
+| WebLLM Download   | 1-4GB initial download   | Show progress, cache in IndexedDB            |
+| Command Execution | Varies by operation      | Use existing operation queue with priorities |
+| Stream Events     | Can fire rapidly         | Built-in throttling (50ms default)           |
+| Voice Processing  | Network latency          | Show interim results, allow editing          |
 
 ### Security
 
-| Concern | Risk Level | Mitigation |
-|---------|------------|------------|
-| API Key Exposure | Medium | Session-only default, encrypted optional, clear documentation |
-| Prompt Injection | Medium | Validate all LLM outputs via Zod schemas before execution |
-| Data Privacy | Low-Medium | WebLLM option keeps all data local |
-| XSS via LLM output | Low | Sanitize any user-visible content from LLM |
+| Concern            | Risk Level | Mitigation                                                    |
+| ------------------ | ---------- | ------------------------------------------------------------- |
+| API Key Exposure   | Medium     | Session-only default, encrypted optional, clear documentation |
+| Prompt Injection   | Medium     | Validate all LLM outputs via Zod schemas before execution     |
+| Data Privacy       | Low-Medium | WebLLM option keeps all data local                            |
+| XSS via LLM output | Low        | Sanitize any user-visible content from LLM                    |
 
 ### Compatibility
 
-| Area | Approach |
-|------|----------|
-| Browser Support | Voice requires Chrome/Edge; text commands work everywhere |
-| Babylon.js | No changes to existing integration |
-| Existing APIs | All commands use existing Graph public API |
-| Breaking Changes | None—AI features are additive and optional |
-| TypeScript | Full type safety with strict mode |
+| Area             | Approach                                                  |
+| ---------------- | --------------------------------------------------------- |
+| Browser Support  | Voice requires Chrome/Edge; text commands work everywhere |
+| Babylon.js       | No changes to existing integration                        |
+| Existing APIs    | All commands use existing Graph public API                |
+| Breaking Changes | None—AI features are additive and optional                |
+| TypeScript       | Full type safety with strict mode                         |
 
 ### Testing Strategy
 
-| Type | Coverage |
-|------|----------|
-| Unit Tests | Command execution logic, provider interfaces, prompt building, status state machine |
-| Integration Tests | Full flow from input to graph update |
-| Mock Providers | Test with deterministic mock LLM responses |
-| Visual Tests | Storybook stories for voice UI components |
-| E2E Tests | Playwright tests for complete user flows |
+| Type              | Coverage                                                                            |
+| ----------------- | ----------------------------------------------------------------------------------- |
+| Unit Tests        | Command execution logic, provider interfaces, prompt building, status state machine |
+| Integration Tests | Full flow from input to graph update                                                |
+| Mock Providers    | Test with deterministic mock LLM responses                                          |
+| Visual Tests      | Storybook stories for voice UI components                                           |
+| E2E Tests         | Playwright tests for complete user flows                                            |
 
 ---
 
@@ -2238,6 +2281,7 @@ class ConversationHistory {
 **Description**: LLMs may generate invalid commands, wrong selectors, or misunderstand user intent.
 
 **Mitigation**:
+
 - Strict Zod schema validation on all tool outputs—invalid responses rejected
 - Comprehensive examples in tool definitions for few-shot learning
 - Fallback prompts asking for clarification when intent unclear
@@ -2249,6 +2293,7 @@ class ConversationHistory {
 **Description**: OpenAI, Anthropic, etc. may change their APIs breaking integration.
 
 **Mitigation**:
+
 - Vercel AI SDK abstracts provider differences—they handle compatibility
 - Pin dependency versions for stability
 - Comprehensive test suite catches regressions
@@ -2259,6 +2304,7 @@ class ConversationHistory {
 **Description**: In-browser LLMs may be too slow or consume too much memory on lower-end devices.
 
 **Mitigation**:
+
 - Document minimum hardware requirements
 - Offer quantized model options (smaller but faster)
 - Graceful degradation to cloud providers
@@ -2270,6 +2316,7 @@ class ConversationHistory {
 **Description**: Web Speech API may misrecognize technical terms, node names, graph terminology.
 
 **Mitigation**:
+
 - Show interim transcripts for user correction
 - Allow manual editing of transcript before execution
 - Custom vocabulary hints where API supports it
@@ -2281,6 +2328,7 @@ class ConversationHistory {
 **Description**: Feature could grow unbounded with more commands, providers, and adapters.
 
 **Mitigation**:
+
 - Clear command interface makes additions isolated
 - Phase-based implementation with defined checkpoints
 - Core commands prioritized; advanced features in later phases
@@ -2291,6 +2339,7 @@ class ConversationHistory {
 **Description**: Users may overestimate security of encrypted localStorage.
 
 **Mitigation**:
+
 - Session-only storage as default (highest security)
 - Clear documentation about trade-offs
 - Recommend WebLLM for maximum privacy
@@ -2328,12 +2377,12 @@ class ConversationHistory {
 
 ```json
 {
-  "ai": "^4.0.0",                    // Vercel AI SDK core
-  "@ai-sdk/openai": "^1.0.0",        // OpenAI provider
-  "@ai-sdk/anthropic": "^1.0.0",     // Anthropic provider
-  "@ai-sdk/google": "^1.0.0",        // Google/Gemini provider
-  "zod": "^3.23.0",                  // Already in project
-  "encrypt-storage": "^2.12.0"       // AES encryption for optional persistence
+    "ai": "^4.0.0", // Vercel AI SDK core
+    "@ai-sdk/openai": "^1.0.0", // OpenAI provider
+    "@ai-sdk/anthropic": "^1.0.0", // Anthropic provider
+    "@ai-sdk/google": "^1.0.0", // Google/Gemini provider
+    "zod": "^3.23.0", // Already in project
+    "encrypt-storage": "^2.12.0" // AES encryption for optional persistence
 }
 ```
 
@@ -2341,7 +2390,7 @@ class ConversationHistory {
 
 ```json
 {
-  "@mlc-ai/web-llm": "^0.2.0"        // In-browser LLM (lazy loaded)
+    "@mlc-ai/web-llm": "^0.2.0" // In-browser LLM (lazy loaded)
 }
 ```
 
@@ -2356,27 +2405,29 @@ class ConversationHistory {
 
 ## Implementation Estimate
 
-| Phase | Description | Estimate |
-|-------|-------------|----------|
-| Phase 1 | Core infrastructure (AiManager, AiController, providers) | 3-4 days |
-| Phase 2 | Command framework and basic commands | 4-5 days |
-| Phase 3 | Additional providers (Anthropic, Gemini, WebLLM) | 2-3 days |
-| Phase 4 | Input adapters (text, voice) | 2-3 days |
-| Phase 5 | Advanced features (algorithms, capture, history) | 3-4 days |
-| Phase 6 | Polish, documentation, testing | 3-4 days |
-| **Total** | | **17-23 days** |
+| Phase     | Description                                              | Estimate       |
+| --------- | -------------------------------------------------------- | -------------- |
+| Phase 1   | Core infrastructure (AiManager, AiController, providers) | 3-4 days       |
+| Phase 2   | Command framework and basic commands                     | 4-5 days       |
+| Phase 3   | Additional providers (Anthropic, Gemini, WebLLM)         | 2-3 days       |
+| Phase 4   | Input adapters (text, voice)                             | 2-3 days       |
+| Phase 5   | Advanced features (algorithms, capture, history)         | 3-4 days       |
+| Phase 6   | Polish, documentation, testing                           | 3-4 days       |
+| **Total** |                                                          | **17-23 days** |
 
 ---
 
 ## Sources
 
 ### LLM Integration
+
 - [Vercel AI SDK Documentation](https://ai-sdk.dev/docs/introduction)
 - [Vercel AI SDK Chatbot UI Guide](https://ai-sdk.dev/docs/ai-sdk-ui/chatbot) — Status states, streaming, error handling
 - [WebLLM - In-Browser LLM Inference](https://github.com/mlc-ai/web-llm)
 - [ModelFusion - TypeScript AI Library](https://github.com/vercel/modelfusion)
 
 ### BYOK Pattern & API Key Security
+
 - [GitHub Copilot BYOK Announcement](https://github.blog/changelog/2025-11-20-enterprise-bring-your-own-key-byok-for-github-copilot-is-now-in-public-preview/)
 - [JetBrains AI BYOK](https://blog.jetbrains.com/ai/2025/11/bring-your-own-key-byok-is-coming-soon-to-jetbrains-ai/)
 - [Warp BYOK Documentation](https://docs.warp.dev/support-and-billing/plans-and-pricing/bring-your-own-api-key)
@@ -2386,11 +2437,13 @@ class ConversationHistory {
 - [secure-ls npm package](https://www.npmjs.com/package/secure-ls)
 
 ### Voice Input
+
 - [Web Speech API - MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API)
 - [Chrome Voice-Driven Web Apps](https://developer.chrome.com/blog/voice-driven-web-apps-introduction-to-the-web-speech-api)
 - [SpeechRecognition API - MDN](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition)
 
 ### UI/UX for AI Loading States
+
 - [AWS Cloudscape GenAI Loading States](https://cloudscape.design/patterns/genai/genai-loading-states/) — Two-stage loading model, streaming indicators
 - [Nine UX Best Practices for AI Chatbots](https://www.mindtheproduct.com/deep-dive-ux-best-practices-for-ai-chatbots/)
 - [Chatbot UX Design Guide 2025](https://www.parallelhq.com/blog/chatbot-ux-design)

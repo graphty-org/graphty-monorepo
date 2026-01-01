@@ -1,17 +1,13 @@
-import {chromium} from "playwright";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 
 async function main() {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
     // Test a few style stories
-    const stories = [
-        "styles-node--default",
-        "styles-edge--default",
-        "styles-graph--default",
-    ];
+    const stories = ["styles-node--default", "styles-edge--default", "styles-graph--default"];
 
     for (const storyId of stories) {
         console.log(`\nTesting ${storyId}...`);
@@ -20,14 +16,14 @@ async function main() {
         await page.goto(`${STORYBOOK_URL}/iframe.html?id=${storyId}&viewMode=story`);
 
         // Wait for graphty-element
-        await page.waitForSelector("graphty-element", {timeout: 10000});
+        await page.waitForSelector("graphty-element", { timeout: 10000 });
         await page.waitForTimeout(3000);
 
         // Check if graph is rendering
         const graphInfo = await page.evaluate(() => {
             const graphty = document.querySelector("graphty-element");
             if (!graphty) {
-                return {exists: false};
+                return { exists: false };
             }
 
             return {
@@ -48,7 +44,7 @@ async function main() {
 
         // Take screenshot
         const screenshot = await page.locator("graphty-element").screenshot();
-        await page.screenshot({path: `test/screenshots/${storyId}.png`, fullPage: true});
+        await page.screenshot({ path: `test/screenshots/${storyId}.png`, fullPage: true });
     }
 
     await browser.close();

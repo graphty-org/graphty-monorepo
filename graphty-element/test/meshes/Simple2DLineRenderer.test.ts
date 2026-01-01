@@ -1,7 +1,7 @@
-import {NullEngine, Scene, Vector3} from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import {Simple2DLineRenderer} from "../../src/meshes/Simple2DLineRenderer";
+import { Simple2DLineRenderer } from "../../src/meshes/Simple2DLineRenderer";
 
 describe("Simple2DLineRenderer", () => {
     let scene: Scene;

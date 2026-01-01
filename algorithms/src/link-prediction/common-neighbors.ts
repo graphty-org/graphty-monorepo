@@ -1,6 +1,6 @@
-import type {Graph} from "../core/graph.js";
-import type {NodeId} from "../types/index.js";
-import {getCommonNeighbors, getIntermediateNodes} from "../utils/graph-utilities.js";
+import type { Graph } from "../core/graph.js";
+import type { NodeId } from "../types/index.js";
+import { getCommonNeighbors, getIntermediateNodes } from "../utils/graph-utilities.js";
 
 /**
  * Common Neighbors link prediction implementation
@@ -27,6 +27,11 @@ export interface LinkPredictionOptions {
 
 /**
  * Calculate common neighbors score for a pair of nodes
+ * @param graph - The input graph
+ * @param source - The source node ID
+ * @param target - The target node ID
+ * @param options - Link prediction options
+ * @returns The number of common neighbors
  */
 export function commonNeighborsScore(
     graph: Graph,
@@ -38,29 +43,25 @@ export function commonNeighborsScore(
         return 0;
     }
 
-    const {directed = false} = options;
+    const { directed = false } = options;
 
     // Use utility function to get common neighbors
     // For directed graphs, we want intermediate nodes that form paths source->X->target
-    const commonNeighborsSet = directed ?
-        getIntermediateNodes(graph, source, target) :
-        getCommonNeighbors(graph, source, target, false);
+    const commonNeighborsSet = directed
+        ? getIntermediateNodes(graph, source, target)
+        : getCommonNeighbors(graph, source, target, false);
 
     return commonNeighborsSet.size;
 }
 
 /**
  * Calculate common neighbors scores for all possible node pairs
+ * @param graph - The input graph
+ * @param options - Link prediction options
+ * @returns Array of link prediction scores sorted by score descending
  */
-export function commonNeighborsPrediction(
-    graph: Graph,
-    options: LinkPredictionOptions = {},
-): LinkPredictionScore[] {
-    const {
-        directed = false,
-        includeExisting = false,
-        topK,
-    } = options;
+export function commonNeighborsPrediction(graph: Graph, options: LinkPredictionOptions = {}): LinkPredictionScore[] {
+    const { directed = false, includeExisting = false, topK } = options;
 
     const scores: LinkPredictionScore[] = [];
     const nodes = Array.from(graph.nodes()).map((n) => n.id);
@@ -79,14 +80,14 @@ export function commonNeighborsPrediction(
                 continue;
             }
 
-            const score = commonNeighborsScore(graph, source, target, {directed});
+            const score = commonNeighborsScore(graph, source, target, { directed });
 
             if (score > 0) {
-                scores.push({source, target, score});
+                scores.push({ source, target, score });
 
                 // For undirected graphs, also add the reverse pair
                 if (!directed && source !== target) {
-                    scores.push({source: target, target: source, score});
+                    scores.push({ source: target, target: source, score });
                 }
             }
         }
@@ -105,6 +106,10 @@ export function commonNeighborsPrediction(
 
 /**
  * Calculate common neighbors scores for specific node pairs
+ * @param graph - The input graph
+ * @param pairs - Array of node ID pairs to calculate scores for
+ * @param options - Link prediction options
+ * @returns Array of link prediction scores for the specified pairs
  */
 export function commonNeighborsForPairs(
     graph: Graph,
@@ -120,22 +125,21 @@ export function commonNeighborsForPairs(
 
 /**
  * Get top candidates for link prediction for a specific node
+ * @param graph - The input graph
+ * @param node - The node ID to get candidates for
+ * @param options - Link prediction options with optional candidate list
+ * @returns Array of top link prediction candidates sorted by score descending
  */
 export function getTopCandidatesForNode(
     graph: Graph,
     node: NodeId,
-    options: LinkPredictionOptions & {candidates?: NodeId[]} = {},
+    options: LinkPredictionOptions & { candidates?: NodeId[] } = {},
 ): LinkPredictionScore[] {
     if (!graph.hasNode(node)) {
         return [];
     }
 
-    const {
-        directed = false,
-        includeExisting = false,
-        topK = 10,
-        candidates,
-    } = options;
+    const { directed = false, includeExisting = false, topK = 10, candidates } = options;
 
     const scores: LinkPredictionScore[] = [];
     const targetNodes = candidates ?? Array.from(graph.nodes()).map((n) => n.id);
@@ -150,10 +154,10 @@ export function getTopCandidatesForNode(
             continue;
         }
 
-        const score = commonNeighborsScore(graph, node, target, {directed});
+        const score = commonNeighborsScore(graph, node, target, { directed });
 
         if (score > 0) {
-            scores.push({source: node, target, score});
+            scores.push({ source: node, target, score });
         }
     }
 
@@ -165,6 +169,11 @@ export function getTopCandidatesForNode(
 
 /**
  * Calculate precision and recall for link prediction evaluation
+ * @param trainingGraph - The training graph without test edges
+ * @param testEdges - Array of node pairs that are actual edges
+ * @param nonEdges - Array of node pairs that are not edges
+ * @param options - Link prediction options
+ * @returns Evaluation metrics including precision, recall, F1 score, and AUC
  */
 export function evaluateCommonNeighbors(
     trainingGraph: Graph,
@@ -172,19 +181,19 @@ export function evaluateCommonNeighbors(
     nonEdges: [NodeId, NodeId][],
     options: LinkPredictionOptions = {},
 ): {
-        precision: number;
-        recall: number;
-        f1Score: number;
-        auc: number;
-    } {
+    precision: number;
+    recall: number;
+    f1Score: number;
+    auc: number;
+} {
     // Get scores for test edges and non-edges
     const testScores = commonNeighborsForPairs(trainingGraph, testEdges, options);
     const nonEdgeScores = commonNeighborsForPairs(trainingGraph, nonEdges, options);
 
     // Combine and sort all scores
     const allScores = [
-        ... testScores.map((s) => ({... s, isActualEdge: true})),
-        ... nonEdgeScores.map((s) => ({... s, isActualEdge: false})),
+        ...testScores.map((s) => ({ ...s, isActualEdge: true })),
+        ...nonEdgeScores.map((s) => ({ ...s, isActualEdge: false })),
     ].sort((a, b) => b.score - a.score);
 
     // Calculate precision and recall at different thresholds
@@ -205,7 +214,7 @@ export function evaluateCommonNeighbors(
 
         const precision = truePositives / (truePositives + falsePositives);
         const recall = truePositives / totalPositives;
-        const f1 = precision + recall > 0 ? 2 * (precision * recall) / (precision + recall) : 0;
+        const f1 = precision + recall > 0 ? (2 * (precision * recall)) / (precision + recall) : 0;
 
         if (f1 > bestF1) {
             bestF1 = f1;

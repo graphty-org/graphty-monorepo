@@ -1,6 +1,6 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {UnionFind} from "../../src/data-structures/union-find.js";
+import { UnionFind } from "../../src/data-structures/union-find.js";
 
 describe("UnionFind", () => {
     describe("constructor", () => {
@@ -257,7 +257,7 @@ describe("UnionFind", () => {
 
     describe("stress test", () => {
         it("should handle large number of operations efficiently", () => {
-            const elements = Array.from({length: 1000}, (_, i) => i.toString());
+            const elements = Array.from({ length: 1000 }, (_, i) => i.toString());
             const uf = new UnionFind(elements);
 
             // Initially all separate

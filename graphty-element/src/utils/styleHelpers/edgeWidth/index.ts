@@ -18,7 +18,7 @@
 export function linear(value: number, minWidth = 0.5, maxWidth = 5): number {
     // Clamp value to [0, 1]
     const clampedValue = Math.max(0, Math.min(1, value));
-    return minWidth + (clampedValue * (maxWidth - minWidth));
+    return minWidth + clampedValue * (maxWidth - minWidth);
 }
 
 /**
@@ -50,7 +50,7 @@ export function log(value: number, minWidth = 0.5, maxWidth = 5): number {
     // Normalize to [0,1]
     const normalized = (logValue - logMin) / (logMax - logMin);
 
-    return minWidth + (normalized * (maxWidth - minWidth));
+    return minWidth + normalized * (maxWidth - minWidth);
 }
 
 /**
@@ -64,11 +64,7 @@ export function log(value: number, minWidth = 0.5, maxWidth = 5): number {
  * binary(false)    // 1
  * binary(true, 5, 2) // 5
  */
-export function binary(
-    isHighlighted: boolean,
-    highlightWidth = 3,
-    normalWidth = 1,
-): number {
+export function binary(isHighlighted: boolean, highlightWidth = 3, normalWidth = 1): number {
     return isHighlighted ? highlightWidth : normalWidth;
 }
 

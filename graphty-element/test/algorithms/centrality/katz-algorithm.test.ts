@@ -1,14 +1,14 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {KatzCentralityAlgorithm} from "../../../src/algorithms/KatzCentralityAlgorithm";
-import type {AdHocData} from "../../../src/config";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { KatzCentralityAlgorithm } from "../../../src/algorithms/KatzCentralityAlgorithm";
+import type { AdHocData } from "../../../src/config";
 
 interface MockGraphOpts {
     dataPath?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
     const nodes = new Map<string | number, AdHocData>();
     const edges = new Map<string | number, AdHocData>();
@@ -55,12 +55,12 @@ describe("KatzCentralityAlgorithm", () => {
     });
 
     describe("Algorithm Execution", () => {
-        it("exists", async() => {
+        it("exists", async () => {
             new KatzCentralityAlgorithm(await mockGraph());
         });
 
-        it("calculates katz scores for all nodes", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("calculates katz scores for all nodes", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new KatzCentralityAlgorithm(fakeGraph);
             await algo.run();
 
@@ -76,15 +76,15 @@ describe("KatzCentralityAlgorithm", () => {
             }
         });
 
-        it("handles empty graph", async() => {
+        it("handles empty graph", async () => {
             const emptyGraph = await mockGraph();
             const algo = new KatzCentralityAlgorithm(emptyGraph);
             await algo.run();
             // Should not throw
         });
 
-        it("well-connected nodes have higher katz centrality", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("well-connected nodes have higher katz centrality", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new KatzCentralityAlgorithm(fakeGraph);
             await algo.run();
 
@@ -125,9 +125,9 @@ describe("KatzCentralityAlgorithm", () => {
             const layer = styles.layers[0];
             assert.ok(layer.node);
             assert.property(layer.node, "calculatedStyle");
-            assert.ok(layer.node.calculatedStyle?.inputs.some((input) =>
-                input.includes("algorithmResults.graphty.katz"),
-            ));
+            assert.ok(
+                layer.node.calculatedStyle?.inputs.some((input) => input.includes("algorithmResults.graphty.katz")),
+            );
         });
     });
 });

@@ -1,22 +1,18 @@
-import {chromium} from "playwright";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 
 async function main() {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
-    const stories = [
-        "layout-3d--ngraph",
-        "layout-3d--d-3",
-        "styles-node--default",
-    ];
+    const stories = ["layout-3d--ngraph", "layout-3d--d-3", "styles-node--default"];
 
     for (const storyId of stories) {
         console.log(`\nMeasuring settling steps for ${storyId}...`);
 
         await page.goto(`${STORYBOOK_URL}/iframe.html?id=${storyId}&viewMode=story`);
-        await page.waitForSelector("graphty-element", {timeout: 10000});
+        await page.waitForSelector("graphty-element", { timeout: 10000 });
         await page.waitForTimeout(2000);
 
         // Measure how many steps it takes to settle
@@ -24,13 +20,13 @@ async function main() {
             return new Promise((resolve) => {
                 const graphty = document.querySelector("graphty-element");
                 if (!graphty?.graph) {
-                    resolve({error: "No graph found"});
+                    resolve({ error: "No graph found" });
                     return;
                 }
 
                 const layout = graphty.graph.layoutManager?.layoutEngine;
                 if (!layout) {
-                    resolve({error: "No layout engine found"});
+                    resolve({ error: "No layout engine found" });
                     return;
                 }
 

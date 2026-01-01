@@ -1,5 +1,5 @@
-import type {AdHocData} from "../config/common.js";
-import {BaseDataSourceConfig, DataSource, DataSourceChunk} from "./DataSource.js";
+import type { AdHocData } from "../config/common.js";
+import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 
 // GML has no additional config currently, so just use the base config
 export type GMLDataSourceConfig = BaseDataSourceConfig;
@@ -35,7 +35,7 @@ export class GMLDataSource extends DataSource {
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-    // Get GML content
+        // Get GML content
         const gmlContent = await this.getContent();
 
         // Parse GML
@@ -54,8 +54,8 @@ export class GMLDataSource extends DataSource {
     }
 
     private parseGML(content: string): GMLValue | null {
-    // Simple GML parser
-    // GML format: key [ ... ] or key value
+        // Simple GML parser
+        // GML format: key [ ... ] or key value
         const tokens = this.tokenize(content);
         const result = this.parseValue(tokens);
 
@@ -72,7 +72,7 @@ export class GMLDataSource extends DataSource {
         let inString = false;
         let inComment = false;
 
-        // eslint-disable-next-line @typescript-eslint/prefer-for-of -- Need index for look-ahead and manual increment
+         
         for (let i = 0; i < content.length; i++) {
             const char = content[i];
             // const nextChar = content[i + 1]; // Unused
@@ -92,7 +92,7 @@ export class GMLDataSource extends DataSource {
             }
 
             // Handle strings
-            if (char === "\"") {
+            if (char === '"') {
                 if (inString) {
                     tokens.push(current);
                     current = "";
@@ -230,7 +230,7 @@ export class GMLDataSource extends DataSource {
     }
 
     private parseSimpleValue(value: string): string | number {
-    // Try to parse as number
+        // Try to parse as number
         if (/^-?\d+$/.test(value)) {
             return parseInt(value, 10);
         }
@@ -262,7 +262,7 @@ export class GMLDataSource extends DataSource {
                     continue;
                 }
 
-                const nodeData: Record<string, unknown> = {... node};
+                const nodeData: Record<string, unknown> = { ...node };
                 nodes.push(nodeData);
             } catch (error) {
                 const canContinue = this.errorAggregator.addError({
@@ -302,7 +302,7 @@ export class GMLDataSource extends DataSource {
                 const edgeData: Record<string, unknown> = {
                     src: edge.source,
                     dst: edge.target,
-                    ... edge,
+                    ...edge,
                 };
 
                 // Remove redundant source/target fields

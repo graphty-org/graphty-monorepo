@@ -3,11 +3,11 @@
  * @module ai/commands/AlgorithmCommands
  */
 
-import {z} from "zod";
+import { z } from "zod";
 
-import {Algorithm} from "../../algorithms/Algorithm";
-import type {Graph} from "../../Graph";
-import type {CommandResult, GraphCommand} from "./types";
+import { Algorithm } from "../../algorithms/Algorithm";
+import type { Graph } from "../../Graph";
+import type { CommandResult, GraphCommand } from "./types";
 
 /**
  * Schema for runAlgorithm parameters.
@@ -29,27 +29,25 @@ const listAlgorithmsParamsSchema = z.object({
  */
 export const runAlgorithm: GraphCommand = {
     name: "runAlgorithm",
-    description: "Run a graph algorithm to analyze the graph structure. Available algorithms include degree centrality, pagerank, and others that compute metrics for nodes and edges.",
+    description:
+        "Run a graph algorithm to analyze the graph structure. Available algorithms include degree centrality, pagerank, and others that compute metrics for nodes and edges.",
     parameters: runAlgorithmParamsSchema,
     examples: [
         {
             input: "Calculate the degree of each node",
-            params: {namespace: "graphty", type: "degree"},
+            params: { namespace: "graphty", type: "degree" },
         },
         {
             input: "Run pagerank algorithm",
-            params: {namespace: "graphty", type: "pagerank"},
+            params: { namespace: "graphty", type: "pagerank" },
         },
         {
             input: "Compute centrality metrics",
-            params: {namespace: "graphty", type: "degree"},
+            params: { namespace: "graphty", type: "degree" },
         },
     ],
 
-    async execute(
-        graph: Graph,
-        params: Record<string, unknown>,
-    ): Promise<CommandResult> {
+    async execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
         const parsed = runAlgorithmParamsSchema.safeParse(params);
         if (!parsed.success) {
             return {
@@ -58,16 +56,17 @@ export const runAlgorithm: GraphCommand = {
             };
         }
 
-        const {namespace, type} = parsed.data;
+        const { namespace, type } = parsed.data;
 
         try {
             // Check if algorithm exists
             const alg = Algorithm.get(graph, namespace, type);
             if (!alg) {
                 const available = Algorithm.getRegisteredAlgorithms(namespace);
-                const errorMessage = available.length > 0 ?
-                    `Available in namespace '${namespace}': ${available.map((a) => a.split(":")[1]).join(", ")}` :
-                    `No algorithms found in namespace '${namespace}'. Use listAlgorithms to see available options.`;
+                const errorMessage =
+                    available.length > 0
+                        ? `Available in namespace '${namespace}': ${available.map((a) => a.split(":")[1]).join(", ")}`
+                        : `No algorithms found in namespace '${namespace}'. Use listAlgorithms to see available options.`;
                 return {
                     success: false,
                     message: `Algorithm not found: ${namespace}:${type}. ${errorMessage}`,
@@ -109,7 +108,7 @@ export const listAlgorithms: GraphCommand = {
         },
         {
             input: "List graphty algorithms",
-            params: {namespace: "graphty"},
+            params: { namespace: "graphty" },
         },
         {
             input: "Show me the available analysis tools",
@@ -118,10 +117,7 @@ export const listAlgorithms: GraphCommand = {
     ],
 
     // eslint-disable-next-line @typescript-eslint/require-await
-    async execute(
-        _graph: Graph,
-        params: Record<string, unknown>,
-    ): Promise<CommandResult> {
+    async execute(_graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
         const parsed = listAlgorithmsParamsSchema.safeParse(params);
         if (!parsed.success) {
             return {
@@ -130,15 +126,15 @@ export const listAlgorithms: GraphCommand = {
             };
         }
 
-        const {namespace} = parsed.data;
+        const { namespace } = parsed.data;
 
         try {
             const algorithms = Algorithm.getRegisteredAlgorithms(namespace);
 
             if (algorithms.length === 0) {
-                const noAlgMessage = namespace ?
-                    `No algorithms found in namespace '${namespace}'.` :
-                    "No algorithms are currently registered.";
+                const noAlgMessage = namespace
+                    ? `No algorithms found in namespace '${namespace}'.`
+                    : "No algorithms are currently registered.";
                 return {
                     success: true,
                     message: noAlgMessage,
@@ -149,9 +145,9 @@ export const listAlgorithms: GraphCommand = {
                 };
             }
 
-            const message = namespace ?
-                `Found ${algorithms.length} algorithm(s) in namespace '${namespace}': ${algorithms.join(", ")}` :
-                `Found ${algorithms.length} available algorithm(s): ${algorithms.join(", ")}`;
+            const message = namespace
+                ? `Found ${algorithms.length} algorithm(s) in namespace '${namespace}': ${algorithms.join(", ")}`
+                : `Found ${algorithms.length} available algorithm(s): ${algorithms.join(", ")}`;
 
             return {
                 success: true,

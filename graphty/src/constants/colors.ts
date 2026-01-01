@@ -2,13 +2,7 @@
  * Standard color swatches for color pickers throughout the application.
  * Used by CompactColorInput, StyleColorInput, and GradientEditor.
  */
-export const SWATCH_COLORS = [
-    "#5B8FF9",
-    "#FF6B6B",
-    "#61D095",
-    "#F7B731",
-    "#9B59B6",
-] as const;
+export const SWATCH_COLORS = ["#5B8FF9", "#FF6B6B", "#61D095", "#F7B731", "#9B59B6"] as const;
 
 /**
  * Swatches with alpha channel for HEXA color pickers.

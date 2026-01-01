@@ -1,21 +1,21 @@
-import type {OptionsSchema} from "../config";
-import {ArfLayout} from "./ArfLayoutEngine";
-import {BfsLayout} from "./BfsLayoutEngine";
-import {BipartiteLayout} from "./BipartiteLayoutEngine";
-import {CircularLayout} from "./CircularLayoutEngine";
-import {D3GraphEngine} from "./D3GraphLayoutEngine";
-import {FixedLayout} from "./FixedLayoutEngine";
-import {ForceAtlas2Layout} from "./ForceAtlas2LayoutEngine";
-import {KamadaKawaiLayout} from "./KamadaKawaiLayoutEngine";
-import {LayoutEngine, type LayoutEngineStatics} from "./LayoutEngine";
-import {MultipartiteLayout} from "./MultipartiteLayoutEngine";
-import {NGraphEngine} from "./NGraphLayoutEngine";
-import {PlanarLayout} from "./PlanarLayoutEngine";
-import {RandomLayout} from "./RandomLayoutEngine";
-import {ShellLayout} from "./ShellLayoutEngine";
-import {SpectralLayout} from "./SpectralLayoutEngine";
-import {SpiralLayout} from "./SpiralLayoutEngine";
-import {SpringLayout} from "./SpringLayoutEngine";
+import type { OptionsSchema } from "../config";
+import { ArfLayout } from "./ArfLayoutEngine";
+import { BfsLayout } from "./BfsLayoutEngine";
+import { BipartiteLayout } from "./BipartiteLayoutEngine";
+import { CircularLayout } from "./CircularLayoutEngine";
+import { D3GraphEngine } from "./D3GraphLayoutEngine";
+import { FixedLayout } from "./FixedLayoutEngine";
+import { ForceAtlas2Layout } from "./ForceAtlas2LayoutEngine";
+import { KamadaKawaiLayout } from "./KamadaKawaiLayoutEngine";
+import { LayoutEngine, type LayoutEngineStatics } from "./LayoutEngine";
+import { MultipartiteLayout } from "./MultipartiteLayoutEngine";
+import { NGraphEngine } from "./NGraphLayoutEngine";
+import { PlanarLayout } from "./PlanarLayoutEngine";
+import { RandomLayout } from "./RandomLayoutEngine";
+import { ShellLayout } from "./ShellLayoutEngine";
+import { SpectralLayout } from "./SpectralLayoutEngine";
+import { SpiralLayout } from "./SpiralLayoutEngine";
+import { SpringLayout } from "./SpringLayoutEngine";
 
 LayoutEngine.register(D3GraphEngine);
 LayoutEngine.register(NGraphEngine);
@@ -104,4 +104,4 @@ export function getAllLayoutSchemas(): Map<string, OptionsSchema> {
 }
 
 // Re-export types and classes
-export {LayoutEngine, type LayoutEngineStatics};
+export { LayoutEngine, type LayoutEngineStatics };

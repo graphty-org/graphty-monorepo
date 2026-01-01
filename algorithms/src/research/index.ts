@@ -7,11 +7,11 @@
  */
 
 // Synergistic Deep Graph Clustering
-export {syncClustering, type SynCConfig, type SynCResult} from "./sync.js";
+export { syncClustering, type SynCConfig, type SynCResult } from "./sync.js";
 
 // TeraHAC - Hierarchical Agglomerative Clustering
-export {teraHAC, type TeraHACConfig, type TeraHACResult} from "./terahac.js";
-export {type ClusterNode as TeraHACClusterNode} from "./terahac.js";
+export { teraHAC, type TeraHACConfig, type TeraHACResult } from "./terahac.js";
+export { type ClusterNode as TeraHACClusterNode } from "./terahac.js";
 
 // GRSBM - Greedy Recursive Spectral Bisection with Modularity
-export {type ClusterExplanation, grsbm, type GRSBMCluster, type GRSBMConfig, type GRSBMResult} from "./grsbm.js";
+export { type ClusterExplanation, grsbm, type GRSBMCluster, type GRSBMConfig, type GRSBMResult } from "./grsbm.js";

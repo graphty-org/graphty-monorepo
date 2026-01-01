@@ -1,17 +1,13 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {Graph} from "../../src/core/graph";
-import {
-    createBipartiteFlowNetwork,
-    edmondsKarp,
-    fordFulkerson,
-} from "../../src/flow/ford-fulkerson";
-import {createGraphFromMap} from "../helpers/graph-test-utils";
+import { Graph } from "../../src/core/graph";
+import { createBipartiteFlowNetwork, edmondsKarp, fordFulkerson } from "../../src/flow/ford-fulkerson";
+import { createGraphFromMap } from "../helpers/graph-test-utils";
 
 describe("Ford-Fulkerson Algorithm", () => {
     describe("API consistency", () => {
         it("fordFulkerson should accept Graph type", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("source", "a", 10);
             graph.addEdge("a", "sink", 10);
 
@@ -20,7 +16,7 @@ describe("Ford-Fulkerson Algorithm", () => {
         });
 
         it("edmondsKarp should accept Graph type", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("source", "a", 10);
             graph.addEdge("a", "sink", 10);
 
@@ -32,10 +28,34 @@ describe("Ford-Fulkerson Algorithm", () => {
     describe("fordFulkerson", () => {
         it("should find maximum flow in a simple network", () => {
             const graphMap = new Map([
-                ["s", new Map([["a", 10], ["b", 10]])],
-                ["a", new Map([["b", 2], ["t", 4]])],
-                ["b", new Map([["c", 9], ["t", 10]])],
-                ["c", new Map([["a", 6], ["t", 10]])],
+                [
+                    "s",
+                    new Map([
+                        ["a", 10],
+                        ["b", 10],
+                    ]),
+                ],
+                [
+                    "a",
+                    new Map([
+                        ["b", 2],
+                        ["t", 4],
+                    ]),
+                ],
+                [
+                    "b",
+                    new Map([
+                        ["c", 9],
+                        ["t", 10],
+                    ]),
+                ],
+                [
+                    "c",
+                    new Map([
+                        ["a", 6],
+                        ["t", 10],
+                    ]),
+                ],
                 ["t", new Map()],
             ]);
             const graph = createGraphFromMap(graphMap);
@@ -66,7 +86,13 @@ describe("Ford-Fulkerson Algorithm", () => {
 
         it("should handle multiple parallel paths", () => {
             const graphMap = new Map([
-                ["s", new Map([["a", 10], ["b", 10]])],
+                [
+                    "s",
+                    new Map([
+                        ["a", 10],
+                        ["b", 10],
+                    ]),
+                ],
                 ["a", new Map([["t", 10]])],
                 ["b", new Map([["t", 10]])],
                 ["t", new Map()],
@@ -79,9 +105,7 @@ describe("Ford-Fulkerson Algorithm", () => {
         });
 
         it("should return zero flow for non-existent source", () => {
-            const graphMap = new Map([
-                ["a", new Map([["b", 10]])],
-            ]);
+            const graphMap = new Map([["a", new Map([["b", 10]])]]);
             const graph = createGraphFromMap(graphMap);
 
             const result = fordFulkerson(graph, "x", "b");
@@ -91,9 +115,7 @@ describe("Ford-Fulkerson Algorithm", () => {
         });
 
         it("should return zero flow for non-existent sink", () => {
-            const graphMap = new Map([
-                ["a", new Map([["b", 10]])],
-            ]);
+            const graphMap = new Map([["a", new Map([["b", 10]])]]);
             const graph = createGraphFromMap(graphMap);
 
             const result = fordFulkerson(graph, "a", "x");
@@ -117,11 +139,41 @@ describe("Ford-Fulkerson Algorithm", () => {
 
         it("should handle complex network with cycles", () => {
             const graphMap = new Map([
-                ["s", new Map([["v1", 16], ["v2", 13]])],
-                ["v1", new Map([["v2", 10], ["v3", 12]])],
-                ["v2", new Map([["v1", 4], ["v4", 14]])],
-                ["v3", new Map([["v2", 9], ["t", 20]])],
-                ["v4", new Map([["v3", 7], ["t", 4]])],
+                [
+                    "s",
+                    new Map([
+                        ["v1", 16],
+                        ["v2", 13],
+                    ]),
+                ],
+                [
+                    "v1",
+                    new Map([
+                        ["v2", 10],
+                        ["v3", 12],
+                    ]),
+                ],
+                [
+                    "v2",
+                    new Map([
+                        ["v1", 4],
+                        ["v4", 14],
+                    ]),
+                ],
+                [
+                    "v3",
+                    new Map([
+                        ["v2", 9],
+                        ["t", 20],
+                    ]),
+                ],
+                [
+                    "v4",
+                    new Map([
+                        ["v3", 7],
+                        ["t", 4],
+                    ]),
+                ],
                 ["t", new Map()],
             ]);
             const graph = createGraphFromMap(graphMap);
@@ -133,7 +185,13 @@ describe("Ford-Fulkerson Algorithm", () => {
 
         it("should correctly identify minimum cut", () => {
             const graphMap = new Map([
-                ["s", new Map([["a", 3], ["b", 2]])],
+                [
+                    "s",
+                    new Map([
+                        ["a", 3],
+                        ["b", 2],
+                    ]),
+                ],
                 ["a", new Map([["t", 2]])],
                 ["b", new Map([["t", 3]])],
                 ["t", new Map()],
@@ -150,9 +208,7 @@ describe("Ford-Fulkerson Algorithm", () => {
         });
 
         it.skip("should handle single node graph", () => {
-            const graph = new Map([
-                ["s", new Map()],
-            ]);
+            const graph = new Map([["s", new Map()]]);
 
             const result = fordFulkerson(graph, "s", "s");
 
@@ -161,7 +217,13 @@ describe("Ford-Fulkerson Algorithm", () => {
 
         it.skip("should handle capacity of zero", () => {
             const graph = new Map([
-                ["s", new Map([["a", 0], ["b", 10]])],
+                [
+                    "s",
+                    new Map([
+                        ["a", 0],
+                        ["b", 10],
+                    ]),
+                ],
                 ["a", new Map([["t", 10]])],
                 ["b", new Map([["t", 10]])],
                 ["t", new Map()],
@@ -176,10 +238,34 @@ describe("Ford-Fulkerson Algorithm", () => {
     describe("edmondsKarp", () => {
         it("should find same maximum flow as Ford-Fulkerson", () => {
             const graphMap = new Map([
-                ["s", new Map([["a", 10], ["b", 10]])],
-                ["a", new Map([["b", 2], ["t", 4]])],
-                ["b", new Map([["c", 9], ["t", 10]])],
-                ["c", new Map([["a", 6], ["t", 10]])],
+                [
+                    "s",
+                    new Map([
+                        ["a", 10],
+                        ["b", 10],
+                    ]),
+                ],
+                [
+                    "a",
+                    new Map([
+                        ["b", 2],
+                        ["t", 4],
+                    ]),
+                ],
+                [
+                    "b",
+                    new Map([
+                        ["c", 9],
+                        ["t", 10],
+                    ]),
+                ],
+                [
+                    "c",
+                    new Map([
+                        ["a", 6],
+                        ["t", 10],
+                    ]),
+                ],
                 ["t", new Map()],
             ]);
             const graph = createGraphFromMap(graphMap);
@@ -223,7 +309,13 @@ describe("Ford-Fulkerson Algorithm", () => {
 
         it("should handle all flow going through one bottleneck", () => {
             const graphMap = new Map([
-                ["s", new Map([["a", 100], ["b", 100]])],
+                [
+                    "s",
+                    new Map([
+                        ["a", 100],
+                        ["b", 100],
+                    ]),
+                ],
                 ["a", new Map([["c", 1]])], // Bottleneck
                 ["b", new Map([["c", 1]])], // Bottleneck
                 ["c", new Map([["t", 100]])],
@@ -248,7 +340,7 @@ describe("Ford-Fulkerson Algorithm", () => {
                 ["L3", "R3"],
             ];
 
-            const {graph, source, sink} = createBipartiteFlowNetwork(left, right, edges);
+            const { graph, source, sink } = createBipartiteFlowNetwork(left, right, edges);
 
             // Check source connections
             expect(graph.get(source)?.size).toBe(3);
@@ -268,7 +360,7 @@ describe("Ford-Fulkerson Algorithm", () => {
         });
 
         it.skip("should handle empty bipartite graph", () => {
-            const {graph, source, sink} = createBipartiteFlowNetwork([], [], []);
+            const { graph, source, sink } = createBipartiteFlowNetwork([], [], []);
 
             expect(graph.get(source)?.size).toBe(0);
             expect(graph.has(sink)).toBe(true);
@@ -278,7 +370,7 @@ describe("Ford-Fulkerson Algorithm", () => {
             const left = ["L1", "L2"];
             const right = ["R1", "R2"];
 
-            const {graph, source, sink} = createBipartiteFlowNetwork(left, right, []);
+            const { graph, source, sink } = createBipartiteFlowNetwork(left, right, []);
 
             const graphObj = createGraphFromMap(graph);
             const result = fordFulkerson(graphObj, source, sink);
@@ -299,7 +391,7 @@ describe("Ford-Fulkerson Algorithm", () => {
                 ["D", "1"],
             ];
 
-            const {graph, source, sink} = createBipartiteFlowNetwork(left, right, edges);
+            const { graph, source, sink } = createBipartiteFlowNetwork(left, right, edges);
             const graphObj = createGraphFromMap(graph);
             const result = fordFulkerson(graphObj, source, sink);
 
@@ -310,7 +402,13 @@ describe("Ford-Fulkerson Algorithm", () => {
     describe("edge cases and stress tests", () => {
         it.skip("should handle graph with self-loops", () => {
             const graph = new Map([
-                ["s", new Map([["a", 10], ["s", 5]])], // Self-loop
+                [
+                    "s",
+                    new Map([
+                        ["a", 10],
+                        ["s", 5],
+                    ]),
+                ], // Self-loop
                 ["a", new Map([["t", 10]])],
                 ["t", new Map()],
             ]);
@@ -322,7 +420,13 @@ describe("Ford-Fulkerson Algorithm", () => {
 
         it("should handle very large capacities", () => {
             const graphMap = new Map([
-                ["s", new Map([["a", 1e9], ["b", 1e9]])],
+                [
+                    "s",
+                    new Map([
+                        ["a", 1e9],
+                        ["b", 1e9],
+                    ]),
+                ],
                 ["a", new Map([["t", 1e9]])],
                 ["b", new Map([["t", 1e9]])],
                 ["t", new Map()],
@@ -336,7 +440,13 @@ describe("Ford-Fulkerson Algorithm", () => {
 
         it.skip("should handle fractional capacities", () => {
             const graph = new Map([
-                ["s", new Map([["a", 3.5], ["b", 2.7]])],
+                [
+                    "s",
+                    new Map([
+                        ["a", 3.5],
+                        ["b", 2.7],
+                    ]),
+                ],
                 ["a", new Map([["t", 4.2]])],
                 ["b", new Map([["t", 1.8]])],
                 ["t", new Map()],
@@ -349,7 +459,13 @@ describe("Ford-Fulkerson Algorithm", () => {
 
         it("should correctly update flow graph", () => {
             const graphMap = new Map([
-                ["s", new Map([["a", 10], ["b", 10]])],
+                [
+                    "s",
+                    new Map([
+                        ["a", 10],
+                        ["b", 10],
+                    ]),
+                ],
                 ["a", new Map([["t", 10]])],
                 ["b", new Map([["t", 10]])],
                 ["t", new Map()],

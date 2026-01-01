@@ -1,9 +1,15 @@
-import {useCallback, useEffect, useRef, useState} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import {type AiManagerType, type AiStatus, type ExecutionResult, getCreateAiManager, type ProviderType} from "../types/ai";
+import {
+    type AiManagerType,
+    type AiStatus,
+    type ExecutionResult,
+    getCreateAiManager,
+    type ProviderType,
+} from "../types/ai";
 
 // Re-export ExecutionResult from types
-export type {ExecutionResult};
+export type { ExecutionResult };
 
 export interface UseAiManagerOptions {
     /** Graph instance to use for AI operations (undefined when graph not yet available) */
@@ -38,9 +44,11 @@ export interface UseAiManagerResult {
 /**
  * React hook for managing AI operations.
  * Wraps the AiManager from graphty-element with React state management.
+ * @param options - Configuration options for the AI manager
+ * @returns Methods and state for managing AI operations
  */
 export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
-    const {graph, defaultProvider, getKey} = options;
+    const { graph, defaultProvider, getKey } = options;
 
     const managerRef = useRef<AiManagerType | null>(null);
     const [isReady, setIsReady] = useState(false);
@@ -84,8 +92,8 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
                     setStatus(newStatus);
                     setIsProcessing(
                         newStatus.stage === "processing" ||
-                        newStatus.stage === "executingTool" ||
-                        newStatus.stage === "streaming",
+                            newStatus.stage === "executingTool" ||
+                            newStatus.stage === "streaming",
                     );
 
                     if (newStatus.stage === "error" && newStatus.error) {
@@ -122,7 +130,7 @@ export function useAiManager(options: UseAiManagerOptions): UseAiManagerResult {
         setCurrentProvider(provider);
     }, []);
 
-    const execute = useCallback(async(input: string): Promise<ExecutionResult> => {
+    const execute = useCallback(async (input: string): Promise<ExecutionResult> => {
         if (!managerRef.current) {
             return {
                 success: false,

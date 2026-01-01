@@ -7,6 +7,7 @@ Complete reference for programmatic control via the `Graph` class.
 The JavaScript API provides full programmatic control over graph visualizations through the `Graph` class. This is separate from the [Web Component API](./web-component), which provides declarative configuration via HTML attributes.
 
 **Use the JavaScript API when you need:**
+
 - Dynamic data manipulation (add/remove nodes at runtime)
 - Algorithm execution and result handling
 - Camera control and animation
@@ -15,6 +16,7 @@ The JavaScript API provides full programmatic control over graph visualizations 
 - Event-driven interactions
 
 **Use the [Web Component API](./web-component) instead for:**
+
 - Declarative HTML configuration
 - Framework property binding
 - Simple static graphs
@@ -24,16 +26,16 @@ The JavaScript API provides full programmatic control over graph visualizations 
 The `Graph` class is accessed via the `.graph` property on the `<graphty-element>`:
 
 ```typescript
-const element = document.querySelector('graphty-element');
+const element = document.querySelector("graphty-element");
 const graph = element.graph;
 ```
 
 For TypeScript with proper typing:
 
 ```typescript
-import type { Graph, Graphty } from '@graphty/graphty-element';
+import type { Graph, Graphty } from "@graphty/graphty-element";
 
-const element = document.querySelector('graphty-element') as Graphty;
+const element = document.querySelector("graphty-element") as Graphty;
 const graph: Graph = element.graph;
 ```
 
@@ -49,12 +51,12 @@ The Web Component handles initialization. Access `.graph` after the element is c
 
 ```typescript
 // Add single node
-await graph.addNode({ id: 'node1', label: 'First' });
+await graph.addNode({ id: "node1", label: "First" });
 
 // Add multiple nodes
 await graph.addNodes([
-  { id: 'node1', label: 'First' },
-  { id: 'node2', label: 'Second' }
+    { id: "node1", label: "First" },
+    { id: "node2", label: "Second" },
 ]);
 ```
 
@@ -62,12 +64,12 @@ await graph.addNodes([
 
 ```typescript
 // Add single edge
-await graph.addEdge({ source: 'node1', target: 'node2' });
+await graph.addEdge({ source: "node1", target: "node2" });
 
 // Add multiple edges
 await graph.addEdges([
-  { source: 'node1', target: 'node2', weight: 1.5 },
-  { source: 'node2', target: 'node3' }
+    { source: "node1", target: "node2", weight: 1.5 },
+    { source: "node2", target: "node3" },
 ]);
 ```
 
@@ -75,8 +77,8 @@ await graph.addEdges([
 
 ```typescript
 // Remove nodes (edges are removed automatically)
-await graph.removeNodes(['node1']);
-await graph.removeNodes(['node1', 'node2']);
+await graph.removeNodes(["node1"]);
+await graph.removeNodes(["node1", "node2"]);
 ```
 
 **Bulk Data Loading:**
@@ -84,13 +86,11 @@ await graph.removeNodes(['node1', 'node2']);
 ```typescript
 // Load nodes and edges in one call
 graph.setData({
-  nodes: [
-    { id: 'node1', label: 'First' },
-    { id: 'node2', label: 'Second' }
-  ],
-  edges: [
-    { source: 'node1', target: 'node2' }
-  ]
+    nodes: [
+        { id: "node1", label: "First" },
+        { id: "node2", label: "Second" },
+    ],
+    edges: [{ source: "node1", target: "node2" }],
 });
 ```
 
@@ -98,12 +98,12 @@ graph.setData({
 
 ```typescript
 // Update node properties
-await graph.updateNodes([{ id: 'node1', label: 'Updated Label' }]);
+await graph.updateNodes([{ id: "node1", label: "Updated Label" }]);
 
 // Update multiple nodes
 await graph.updateNodes([
-  { id: 'node1', label: 'Updated 1' },
-  { id: 'node2', label: 'Updated 2' }
+    { id: "node1", label: "Updated 1" },
+    { id: "node2", label: "Updated 2" },
 ]);
 ```
 
@@ -111,13 +111,13 @@ await graph.updateNodes([
 
 ```typescript
 // Get a single node by ID
-const node = graph.getNode('node1');
+const node = graph.getNode("node1");
 
 // Get all nodes
 const allNodes = graph.getNodes();
 
 // Get a single edge
-const edge = graph.getEdge('node1', 'node2');
+const edge = graph.getEdge("node1", "node2");
 
 // Get all edges
 const allEdges = graph.getEdges();
@@ -131,7 +131,7 @@ const edgeCount = graph.getEdgeCount();
 
 ```typescript
 // Select a node
-graph.selectNode('node1');
+graph.selectNode("node1");
 
 // Deselect
 graph.deselectNode();
@@ -139,7 +139,7 @@ graph.deselectNode();
 // Get currently selected node
 const selected = graph.getSelectedNode();
 if (selected) {
-  console.log('Selected:', selected.id);
+    console.log("Selected:", selected.id);
 }
 ```
 
@@ -147,14 +147,14 @@ if (selected) {
 
 ```typescript
 // Set layout algorithm
-graph.setLayout('ngraph');
+graph.setLayout("ngraph");
 
 // With options
-graph.setLayout('ngraph', {
-  springLength: 100,
-  springCoefficient: 0.0008,
-  gravity: -1.2,
-  dimensions: 3
+graph.setLayout("ngraph", {
+    springLength: 100,
+    springCoefficient: 0.0008,
+    gravity: -1.2,
+    dimensions: 3,
 });
 
 // Wait for layout to finish
@@ -165,14 +165,14 @@ await graph.waitForSettled();
 
 ```typescript
 // Run an algorithm
-await graph.runAlgorithm('graphty', 'degree');
+await graph.runAlgorithm("graphty", "degree");
 
 // Apply visualization from algorithm results
-graph.applySuggestedStyles('graphty:degree');
+graph.applySuggestedStyles("graphty:degree");
 
 // Access results on individual nodes
-const node = graph.getNode('node1');
-const degree = node.algorithmResults['graphty:degree'];
+const node = graph.getNode("node1");
+const degree = node.algorithmResults["graphty:degree"];
 ```
 
 ### Camera Control
@@ -191,8 +191,8 @@ graph.setCameraTarget({ x: 0, y: 0, z: 0 });
 
 // Animate camera
 graph.setCameraState(newState, {
-  animate: true,
-  duration: 1000
+    animate: true,
+    duration: 1000,
 });
 ```
 
@@ -225,9 +225,9 @@ const statsManager = graph.getStatsManager();
 ```typescript
 // Take a screenshot
 const result = await graph.takeScreenshot({
-  width: 1920,
-  height: 1080,
-  quality: 'high'
+    width: 1920,
+    height: 1080,
+    quality: "high",
 });
 
 // Copy to clipboard
@@ -235,8 +235,8 @@ await graph.takeScreenshot({ copyToClipboard: true });
 
 // Capture video animation
 const video = await graph.captureVideo({
-  duration: 5000,
-  fps: 30
+    duration: 5000,
+    fps: 30,
 });
 ```
 
@@ -245,23 +245,23 @@ const video = await graph.captureVideo({
 Enable AI-powered natural language commands:
 
 ```typescript
-import type { AiManagerConfig } from '@graphty/graphty-element';
+import type { AiManagerConfig } from "@graphty/graphty-element";
 
 // Enable AI control
 await graph.enableAiControl({
-  provider: 'anthropic',
-  apiKey: 'your-api-key'
+    provider: "anthropic",
+    apiKey: "your-api-key",
 });
 
 // Execute natural language commands
-const result = await graph.aiCommand('Select the node with the highest degree');
+const result = await graph.aiCommand("Select the node with the highest degree");
 
 // Check AI status
 const status = graph.getAiStatus();
 
 // Listen for status changes
 const unsubscribe = graph.onAiStatusChange((status) => {
-  console.log('AI status:', status.stage);
+    console.log("AI status:", status.stage);
 });
 
 // Disable AI control
@@ -278,13 +278,13 @@ const voiceAdapter = graph.getVoiceAdapter();
 
 // Start listening
 const started = graph.startVoiceInput({
-  language: 'en-US',
-  continuous: false
+    language: "en-US",
+    continuous: false,
 });
 
 // Check if active
 if (graph.isVoiceActive()) {
-  console.log('Listening...');
+    console.log("Listening...");
 }
 
 // Stop listening
@@ -309,9 +309,9 @@ For bulk updates, use batch operations to prevent intermediate renders:
 
 ```typescript
 await graph.batchOperations(async () => {
-  await graph.addNodes(manyNodes);
-  await graph.addEdges(manyEdges);
-  // Layout runs once at the end
+    await graph.addNodes(manyNodes);
+    await graph.addEdges(manyEdges);
+    // Layout runs once at the end
 });
 ```
 
@@ -321,75 +321,75 @@ Subscribe to events using `on()`:
 
 ```typescript
 // Graph events
-graph.on('graph-settled', () => {
-  console.log('Layout complete!');
-  graph.zoomToFit();
+graph.on("graph-settled", () => {
+    console.log("Layout complete!");
+    graph.zoomToFit();
 });
 
 // Node events
-graph.on('node-click', ({ node }) => {
-  console.log('Clicked:', node.id);
-  graph.selectNode(node.id);
+graph.on("node-click", ({ node }) => {
+    console.log("Clicked:", node.id);
+    graph.selectNode(node.id);
 });
 
-graph.on('node-hover', ({ node }) => {
-  console.log('Hovering:', node.id);
+graph.on("node-hover", ({ node }) => {
+    console.log("Hovering:", node.id);
 });
 
 // Data events
-graph.on('data-loaded', ({ nodeCount, edgeCount }) => {
-  console.log(`Loaded ${nodeCount} nodes, ${edgeCount} edges`);
+graph.on("data-loaded", ({ nodeCount, edgeCount }) => {
+    console.log(`Loaded ${nodeCount} nodes, ${edgeCount} edges`);
 });
 ```
 
 **Removing Listeners:**
 
 ```typescript
-const handler = () => console.log('Settled');
-graph.on('graph-settled', handler);
+const handler = () => console.log("Settled");
+graph.on("graph-settled", handler);
 
 // Later, remove the listener
-graph.off('graph-settled', handler);
+graph.off("graph-settled", handler);
 ```
 
 ## Complete Example
 
 ```typescript
-import '@graphty/graphty-element';
-import type { Graph, Graphty } from '@graphty/graphty-element';
+import "@graphty/graphty-element";
+import type { Graph, Graphty } from "@graphty/graphty-element";
 
 async function initGraph() {
-  const element = document.querySelector('graphty-element') as Graphty;
-  const graph: Graph = element.graph;
+    const element = document.querySelector("graphty-element") as Graphty;
+    const graph: Graph = element.graph;
 
-  // Load data
-  await graph.addNodes([
-    { id: 'a', label: 'Node A' },
-    { id: 'b', label: 'Node B' },
-    { id: 'c', label: 'Node C' }
-  ]);
+    // Load data
+    await graph.addNodes([
+        { id: "a", label: "Node A" },
+        { id: "b", label: "Node B" },
+        { id: "c", label: "Node C" },
+    ]);
 
-  await graph.addEdges([
-    { source: 'a', target: 'b' },
-    { source: 'b', target: 'c' },
-    { source: 'c', target: 'a' }
-  ]);
+    await graph.addEdges([
+        { source: "a", target: "b" },
+        { source: "b", target: "c" },
+        { source: "c", target: "a" },
+    ]);
 
-  // Wait for layout to stabilize
-  await graph.waitForSettled();
+    // Wait for layout to stabilize
+    await graph.waitForSettled();
 
-  // Run algorithm
-  await graph.runAlgorithm('graphty', 'degree');
-  graph.applySuggestedStyles('graphty:degree');
+    // Run algorithm
+    await graph.runAlgorithm("graphty", "degree");
+    graph.applySuggestedStyles("graphty:degree");
 
-  // Fit view
-  graph.zoomToFit();
+    // Fit view
+    graph.zoomToFit();
 
-  // Set up interaction
-  graph.on('node-click', ({ node }) => {
-    console.log(`Clicked ${node.id} (degree: ${node.algorithmResults['graphty:degree']})`);
-    graph.selectNode(node.id);
-  });
+    // Set up interaction
+    graph.on("node-click", ({ node }) => {
+        console.log(`Clicked ${node.id} (degree: ${node.algorithmResults["graphty:degree"]})`);
+        graph.selectNode(node.id);
+    });
 }
 
 initGraph();

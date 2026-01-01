@@ -1,8 +1,8 @@
 import userEvent from "@testing-library/user-event";
-import {afterEach, beforeEach, describe, expect, it, type MockInstance, vi} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 
-import {render, screen, waitFor} from "../../../test/test-utils";
-import {CopyButton} from "../CopyButton";
+import { render, screen, waitFor } from "../../../test/test-utils";
+import { CopyButton } from "../CopyButton";
 
 describe("CopyButton", () => {
     let clipboardSpy: MockInstance;
@@ -23,7 +23,7 @@ describe("CopyButton", () => {
         expect(button).toHaveAttribute("aria-label", "Copy value");
     });
 
-    it("copies string value on click and shows feedback", async() => {
+    it("copies string value on click and shows feedback", async () => {
         const user = userEvent.setup();
         render(<CopyButton value="test string" />);
         await user.click(screen.getByRole("button"));
@@ -34,7 +34,7 @@ describe("CopyButton", () => {
         });
     });
 
-    it("copies number value as string on click", async() => {
+    it("copies number value as string on click", async () => {
         const user = userEvent.setup();
         render(<CopyButton value={42} />);
         await user.click(screen.getByRole("button"));
@@ -43,7 +43,7 @@ describe("CopyButton", () => {
         });
     });
 
-    it("copies boolean value as string on click", async() => {
+    it("copies boolean value as string on click", async () => {
         const user = userEvent.setup();
         render(<CopyButton value={true} />);
         await user.click(screen.getByRole("button"));
@@ -52,9 +52,9 @@ describe("CopyButton", () => {
         });
     });
 
-    it("copies object value as JSON on click", async() => {
+    it("copies object value as JSON on click", async () => {
         const user = userEvent.setup();
-        const obj = {name: "test", value: 123};
+        const obj = { name: "test", value: 123 };
         render(<CopyButton value={obj} />);
         await user.click(screen.getByRole("button"));
         await waitFor(() => {
@@ -62,7 +62,7 @@ describe("CopyButton", () => {
         });
     });
 
-    it("copies array value as JSON on click", async() => {
+    it("copies array value as JSON on click", async () => {
         const user = userEvent.setup();
         const arr = [1, 2, 3];
         render(<CopyButton value={arr} />);
@@ -72,7 +72,7 @@ describe("CopyButton", () => {
         });
     });
 
-    it("shows Copied! feedback after clicking", async() => {
+    it("shows Copied! feedback after clicking", async () => {
         const user = userEvent.setup();
         render(<CopyButton value="test" />);
         await user.click(screen.getByRole("button"));
@@ -82,7 +82,7 @@ describe("CopyButton", () => {
         });
     });
 
-    it("copies path on shift+click when path is provided", async() => {
+    it("copies path on shift+click when path is provided", async () => {
         const user = userEvent.setup();
         render(<CopyButton value="test" path="nodes[0].name" />);
 
@@ -96,7 +96,7 @@ describe("CopyButton", () => {
         });
     });
 
-    it("copies value normally when path is provided but shift is not held", async() => {
+    it("copies value normally when path is provided but shift is not held", async () => {
         const user = userEvent.setup();
         render(<CopyButton value="test" path="nodes[0].name" />);
 
@@ -106,7 +106,7 @@ describe("CopyButton", () => {
         });
     });
 
-    it("copies value when path is not provided even with shift", async() => {
+    it("copies value when path is not provided even with shift", async () => {
         const user = userEvent.setup();
         render(<CopyButton value="test" />);
 
@@ -119,7 +119,7 @@ describe("CopyButton", () => {
         });
     });
 
-    it("resets Copied! feedback after timeout", async() => {
+    it("resets Copied! feedback after timeout", async () => {
         const user = userEvent.setup();
 
         render(<CopyButton value="test" />);
@@ -135,11 +135,11 @@ describe("CopyButton", () => {
             () => {
                 expect(screen.getByLabelText("Copy value")).toBeInTheDocument();
             },
-            {timeout: 3000},
+            { timeout: 3000 },
         );
     });
 
-    it("handles null value", async() => {
+    it("handles null value", async () => {
         const user = userEvent.setup();
         render(<CopyButton value={null} />);
         await user.click(screen.getByRole("button"));
@@ -148,7 +148,7 @@ describe("CopyButton", () => {
         });
     });
 
-    it("handles undefined value", async() => {
+    it("handles undefined value", async () => {
         const user = userEvent.setup();
         render(<CopyButton value={undefined} />);
         await user.click(screen.getByRole("button"));

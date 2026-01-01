@@ -1,6 +1,6 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {PerformanceRegressionTest} from "./helpers/performance-regression.js";
+import { PerformanceRegressionTest } from "./helpers/performance-regression.js";
 
 describe("Performance Regression Tests", () => {
     it.skip("should not have performance regressions > 10%", () => {

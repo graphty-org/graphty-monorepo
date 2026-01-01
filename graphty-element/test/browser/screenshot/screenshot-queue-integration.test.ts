@@ -1,7 +1,7 @@
-import {afterEach, assert, test} from "vitest";
+import { afterEach, assert, test } from "vitest";
 
-import type {Graph} from "../../../src/Graph";
-import {cleanupTestGraphWithData, createTestGraphWithData} from "./test-setup.js";
+import type { Graph } from "../../../src/Graph";
+import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
 
@@ -9,22 +9,28 @@ afterEach(() => {
     cleanupTestGraphWithData(graph);
 });
 
-test("multiple screenshots execute sequentially", async() => {
+test("multiple screenshots execute sequentially", async () => {
     graph = await createTestGraphWithData();
 
     const order: number[] = [];
 
-    const capture1 = graph.captureScreenshot({
-        timing: {waitForSettle: false, waitForOperations: false},
-    }).then(() => order.push(1));
+    const capture1 = graph
+        .captureScreenshot({
+            timing: { waitForSettle: false, waitForOperations: false },
+        })
+        .then(() => order.push(1));
 
-    const capture2 = graph.captureScreenshot({
-        timing: {waitForSettle: false, waitForOperations: false},
-    }).then(() => order.push(2));
+    const capture2 = graph
+        .captureScreenshot({
+            timing: { waitForSettle: false, waitForOperations: false },
+        })
+        .then(() => order.push(2));
 
-    const capture3 = graph.captureScreenshot({
-        timing: {waitForSettle: false, waitForOperations: false},
-    }).then(() => order.push(3));
+    const capture3 = graph
+        .captureScreenshot({
+            timing: { waitForSettle: false, waitForOperations: false },
+        })
+        .then(() => order.push(3));
 
     await Promise.all([capture1, capture2, capture3]);
 
@@ -32,27 +38,26 @@ test("multiple screenshots execute sequentially", async() => {
     assert.deepEqual(order, [1, 2, 3], "Screenshots should execute in order");
 });
 
-test("concurrent screenshot and operations complete successfully", async() => {
+test("concurrent screenshot and operations complete successfully", async () => {
     graph = await createTestGraphWithData();
 
     let operationCompleted = false;
     let screenshotCompleted = false;
 
     // Queue screenshot (use waitForOperations: true to put it in queue)
-    const screenshotPromise = graph.captureScreenshot({
-        timing: {waitForSettle: false, waitForOperations: true},
-    }).then((result) => {
-        screenshotCompleted = true;
-        return result;
-    });
+    const screenshotPromise = graph
+        .captureScreenshot({
+            timing: { waitForSettle: false, waitForOperations: true },
+        })
+        .then((result) => {
+            screenshotCompleted = true;
+            return result;
+        });
 
     // Queue another operation (use style-apply to avoid layout triggers)
-    const operationPromise = graph.operationQueue.queueOperationAsync(
-        "style-apply",
-        () => {
-            operationCompleted = true;
-        },
-    );
+    const operationPromise = graph.operationQueue.queueOperationAsync("style-apply", () => {
+        operationCompleted = true;
+    });
 
     await Promise.all([screenshotPromise, operationPromise]);
 
@@ -61,25 +66,22 @@ test("concurrent screenshot and operations complete successfully", async() => {
     assert.equal(screenshotCompleted, true, "Screenshot should complete");
 });
 
-test("screenshots wait for queued operations when waitForOperations is true", async() => {
+test("screenshots wait for queued operations when waitForOperations is true", async () => {
     graph = await createTestGraphWithData();
 
     let operationCompleted = false;
 
     // Queue a long operation first (use style-apply to avoid triggering layout-update)
-    const operationPromise = graph.operationQueue.queueOperationAsync(
-        "style-apply",
-        async() => {
-            await new Promise((resolve) => {
-                setTimeout(resolve, 200);
-            });
-            operationCompleted = true;
-        },
-    );
+    const operationPromise = graph.operationQueue.queueOperationAsync("style-apply", async () => {
+        await new Promise((resolve) => {
+            setTimeout(resolve, 200);
+        });
+        operationCompleted = true;
+    });
 
     // Now queue a screenshot that should wait
     const screenshotPromise = graph.captureScreenshot({
-        timing: {waitForSettle: false, waitForOperations: true},
+        timing: { waitForSettle: false, waitForOperations: true },
     });
 
     // Screenshot should wait for operation
@@ -92,24 +94,21 @@ test("screenshots wait for queued operations when waitForOperations is true", as
     assert.equal(operationCompleted, true, "Operation should complete before screenshot");
 });
 
-test("screenshots can proceed immediately when waitForOperations is false", async() => {
+test("screenshots can proceed immediately when waitForOperations is false", async () => {
     graph = await createTestGraphWithData();
 
     // Queue a long operation (use style-apply to avoid triggering layout-update)
     // Use 3000ms to create clear separation from expected screenshot time
-    void graph.operationQueue.queueOperationAsync(
-        "style-apply",
-        async() => {
-            await new Promise((resolve) => {
-                setTimeout(resolve, 3000);
-            });
-        },
-    );
+    void graph.operationQueue.queueOperationAsync("style-apply", async () => {
+        await new Promise((resolve) => {
+            setTimeout(resolve, 3000);
+        });
+    });
 
     // Screenshot with waitForOperations: false should not wait
     const startTime = Date.now();
     await graph.captureScreenshot({
-        timing: {waitForSettle: false, waitForOperations: false},
+        timing: { waitForSettle: false, waitForOperations: false },
     });
     const elapsed = Date.now() - startTime;
 
@@ -119,23 +118,20 @@ test("screenshots can proceed immediately when waitForOperations is false", asyn
     assert.ok(elapsed < 2000, `Screenshot should complete quickly, took ${elapsed}ms`);
 });
 
-test("operation queue continues after screenshot completes", async() => {
+test("operation queue continues after screenshot completes", async () => {
     graph = await createTestGraphWithData();
 
     let operationExecuted = false;
 
     // Take a screenshot
     await graph.captureScreenshot({
-        timing: {waitForSettle: false, waitForOperations: false},
+        timing: { waitForSettle: false, waitForOperations: false },
     });
 
     // Queue an operation after screenshot
-    await graph.operationQueue.queueOperationAsync(
-        "data-add",
-        () => {
-            operationExecuted = true;
-        },
-    );
+    await graph.operationQueue.queueOperationAsync("data-add", () => {
+        operationExecuted = true;
+    });
 
     assert.equal(operationExecuted, true, "Operation should execute after screenshot");
 });

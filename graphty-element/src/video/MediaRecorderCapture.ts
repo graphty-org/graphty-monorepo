@@ -1,6 +1,6 @@
-import {VIDEO_CONSTANTS} from "../screenshot/constants.js";
-import {ScreenshotError, ScreenshotErrorCode} from "../screenshot/ScreenshotError.js";
-import type {AnimationOptions, AnimationResult} from "./VideoCapture.js";
+import { VIDEO_CONSTANTS } from "../screenshot/constants.js";
+import { ScreenshotError, ScreenshotErrorCode } from "../screenshot/ScreenshotError.js";
+import type { AnimationOptions, AnimationResult } from "./VideoCapture.js";
 
 /**
  * Error thrown when animation capture is cancelled by the user
@@ -222,19 +222,22 @@ export class MediaRecorderCapture {
                     return;
                 }
 
-                const blob = new Blob(chunks, {type: recorder.mimeType});
+                const blob = new Blob(chunks, { type: recorder.mimeType });
                 const expectedFrames = Math.floor((options.duration / 1000) * fps);
 
                 // Determine format from MIME type
                 // Safari/iOS sometimes returns empty blob.type, so we fall back to requested codec
                 const actualMimeType = blob.type || codec; // Use requested codec if blob.type is empty
                 const mimeType = actualMimeType.toLowerCase();
-                const format = (mimeType.includes("mp4") || mimeType.includes("mpeg") || mimeType.includes("quicktime")) ?
-                    "mp4" :
-                    "webm";
+                const format =
+                    mimeType.includes("mp4") || mimeType.includes("mpeg") || mimeType.includes("quicktime")
+                        ? "mp4"
+                        : "webm";
 
                 // Debug logging for format detection
-                this.log(`[MediaRecorder] Codec requested: ${codec}, Blob MIME type: "${blob.type}", Detected format: ${format}`);
+                this.log(
+                    `[MediaRecorder] Codec requested: ${codec}, Blob MIME type: "${blob.type}", Detected format: ${format}`,
+                );
 
                 // We can't accurately count frames with MediaRecorder in realtime mode
                 // So we assume all frames were captured unless we detect issues
@@ -260,7 +263,9 @@ export class MediaRecorderCapture {
                 this.activeRecorder = null;
                 this.cancelReject = null;
                 const errorMsg = e instanceof ErrorEvent ? e.message : "Unknown error";
-                reject(new ScreenshotError(`MediaRecorder error: ${errorMsg}`, ScreenshotErrorCode.VIDEO_CAPTURE_FAILED));
+                reject(
+                    new ScreenshotError(`MediaRecorder error: ${errorMsg}`, ScreenshotErrorCode.VIDEO_CAPTURE_FAILED),
+                );
             };
 
             // Start recording

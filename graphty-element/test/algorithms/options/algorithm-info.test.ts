@@ -1,10 +1,6 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {
-    Algorithm,
-    getAllAlgorithmInfo,
-    getAllAlgorithmSchemas,
-} from "../../../src/algorithms/index";
+import { Algorithm, getAllAlgorithmInfo, getAllAlgorithmSchemas } from "../../../src/algorithms/index";
 
 describe("Algorithm Info Utilities", () => {
     describe("getAllAlgorithmInfo", () => {

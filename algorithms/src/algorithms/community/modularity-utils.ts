@@ -3,15 +3,14 @@
  *
  * Used by: Louvain, Leiden, Girvan-Newman
  */
-import type {Graph} from "../../core/graph.js";
-import type {NodeId} from "../../types/index.js";
+import type { Graph } from "../../core/graph.js";
+import type { NodeId } from "../../types/index.js";
 
 /**
  * Calculate total edge weight in the graph
  *
  * For undirected graphs, each edge is counted once.
  * For directed graphs, each directed edge is counted once.
- *
  * @param graph - The input graph
  * @returns Total sum of edge weights (default weight is 1)
  */
@@ -29,7 +28,6 @@ export function getTotalEdgeWeight(graph: Graph): number {
  * Get the total degree (sum of edge weights) for a node
  *
  * Computes the weighted degree by summing all edge weights incident to the node.
- *
  * @param graph - The input graph
  * @param nodeId - The node ID to compute degree for
  * @returns The weighted degree of the node
@@ -49,17 +47,12 @@ export function getNodeDegree(graph: Graph, nodeId: NodeId): number {
  * Get communities of neighboring nodes
  *
  * Returns the set of community IDs that neighbors of the given node belong to.
- *
  * @param graph - The input graph
  * @param nodeId - The node to get neighbor communities for
  * @param communities - Map from node IDs to community IDs
  * @returns Set of community IDs that neighbors belong to
  */
-export function getNeighborCommunities(
-    graph: Graph,
-    nodeId: NodeId,
-    communities: Map<NodeId, number>,
-): Set<number> {
+export function getNeighborCommunities(graph: Graph, nodeId: NodeId, communities: Map<NodeId, number>): Set<number> {
     const neighborCommunities = new Set<number>();
 
     for (const neighbor of graph.neighbors(nodeId)) {
@@ -85,17 +78,12 @@ export function getNeighborCommunities(
  * - k_i, k_j = degrees of nodes i and j
  * - γ = resolution parameter (higher values favor smaller communities)
  * - δ = Kronecker delta (1 if same community, 0 otherwise)
- *
  * @param graph - The input graph
  * @param communities - Map from node IDs to community IDs
  * @param resolution - Resolution parameter (default: 1.0)
  * @returns Modularity score (range typically -0.5 to 1.0)
  */
-export function calculateModularity(
-    graph: Graph,
-    communities: Map<NodeId, number>,
-    resolution = 1.0,
-): number {
+export function calculateModularity(graph: Graph, communities: Map<NodeId, number>, resolution = 1.0): number {
     const totalEdgeWeight = getTotalEdgeWeight(graph);
     if (totalEdgeWeight === 0) {
         return 0;
@@ -137,7 +125,7 @@ export function calculateModularity(
                 const degreeI = getNodeDegree(graph, nodeI.id);
                 const degreeJ = getNodeDegree(graph, nodeJ.id);
 
-                modularity += edgeWeight - ((resolution * degreeI * degreeJ) / (2 * totalEdgeWeight));
+                modularity += edgeWeight - (resolution * degreeI * degreeJ) / (2 * totalEdgeWeight);
             }
         }
     }

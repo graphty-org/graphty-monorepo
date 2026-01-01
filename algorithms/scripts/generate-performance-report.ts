@@ -1,27 +1,27 @@
 #!/usr/bin/env tsx
 
 // Script to generate HTML performance report from benchmark JSON data
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
-import { join } from 'path'
-import { loadBenchmarkSessions } from '../benchmarks/utils/benchmark-result'
-import { BenchmarkSession } from '../benchmarks/benchmark-result'
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
+import { join } from "path";
+import { loadBenchmarkSessions } from "../benchmarks/utils/benchmark-result";
+import { BenchmarkSession } from "../benchmarks/benchmark-result";
 
 // HTML template for the performance report
 function generateHTML(sessions: BenchmarkSession[]): string {
-  // Get the latest session for summary
-  const latestSession = sessions[sessions.length - 1]
-  const allResults = sessions.flatMap(s => s.results)
-  
-  // Group results by algorithm
-  const algorithmGroups = new Map<string, typeof allResults>()
-  allResults.forEach(result => {
-    if (!algorithmGroups.has(result.algorithm)) {
-      algorithmGroups.set(result.algorithm, [])
-    }
-    algorithmGroups.get(result.algorithm)!.push(result)
-  })
+    // Get the latest session for summary
+    const latestSession = sessions[sessions.length - 1];
+    const allResults = sessions.flatMap((s) => s.results);
 
-  return `<!DOCTYPE html>
+    // Group results by algorithm
+    const algorithmGroups = new Map<string, typeof allResults>();
+    allResults.forEach((result) => {
+        if (!algorithmGroups.has(result.algorithm)) {
+            algorithmGroups.set(result.algorithm, []);
+        }
+        algorithmGroups.get(result.algorithm)!.push(result);
+    });
+
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -224,7 +224,7 @@ function generateHTML(sessions: BenchmarkSession[]): string {
             <div class="summary-card">
                 <h3>📈 Algorithms Tested</h3>
                 <p><strong>${algorithmGroups.size}</strong> algorithms</p>
-                <p>${Array.from(algorithmGroups.keys()).join(', ')}</p>
+                <p>${Array.from(algorithmGroups.keys()).join(", ")}</p>
             </div>
             <div class="summary-card">
                 <h3>📊 Total Benchmarks</h3>
@@ -233,8 +233,8 @@ function generateHTML(sessions: BenchmarkSession[]): string {
             </div>
             <div class="summary-card">
                 <h3>⚡ Performance Range</h3>
-                <p>From <strong>${Math.min(...allResults.map(r => r.executionTime)).toFixed(2)}ms</strong></p>
-                <p>To <strong>${Math.max(...allResults.map(r => r.executionTime)).toFixed(2)}ms</strong></p>
+                <p>From <strong>${Math.min(...allResults.map((r) => r.executionTime)).toFixed(2)}ms</strong></p>
+                <p>To <strong>${Math.max(...allResults.map((r) => r.executionTime)).toFixed(2)}ms</strong></p>
             </div>
         </div>
 
@@ -255,24 +255,24 @@ function generateHTML(sessions: BenchmarkSession[]): string {
                 </thead>
                 <tbody>
                     ${Array.from(algorithmGroups.entries())
-                      .sort(([a], [b]) => a.localeCompare(b))
-                      .map(([algorithm, results]) => {
-                      const avgTime = results.reduce((sum, r) => sum + r.executionTime, 0) / results.length
-                      const avgMemory = results.reduce((sum, r) => sum + r.memoryUsage, 0) / results.length
-                      
-                      // Find best TEPS run
-                      const bestTepsResult = results.reduce((best, r) => 
-                        (r.metrics?.teps || 0) > (best.metrics?.teps || 0) ? r : best
-                      )
-                      
-                      // Find largest graph run
-                      const largestGraphResult = results.reduce((largest, r) => 
-                        r.graphSize > largest.graphSize ? r : largest
-                      )
-                      
-                      const algorithmId = algorithm.toLowerCase().replace(/[^a-z0-9]/g, '-')
-                      
-                      return `
+                        .sort(([a], [b]) => a.localeCompare(b))
+                        .map(([algorithm, results]) => {
+                            const avgTime = results.reduce((sum, r) => sum + r.executionTime, 0) / results.length;
+                            const avgMemory = results.reduce((sum, r) => sum + r.memoryUsage, 0) / results.length;
+
+                            // Find best TEPS run
+                            const bestTepsResult = results.reduce((best, r) =>
+                                (r.metrics?.teps || 0) > (best.metrics?.teps || 0) ? r : best,
+                            );
+
+                            // Find largest graph run
+                            const largestGraphResult = results.reduce((largest, r) =>
+                                r.graphSize > largest.graphSize ? r : largest,
+                            );
+
+                            const algorithmId = algorithm.toLowerCase().replace(/[^a-z0-9]/g, "-");
+
+                            return `
                     <tr>
                         <td><a href="#${algorithmId}" class="algorithm-link">${algorithm}</a></td>
                         <td>${avgTime.toFixed(2)}</td>
@@ -282,21 +282,22 @@ function generateHTML(sessions: BenchmarkSession[]): string {
                         <td class="best-group">${bestTepsResult.graphSize.toLocaleString()}</td>
                         <td class="largest-group">${largestGraphResult.graphSize.toLocaleString()}</td>
                         <td class="largest-group">${(largestGraphResult.metrics?.teps || 0).toFixed(0)}</td>
-                    </tr>`
-                    }).join('')}
+                    </tr>`;
+                        })
+                        .join("")}
                 </tbody>
             </table>
         </div>
 
         ${Array.from(algorithmGroups.entries())
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([algorithm, results]) => {
-          const sortedResults = results.sort((a, b) => a.graphSize - b.graphSize)
-          const avgTime = results.reduce((sum, r) => sum + r.executionTime, 0) / results.length
-          const avgMemory = results.reduce((sum, r) => sum + r.memoryUsage, 0) / results.length
-          const algorithmId = algorithm.toLowerCase().replace(/[^a-z0-9]/g, '-')
-          
-          return `
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([algorithm, results]) => {
+                const sortedResults = results.sort((a, b) => a.graphSize - b.graphSize);
+                const avgTime = results.reduce((sum, r) => sum + r.executionTime, 0) / results.length;
+                const avgMemory = results.reduce((sum, r) => sum + r.memoryUsage, 0) / results.length;
+                const algorithmId = algorithm.toLowerCase().replace(/[^a-z0-9]/g, "-");
+
+                return `
         <div class="algorithm-section" id="${algorithmId}">
             <h2>🔍 ${algorithm}</h2>
             <p><strong>Average Execution Time:</strong> ${avgTime.toFixed(2)}ms</p>
@@ -327,23 +328,28 @@ function generateHTML(sessions: BenchmarkSession[]): string {
                     </tr>
                 </thead>
                 <tbody>
-                    ${sortedResults.map(r => `
+                    ${sortedResults
+                        .map(
+                            (r) => `
                     <tr>
                         <td>${r.graphSize}</td>
                         <td>${r.graphType}</td>
                         <td>${r.edges}</td>
                         <td>${r.executionTime.toFixed(2)}</td>
-                        <td>${r.metrics?.opsPerSecond?.toFixed(0) || 'N/A'}</td>
+                        <td>${r.metrics?.opsPerSecond?.toFixed(0) || "N/A"}</td>
                         <td>${(r.memoryUsage / 1024 / 1024).toFixed(2)}</td>
-                        <td>${r.metrics?.teps?.toFixed(0) || 'N/A'}</td>
-                        <td>±${r.metrics?.marginOfError?.toFixed(1) || '0'}%</td>
+                        <td>${r.metrics?.teps?.toFixed(0) || "N/A"}</td>
+                        <td>±${r.metrics?.marginOfError?.toFixed(1) || "0"}%</td>
                     </tr>
-                    `).join('')}
+                    `,
+                        )
+                        .join("")}
                 </tbody>
             </table>
         </div>
-          `
-        }).join('')}
+          `;
+            })
+            .join("")}
 
         <div class="footer">
             <p>Generated with ❤️ by @graphty/algorithms performance benchmarking suite</p>
@@ -354,17 +360,18 @@ function generateHTML(sessions: BenchmarkSession[]): string {
     <script>
 
         // Create individual charts for each algorithm
-        ${Array.from(algorithmGroups.entries()).map(([algorithm, results]) => {
-          const algorithmId = algorithm.toLowerCase().replace(/[^a-z0-9]/g, '-')
-          const sortedResults = results.sort((a, b) => a.graphSize - b.graphSize)
-          const graphSizes = sortedResults.map(r => r.graphSize)
-          const executionTimes = sortedResults.map(r => r.executionTime)
-          const memoryUsages = sortedResults.map(r => r.memoryUsage / 1024 / 1024)
-          
-          return `
+        ${Array.from(algorithmGroups.entries())
+            .map(([algorithm, results]) => {
+                const algorithmId = algorithm.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                const sortedResults = results.sort((a, b) => a.graphSize - b.graphSize);
+                const graphSizes = sortedResults.map((r) => r.graphSize);
+                const executionTimes = sortedResults.map((r) => r.executionTime);
+                const memoryUsages = sortedResults.map((r) => r.memoryUsage / 1024 / 1024);
+
+                return `
         // ${algorithm} Performance Chart
-        const perfCtx_${algorithmId.replace(/-/g, '_')} = document.getElementById('perf-${algorithmId}').getContext('2d');
-        new Chart(perfCtx_${algorithmId.replace(/-/g, '_')}, {
+        const perfCtx_${algorithmId.replace(/-/g, "_")} = document.getElementById('perf-${algorithmId}').getContext('2d');
+        new Chart(perfCtx_${algorithmId.replace(/-/g, "_")}, {
             type: 'line',
             data: {
                 labels: ${JSON.stringify(graphSizes)},
@@ -411,8 +418,8 @@ function generateHTML(sessions: BenchmarkSession[]): string {
         });
 
         // ${algorithm} Memory Chart
-        const memCtx_${algorithmId.replace(/-/g, '_')} = document.getElementById('mem-${algorithmId}').getContext('2d');
-        new Chart(memCtx_${algorithmId.replace(/-/g, '_')}, {
+        const memCtx_${algorithmId.replace(/-/g, "_")} = document.getElementById('mem-${algorithmId}').getContext('2d');
+        new Chart(memCtx_${algorithmId.replace(/-/g, "_")}, {
             type: 'bar',
             data: {
                 labels: ${JSON.stringify(graphSizes)},
@@ -454,45 +461,46 @@ function generateHTML(sessions: BenchmarkSession[]): string {
                     }
                 }
             }
-        });`
-        }).join('\n')}
+        });`;
+            })
+            .join("\n")}
     </script>
     
     <footer class="footer">
         <p>Generated by @graphty/algorithms • <a href="https://github.com/graphty-org/algorithms">GitHub</a> • <a href="https://www.npmjs.com/package/@graphty/algorithms">npm</a></p>
     </footer>
 </body>
-</html>`
+</html>`;
 }
 
 // Main function
 async function main() {
-  console.log('📊 Generating performance report...')
-  
-  // Load benchmark sessions
-  const sessions = loadBenchmarkSessions()
-  
-  if (sessions.length === 0) {
-    console.error('❌ No benchmark sessions found. Run benchmarks first!')
-    process.exit(1)
-  }
-  
-  console.log(`✅ Found ${sessions.length} benchmark sessions`)
-  
-  // Create benchmark-results directory if it doesn't exist
-  const resultsDir = join(process.cwd(), 'benchmark-results')
-  if (!existsSync(resultsDir)) {
-    mkdirSync(resultsDir, { recursive: true })
-  }
-  
-  // Generate HTML report
-  const html = generateHTML(sessions)
-  const reportPath = join(resultsDir, 'index.html')
-  writeFileSync(reportPath, html)
-  
-  console.log(`✅ Report generated at: ${reportPath}`)
-  console.log('📊 Benchmark results and report saved to ./benchmark-results/')
+    console.log("📊 Generating performance report...");
+
+    // Load benchmark sessions
+    const sessions = loadBenchmarkSessions();
+
+    if (sessions.length === 0) {
+        console.error("❌ No benchmark sessions found. Run benchmarks first!");
+        process.exit(1);
+    }
+
+    console.log(`✅ Found ${sessions.length} benchmark sessions`);
+
+    // Create benchmark-results directory if it doesn't exist
+    const resultsDir = join(process.cwd(), "benchmark-results");
+    if (!existsSync(resultsDir)) {
+        mkdirSync(resultsDir, { recursive: true });
+    }
+
+    // Generate HTML report
+    const html = generateHTML(sessions);
+    const reportPath = join(resultsDir, "index.html");
+    writeFileSync(reportPath, html);
+
+    console.log(`✅ Report generated at: ${reportPath}`);
+    console.log("📊 Benchmark results and report saved to ./benchmark-results/");
 }
 
 // Run the script
-main().catch(console.error)
+main().catch(console.error);

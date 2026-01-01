@@ -1,8 +1,8 @@
-import {NullEngine, Scene, Vector3} from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import type {EdgeStyleConfig} from "../../src/config";
-import {RichTextLabel} from "../../src/meshes/RichTextLabel";
+import type { EdgeStyleConfig } from "../../src/config";
+import { RichTextLabel } from "../../src/meshes/RichTextLabel";
 
 /**
  * Regression tests for Edge label functionality.
@@ -38,12 +38,12 @@ describe("Edge Label Configuration", () => {
                     textColor: "#000000",
                     attachOffset: 1.5,
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
             // Verify the config structure is correct
-            const {label} = style;
+            const { label } = style;
             assert.exists(label);
             assert.equal(label.attachOffset, 1.5);
         });
@@ -55,11 +55,11 @@ describe("Edge Label Configuration", () => {
                     text: "Test Label",
                     fontSize: 32,
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
-            const {label} = style;
+            const { label } = style;
             assert.exists(label);
             // attachOffset should be undefined (defaults handled by code)
             assert.isUndefined(label.attachOffset);
@@ -144,11 +144,11 @@ describe("Edge Label Configuration", () => {
                     text: "Test Label",
                     location: "top",
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
-            const {label} = style;
+            const { label } = style;
             assert.exists(label);
             assert.equal(label.location, "top");
         });
@@ -159,11 +159,11 @@ describe("Edge Label Configuration", () => {
                     enabled: true,
                     text: "Test Label",
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
-            const {label} = style;
+            const { label } = style;
             assert.exists(label);
             // location should be undefined (defaults handled by code as "center")
             assert.isUndefined(label.location);
@@ -179,7 +179,7 @@ describe("Edge Label Configuration", () => {
                         text: `Label at ${location}`,
                         location,
                     },
-                    line: {color: "darkgrey"},
+                    line: { color: "darkgrey" },
                     enabled: true,
                 };
 
@@ -250,7 +250,7 @@ describe("Edge Label Configuration", () => {
                     size: 1,
                     opacity: 1,
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
@@ -261,7 +261,7 @@ describe("Edge Label Configuration", () => {
                     fontSize: 32,
                     attachOffset: 1.0,
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
@@ -282,7 +282,7 @@ describe("Edge Label Configuration", () => {
                     text: "Custom Font",
                     fontSize: 48,
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
@@ -297,7 +297,7 @@ describe("Edge Label Configuration", () => {
                     textColor: "#FF0000",
                     backgroundColor: "#00FF00",
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
@@ -312,7 +312,7 @@ describe("Edge Label Configuration", () => {
                     text: "Transparent BG",
                     backgroundColor: "transparent",
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
@@ -328,7 +328,7 @@ describe("Edge Label Configuration", () => {
                     enabled: true,
                     text: "Visible Label",
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 
@@ -337,7 +337,7 @@ describe("Edge Label Configuration", () => {
                     text: "Invisible Label",
                     // enabled is not set (defaults to false)
                 },
-                line: {color: "darkgrey"},
+                line: { color: "darkgrey" },
                 enabled: true,
             };
 

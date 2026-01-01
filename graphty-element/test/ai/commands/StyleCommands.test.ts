@@ -3,16 +3,12 @@
  * @module test/ai/commands/StyleCommands.test
  */
 
-import {assert, beforeEach, describe, it} from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 
-import {
-    clearStyles,
-    findAndStyleEdges,
-    findAndStyleNodes,
-} from "../../../src/ai/commands/StyleCommands";
-import type {CommandContext} from "../../../src/ai/commands/types";
-import type {Graph} from "../../../src/Graph";
-import {createMockContext, createTestGraph} from "../../helpers/test-graph";
+import { clearStyles, findAndStyleEdges, findAndStyleNodes } from "../../../src/ai/commands/StyleCommands";
+import type { CommandContext } from "../../../src/ai/commands/types";
+import type { Graph } from "../../../src/Graph";
+import { createMockContext, createTestGraph } from "../../helpers/test-graph";
 
 describe("StyleCommands", () => {
     let graph: Graph;
@@ -24,69 +20,93 @@ describe("StyleCommands", () => {
     });
 
     describe("findAndStyleNodes", () => {
-        it("styles all nodes with empty selector", async() => {
-            const result = await findAndStyleNodes.execute(graph, {
-                selector: "",
-                style: {color: "#ff0000"},
-                layerName: "test",
-            }, context);
+        it("styles all nodes with empty selector", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { color: "#ff0000" },
+                    layerName: "test",
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
             assert.ok(result.message.toLowerCase().includes("node"));
         });
 
-        it("styles nodes matching selector", async() => {
+        it("styles nodes matching selector", async () => {
             // The mock graph has nodes with type 'server', 'client', 'router'
             // Node indices 0, 3, 6, 9, etc. have type 'server'
-            const result = await findAndStyleNodes.execute(graph, {
-                selector: "data.type == 'server'",
-                style: {color: "#0000ff", size: 2},
-                layerName: "servers",
-            }, context);
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "data.type == 'server'",
+                    style: { color: "#0000ff", size: 2 },
+                    layerName: "servers",
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
             // In a 25 node graph, indices 0,3,6,9,12,15,18,21,24 are servers (9 nodes)
             assert.ok(result.affectedNodes && result.affectedNodes.length > 0);
         });
 
-        it("applies size styling", async() => {
-            const result = await findAndStyleNodes.execute(graph, {
-                selector: "",
-                style: {size: 2.5},
-                layerName: "large-nodes",
-            }, context);
+        it("applies size styling", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { size: 2.5 },
+                    layerName: "large-nodes",
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
         });
 
-        it("applies shape styling", async() => {
-            const result = await findAndStyleNodes.execute(graph, {
-                selector: "",
-                style: {shape: "box"},
-                layerName: "boxed-nodes",
-            }, context);
+        it("applies shape styling", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { shape: "box" },
+                    layerName: "boxed-nodes",
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
         });
 
-        it("handles invalid selector gracefully", async() => {
+        it("handles invalid selector gracefully", async () => {
             // Invalid JMESPath selectors should not crash
-            const result = await findAndStyleNodes.execute(graph, {
-                selector: "not_a_valid_jmespath[[",
-                style: {color: "#ff0000"},
-                layerName: "invalid",
-            }, context);
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "not_a_valid_jmespath[[",
+                    style: { color: "#ff0000" },
+                    layerName: "invalid",
+                },
+                context,
+            );
 
             // Should return success=false or handle gracefully
             assert.ok(result);
         });
 
-        it("returns empty affectedNodes when no nodes match", async() => {
-            const result = await findAndStyleNodes.execute(graph, {
-                selector: "data.nonexistent == 'value'",
-                style: {color: "#ff0000"},
-                layerName: "no-match",
-            }, context);
+        it("returns empty affectedNodes when no nodes match", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "data.nonexistent == 'value'",
+                    style: { color: "#ff0000" },
+                    layerName: "no-match",
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
             // Should still succeed but with 0 affected nodes
@@ -95,78 +115,110 @@ describe("StyleCommands", () => {
     });
 
     describe("findAndStyleEdges", () => {
-        it("styles all edges with empty selector", async() => {
-            const result = await findAndStyleEdges.execute(graph, {
-                selector: "",
-                style: {color: "#00ff00", width: 2},
-                layerName: "test-edges",
-            }, context);
+        it("styles all edges with empty selector", async () => {
+            const result = await findAndStyleEdges.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { color: "#00ff00", width: 2 },
+                    layerName: "test-edges",
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
             assert.ok(result.message.toLowerCase().includes("edge"));
         });
 
-        it("styles edges with selector", async() => {
-            const result = await findAndStyleEdges.execute(graph, {
-                selector: "data.weight > 0.5",
-                style: {color: "#ffff00"},
-                layerName: "heavy-edges",
-            }, context);
+        it("styles edges with selector", async () => {
+            const result = await findAndStyleEdges.execute(
+                graph,
+                {
+                    selector: "data.weight > 0.5",
+                    style: { color: "#ffff00" },
+                    layerName: "heavy-edges",
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
         });
 
-        it("applies line width styling", async() => {
-            const result = await findAndStyleEdges.execute(graph, {
-                selector: "",
-                style: {width: 3},
-                layerName: "thick-edges",
-            }, context);
+        it("applies line width styling", async () => {
+            const result = await findAndStyleEdges.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { width: 3 },
+                    layerName: "thick-edges",
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
         });
 
-        it("applies line type styling", async() => {
-            const result = await findAndStyleEdges.execute(graph, {
-                selector: "",
-                style: {lineType: "dash"},
-                layerName: "dashed-edges",
-            }, context);
+        it("applies line type styling", async () => {
+            const result = await findAndStyleEdges.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { lineType: "dash" },
+                    layerName: "dashed-edges",
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
         });
     });
 
     describe("clearStyles", () => {
-        it("clears styles from a named layer", async() => {
+        it("clears styles from a named layer", async () => {
             // First add a style layer
-            await findAndStyleNodes.execute(graph, {
-                selector: "",
-                style: {color: "#ff0000"},
-                layerName: "to-clear",
-            }, context);
+            await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { color: "#ff0000" },
+                    layerName: "to-clear",
+                },
+                context,
+            );
 
             // Then clear it
-            const result = await clearStyles.execute(graph, {
-                layerName: "to-clear",
-            }, context);
+            const result = await clearStyles.execute(
+                graph,
+                {
+                    layerName: "to-clear",
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
             assert.ok(result.message.toLowerCase().includes("clear"));
         });
 
-        it("clears all dynamic styles when no layerName provided", async() => {
+        it("clears all dynamic styles when no layerName provided", async () => {
             // Add multiple style layers
-            await findAndStyleNodes.execute(graph, {
-                selector: "",
-                style: {color: "#ff0000"},
-                layerName: "layer1",
-            }, context);
-            await findAndStyleNodes.execute(graph, {
-                selector: "",
-                style: {color: "#00ff00"},
-                layerName: "layer2",
-            }, context);
+            await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { color: "#ff0000" },
+                    layerName: "layer1",
+                },
+                context,
+            );
+            await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { color: "#00ff00" },
+                    layerName: "layer2",
+                },
+                context,
+            );
 
             // Clear all
             const result = await clearStyles.execute(graph, {}, context);
@@ -174,10 +226,14 @@ describe("StyleCommands", () => {
             assert.strictEqual(result.success, true);
         });
 
-        it("handles clearing non-existent layer gracefully", async() => {
-            const result = await clearStyles.execute(graph, {
-                layerName: "nonexistent-layer-xyz",
-            }, context);
+        it("handles clearing non-existent layer gracefully", async () => {
+            const result = await clearStyles.execute(
+                graph,
+                {
+                    layerName: "nonexistent-layer-xyz",
+                },
+                context,
+            );
 
             // Should succeed (no-op) or indicate nothing to clear
             assert.strictEqual(result.success, true);
@@ -244,52 +300,67 @@ describe("StyleCommands", () => {
      * Fix: Handle common "match all" patterns like "*", "all", "*.*", "true".
      */
     describe("regression: common 'match all' selectors work (Issue #5)", () => {
-        it("selector '*' matches all nodes", async() => {
-            const result = await findAndStyleNodes.execute(graph, {
-                selector: "*",
-                style: {color: "#ff0000"},
-                layerName: "star-selector",
-            }, context);
+        it("selector '*' matches all nodes", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "*",
+                    style: { color: "#ff0000" },
+                    layerName: "star-selector",
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
-            assert.ok(result.affectedNodes && result.affectedNodes.length > 0,
-                "Selector '*' should match all nodes");
+            assert.ok(result.affectedNodes && result.affectedNodes.length > 0, "Selector '*' should match all nodes");
         });
 
-        it("selector 'all' matches all nodes", async() => {
-            const result = await findAndStyleNodes.execute(graph, {
-                selector: "all",
-                style: {color: "#ff0000"},
-                layerName: "all-selector",
-            }, context);
+        it("selector 'all' matches all nodes", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "all",
+                    style: { color: "#ff0000" },
+                    layerName: "all-selector",
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
-            assert.ok(result.affectedNodes && result.affectedNodes.length > 0,
-                "Selector 'all' should match all nodes");
+            assert.ok(result.affectedNodes && result.affectedNodes.length > 0, "Selector 'all' should match all nodes");
         });
 
-        it("selector '*' matches all edges", async() => {
-            const result = await findAndStyleEdges.execute(graph, {
-                selector: "*",
-                style: {color: "#00ff00"},
-                layerName: "star-edge-selector",
-            }, context);
+        it("selector '*' matches all edges", async () => {
+            const result = await findAndStyleEdges.execute(
+                graph,
+                {
+                    selector: "*",
+                    style: { color: "#00ff00" },
+                    layerName: "star-edge-selector",
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
-            assert.ok(result.affectedEdges && result.affectedEdges.length > 0,
-                "Selector '*' should match all edges");
+            assert.ok(result.affectedEdges && result.affectedEdges.length > 0, "Selector '*' should match all edges");
         });
 
-        it("selector with whitespace ' * ' matches all nodes", async() => {
-            const result = await findAndStyleNodes.execute(graph, {
-                selector: " * ",
-                style: {color: "#ff0000"},
-                layerName: "whitespace-star",
-            }, context);
+        it("selector with whitespace ' * ' matches all nodes", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: " * ",
+                    style: { color: "#ff0000" },
+                    layerName: "whitespace-star",
+                },
+                context,
+            );
 
             assert.strictEqual(result.success, true);
-            assert.ok(result.affectedNodes && result.affectedNodes.length > 0,
-                "Selector ' * ' (with whitespace) should match all nodes");
+            assert.ok(
+                result.affectedNodes && result.affectedNodes.length > 0,
+                "Selector ' * ' (with whitespace) should match all nodes",
+            );
         });
     });
 
@@ -304,12 +375,16 @@ describe("StyleCommands", () => {
      * transform from colorjs.io to convert CSS names to hex.
      */
     describe("regression: CSS color names are converted to hex (Issue #4)", () => {
-        it("findAndStyleNodes converts CSS color name 'red' to hex", async() => {
-            await findAndStyleNodes.execute(graph, {
-                selector: "",
-                style: {color: "red"},
-                layerName: "css-color-test",
-            }, context);
+        it("findAndStyleNodes converts CSS color name 'red' to hex", async () => {
+            await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { color: "red" },
+                    layerName: "css-color-test",
+                },
+                context,
+            );
 
             // Find the layer that was added
             const layer = graph.styles.layers.find((l) => l.metadata?.name === "css-color-test");
@@ -317,7 +392,7 @@ describe("StyleCommands", () => {
             assert.ok(layer.node, "Node style should exist");
 
             // The color should be converted to hex, not remain as "red"
-            const nodeStyle = layer.node.style as {texture?: {color?: string}};
+            const nodeStyle = layer.node.style as { texture?: { color?: string } };
             assert.ok(nodeStyle.texture?.color, "Texture color should be set");
             assert.ok(
                 nodeStyle.texture.color.startsWith("#"),
@@ -331,17 +406,21 @@ describe("StyleCommands", () => {
             );
         });
 
-        it("findAndStyleNodes converts CSS color name 'blue' to hex", async() => {
-            await findAndStyleNodes.execute(graph, {
-                selector: "",
-                style: {color: "blue"},
-                layerName: "css-color-test-blue",
-            }, context);
+        it("findAndStyleNodes converts CSS color name 'blue' to hex", async () => {
+            await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { color: "blue" },
+                    layerName: "css-color-test-blue",
+                },
+                context,
+            );
 
             const layer = graph.styles.layers.find((l) => l.metadata?.name === "css-color-test-blue");
             assert.ok(layer?.node, "Node style should exist");
 
-            const nodeStyle = layer.node.style as {texture?: {color?: string}};
+            const nodeStyle = layer.node.style as { texture?: { color?: string } };
             assert.ok(
                 nodeStyle.texture?.color?.startsWith("#"),
                 `Color should be hex format, got: ${nodeStyle.texture?.color}`,
@@ -354,17 +433,21 @@ describe("StyleCommands", () => {
             );
         });
 
-        it("findAndStyleEdges converts CSS color name 'green' to hex", async() => {
-            await findAndStyleEdges.execute(graph, {
-                selector: "",
-                style: {color: "green"},
-                layerName: "css-edge-color-test",
-            }, context);
+        it("findAndStyleEdges converts CSS color name 'green' to hex", async () => {
+            await findAndStyleEdges.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { color: "green" },
+                    layerName: "css-edge-color-test",
+                },
+                context,
+            );
 
             const layer = graph.styles.layers.find((l) => l.metadata?.name === "css-edge-color-test");
             assert.ok(layer?.edge, "Edge style should exist");
 
-            const edgeStyle = layer.edge.style as {line?: {color?: string}};
+            const edgeStyle = layer.edge.style as { line?: { color?: string } };
             assert.ok(
                 edgeStyle.line?.color?.startsWith("#"),
                 `Color should be hex format, got: ${edgeStyle.line?.color}`,
@@ -377,17 +460,21 @@ describe("StyleCommands", () => {
             );
         });
 
-        it("findAndStyleNodes still accepts hex colors", async() => {
-            await findAndStyleNodes.execute(graph, {
-                selector: "",
-                style: {color: "#FF5733"},
-                layerName: "hex-color-test",
-            }, context);
+        it("findAndStyleNodes still accepts hex colors", async () => {
+            await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { color: "#FF5733" },
+                    layerName: "hex-color-test",
+                },
+                context,
+            );
 
             const layer = graph.styles.layers.find((l) => l.metadata?.name === "hex-color-test");
             assert.ok(layer?.node, "Node style should exist");
 
-            const nodeStyle = layer.node.style as {texture?: {color?: string}};
+            const nodeStyle = layer.node.style as { texture?: { color?: string } };
             assert.strictEqual(
                 nodeStyle.texture?.color?.toUpperCase(),
                 "#FF5733",
@@ -404,7 +491,7 @@ describe("StyleCommands", () => {
      * event emission.
      */
     describe("regression: style commands use StyleManager (Issue #1)", () => {
-        it("findAndStyleNodes uses StyleManager.addLayer not styles.addLayer directly", async() => {
+        it("findAndStyleNodes uses StyleManager.addLayer not styles.addLayer directly", async () => {
             // Track whether styleManager.addLayer was called
             let styleManagerAddLayerCalled = false;
             const originalStyleManager = graph.getStyleManager();
@@ -416,11 +503,15 @@ describe("StyleCommands", () => {
                 originalAddLayer(layer);
             };
 
-            await findAndStyleNodes.execute(graph, {
-                selector: "",
-                style: {color: "#ff0000"},
-                layerName: "regression-test",
-            }, context);
+            await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { color: "#ff0000" },
+                    layerName: "regression-test",
+                },
+                context,
+            );
 
             assert.strictEqual(
                 styleManagerAddLayerCalled,
@@ -429,7 +520,7 @@ describe("StyleCommands", () => {
             );
         });
 
-        it("findAndStyleEdges uses StyleManager.addLayer not styles.addLayer directly", async() => {
+        it("findAndStyleEdges uses StyleManager.addLayer not styles.addLayer directly", async () => {
             // Track whether styleManager.addLayer was called
             let styleManagerAddLayerCalled = false;
             const originalStyleManager = graph.getStyleManager();
@@ -441,11 +532,15 @@ describe("StyleCommands", () => {
                 originalAddLayer(layer);
             };
 
-            await findAndStyleEdges.execute(graph, {
-                selector: "",
-                style: {color: "#00ff00"},
-                layerName: "regression-test-edges",
-            }, context);
+            await findAndStyleEdges.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { color: "#00ff00" },
+                    layerName: "regression-test-edges",
+                },
+                context,
+            );
 
             assert.strictEqual(
                 styleManagerAddLayerCalled,

@@ -1,4 +1,5 @@
 # Code Review Report - Data Loading Implementation
+
 **Date**: 2025-11-17
 **Reviewer**: Claude (Automated Code Review)
 **Scope**: Data loading system (formats: JSON, CSV, GraphML, GML, GEXF, DOT, Pajek NET)
@@ -22,11 +23,13 @@ The data loading implementation is **functionally solid** and meets the core req
 ## Critical Issues (Fix Immediately)
 
 ### 1. Network Fetch Inconsistency
+
 **Files**: CSVDataSource, GraphMLDataSource, GMLDataSource, DOTDataSource, GEXFDataSource, PajekDataSource
 
 **Description**: Only `JsonDataSource` has retry logic with exponential backoff. All other DataSources use basic `fetch()` that fails immediately on network issues.
 
 **Example** - GraphMLDataSource.ts:129:
+
 ```typescript
 // ❌ No retry, no timeout
 const response = await fetch(this.config.url);
@@ -36,6 +39,7 @@ if (!response.ok) {
 ```
 
 **Fix**: Extract JsonDataSource's retry/timeout logic into shared base class method
+
 ```typescript
 // src/data/DataSource.ts
 protected async fetchWithRetry(url: string, retries = 3): Promise<Response> {
@@ -48,9 +52,11 @@ protected async fetchWithRetry(url: string, retries = 3): Promise<Response> {
 ---
 
 ### 2. Validation Errors Don't Use ErrorAggregator
+
 **File**: DataSource.ts:52-58
 
 **Description**: The `dataValidator` method throws immediately instead of collecting errors:
+
 ```typescript
 async dataValidator(schema: z4.$ZodObject, obj: object): Promise<void> {
     const res = await z4.safeParseAsync(schema, obj);
@@ -62,6 +68,7 @@ async dataValidator(schema: z4.$ZodObject, obj: object): Promise<void> {
 ```
 
 **Fix**:
+
 ```typescript
 async dataValidator(schema: z4.$ZodObject, obj: object): Promise<boolean> {
     const res = await z4.safeParseAsync(schema, obj);
@@ -80,18 +87,21 @@ async dataValidator(schema: z4.$ZodObject, obj: object): Promise<boolean> {
 ---
 
 ### 3. CSV Paired Files - Unclear Error on Missing URL
+
 **File**: CSVDataSource.ts:616-638
 
 **Description**: When nodeURL/edgeURL is undefined, fetches from empty string:
+
 ```typescript
 // ❌ Will fetch from "" if nodeURL is undefined
 await (await fetch(this.config.nodeURL ?? "")).text();
 ```
 
 **Fix**:
+
 ```typescript
 if (!this.config.nodeURL || !this.config.edgeURL) {
-    throw new Error('parsePairedFiles requires both nodeURL and edgeURL');
+    throw new Error("parsePairedFiles requires both nodeURL and edgeURL");
 }
 const nodeText = await (await fetch(this.config.nodeURL)).text();
 ```
@@ -101,11 +111,13 @@ const nodeText = await (await fetch(this.config.nodeURL)).text();
 ## High Priority Issues (Fix Soon)
 
 ### 4. Massive Code Duplication: `getContent()` Method
+
 **Files**: CSVDataSource (660-679), GraphMLDataSource (119-138), GMLDataSource (57-76), DOTDataSource (56-75), GEXFDataSource (88-107), PajekDataSource (64-83)
 
 **Description**: The same 20-line `getContent()` method is duplicated in **6 DataSources** (120+ lines total).
 
 **Example**:
+
 ```typescript
 // ❌ Repeated in 6 files
 private async getContent(): Promise<string> {
@@ -121,6 +133,7 @@ private async getContent(): Promise<string> {
 ```
 
 **Fix**: Move to base `DataSource` class:
+
 ```typescript
 // src/data/DataSource.ts
 protected async getContent(config: {data?: string, file?: File, url?: string}): Promise<string> {
@@ -134,9 +147,11 @@ protected async getContent(config: {data?: string, file?: File, url?: string}): 
 ---
 
 ### 5. Code Duplication: Chunking Pattern
+
 **Files**: GraphMLDataSource, GMLDataSource, DOTDataSource, GEXFDataSource, PajekDataSource
 
 **Description**: ~50 lines of duplicated chunking logic:
+
 ```typescript
 // ❌ Repeated in 5 files
 for (let i = 0; i < nodes.length; i += this.chunkSize) {
@@ -150,6 +165,7 @@ if (nodes.length === 0 && edges.length > 0) {
 ```
 
 **Fix**: Extract to base class helper:
+
 ```typescript
 // src/data/DataSource.ts
 protected *chunkData(nodes: AdHocData[], edges: AdHocData[]): Generator<DataSourceChunk> {
@@ -168,15 +184,18 @@ protected *chunkData(nodes: AdHocData[], edges: AdHocData[]): Generator<DataSour
 ---
 
 ### 6. CSV Edge Parsing Duplication
+
 **File**: CSVDataSource.ts
 
 **Description**: Edge creation logic duplicated in 4 methods (~200 lines):
+
 - `parseEdgeList()` (188-266)
 - `parseGephiFormat()` (407-474)
 - `parseCytoscapeFormat()` (476-541)
 - `parseAdjacencyList()` (543-604)
 
 **Fix**: Extract common logic:
+
 ```typescript
 private createEdge(src: unknown, dst: unknown, row: Record<string, unknown>): AdHocData | null {
     // Common edge creation with error handling
@@ -186,15 +205,18 @@ private createEdge(src: unknown, dst: unknown, row: Record<string, unknown>): Ad
 ---
 
 ### 7. Console.log Statements in Production Code
+
 **File**: CSVDataSource.ts (lines 152, 172, 550, 554, 600)
 
 **Description**: Multiple debug console.log statements left in production code:
+
 ```typescript
 console.log("CSV: Routing to parser for variant:", variantInfo.variant);
 console.log("CSV: Parsing adjacency list, first row:", fullParse.data[0]);
 ```
 
 **Fix**: Remove or convert to proper event emissions:
+
 ```typescript
 // Option 1: Remove
 // Option 2: Make debug flag
@@ -206,9 +228,11 @@ if (this.config.debug) {
 ---
 
 ### 8. Missing errorLimit Support in JsonDataSource
+
 **File**: JsonDataSource.ts:34
 
 **Description**: Constructor doesn't accept or pass errorLimit:
+
 ```typescript
 constructor(anyOpts: object) {
     super(); // ❌ No errorLimit parameter
@@ -216,6 +240,7 @@ constructor(anyOpts: object) {
 ```
 
 **Fix**:
+
 ```typescript
 constructor(anyOpts: {errorLimit?: number, ...}) {
     super(anyOpts.errorLimit ?? 100);
@@ -225,6 +250,7 @@ constructor(anyOpts: {errorLimit?: number, ...}) {
 ---
 
 ### 9. No Streaming in JsonDataSource
+
 **File**: JsonDataSource.ts:93-137
 
 **Description**: Loads entire JSON into memory at once (line 108: `await response.json()`). The `@streamparser/json` import is commented out (line 5).
@@ -236,9 +262,11 @@ constructor(anyOpts: {errorLimit?: number, ...}) {
 ---
 
 ### 10. Config Interface Duplication
+
 **Files**: All DataSources
 
 **Description**: Every DataSource repeats similar config:
+
 ```typescript
 export interface XDataSourceConfig {
     data?: string;
@@ -250,6 +278,7 @@ export interface XDataSourceConfig {
 ```
 
 **Fix**: Create base interface:
+
 ```typescript
 // src/data/DataSource.ts
 export interface BaseDataSourceConfig {
@@ -269,11 +298,13 @@ export interface GraphMLDataSourceConfig extends BaseDataSourceConfig {
 ---
 
 ### 11. Hardcoded Default ChunkSize
+
 **Files**: All DataSources
 
 **Description**: Default value `1000` is hardcoded in 7 places. If this needs to change, must update all files.
 
 **Fix**:
+
 ```typescript
 // src/data/DataSource.ts
 protected static readonly DEFAULT_CHUNK_SIZE = 1000;
@@ -285,6 +316,7 @@ this.chunkSize = config.chunkSize ?? DataSource.DEFAULT_CHUNK_SIZE;
 ---
 
 ### 12. No Chunking in JsonDataSource and CSV Paired Files
+
 **Files**: JsonDataSource.ts, CSVDataSource.ts:657
 
 **Description**: These yield all data in a single chunk, violating the chunking pattern used elsewhere.
@@ -294,9 +326,11 @@ this.chunkSize = config.chunkSize ?? DataSource.DEFAULT_CHUNK_SIZE;
 ---
 
 ### 13. ErrorAggregator Not Used Consistently
+
 **Files**: Multiple
 
 **Description**: Some errors bypass ErrorAggregator and throw directly:
+
 - JsonDataSource throws for fetch/parse errors
 - All `getContent()` methods throw directly
 - DataSource.dataValidator() throws directly
@@ -306,7 +340,9 @@ this.chunkSize = config.chunkSize ?? DataSource.DEFAULT_CHUNK_SIZE;
 ---
 
 ### 14. Config Structure Inconsistency
+
 **Description**:
+
 - JsonDataSource uses nested config: `{data, node: {path, schema}, edge: {path, schema}}`
 - Others use flat config: `{data, file, url, ...}`
 - CSVDataSource adds variant options: `{variant, sourceColumn, ...}`
@@ -318,7 +354,9 @@ this.chunkSize = config.chunkSize ?? DataSource.DEFAULT_CHUNK_SIZE;
 ## Medium Priority Issues (Technical Debt)
 
 ### 15. Dead Code: Commented-Out Streaming Import
+
 **File**: JsonDataSource.ts:5
+
 ```typescript
 // import {JSONParser} from "@streamparser/json";
 ```
@@ -328,7 +366,9 @@ this.chunkSize = config.chunkSize ?? DataSource.DEFAULT_CHUNK_SIZE;
 ---
 
 ### 16. Dead Code: Commented init() Method
+
 **File**: DataSource.ts:24
+
 ```typescript
 // abstract init(): Promise<void>;
 ```
@@ -338,7 +378,9 @@ this.chunkSize = config.chunkSize ?? DataSource.DEFAULT_CHUNK_SIZE;
 ---
 
 ### 17. Unused Variables
+
 **Locations**:
+
 - GMLDataSource.ts:100 - `nextChar`
 - DOTDataSource.ts:294 - `operator` (suggests incomplete directed/undirected support)
 - GMLDataSource.ts:192 - `nested`
@@ -348,7 +390,9 @@ this.chunkSize = config.chunkSize ?? DataSource.DEFAULT_CHUNK_SIZE;
 ---
 
 ### 18. Error Message Format Inconsistency
+
 **Description**: Different formats across DataSources:
+
 - `"Failed to fetch X from ${url}: ${status}"`
 - `"XDataSource requires data, file, or url"`
 - `"Failed to parse X: ${error.message}"`
@@ -358,7 +402,9 @@ this.chunkSize = config.chunkSize ?? DataSource.DEFAULT_CHUNK_SIZE;
 ---
 
 ### 19. Edge Property Naming Inconsistency
+
 **Description**: Different formats use different edge property names:
+
 - Most use `src`/`dst`
 - Some preserve original `source`/`target`
 - Pajek adds `directed` boolean
@@ -368,6 +414,7 @@ this.chunkSize = config.chunkSize ?? DataSource.DEFAULT_CHUNK_SIZE;
 ---
 
 ### 20. Missing Validation for Edge References
+
 **File**: DOTDataSource
 
 **Description**: Creates nodes on-demand when edges reference them (no warning for typos).
@@ -379,6 +426,7 @@ this.chunkSize = config.chunkSize ?? DataSource.DEFAULT_CHUNK_SIZE;
 ### 21. Missing Test Coverage
 
 **Edge cases not tested**:
+
 - Empty files
 - Network errors/retries
 - Files that hit error limits
@@ -387,17 +435,20 @@ this.chunkSize = config.chunkSize ?? DataSource.DEFAULT_CHUNK_SIZE;
 - URL fetching (only inline data tested)
 
 **Error handling not tested**:
+
 - ErrorAggregator integration
 - Schema validation errors
 - Partial data corruption
 
 **Integration gaps**:
+
 - No tests for format auto-detection end-to-end
 - No tests for DataSource.get() registry
 
 ---
 
 ### 22-24. Documentation Gaps
+
 - No examples showing how to add custom DataSource
 - No documentation of CSV variant auto-detection algorithm
 - No guide for error handling patterns
@@ -407,6 +458,7 @@ this.chunkSize = config.chunkSize ?? DataSource.DEFAULT_CHUNK_SIZE;
 ## Design Adherence Analysis
 
 ### ✅ Implemented as Designed
+
 - Format detection (`format-detection.ts`)
 - Core DataSource architecture
 - All major formats: JSON, CSV, GraphML, GML, GEXF, DOT, Pajek
@@ -415,6 +467,7 @@ this.chunkSize = config.chunkSize ?? DataSource.DEFAULT_CHUNK_SIZE;
 - Storybook stories for core formats
 
 ### ❌ Missing from Original Design
+
 - **Phase 9: User-friendly error handling** - ErrorAggregator exists but not fully integrated with validation
 - **Phase 6: JSON variant stories** - Stories for D3, Cytoscape.js, Sigma, Vis.js, NetworkX variants
 - **Phase 8: yFiles GraphML support** - Partially implemented (shape/color parsing exists) but incomplete
@@ -422,6 +475,7 @@ this.chunkSize = config.chunkSize ?? DataSource.DEFAULT_CHUNK_SIZE;
 - Error summary events
 
 ### ⚠️ Not Anticipated in Design
+
 - Extensive code duplication (wasn't predicted)
 - Network reliability issues (only JsonDataSource has retry logic)
 - Chunking inconsistencies (JsonDataSource and paired CSV don't chunk)
@@ -431,12 +485,14 @@ this.chunkSize = config.chunkSize ?? DataSource.DEFAULT_CHUNK_SIZE;
 ## Testing Assessment
 
 **Strengths**:
+
 - Good coverage of happy paths
 - All major formats have unit tests
 - Integration tests with real data files
 - ~275 test assertions across data tests
 
 **Gaps**:
+
 - Missing edge case tests (empty files, network errors)
 - Missing error limit tests
 - No chunking tests for large files
@@ -462,6 +518,7 @@ Good patterns worth replicating:
 ## Recommendations (Priority Order)
 
 ### Week 1: Address Critical Duplication (3-4 days)
+
 1. ✅ Extract `getContent()` to base class → **Saves 120 lines**
 2. ✅ Extract chunking logic to base class → **Saves 50 lines**
 3. ✅ Extract CSV edge parsing helper → **Saves 200 lines**
@@ -473,6 +530,7 @@ Good patterns worth replicating:
 ---
 
 ### Week 2: Fix Critical Bugs (2-3 days)
+
 6. ✅ Add retry/timeout to all DataSources (not just JSON)
 7. ✅ Fix validation error handling (use ErrorAggregator)
 8. ✅ Fix CSV paired files validation
@@ -482,6 +540,7 @@ Good patterns worth replicating:
 ---
 
 ### Week 3: Complete Missing Functionality (2-3 days)
+
 11. ✅ Add streaming to JsonDataSource (implement @streamparser/json)
 12. ✅ Add chunking to JsonDataSource and CSV paired files
 13. ✅ Complete yFiles GraphML support
@@ -491,6 +550,7 @@ Good patterns worth replicating:
 ---
 
 ### Week 4: Testing & Polish (2-3 days)
+
 16. ✅ Add edge case tests (empty files, network errors, error limits)
 17. ✅ Add chunking/large file tests
 18. ✅ Add File/URL input tests
@@ -504,6 +564,7 @@ Good patterns worth replicating:
 Comparing to original acceptance criteria:
 
 **Functional** ✅:
+
 - [x] Support File objects, URLs, and strings
 - [x] Auto-detect format
 - [x] Parse 5+ essential formats
@@ -516,12 +577,14 @@ Comparing to original acceptance criteria:
 - [x] Emit completion events
 
 **Performance** ⚠️:
+
 - [ ] Parse 10K nodes < 2 seconds (needs benchmarking)
 - [ ] Parse 100MB file with progress (JsonDataSource can't due to no streaming)
 - [ ] Use < 200MB memory for 100MB file (needs testing)
 - [ ] Support cancellation < 100ms (not implemented)
 
 **Code Quality** ⚠️:
+
 - [x] 80%+ test coverage (estimated ~70%, missing edge cases)
 - [x] Integration tests with real files
 - [x] Unit tests for error handling (PARTIAL - validation not tested)
@@ -532,17 +595,17 @@ Comparing to original acceptance criteria:
 
 ## Summary Statistics
 
-| Metric | Value |
-|--------|-------|
-| Files analyzed | 11 production, 7 test |
-| Lines of production code | 3,349 |
-| Lines of duplicated code | ~370 |
-| Critical bugs | 3 |
-| High priority issues | 11 |
-| Medium priority issues | 6 |
-| Low priority issues | 4 |
-| Test assertions | ~275 |
-| Estimated refactoring effort | 9-13 days |
+| Metric                       | Value                 |
+| ---------------------------- | --------------------- |
+| Files analyzed               | 11 production, 7 test |
+| Lines of production code     | 3,349                 |
+| Lines of duplicated code     | ~370                  |
+| Critical bugs                | 3                     |
+| High priority issues         | 11                    |
+| Medium priority issues       | 6                     |
+| Low priority issues          | 4                     |
+| Test assertions              | ~275                  |
+| Estimated refactoring effort | 9-13 days             |
 
 ---
 
@@ -556,6 +619,7 @@ The data loading implementation is **functionally complete and production-ready*
 4. **Memory efficiency gaps** (JsonDataSource doesn't stream)
 
 **Recommendation**: Spend 9-13 days addressing the HIGH and MEDIUM priority issues before adding more features. This will:
+
 - Reduce maintenance burden
 - Make the codebase more consistent
 - Improve production reliability
@@ -568,6 +632,7 @@ The implementation shows good architectural decisions (ErrorAggregator, variant 
 ## Appendix A: File Inventory
 
 ### Production Code (src/data/)
+
 1. DataSource.ts - Base class (80 lines)
 2. ErrorAggregator.ts - Error handling (265 lines)
 3. format-detection.ts - Format detection (136 lines)
@@ -583,6 +648,7 @@ The implementation shows good architectural decisions (ErrorAggregator, variant 
 **Total**: 3,349 lines
 
 ### Test Code (test/data/)
+
 1. CSVDataSource.test.ts
 2. GraphMLDataSource.test.ts
 3. GMLDataSource.test.ts
@@ -592,6 +658,7 @@ The implementation shows good architectural decisions (ErrorAggregator, variant 
 7. PajekDataSource.integration.test.ts
 
 ### Configuration Files
+
 - index.ts - Module exports
 - stories/Data.stories.ts - Storybook stories
 
@@ -600,25 +667,28 @@ The implementation shows good architectural decisions (ErrorAggregator, variant 
 ## Appendix B: Detailed Metrics
 
 ### Code Duplication Breakdown
-| Pattern | Files Affected | Lines Duplicated |
-|---------|----------------|------------------|
-| getContent() | 6 | ~120 |
-| Chunking loop | 5 | ~50 |
-| CSV edge parsing | 4 methods | ~200 |
-| **Total** | | **~370** |
+
+| Pattern          | Files Affected | Lines Duplicated |
+| ---------------- | -------------- | ---------------- |
+| getContent()     | 6              | ~120             |
+| Chunking loop    | 5              | ~50              |
+| CSV edge parsing | 4 methods      | ~200             |
+| **Total**        |                | **~370**         |
 
 ### Error Handling Coverage
-| DataSource | Uses ErrorAggregator | Network Retries | Validation Errors |
-|------------|---------------------|-----------------|-------------------|
-| JsonDataSource | Partial | ✅ Yes | ❌ Throws |
-| CSVDataSource | ✅ Yes | ❌ No | ❌ Throws |
-| GraphMLDataSource | ✅ Yes | ❌ No | ❌ Throws |
-| GMLDataSource | ✅ Yes | ❌ No | ❌ Throws |
-| DOTDataSource | ✅ Yes | ❌ No | ❌ Throws |
-| GEXFDataSource | ✅ Yes | ❌ No | ❌ Throws |
-| PajekDataSource | ✅ Yes | ❌ No | ❌ Throws |
+
+| DataSource        | Uses ErrorAggregator | Network Retries | Validation Errors |
+| ----------------- | -------------------- | --------------- | ----------------- |
+| JsonDataSource    | Partial              | ✅ Yes          | ❌ Throws         |
+| CSVDataSource     | ✅ Yes               | ❌ No           | ❌ Throws         |
+| GraphMLDataSource | ✅ Yes               | ❌ No           | ❌ Throws         |
+| GMLDataSource     | ✅ Yes               | ❌ No           | ❌ Throws         |
+| DOTDataSource     | ✅ Yes               | ❌ No           | ❌ Throws         |
+| GEXFDataSource    | ✅ Yes               | ❌ No           | ❌ Throws         |
+| PajekDataSource   | ✅ Yes               | ❌ No           | ❌ Throws         |
 
 ### Test Coverage Estimate
+
 - Happy path: ~90%
 - Error paths: ~60%
 - Edge cases: ~30%

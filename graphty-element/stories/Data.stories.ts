@@ -1,17 +1,17 @@
 import "../index.ts";
 
-import type {Meta, StoryObj} from "@storybook/web-components-vite";
+import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import {StyleTemplate} from "../src/config";
-import {Graphty} from "../src/graphty-element";
-import {edgeData, eventWaitingDecorator, nodeData, waitForGraphSettled} from "./helpers";
+import { StyleTemplate } from "../src/config";
+import { Graphty } from "../src/graphty-element";
+import { edgeData, eventWaitingDecorator, nodeData, waitForGraphSettled } from "./helpers";
 
 const meta: Meta = {
     title: "Data",
     component: "graphty-element",
     decorators: [eventWaitingDecorator],
     parameters: {
-        controls: {exclude: /^(#|_)/},
+        controls: { exclude: /^(#|_)/ },
         chromatic: {
             delay: 500, // Allow Babylon.js render frames to complete (30 frames at 60fps)
         },
@@ -40,7 +40,7 @@ export const Basic: Story = {
             },
         }),
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -67,7 +67,7 @@ export const Json: Story = {
             },
         }),
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -102,7 +102,7 @@ export const ModifiedJson: Story = {
             },
         }),
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -114,7 +114,7 @@ export const GraphML: Story = {
             url: "https://raw.githubusercontent.com/chengw07/NetWalk/master/data/karate.GraphML",
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -136,7 +136,7 @@ database-1,backup-1,0.7,Backup,20,300.0,true,"Database backup connection"
 backup-1,backup-2,0.6,Sync,25,200.0,true,"Backup synchronization"`,
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -262,7 +262,7 @@ graph [
 ]`,
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -415,7 +415,7 @@ export const GEXF: Story = {
 </gexf>`,
         },
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -579,7 +579,7 @@ digraph ComprehensiveTest {
             },
         }),
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -609,7 +609,7 @@ user-1,user-3,MANAGES,2019,1.0`,
             },
         }),
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -637,7 +637,7 @@ cache-1,database-1,Directed,1.2,Cache Miss`,
             },
         }),
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -665,7 +665,7 @@ protein-D,protein-A,feedback,0.70,medium`,
             },
         }),
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -692,7 +692,7 @@ router-5,router-1:2.2`,
             },
         }),
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -723,7 +723,7 @@ node-8,Henry Moore,person,4,false,HR,henry@example.com`,
             },
         }),
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -733,23 +733,25 @@ export const JsonD3: Story = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: `data:application/json,${encodeURIComponent(JSON.stringify({
-                nodes: [
-                    {id: "server-1", type: "server", priority: 10},
-                    {id: "client-1", type: "client", priority: 5},
-                    {id: "database-1", type: "database", priority: 8},
-                    {id: "cache-1", type: "cache", priority: 7},
-                    {id: "api-1", type: "api", priority: 6},
-                ],
-                links: [
-                    {source: "server-1", target: "client-1", weight: 1.5, protocol: "HTTP/2"},
-                    {source: "client-1", target: "database-1", weight: 2.0, protocol: "SQL"},
-                    {source: "server-1", target: "database-1", weight: 0.8, protocol: "TCP"},
-                    {source: "server-1", target: "cache-1", weight: 3.5, protocol: "Redis"},
-                    {source: "cache-1", target: "database-1", weight: 1.2, protocol: "Internal"},
-                    {source: "api-1", target: "server-1", weight: 2.5, protocol: "REST"},
-                ],
-            }))}`,
+            data: `data:application/json,${encodeURIComponent(
+                JSON.stringify({
+                    nodes: [
+                        { id: "server-1", type: "server", priority: 10 },
+                        { id: "client-1", type: "client", priority: 5 },
+                        { id: "database-1", type: "database", priority: 8 },
+                        { id: "cache-1", type: "cache", priority: 7 },
+                        { id: "api-1", type: "api", priority: 6 },
+                    ],
+                    links: [
+                        { source: "server-1", target: "client-1", weight: 1.5, protocol: "HTTP/2" },
+                        { source: "client-1", target: "database-1", weight: 2.0, protocol: "SQL" },
+                        { source: "server-1", target: "database-1", weight: 0.8, protocol: "TCP" },
+                        { source: "server-1", target: "cache-1", weight: 3.5, protocol: "Redis" },
+                        { source: "cache-1", target: "database-1", weight: 1.2, protocol: "Internal" },
+                        { source: "api-1", target: "server-1", weight: 2.5, protocol: "REST" },
+                    ],
+                }),
+            )}`,
             node: {
                 path: "nodes",
             },
@@ -773,7 +775,7 @@ export const JsonD3: Story = {
             },
         }),
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -782,25 +784,48 @@ export const JsonCytoscapeJs: Story = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: `data:application/json,${encodeURIComponent(JSON.stringify({
-                elements: {
-                    nodes: [
-                        {data: {id: "protein-A", name: "Protein A", mass: 45.5}},
-                        {data: {id: "protein-B", name: "Protein B", mass: 52.3}},
-                        {data: {id: "protein-C", name: "Protein C", mass: 38.7}},
-                        {data: {id: "protein-D", name: "Protein D", mass: 41.2}},
-                        {data: {id: "protein-E", name: "Protein E", mass: 49.8}},
-                    ],
-                    edges: [
-                        {data: {source: "protein-A", target: "protein-B", interaction: "binds", score: 0.95}},
-                        {data: {source: "protein-B", target: "protein-C", interaction: "inhibits", score: 0.75}},
-                        {data: {source: "protein-A", target: "protein-D", interaction: "activates", score: 0.88}},
-                        {data: {source: "protein-C", target: "protein-D", interaction: "regulates", score: 0.65}},
-                        {data: {source: "protein-D", target: "protein-A", interaction: "feedback", score: 0.70}},
-                        {data: {source: "protein-E", target: "protein-C", interaction: "binds", score: 0.82}},
-                    ],
-                },
-            }))}`,
+            data: `data:application/json,${encodeURIComponent(
+                JSON.stringify({
+                    elements: {
+                        nodes: [
+                            { data: { id: "protein-A", name: "Protein A", mass: 45.5 } },
+                            { data: { id: "protein-B", name: "Protein B", mass: 52.3 } },
+                            { data: { id: "protein-C", name: "Protein C", mass: 38.7 } },
+                            { data: { id: "protein-D", name: "Protein D", mass: 41.2 } },
+                            { data: { id: "protein-E", name: "Protein E", mass: 49.8 } },
+                        ],
+                        edges: [
+                            { data: { source: "protein-A", target: "protein-B", interaction: "binds", score: 0.95 } },
+                            {
+                                data: {
+                                    source: "protein-B",
+                                    target: "protein-C",
+                                    interaction: "inhibits",
+                                    score: 0.75,
+                                },
+                            },
+                            {
+                                data: {
+                                    source: "protein-A",
+                                    target: "protein-D",
+                                    interaction: "activates",
+                                    score: 0.88,
+                                },
+                            },
+                            {
+                                data: {
+                                    source: "protein-C",
+                                    target: "protein-D",
+                                    interaction: "regulates",
+                                    score: 0.65,
+                                },
+                            },
+                            { data: { source: "protein-D", target: "protein-A", interaction: "feedback", score: 0.7 } },
+                            { data: { source: "protein-E", target: "protein-C", interaction: "binds", score: 0.82 } },
+                        ],
+                    },
+                }),
+            )}`,
             node: {
                 path: "elements.nodes[].data",
             },
@@ -824,7 +849,7 @@ export const JsonCytoscapeJs: Story = {
             },
         }),
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -833,23 +858,25 @@ export const JsonSigma: Story = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: `data:application/json,${encodeURIComponent(JSON.stringify({
-                nodes: [
-                    {key: "user-1", attributes: {label: "Alice", role: "admin", score: 95.5}},
-                    {key: "user-2", attributes: {label: "Bob", role: "user", score: 78.3}},
-                    {key: "user-3", attributes: {label: "Carol", role: "moderator", score: 88.7}},
-                    {key: "user-4", attributes: {label: "Dave", role: "user", score: 82.1}},
-                    {key: "user-5", attributes: {label: "Eve", role: "admin", score: 91.2}},
-                ],
-                edges: [
-                    {source: "user-1", target: "user-2", weight: 0.8, type: "follows"},
-                    {source: "user-2", target: "user-3", weight: 0.6, type: "follows"},
-                    {source: "user-1", target: "user-3", weight: 1.0, type: "manages"},
-                    {source: "user-3", target: "user-4", weight: 0.7, type: "follows"},
-                    {source: "user-4", target: "user-5", weight: 0.5, type: "follows"},
-                    {source: "user-5", target: "user-1", weight: 0.9, type: "manages"},
-                ],
-            }))}`,
+            data: `data:application/json,${encodeURIComponent(
+                JSON.stringify({
+                    nodes: [
+                        { key: "user-1", attributes: { label: "Alice", role: "admin", score: 95.5 } },
+                        { key: "user-2", attributes: { label: "Bob", role: "user", score: 78.3 } },
+                        { key: "user-3", attributes: { label: "Carol", role: "moderator", score: 88.7 } },
+                        { key: "user-4", attributes: { label: "Dave", role: "user", score: 82.1 } },
+                        { key: "user-5", attributes: { label: "Eve", role: "admin", score: 91.2 } },
+                    ],
+                    edges: [
+                        { source: "user-1", target: "user-2", weight: 0.8, type: "follows" },
+                        { source: "user-2", target: "user-3", weight: 0.6, type: "follows" },
+                        { source: "user-1", target: "user-3", weight: 1.0, type: "manages" },
+                        { source: "user-3", target: "user-4", weight: 0.7, type: "follows" },
+                        { source: "user-4", target: "user-5", weight: 0.5, type: "follows" },
+                        { source: "user-5", target: "user-1", weight: 0.9, type: "manages" },
+                    ],
+                }),
+            )}`,
             node: {
                 path: "nodes",
             },
@@ -874,7 +901,7 @@ export const JsonSigma: Story = {
             },
         }),
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -883,23 +910,25 @@ export const JsonVisJs: Story = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: `data:application/json,${encodeURIComponent(JSON.stringify({
-                nodes: [
-                    {id: 1, label: "Router-1", device: "router", uptime: 99.9},
-                    {id: 2, label: "Router-2", device: "router", uptime: 98.5},
-                    {id: 3, label: "Switch-1", device: "switch", uptime: 99.7},
-                    {id: 4, label: "Switch-2", device: "switch", uptime: 97.8},
-                    {id: 5, label: "Firewall-1", device: "firewall", uptime: 99.95},
-                ],
-                edges: [
-                    {from: 1, to: 2, bandwidth: 1000, latency: 2},
-                    {from: 2, to: 3, bandwidth: 500, latency: 5},
-                    {from: 1, to: 3, bandwidth: 2000, latency: 1},
-                    {from: 3, to: 4, bandwidth: 1500, latency: 3},
-                    {from: 4, to: 5, bandwidth: 800, latency: 4},
-                    {from: 5, to: 1, bandwidth: 1200, latency: 2},
-                ],
-            }))}`,
+            data: `data:application/json,${encodeURIComponent(
+                JSON.stringify({
+                    nodes: [
+                        { id: 1, label: "Router-1", device: "router", uptime: 99.9 },
+                        { id: 2, label: "Router-2", device: "router", uptime: 98.5 },
+                        { id: 3, label: "Switch-1", device: "switch", uptime: 99.7 },
+                        { id: 4, label: "Switch-2", device: "switch", uptime: 97.8 },
+                        { id: 5, label: "Firewall-1", device: "firewall", uptime: 99.95 },
+                    ],
+                    edges: [
+                        { from: 1, to: 2, bandwidth: 1000, latency: 2 },
+                        { from: 2, to: 3, bandwidth: 500, latency: 5 },
+                        { from: 1, to: 3, bandwidth: 2000, latency: 1 },
+                        { from: 3, to: 4, bandwidth: 1500, latency: 3 },
+                        { from: 4, to: 5, bandwidth: 800, latency: 4 },
+                        { from: 5, to: 1, bandwidth: 1200, latency: 2 },
+                    ],
+                }),
+            )}`,
             node: {
                 path: "nodes",
             },
@@ -923,7 +952,7 @@ export const JsonVisJs: Story = {
             },
         }),
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -932,26 +961,28 @@ export const JsonNetworkX: Story = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: `data:application/json,${encodeURIComponent(JSON.stringify({
-                directed: true,
-                multigraph: false,
-                graph: {},
-                nodes: [
-                    {id: "A", type: "start", value: 10},
-                    {id: "B", type: "middle", value: 20},
-                    {id: "C", type: "middle", value: 15},
-                    {id: "D", type: "middle", value: 25},
-                    {id: "E", type: "end", value: 30},
-                ],
-                links: [
-                    {source: "A", target: "B", weight: 1.5},
-                    {source: "B", target: "C", weight: 2.0},
-                    {source: "A", target: "C", weight: 0.8},
-                    {source: "C", target: "D", weight: 3.5},
-                    {source: "D", target: "E", weight: 1.2},
-                    {source: "E", target: "A", weight: 2.5},
-                ],
-            }))}`,
+            data: `data:application/json,${encodeURIComponent(
+                JSON.stringify({
+                    directed: true,
+                    multigraph: false,
+                    graph: {},
+                    nodes: [
+                        { id: "A", type: "start", value: 10 },
+                        { id: "B", type: "middle", value: 20 },
+                        { id: "C", type: "middle", value: 15 },
+                        { id: "D", type: "middle", value: 25 },
+                        { id: "E", type: "end", value: 30 },
+                    ],
+                    links: [
+                        { source: "A", target: "B", weight: 1.5 },
+                        { source: "B", target: "C", weight: 2.0 },
+                        { source: "A", target: "C", weight: 0.8 },
+                        { source: "C", target: "D", weight: 3.5 },
+                        { source: "D", target: "E", weight: 1.2 },
+                        { source: "E", target: "A", weight: 2.5 },
+                    ],
+                }),
+            )}`,
             node: {
                 path: "nodes",
             },
@@ -975,7 +1006,7 @@ export const JsonNetworkX: Story = {
             },
         }),
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -1012,7 +1043,7 @@ monitor-1,database-1,Directed,0.3,Metrics,8`)}`,
             },
         }),
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };
@@ -1057,7 +1088,7 @@ export const Pajek: Story = {
             },
         }),
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
     },
 };

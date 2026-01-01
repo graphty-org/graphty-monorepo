@@ -1,8 +1,8 @@
-import {afterEach, assert, test} from "vitest";
+import { afterEach, assert, test } from "vitest";
 
-import {TwoDCameraController} from "../../../src/cameras/TwoDCameraController.js";
-import {Graph} from "../../../src/Graph.js";
-import {cleanupTestGraph, createTestGraph} from "../../helpers/testSetup.js";
+import { TwoDCameraController } from "../../../src/cameras/TwoDCameraController.js";
+import { Graph } from "../../../src/Graph.js";
+import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup.js";
 
 let graph: Graph;
 let cameraController: TwoDCameraController;
@@ -21,7 +21,7 @@ async function setup2DGraph(): Promise<void> {
         graph: {
             twoD: true,
             viewMode: "2d",
-            background: {backgroundType: "color", color: "#f0f0f0"},
+            background: { backgroundType: "color", color: "#f0f0f0" },
             addDefaultStyle: true,
             startingCameraDistance: 30,
             layout: "ngraph",
@@ -57,11 +57,12 @@ async function setup2DGraph(): Promise<void> {
 
     // Get the camera controller
     const cameraManager = graph.camera;
-    cameraController = (cameraManager as unknown as {activeCameraController: TwoDCameraController}).activeCameraController;
+    cameraController = (cameraManager as unknown as { activeCameraController: TwoDCameraController })
+        .activeCameraController;
     assert.isDefined(cameraController, "Camera controller should be defined after switching to 2D mode");
 }
 
-test("animates 2D zoom smoothly", async() => {
+test("animates 2D zoom smoothly", async () => {
     await setup2DGraph();
 
     // Calculate initial zoom from ortho bounds (full width)
@@ -69,7 +70,7 @@ test("animates 2D zoom smoothly", async() => {
     const targetZoom = 2.0;
 
     const startTime = Date.now();
-    await graph.setCameraZoom(targetZoom, {animate: true, duration: 500});
+    await graph.setCameraZoom(targetZoom, { animate: true, duration: 500 });
     const elapsed = Date.now() - startTime;
 
     // Animation should take approximately the requested duration
@@ -82,28 +83,37 @@ test("animates 2D zoom smoothly", async() => {
     // Final width should be approximately initial / targetZoom
     // The zoom divides the half-width by zoom, so full width is also divided by zoom
     const expectedWidth = initialOrthoWidth / targetZoom;
-    assert.ok(Math.abs(finalOrthoWidth - expectedWidth) < 1.0, `Final ortho width is ${finalOrthoWidth}, expected ~${expectedWidth}`);
+    assert.ok(
+        Math.abs(finalOrthoWidth - expectedWidth) < 1.0,
+        `Final ortho width is ${finalOrthoWidth}, expected ~${expectedWidth}`,
+    );
 });
 
-test("animates 2D pan smoothly", async() => {
+test("animates 2D pan smoothly", async () => {
     await setup2DGraph();
 
     const initialPanX = cameraController.camera.position.x;
     const initialPanY = cameraController.camera.position.y;
-    const targetPan = {x: 50, y: 50};
+    const targetPan = { x: 50, y: 50 };
 
-    await graph.setCameraPan(targetPan, {animate: true, duration: 500});
+    await graph.setCameraPan(targetPan, { animate: true, duration: 500 });
 
     // Pan should have changed
     assert.notEqual(cameraController.camera.position.x, initialPanX, "Pan X should have changed");
     assert.notEqual(cameraController.camera.position.y, initialPanY, "Pan Y should have changed");
 
     // Pan should be close to target (allowing some tolerance)
-    assert.ok(Math.abs(cameraController.camera.position.x - targetPan.x) < 10, `Pan X is ${cameraController.camera.position.x}, expected ${targetPan.x}`);
-    assert.ok(Math.abs(cameraController.camera.position.y - targetPan.y) < 10, `Pan Y is ${cameraController.camera.position.y}, expected ${targetPan.y}`);
+    assert.ok(
+        Math.abs(cameraController.camera.position.x - targetPan.x) < 10,
+        `Pan X is ${cameraController.camera.position.x}, expected ${targetPan.x}`,
+    );
+    assert.ok(
+        Math.abs(cameraController.camera.position.y - targetPan.y) < 10,
+        `Pan Y is ${cameraController.camera.position.y}, expected ${targetPan.y}`,
+    );
 });
 
-test("applies easing to 2D animations", async() => {
+test("applies easing to 2D animations", async () => {
     await setup2DGraph();
 
     // Track ortho size changes during animation
@@ -114,7 +124,7 @@ test("applies easing to 2D animations", async() => {
         orthoSizes.push(size);
     });
 
-    await graph.setCameraZoom(1.5, {animate: true, duration: 300, easing: "easeInOut"});
+    await graph.setCameraZoom(1.5, { animate: true, duration: 300, easing: "easeInOut" });
 
     graph.eventManager.removeListener(listenerId);
 
@@ -122,7 +132,7 @@ test("applies easing to 2D animations", async() => {
     assert.ok(orthoSizes.length > 0, "Animation should trigger camera-state-changed events");
 });
 
-test("emits camera-state-changed event after 2D animation", async() => {
+test("emits camera-state-changed event after 2D animation", async () => {
     await setup2DGraph();
 
     let eventFired = false;
@@ -130,7 +140,7 @@ test("emits camera-state-changed event after 2D animation", async() => {
         eventFired = true;
     });
 
-    await graph.setCameraZoom(1.2, {animate: true, duration: 200});
+    await graph.setCameraZoom(1.2, { animate: true, duration: 200 });
 
     assert.ok(eventFired, "camera-state-changed event should fire after animation");
 

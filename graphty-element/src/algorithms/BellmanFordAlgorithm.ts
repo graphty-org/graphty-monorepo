@@ -1,9 +1,9 @@
-import {bellmanFord} from "@graphty/algorithms";
+import { bellmanFord } from "@graphty/algorithms";
 
-import type {SuggestedStylesConfig} from "../config";
-import type {Graph} from "../Graph";
-import {Algorithm} from "./Algorithm";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import type { SuggestedStylesConfig } from "../config";
+import type { Graph } from "../Graph";
+import { Algorithm } from "./Algorithm";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 interface BellmanFordOptions {
     source: number | string;
@@ -26,7 +26,7 @@ export class BellmanFordAlgorithm extends Algorithm {
             {
                 edge: {
                     selector: "",
-                    style: {enabled: true},
+                    style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.bellman-ford.isInPath"],
                         output: "style.line.color",
@@ -41,7 +41,7 @@ export class BellmanFordAlgorithm extends Algorithm {
             {
                 node: {
                     selector: "",
-                    style: {enabled: true},
+                    style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.bellman-ford.isInPath"],
                         output: "style.texture.color",
@@ -56,7 +56,7 @@ export class BellmanFordAlgorithm extends Algorithm {
             {
                 node: {
                     selector: "",
-                    style: {enabled: true},
+                    style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.bellman-ford.distancePct"],
                         output: "style.opacity",
@@ -104,7 +104,7 @@ export class BellmanFordAlgorithm extends Algorithm {
 
         // Convert to @graphty/algorithms format
         // Note: Using directed=false (default) so converter adds reverse edges for undirected path finding
-        const graphData = toAlgorithmGraph(g as unknown as Graph, {directed: false});
+        const graphData = toAlgorithmGraph(g as unknown as Graph, { directed: false });
 
         // Run Bellman-Ford algorithm
         const result = bellmanFord(graphData, source);

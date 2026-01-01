@@ -1,11 +1,11 @@
-import {breadthFirstSearch} from "@graphty/algorithms";
-import {z} from "zod/v4";
+import { breadthFirstSearch } from "@graphty/algorithms";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig} from "../config";
-import type {Graph} from "../Graph";
-import {Algorithm} from "./Algorithm";
-import {type OptionsSchema} from "./types/OptionSchema";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import type { Graph } from "../Graph";
+import { Algorithm } from "./Algorithm";
+import { type OptionsSchema } from "./types/OptionSchema";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for BFS algorithm
@@ -74,14 +74,14 @@ export class BFSAlgorithm extends Algorithm<BFSOptions> {
     /**
      * Legacy options set via configure() for backward compatibility
      */
-    private legacyOptions: {source: number | string} | null = null;
+    private legacyOptions: { source: number | string } | null = null;
 
     static suggestedStyles = (): SuggestedStylesConfig => ({
         layers: [
             {
                 node: {
                     selector: "",
-                    style: {enabled: true},
+                    style: { enabled: true },
                     calculatedStyle: {
                         inputs: ["algorithmResults.graphty.bfs.levelPct"],
                         output: "style.texture.color",
@@ -105,7 +105,7 @@ export class BFSAlgorithm extends Algorithm<BFSOptions> {
      * @returns This algorithm instance for chaining
      * @deprecated Use constructor options instead. This method is kept for backward compatibility.
      */
-    configure(options: {source: number | string}): this {
+    configure(options: { source: number | string }): this {
         this.legacyOptions = options;
         return this;
     }
@@ -132,7 +132,7 @@ export class BFSAlgorithm extends Algorithm<BFSOptions> {
 
         // Convert to @graphty/algorithms format
         // Using directed=false so the converter adds reverse edges for undirected traversal
-        const graphData = toAlgorithmGraph(g as unknown as Graph, {directed: false});
+        const graphData = toAlgorithmGraph(g as unknown as Graph, { directed: false });
 
         // Check if source exists
         if (!graphData.hasNode(source)) {

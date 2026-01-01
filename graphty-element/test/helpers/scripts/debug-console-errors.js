@@ -1,9 +1,9 @@
-import {chromium} from "playwright";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 
 async function main() {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
     // Capture console messages
@@ -26,7 +26,7 @@ async function main() {
         const elementInfo = await page.evaluate(() => {
             const el = document.querySelector("graphty-element");
             if (!el) {
-                return {error: "No element found"};
+                return { error: "No element found" };
             }
 
             const props = {};
@@ -38,7 +38,7 @@ async function main() {
                 }
             }
 
-            return {props};
+            return { props };
         });
 
         console.log("Element properties:", JSON.stringify(elementInfo, null, 2));

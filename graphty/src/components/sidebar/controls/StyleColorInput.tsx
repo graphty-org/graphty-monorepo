@@ -1,8 +1,8 @@
-import {ActionIcon, ColorPicker, ColorSwatch, Group, Popover, Stack, Text, TextInput} from "@mantine/core";
-import {X} from "lucide-react";
-import React, {useEffect, useState} from "react";
+import { ActionIcon, ColorPicker, ColorSwatch, Group, Popover, Stack, Text, TextInput } from "@mantine/core";
+import { X } from "lucide-react";
+import React, { useEffect, useState } from "react";
 
-import {SWATCH_COLORS} from "../../../constants/colors";
+import { SWATCH_COLORS } from "../../../constants/colors";
 
 export interface StyleColorInputProps {
     /** Label for the input */
@@ -21,15 +21,16 @@ export interface StyleColorInputProps {
  * Features:
  * - Shows muted styling when using default value (value is undefined)
  * - Shows normal styling when an explicit value is set
- * - Shows a reset button (×) only when an explicit value is set
+ * - Shows a reset button (x) only when an explicit value is set
  * - Clicking reset calls onChange(undefined) to revert to default
+ * @param root0 - Component props
+ * @param root0.label - Label for the input
+ * @param root0.value - Current value - undefined means using default
+ * @param root0.defaultValue - Default value to show when value is undefined
+ * @param root0.onChange - Called when value changes
+ * @returns The style color input component
  */
-export function StyleColorInput({
-    label,
-    value,
-    defaultValue,
-    onChange,
-}: StyleColorInputProps): React.JSX.Element {
+export function StyleColorInput({ label, value, defaultValue, onChange }: StyleColorInputProps): React.JSX.Element {
     const isDefault = value === undefined;
     const displayValue = value ?? defaultValue;
 
@@ -72,17 +73,14 @@ export function StyleColorInput({
     return (
         <Stack gap={0}>
             {label && (
-                <Text size="xs" c="dimmed" mb={1} lh={1.2}>{label}</Text>
+                <Text size="xs" c="dimmed" mb={1} lh={1.2}>
+                    {label}
+                </Text>
             )}
             <Group gap={4} wrap="nowrap">
                 <Group gap={0}>
                     {/* Color swatch with popover */}
-                    <Popover
-                        opened={colorPickerOpen}
-                        onChange={setColorPickerOpen}
-                        position="bottom-start"
-                        shadow="md"
-                    >
+                    <Popover opened={colorPickerOpen} onChange={setColorPickerOpen} position="bottom-start" shadow="md">
                         <Popover.Target>
                             <ActionIcon
                                 variant="filled"
@@ -112,7 +110,7 @@ export function StyleColorInput({
                                 format="hex"
                                 value={displayValue}
                                 onChange={handleColorPickerChange}
-                                swatches={[... SWATCH_COLORS]}
+                                swatches={[...SWATCH_COLORS]}
                             />
                         </Popover.Dropdown>
                     </Popover>
@@ -131,10 +129,12 @@ export function StyleColorInput({
                                 borderRadius: "0 4px 4px 0",
                                 fontFamily: "monospace",
                                 textTransform: "uppercase",
-                                ... (isDefault ? {
-                                    fontStyle: "italic",
-                                    color: "var(--mantine-color-dimmed)",
-                                } : {}),
+                                ...(isDefault
+                                    ? {
+                                          fontStyle: "italic",
+                                          color: "var(--mantine-color-dimmed)",
+                                      }
+                                    : {}),
                             },
                         }}
                     />

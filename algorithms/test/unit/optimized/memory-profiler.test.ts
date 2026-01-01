@@ -1,6 +1,6 @@
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {MemoryProfiler} from "../../helpers/memory-profiler.js";
+import { MemoryProfiler } from "../../helpers/memory-profiler.js";
 
 // Mock console methods
 const originalConsole = {
@@ -95,8 +95,7 @@ describe("MemoryProfiler", () => {
             const profiler = new MemoryProfiler();
             profiler.start();
 
-            expect(() => profiler.getSummary())
-                .toThrow("Not enough snapshots for summary");
+            expect(() => profiler.getSummary()).toThrow("Not enough snapshots for summary");
         });
     });
 
@@ -107,7 +106,7 @@ describe("MemoryProfiler", () => {
             profiler.snapshot("start");
             profiler.snapshot("end");
 
-            const graph = {nodeCount: 100, edgeCount: 200};
+            const graph = { nodeCount: 100, edgeCount: 200 };
             const report = profiler.generateReport("TestAlgorithm", graph);
 
             expect(report.algorithm).toBe("TestAlgorithm");

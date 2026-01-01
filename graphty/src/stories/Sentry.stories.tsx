@@ -1,10 +1,10 @@
-import {Alert, Button, Stack, Text, Title} from "@mantine/core";
-import type {Meta, StoryObj} from "@storybook/react";
-import {useState} from "react";
+import { Alert, Button, Stack, Text, Title } from "@mantine/core";
+import type { Meta, StoryObj } from "@storybook/react";
+import { useState } from "react";
 
-import {ErrorBoundary} from "../components/ErrorBoundary";
-import {ErrorFallback} from "../components/ErrorFallback";
-import {isSentryEnabled, testCaptureError} from "../lib/sentry";
+import { ErrorBoundary } from "../components/ErrorBoundary";
+import { ErrorFallback } from "../components/ErrorFallback";
+import { isSentryEnabled, testCaptureError } from "../lib/sentry";
 
 const meta: Meta<typeof ErrorFallback> = {
     title: "Sentry",
@@ -24,10 +24,12 @@ function TriggerErrorContent(): React.JSX.Element {
     }
 
     return (
-        <div style={{padding: "20px"}}>
-            <Button onClick={() => {
-                setShouldError(true);
-            }}>
+        <div style={{ padding: "20px" }}>
+            <Button
+                onClick={() => {
+                    setShouldError(true);
+                }}
+            >
                 Click to Trigger Render Error
             </Button>
         </div>

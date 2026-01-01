@@ -1,6 +1,6 @@
-import {afterEach, assert, beforeEach, describe, expect, it, vi} from "vitest";
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {Graph} from "../../src/Graph";
+import { Graph } from "../../src/Graph";
 
 describe("Graph Queue Integration", () => {
     let container: HTMLElement;
@@ -19,10 +19,10 @@ describe("Graph Queue Integration", () => {
         container.remove();
     });
 
-    it("should queue addNodes operations", async() => {
+    it("should queue addNodes operations", async () => {
         const nodes = [
-            {id: "1", label: "Node 1"},
-            {id: "2", label: "Node 2"},
+            { id: "1", label: "Node 1" },
+            { id: "2", label: "Node 2" },
         ];
 
         // Spy on queue operation
@@ -41,7 +41,7 @@ describe("Graph Queue Integration", () => {
         queueSpy.mockRestore();
     });
 
-    it("should queue setLayout operations", async() => {
+    it("should queue setLayout operations", async () => {
         const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
 
         await graph.setLayout("ngraph");
@@ -57,7 +57,7 @@ describe("Graph Queue Integration", () => {
         queueSpy.mockRestore();
     });
 
-    it("should ensure style-init before data operations", async() => {
+    it("should ensure style-init before data operations", async () => {
         const operations: string[] = [];
         const originalQueue = graph.operationQueue.queueOperation.bind(graph.operationQueue);
 
@@ -104,23 +104,23 @@ describe("Graph Queue Integration", () => {
                     pinOnDrag: false,
                 },
             },
-            layers: [{
-                node: {
-                    selector: "*",
-                    style: {
-                        texture: {
-                            color: "blue",
+            layers: [
+                {
+                    node: {
+                        selector: "*",
+                        style: {
+                            texture: {
+                                color: "blue",
+                            },
+                            enabled: true,
                         },
-                        enabled: true,
                     },
                 },
-            }],
+            ],
         });
 
         // Add nodes
-        await graph.addNodes([
-            {id: "1", label: "Node 1"},
-        ]);
+        await graph.addNodes([{ id: "1", label: "Node 1" }]);
 
         // Wait for operations to complete
         await graph.operationQueue.waitForCompletion();
@@ -134,7 +134,7 @@ describe("Graph Queue Integration", () => {
         assert(styleInitIndex < dataAddIndex, "style-init should come before data-add");
     });
 
-    it("should handle batchOperations method", async() => {
+    it("should handle batchOperations method", async () => {
         const operations: string[] = [];
         const originalQueue = graph.operationQueue.queueOperation.bind(graph.operationQueue);
 
@@ -144,15 +144,13 @@ describe("Graph Queue Integration", () => {
         });
 
         // Use batchOperations to ensure all operations are in same batch
-        await graph.batchOperations(async() => {
+        await graph.batchOperations(async () => {
             await graph.addNodes([
-                {id: "1", label: "Node 1"},
-                {id: "2", label: "Node 2"},
+                { id: "1", label: "Node 1" },
+                { id: "2", label: "Node 2" },
             ]);
 
-            await graph.addEdges([
-                {source: "1", target: "2", label: "Edge 1"},
-            ], "source", "target");
+            await graph.addEdges([{ source: "1", target: "2", label: "Edge 1" }], "source", "target");
 
             await graph.setLayout("circular");
         });
@@ -162,16 +160,14 @@ describe("Graph Queue Integration", () => {
         expect(operations).toContain("layout-set");
     });
 
-    it("should maintain backwards compatibility", async() => {
+    it("should maintain backwards compatibility", async () => {
         // Operations should still work without explicit batching
         const nodes = [
-            {id: "1", label: "Node 1"},
-            {id: "2", label: "Node 2"},
+            { id: "1", label: "Node 1" },
+            { id: "2", label: "Node 2" },
         ];
 
-        const edges = [
-            {source: "1", target: "2", label: "Edge 1"},
-        ];
+        const edges = [{ source: "1", target: "2", label: "Edge 1" }];
 
         // These should work as before
         await graph.addNodes(nodes);
@@ -189,7 +185,7 @@ describe("Graph Queue Integration", () => {
         expect(edgeCount).toBe(1);
     });
 
-    it("should handle multiple batches sequentially", async() => {
+    it("should handle multiple batches sequentially", async () => {
         const completionOrder: string[] = [];
 
         // Spy on operation complete events
@@ -201,18 +197,18 @@ describe("Graph Queue Integration", () => {
         });
 
         // First batch
-        await graph.batchOperations(async() => {
-            await graph.addNodes([{id: "1", label: "Node 1"}]);
+        await graph.batchOperations(async () => {
+            await graph.addNodes([{ id: "1", label: "Node 1" }]);
         });
 
         // Second batch
-        await graph.batchOperations(async() => {
-            await graph.addNodes([{id: "2", label: "Node 2"}]);
+        await graph.batchOperations(async () => {
+            await graph.addNodes([{ id: "2", label: "Node 2" }]);
         });
 
         // Third batch
-        await graph.batchOperations(async() => {
-            await graph.addEdges([{source: "1", target: "2"}], "source", "target");
+        await graph.batchOperations(async () => {
+            await graph.addEdges([{ source: "1", target: "2" }], "source", "target");
         });
 
         // All batches should complete in order
@@ -227,15 +223,11 @@ describe("Graph Queue Integration", () => {
         expect(edgeCount).toBe(1);
     });
 
-    it("should support skipQueue option for backwards compatibility", async() => {
+    it("should support skipQueue option for backwards compatibility", async () => {
         const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
 
         // When skipQueue is true, operation should not be queued
-        await graph.addNodes(
-            [{id: "1", label: "Node 1"}],
-            undefined,
-            {skipQueue: true},
-        );
+        await graph.addNodes([{ id: "1", label: "Node 1" }], undefined, { skipQueue: true });
 
         expect(queueSpy).not.toHaveBeenCalled();
 
@@ -246,19 +238,17 @@ describe("Graph Queue Integration", () => {
         queueSpy.mockRestore();
     });
 
-    it("should queue addEdges operations", async() => {
+    it("should queue addEdges operations", async () => {
         const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
 
         // First add nodes (needed for edges)
         await graph.addNodes([
-            {id: "1", label: "Node 1"},
-            {id: "2", label: "Node 2"},
+            { id: "1", label: "Node 1" },
+            { id: "2", label: "Node 2" },
         ]);
 
         // Then add edges
-        await graph.addEdges([
-            {source: "1", target: "2", label: "Edge 1"},
-        ], "source", "target");
+        await graph.addEdges([{ source: "1", target: "2", label: "Edge 1" }], "source", "target");
 
         // Should have queued data-add operations and their triggers
         // Verify the edge data-add operation was queued
@@ -276,13 +266,13 @@ describe("Graph Queue Integration", () => {
         queueSpy.mockRestore();
     });
 
-    it("should queue removeNodes operations", async() => {
+    it("should queue removeNodes operations", async () => {
         const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
 
         // Add nodes first
         await graph.addNodes([
-            {id: "1", label: "Node 1"},
-            {id: "2", label: "Node 2"},
+            { id: "1", label: "Node 1" },
+            { id: "2", label: "Node 2" },
         ]);
 
         // Then remove one
@@ -300,18 +290,14 @@ describe("Graph Queue Integration", () => {
         queueSpy.mockRestore();
     });
 
-    it("should queue updateNodes operations", async() => {
+    it("should queue updateNodes operations", async () => {
         const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
 
         // Add node first
-        await graph.addNodes([
-            {id: "1", label: "Node 1"},
-        ]);
+        await graph.addNodes([{ id: "1", label: "Node 1" }]);
 
         // Then update it
-        await graph.updateNodes([
-            {id: "1", label: "Updated Node 1"},
-        ]);
+        await graph.updateNodes([{ id: "1", label: "Updated Node 1" }]);
 
         // Should have queued data-update operation
         expect(queueSpy).toHaveBeenCalledWith(
@@ -326,21 +312,25 @@ describe("Graph Queue Integration", () => {
     });
 
     describe("Algorithms", () => {
-        it("should queue algorithm operations", async() => {
+        it("should queue algorithm operations", async () => {
             const queueSpy = vi.spyOn(graph.operationQueue, "queueOperationAsync");
 
             // Add nodes first
             await graph.addNodes([
-                {id: "1", label: "Node 1"},
-                {id: "2", label: "Node 2"},
-                {id: "3", label: "Node 3"},
+                { id: "1", label: "Node 1" },
+                { id: "2", label: "Node 2" },
+                { id: "3", label: "Node 3" },
             ]);
 
             // Add edges so degree algorithm has something to compute
-            await graph.addEdges([
-                {source: "1", target: "2"},
-                {source: "2", target: "3"},
-            ], "source", "target");
+            await graph.addEdges(
+                [
+                    { source: "1", target: "2" },
+                    { source: "2", target: "3" },
+                ],
+                "source",
+                "target",
+            );
 
             // Run algorithm using the available degree algorithm
             await graph.runAlgorithm("graphty", "degree", {});
@@ -360,7 +350,7 @@ describe("Graph Queue Integration", () => {
             queueSpy.mockRestore();
         });
 
-        it("should coordinate algorithms with layout operations", async() => {
+        it("should coordinate algorithms with layout operations", async () => {
             const executionOrder: string[] = [];
 
             // Track operation execution
@@ -373,16 +363,20 @@ describe("Graph Queue Integration", () => {
 
             // Add nodes
             await graph.addNodes([
-                {id: "1", label: "Node 1"},
-                {id: "2", label: "Node 2"},
-                {id: "3", label: "Node 3"},
+                { id: "1", label: "Node 1" },
+                { id: "2", label: "Node 2" },
+                { id: "3", label: "Node 3" },
             ]);
 
             // Add edges
-            await graph.addEdges([
-                {source: "1", target: "2"},
-                {source: "2", target: "3"},
-            ], "source", "target");
+            await graph.addEdges(
+                [
+                    { source: "1", target: "2" },
+                    { source: "2", target: "3" },
+                ],
+                "source",
+                "target",
+            );
 
             // Run algorithm
             await graph.runAlgorithm("graphty", "degree", {});

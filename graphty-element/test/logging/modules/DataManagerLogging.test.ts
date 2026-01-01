@@ -1,8 +1,8 @@
-import {afterEach, assert, beforeEach, describe, type MockInstance, test, vi} from "vitest";
+import { afterEach, assert, beforeEach, describe, type MockInstance, test, vi } from "vitest";
 
-import {GraphtyLogger} from "../../../src/logging/GraphtyLogger.js";
-import {resetLoggingConfig} from "../../../src/logging/LoggerConfig.js";
-import {LogLevel} from "../../../src/logging/types.js";
+import { GraphtyLogger } from "../../../src/logging/GraphtyLogger.js";
+import { resetLoggingConfig } from "../../../src/logging/LoggerConfig.js";
+import { LogLevel } from "../../../src/logging/types.js";
 
 // Empty mock function to satisfy linter
 function noop(): void {
@@ -23,7 +23,7 @@ describe("DataManager Logging", () => {
     let consoleErrorSpy: MockInstance;
     let consoleWarnSpy: MockInstance;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Reset logging config before each test
         resetLoggingConfig();
 
@@ -39,7 +39,7 @@ describe("DataManager Logging", () => {
             enabled: true,
             level: LogLevel.DEBUG,
             modules: ["data"],
-            format: {timestamp: true, module: true},
+            format: { timestamp: true, module: true },
         });
     });
 
@@ -52,16 +52,12 @@ describe("DataManager Logging", () => {
         const logger = GraphtyLogger.getLogger(["graphty", "data"]);
 
         // Simulate what DataManager should log when adding nodes
-        logger.debug("Adding nodes", {count: 50});
+        logger.debug("Adding nodes", { count: 50 });
 
         // Check for log output
-        const allCalls = [... consoleInfoSpy.mock.calls, ... consoleDebugSpy.mock.calls];
+        const allCalls = [...consoleInfoSpy.mock.calls, ...consoleDebugSpy.mock.calls];
         const hasNodeMessage = allCalls.some((call) =>
-            call.some(
-                (arg: unknown) =>
-                    typeof arg === "string" &&
-                    arg.toLowerCase().includes("node"),
-            ),
+            call.some((arg: unknown) => typeof arg === "string" && arg.toLowerCase().includes("node")),
         );
         assert.isTrue(hasNodeMessage, "Expected log message about adding nodes");
     });
@@ -70,16 +66,12 @@ describe("DataManager Logging", () => {
         const logger = GraphtyLogger.getLogger(["graphty", "data"]);
 
         // Simulate data source loading start
-        logger.info("Loading data source", {type: "json-url", url: "https://example.com/data.json"});
+        logger.info("Loading data source", { type: "json-url", url: "https://example.com/data.json" });
 
         // Check for log output
-        const allCalls = [... consoleInfoSpy.mock.calls, ... consoleDebugSpy.mock.calls];
+        const allCalls = [...consoleInfoSpy.mock.calls, ...consoleDebugSpy.mock.calls];
         const hasLoadMessage = allCalls.some((call) =>
-            call.some(
-                (arg: unknown) =>
-                    typeof arg === "string" &&
-                    arg.toLowerCase().includes("load"),
-            ),
+            call.some((arg: unknown) => typeof arg === "string" && arg.toLowerCase().includes("load")),
         );
         assert.isTrue(hasLoadMessage, "Expected log message about loading data source");
     });
@@ -96,13 +88,9 @@ describe("DataManager Logging", () => {
         });
 
         // Check for log output
-        const allCalls = [... consoleInfoSpy.mock.calls, ... consoleDebugSpy.mock.calls];
+        const allCalls = [...consoleInfoSpy.mock.calls, ...consoleDebugSpy.mock.calls];
         const hasCompleteMessage = allCalls.some((call) =>
-            call.some(
-                (arg: unknown) =>
-                    typeof arg === "string" &&
-                    arg.toLowerCase().includes("complete"),
-            ),
+            call.some((arg: unknown) => typeof arg === "string" && arg.toLowerCase().includes("complete")),
         );
         assert.isTrue(hasCompleteMessage, "Expected log message about data loading completion");
     });
@@ -119,13 +107,9 @@ describe("DataManager Logging", () => {
         });
 
         // Check for warning log output
-        const allCalls = [... consoleWarnSpy.mock.calls];
+        const allCalls = [...consoleWarnSpy.mock.calls];
         const hasValidationMessage = allCalls.some((call) =>
-            call.some(
-                (arg: unknown) =>
-                    typeof arg === "string" &&
-                    arg.toLowerCase().includes("validation"),
-            ),
+            call.some((arg: unknown) => typeof arg === "string" && arg.toLowerCase().includes("validation")),
         );
         assert.isTrue(hasValidationMessage, "Expected warning log message about validation");
     });
@@ -134,16 +118,12 @@ describe("DataManager Logging", () => {
         const logger = GraphtyLogger.getLogger(["graphty", "data"]);
 
         // Simulate edge addition logging
-        logger.debug("Adding edges", {count: 100});
+        logger.debug("Adding edges", { count: 100 });
 
         // Check for log output
-        const allCalls = [... consoleDebugSpy.mock.calls];
+        const allCalls = [...consoleDebugSpy.mock.calls];
         const hasEdgeMessage = allCalls.some((call) =>
-            call.some(
-                (arg: unknown) =>
-                    typeof arg === "string" &&
-                    arg.toLowerCase().includes("edge"),
-            ),
+            call.some((arg: unknown) => typeof arg === "string" && arg.toLowerCase().includes("edge")),
         );
         assert.isTrue(hasEdgeMessage, "Expected log message about adding edges");
     });
@@ -159,25 +139,24 @@ describe("DataManager Logging", () => {
         });
 
         // Check for error log output
-        const allCalls = [... consoleErrorSpy.mock.calls];
+        const allCalls = [...consoleErrorSpy.mock.calls];
         const hasErrorMessage = allCalls.some((call) =>
             call.some(
                 (arg: unknown) =>
                     typeof arg === "string" &&
-                    (arg.toLowerCase().includes("fail") ||
-                        arg.toLowerCase().includes("error")),
+                    (arg.toLowerCase().includes("fail") || arg.toLowerCase().includes("error")),
             ),
         );
         assert.isTrue(hasErrorMessage, "Expected error log message about data loading failure");
     });
 
-    test("should not log when logging is disabled", async() => {
+    test("should not log when logging is disabled", async () => {
         // Disable logging
         await GraphtyLogger.configure({
             enabled: false,
             level: LogLevel.DEBUG,
             modules: "*",
-            format: {timestamp: true, module: true},
+            format: { timestamp: true, module: true },
         });
 
         const logger = GraphtyLogger.getLogger(["graphty", "data"]);
@@ -187,31 +166,23 @@ describe("DataManager Logging", () => {
         consoleDebugSpy.mockClear();
 
         // Try to log
-        logger.debug("Adding nodes", {count: 50});
+        logger.debug("Adding nodes", { count: 50 });
         logger.info("Data source loading complete");
 
         // Check that no data logging occurred
-        const dataCalls = [... consoleInfoSpy.mock.calls, ... consoleDebugSpy.mock.calls].filter(
-            (call) =>
-                call.some(
-                    (arg: unknown) =>
-                        typeof arg === "string" && arg.includes("data"),
-                ),
+        const dataCalls = [...consoleInfoSpy.mock.calls, ...consoleDebugSpy.mock.calls].filter((call) =>
+            call.some((arg: unknown) => typeof arg === "string" && arg.includes("data")),
         );
-        assert.strictEqual(
-            dataCalls.length,
-            0,
-            "Expected no data logging when disabled",
-        );
+        assert.strictEqual(dataCalls.length, 0, "Expected no data logging when disabled");
     });
 
-    test("should not log when data module is filtered out", async() => {
+    test("should not log when data module is filtered out", async () => {
         // Enable logging for different module only
         await GraphtyLogger.configure({
             enabled: true,
             level: LogLevel.DEBUG,
             modules: ["layout"], // Not data
-            format: {timestamp: true, module: true},
+            format: { timestamp: true, module: true },
         });
 
         const logger = GraphtyLogger.getLogger(["graphty", "data"]);
@@ -221,20 +192,12 @@ describe("DataManager Logging", () => {
         consoleDebugSpy.mockClear();
 
         // Try to log
-        logger.debug("Adding nodes", {count: 50});
+        logger.debug("Adding nodes", { count: 50 });
 
         // Check that no data logging occurred
-        const dataCalls = [... consoleInfoSpy.mock.calls, ... consoleDebugSpy.mock.calls].filter(
-            (call) =>
-                call.some(
-                    (arg: unknown) =>
-                        typeof arg === "string" && arg.includes("data"),
-                ),
+        const dataCalls = [...consoleInfoSpy.mock.calls, ...consoleDebugSpy.mock.calls].filter((call) =>
+            call.some((arg: unknown) => typeof arg === "string" && arg.includes("data")),
         );
-        assert.strictEqual(
-            dataCalls.length,
-            0,
-            "Expected no data logging when module is filtered",
-        );
+        assert.strictEqual(dataCalls.length, 0, "Expected no data logging when module is filtered");
     });
 });

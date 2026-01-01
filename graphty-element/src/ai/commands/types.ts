@@ -3,10 +3,10 @@
  * @module ai/commands/types
  */
 
-import type {z} from "zod";
+import type { z } from "zod";
 
-import type {Graph} from "../../Graph";
-import type {AiStatus} from "../AiStatus";
+import type { Graph } from "../../Graph";
+import type { AiStatus } from "../AiStatus";
 
 /**
  * Result of executing a command.
@@ -67,9 +67,5 @@ export interface GraphCommand {
      * @param context - Optional execution context with abort signal and event emitter
      * @returns Promise resolving to the command result
      */
-    execute(
-        graph: Graph,
-        params: Record<string, unknown>,
-        context?: CommandContext,
-    ): Promise<CommandResult>;
+    execute(graph: Graph, params: Record<string, unknown>, context?: CommandContext): Promise<CommandResult>;
 }

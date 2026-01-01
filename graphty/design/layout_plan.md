@@ -1,15 +1,18 @@
 # Figma-Inspired Layout Plan for Graphty Application
 
 ## Overview
+
 Create a professional graph visualization application with a layout inspired by Figma's interface. The application will feature a central canvas (graphty-element) surrounded by contextual panels for layer management and styling.
 
 ## Layout Structure
 
 ### 1. Top Menu Bar
+
 **Location**: Fixed top of the application
 **Height**: ~48px
 
 **Components**:
+
 - **Left**: Hamburger menu button (☰) for application settings
 - **Center**: Application title/logo "Graphty"
 - **Right**: User actions (save, export, share buttons)
@@ -19,24 +22,29 @@ Create a professional graph visualization application with a layout inspired by 
 ---
 
 ### 2. Left Sidebar - Layer Management Panel
+
 **Location**: Left side of the application
 **Width**: ~280px (resizable, min: 240px, max: 400px)
 **Collapsible**: Yes, with toggle button
 
 #### Tab Structure:
+
 - **Layers Tab** (primary)
 - **Assets Tab** (future: templates, saved styles)
 
 #### Layers Panel Features:
+
 **Layer Hierarchy Display**:
+
 - Show StyleTemplate layers in hierarchical tree
 - Each layer shows:
-  - Visibility toggle (👁️)
-  - Layer name (editable)
-  - Layer type icon
-  - Selector preview
+    - Visibility toggle (👁️)
+    - Layer name (editable)
+    - Layer type icon
+    - Selector preview
 
 **Layer Controls**:
+
 - Add new layer (+)
 - Delete layer (🗑️)
 - Duplicate layer
@@ -44,11 +52,13 @@ Create a professional graph visualization application with a layout inspired by 
 - Lock/unlock layers (🔒)
 
 **Layer Types**:
+
 - Node layers (targeting nodes)
 - Edge layers (targeting edges)
 - Graph layers (targeting graph properties)
 
 **Visual Indicators**:
+
 - Active layer highlighting
 - Layer type icons (circle for nodes, line for edges, graph icon for graph)
 - Selector complexity indicator
@@ -56,10 +66,12 @@ Create a professional graph visualization application with a layout inspired by 
 ---
 
 ### 3. Main Canvas Area
+
 **Location**: Center of the application
 **Responsive**: Takes remaining space after sidebars
 
 #### Canvas Features:
+
 - **graphty-element** takes full canvas area
 - Zoom controls (bottom-right corner)
 - Mini-map (top-right corner, toggleable)
@@ -67,6 +79,7 @@ Create a professional graph visualization application with a layout inspired by 
 - Canvas background options
 
 #### Canvas Toolbar Integration:
+
 - Tool-specific overlays
 - Selection indicators
 - Context menus
@@ -74,17 +87,21 @@ Create a professional graph visualization application with a layout inspired by 
 ---
 
 ### 4. Right Sidebar - Properties Panel
+
 **Location**: Right side of the application
 **Width**: ~320px (resizable, min: 280px, max: 450px)
 **Collapsible**: Yes, with toggle button
 
 #### Tab Structure Based on Selection:
+
 - **Design Tab** (layer styling)
 - **Data Tab** (node/edge data)
 - **Layout Tab** (layout settings)
 
 #### Design Tab Sections:
+
 **When Node Layer Selected**:
+
 - **Transform**: Position, size, rotation
 - **Appearance**: Shape, color, border
 - **Text**: Label styling, font, size
@@ -92,24 +109,28 @@ Create a professional graph visualization application with a layout inspired by 
 - **Behavior**: Hover states, interactions
 
 **When Edge Layer Selected**:
+
 - **Stroke**: Width, color, style (solid, dashed)
 - **Arrows**: Start/end arrow styles
 - **Curvature**: Bezier settings
 - **Animation**: Flow effects, particles
 
 **When Graph Layer Selected**:
+
 - **Background**: Color, texture, environment
 - **Camera**: Position, angle, movement
 - **Physics**: Force settings, collision
 - **Performance**: LOD, culling settings
 
 #### Data Tab Sections:
+
 - **Node Data**: CSV import, JSON editor
 - **Edge Data**: Relationship editor
 - **Data Mapping**: Field assignments
 - **Validation**: Data quality checks
 
 #### Layout Tab Sections:
+
 - **Algorithm Selection**: Force-directed, circular, etc.
 - **Algorithm Parameters**: Strength, distance, iterations
 - **2D/3D Settings**: Dimension-specific options
@@ -118,36 +139,43 @@ Create a professional graph visualization application with a layout inspired by 
 ---
 
 ### 5. Bottom Toolbar
+
 **Location**: Fixed bottom of the application
 **Height**: ~56px
 
 #### Tool Categories (Left to Right):
 
 **Selection Tools**:
+
 - Move/Select (default) 🖱️
-- Multi-select 
+- Multi-select
 - Lasso select
 
 **Navigation Tools**:
+
 - Hand/Pan tool 🤚
 - Zoom tool 🔍
 - Fit to screen
 
 **Graph Tools**:
+
 - Add node ⚪
 - Add edge ↔️
 - Delete tool 🗑️
 
 **Layout Tools**:
+
 - Layout algorithm selector dropdown
 - Re-run layout button ⟳
 
 **View Controls**:
+
 - **2D/3D Toggle Button** (prominent, right side)
 - Grid toggle
 - Minimap toggle
 
 **Right Side**:
+
 - View mode selector (edit/present)
 - Zoom percentage display
 - Fit to screen button
@@ -159,6 +187,7 @@ Create a professional graph visualization application with a layout inspired by 
 ### Phase 1: Basic Layout Structure
 
 #### 1.1 Install Dependencies
+
 ```bash
 npm install lucide-react @tailwindcss/forms clsx
 npm install --save-dev @types/react @types/react-dom
@@ -167,6 +196,7 @@ npm install --save-dev @types/react @types/react-dom
 #### 1.2 Create Layout Components
 
 **AppLayout.tsx** - Main container with CSS Grid:
+
 ```tsx
 // Location: src/components/layout/AppLayout.tsx
 // Features: CSS Grid layout, panel visibility state management
@@ -176,8 +206,9 @@ npm install --save-dev @types/react @types/react-dom
 ```
 
 **TopMenuBar.tsx** - Header with menu button:
+
 ```tsx
-// Location: src/components/layout/TopMenuBar.tsx  
+// Location: src/components/layout/TopMenuBar.tsx
 // Height: 48px fixed
 // Components: Menu button (left), Logo/title (center), Actions (right)
 // Icons: Menu (☰), Save, Export, Share
@@ -185,6 +216,7 @@ npm install --save-dev @types/react @types/react-dom
 ```
 
 **LeftSidebar.tsx** - Collapsible layer panel:
+
 ```tsx
 // Location: src/components/layout/LeftSidebar.tsx
 // Width: 280px default, resizable 240-400px
@@ -195,8 +227,9 @@ npm install --save-dev @types/react @types/react-dom
 ```
 
 **RightSidebar.tsx** - Collapsible properties panel:
+
 ```tsx
-// Location: src/components/layout/RightSidebar.tsx  
+// Location: src/components/layout/RightSidebar.tsx
 // Width: 320px default, resizable 280-450px
 // Features: Same as LeftSidebar but right-aligned
 // Tabs: Design, Data, Layout (based on selection)
@@ -204,15 +237,17 @@ npm install --save-dev @types/react @types/react-dom
 ```
 
 **BottomToolbar.tsx** - Fixed toolbar:
+
 ```tsx
 // Location: src/components/layout/BottomToolbar.tsx
-// Height: 56px fixed  
+// Height: 56px fixed
 // Layout: Flexbox with tool groups
 // Groups: Selection, Navigation, Graph, Layout, View
 // Styling: Glass effect, backdrop-blur, border-top
 ```
 
 **CanvasArea.tsx** - Wrapper for graphty-element:
+
 ```tsx
 // Location: src/components/layout/CanvasArea.tsx
 // Features: Full remaining space, overflow handling
@@ -222,34 +257,36 @@ npm install --save-dev @types/react @types/react-dom
 ```
 
 #### 1.3 CSS Grid Layout Implementation
+
 ```css
 /* In AppLayout.tsx styles */
 .app-layout {
-  display: grid;
-  height: 100vh;
-  grid-template-columns: [left-start] 280px [left-end canvas-start] 1fr [canvas-end right-start] 320px [right-end];
-  grid-template-rows: [header-start] 48px [header-end content-start] 1fr [content-end toolbar-start] 56px [toolbar-end];
-  grid-template-areas:
-    "header header header"
-    "left-sidebar canvas right-sidebar"
-    "toolbar toolbar toolbar";
+    display: grid;
+    height: 100vh;
+    grid-template-columns: [left-start] 280px [left-end canvas-start] 1fr [canvas-end right-start] 320px [right-end];
+    grid-template-rows: [header-start] 48px [header-end content-start] 1fr [content-end toolbar-start] 56px [toolbar-end];
+    grid-template-areas:
+        "header header header"
+        "left-sidebar canvas right-sidebar"
+        "toolbar toolbar toolbar";
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .app-layout {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "header"
-      "canvas"
-      "toolbar";
-  }
+    .app-layout {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "header"
+            "canvas"
+            "toolbar";
+    }
 }
 ```
 
 ### Phase 2: Layer Management
 
 #### 2.1 State Management Setup
+
 ```tsx
 // Location: src/context/AppContext.tsx
 // Context: LayerContext, ToolContext, UIContext
@@ -258,6 +295,7 @@ npm install --save-dev @types/react @types/react-dom
 ```
 
 #### 2.2 StyleTemplate Integration
+
 ```tsx
 // Location: src/hooks/useStyleTemplate.ts
 // Features: Connect to graphty-element StyleTemplate
@@ -269,12 +307,13 @@ npm install --save-dev @types/react @types/react-dom
 #### 2.3 Layer UI Components
 
 **LayerItem.tsx** - Individual layer with controls:
+
 ```tsx
 // Location: src/components/layers/LayerItem.tsx
-// Features: 
+// Features:
 // - Editable name (double-click or F2)
 // - Visibility toggle (eye icon)
-// - Lock toggle (lock icon)  
+// - Lock toggle (lock icon)
 // - Type icon (circle/line/graph)
 // - Selection highlighting
 // - Context menu (right-click)
@@ -283,7 +322,8 @@ npm install --save-dev @types/react @types/react-dom
 ```
 
 **LayerList.tsx** - Hierarchical layer display:
-```tsx  
+
+```tsx
 // Location: src/components/layers/LayerList.tsx
 // Features:
 // - Virtual scrolling for performance
@@ -295,6 +335,7 @@ npm install --save-dev @types/react @types/react-dom
 ```
 
 **LayerControls.tsx** - Add/delete/duplicate:
+
 ```tsx
 // Location: src/components/layers/LayerControls.tsx
 // Buttons: Add Node Layer, Add Edge Layer, Add Graph Layer
@@ -304,23 +345,24 @@ npm install --save-dev @types/react @types/react-dom
 ```
 
 #### 2.4 Layer Data Types
+
 ```tsx
 // Location: src/types/layer.ts
 interface Layer {
-  id: string;
-  name: string;
-  type: 'node' | 'edge' | 'graph';
-  visible: boolean;
-  locked: boolean;
-  selector: string;
-  style: NodeStyle | EdgeStyle | GraphStyle;
-  order: number;
+    id: string;
+    name: string;
+    type: "node" | "edge" | "graph";
+    visible: boolean;
+    locked: boolean;
+    selector: string;
+    style: NodeStyle | EdgeStyle | GraphStyle;
+    order: number;
 }
 
 enum LayerType {
-  NODE = 'node',
-  EDGE = 'edge', 
-  GRAPH = 'graph'
+    NODE = "node",
+    EDGE = "edge",
+    GRAPH = "graph",
 }
 ```
 
@@ -329,6 +371,7 @@ enum LayerType {
 #### 3.1 Dynamic Property Forms
 
 **NodeStylePanel.tsx** - Node styling controls:
+
 ```tsx
 // Location: src/components/properties/NodeStylePanel.tsx
 // Sections: Transform, Appearance, Text, Effects, Behavior
@@ -339,8 +382,9 @@ enum LayerType {
 ```
 
 **EdgeStylePanel.tsx** - Edge styling controls:
+
 ```tsx
-// Location: src/components/properties/EdgeStylePanel.tsx  
+// Location: src/components/properties/EdgeStylePanel.tsx
 // Sections: Stroke, Arrows, Curvature, Animation
 // Controls: Width slider, Color picker, Dash pattern
 // Arrows: Start/end arrow styles, size
@@ -349,6 +393,7 @@ enum LayerType {
 ```
 
 **GraphStylePanel.tsx** - Graph styling controls:
+
 ```tsx
 // Location: src/components/properties/GraphStylePanel.tsx
 // Sections: Background, Camera, Physics, Performance
@@ -361,6 +406,7 @@ enum LayerType {
 #### 3.2 Reusable Form Components
 
 **ColorPicker.tsx**:
+
 ```tsx
 // Location: src/components/forms/ColorPicker.tsx
 // Features: HSL/RGB/HEX input, presets, eyedropper
@@ -369,6 +415,7 @@ enum LayerType {
 ```
 
 **SliderInput.tsx**:
+
 ```tsx
 // Location: src/components/forms/SliderInput.tsx
 // Features: Number input + slider, units, min/max
@@ -377,6 +424,7 @@ enum LayerType {
 ```
 
 **DropdownSelector.tsx**:
+
 ```tsx
 // Location: src/components/forms/DropdownSelector.tsx
 // Features: Search, icons, grouping, keyboard navigation
@@ -385,6 +433,7 @@ enum LayerType {
 ```
 
 #### 3.3 Property Panel State Management
+
 ```tsx
 // Location: src/hooks/usePropertyPanel.ts
 // Features: Form state management, validation, debounced updates
@@ -396,6 +445,7 @@ enum LayerType {
 ### Phase 4: Toolbar Integration
 
 #### 4.1 Tool State Management
+
 ```tsx
 // Location: src/context/ToolContext.tsx
 // State: activeTool, toolSettings, cursorMode
@@ -407,6 +457,7 @@ enum LayerType {
 #### 4.2 Tool Components
 
 **ToolButton.tsx**:
+
 ```tsx
 // Location: src/components/toolbar/ToolButton.tsx
 // Features: Icon, label, tooltip, active state, keyboard shortcut
@@ -415,14 +466,16 @@ enum LayerType {
 ```
 
 **ToolGroup.tsx**:
+
 ```tsx
-// Location: src/components/toolbar/ToolGroup.tsx  
+// Location: src/components/toolbar/ToolGroup.tsx
 // Features: Group of related tools with separator
 // Layout: Horizontal flex with gaps
 // Props: tools array, group label
 ```
 
 #### 4.3 2D/3D Toggle Implementation
+
 ```tsx
 // Location: src/components/toolbar/ViewModeToggle.tsx
 // Features: Prominent toggle button, smooth transition
@@ -432,6 +485,7 @@ enum LayerType {
 ```
 
 #### 4.4 Tool Actions Integration
+
 ```tsx
 // Location: src/hooks/useToolActions.ts
 // Features: Map tool selection to graphty-element interactions
@@ -442,31 +496,33 @@ enum LayerType {
 ### Phase 5: Polish & UX
 
 #### 5.1 Animations & Transitions
+
 ```css
 /* Sidebar animations */
 .sidebar-enter {
-  transform: translateX(-100%);
+    transform: translateX(-100%);
 }
 .sidebar-enter-active {
-  transform: translateX(0);
-  transition: transform 300ms ease-out;
+    transform: translateX(0);
+    transition: transform 300ms ease-out;
 }
 
 /* Panel resize */
 .panel-resize {
-  transition: width 150ms ease-out;
+    transition: width 150ms ease-out;
 }
 
 /* Tool selection feedback */
 .tool-button {
-  transition: all 150ms ease-out;
+    transition: all 150ms ease-out;
 }
 .tool-button:hover {
-  transform: scale(1.05);
+    transform: scale(1.05);
 }
 ```
 
 #### 5.2 Keyboard Shortcuts Implementation
+
 ```tsx
 // Location: src/hooks/useKeyboardShortcuts.ts
 // Shortcuts:
@@ -480,21 +536,20 @@ enum LayerType {
 ```
 
 #### 5.3 Performance Optimizations
+
 ```tsx
 // Memoization for expensive renders
 const LayerList = React.memo(LayerListComponent);
 
 // Debounced property updates
-const debouncedUpdate = useMemo(
-  () => debounce(updateProperty, 300),
-  [updateProperty]
-);
+const debouncedUpdate = useMemo(() => debounce(updateProperty, 300), [updateProperty]);
 
 // Virtual scrolling for large lists
-import { FixedSizeList as List } from 'react-window';
+import { FixedSizeList as List } from "react-window";
 ```
 
 #### 5.4 Error Boundaries & Loading States
+
 ```tsx
 // Location: src/components/common/ErrorBoundary.tsx
 // Features: Graceful error handling, error reporting
@@ -512,86 +567,90 @@ import { FixedSizeList as List } from 'react-window';
 ### Global State Architecture (React Context)
 
 #### AppContext.tsx - Main application state:
+
 ```tsx
 // Location: src/context/AppContext.tsx
 interface AppState {
-  // UI State
-  panels: {
-    leftSidebar: { visible: boolean; width: number; activeTab: string };
-    rightSidebar: { visible: boolean; width: number; activeTab: string };
-    bottomToolbar: { visible: boolean };
-  };
-  
-  // Canvas State  
-  canvas: {
-    zoom: number;
-    pan: { x: number; y: number };
-    viewMode: '2d' | '3d';
-    selectedElements: string[];
-  };
-  
-  // Graph Data
-  graphData: {
-    nodes: NodeData[];
-    edges: EdgeData[];
-    styleTemplate: StyleTemplate;
-  };
-  
-  // Layer Management
-  layers: {
-    items: Layer[];
-    activeLayerId: string | null;
-    selectedLayerIds: string[];
-  };
-  
-  // Tool State
-  tools: {
-    activeTool: ToolType;
-    toolSettings: Record<string, any>;
-    cursorMode: CursorMode;
-  };
+    // UI State
+    panels: {
+        leftSidebar: { visible: boolean; width: number; activeTab: string };
+        rightSidebar: { visible: boolean; width: number; activeTab: string };
+        bottomToolbar: { visible: boolean };
+    };
+
+    // Canvas State
+    canvas: {
+        zoom: number;
+        pan: { x: number; y: number };
+        viewMode: "2d" | "3d";
+        selectedElements: string[];
+    };
+
+    // Graph Data
+    graphData: {
+        nodes: NodeData[];
+        edges: EdgeData[];
+        styleTemplate: StyleTemplate;
+    };
+
+    // Layer Management
+    layers: {
+        items: Layer[];
+        activeLayerId: string | null;
+        selectedLayerIds: string[];
+    };
+
+    // Tool State
+    tools: {
+        activeTool: ToolType;
+        toolSettings: Record<string, any>;
+        cursorMode: CursorMode;
+    };
 }
 ```
 
 #### ToolContext.tsx - Tool-specific state:
+
 ```tsx
 // Location: src/context/ToolContext.tsx
 interface ToolState {
-  activeTool: 'select' | 'pan' | 'zoom' | 'addNode' | 'addEdge' | 'delete';
-  toolSettings: {
-    select: { multiSelect: boolean };
-    addNode: { nodeType: string; defaultStyle: NodeStyle };
-    addEdge: { edgeType: string; defaultStyle: EdgeStyle };
-  };
-  actions: {
-    setActiveTool: (tool: ToolType) => void;
-    updateToolSettings: (tool: ToolType, settings: any) => void;
-    handleCanvasInteraction: (event: CanvasEvent) => void;
-  };
+    activeTool: "select" | "pan" | "zoom" | "addNode" | "addEdge" | "delete";
+    toolSettings: {
+        select: { multiSelect: boolean };
+        addNode: { nodeType: string; defaultStyle: NodeStyle };
+        addEdge: { edgeType: string; defaultStyle: EdgeStyle };
+    };
+    actions: {
+        setActiveTool: (tool: ToolType) => void;
+        updateToolSettings: (tool: ToolType, settings: any) => void;
+        handleCanvasInteraction: (event: CanvasEvent) => void;
+    };
 }
 ```
 
 #### LayerContext.tsx - Layer management state:
+
 ```tsx
 // Location: src/context/LayerContext.tsx
 interface LayerState {
-  layers: Layer[];
-  activeLayer: Layer | null;
-  selectedLayers: Layer[];
-  actions: {
-    addLayer: (type: LayerType, config: Partial<Layer>) => void;
-    updateLayer: (id: string, updates: Partial<Layer>) => void;
-    deleteLayer: (id: string) => void;
-    duplicateLayer: (id: string) => void;
-    reorderLayers: (fromIndex: number, toIndex: number) => void;
-    setActiveLayer: (id: string) => void;
-    toggleLayerVisibility: (id: string) => void;
-    toggleLayerLock: (id: string) => void;
-  };
+    layers: Layer[];
+    activeLayer: Layer | null;
+    selectedLayers: Layer[];
+    actions: {
+        addLayer: (type: LayerType, config: Partial<Layer>) => void;
+        updateLayer: (id: string, updates: Partial<Layer>) => void;
+        deleteLayer: (id: string) => void;
+        duplicateLayer: (id: string) => void;
+        reorderLayers: (fromIndex: number, toIndex: number) => void;
+        setActiveLayer: (id: string) => void;
+        toggleLayerVisibility: (id: string) => void;
+        toggleLayerLock: (id: string) => void;
+    };
 }
 ```
 
 ### Local Component State Guidelines:
+
 - **Form Inputs**: Use controlled components with useState
 - **Panel Resizing**: Local state for drag operations, sync to global on release
 - **Animations**: Local state for transition states
@@ -602,54 +661,58 @@ interface LayerState {
 ## Data Flow & Integration
 
 ### Graphty-Element Integration Pattern:
+
 ```tsx
 // Location: src/hooks/useGraphtyElement.ts
 // Purpose: Bridge between React state and graphty-element properties
 const useGraphtyElement = (graphtyRef: RefObject<HTMLElement>) => {
-  const { graphData, layers, canvas } = useAppContext();
-  
-  // Sync React state to graphty-element props
-  useEffect(() => {
-    if (!graphtyRef.current) return;
-    
-    // Update node/edge data
-    graphtyRef.current.setAttribute('node-data', JSON.stringify(graphData.nodes));
-    graphtyRef.current.setAttribute('edge-data', JSON.stringify(graphData.edges));
-    
-    // Update style template
-    graphtyRef.current.styleTemplate = layers.items;
-    
-    // Update layout mode
-    graphtyRef.current.layout2d = canvas.viewMode === '2d';
-  }, [graphData, layers, canvas]);
-  
-  // Listen to graphty-element events
-  useEffect(() => {
-    const element = graphtyRef.current;
-    if (!element) return;
-    
-    const handleNodeClick = (event: CustomEvent) => {
-      // Update React state based on graphty-element events
-    };
-    
-    element.addEventListener('node-click', handleNodeClick);
-    return () => element.removeEventListener('node-click', handleNodeClick);
-  }, []);
+    const { graphData, layers, canvas } = useAppContext();
+
+    // Sync React state to graphty-element props
+    useEffect(() => {
+        if (!graphtyRef.current) return;
+
+        // Update node/edge data
+        graphtyRef.current.setAttribute("node-data", JSON.stringify(graphData.nodes));
+        graphtyRef.current.setAttribute("edge-data", JSON.stringify(graphData.edges));
+
+        // Update style template
+        graphtyRef.current.styleTemplate = layers.items;
+
+        // Update layout mode
+        graphtyRef.current.layout2d = canvas.viewMode === "2d";
+    }, [graphData, layers, canvas]);
+
+    // Listen to graphty-element events
+    useEffect(() => {
+        const element = graphtyRef.current;
+        if (!element) return;
+
+        const handleNodeClick = (event: CustomEvent) => {
+            // Update React state based on graphty-element events
+        };
+
+        element.addEventListener("node-click", handleNodeClick);
+        return () => element.removeEventListener("node-click", handleNodeClick);
+    }, []);
 };
 ```
 
 ### Layer-Style Mapping:
+
 ```tsx
 // Location: src/utils/layerStyleMapping.ts
 // Purpose: Convert UI layer objects to graphty-element StyleTemplate format
 const convertLayersToStyleTemplate = (layers: Layer[]): StyleTemplate => {
-  return {
-    layers: layers.map(layer => ({
-      selector: layer.selector,
-      style: layer.style,
-      enabled: layer.visible && !layer.locked
-    })).sort((a, b) => a.order - b.order)
-  };
+    return {
+        layers: layers
+            .map((layer) => ({
+                selector: layer.selector,
+                style: layer.style,
+                enabled: layer.visible && !layer.locked,
+            }))
+            .sort((a, b) => a.order - b.order),
+    };
 };
 ```
 
@@ -738,12 +801,13 @@ src/
 ## Testing Strategy
 
 ### Unit Tests (Vitest + React Testing Library):
+
 ```tsx
 // Location: src/components/layers/__tests__/LayerItem.test.tsx
 // Test: Layer visibility toggle, name editing, drag handles
 // Coverage: User interactions, keyboard navigation, accessibility
 
-// Location: src/hooks/__tests__/useStyleTemplate.test.ts  
+// Location: src/hooks/__tests__/useStyleTemplate.test.ts
 // Test: Layer-to-StyleTemplate conversion, validation
 // Coverage: Edge cases, error handling, performance
 
@@ -753,28 +817,31 @@ src/
 ```
 
 ### Integration Tests:
+
 ```tsx
 // Location: src/__tests__/LayerManagement.integration.test.tsx
 // Test: Full layer CRUD workflow with graphty-element
 // Coverage: Add layer → Style layer → Apply to graph → Visual verification
 
-// Location: src/__tests__/ToolInteraction.integration.test.tsx  
+// Location: src/__tests__/ToolInteraction.integration.test.tsx
 // Test: Tool selection → Canvas interaction → State updates
 // Coverage: Tool switching, canvas events, property updates
 ```
 
 ### Storybook Visual Tests:
+
 ```tsx
 // Location: src/stories/AppLayout.stories.tsx
 // Test: Responsive layout, panel collapse/expand, theme switching
 // Coverage: Mobile breakpoints, dark/light modes, accessibility
 
 // Location: src/stories/PropertyPanels.stories.tsx
-// Test: Different layer types, form validation, real-time updates  
+// Test: Different layer types, form validation, real-time updates
 // Coverage: All style property combinations, error states
 ```
 
 ### E2E Tests (Playwright):
+
 ```tsx
 // Location: tests/e2e/complete-workflow.spec.ts
 // Test: Load app → Create layers → Style graph → Export result
@@ -790,6 +857,7 @@ src/
 ## Styling Approach
 
 ### CSS Framework Setup:
+
 ```bash
 # Install Tailwind CSS with forms plugin
 npm install -D tailwindcss @tailwindcss/forms autoprefixer postcss
@@ -797,49 +865,51 @@ npx tailwindcss init -p
 ```
 
 ### Tailwind Configuration:
+
 ```js
 // tailwind.config.js
 module.exports = {
-  content: ['./src/**/*.{js,jsx,ts,tsx}'],
-  darkMode: 'class',
-  theme: {
-    extend: {
-      colors: {
-        // Figma-inspired color palette
-        gray: {
-          50: '#f8f9fa',
-          100: '#f1f3f4', 
-          200: '#e8eaed',
-          300: '#dadce0',
-          400: '#bdc1c6',
-          500: '#9aa0a6',
-          600: '#80868b',
-          700: '#5f6368',
-          800: '#3c4043',
-          900: '#202124',
+    content: ["./src/**/*.{js,jsx,ts,tsx}"],
+    darkMode: "class",
+    theme: {
+        extend: {
+            colors: {
+                // Figma-inspired color palette
+                gray: {
+                    50: "#f8f9fa",
+                    100: "#f1f3f4",
+                    200: "#e8eaed",
+                    300: "#dadce0",
+                    400: "#bdc1c6",
+                    500: "#9aa0a6",
+                    600: "#80868b",
+                    700: "#5f6368",
+                    800: "#3c4043",
+                    900: "#202124",
+                },
+                primary: {
+                    50: "#e3f2fd",
+                    500: "#2196f3",
+                    600: "#1e88e5",
+                    700: "#1976d2",
+                },
+            },
+            spacing: {
+                18: "4.5rem",
+                88: "22rem",
+            },
+            animation: {
+                "slide-in-left": "slideInLeft 0.3s ease-out",
+                "slide-in-right": "slideInRight 0.3s ease-out",
+            },
         },
-        primary: {
-          50: '#e3f2fd',
-          500: '#2196f3',
-          600: '#1e88e5',
-          700: '#1976d2',
-        }
-      },
-      spacing: {
-        '18': '4.5rem',
-        '88': '22rem',
-      },
-      animation: {
-        'slide-in-left': 'slideInLeft 0.3s ease-out',
-        'slide-in-right': 'slideInRight 0.3s ease-out',
-      }
     },
-  },
-  plugins: [require('@tailwindcss/forms')],
-}
+    plugins: [require("@tailwindcss/forms")],
+};
 ```
 
 ### Design System:
+
 - **Color Palette**: Professional gray scale with blue accents
 - **Typography**: Inter font family, consistent hierarchy
 - **Spacing**: 8px base grid (0.5rem increments)
@@ -848,6 +918,7 @@ module.exports = {
 - **Border Radius**: Consistent 0.375rem (6px) rounded corners
 
 ### Component CSS Architecture:
+
 ```tsx
 // Pattern: Tailwind + CSS Modules for complex components
 // Base classes in Tailwind, component-specific in modules
@@ -883,6 +954,7 @@ module.exports = {
 ## Future Enhancements
 
 ### Advanced Features:
+
 - **Multiple canvas tabs**
 - **Layer grouping and nesting**
 - **Style templates and presets**
@@ -891,6 +963,7 @@ module.exports = {
 - **Advanced data connectors**
 
 ### Performance Optimizations:
+
 - **Virtual scrolling** for large layer lists
 - **Debounced property updates**
 - **Canvas rendering optimizations**
@@ -903,36 +976,38 @@ module.exports = {
 ## Development Workflow
 
 ### Phase Implementation Order:
-1. **Phase 1**: Basic layout structure (1-2 days)
-   - Get the grid layout working with placeholder content
-   - Implement panel collapse/expand
-   - Set up routing and basic navigation
 
-2. **Phase 2**: Layer management (2-3 days)  
-   - Connect to graphty-element StyleTemplate
-   - Build layer CRUD operations
-   - Implement layer list with basic interactions
+1. **Phase 1**: Basic layout structure (1-2 days)
+    - Get the grid layout working with placeholder content
+    - Implement panel collapse/expand
+    - Set up routing and basic navigation
+
+2. **Phase 2**: Layer management (2-3 days)
+    - Connect to graphty-element StyleTemplate
+    - Build layer CRUD operations
+    - Implement layer list with basic interactions
 
 3. **Phase 3**: Properties panel (3-4 days)
-   - Create dynamic property forms
-   - Build reusable form components  
-   - Connect property changes to layer updates
+    - Create dynamic property forms
+    - Build reusable form components
+    - Connect property changes to layer updates
 
 4. **Phase 4**: Toolbar integration (2-3 days)
-   - Implement tool selection state
-   - Add 2D/3D toggle functionality
-   - Connect tools to canvas interactions
+    - Implement tool selection state
+    - Add 2D/3D toggle functionality
+    - Connect tools to canvas interactions
 
 5. **Phase 5**: Polish & UX (2-3 days)
-   - Add animations and transitions
-   - Implement keyboard shortcuts
-   - Performance optimization and testing
+    - Add animations and transitions
+    - Implement keyboard shortcuts
+    - Performance optimization and testing
 
 ### Git Workflow:
+
 ```bash
 # Feature branch naming
 git checkout -b feature/phase-1-layout
-git checkout -b feature/layer-management  
+git checkout -b feature/layer-management
 git checkout -b feature/properties-panel
 
 # Commit message format
@@ -942,6 +1017,7 @@ docs(readme): update component architecture section
 ```
 
 ### Code Review Checklist:
+
 - [ ] Component follows file structure conventions
 - [ ] TypeScript interfaces defined for all props/state
 - [ ] Accessibility attributes (ARIA labels, roles)
@@ -956,39 +1032,42 @@ docs(readme): update component architecture section
 ## Deployment & Build
 
 ### Build Configuration:
+
 ```json
 // package.json scripts
 {
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build", 
-    "preview": "vite preview",
-    "test": "vitest",
-    "test:ui": "vitest --ui",
-    "storybook": "storybook dev -p 9035",
-    "build-storybook": "storybook build",
-    "lint": "eslint && tsc --noEmit",
-    "type-check": "tsc --noEmit"
-  }
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc && vite build",
+        "preview": "vite preview",
+        "test": "vitest",
+        "test:ui": "vitest --ui",
+        "storybook": "storybook dev -p 9035",
+        "build-storybook": "storybook build",
+        "lint": "eslint && tsc --noEmit",
+        "type-check": "tsc --noEmit"
+    }
 }
 ```
 
 ### Environment Variables:
+
 ```bash
 # .env.development
 VITE_GRAPHTY_ELEMENT_PATH=/dist/graphty.js
 VITE_API_BASE_URL=http://localhost:3001
 VITE_ENABLE_ERUDA=true
 
-# .env.production  
+# .env.production
 VITE_GRAPHTY_ELEMENT_PATH=/dist/graphty.js
 VITE_API_BASE_URL=https://api.graphty.com
 VITE_ENABLE_ERUDA=false
 ```
 
 ### Performance Targets:
+
 - **Initial Load**: < 3 seconds on 3G
-- **Layer Operations**: < 100ms response time  
+- **Layer Operations**: < 100ms response time
 - **Canvas Interactions**: 60 FPS smooth animations
 - **Memory Usage**: < 50MB for 1000-node graphs
 - **Bundle Size**: < 500KB gzipped (excluding graphty-element)
@@ -998,6 +1077,7 @@ VITE_ENABLE_ERUDA=false
 ## Success Criteria
 
 ### Functional Requirements:
+
 - [x] **Layout**: Responsive Figma-inspired 4-panel layout
 - [x] **Layer Management**: Full CRUD operations on StyleTemplate layers
 - [x] **Properties**: Dynamic forms for all style properties
@@ -1005,13 +1085,15 @@ VITE_ENABLE_ERUDA=false
 - [x] **Integration**: Seamless React ↔ graphty-element data flow
 
 ### User Experience Requirements:
+
 - [x] **Performance**: Smooth 60fps interactions
 - [x] **Accessibility**: Full keyboard navigation + screen reader support
-- [x] **Responsive**: Works on desktop, tablet, mobile  
+- [x] **Responsive**: Works on desktop, tablet, mobile
 - [x] **Professional**: Figma-quality visual design
 - [x] **Intuitive**: New users can create styled graphs in < 5 minutes
 
 ### Technical Requirements:
+
 - [x] **Type Safety**: 100% TypeScript coverage
 - [x] **Testing**: >80% code coverage with unit + integration tests
 - [x] **Documentation**: Complete Storybook documentation

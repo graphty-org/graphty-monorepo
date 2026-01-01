@@ -1,10 +1,10 @@
 import "../index.ts";
 
-import type {Decorator, Meta, StoryObj} from "@storybook/web-components-vite";
+import type { Decorator, Meta, StoryObj } from "@storybook/web-components-vite";
 
-import {StyleTemplate, VIEW_MODE_VALUES, type ViewMode} from "../src/config";
-import {Graphty} from "../src/graphty-element";
-import {edgeData, eventWaitingDecorator, nodeData} from "./helpers";
+import { StyleTemplate, VIEW_MODE_VALUES, type ViewMode } from "../src/config";
+import { Graphty } from "../src/graphty-element";
+import { edgeData, eventWaitingDecorator, nodeData } from "./helpers";
 
 // Track WebXR availability to avoid repeated checks
 let vrSupported: boolean | null = null;
@@ -18,7 +18,7 @@ const xrAvailabilityDecorator: Decorator = (story, context) => {
 
     // Check XR availability after a short delay to ensure component is ready
     setTimeout(() => {
-        void (async() => {
+        void (async () => {
             const graphEl = document.querySelector("graphty-element");
             if (!(graphEl instanceof Graphty)) {
                 return;
@@ -43,12 +43,16 @@ const xrAvailabilityDecorator: Decorator = (story, context) => {
 
             // Alert if VR selected but not available
             if (viewMode === "vr" && !vrSupported) {
-                alert("VR Mode Unavailable\n\nWebXR VR is not supported on this device/browser. The view will fall back to 3D mode.\n\nTo use VR mode, you need:\n- A WebXR-compatible browser (Chrome, Edge, Firefox)\n- A VR headset connected\n- HTTPS connection");
+                alert(
+                    "VR Mode Unavailable\n\nWebXR VR is not supported on this device/browser. The view will fall back to 3D mode.\n\nTo use VR mode, you need:\n- A WebXR-compatible browser (Chrome, Edge, Firefox)\n- A VR headset connected\n- HTTPS connection",
+                );
             }
 
             // Alert if AR selected but not available
             if (viewMode === "ar" && !arSupported) {
-                alert("AR Mode Unavailable\n\nWebXR AR is not supported on this device/browser. The view will fall back to 3D mode.\n\nTo use AR mode, you need:\n- A WebXR-compatible browser\n- An AR-capable device (smartphone/tablet with ARCore/ARKit)\n- HTTPS connection");
+                alert(
+                    "AR Mode Unavailable\n\nWebXR AR is not supported on this device/browser. The view will fall back to 3D mode.\n\nTo use AR mode, you need:\n- A WebXR-compatible browser\n- An AR-capable device (smartphone/tablet with ARCore/ARKit)\n- HTTPS connection",
+                );
             }
         })();
     }, 500);
@@ -62,17 +66,17 @@ const meta: Meta = {
     decorators: [eventWaitingDecorator, xrAvailabilityDecorator],
     argTypes: {
         viewMode: {
-            control: {type: "select"},
+            control: { type: "select" },
             options: VIEW_MODE_VALUES,
             description: "The rendering mode for the graph visualization",
             table: {
-                defaultValue: {summary: "3d"},
+                defaultValue: { summary: "3d" },
             },
         },
     },
     parameters: {
         // Only show viewMode control, hide all other controls
-        controls: {include: ["viewMode"]},
+        controls: { include: ["viewMode"] },
     },
     args: {
         nodeData,
@@ -82,7 +86,7 @@ const meta: Meta = {
 };
 export default meta;
 
-type Story = StoryObj<Graphty & {viewMode: ViewMode}>;
+type Story = StoryObj<Graphty & { viewMode: ViewMode }>;
 
 /**
  * Interactive demo for switching between view modes (2D, 3D, AR, VR).
@@ -126,4 +130,3 @@ export const SwitchViewModes: Story = {
         return graphEl;
     },
 };
-

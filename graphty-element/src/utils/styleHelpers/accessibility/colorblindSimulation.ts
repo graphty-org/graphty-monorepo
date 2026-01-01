@@ -50,7 +50,7 @@ function toLinear(value: number): number {
  * @returns sRGB component value (0-255)
  */
 function toSrgb(value: number): number {
-    return value <= 0.0031308 ? ((value * 12.92) * 255) : ((1.055 * Math.pow(value, 1 / 2.4)) - 0.055) * 255;
+    return value <= 0.0031308 ? value * 12.92 * 255 : (1.055 * Math.pow(value, 1 / 2.4) - 0.055) * 255;
 }
 
 /**
@@ -68,9 +68,9 @@ export function simulateProtanopia(hex: string): string {
     const lb = toLinear(b);
 
     // Apply protanopia simulation matrix
-    const nr = (0.567 * lr) + (0.433 * lg) + (0.0 * lb);
-    const ng = (0.558 * lr) + (0.442 * lg) + (0.0 * lb);
-    const nb = (0.0 * lr) + (0.242 * lg) + (0.758 * lb);
+    const nr = 0.567 * lr + 0.433 * lg + 0.0 * lb;
+    const ng = 0.558 * lr + 0.442 * lg + 0.0 * lb;
+    const nb = 0.0 * lr + 0.242 * lg + 0.758 * lb;
 
     // Convert back to sRGB
     return rgbToHex(toSrgb(nr), toSrgb(ng), toSrgb(nb));
@@ -91,9 +91,9 @@ export function simulateDeuteranopia(hex: string): string {
     const lb = toLinear(b);
 
     // Apply deuteranopia simulation matrix
-    const nr = (0.625 * lr) + (0.375 * lg) + (0.0 * lb);
-    const ng = (0.7 * lr) + (0.3 * lg) + (0.0 * lb);
-    const nb = (0.0 * lr) + (0.3 * lg) + (0.7 * lb);
+    const nr = 0.625 * lr + 0.375 * lg + 0.0 * lb;
+    const ng = 0.7 * lr + 0.3 * lg + 0.0 * lb;
+    const nb = 0.0 * lr + 0.3 * lg + 0.7 * lb;
 
     // Convert back to sRGB
     return rgbToHex(toSrgb(nr), toSrgb(ng), toSrgb(nb));
@@ -114,9 +114,9 @@ export function simulateTritanopia(hex: string): string {
     const lb = toLinear(b);
 
     // Apply tritanopia simulation matrix
-    const nr = (0.95 * lr) + (0.05 * lg) + (0.0 * lb);
-    const ng = (0.0 * lr) + (0.433 * lg) + (0.567 * lb);
-    const nb = (0.0 * lr) + (0.475 * lg) + (0.525 * lb);
+    const nr = 0.95 * lr + 0.05 * lg + 0.0 * lb;
+    const ng = 0.0 * lr + 0.433 * lg + 0.567 * lb;
+    const nb = 0.0 * lr + 0.475 * lg + 0.525 * lb;
 
     // Convert back to sRGB
     return rgbToHex(toSrgb(nr), toSrgb(ng), toSrgb(nb));
@@ -131,7 +131,7 @@ export function toGrayscale(hex: string): string {
     const [r, g, b] = hexToRgb(hex);
 
     // Use standard luminance formula
-    const luminance = (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
 
     return rgbToHex(luminance, luminance, luminance);
 }
@@ -157,7 +157,7 @@ export function colorDifference(hex1: string, hex2: string): number {
     const deltaG = g1 - g2;
     const deltaB = b1 - b2;
 
-    return Math.sqrt((deltaR * deltaR) + (deltaG * deltaG) + (deltaB * deltaB)) / 2.55;
+    return Math.sqrt(deltaR * deltaR + deltaG * deltaG + deltaB * deltaB) / 2.55;
 }
 
 /**
@@ -181,7 +181,10 @@ export function areDistinguishableInGrayscale(hex1: string, hex2: string, thresh
  * @param threshold - Minimum difference threshold for distinguishability (default: 10)
  * @returns Object with boolean flags for each colorblindness type indicating if palette is safe
  */
-export function isPaletteSafe(colors: string[], threshold = 10): {
+export function isPaletteSafe(
+    colors: string[],
+    threshold = 10,
+): {
     protanopia: boolean;
     deuteranopia: boolean;
     tritanopia: boolean;

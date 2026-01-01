@@ -1,6 +1,6 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {createColorStop, createDefaultGradientStops} from "../color-stops";
+import { createColorStop, createDefaultGradientStops } from "../color-stops";
 
 describe("color-stops", () => {
     describe("createColorStop", () => {

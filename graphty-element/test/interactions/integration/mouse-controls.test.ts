@@ -5,12 +5,12 @@
  * by creating Graph instances directly and simulating mouse events.
  */
 
-import {PointerEventTypes, type PointerInfo, type PointerInfoPre} from "@babylonjs/core";
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test, vi} from "vitest";
+import { PointerEventTypes, type PointerInfo, type PointerInfoPre } from "@babylonjs/core";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import type {StyleSchema} from "../../../src/config";
-import {Graph} from "../../../src/Graph";
+import type { StyleSchema } from "../../../src/config";
+import { Graph } from "../../../src/Graph";
 
 /**
  * Create a minimal style template for testing
@@ -54,15 +54,11 @@ function createStyleTemplate(twoD: boolean): StyleSchema {
     } as unknown as StyleSchema;
 }
 
-const TEST_NODES = [
-    {id: 1},
-    {id: 2},
-    {id: 3},
-];
+const TEST_NODES = [{ id: 1 }, { id: 2 }, { id: 3 }];
 
 const TEST_EDGES = [
-    {src: 1, dst: 2},
-    {src: 2, dst: 3},
+    { src: 1, dst: 2 },
+    { src: 2, dst: 3 },
 ];
 
 describe("Mouse Controls Integration", () => {
@@ -70,7 +66,7 @@ describe("Mouse Controls Integration", () => {
     let container: HTMLDivElement;
 
     describe("2D Mode", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             container = document.createElement("div");
             container.style.width = "800px";
             container.style.height = "600px";
@@ -100,7 +96,7 @@ describe("Mouse Controls Integration", () => {
             assert.isDefined(cameraController, "Camera controller should be defined");
 
             // Access the 2D camera controller directly to spy on pan method
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const cameraManager = graph.camera as any;
             const twoDController = cameraManager.activeCameraController;
             assert.isDefined(twoDController, "2D camera controller should be defined");
@@ -108,7 +104,7 @@ describe("Mouse Controls Integration", () => {
             // Spy on the pan method to verify it's being called
             const panSpy = vi.spyOn(twoDController, "pan");
 
-            const {scene} = graph;
+            const { scene } = graph;
 
             // Simulate mouse pan via scene observables
             // Pointer down at position 100, 100
@@ -155,21 +151,24 @@ describe("Mouse Controls Integration", () => {
                 throw new Error("Camera controller should be defined");
             }
 
-            const {camera} = cameraController;
+            const { camera } = cameraController;
             const initialOrthoTop = camera.orthoTop ?? 10;
             const initialOrthoBottom = camera.orthoBottom ?? -10;
             const initialRange = initialOrthoTop - initialOrthoBottom;
 
-            const {scene} = graph;
+            const { scene } = graph;
 
             // Simulate wheel zoom in (negative deltaY)
-            scene.onPrePointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERWHEEL,
-                event: {
-                    deltaY: -100,
-                    preventDefault: vi.fn(),
-                } as unknown as WheelEvent,
-            } as unknown as PointerInfoPre, PointerEventTypes.POINTERWHEEL);
+            scene.onPrePointerObservable.notifyObservers(
+                {
+                    type: PointerEventTypes.POINTERWHEEL,
+                    event: {
+                        deltaY: -100,
+                        preventDefault: vi.fn(),
+                    } as unknown as WheelEvent,
+                } as unknown as PointerInfoPre,
+                PointerEventTypes.POINTERWHEEL,
+            );
 
             const newOrthoTop = camera.orthoTop ?? 10;
             const newOrthoBottom = camera.orthoBottom ?? -10;
@@ -186,21 +185,24 @@ describe("Mouse Controls Integration", () => {
                 throw new Error("Camera controller should be defined");
             }
 
-            const {camera} = cameraController;
+            const { camera } = cameraController;
             const initialOrthoTop = camera.orthoTop ?? 10;
             const initialOrthoBottom = camera.orthoBottom ?? -10;
             const initialRange = initialOrthoTop - initialOrthoBottom;
 
-            const {scene} = graph;
+            const { scene } = graph;
 
             // Simulate wheel zoom out (positive deltaY)
-            scene.onPrePointerObservable.notifyObservers({
-                type: PointerEventTypes.POINTERWHEEL,
-                event: {
-                    deltaY: 100,
-                    preventDefault: vi.fn(),
-                } as unknown as WheelEvent,
-            } as unknown as PointerInfoPre, PointerEventTypes.POINTERWHEEL);
+            scene.onPrePointerObservable.notifyObservers(
+                {
+                    type: PointerEventTypes.POINTERWHEEL,
+                    event: {
+                        deltaY: 100,
+                        preventDefault: vi.fn(),
+                    } as unknown as WheelEvent,
+                } as unknown as PointerInfoPre,
+                PointerEventTypes.POINTERWHEEL,
+            );
 
             const newOrthoTop = camera.orthoTop ?? 10;
             const newOrthoBottom = camera.orthoBottom ?? -10;
@@ -212,7 +214,7 @@ describe("Mouse Controls Integration", () => {
     });
 
     describe("3D Mode", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             container = document.createElement("div");
             container.style.width = "800px";
             container.style.height = "600px";
@@ -242,7 +244,7 @@ describe("Mouse Controls Integration", () => {
             assert.isDefined(cameraController, "Camera controller should be defined");
 
             // Access the orbit controller and input controller
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const cameraManager = graph.camera as any;
             const orbitController = cameraManager.activeCameraController;
             const inputController = cameraManager.activeInputHandler;
@@ -253,25 +255,31 @@ describe("Mouse Controls Integration", () => {
             // Spy on the rotate method to verify it's called during drag
             const rotateSpy = vi.spyOn(orbitController, "rotate");
 
-            const {canvas} = graph;
+            const { canvas } = graph;
 
             // 3D mode uses direct canvas events
-            canvas.dispatchEvent(new PointerEvent("pointerdown", {
-                clientX: 100,
-                clientY: 100,
-                button: 0,
-                bubbles: true,
-            }));
+            canvas.dispatchEvent(
+                new PointerEvent("pointerdown", {
+                    clientX: 100,
+                    clientY: 100,
+                    button: 0,
+                    bubbles: true,
+                }),
+            );
 
-            canvas.dispatchEvent(new PointerEvent("pointermove", {
-                clientX: 200,
-                clientY: 150,
-                bubbles: true,
-            }));
+            canvas.dispatchEvent(
+                new PointerEvent("pointermove", {
+                    clientX: 200,
+                    clientY: 150,
+                    bubbles: true,
+                }),
+            );
 
-            canvas.dispatchEvent(new PointerEvent("pointerup", {
-                bubbles: true,
-            }));
+            canvas.dispatchEvent(
+                new PointerEvent("pointerup", {
+                    bubbles: true,
+                }),
+            );
 
             // Verify rotate was called with the movement delta
             assert.isAbove(rotateSpy.mock.calls.length, 0, "rotate() should be called during drag");
@@ -282,7 +290,7 @@ describe("Mouse Controls Integration", () => {
 
         test("keyboard W to zoom in 3D mode", () => {
             // Get the camera controller - 3D mode uses OrbitCameraController
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const cameraManager = graph.camera as any;
             const orbitController = cameraManager.activeCameraController;
             const inputController = cameraManager.activeInputHandler;
@@ -292,10 +300,10 @@ describe("Mouse Controls Integration", () => {
 
             const initialDistance = orbitController.cameraDistance;
 
-            const {canvas} = graph;
+            const { canvas } = graph;
 
             // 3D mode uses W key for zoom in (decrease distance)
-            canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "w", bubbles: true}));
+            canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "w", bubbles: true }));
             inputController.update();
 
             assert.isBelow(
@@ -304,12 +312,12 @@ describe("Mouse Controls Integration", () => {
                 "W key should zoom in (decrease camera distance)",
             );
 
-            canvas.dispatchEvent(new KeyboardEvent("keyup", {key: "w", bubbles: true}));
+            canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "w", bubbles: true }));
         });
 
         test("keyboard S to zoom out in 3D mode", () => {
             // Get the camera controller - 3D mode uses OrbitCameraController
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const cameraManager = graph.camera as any;
             const orbitController = cameraManager.activeCameraController;
             const inputController = cameraManager.activeInputHandler;
@@ -319,10 +327,10 @@ describe("Mouse Controls Integration", () => {
 
             const initialDistance = orbitController.cameraDistance;
 
-            const {canvas} = graph;
+            const { canvas } = graph;
 
             // 3D mode uses S key for zoom out (increase distance)
-            canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "s", bubbles: true}));
+            canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "s", bubbles: true }));
             inputController.update();
 
             assert.isAbove(
@@ -331,12 +339,12 @@ describe("Mouse Controls Integration", () => {
                 "S key should zoom out (increase camera distance)",
             );
 
-            canvas.dispatchEvent(new KeyboardEvent("keyup", {key: "s", bubbles: true}));
+            canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "s", bubbles: true }));
         });
     });
 
     describe("Node Interaction", () => {
-        beforeEach(async() => {
+        beforeEach(async () => {
             container = document.createElement("div");
             container.style.width = "800px";
             container.style.height = "600px";
@@ -361,24 +369,26 @@ describe("Mouse Controls Integration", () => {
         });
 
         test("canvas has tabindex for keyboard focus", () => {
-            const {canvas} = graph;
+            const { canvas } = graph;
             // Canvas should have tabindex attribute for keyboard focus
             assert.equal(canvas.getAttribute("tabindex"), "0", "Canvas should have tabindex='0' for focus");
         });
 
         test("pointer down triggers canvas focus", () => {
-            const {canvas} = graph;
+            const { canvas } = graph;
 
             // Mock focus method
             const focusSpy = vi.spyOn(canvas, "focus").mockImplementation(() => undefined);
 
             // 3D mode uses direct canvas events for pointer handling
-            canvas.dispatchEvent(new PointerEvent("pointerdown", {
-                clientX: 400,
-                clientY: 300,
-                button: 0,
-                bubbles: true,
-            }));
+            canvas.dispatchEvent(
+                new PointerEvent("pointerdown", {
+                    clientX: 400,
+                    clientY: 300,
+                    button: 0,
+                    bubbles: true,
+                }),
+            );
 
             // Canvas should have been focused
             assert.isAbove(focusSpy.mock.calls.length, 0, "Canvas should be focused on pointer down");

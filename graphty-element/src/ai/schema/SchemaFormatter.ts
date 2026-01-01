@@ -3,7 +3,7 @@
  * @module ai/schema/SchemaFormatter
  */
 
-import type {PropertySummary, SchemaSummary} from "./types";
+import type { PropertySummary, SchemaSummary } from "./types";
 
 /**
  * Maximum number of enum values to display in the formatted output.

@@ -1,19 +1,19 @@
-import {assert, describe, test} from "vitest";
+import { assert, describe, test } from "vitest";
 
-import {JsonDataSource} from "../../src/data/JsonDataSource.js";
+import { JsonDataSource } from "../../src/data/JsonDataSource.js";
 
 describe("JsonDataSource streaming", () => {
-    test("yields multiple chunks for large datasets", async() => {
+    test("yields multiple chunks for large datasets", async () => {
         // Create large dataset (2500 nodes)
-        const nodes = Array.from({length: 2500}, (_, i) => ({
+        const nodes = Array.from({ length: 2500 }, (_, i) => ({
             id: `n${i}`,
             value: Math.random(),
         }));
 
-        const edges = [{src: "n0", dst: "n1"}];
+        const edges = [{ src: "n0", dst: "n1" }];
 
         const source = new JsonDataSource({
-            data: JSON.stringify({nodes, edges}),
+            data: JSON.stringify({ nodes, edges }),
             chunkSize: 1000,
         });
 
@@ -33,12 +33,12 @@ describe("JsonDataSource streaming", () => {
         assert.strictEqual(chunks[1].edges.length, 0);
     });
 
-    test("handles single chunk for small datasets", async() => {
-        const nodes = [{id: "n1"}, {id: "n2"}];
-        const edges = [{src: "n1", dst: "n2"}];
+    test("handles single chunk for small datasets", async () => {
+        const nodes = [{ id: "n1" }, { id: "n2" }];
+        const edges = [{ src: "n1", dst: "n2" }];
 
         const source = new JsonDataSource({
-            data: JSON.stringify({nodes, edges}),
+            data: JSON.stringify({ nodes, edges }),
             chunkSize: 1000,
         });
 
@@ -52,12 +52,12 @@ describe("JsonDataSource streaming", () => {
         assert.strictEqual(chunks[0].edges.length, 1);
     });
 
-    test("respects custom chunk size", async() => {
-        const nodes = Array.from({length: 150}, (_, i) => ({id: `n${i}`}));
-        const edges: {src: string, dst: string}[] = [];
+    test("respects custom chunk size", async () => {
+        const nodes = Array.from({ length: 150 }, (_, i) => ({ id: `n${i}` }));
+        const edges: { src: string; dst: string }[] = [];
 
         const source = new JsonDataSource({
-            data: JSON.stringify({nodes, edges}),
+            data: JSON.stringify({ nodes, edges }),
             chunkSize: 50,
         });
 

@@ -3,9 +3,9 @@
  * @module ai/commands/SchemaCommands
  */
 
-import {z} from "zod";
+import { z } from "zod";
 
-import type {Graph} from "../../Graph";
+import type { Graph } from "../../Graph";
 import {
     analyzeDominantType,
     calculateStatistics,
@@ -15,12 +15,14 @@ import {
     getNestedProperty,
     truncateObjectStrings,
 } from "../schema/utils";
-import type {CommandResult, GraphCommand} from "./types";
+import type { CommandResult, GraphCommand } from "./types";
 
 /**
  * Target type for sampling - nodes, edges, or both.
  */
-const SampleTargetSchema = z.enum(["nodes", "edges", "both"]).optional()
+const SampleTargetSchema = z
+    .enum(["nodes", "edges", "both"])
+    .optional()
     .describe("What to sample: 'nodes', 'edges', or 'both' (default)");
 
 /**
@@ -64,11 +66,11 @@ const MAX_STRING_LENGTH = 100;
  */
 function randomSample<T>(items: T[], count: number): T[] {
     if (items.length <= count) {
-        return [... items];
+        return [...items];
     }
 
     // Fisher-Yates shuffle for first `count` items
-    const result = [... items];
+    const result = [...items];
     for (let i = 0; i < count; i++) {
         const j = i + Math.floor(Math.random() * (result.length - i));
         [result[i], result[j]] = [result[j], result[i]];
@@ -84,13 +86,9 @@ function randomSample<T>(items: T[], count: number): T[] {
  * @param getStratumKey - Function to extract the stratum key from an item
  * @returns Array of stratified sampled items
  */
-function stratifiedSample<T>(
-    items: T[],
-    count: number,
-    getStratumKey: (item: T) => string | undefined,
-): T[] {
+function stratifiedSample<T>(items: T[], count: number, getStratumKey: (item: T) => string | undefined): T[] {
     if (items.length <= count) {
-        return [... items];
+        return [...items];
     }
 
     // Group items by stratum
@@ -120,20 +118,20 @@ function stratifiedSample<T>(
     // Sample from each stratum
     for (const stratumItems of strata.values()) {
         const sampled = randomSample(stratumItems, samplesPerStratum);
-        result.push(... sampled);
+        result.push(...sampled);
     }
 
     // Sample from unkeyed items
     if (unkeyed.length > 0) {
         const sampled = randomSample(unkeyed, samplesPerStratum);
-        result.push(... sampled);
+        result.push(...sampled);
     }
 
     // If we haven't filled count yet, sample more randomly
     if (result.length < count) {
         const remaining = items.filter((item) => !result.includes(item));
         const additional = randomSample(remaining, count - result.length);
-        result.push(... additional);
+        result.push(...additional);
     }
 
     return result.slice(0, count);
@@ -145,25 +143,32 @@ function stratifiedSample<T>(
  */
 export const sampleData: GraphCommand = {
     name: "sampleData",
-    description: "Get sample nodes and/or edges from the graph to inspect actual data structures. Useful for understanding what properties exist and what values they contain before writing selectors.",
+    description:
+        "Get sample nodes and/or edges from the graph to inspect actual data structures. Useful for understanding what properties exist and what values they contain before writing selectors.",
     parameters: z.object({
         target: SampleTargetSchema,
-        count: z.number().min(1).max(MAX_SAMPLE_COUNT).optional()
+        count: z
+            .number()
+            .min(1)
+            .max(MAX_SAMPLE_COUNT)
+            .optional()
             .describe(`Number of samples to return per type (1-${MAX_SAMPLE_COUNT}, default ${DEFAULT_SAMPLE_COUNT})`),
-        stratifyBy: z.string().optional()
+        stratifyBy: z
+            .string()
+            .optional()
             .describe("Property path to stratify sampling by (e.g., 'data.type' to sample from each type)"),
     }),
     examples: [
-        {input: "Show me some example nodes", params: {target: "nodes"}},
-        {input: "Show me 5 sample edges", params: {target: "edges", count: 5}},
-        {input: "Get sample data from the graph", params: {}},
-        {input: "Show me node samples from each type", params: {target: "nodes", count: 6, stratifyBy: "data.type"}},
+        { input: "Show me some example nodes", params: { target: "nodes" } },
+        { input: "Show me 5 sample edges", params: { target: "edges", count: 5 } },
+        { input: "Get sample data from the graph", params: {} },
+        {
+            input: "Show me node samples from each type",
+            params: { target: "nodes", count: 6, stratifyBy: "data.type" },
+        },
     ],
 
-    execute(
-        graph: Graph,
-        params: Record<string, unknown>,
-    ): Promise<CommandResult> {
+    execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
         const {
             target = "both",
             count = DEFAULT_SAMPLE_COUNT,
@@ -176,7 +181,7 @@ export const sampleData: GraphCommand = {
 
         try {
             const dataManager = graph.getDataManager();
-            const result: {nodes?: SampleNode[], edges?: SampleEdge[]} = {};
+            const result: { nodes?: SampleNode[]; edges?: SampleEdge[] } = {};
 
             // Sample nodes
             if (target === "nodes" || target === "both") {
@@ -184,14 +189,10 @@ export const sampleData: GraphCommand = {
                 let sampledNodes: typeof nodes;
 
                 if (stratifyBy) {
-                    sampledNodes = stratifiedSample(
-                        nodes,
-                        count,
-                        (node) => {
-                            const value = getNestedProperty(node.data, stratifyBy);
-                            return typeof value === "string" ? value : undefined;
-                        },
-                    );
+                    sampledNodes = stratifiedSample(nodes, count, (node) => {
+                        const value = getNestedProperty(node.data, stratifyBy);
+                        return typeof value === "string" ? value : undefined;
+                    });
                 } else {
                     sampledNodes = randomSample(nodes, count);
                 }
@@ -208,14 +209,10 @@ export const sampleData: GraphCommand = {
                 let sampledEdges: typeof edges;
 
                 if (stratifyBy) {
-                    sampledEdges = stratifiedSample(
-                        edges,
-                        count,
-                        (edge) => {
-                            const value = getNestedProperty(edge.data, stratifyBy);
-                            return typeof value === "string" ? value : undefined;
-                        },
-                    );
+                    sampledEdges = stratifiedSample(edges, count, (edge) => {
+                        const value = getNestedProperty(edge.data, stratifyBy);
+                        return typeof value === "string" ? value : undefined;
+                    });
                 } else {
                     sampledEdges = randomSample(edges, count);
                 }
@@ -277,7 +274,7 @@ interface StringPropertyResult {
     totalCount: number;
     nullCount: number;
     uniqueCount: number;
-    distribution: Record<string, {count: number, percentage: number}>;
+    distribution: Record<string, { count: number; percentage: number }>;
     truncated: boolean;
 }
 
@@ -290,8 +287,8 @@ interface NumberPropertyResult {
     type: "number";
     totalCount: number;
     nullCount: number;
-    statistics: {min: number, max: number, avg: number, median: number};
-    histogram: {range: string, count: number}[];
+    statistics: { min: number; max: number; avg: number; median: number };
+    histogram: { range: string; count: number }[];
 }
 
 /**
@@ -329,7 +326,7 @@ interface ArrayPropertyResult {
     itemType: string;
     uniqueItems: string[];
     uniqueItemCount: number;
-    lengthStatistics: {min: number, max: number, avg: number};
+    lengthStatistics: { min: number; max: number; avg: number };
     truncated: boolean;
 }
 
@@ -369,13 +366,12 @@ function analyzeStringProperty(
     }
 
     // Sort by count descending
-    const sortedEntries = Array.from(valueCounts.entries())
-        .sort((a, b) => b[1] - a[1]);
+    const sortedEntries = Array.from(valueCounts.entries()).sort((a, b) => b[1] - a[1]);
 
     const truncated = sortedEntries.length > limit;
     const limitedEntries = sortedEntries.slice(0, limit);
 
-    const distribution: Record<string, {count: number, percentage: number}> = {};
+    const distribution: Record<string, { count: number; percentage: number }> = {};
     for (const [value, count] of limitedEntries) {
         distribution[value] = {
             count,
@@ -493,7 +489,7 @@ function analyzeArrayProperty(
 
     for (const arr of arrayValues) {
         lengths.push(arr.length);
-        allItems.push(... arr);
+        allItems.push(...arr);
     }
 
     // Determine item type
@@ -578,26 +574,32 @@ function analyzeMixedProperty(
  */
 export const describeProperty: GraphCommand = {
     name: "describeProperty",
-    description: "Get detailed information about a specific property in node or edge data. Returns value distributions for strings, statistics for numbers, counts for booleans, and unique items for arrays.",
+    description:
+        "Get detailed information about a specific property in node or edge data. Returns value distributions for strings, statistics for numbers, counts for booleans, and unique items for arrays.",
     parameters: z.object({
-        property: z.string()
-            .describe("Property path to analyze (e.g., 'type', 'data.category', 'weight')"),
-        target: z.enum(["nodes", "edges"]).optional()
+        property: z.string().describe("Property path to analyze (e.g., 'type', 'data.category', 'weight')"),
+        target: z
+            .enum(["nodes", "edges"])
+            .optional()
             .describe("Whether to analyze node or edge properties (default: 'nodes')"),
-        limit: z.number().min(1).max(MAX_VALUE_LIMIT).optional()
+        limit: z
+            .number()
+            .min(1)
+            .max(MAX_VALUE_LIMIT)
+            .optional()
             .describe(`Maximum number of unique values to show (1-${MAX_VALUE_LIMIT}, default ${DEFAULT_VALUE_LIMIT})`),
     }),
     examples: [
-        {input: "Describe the type property on nodes", params: {property: "type", target: "nodes"}},
-        {input: "What values does the weight property have on edges?", params: {property: "weight", target: "edges"}},
-        {input: "Show me the distribution of data.category", params: {property: "data.category"}},
-        {input: "Analyze the tags property", params: {property: "tags", limit: 10}},
+        { input: "Describe the type property on nodes", params: { property: "type", target: "nodes" } },
+        {
+            input: "What values does the weight property have on edges?",
+            params: { property: "weight", target: "edges" },
+        },
+        { input: "Show me the distribution of data.category", params: { property: "data.category" } },
+        { input: "Analyze the tags property", params: { property: "tags", limit: 10 } },
     ],
 
-    execute(
-        graph: Graph,
-        params: Record<string, unknown>,
-    ): Promise<CommandResult> {
+    execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
         const {
             property,
             target = "nodes",
@@ -610,9 +612,8 @@ export const describeProperty: GraphCommand = {
 
         try {
             const dataManager = graph.getDataManager();
-            const items = target === "nodes" ?
-                Array.from(dataManager.nodes.values()) :
-                Array.from(dataManager.edges.values());
+            const items =
+                target === "nodes" ? Array.from(dataManager.nodes.values()) : Array.from(dataManager.edges.values());
 
             // Check if items exist
             if (items.length === 0) {
@@ -623,7 +624,7 @@ export const describeProperty: GraphCommand = {
             }
 
             // Collect values for the property
-            const {values, nullCount} = collectPropertyValues(items, property);
+            const { values, nullCount } = collectPropertyValues(items, property);
 
             // If all values are null/undefined, the property doesn't exist
             if (values.length === 0 && nullCount === items.length) {

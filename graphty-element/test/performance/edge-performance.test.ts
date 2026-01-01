@@ -15,9 +15,9 @@
  * - BabylonJS SceneInstrumentation for scene metrics
  */
 
-import {afterEach, assert, beforeEach, describe, test} from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
-import type {Graph} from "../../src/Graph";
+import type { Graph } from "../../src/Graph";
 import {
     BASELINES,
     extractMetricsFromSnapshot,
@@ -29,10 +29,7 @@ import {
     TEST_CONFIG,
     waitForLayoutSettle,
 } from "../helpers/performance-utils";
-import {
-    cleanupTestGraph,
-    createTestGraph,
-} from "../helpers/testSetup";
+import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("Edge Performance Tests", () => {
     let graph: Graph | null = null;
@@ -45,14 +42,14 @@ describe("Edge Performance Tests", () => {
     afterEach(() => {
         // Log metrics for analysis
         if (metrics.length > 0) {
-            // eslint-disable-next-line no-console
+             
             console.table(
                 metrics.map((m) => ({
-                    "Edges": m.edgeCount,
-                    "Layout": m.layoutType,
-                    "Line": m.lineStyle,
-                    "Arrow": m.arrowType,
-                    "FPS": m.fps.toFixed(1),
+                    Edges: m.edgeCount,
+                    Layout: m.layoutType,
+                    Line: m.lineStyle,
+                    Arrow: m.arrowType,
+                    FPS: m.fps.toFixed(1),
                     "Draw Calls": m.drawCallsCount,
                     "Memory (KB)": Math.round(m.memoryDelta / 1024),
                 })),
@@ -75,7 +72,7 @@ describe("Edge Performance Tests", () => {
         arrowType: string;
         arrowTailType?: string;
     }): Promise<PerformanceMetrics> {
-        const {edgeCount, layoutType, lineStyle, arrowType, arrowTailType} = options;
+        const { edgeCount, layoutType, lineStyle, arrowType, arrowTailType } = options;
 
         // Capture memory before
         const heapUsedBefore = getHeapUsed();
@@ -127,13 +124,13 @@ describe("Edge Performance Tests", () => {
         const graphData = {
             nodes: nodes.map((n) => ({
                 id: n.id,
-                position: n.x !== undefined ? {x: n.x, y: n.y ?? 0, z: n.z ?? 0} : undefined,
+                position: n.x !== undefined ? { x: n.x, y: n.y ?? 0, z: n.z ?? 0 } : undefined,
             })),
             edges: edges.map((e, i) => ({
                 id: `edge-${i}`,
                 source: e.source,
                 target: e.target,
-                ... edgeStyle,
+                ...edgeStyle,
             })),
         };
 
@@ -173,8 +170,8 @@ describe("Edge Performance Tests", () => {
         const result = extractMetricsFromSnapshot(
             snapshot,
             blockingReport,
-            {edgeCount, layoutType, lineStyle, arrowType},
-            {heapUsedBefore, heapUsedAfter, memoryDelta},
+            { edgeCount, layoutType, lineStyle, arrowType },
+            { heapUsedBefore, heapUsedAfter, memoryDelta },
         );
 
         // Cleanup profiling
@@ -190,7 +187,7 @@ describe("Edge Performance Tests", () => {
     describe("Edge Count Scaling", () => {
         describe("Static Layout (Fixed Positions)", () => {
             // Test smallest edge count as a quick sanity check
-            test("10 edges with fixed layout", async() => {
+            test("10 edges with fixed layout", async () => {
                 const result = await measureEdgePerformance({
                     edgeCount: 10,
                     layoutType: "fixed",
@@ -204,7 +201,7 @@ describe("Edge Performance Tests", () => {
                 assert.isAtLeast(result.edgeCount, 10, "Should have at least 10 edges");
             });
 
-            test("100 edges with fixed layout", async() => {
+            test("100 edges with fixed layout", async () => {
                 const result = await measureEdgePerformance({
                     edgeCount: 100,
                     layoutType: "fixed",
@@ -220,7 +217,7 @@ describe("Edge Performance Tests", () => {
         });
 
         describe("Physics Layout (NGraph Force-Directed)", () => {
-            test("10 edges with ngraph physics", async() => {
+            test("10 edges with ngraph physics", async () => {
                 const result = await measureEdgePerformance({
                     edgeCount: 10,
                     layoutType: "ngraph",
@@ -243,7 +240,7 @@ describe("Edge Performance Tests", () => {
         const BENCHMARK_EDGE_COUNT = 100; // Reduced for faster tests
 
         describe("Solid Line (CustomLineRenderer)", () => {
-            test("solid line with fixed layout", async() => {
+            test("solid line with fixed layout", async () => {
                 const result = await measureEdgePerformance({
                     edgeCount: BENCHMARK_EDGE_COUNT,
                     layoutType: "fixed",
@@ -260,7 +257,7 @@ describe("Edge Performance Tests", () => {
             const patterns = ["dot", "dash", "diamond"];
 
             patterns.forEach((pattern) => {
-                test(`${pattern} pattern with fixed layout`, async() => {
+                test(`${pattern} pattern with fixed layout`, async () => {
                     const result = await measureEdgePerformance({
                         edgeCount: BENCHMARK_EDGE_COUNT,
                         layoutType: "fixed",
@@ -275,7 +272,7 @@ describe("Edge Performance Tests", () => {
         });
 
         describe("Line Style Comparison", () => {
-            test("compare solid vs patterned at 100 edges", async() => {
+            test("compare solid vs patterned at 100 edges", async () => {
                 const solidResult = await measureEdgePerformance({
                     edgeCount: BENCHMARK_EDGE_COUNT,
                     layoutType: "fixed",
@@ -306,7 +303,7 @@ describe("Edge Performance Tests", () => {
         const BENCHMARK_EDGE_COUNT = 100;
 
         describe("No Arrows (Baseline)", () => {
-            test("no arrows with fixed layout", async() => {
+            test("no arrows with fixed layout", async () => {
                 const result = await measureEdgePerformance({
                     edgeCount: BENCHMARK_EDGE_COUNT,
                     layoutType: "fixed",
@@ -323,7 +320,7 @@ describe("Edge Performance Tests", () => {
             const filledArrows = ["normal", "diamond"];
 
             filledArrows.forEach((arrowType) => {
-                test(`${arrowType} filled arrow with fixed layout`, async() => {
+                test(`${arrowType} filled arrow with fixed layout`, async () => {
                     const result = await measureEdgePerformance({
                         edgeCount: BENCHMARK_EDGE_COUNT,
                         layoutType: "fixed",
@@ -341,7 +338,7 @@ describe("Edge Performance Tests", () => {
             const outlineArrows = ["tee", "open-normal"];
 
             outlineArrows.forEach((arrowType) => {
-                test(`${arrowType} outline arrow with fixed layout`, async() => {
+                test(`${arrowType} outline arrow with fixed layout`, async () => {
                     const result = await measureEdgePerformance({
                         edgeCount: BENCHMARK_EDGE_COUNT,
                         layoutType: "fixed",
@@ -356,7 +353,7 @@ describe("Edge Performance Tests", () => {
         });
 
         describe("Arrowhead Type Comparison", () => {
-            test("compare no arrow vs normal arrow at 100 edges", async() => {
+            test("compare no arrow vs normal arrow at 100 edges", async () => {
                 const noArrowResult = await measureEdgePerformance({
                     edgeCount: BENCHMARK_EDGE_COUNT,
                     layoutType: "fixed",
@@ -386,7 +383,7 @@ describe("Edge Performance Tests", () => {
     describe("Bidirectional Arrow Performance", () => {
         const BENCHMARK_EDGE_COUNT = 50;
 
-        test("bidirectional normal arrows with fixed layout", async() => {
+        test("bidirectional normal arrows with fixed layout", async () => {
             const result = await measureEdgePerformance({
                 edgeCount: BENCHMARK_EDGE_COUNT,
                 layoutType: "fixed",
@@ -399,7 +396,7 @@ describe("Edge Performance Tests", () => {
             assert.strictEqual(result.arrowType, "normal");
         });
 
-        test("mixed arrow types (normal head, tee tail)", async() => {
+        test("mixed arrow types (normal head, tee tail)", async () => {
             const result = await measureEdgePerformance({
                 edgeCount: BENCHMARK_EDGE_COUNT,
                 layoutType: "fixed",
@@ -418,7 +415,7 @@ describe("Edge Performance Tests", () => {
     // =========================================================
     describe("Combined Configuration Performance", () => {
         describe("Realistic Graph Configurations", () => {
-            test("50 edges: solid line + normal arrows + fixed layout", async() => {
+            test("50 edges: solid line + normal arrows + fixed layout", async () => {
                 const result = await measureEdgePerformance({
                     edgeCount: 50,
                     layoutType: "fixed",
@@ -430,7 +427,7 @@ describe("Edge Performance Tests", () => {
                 assert.isAtLeast(result.edgeCount, 50);
             });
 
-            test("100 edges: dash line + diamond arrows + fixed layout", async() => {
+            test("100 edges: dash line + diamond arrows + fixed layout", async () => {
                 const result = await measureEdgePerformance({
                     edgeCount: 100,
                     layoutType: "fixed",
@@ -451,7 +448,7 @@ describe("Edge Performance Tests", () => {
         const EDGE_COUNTS = [50, 100];
 
         EDGE_COUNTS.forEach((edgeCount) => {
-            test(`memory usage for ${edgeCount} edges (solid, no arrows)`, async() => {
+            test(`memory usage for ${edgeCount} edges (solid, no arrows)`, async () => {
                 const result = await measureEdgePerformance({
                     edgeCount,
                     layoutType: "fixed",
@@ -466,7 +463,7 @@ describe("Edge Performance Tests", () => {
             });
         });
 
-        test("memory comparison: solid vs patterned lines", async() => {
+        test("memory comparison: solid vs patterned lines", async () => {
             const solidResult = await measureEdgePerformance({
                 edgeCount: 100,
                 layoutType: "fixed",
@@ -493,7 +490,7 @@ describe("Edge Performance Tests", () => {
     // SECTION 7: Bottleneck Detection Tests
     // =========================================================
     describe("Bottleneck Detection", () => {
-        test("identifies bottlenecks from metrics", async() => {
+        test("identifies bottlenecks from metrics", async () => {
             const result = await measureEdgePerformance({
                 edgeCount: 100,
                 layoutType: "fixed",
@@ -512,7 +509,7 @@ describe("Edge Performance Tests", () => {
             assert.oneOf(report.overallHealth, ["good", "fair", "poor"]);
         });
 
-        test("bottleneck report includes summary", async() => {
+        test("bottleneck report includes summary", async () => {
             const result = await measureEdgePerformance({
                 edgeCount: 50,
                 layoutType: "fixed",
@@ -531,7 +528,7 @@ describe("Edge Performance Tests", () => {
     // SECTION 8: Performance Regression Tests
     // =========================================================
     describe("Performance Regression Tests", () => {
-        test("baseline test validates structure", async() => {
+        test("baseline test validates structure", async () => {
             const result = await measureEdgePerformance({
                 edgeCount: 100,
                 layoutType: "fixed",

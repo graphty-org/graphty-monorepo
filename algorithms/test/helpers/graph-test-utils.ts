@@ -1,14 +1,11 @@
-import {Graph} from "../../src/core/graph";
+import { Graph } from "../../src/core/graph";
 
 /**
  * Helper function to create Graph from Map representation
  * Used in tests that were previously using Map directly
  */
-export function createGraphFromMap(
-    map: Map<string, Map<string, number>>,
-    directed = true,
-): Graph {
-    const graph = new Graph({directed});
+export function createGraphFromMap(map: Map<string, Map<string, number>>, directed = true): Graph {
+    const graph = new Graph({ directed });
 
     // Add all nodes
     for (const node of map.keys()) {
@@ -33,7 +30,7 @@ export function createGraphFromAdjacencySet<T extends string | number>(
     adjacencySet: Map<T, Set<T>>,
     directed = false,
 ): Graph {
-    const graph = new Graph({directed});
+    const graph = new Graph({ directed });
 
     // Add all nodes
     for (const node of adjacencySet.keys()) {

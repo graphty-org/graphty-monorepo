@@ -4,8 +4,8 @@
  */
 
 // Types
-export type {InputAdapter, InputCallback, InputOptions} from "./types";
+export type { InputAdapter, InputCallback, InputOptions } from "./types";
 
 // Adapters
-export {TextInputAdapter} from "./TextInputAdapter";
-export {VoiceInputAdapter} from "./VoiceInputAdapter";
+export { TextInputAdapter } from "./TextInputAdapter";
+export { VoiceInputAdapter } from "./VoiceInputAdapter";

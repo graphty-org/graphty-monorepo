@@ -3,12 +3,12 @@
  * @module ai/AiController
  */
 
-import type {AiEvent} from "../events";
-import {type AiStatus, AiStatusManager, type StatusChangeCallback} from "./AiStatus";
-import type {CommandRegistry} from "./commands";
-import type {CommandContext, CommandResult} from "./commands/types";
-import type {LlmProvider, Message, ToolCall} from "./providers/types";
-import type {SchemaManager} from "./schema";
+import type { AiEvent } from "../events";
+import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
+import type { CommandRegistry } from "./commands";
+import type { CommandContext, CommandResult } from "./commands/types";
+import type { LlmProvider, Message, ToolCall } from "./providers/types";
+import type { SchemaManager } from "./schema";
 
 /** Event emitter callback type */
 export type AiEventEmitter = (event: AiEvent) => void;
@@ -135,18 +135,15 @@ export class AiController {
             this.statusManager.startStreaming();
 
             // Call the LLM
-            const response = await this.provider.generate(
-                messages,
-                tools,
-                {signal: this.abortController.signal},
-            );
+            const response = await this.provider.generate(messages, tools, { signal: this.abortController.signal });
 
             // Log AI response
             // eslint-disable-next-line no-console
             console.log("[AI] Response - Text:", response.text || "(no text)");
-            const toolCallsLog = response.toolCalls.length > 0 ?
-                response.toolCalls.map((tc) => `${tc.name}(${JSON.stringify(tc.arguments)})`).join(", ") :
-                "(none)";
+            const toolCallsLog =
+                response.toolCalls.length > 0
+                    ? response.toolCalls.map((tc) => `${tc.name}(${JSON.stringify(tc.arguments)})`).join(", ")
+                    : "(none)";
             // eslint-disable-next-line no-console
             console.log("[AI] Response - Tool calls:", toolCallsLog);
 
@@ -261,9 +258,7 @@ export class AiController {
         if (supportsSystemPrompt) {
             // Build a system prompt with available commands
             const commands = this.commandRegistry.getAll();
-            const commandDescriptions = commands.map((cmd) =>
-                `- ${cmd.name}: ${cmd.description}`,
-            ).join("\n");
+            const commandDescriptions = commands.map((cmd) => `- ${cmd.name}: ${cmd.description}`).join("\n");
 
             // Build schema section if available
             const schemaSection = this.buildSchemaSection();
@@ -275,10 +270,10 @@ ${commandDescriptions}
 ${schemaSection}
 When the user asks you to perform an action, use the appropriate tool. If no tool is needed, respond conversationally.`;
 
-            messages.push({role: "system", content: systemPrompt});
+            messages.push({ role: "system", content: systemPrompt });
         }
 
-        messages.push({role: "user", content: input});
+        messages.push({ role: "user", content: input });
 
         return messages;
     }
@@ -331,14 +326,14 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 this.statusManager.updateToolCallStatus(
                     toolCall.name,
                     result.success ? "complete" : "error",
-                    result.data ?? {message: result.message},
+                    result.data ?? { message: result.message },
                 );
 
                 // Emit tool result event
                 this.emitAiEvent({
                     type: "ai-stream-tool-result",
                     name: toolCall.name,
-                    result: result.data ?? {message: result.message},
+                    result: result.data ?? { message: result.message },
                     success: result.success,
                 });
 
@@ -355,17 +350,13 @@ When the user asks you to perform an action, use the appropriate tool. If no too
 
                 results.push(errorResult);
 
-                this.statusManager.updateToolCallStatus(
-                    toolCall.name,
-                    "error",
-                    {error: errorMessage},
-                );
+                this.statusManager.updateToolCallStatus(toolCall.name, "error", { error: errorMessage });
 
                 // Emit tool result event for error
                 this.emitAiEvent({
                     type: "ai-stream-tool-result",
                     name: toolCall.name,
-                    result: {error: errorMessage},
+                    result: { error: errorMessage },
                     success: false,
                 });
                 break;
@@ -408,9 +399,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             // eslint-disable-next-line no-console
             console.log("[AI] Validated arguments:", JSON.stringify(validatedArguments, null, 2));
         } catch (validationError) {
-            const errorMessage = validationError instanceof Error ?
-                validationError.message :
-                String(validationError);
+            const errorMessage = validationError instanceof Error ? validationError.message : String(validationError);
             // eslint-disable-next-line no-console
             console.log("[AI] Command result: FAILED - Invalid arguments");
             // eslint-disable-next-line no-console
@@ -480,13 +469,9 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         }
 
         // Combine affected nodes/edges
-        const affectedNodes = results
-            .flatMap((r) => r.affectedNodes ?? [])
-            .filter((v, i, a) => a.indexOf(v) === i); // Unique
+        const affectedNodes = results.flatMap((r) => r.affectedNodes ?? []).filter((v, i, a) => a.indexOf(v) === i); // Unique
 
-        const affectedEdges = results
-            .flatMap((r) => r.affectedEdges ?? [])
-            .filter((v, i, a) => a.indexOf(v) === i); // Unique
+        const affectedEdges = results.flatMap((r) => r.affectedEdges ?? []).filter((v, i, a) => a.indexOf(v) === i); // Unique
 
         // Use data from last successful result (or last result)
         const lastResult = results.filter((r) => r.success).pop() ?? results[results.length - 1];

@@ -3,6 +3,7 @@
 ## Problem Statement
 
 Current edge rendering uses screen-space shaders and billboarding optimized for 3D perspective cameras. In 2D orthographic mode with a fixed camera:
+
 1. Billboarding is unnecessary (camera never rotates)
 2. Screen-space sizing conflicts with world-space zoom behavior
 3. Shader complexity adds overhead for no benefit
@@ -12,11 +13,13 @@ Current edge rendering uses screen-space shaders and billboarding optimized for 
 ## Current State
 
 ### 3D Mode (Perspective Camera)
+
 - **Solid lines:** CustomLineRenderer - screen-space shader, constant pixel width
 - **Patterned lines:** PatternedLineRenderer - billboarded meshes, uses FilledArrowRenderer shader
 - **Arrows:** FilledArrowRenderer - billboarded meshes with shader
 
 ### 2D Mode (Orthographic Camera) - Current Issues
+
 - Uses same renderers as 3D mode
 - Unnecessary billboarding (camera is fixed looking down at XY plane)
 - Scaling conflicts between screen-space and world-space
@@ -25,13 +28,16 @@ Current edge rendering uses screen-space shaders and billboarding optimized for 
 ## Solution: Material-Based Differentiation (Not Separate Renderers)
 
 ### Key Insight
+
 The ONLY difference between 2D and 3D rendering is:
+
 - **Material:** StandardMaterial (2D flat) vs ShaderMaterial (3D billboarding)
 - **Orientation:** Pre-rotated to XY plane (2D) vs shader-dynamic (3D)
 
 **All geometry can be reused 100%!**
 
 ### Design Principle
+
 **2D mode:** Reuse existing geometry + StandardMaterial + XY plane rotation
 **3D mode:** Reuse existing geometry + ShaderMaterial with billboarding
 
@@ -61,12 +67,7 @@ class MaterialHelper {
      * Apply 2D material: StandardMaterial + rotate to XY plane
      * Geometry created in XZ plane (billboarding convention) is rotated to XY plane
      */
-    static apply2DMaterial(
-        mesh: Mesh,
-        color: string,
-        opacity: number,
-        scene: Scene
-    ): void {
+    static apply2DMaterial(mesh: Mesh, color: string, opacity: number, scene: Scene): void {
         // Create simple material
         const material = new StandardMaterial(`2d-${mesh.name}`, scene);
         material.diffuseColor = Color3.FromHexString(color);
@@ -87,11 +88,7 @@ class MaterialHelper {
      * Apply 3D material: ShaderMaterial with billboarding
      * Uses FilledArrowRenderer shader for camera-facing geometry
      */
-    static apply3DMaterial(
-        mesh: Mesh,
-        options: FilledArrowOptions,
-        scene: Scene
-    ): void {
+    static apply3DMaterial(mesh: Mesh, options: FilledArrowOptions, scene: Scene): void {
         FilledArrowRenderer.applyShader(mesh, options, scene);
     }
 }
@@ -104,6 +101,7 @@ class MaterialHelper {
 **Purpose:** Render solid lines in 2D mode (CustomLineRenderer uses screen-space shader, can't be reused)
 
 **Implementation:**
+
 - Creates flat rectangular mesh in XY plane
 - 4 vertices forming a quad perpendicular to line direction
 - World-space width
@@ -111,14 +109,7 @@ class MaterialHelper {
 
 ```typescript
 class Simple2DLineRenderer {
-    static create(
-        start: Vector3,
-        end: Vector3,
-        width: number,
-        color: string,
-        opacity: number,
-        scene: Scene
-    ): Mesh {
+    static create(start: Vector3, end: Vector3, width: number, color: string, opacity: number, scene: Scene): Mesh {
         // 1. Calculate line direction in XY plane
         const direction = end.subtract(start);
         const length = direction.length();
@@ -152,7 +143,7 @@ class Simple2DLineRenderer {
         material.backFaceCulling = false;
         mesh.material = material;
 
-        mesh.metadata = {is2D: true, is2DLine: true};
+        mesh.metadata = { is2D: true, is2DLine: true };
 
         return mesh;
     }
@@ -161,11 +152,7 @@ class Simple2DLineRenderer {
      * Update positions of existing 2D line mesh
      * Called by Edge.transformEdgeMesh()
      */
-    static updatePositions(
-        mesh: Mesh,
-        start: Vector3,
-        end: Vector3
-    ): void {
+    static updatePositions(mesh: Mesh, start: Vector3, end: Vector3): void {
         // Recalculate vertices and update mesh
         // (Same calculation as create, but update existing mesh)
     }
@@ -310,6 +297,7 @@ static create(
 ```
 
 **Key Changes:**
+
 - Solid lines: Still have 2D vs 3D split (can't reuse CustomLineRenderer geometry)
 - Patterned lines: SAME code path, just pass `is2D` flag to PatternedLineRenderer
 
@@ -409,22 +397,26 @@ if (this.arrowMesh) {
 ## Width Defaults
 
 ### 2D Mode
+
 ```typescript
 const DEFAULT_2D_LINE_WIDTH = 0.05; // world units, tune after testing
 const DEFAULT_2D_ARROW_WIDTH = 0.1; // world units, tune after testing
 ```
 
 ### 3D Mode
+
 Keep existing defaults (optimized for screen-space/billboarding).
 
 ## Code Deletion
 
 ### Remove Scaling Code
+
 1. **CustomLineRenderer.ts** - Delete orthoScale calculation (lines 284-306)
 2. **Edge.ts** - Delete zoomFactor calculations in transformArrowCap() (3 locations)
 3. **Edge.ts** - Delete `_lastLoggedFrustum` property and debug logging
 
 ### Keep CustomLineRenderer
+
 - Still used for 3D solid lines
 - Remove only the orthoScale/2D-specific code
 - Keep screen-space shader logic intact
@@ -432,6 +424,7 @@ Keep existing defaults (optimized for screen-space/billboarding).
 ## Testing Plan
 
 ### Unit Tests
+
 1. Test MaterialHelper.apply2DMaterial() - verify StandardMaterial creation and XY rotation
 2. Test MaterialHelper.apply3DMaterial() - verify ShaderMaterial application
 3. Test Simple2DLineRenderer creates correct geometry
@@ -440,6 +433,7 @@ Keep existing defaults (optimized for screen-space/billboarding).
 6. Test is2DMode() detection logic
 
 ### Visual Tests
+
 1. Create 2D story with solid lines - verify world-space zoom
 2. Create 2D story with patterned lines - verify consistency with arrows
 3. Create 2D story with various arrow types - verify all render correctly
@@ -447,16 +441,17 @@ Keep existing defaults (optimized for screen-space/billboarding).
 5. Verify 3D mode still works with existing renderers
 
 ### Stories to Add
+
 ```typescript
 // stories/EdgeStyles.stories.ts
 
 export const TwoDSolidWorld: Story = {
     args: {
         styleTemplate: templateCreator({
-            graph: {twoD: true},
+            graph: { twoD: true },
             edgeStyle: {
-                line: {color: "darkgrey"},
-                arrowHead: {type: "normal", color: "darkgrey"},
+                line: { color: "darkgrey" },
+                arrowHead: { type: "normal", color: "darkgrey" },
             },
         }),
     },
@@ -465,10 +460,10 @@ export const TwoDSolidWorld: Story = {
 export const TwoDPatternsWorld: Story = {
     args: {
         styleTemplate: templateCreator({
-            graph: {twoD: true},
+            graph: { twoD: true },
             edgeStyle: {
-                line: {type: "diamond", color: "darkgrey"},
-                arrowHead: {type: "diamond", color: "darkgrey"},
+                line: { type: "diamond", color: "darkgrey" },
+                arrowHead: { type: "diamond", color: "darkgrey" },
             },
         }),
     },
@@ -478,11 +473,13 @@ export const TwoDPatternsWorld: Story = {
 ## Migration Notes
 
 ### Breaking Changes
+
 - 2D mode behavior changes from constant pixel width to world-space zoom
 - Default widths may appear different in 2D mode
 - Users relying on specific 2D visual appearance may need to adjust widths
 
 ### Backwards Compatibility
+
 - 3D mode behavior unchanged
 - Existing stories/tests for 3D mode should pass without changes
 - Only 2D mode behavior changes
@@ -515,13 +512,13 @@ export const TwoDPatternsWorld: Story = {
 ## Open Questions
 
 1. Should Simple2DLineRenderer support line thickness variations (tapering)?
-   - **Decision:** No, keep it simple. Constant width.
+    - **Decision:** No, keep it simple. Constant width.
 
 2. Should we support animated lines in 2D mode?
-   - **Decision:** Defer to future. Start with static lines.
+    - **Decision:** Defer to future. Start with static lines.
 
 3. How to handle edge labels in 2D vs 3D?
-   - **Decision:** Out of scope for this design. Labels work the same.
+    - **Decision:** Out of scope for this design. Labels work the same.
 
 ## References
 

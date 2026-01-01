@@ -1,9 +1,9 @@
-import {Engine, NullEngine, Scene} from "@babylonjs/core";
-import {afterEach, assert, beforeEach, describe, test, vi} from "vitest";
+import { Engine, NullEngine, Scene } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
-import {MouseButton} from "../../src/input/types";
-import {EventManager} from "../../src/managers/EventManager";
-import {InputManager} from "../../src/managers/InputManager";
+import { MouseButton } from "../../src/input/types";
+import { EventManager } from "../../src/managers/EventManager";
+import { InputManager } from "../../src/managers/InputManager";
 
 describe("InputManager", () => {
     let scene: Scene;
@@ -18,27 +18,27 @@ describe("InputManager", () => {
         canvas = document.createElement("canvas");
         eventManager = new EventManager();
 
-        const context = {scene, engine, canvas, eventManager};
-        inputManager = new InputManager(context, {useMockInput: true});
+        const context = { scene, engine, canvas, eventManager };
+        inputManager = new InputManager(context, { useMockInput: true });
     });
 
     afterEach(() => {
         inputManager.dispose();
     });
 
-    test("initializes with mock input system", async() => {
+    test("initializes with mock input system", async () => {
         await inputManager.init();
 
         const mockSystem = inputManager.getMockInputSystem();
         assert.isDefined(mockSystem);
     });
 
-    test("bridges input events to event manager", async() => {
+    test("bridges input events to event manager", async () => {
         await inputManager.init();
 
         const eventSpy = vi.fn();
         eventManager.onGraphEvent.add((event) => {
-            if ((event as {type: string}).type === "input:pointer-move") {
+            if ((event as { type: string }).type === "input:pointer-move") {
                 eventSpy(event);
             }
         });
@@ -56,12 +56,12 @@ describe("InputManager", () => {
         // the structure might be different. Let's just verify it was called.
     });
 
-    test("can enable/disable input", async() => {
+    test("can enable/disable input", async () => {
         await inputManager.init();
 
         let eventReceived = false;
         eventManager.onGraphEvent.add((event) => {
-            if ((event as {type: string}).type === "input:pointer-move") {
+            if ((event as { type: string }).type === "input:pointer-move") {
                 eventReceived = true;
             }
         });
@@ -81,7 +81,7 @@ describe("InputManager", () => {
         assert.isTrue(eventReceived, "Should receive events when enabled");
     });
 
-    test.skip("records and plays back input events", async() => {
+    test.skip("records and plays back input events", async () => {
         await inputManager.init();
 
         // Start recording
@@ -116,7 +116,7 @@ describe("InputManager", () => {
             }, 5000);
 
             eventManager.onGraphEvent.add((event) => {
-                if ((event as {type: string}).type === "input-playback-completed") {
+                if ((event as { type: string }).type === "input-playback-completed") {
                     clearTimeout(timeout);
                     resolve();
                 }
@@ -128,13 +128,12 @@ describe("InputManager", () => {
         assert.isTrue(playbackEvents.includes("input:pointer-up"), "Should include pointer-up");
     });
 
-    test("emits keyboard shortcut events", async() => {
+    test("emits keyboard shortcut events", async () => {
         await inputManager.init();
 
         const shortcuts: string[] = [];
         eventManager.onGraphEvent.add((event) => {
-            if (event.type.startsWith("input:") &&
-                !event.type.includes("key")) {
+            if (event.type.startsWith("input:") && !event.type.includes("key")) {
                 shortcuts.push(event.type);
             }
         });
@@ -142,19 +141,19 @@ describe("InputManager", () => {
         const mockSystem = inputManager.getMockInputSystem();
 
         // Test Ctrl+Z (undo)
-        mockSystem.simulateKeyDown("z", {ctrlKey: true});
+        mockSystem.simulateKeyDown("z", { ctrlKey: true });
         assert.isTrue(shortcuts.includes("input:undo"), "Should emit undo shortcut");
 
         // Test Ctrl+Y (redo)
-        mockSystem.simulateKeyDown("y", {ctrlKey: true});
+        mockSystem.simulateKeyDown("y", { ctrlKey: true });
         assert.isTrue(shortcuts.includes("input:redo"), "Should emit redo shortcut");
 
         // Test Ctrl+A (select all)
-        mockSystem.simulateKeyDown("a", {ctrlKey: true});
+        mockSystem.simulateKeyDown("a", { ctrlKey: true });
         assert.isTrue(shortcuts.includes("input:select-all"), "Should emit select-all shortcut");
     });
 
-    test("state queries work correctly", async() => {
+    test("state queries work correctly", async () => {
         await inputManager.init();
 
         const mockSystem = inputManager.getMockInputSystem();
@@ -174,8 +173,8 @@ describe("InputManager", () => {
 
         // Test touch state
         mockSystem.simulateTouchStart([
-            {id: 1, x: 100, y: 100},
-            {id: 2, x: 200, y: 200},
+            { id: 1, x: 100, y: 100 },
+            { id: 2, x: 200, y: 200 },
         ]);
 
         const touches = inputManager.getActiveTouches();
@@ -184,27 +183,28 @@ describe("InputManager", () => {
         assert.equal(touches[1].id, 2, "Second touch ID should be correct");
     });
 
-    test("throws error when getting mock system without mock input", async() => {
-        const realInputManager = new InputManager(
-            {scene, engine, canvas, eventManager},
-            {useMockInput: false},
-        );
+    test("throws error when getting mock system without mock input", async () => {
+        const realInputManager = new InputManager({ scene, engine, canvas, eventManager }, { useMockInput: false });
 
         await realInputManager.init();
 
-        assert.throws(() => {
-            realInputManager.getMockInputSystem();
-        }, "Not using mock input system", "Should throw when not using mock input");
+        assert.throws(
+            () => {
+                realInputManager.getMockInputSystem();
+            },
+            "Not using mock input system",
+            "Should throw when not using mock input",
+        );
 
         realInputManager.dispose();
     });
 
-    test("updates configuration", async() => {
+    test("updates configuration", async () => {
         await inputManager.init();
 
         let configUpdated = false;
         eventManager.onGraphEvent.add((event) => {
-            if ((event as {type: string}).type === "input-config-updated") {
+            if ((event as { type: string }).type === "input-config-updated") {
                 configUpdated = true;
             }
         });
@@ -217,12 +217,12 @@ describe("InputManager", () => {
         assert.isTrue(configUpdated, "Should emit config updated event");
     });
 
-    test.skip("handles initialization errors gracefully", async() => {
+    test.skip("handles initialization errors gracefully", async () => {
         // Skip this test as the InputManager implementation doesn't handle
         // null canvas errors the way the test expects
         const badCanvas = null as unknown as HTMLCanvasElement;
-        const badContext = {scene, engine, canvas: badCanvas, eventManager};
-        const badInputManager = new InputManager(badContext, {useMockInput: true});
+        const badContext = { scene, engine, canvas: badCanvas, eventManager };
+        const badInputManager = new InputManager(badContext, { useMockInput: true });
 
         let errorEmitted = false;
         eventManager.onGraphError.add(() => {

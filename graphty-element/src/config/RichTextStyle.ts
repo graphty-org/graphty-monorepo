@@ -1,6 +1,6 @@
-import {z} from "zod/v4";
+import { z } from "zod/v4";
 
-import {AdvancedColorStyle, ColorStyle, TextLocation} from "./common";
+import { AdvancedColorStyle, ColorStyle, TextLocation } from "./common";
 
 // Position types
 const Position3D = z.strictObject({
@@ -145,4 +145,3 @@ export type RichTextStyleType = z.infer<typeof RichTextStyle>;
  * Parsed from the Zod schema to ensure defaults stay in sync.
  */
 export const defaultRichTextLabelStyle: RichTextStyleType = RichTextStyle.parse({});
-

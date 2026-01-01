@@ -4,8 +4,11 @@
 
 export const pathfindingUtils = {
     /**
-   * Reconstructs a path from start to goal using the cameFrom map
-   */
+     * Reconstructs a path from start to goal using the cameFrom map
+     * @param cameFrom - Map of each node to its predecessor on the path
+     * @param goal - The goal node to reconstruct the path to
+     * @returns An array of nodes representing the path from start to goal
+     */
     reconstructPath<T>(cameFrom: Map<T, T>, goal: T): T[] {
         const path: T[] = [goal];
         let current = goal;
@@ -24,13 +27,13 @@ export const pathfindingUtils = {
     },
 
     /**
-   * Creates a grid graph for testing pathfinding algorithms
-   */
-    createGridGraph(
-        width: number,
-        height: number,
-        obstacles = new Set<string>(),
-    ): Map<string, Map<string, number>> {
+     * Creates a grid graph for testing pathfinding algorithms
+     * @param width - The width of the grid
+     * @param height - The height of the grid
+     * @param obstacles - Set of obstacle coordinates as "x,y" strings
+     * @returns A grid graph with 4-directional movement
+     */
+    createGridGraph(width: number, height: number, obstacles = new Set<string>()): Map<string, Map<string, number>> {
         const graph = new Map<string, Map<string, number>>();
 
         for (let x = 0; x < width; x++) {
@@ -44,7 +47,10 @@ export const pathfindingUtils = {
 
                 // Add 4-directional neighbors
                 const directions = [
-                    [0, 1], [1, 0], [0, -1], [-1, 0],
+                    [0, 1],
+                    [1, 0],
+                    [0, -1],
+                    [-1, 0],
                 ];
 
                 for (const dir of directions) {
@@ -71,8 +77,10 @@ export const pathfindingUtils = {
     },
 
     /**
-   * Parses a grid coordinate string
-   */
+     * Parses a grid coordinate string
+     * @param coord - The coordinate string in "x,y" format
+     * @returns A tuple of [x, y] coordinates
+     */
     parseGridCoordinate(coord: string): [number, number] {
         const parts = coord.split(",").map(Number);
         const x = parts[0];
@@ -84,4 +92,3 @@ export const pathfindingUtils = {
         return [x, y];
     },
 };
-

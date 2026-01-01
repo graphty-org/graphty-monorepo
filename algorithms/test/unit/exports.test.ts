@@ -1,4 +1,4 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type {
     ClosenessCentralityOptions,
@@ -17,10 +17,10 @@ import type {
 describe("Type exports", () => {
     it("should export all algorithm option types", () => {
         // These tests verify TypeScript compilation succeeds
-        const closeOptions: ClosenessCentralityOptions = {normalized: true};
-        const spectralOptions: SpectralClusteringOptions = {k: 3};
-        const terahacConfig: TeraHACConfig = {numClusters: 5};
-        const leidenOptions: LeidenOptions = {resolution: 1.0};
+        const closeOptions: ClosenessCentralityOptions = { normalized: true };
+        const spectralOptions: SpectralClusteringOptions = { k: 3 };
+        const terahacConfig: TeraHACConfig = { numClusters: 5 };
+        const leidenOptions: LeidenOptions = { resolution: 1.0 };
 
         expect(closeOptions).toBeDefined();
         expect(spectralOptions).toBeDefined();

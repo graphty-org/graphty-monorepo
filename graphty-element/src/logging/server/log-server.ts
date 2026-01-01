@@ -19,9 +19,9 @@
 import * as fs from "fs";
 import * as http from "http";
 import * as https from "https";
-import {URL} from "url";
+import { URL } from "url";
 
-import {certFilesExist, generateSelfSignedCert, readCertFiles} from "./self-signed-cert.js";
+import { certFilesExist, generateSelfSignedCert, readCertFiles } from "./self-signed-cert.js";
 
 // ANSI color codes for terminal output
 const colors = {
@@ -108,7 +108,7 @@ function displayLog(sessionId: string, log: LogEntry): void {
     const session = `${colors.cyan}[${sessionId.substring(0, 12)}]${colors.reset}`;
 
     // Truncate very long messages for display
-    let {message} = log;
+    let { message } = log;
     if (message.length > 1000) {
         message = `${message.substring(0, 1000)}... [truncated]`;
     }
@@ -166,24 +166,28 @@ function handleRequest(
         req.on("end", () => {
             try {
                 const data = JSON.parse(body) as LogBatch;
-                const {sessionId, logs} = data;
+                const { sessionId, logs } = data;
 
                 // Initialize session if new
                 if (!remoteLogs.has(sessionId)) {
                     remoteLogs.set(sessionId, []);
                     // eslint-disable-next-line no-console
-                    console.log(`\n${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}`);
+                    console.log(
+                        `\n${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}`,
+                    );
                     // eslint-disable-next-line no-console
                     console.log(`${colors.bright}${colors.magenta}  NEW SESSION: ${sessionId}${colors.reset}`);
                     // eslint-disable-next-line no-console
-                    console.log(`${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}\n`);
+                    console.log(
+                        `${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}\n`,
+                    );
                 }
 
                 const sessionLogs = remoteLogs.get(sessionId);
                 if (!sessionLogs) {
                     // Should not happen since we just set it above, but satisfy TypeScript
-                    res.writeHead(500, {"Content-Type": "application/json"});
-                    res.end(JSON.stringify({error: "Internal error"}));
+                    res.writeHead(500, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: "Internal error" }));
                     return;
                 }
 
@@ -193,12 +197,12 @@ function handleRequest(
                     displayLog(sessionId, log);
                 }
 
-                res.writeHead(200, {"Content-Type": "application/json"});
-                res.end(JSON.stringify({success: true}));
+                res.writeHead(200, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ success: true }));
             } catch (error) {
                 console.error("Error parsing log data:", error);
-                res.writeHead(400, {"Content-Type": "application/json"});
-                res.end(JSON.stringify({error: "Invalid JSON"}));
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "Invalid JSON" }));
             }
         });
         return;
@@ -210,7 +214,7 @@ function handleRequest(
         for (const [sessionId, logs] of remoteLogs) {
             allLogs[sessionId] = logs;
         }
-        res.writeHead(200, {"Content-Type": "application/json"});
+        res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(allLogs, null, 2));
         return;
     }
@@ -222,11 +226,11 @@ function handleRequest(
         const errorsOnly = urlObj.searchParams.get("errors") === "true";
 
         // Collect all logs with session info
-        const allLogs: (LogEntry & {sessionId: string})[] = [];
+        const allLogs: (LogEntry & { sessionId: string })[] = [];
         for (const [sessionId, logs] of remoteLogs) {
             for (const log of logs) {
                 if (!errorsOnly || log.level.toUpperCase() === "ERROR") {
-                    allLogs.push({sessionId, ... log});
+                    allLogs.push({ sessionId, ...log });
                 }
             }
         }
@@ -235,32 +239,44 @@ function handleRequest(
         allLogs.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
         const recentLogs = allLogs.slice(0, count).reverse(); // Reverse to show oldest first
 
-        res.writeHead(200, {"Content-Type": "application/json"});
-        res.end(JSON.stringify({
-            total: allLogs.length,
-            showing: recentLogs.length,
-            logs: recentLogs,
-        }, null, 2));
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+            JSON.stringify(
+                {
+                    total: allLogs.length,
+                    showing: recentLogs.length,
+                    logs: recentLogs,
+                },
+                null,
+                2,
+            ),
+        );
         return;
     }
 
     // Handle errors-only endpoint
     if (url === "/logs/errors" && req.method === "GET") {
-        const errorLogs: (LogEntry & {sessionId: string})[] = [];
+        const errorLogs: (LogEntry & { sessionId: string })[] = [];
         for (const [sessionId, logs] of remoteLogs) {
             for (const log of logs) {
                 if (log.level.toUpperCase() === "ERROR") {
-                    errorLogs.push({sessionId, ... log});
+                    errorLogs.push({ sessionId, ...log });
                 }
             }
         }
         errorLogs.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
 
-        res.writeHead(200, {"Content-Type": "application/json"});
-        res.end(JSON.stringify({
-            total: errorLogs.length,
-            logs: errorLogs,
-        }, null, 2));
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+            JSON.stringify(
+                {
+                    total: errorLogs.length,
+                    logs: errorLogs,
+                },
+                null,
+                2,
+            ),
+        );
         return;
     }
 
@@ -269,21 +285,21 @@ function handleRequest(
         remoteLogs.clear();
         // eslint-disable-next-line no-console
         console.log(`\n${colors.yellow}Logs cleared${colors.reset}\n`);
-        res.writeHead(200, {"Content-Type": "application/json"});
-        res.end(JSON.stringify({success: true}));
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true }));
         return;
     }
 
     // Health check endpoint
     if (url === "/health" && req.method === "GET") {
-        res.writeHead(200, {"Content-Type": "application/json"});
-        res.end(JSON.stringify({status: "ok", sessions: remoteLogs.size}));
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "ok", sessions: remoteLogs.size }));
         return;
     }
 
     // Default: 404
-    res.writeHead(404, {"Content-Type": "application/json"});
-    res.end(JSON.stringify({error: "Not found"}));
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Not found" }));
 }
 
 /**
@@ -298,15 +314,21 @@ function printBanner(host: string, port: number, useHttps: boolean): void {
     // eslint-disable-next-line no-console
     console.log("");
     // eslint-disable-next-line no-console
-    console.log(`${colors.bright}${colors.cyan}════════════════════════════════════════════════════════════${colors.reset}`);
+    console.log(
+        `${colors.bright}${colors.cyan}════════════════════════════════════════════════════════════${colors.reset}`,
+    );
     // eslint-disable-next-line no-console
     console.log(`${colors.bright}${colors.cyan}  Graphty Log Server${colors.reset}`);
     // eslint-disable-next-line no-console
-    console.log(`${colors.bright}${colors.cyan}════════════════════════════════════════════════════════════${colors.reset}`);
+    console.log(
+        `${colors.bright}${colors.cyan}════════════════════════════════════════════════════════════${colors.reset}`,
+    );
     // eslint-disable-next-line no-console
     console.log("");
     // eslint-disable-next-line no-console
-    console.log(`${colors.green}Server running at:${colors.reset} ${colors.bright}${protocol}://${host}:${port}/${colors.reset}`);
+    console.log(
+        `${colors.green}Server running at:${colors.reset} ${colors.bright}${protocol}://${host}:${port}/${colors.reset}`,
+    );
     // eslint-disable-next-line no-console
     console.log("");
     // eslint-disable-next-line no-console
@@ -349,7 +371,7 @@ export function startLogServer(options: LogServerOptions = {}): void {
 
     // Set up log file if specified
     if (options.logFile) {
-        logFileStream = fs.createWriteStream(options.logFile, {flags: "a"});
+        logFileStream = fs.createWriteStream(options.logFile, { flags: "a" });
         // eslint-disable-next-line no-console
         console.log(`${colors.green}Writing logs to: ${options.logFile}${colors.reset}`);
     }
@@ -369,7 +391,7 @@ export function startLogServer(options: LogServerOptions = {}): void {
 
         if (options.certPath && options.keyPath && certFilesExist(options.certPath, options.keyPath)) {
             // Use provided certificates
-            ({cert, key} = readCertFiles(options.certPath, options.keyPath));
+            ({ cert, key } = readCertFiles(options.certPath, options.keyPath));
             if (!quiet) {
                 // eslint-disable-next-line no-console
                 console.log(`${colors.green}Using SSL certificates from: ${options.certPath}${colors.reset}`);
@@ -381,14 +403,16 @@ export function startLogServer(options: LogServerOptions = {}): void {
                 console.log(`${colors.yellow}Generating self-signed certificate for ${host}...${colors.reset}`);
             }
 
-            ({cert, key} = generateSelfSignedCert(host));
+            ({ cert, key } = generateSelfSignedCert(host));
             if (!quiet) {
                 // eslint-disable-next-line no-console
-                console.log(`${colors.yellow}Note: Browser will show certificate warning - this is expected for self-signed certs${colors.reset}`);
+                console.log(
+                    `${colors.yellow}Note: Browser will show certificate warning - this is expected for self-signed certs${colors.reset}`,
+                );
             }
         }
 
-        server = https.createServer({cert, key}, (req, res) => {
+        server = https.createServer({ cert, key }, (req, res) => {
             handleRequest(req, res, host, port, true);
         });
     }
@@ -492,7 +516,6 @@ Browser URL Parameter:
                 process.exit(0);
                 break;
             default:
-
                 console.error(`Unknown option: ${arg}`);
                 process.exit(1);
         }

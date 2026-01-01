@@ -5,6 +5,7 @@
 Extend the existing `StatsManager` to provide hierarchical timing measurements, advanced statistical analysis, and enhanced reporting for performance debugging.
 
 **Design Goals:**
+
 1. **Extend, don't replace** - Build on existing `StatsManager` infrastructure
 2. **Near-zero overhead when disabled** - Single boolean check, no allocations
 3. **Minimal overhead when enabled** - <1% frame time impact via object pooling
@@ -19,6 +20,7 @@ Extend the existing `StatsManager` to provide hierarchical timing measurements, 
 **Reuse Existing Infrastructure**
 
 The current `StatsManager` already has:
+
 - ✅ BabylonJS `EngineInstrumentation` - GPU frame time, shader compilation
 - ✅ BabylonJS `SceneInstrumentation` - Draw calls, render time, mesh evaluation
 - ✅ Custom `PerfCounter` instances - graphStep, nodeUpdate, edgeUpdate, etc.
@@ -26,6 +28,7 @@ The current `StatsManager` already has:
 - ✅ Event integration - Emits stats-update events
 
 We just need to add:
+
 - 📊 Detailed measurement tracking with `measure()` API
 - 📊 Hierarchical call stack tracking
 - 📊 Percentile statistics (P95/P99)
@@ -87,10 +90,18 @@ export class StatsManager implements Manager {
     edgeUpdate = new PerfCounter();
     arrowCapUpdate = new PerfCounter();
 
-    initializeBabylonInstrumentation(scene: Scene, engine: Engine): void { /* existing */ }
-    toString(): string { /* existing */ }
-    getStats(): { /* existing */ }
-    getPerformanceSummary(): { /* existing */ }
+    initializeBabylonInstrumentation(scene: Scene, engine: Engine): void {
+        /* existing */
+    }
+    toString(): string {
+        /* existing */
+    }
+    getStats(): {
+        /* existing */
+    };
+    getPerformanceSummary(): {
+        /* existing */
+    };
 
     // ===== NEW (ADD) =====
     private enabled = false;
@@ -214,7 +225,7 @@ export class StatsManager implements Manager {
      * Get comprehensive performance snapshot
      */
     getSnapshot(): PerformanceSnapshot {
-        const cpuMeasurements = Array.from(this.measurements.values()).map(m => ({
+        const cpuMeasurements = Array.from(this.measurements.values()).map((m) => ({
             label: m.label,
             count: m.count,
             total: m.total,
@@ -229,34 +240,38 @@ export class StatsManager implements Manager {
 
         return {
             cpu: cpuMeasurements,
-            gpu: this.babylonInstrumentation ? {
-                gpuFrameTime: {
-                    current: this.babylonInstrumentation.gpuFrameTimeCounter.current * 0.000001,
-                    avg: this.babylonInstrumentation.gpuFrameTimeCounter.average * 0.000001,
-                    min: this.babylonInstrumentation.gpuFrameTimeCounter.min * 0.000001,
-                    max: this.babylonInstrumentation.gpuFrameTimeCounter.max * 0.000001,
-                },
-                shaderCompilation: {
-                    current: this.babylonInstrumentation.shaderCompilationTimeCounter.current,
-                    avg: this.babylonInstrumentation.shaderCompilationTimeCounter.average,
-                    total: this.babylonInstrumentation.shaderCompilationTimeCounter.total,
-                },
-            } : undefined,
-            scene: this.sceneInstrumentation ? {
-                drawCalls: {
-                    current: this.sceneInstrumentation.drawCallsCounter.current,
-                    avg: this.sceneInstrumentation.drawCallsCounter.average,
-                },
-                frameTime: {
-                    avg: this.sceneInstrumentation.frameTimeCounter.average,
-                },
-                renderTime: {
-                    avg: this.sceneInstrumentation.renderTimeCounter.average,
-                },
-                activeMeshesEvaluation: {
-                    avg: this.sceneInstrumentation.activeMeshesEvaluationTimeCounter.average,
-                },
-            } : undefined,
+            gpu: this.babylonInstrumentation
+                ? {
+                      gpuFrameTime: {
+                          current: this.babylonInstrumentation.gpuFrameTimeCounter.current * 0.000001,
+                          avg: this.babylonInstrumentation.gpuFrameTimeCounter.average * 0.000001,
+                          min: this.babylonInstrumentation.gpuFrameTimeCounter.min * 0.000001,
+                          max: this.babylonInstrumentation.gpuFrameTimeCounter.max * 0.000001,
+                      },
+                      shaderCompilation: {
+                          current: this.babylonInstrumentation.shaderCompilationTimeCounter.current,
+                          avg: this.babylonInstrumentation.shaderCompilationTimeCounter.average,
+                          total: this.babylonInstrumentation.shaderCompilationTimeCounter.total,
+                      },
+                  }
+                : undefined,
+            scene: this.sceneInstrumentation
+                ? {
+                      drawCalls: {
+                          current: this.sceneInstrumentation.drawCallsCounter.current,
+                          avg: this.sceneInstrumentation.drawCallsCounter.average,
+                      },
+                      frameTime: {
+                          avg: this.sceneInstrumentation.frameTimeCounter.average,
+                      },
+                      renderTime: {
+                          avg: this.sceneInstrumentation.renderTimeCounter.average,
+                      },
+                      activeMeshesEvaluation: {
+                          avg: this.sceneInstrumentation.activeMeshesEvaluationTimeCounter.average,
+                      },
+                  }
+                : undefined,
             timestamp: performance.now(),
         };
     }
@@ -267,39 +282,41 @@ export class StatsManager implements Manager {
     reportDetailed(): void {
         const snapshot = this.getSnapshot();
 
-        console.group('📊 Performance Report');
+        console.group("📊 Performance Report");
 
         // CPU metrics
         if (snapshot.cpu.length > 0) {
-            console.group('CPU Metrics');
-            console.table(snapshot.cpu.map(m => ({
-                Label: m.label,
-                Calls: m.count,
-                'Total (ms)': m.total.toFixed(2),
-                'Avg (ms)': m.avg.toFixed(2),
-                'Min (ms)': m.min === Infinity ? 0 : m.min.toFixed(2),
-                'Max (ms)': m.max === -Infinity ? 0 : m.max.toFixed(2),
-                'P95 (ms)': m.p95.toFixed(2),
-                'P99 (ms)': m.p99.toFixed(2),
-            })));
+            console.group("CPU Metrics");
+            console.table(
+                snapshot.cpu.map((m) => ({
+                    Label: m.label,
+                    Calls: m.count,
+                    "Total (ms)": m.total.toFixed(2),
+                    "Avg (ms)": m.avg.toFixed(2),
+                    "Min (ms)": m.min === Infinity ? 0 : m.min.toFixed(2),
+                    "Max (ms)": m.max === -Infinity ? 0 : m.max.toFixed(2),
+                    "P95 (ms)": m.p95.toFixed(2),
+                    "P99 (ms)": m.p99.toFixed(2),
+                })),
+            );
             console.groupEnd();
         }
 
         // GPU metrics
         if (snapshot.gpu) {
-            console.group('GPU Metrics');
-            console.log('Frame Time:', snapshot.gpu.gpuFrameTime.avg.toFixed(2), 'ms (avg)');
-            console.log('Shader Compilation:', snapshot.gpu.shaderCompilation.total.toFixed(2), 'ms (total)');
+            console.group("GPU Metrics");
+            console.log("Frame Time:", snapshot.gpu.gpuFrameTime.avg.toFixed(2), "ms (avg)");
+            console.log("Shader Compilation:", snapshot.gpu.shaderCompilation.total.toFixed(2), "ms (total)");
             console.groupEnd();
         }
 
         // Scene metrics
         if (snapshot.scene) {
-            console.group('Scene Metrics');
-            console.log('Draw Calls:', snapshot.scene.drawCalls.avg.toFixed(0), '(avg)');
-            console.log('Render Time:', snapshot.scene.renderTime.avg.toFixed(2), 'ms (avg)');
-            console.log('Frame Time:', snapshot.scene.frameTime.avg.toFixed(2), 'ms (avg)');
-            console.log('Active Meshes Evaluation:', snapshot.scene.activeMeshesEvaluation.avg.toFixed(2), 'ms (avg)');
+            console.group("Scene Metrics");
+            console.log("Draw Calls:", snapshot.scene.drawCalls.avg.toFixed(0), "(avg)");
+            console.log("Render Time:", snapshot.scene.renderTime.avg.toFixed(2), "ms (avg)");
+            console.log("Frame Time:", snapshot.scene.frameTime.avg.toFixed(2), "ms (avg)");
+            console.log("Active Meshes Evaluation:", snapshot.scene.activeMeshesEvaluation.avg.toFixed(2), "ms (avg)");
             console.groupEnd();
         }
 
@@ -490,6 +507,7 @@ export interface GraphConfig {
 ```
 
 **From this output, we can immediately diagnose:**
+
 - ✅ GPU is NOT the bottleneck (2.34ms GPU vs 14.95ms CPU for layout)
 - ✅ Draw calls are low (18) - batching is working
 - ✅ Render time is low (3.12ms) - rendering is efficient
@@ -508,20 +526,20 @@ export interface GraphConfig {
 **File:** `src/managers/StatsManager.ts`
 
 1. Add private fields:
-   - `enabled: boolean`
-   - `measurements: Map<string, MeasurementStats>`
-   - `activeStack: Array<{ label: string; startTime: number }>`
+    - `enabled: boolean`
+    - `measurements: Map<string, MeasurementStats>`
+    - `activeStack: Array<{ label: string; startTime: number }>`
 
 2. Add measurement methods:
-   - `enableProfiling()` / `disableProfiling()`
-   - `measure<T>(label, fn)` - wrap synchronous code
-   - `measureAsync<T>(label, fn)` - wrap async code
-   - `startMeasurement(label)` / `endMeasurement(label)` - manual timing
-   - `recordMeasurement(label, duration)` - private helper
+    - `enableProfiling()` / `disableProfiling()`
+    - `measure<T>(label, fn)` - wrap synchronous code
+    - `measureAsync<T>(label, fn)` - wrap async code
+    - `startMeasurement(label)` / `endMeasurement(label)` - manual timing
+    - `recordMeasurement(label, duration)` - private helper
 
 3. Add basic statistics:
-   - Track count, total, min, max, avg
-   - Store durations in ring buffer (max 1000 samples)
+    - Track count, total, min, max, avg
+    - Store durations in ring buffer (max 1000 samples)
 
 4. Write unit tests for measurement API
 
@@ -530,12 +548,12 @@ export interface GraphConfig {
 **File:** `src/managers/StatsManager.ts`
 
 1. Implement `getPercentile(durations, percentile)` method
-   - Sort durations array (copy to avoid mutation)
-   - Calculate index based on percentile
-   - Return value at index
+    - Sort durations array (copy to avoid mutation)
+    - Calculate index based on percentile
+    - Return value at index
 
 2. Update measurement stats to include:
-   - `p50`, `p95`, `p99` in `getSnapshot()`
+    - `p50`, `p95`, `p99` in `getSnapshot()`
 
 3. Test percentile accuracy with known datasets
 
@@ -544,22 +562,22 @@ export interface GraphConfig {
 **File:** `src/managers/StatsManager.ts`
 
 1. Add `getSnapshot()` method:
-   - Collect CPU measurements with percentiles
-   - Collect GPU metrics from `babylonInstrumentation`
-   - Collect scene metrics from `sceneInstrumentation`
-   - Return `PerformanceSnapshot` object
+    - Collect CPU measurements with percentiles
+    - Collect GPU metrics from `babylonInstrumentation`
+    - Collect scene metrics from `sceneInstrumentation`
+    - Return `PerformanceSnapshot` object
 
 2. Add `reportDetailed()` method:
-   - Call `getSnapshot()`
-   - Format CPU metrics as console.table()
-   - Format GPU metrics as console.log()
-   - Format scene metrics as console.log()
-   - Group output for readability
+    - Call `getSnapshot()`
+    - Format CPU metrics as console.table()
+    - Format GPU metrics as console.log()
+    - Format scene metrics as console.log()
+    - Group output for readability
 
 3. Add `resetMeasurements()` method:
-   - Clear measurements Map
-   - Clear activeStack
-   - Keep BabylonJS instrumentation running
+    - Clear measurements Map
+    - Clear activeStack
+    - Keep BabylonJS instrumentation running
 
 ### Phase 4: Integration (1-2 hours)
 
@@ -568,36 +586,36 @@ export interface GraphConfig {
 1. Add `enableDetailedProfiling?: boolean` to GraphConfig
 
 2. Update Graph.ts constructor:
-   - Call `statsManager.enableProfiling()` if config enabled
+    - Call `statsManager.enableProfiling()` if config enabled
 
 3. Instrument Graph.ts update loop:
-   - Wrap `updateManager.update()` with `measure()`
-   - Wrap arrow batching with `measure()`
-   - Call `reportDetailed()` on layout settlement
+    - Wrap `updateManager.update()` with `measure()`
+    - Wrap arrow batching with `measure()`
+    - Call `reportDetailed()` on layout settlement
 
 4. Instrument Edge.ts (optional):
-   - Add `startMeasurement()` / `endMeasurement()` in `update()`
-   - Add measurements for arrow updates
+    - Add `startMeasurement()` / `endMeasurement()` in `update()`
+    - Add measurements for arrow updates
 
 5. Add URL parameter support:
-   - Parse `?profiling=true` from URL
-   - Override config if present
+    - Parse `?profiling=true` from URL
+    - Override config if present
 
 ### Phase 5: Optimization (30 min)
 
 **File:** `src/managers/StatsManager.ts`
 
 1. Add guard for disabled state:
-   - Early return in `measure()` if `!this.enabled`
-   - Zero overhead when disabled
+    - Early return in `measure()` if `!this.enabled`
+    - Zero overhead when disabled
 
 2. Optimize ring buffer:
-   - Use fixed-size array instead of shift/push
-   - Use circular index for writes
+    - Use fixed-size array instead of shift/push
+    - Use circular index for writes
 
 3. Benchmark overhead:
-   - Compare frame time with/without profiling
-   - Ensure <1% overhead when enabled
+    - Compare frame time with/without profiling
+    - Ensure <1% overhead when enabled
 
 **Total Estimated Time: 5-7 hours**
 
@@ -617,6 +635,7 @@ src/managers/StatsManager.ts  (existing file - extend it)
 ```
 
 Optional integration:
+
 ```
 src/config/GraphConfig.ts     (add enableDetailedProfiling)
 src/Graph.ts                   (call measure() in update loop)
@@ -624,6 +643,7 @@ src/Edge.ts                    (call measure() in update methods)
 ```
 
 Test files:
+
 ```
 test/managers/StatsManager.test.ts  (add tests for new methods)
 ```
@@ -646,6 +666,7 @@ test/managers/StatsManager.test.ts  (add tests for new methods)
 ## Success Criteria
 
 ### Functional Requirements
+
 - ✅ Measure CPU time with <1% overhead
 - ✅ Calculate min/max/avg/p95/p99 statistics
 - ✅ Access GPU metrics via BabylonJS EngineInstrumentation
@@ -655,6 +676,7 @@ test/managers/StatsManager.test.ts  (add tests for new methods)
 - ✅ Zero overhead when disabled
 
 ### Non-Functional Requirements
+
 - ✅ <1% performance overhead when enabled
 - ✅ No new dependencies
 - ✅ Backward compatible with existing StatsManager API
@@ -662,6 +684,7 @@ test/managers/StatsManager.test.ts  (add tests for new methods)
 - ✅ 80%+ test coverage for new methods
 
 ### User Experience
+
 - ✅ Simple API (single method call to measure)
 - ✅ Clear console output (grouped, formatted)
 - ✅ Easy activation (config flag or URL param)
@@ -675,37 +698,39 @@ test/managers/StatsManager.test.ts  (add tests for new methods)
 ### V2 Features (Not in Initial Design)
 
 1. **Hierarchical Display**
-   - Show parent-child relationships in console output
-   - Indent nested measurements
-   - Calculate % of parent time
+    - Show parent-child relationships in console output
+    - Indent nested measurements
+    - Calculate % of parent time
 
 2. **Flamegraph Export**
-   - Export data in speedscope.app format
-   - Visualize call stacks
+    - Export data in speedscope.app format
+    - Visualize call stacks
 
 3. **Sampling Mode**
-   - Only measure every Nth call
-   - Reduce overhead further
+    - Only measure every Nth call
+    - Reduce overhead further
 
 4. **Performance Budgets**
-   - Set max time thresholds
-   - Warn when exceeded
+    - Set max time thresholds
+    - Warn when exceeded
 
 5. **Correlation Analysis**
-   - Correlate edge update count with layout iterations
-   - Identify observer chains
+    - Correlate edge update count with layout iterations
+    - Identify observer chains
 
 ---
 
 ## Summary
 
 Instead of creating a separate profiling system, we **extend the existing StatsManager** to add:
+
 - Detailed measurement tracking with `measure()` API
 - Percentile statistics (P95/P99)
 - Enhanced console reporting with `reportDetailed()`
 - Programmatic access via `getSnapshot()`
 
 This approach:
+
 - ✅ Reuses existing BabylonJS instrumentation
 - ✅ Requires changes to only one file
 - ✅ Takes 5-7 hours instead of 9-12 hours

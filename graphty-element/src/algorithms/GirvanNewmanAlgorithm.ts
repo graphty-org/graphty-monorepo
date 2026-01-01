@@ -1,10 +1,10 @@
-import {girvanNewman} from "@graphty/algorithms";
-import {z} from "zod/v4";
+import { girvanNewman } from "@graphty/algorithms";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig} from "../config";
-import {Algorithm} from "./Algorithm";
-import type {OptionsSchema} from "./types/OptionSchema";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import { Algorithm } from "./Algorithm";
+import type { OptionsSchema } from "./types/OptionSchema";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for Girvan-Newman algorithm
@@ -123,11 +123,11 @@ export class GirvanNewmanAlgorithm extends Algorithm<GirvanNewmanOptions> {
         }
 
         // Get options from schema
-        const {maxCommunities, minCommunitySize, maxIterations} = this.schemaOptions;
+        const { maxCommunities, minCommunitySize, maxIterations } = this.schemaOptions;
 
         // Convert to @graphty/algorithms format (truly undirected for community detection)
         // addReverseEdges: false creates an undirected graph required by girvanNewman
-        const graphData = toAlgorithmGraph(g, {addReverseEdges: false});
+        const graphData = toAlgorithmGraph(g, { addReverseEdges: false });
 
         // Run Girvan-Newman algorithm - returns CommunityResult[] (dendrogram)
         // Pass maxCommunities only if > 0 (0 means find optimal)

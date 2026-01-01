@@ -1,8 +1,8 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {render, screen} from "../../../test/test-utils";
-import type {LayerItem} from "../../layout/LeftSidebar";
-import {RightSidebar} from "../../layout/RightSidebar";
+import { render, screen } from "../../../test/test-utils";
+import type { LayerItem } from "../../layout/LeftSidebar";
+import { RightSidebar } from "../../layout/RightSidebar";
 
 /**
  * Regression tests for compact size styling.
@@ -26,8 +26,8 @@ describe("Compact Size Style Regression", () => {
             node: {
                 selector: "",
                 style: {
-                    shape: {type: "sphere", size: 1},
-                    color: {mode: "solid", color: "#5b8ff9", opacity: 1},
+                    shape: { type: "sphere", size: 1 },
+                    color: { mode: "solid", color: "#5b8ff9", opacity: 1 },
                 },
             },
             edge: {
@@ -173,9 +173,7 @@ describe("Compact Size Style Regression", () => {
             const hexColor = screen.getAllByLabelText("Color hex value")[0];
             const opacity = screen.getAllByLabelText("Opacity")[0];
 
-            const heights = [nodeSelector, size, hexColor, opacity].map(
-                (el) => window.getComputedStyle(el).height,
-            );
+            const heights = [nodeSelector, size, hexColor, opacity].map((el) => window.getComputedStyle(el).height);
 
             // All should be 24px
             expect(new Set(heights).size).toBe(1);
@@ -191,9 +189,7 @@ describe("Compact Size Style Regression", () => {
             const hexColor = screen.getAllByLabelText("Color hex value")[0];
             const opacity = screen.getAllByLabelText("Opacity")[0];
 
-            const fontSizes = [nodeSelector, size, hexColor, opacity].map(
-                (el) => window.getComputedStyle(el).fontSize,
-            );
+            const fontSizes = [nodeSelector, size, hexColor, opacity].map((el) => window.getComputedStyle(el).fontSize);
 
             // All should be 11px
             expect(new Set(fontSizes).size).toBe(1);

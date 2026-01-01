@@ -1,20 +1,20 @@
 import jmespath from "jmespath";
 
-import type {AdHocData} from "../config";
-import {DataSource} from "../data/DataSource";
-import {Edge, EdgeMap} from "../Edge";
-import type {LayoutEngine} from "../layout/LayoutEngine";
-import {GraphtyLogger, type Logger} from "../logging/GraphtyLogger.js";
-import {MeshCache} from "../meshes/MeshCache";
-import {Node, NodeIdType} from "../Node";
-import type {Styles} from "../Styles";
-import type {EventManager} from "./EventManager";
-import type {GraphContext} from "./GraphContext";
-import type {Manager} from "./interfaces";
+import type { AdHocData } from "../config";
+import { DataSource } from "../data/DataSource";
+import { Edge, EdgeMap } from "../Edge";
+import type { LayoutEngine } from "../layout/LayoutEngine";
+import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
+import { MeshCache } from "../meshes/MeshCache";
+import { Node, NodeIdType } from "../Node";
+import type { Styles } from "../Styles";
+import type { EventManager } from "./EventManager";
+import type { GraphContext } from "./GraphContext";
+import type { Manager } from "./interfaces";
 
 // Type guards for layout engines with optional removal methods
-type LayoutEngineWithRemoveNode = LayoutEngine & {removeNode(node: Node): void};
-type LayoutEngineWithRemoveEdge = LayoutEngine & {removeEdge(edge: Edge): void};
+type LayoutEngineWithRemoveNode = LayoutEngine & { removeNode(node: Node): void };
+type LayoutEngineWithRemoveEdge = LayoutEngine & { removeEdge(edge: Edge): void };
 
 function hasRemoveNode(engine: LayoutEngine): engine is LayoutEngineWithRemoveNode {
     return "removeNode" in engine;
@@ -104,7 +104,7 @@ export class DataManager implements Manager {
     applyStylesToExistingEdges(): void {
         for (const e of this.edges.values()) {
             // Combine data and algorithmResults for selector matching and calculated style evaluation
-            const combinedData = {... e.data, algorithmResults: e.algorithmResults};
+            const combinedData = { ...e.data, algorithmResults: e.algorithmResults };
 
             // First, recalculate and apply the base style from the new template
             // This handles static style values (color, width, arrow types, etc.)
@@ -184,7 +184,7 @@ export class DataManager implements Manager {
      * @param idPath - JMESPath expression to extract node ID from data
      */
     addNodes(nodes: Record<string | number, unknown>[], idPath?: string): void {
-        this.logger.debug("Adding nodes", {count: nodes.length});
+        this.logger.debug("Adding nodes", { count: nodes.length });
 
         // create path to node ids
         const query = idPath ?? this.styles.config.data.knownFields.nodeIdPath;
@@ -246,7 +246,7 @@ export class DataManager implements Manager {
         // Try to process all buffered edges
         const stillBuffered: typeof this.bufferedEdges = [];
 
-        for (const {edge, srcIdPath, dstIdPath} of this.bufferedEdges) {
+        for (const { edge, srcIdPath, dstIdPath } of this.bufferedEdges) {
             // get paths
             const srcQuery = srcIdPath ?? this.styles.config.data.knownFields.edgeSrcIdPath;
             const dstQuery = dstIdPath ?? this.styles.config.data.knownFields.edgeDstIdPath;
@@ -260,7 +260,7 @@ export class DataManager implements Manager {
 
             if (!srcNode || !dstNode) {
                 // Nodes still don't exist, keep in buffer
-                stillBuffered.push({edge, srcIdPath, dstIdPath});
+                stillBuffered.push({ edge, srcIdPath, dstIdPath });
                 continue;
             }
 
@@ -350,7 +350,7 @@ export class DataManager implements Manager {
      * @param dstIdPath - JMESPath expression to extract destination node ID from data
      */
     addEdges(edges: Record<string | number, unknown>[], srcIdPath?: string, dstIdPath?: string): void {
-        this.logger.debug("Adding edges", {count: edges.length});
+        this.logger.debug("Adding edges", { count: edges.length });
 
         // get paths
         const srcQuery = srcIdPath ?? this.styles.config.data.knownFields.edgeSrcIdPath;
@@ -371,7 +371,7 @@ export class DataManager implements Manager {
 
             if (!srcNode || !dstNode) {
                 // Buffer this edge to be processed later when nodes exist
-                this.bufferedEdges.push({edge, srcIdPath, dstIdPath});
+                this.bufferedEdges.push({ edge, srcIdPath, dstIdPath });
                 continue;
             }
 
@@ -457,7 +457,7 @@ export class DataManager implements Manager {
      * @param opts - Options to pass to the data source
      */
     async addDataFromSource(type: string, opts: object = {}): Promise<void> {
-        this.logger.info("Loading data source", {type, options: opts});
+        this.logger.info("Loading data source", { type, options: opts });
 
         const startTime = Date.now();
         let nodesLoaded = 0;
@@ -471,7 +471,7 @@ export class DataManager implements Manager {
             }
 
             // Get file size for progress tracking (if available)
-            const fileSize = (opts as {size?: number}).size;
+            const fileSize = (opts as { size?: number }).size;
 
             try {
                 for await (const chunk of source.getData()) {
@@ -558,7 +558,7 @@ export class DataManager implements Manager {
                         error instanceof Error ? error : new Error(String(error)),
                         "parsing",
                         type,
-                        {canContinue: false},
+                        { canContinue: false },
                     );
 
                     // Keep existing error event for backward compatibility
@@ -566,11 +566,13 @@ export class DataManager implements Manager {
                         this.graphContext,
                         error instanceof Error ? error : new Error(String(error)),
                         "data-loading",
-                        {chunksLoaded: chunksProcessed, dataSourceType: type},
+                        { chunksLoaded: chunksProcessed, dataSourceType: type },
                     );
                 }
 
-                throw new Error(`Failed to load data from source '${type}' after ${chunksProcessed} chunks: ${error instanceof Error ? error.message : String(error)}`);
+                throw new Error(
+                    `Failed to load data from source '${type}' after ${chunksProcessed} chunks: ${error instanceof Error ? error.message : String(error)}`,
+                );
             }
         } catch (error) {
             // Re-throw if already a processed error
@@ -579,7 +581,9 @@ export class DataManager implements Manager {
             }
 
             // Otherwise wrap and throw
-            throw new Error(`Error initializing data source '${type}': ${error instanceof Error ? error.message : String(error)}`);
+            throw new Error(
+                `Error initializing data source '${type}': ${error instanceof Error ? error.message : String(error)}`,
+            );
         }
     }
 

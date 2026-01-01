@@ -1,5 +1,5 @@
-import {Group, NativeSelect, NumberInput, Stack, TextInput} from "@mantine/core";
-import React, {useState} from "react";
+import { Group, NativeSelect, NumberInput, Stack, TextInput } from "@mantine/core";
+import React, { useState } from "react";
 
 import {
     FONT_OPTIONS,
@@ -8,12 +8,18 @@ import {
     TEXT_ATTACH_POSITION_OPTIONS,
     TEXT_LOCATION_OPTIONS,
 } from "../../../constants/style-options";
-import type {RichTextStyle, TextAnimation, TextAttachPosition, TextBackgroundStyle, TextLocation} from "../../../types/style-layer";
-import {DEFAULT_TEXT_BACKGROUND, DEFAULT_TEXT_OUTLINE, DEFAULT_TEXT_SHADOW} from "../../../utils/style-defaults";
-import {CompactCheckbox} from "./CompactCheckbox";
-import {CompactColorInput} from "./CompactColorInput";
-import {ControlSubGroup} from "./ControlSubGroup";
-import {EffectToggle} from "./EffectToggle";
+import type {
+    RichTextStyle,
+    TextAnimation,
+    TextAttachPosition,
+    TextBackgroundStyle,
+    TextLocation,
+} from "../../../types/style-layer";
+import { DEFAULT_TEXT_BACKGROUND, DEFAULT_TEXT_OUTLINE, DEFAULT_TEXT_SHADOW } from "../../../utils/style-defaults";
+import { CompactCheckbox } from "./CompactCheckbox";
+import { CompactColorInput } from "./CompactColorInput";
+import { ControlSubGroup } from "./ControlSubGroup";
+import { EffectToggle } from "./EffectToggle";
 
 interface RichTextStyleEditorProps {
     /** Label for this editor (used for testing/identification) */
@@ -26,12 +32,13 @@ interface RichTextStyleEditorProps {
  * Comprehensive editor for rich text styles (labels and tooltips).
  * Provides controls for text content, font styling, positioning,
  * background, effects, and animation.
+ * @param root0 - Component props
+ * @param root0.label - Label for this editor (used for testing/identification)
+ * @param root0.value - The rich text style value to edit
+ * @param root0.onChange - Called when the style value changes
+ * @returns The rich text style editor component
  */
-export function RichTextStyleEditor({
-    label,
-    value,
-    onChange,
-}: RichTextStyleEditorProps): React.JSX.Element {
+export function RichTextStyleEditor({ label, value, onChange }: RichTextStyleEditorProps): React.JSX.Element {
     const [localText, setLocalText] = useState(value.text);
 
     // Sync local text state when value changes
@@ -40,23 +47,23 @@ export function RichTextStyleEditor({
     }, [value.text]);
 
     const handleEnabledChange = (enabled: boolean): void => {
-        onChange({... value, enabled});
+        onChange({ ...value, enabled });
     };
 
     const handleTextBlur = (): void => {
         if (localText !== value.text) {
-            onChange({... value, text: localText});
+            onChange({ ...value, text: localText });
         }
     };
 
     const handleLocationChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
-        onChange({... value, location: e.target.value as TextLocation});
+        onChange({ ...value, location: e.target.value as TextLocation });
     };
 
     const handleFontFamilyChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
         onChange({
-            ... value,
-            font: {... value.font, family: e.target.value},
+            ...value,
+            font: { ...value.font, family: e.target.value },
         });
     };
 
@@ -64,30 +71,30 @@ export function RichTextStyleEditor({
         const sizeNum = typeof size === "string" ? parseFloat(size) : size;
         if (!isNaN(sizeNum)) {
             onChange({
-                ... value,
-                font: {... value.font, size: sizeNum},
+                ...value,
+                font: { ...value.font, size: sizeNum },
             });
         }
     };
 
     const handleFontWeightChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
         onChange({
-            ... value,
-            font: {... value.font, weight: parseInt(e.target.value, 10)},
+            ...value,
+            font: { ...value.font, weight: parseInt(e.target.value, 10) },
         });
     };
 
     const handleFontColorChange = (color: string): void => {
         onChange({
-            ... value,
-            font: {... value.font, color},
+            ...value,
+            font: { ...value.font, color },
         });
     };
 
     const handlePositionChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
         onChange({
-            ... value,
-            position: {... value.position, attachPosition: e.target.value as TextAttachPosition},
+            ...value,
+            position: { ...value.position, attachPosition: e.target.value as TextAttachPosition },
         });
     };
 
@@ -95,42 +102,42 @@ export function RichTextStyleEditor({
         const offsetNum = typeof offset === "string" ? parseFloat(offset) : offset;
         if (!isNaN(offsetNum)) {
             onChange({
-                ... value,
-                position: {... value.position, offset: offsetNum},
+                ...value,
+                position: { ...value.position, offset: offsetNum },
             });
         }
     };
 
     const handleBillboardChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
         onChange({
-            ... value,
-            position: {... value.position, billboard: e.currentTarget.checked},
+            ...value,
+            position: { ...value.position, billboard: e.currentTarget.checked },
         });
     };
 
     const handleBackgroundEnabledChange = (enabled: boolean): void => {
-        const background: TextBackgroundStyle = value.background ?? {... DEFAULT_TEXT_BACKGROUND};
+        const background: TextBackgroundStyle = value.background ?? { ...DEFAULT_TEXT_BACKGROUND };
         onChange({
-            ... value,
-            background: {... background, enabled},
+            ...value,
+            background: { ...background, enabled },
         });
     };
 
     const handleBackgroundColorChange = (color: string): void => {
-        const background: TextBackgroundStyle = value.background ?? {... DEFAULT_TEXT_BACKGROUND};
+        const background: TextBackgroundStyle = value.background ?? { ...DEFAULT_TEXT_BACKGROUND };
         onChange({
-            ... value,
-            background: {... background, color},
+            ...value,
+            background: { ...background, color },
         });
     };
 
     const handleBackgroundPaddingChange = (padding: string | number): void => {
         const paddingNum = typeof padding === "string" ? parseFloat(padding) : padding;
         if (!isNaN(paddingNum)) {
-            const background: TextBackgroundStyle = value.background ?? {... DEFAULT_TEXT_BACKGROUND};
+            const background: TextBackgroundStyle = value.background ?? { ...DEFAULT_TEXT_BACKGROUND };
             onChange({
-                ... value,
-                background: {... background, padding: paddingNum},
+                ...value,
+                background: { ...background, padding: paddingNum },
             });
         }
     };
@@ -138,32 +145,32 @@ export function RichTextStyleEditor({
     const handleBackgroundRadiusChange = (radius: string | number): void => {
         const radiusNum = typeof radius === "string" ? parseFloat(radius) : radius;
         if (!isNaN(radiusNum)) {
-            const background: TextBackgroundStyle = value.background ?? {... DEFAULT_TEXT_BACKGROUND};
+            const background: TextBackgroundStyle = value.background ?? { ...DEFAULT_TEXT_BACKGROUND };
             onChange({
-                ... value,
-                background: {... background, borderRadius: radiusNum},
+                ...value,
+                background: { ...background, borderRadius: radiusNum },
             });
         }
     };
 
     const handleOutlineEnabledChange = (enabled: boolean): void => {
-        const outline = value.effects?.outline ?? {... DEFAULT_TEXT_OUTLINE};
+        const outline = value.effects?.outline ?? { ...DEFAULT_TEXT_OUTLINE };
         onChange({
-            ... value,
+            ...value,
             effects: {
-                ... value.effects,
-                outline: {... outline, enabled},
+                ...value.effects,
+                outline: { ...outline, enabled },
             },
         });
     };
 
     const handleOutlineColorChange = (color: string): void => {
-        const outline = value.effects?.outline ?? {... DEFAULT_TEXT_OUTLINE};
+        const outline = value.effects?.outline ?? { ...DEFAULT_TEXT_OUTLINE };
         onChange({
-            ... value,
+            ...value,
             effects: {
-                ... value.effects,
-                outline: {... outline, color},
+                ...value.effects,
+                outline: { ...outline, color },
             },
         });
     };
@@ -171,35 +178,35 @@ export function RichTextStyleEditor({
     const handleOutlineWidthChange = (width: string | number): void => {
         const widthNum = typeof width === "string" ? parseFloat(width) : width;
         if (!isNaN(widthNum)) {
-            const outline = value.effects?.outline ?? {... DEFAULT_TEXT_OUTLINE};
+            const outline = value.effects?.outline ?? { ...DEFAULT_TEXT_OUTLINE };
             onChange({
-                ... value,
+                ...value,
                 effects: {
-                    ... value.effects,
-                    outline: {... outline, width: widthNum},
+                    ...value.effects,
+                    outline: { ...outline, width: widthNum },
                 },
             });
         }
     };
 
     const handleShadowEnabledChange = (enabled: boolean): void => {
-        const shadow = value.effects?.shadow ?? {... DEFAULT_TEXT_SHADOW};
+        const shadow = value.effects?.shadow ?? { ...DEFAULT_TEXT_SHADOW };
         onChange({
-            ... value,
+            ...value,
             effects: {
-                ... value.effects,
-                shadow: {... shadow, enabled},
+                ...value.effects,
+                shadow: { ...shadow, enabled },
             },
         });
     };
 
     const handleShadowColorChange = (color: string): void => {
-        const shadow = value.effects?.shadow ?? {... DEFAULT_TEXT_SHADOW};
+        const shadow = value.effects?.shadow ?? { ...DEFAULT_TEXT_SHADOW };
         onChange({
-            ... value,
+            ...value,
             effects: {
-                ... value.effects,
-                shadow: {... shadow, color},
+                ...value.effects,
+                shadow: { ...shadow, color },
             },
         });
     };
@@ -207,32 +214,32 @@ export function RichTextStyleEditor({
     const handleShadowBlurChange = (blur: string | number): void => {
         const blurNum = typeof blur === "string" ? parseFloat(blur) : blur;
         if (!isNaN(blurNum)) {
-            const shadow = value.effects?.shadow ?? {... DEFAULT_TEXT_SHADOW};
+            const shadow = value.effects?.shadow ?? { ...DEFAULT_TEXT_SHADOW };
             onChange({
-                ... value,
+                ...value,
                 effects: {
-                    ... value.effects,
-                    shadow: {... shadow, blur: blurNum},
+                    ...value.effects,
+                    shadow: { ...shadow, blur: blurNum },
                 },
             });
         }
     };
 
     const handleAnimationTypeChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
-        const animation = value.animation ?? {type: "none", duration: 1000};
+        const animation = value.animation ?? { type: "none", duration: 1000 };
         onChange({
-            ... value,
-            animation: {... animation, type: e.target.value as TextAnimation},
+            ...value,
+            animation: { ...animation, type: e.target.value as TextAnimation },
         });
     };
 
     const handleAnimationDurationChange = (duration: string | number): void => {
         const durationNum = typeof duration === "string" ? parseFloat(duration) : duration;
         if (!isNaN(durationNum)) {
-            const animation = value.animation ?? {type: "none", duration: 1000};
+            const animation = value.animation ?? { type: "none", duration: 1000 };
             onChange({
-                ... value,
-                animation: {... animation, duration: durationNum},
+                ...value,
+                animation: { ...animation, duration: durationNum },
             });
         }
     };
@@ -240,27 +247,27 @@ export function RichTextStyleEditor({
     const handleResolutionChange = (resolution: string | number): void => {
         const resNum = typeof resolution === "string" ? parseFloat(resolution) : resolution;
         if (!isNaN(resNum)) {
-            const advanced = value.advanced ?? {resolution: 64, depthFade: false};
+            const advanced = value.advanced ?? { resolution: 64, depthFade: false };
             onChange({
-                ... value,
-                advanced: {... advanced, resolution: resNum},
+                ...value,
+                advanced: { ...advanced, resolution: resNum },
             });
         }
     };
 
     const handleDepthFadeChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
-        const advanced = value.advanced ?? {resolution: 64, depthFade: false};
+        const advanced = value.advanced ?? { resolution: 64, depthFade: false };
         onChange({
-            ... value,
-            advanced: {... advanced, depthFade: e.currentTarget.checked},
+            ...value,
+            advanced: { ...advanced, depthFade: e.currentTarget.checked },
         });
     };
 
     const backgroundValue = value.background ?? DEFAULT_TEXT_BACKGROUND;
     const outlineValue = value.effects?.outline ?? DEFAULT_TEXT_OUTLINE;
     const shadowValue = value.effects?.shadow ?? DEFAULT_TEXT_SHADOW;
-    const animationValue = value.animation ?? {type: "none", duration: 1000};
-    const advancedValue = value.advanced ?? {resolution: 64, depthFade: false};
+    const animationValue = value.animation ?? { type: "none", duration: 1000 };
+    const advancedValue = value.advanced ?? { resolution: 64, depthFade: false };
 
     return (
         <Stack gap={4} data-testid={`rich-text-editor-${label}`}>
@@ -429,11 +436,7 @@ export function RichTextStyleEditor({
                             />
                         </EffectToggle>
 
-                        <EffectToggle
-                            label="Shadow"
-                            checked={shadowValue.enabled}
-                            onChange={handleShadowEnabledChange}
-                        >
+                        <EffectToggle label="Shadow" checked={shadowValue.enabled} onChange={handleShadowEnabledChange}>
                             <CompactColorInput
                                 label="Shadow Color"
                                 color={shadowValue.color}

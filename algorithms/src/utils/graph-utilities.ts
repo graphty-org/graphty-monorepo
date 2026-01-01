@@ -1,5 +1,5 @@
-import {Graph} from "../core/graph.js";
-import type {NodeId} from "../types/index.js";
+import { Graph } from "../core/graph.js";
+import type { NodeId } from "../types/index.js";
 
 /**
  * Reconstructs a path from source to target using a predecessor map
@@ -7,10 +7,7 @@ import type {NodeId} from "../types/index.js";
  * @param predecessor - Map of node to its predecessor in the path
  * @returns Array of nodes from source to target, or empty array if no path exists
  */
-export function reconstructPath<T>(
-    target: T,
-    predecessor: Map<T, T | null>,
-): T[] {
+export function reconstructPath<T>(target: T, predecessor: Map<T, T | null>): T[] {
     const path: T[] = [];
     let current: T | null = target;
 
@@ -37,18 +34,9 @@ export function reconstructPath<T>(
  * @param directed - Whether to consider edge direction
  * @returns Set of common neighbor node IDs
  */
-export function getCommonNeighbors(
-    graph: Graph,
-    source: NodeId,
-    target: NodeId,
-    directed = false,
-): Set<NodeId> {
-    const sourceNeighbors = new Set(
-        directed ? graph.outNeighbors(source) : graph.neighbors(source),
-    );
-    const targetNeighbors = new Set(
-        directed ? graph.outNeighbors(target) : graph.neighbors(target),
-    );
+export function getCommonNeighbors(graph: Graph, source: NodeId, target: NodeId, directed = false): Set<NodeId> {
+    const sourceNeighbors = new Set(directed ? graph.outNeighbors(source) : graph.neighbors(source));
+    const targetNeighbors = new Set(directed ? graph.outNeighbors(target) : graph.neighbors(target));
 
     const common = new Set<NodeId>();
     for (const neighbor of sourceNeighbors) {
@@ -68,11 +56,7 @@ export function getCommonNeighbors(
  * @param target - Second node
  * @returns Set of intermediate node IDs
  */
-export function getIntermediateNodes(
-    graph: Graph,
-    source: NodeId,
-    target: NodeId,
-): Set<NodeId> {
+export function getIntermediateNodes(graph: Graph, source: NodeId, target: NodeId): Set<NodeId> {
     const sourceOutNeighbors = new Set(graph.outNeighbors(source));
     const targetInNeighbors = new Set(graph.inNeighbors(target));
 
@@ -93,11 +77,7 @@ export function getIntermediateNodes(
  * @param isDirected - Whether the graph is directed
  * @returns A consistent edge identifier
  */
-export function getEdgeKey(
-    source: NodeId,
-    target: NodeId,
-    isDirected: boolean,
-): string {
+export function getEdgeKey(source: NodeId, target: NodeId, isDirected: boolean): string {
     if (isDirected) {
         return `${String(source)}->${String(target)}`;
     }
@@ -127,11 +107,7 @@ export function getTotalEdgeWeight(graph: Graph): number {
  * @param mode - Degree mode for directed graphs
  * @returns Node degree
  */
-export function getNodeDegree(
-    graph: Graph,
-    nodeId: NodeId,
-    mode: "in" | "out" | "total" = "total",
-): number {
+export function getNodeDegree(graph: Graph, nodeId: NodeId, mode: "in" | "out" | "total" = "total"): number {
     if (!graph.isDirected || mode === "total") {
         return graph.degree(nodeId);
     }
@@ -153,7 +129,7 @@ export function makeUndirected(graph: Graph): Graph {
         return graph;
     }
 
-    const undirected = new Graph({directed: false});
+    const undirected = new Graph({ directed: false });
 
     // Add all nodes
     for (const node of graph.nodes()) {
@@ -176,9 +152,7 @@ export function makeUndirected(graph: Graph): Graph {
  * @param communities - Map of node to community ID
  * @returns Map with renumbered community IDs
  */
-export function renumberCommunities<T>(
-    communities: Map<T, number>,
-): Map<T, number> {
+export function renumberCommunities<T>(communities: Map<T, number>): Map<T, number> {
     const uniqueCommunities = new Set(communities.values());
     const remapping = new Map<number, number>();
     let newId = 0;

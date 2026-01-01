@@ -20,26 +20,24 @@ The fastest way to see Graphty in action:
 ```html
 <!DOCTYPE html>
 <html>
-<head>
-  <title>My First Graph</title>
-  <style>
-    graphty-element {
-      width: 800px;
-      height: 600px;
-      display: block;
-    }
-  </style>
-</head>
-<body>
-  <script type="module">
-    import '@graphty/graphty-element';
-  </script>
+    <head>
+        <title>My First Graph</title>
+        <style>
+            graphty-element {
+                width: 800px;
+                height: 600px;
+                display: block;
+            }
+        </style>
+    </head>
+    <body>
+        <script type="module">
+            import "@graphty/graphty-element";
+        </script>
 
-  <graphty-element
-    node-data='[{"id": "a"}, {"id": "b"}]'
-    edge-data='[{"source": "a", "target": "b"}]'>
-  </graphty-element>
-</body>
+        <graphty-element node-data='[{"id": "a"}, {"id": "b"}]' edge-data='[{"source": "a", "target": "b"}]'>
+        </graphty-element>
+    </body>
 </html>
 ```
 
@@ -52,8 +50,7 @@ Let's build a simple social network visualization step by step.
 First, include the Graphty element and give it dimensions:
 
 ```html
-<graphty-element style="width: 100%; height: 500px; display: block;">
-</graphty-element>
+<graphty-element style="width: 100%; height: 500px; display: block;"> </graphty-element>
 ```
 
 ### Step 2: Add Nodes
@@ -62,11 +59,12 @@ Define the people in your network:
 
 ```html
 <graphty-element
-  node-data='[
+    node-data='[
     {"id": "alice", "name": "Alice"},
     {"id": "bob", "name": "Bob"},
     {"id": "charlie", "name": "Charlie"}
-  ]'>
+  ]'
+>
 </graphty-element>
 ```
 
@@ -76,16 +74,17 @@ Connect them with relationships:
 
 ```html
 <graphty-element
-  node-data='[
+    node-data='[
     {"id": "alice", "name": "Alice"},
     {"id": "bob", "name": "Bob"},
     {"id": "charlie", "name": "Charlie"}
   ]'
-  edge-data='[
+    edge-data='[
     {"source": "alice", "target": "bob"},
     {"source": "bob", "target": "charlie"},
     {"source": "charlie", "target": "alice"}
-  ]'>
+  ]'
+>
 </graphty-element>
 ```
 
@@ -94,14 +93,11 @@ Connect them with relationships:
 Select how nodes are positioned:
 
 ```html
-<graphty-element
-  layout="ngraph"
-  node-data='[...]'
-  edge-data='[...]'>
-</graphty-element>
+<graphty-element layout="ngraph" node-data="[...]" edge-data="[...]"> </graphty-element>
 ```
 
 Available layouts include:
+
 - `ngraph` - Force-directed (default, works in 2D and 3D)
 - `d3-force` - D3's force simulation (2D)
 - `circular` - Nodes in a circle
@@ -113,12 +109,7 @@ Available layouts include:
 Use a style template for a polished look:
 
 ```html
-<graphty-element
-  layout="ngraph"
-  style-template="dark"
-  node-data='[...]'
-  edge-data='[...]'>
-</graphty-element>
+<graphty-element layout="ngraph" style-template="dark" node-data="[...]" edge-data="[...]"> </graphty-element>
 ```
 
 ## Interactive Examples

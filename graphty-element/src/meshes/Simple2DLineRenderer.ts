@@ -1,4 +1,4 @@
-import {Color3, Mesh, Scene, StandardMaterial, Vector3, VertexData} from "@babylonjs/core";
+import { Color3, Mesh, Scene, StandardMaterial, Vector3, VertexData } from "@babylonjs/core";
 
 /**
  * Renderer for simple 2D solid lines in world-space
@@ -25,14 +25,7 @@ export class Simple2DLineRenderer {
      * @param scene - Babylon.js scene
      * @returns Mesh representing the 2D line
      */
-    static create(
-        start: Vector3,
-        end: Vector3,
-        width: number,
-        color: string,
-        opacity: number,
-        scene: Scene,
-    ): Mesh {
+    static create(start: Vector3, end: Vector3, width: number, color: string, opacity: number, scene: Scene): Mesh {
         const mesh = new Mesh("line-2d", scene);
 
         // Calculate line properties
@@ -134,20 +127,7 @@ export class Simple2DLineRenderer {
         ];
 
         // Normals pointing in +Z direction (toward camera in 2D orthographic view)
-        const normals = [
-            0,
-            0,
-            1,
-            0,
-            0,
-            1,
-            0,
-            0,
-            1,
-            0,
-            0,
-            1,
-        ];
+        const normals = [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1];
 
         // Apply vertex data
         const vertexData = new VertexData();

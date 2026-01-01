@@ -1,9 +1,9 @@
-import {assert, beforeEach, describe, it, vi} from "vitest";
+import { assert, beforeEach, describe, it, vi } from "vitest";
 
-import type {AdHocData} from "../../src/config";
-import type {EventManager} from "../../src/managers/EventManager";
-import {StyleManager} from "../../src/managers/StyleManager";
-import {type EdgeStyleId, type NodeStyleId, Styles} from "../../src/Styles";
+import type { AdHocData } from "../../src/config";
+import type { EventManager } from "../../src/managers/EventManager";
+import { StyleManager } from "../../src/managers/StyleManager";
+import { type EdgeStyleId, type NodeStyleId, Styles } from "../../src/Styles";
 
 describe("StyleManager", () => {
     let styleManager: StyleManager;
@@ -29,7 +29,7 @@ describe("StyleManager", () => {
     });
 
     describe("initialization", () => {
-        it("should initialize without errors", async() => {
+        it("should initialize without errors", async () => {
             await styleManager.init();
             assert.isNotNull(styleManager);
         });
@@ -49,7 +49,7 @@ describe("StyleManager", () => {
 
     describe("styles loading", () => {
         it("should load styles from object", () => {
-            const styleObj = {layers: []};
+            const styleObj = { layers: [] };
             vi.spyOn(Styles, "fromObject").mockReturnValue(mockStyles);
 
             styleManager.loadStylesFromObject(styleObj);
@@ -57,7 +57,7 @@ describe("StyleManager", () => {
             assert.isTrue(vi.mocked(Styles.fromObject).mock.calls.length === 1);
         });
 
-        it("should load styles from URL", async() => {
+        it("should load styles from URL", async () => {
             const templateUrl = "https://example.com/template.json";
             vi.spyOn(Styles, "fromUrl").mockResolvedValue(mockStyles);
 
@@ -69,7 +69,7 @@ describe("StyleManager", () => {
 
     describe("style computation", () => {
         it("should get style for node", () => {
-            const nodeData = {type: "special"} as unknown as AdHocData;
+            const nodeData = { type: "special" } as unknown as AdHocData;
 
             const styleId = styleManager.getStyleForNode(nodeData);
 
@@ -79,7 +79,7 @@ describe("StyleManager", () => {
         });
 
         it("should get style for edge", () => {
-            const edgeData = {type: "strong"} as unknown as AdHocData;
+            const edgeData = { type: "strong" } as unknown as AdHocData;
 
             const styleId = styleManager.getStyleForEdge(edgeData);
 
@@ -89,7 +89,7 @@ describe("StyleManager", () => {
         });
 
         it("should get calculated styles for node", () => {
-            const nodeData = {type: "special"} as unknown as AdHocData;
+            const nodeData = { type: "special" } as unknown as AdHocData;
 
             const calculatedStyles = styleManager.getCalculatedStylesForNode(nodeData);
 
@@ -101,7 +101,7 @@ describe("StyleManager", () => {
 
     describe("caching", () => {
         it("should cache node styles", () => {
-            const nodeData = {type: "special"} as unknown as AdHocData;
+            const nodeData = { type: "special" } as unknown as AdHocData;
 
             // First call
             styleManager.getStyleForNode(nodeData);
@@ -113,7 +113,7 @@ describe("StyleManager", () => {
         });
 
         it("should cache edge styles", () => {
-            const edgeData = {type: "strong"} as unknown as AdHocData;
+            const edgeData = { type: "strong" } as unknown as AdHocData;
 
             // First call
             styleManager.getStyleForEdge(edgeData);
@@ -125,7 +125,7 @@ describe("StyleManager", () => {
         });
 
         it("should disable caching when requested", () => {
-            const nodeData = {type: "special"} as unknown as AdHocData;
+            const nodeData = { type: "special" } as unknown as AdHocData;
 
             styleManager.setCacheEnabled(false);
 
@@ -142,7 +142,7 @@ describe("StyleManager", () => {
             const layer = {
                 node: {
                     selector: "[type='special']",
-                    style: {enabled: true},
+                    style: { enabled: true },
                 },
             };
 
@@ -156,20 +156,23 @@ describe("StyleManager", () => {
             const layer = {
                 edge: {
                     selector: "[weight>10]",
-                    style: {enabled: true},
+                    style: { enabled: true },
                 },
             };
 
             styleManager.insertLayer(1, layer);
 
             assert.isTrue(vi.mocked(mockStyles.insertLayer).mock.calls.length === 1);
-            assert.isTrue(vi.mocked(mockStyles.insertLayer).mock.calls[0][0] === 1 && vi.mocked(mockStyles.insertLayer).mock.calls[0][1] === layer);
+            assert.isTrue(
+                vi.mocked(mockStyles.insertLayer).mock.calls[0][0] === 1 &&
+                    vi.mocked(mockStyles.insertLayer).mock.calls[0][1] === layer,
+            );
         });
     });
 
     describe("static methods", () => {
         it("should get style for node style ID", () => {
-            const nodeStyle = {enabled: true};
+            const nodeStyle = { enabled: true };
             vi.spyOn(Styles, "getStyleForNodeStyleId").mockReturnValue(nodeStyle);
 
             const result = StyleManager.getStyleForNodeStyleId(1 as NodeStyleId);
@@ -178,7 +181,7 @@ describe("StyleManager", () => {
         });
 
         it("should get style for edge style ID", () => {
-            const edgeStyle = {enabled: true};
+            const edgeStyle = { enabled: true };
             vi.spyOn(Styles, "getStyleForEdgeStyleId").mockReturnValue(edgeStyle);
 
             const result = StyleManager.getStyleForEdgeStyleId(1 as EdgeStyleId);
@@ -189,7 +192,7 @@ describe("StyleManager", () => {
 
     describe("cache management", () => {
         it("should clear cache when styles change", () => {
-            const nodeData = {type: "test"} as unknown as AdHocData;
+            const nodeData = { type: "test" } as unknown as AdHocData;
 
             // Fill cache
             styleManager.getStyleForNode(nodeData);
@@ -205,7 +208,7 @@ describe("StyleManager", () => {
 
         it("should clear cache when updating styles", () => {
             const newStyles = {} as unknown as Styles;
-            const nodeData = {type: "test"} as unknown as AdHocData;
+            const nodeData = { type: "test" } as unknown as AdHocData;
 
             // Fill cache
             styleManager.getStyleForNode(nodeData);

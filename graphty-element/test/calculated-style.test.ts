@@ -1,8 +1,8 @@
-import {get as deepGet} from "lodash";
-import {assert, describe, it} from "vitest";
+import { get as deepGet } from "lodash";
+import { assert, describe, it } from "vitest";
 
-import {CalculatedValue} from "../src/CalculatedValue";
-import {AdHocData, NodeStyle} from "../src/config";
+import { CalculatedValue } from "../src/CalculatedValue";
+import { AdHocData, NodeStyle } from "../src/config";
 
 describe("CalculatedValue", () => {
     it("exists", () => {
@@ -23,7 +23,7 @@ describe("CalculatedValue", () => {
             },
         };
         const style = NodeStyle.parse({});
-        cv.run({style, algorithmResults: {}, data} as unknown as AdHocData);
+        cv.run({ style, algorithmResults: {}, data } as unknown as AdHocData);
 
         assert.strictEqual(deepGet(style, "shape.size"), 91);
     });

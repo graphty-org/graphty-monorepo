@@ -3,6 +3,7 @@
 ## Overview
 
 This plan addresses the findings from the code review document, implementing fixes for:
+
 - High priority: Hardcoded colors (→ StyleHelpers), DegreeAlgorithm bug, NaN division
 - Medium priority: Louvain/Leiden code duplication, adjacency list utilities, test mock typing, graph-level results consistency
 - Low priority: Extra semicolon, palettes index export
@@ -22,84 +23,88 @@ The implementation is organized into 4 phases, each delivering independently tes
 **Tests to Write First**:
 
 - `test/algorithms/degree-algorithm.test.ts`: Test in/out degree correctness
-  ```typescript
-  describe("DegreeAlgorithm", () => {
-    it("correctly calculates in-degree for destination nodes", async () => {
-      // Graph: A -> B, A -> C (A has outDegree=2, B/C have inDegree=1)
-      const graph = createMockGraph({
-        nodes: ["A", "B", "C"],
-        edges: [{ src: "A", dst: "B" }, { src: "A", dst: "C" }]
+
+    ```typescript
+    describe("DegreeAlgorithm", () => {
+      it("correctly calculates in-degree for destination nodes", async () => {
+        // Graph: A -> B, A -> C (A has outDegree=2, B/C have inDegree=1)
+        const graph = createMockGraph({
+          nodes: ["A", "B", "C"],
+          edges: [{ src: "A", dst: "B" }, { src: "A", dst: "C" }]
+        });
+
+        const alg = new DegreeAlgorithm(graph);
+        await alg.run();
+
+        // Source node A should have outDegree=2, inDegree=0
+        assert.equal(graph.nodes.get("A").algorithmResults.graphty.degree.outDegree, 2);
+        assert.equal(graph.nodes.get("A").algorithmResults.graphty.degree.inDegree, 0);
+
+        // Destination nodes B/C should have inDegree=1, outDegree=0
+        assert.equal(graph.nodes.get("B").algorithmResults.graphty.degree.inDegree, 1);
+        assert.equal(graph.nodes.get("B").algorithmResults.graphty.degree.outDegree, 0);
       });
 
-      const alg = new DegreeAlgorithm(graph);
-      await alg.run();
+      it("handles empty graph without NaN", async () => {
+        const graph = createMockGraph({ nodes: ["A"], edges: [] });
+        const alg = new DegreeAlgorithm(graph);
+        await alg.run();
 
-      // Source node A should have outDegree=2, inDegree=0
-      assert.equal(graph.nodes.get("A").algorithmResults.graphty.degree.outDegree, 2);
-      assert.equal(graph.nodes.get("A").algorithmResults.graphty.degree.inDegree, 0);
+        // Should return 0, not NaN
+        const result = graph.nodes.get("A").algorithmResults.graphty.degree;
+        assert.equal(result.degreePct, 0);
+        assert.equal(Number.isNaN(result.degreePct), false);
+      });
 
-      // Destination nodes B/C should have inDegree=1, outDegree=0
-      assert.equal(graph.nodes.get("B").algorithmResults.graphty.degree.inDegree, 1);
-      assert.equal(graph.nodes.get("B").algorithmResults.graphty.degree.outDegree, 0);
+      it("stores graph-level results", async () => {
+        const graph = createMockGraph({...});
+        const alg = new DegreeAlgorithm(graph);
+        await alg.run();
+
+        // Graph-level results should be present
+        assert.equal(graph.algorithmResults.graphty.degree.maxDegree, expectedMax);
+      });
     });
-
-    it("handles empty graph without NaN", async () => {
-      const graph = createMockGraph({ nodes: ["A"], edges: [] });
-      const alg = new DegreeAlgorithm(graph);
-      await alg.run();
-
-      // Should return 0, not NaN
-      const result = graph.nodes.get("A").algorithmResults.graphty.degree;
-      assert.equal(result.degreePct, 0);
-      assert.equal(Number.isNaN(result.degreePct), false);
-    });
-
-    it("stores graph-level results", async () => {
-      const graph = createMockGraph({...});
-      const alg = new DegreeAlgorithm(graph);
-      await alg.run();
-
-      // Graph-level results should be present
-      assert.equal(graph.algorithmResults.graphty.degree.maxDegree, expectedMax);
-    });
-  });
-  ```
+    ```
 
 **Implementation**:
 
 - `src/algorithms/DegreeAlgorithm.ts`: Fix in/out degree swap and NaN division
-  ```typescript
-  // Line 47-52: Fix the swap
-  for (const e of g.getDataManager().edges.values()) {
-      incrementMap(outDegreeMap, e.srcId);  // Correct: source has outgoing edge
-      incrementMap(inDegreeMap, e.dstId);   // Correct: destination has incoming edge
-      incrementMap(degreeMap, e.srcId);
-      incrementMap(degreeMap, e.dstId);
-  }
 
-  // Lines 54-56: Fix NaN with safe max
-  const maxInDegree = Math.max(0, ...inDegreeMap.values());
-  const maxOutDegree = Math.max(0, ...outDegreeMap.values());
-  const maxDegree = Math.max(0, ...degreeMap.values());
+    ```typescript
+    // Line 47-52: Fix the swap
+    for (const e of g.getDataManager().edges.values()) {
+        incrementMap(outDegreeMap, e.srcId); // Correct: source has outgoing edge
+        incrementMap(inDegreeMap, e.dstId); // Correct: destination has incoming edge
+        incrementMap(degreeMap, e.srcId);
+        incrementMap(degreeMap, e.dstId);
+    }
 
-  // Lines 65-67: Safe division
-  this.addNodeResult(n.id, "inDegreePct", maxInDegree > 0 ? inDegree / maxInDegree : 0);
-  this.addNodeResult(n.id, "outDegreePct", maxOutDegree > 0 ? outDegree / maxOutDegree : 0);
-  this.addNodeResult(n.id, "degreePct", maxDegree > 0 ? degree / maxDegree : 0);
+    // Lines 54-56: Fix NaN with safe max
+    const maxInDegree = Math.max(0, ...inDegreeMap.values());
+    const maxOutDegree = Math.max(0, ...outDegreeMap.values());
+    const maxDegree = Math.max(0, ...degreeMap.values());
 
-  // Add graph-level results (new)
-  this.addGraphResult("maxInDegree", maxInDegree);
-  this.addGraphResult("maxOutDegree", maxOutDegree);
-  this.addGraphResult("maxDegree", maxDegree);
-  ```
+    // Lines 65-67: Safe division
+    this.addNodeResult(n.id, "inDegreePct", maxInDegree > 0 ? inDegree / maxInDegree : 0);
+    this.addNodeResult(n.id, "outDegreePct", maxOutDegree > 0 ? outDegree / maxOutDegree : 0);
+    this.addNodeResult(n.id, "degreePct", maxDegree > 0 ? degree / maxDegree : 0);
+
+    // Add graph-level results (new)
+    this.addGraphResult("maxInDegree", maxInDegree);
+    this.addGraphResult("maxOutDegree", maxOutDegree);
+    this.addGraphResult("maxDegree", maxDegree);
+    ```
 
 - `src/algorithms/DegreeAlgorithm.ts`: Remove extra semicolon (line 40)
 
 **Dependencies**:
+
 - External: None
 - Internal: None
 
 **Verification**:
+
 1. Run: `npm run test:default -- --filter="DegreeAlgorithm"`
 2. Expected: All tests pass, no NaN values, in/out degrees correctly assigned
 3. Run: `npm run lint` - should pass without new errors
@@ -115,132 +120,142 @@ The implementation is organized into 4 phases, each delivering independently tes
 **Tests to Write First**:
 
 - `test/style-helpers/algorithm-suggested-styles.test.ts`: Validate all algorithms use StyleHelpers
-  ```typescript
-  import {Algorithm} from "../../src/algorithms/Algorithm";
 
-  describe("Algorithm suggestedStyles", () => {
-    it("all algorithms with binary highlighting use StyleHelpers", () => {
-      // Get all registered algorithms
-      const algorithms = Algorithm.getRegistry();
+    ```typescript
+    import { Algorithm } from "../../src/algorithms/Algorithm";
 
-      const hardcodedColorPattern = /#[0-9a-fA-F]{6}/g;
-      const offendingAlgorithms: string[] = [];
+    describe("Algorithm suggestedStyles", () => {
+        it("all algorithms with binary highlighting use StyleHelpers", () => {
+            // Get all registered algorithms
+            const algorithms = Algorithm.getRegistry();
 
-      for (const [name, AlgorithmClass] of algorithms) {
-        if (AlgorithmClass.suggestedStyles) {
-          const styles = AlgorithmClass.suggestedStyles();
-          const stylesJson = JSON.stringify(styles);
+            const hardcodedColorPattern = /#[0-9a-fA-F]{6}/g;
+            const offendingAlgorithms: string[] = [];
 
-          // Check for hardcoded colors
-          if (hardcodedColorPattern.test(stylesJson)) {
-            offendingAlgorithms.push(name);
-          }
-        }
-      }
+            for (const [name, AlgorithmClass] of algorithms) {
+                if (AlgorithmClass.suggestedStyles) {
+                    const styles = AlgorithmClass.suggestedStyles();
+                    const stylesJson = JSON.stringify(styles);
 
-      assert.deepEqual(offendingAlgorithms, [],
-        `Algorithms with hardcoded colors: ${offendingAlgorithms.join(", ")}`);
+                    // Check for hardcoded colors
+                    if (hardcodedColorPattern.test(stylesJson)) {
+                        offendingAlgorithms.push(name);
+                    }
+                }
+            }
+
+            assert.deepEqual(
+                offendingAlgorithms,
+                [],
+                `Algorithms with hardcoded colors: ${offendingAlgorithms.join(", ")}`,
+            );
+        });
+
+        it("all algorithms use calculatedStyle or palette imports for colors", () => {
+            // Verify patterns used are correct
+            // ...
+        });
     });
-
-    it("all algorithms use calculatedStyle or palette imports for colors", () => {
-      // Verify patterns used are correct
-      // ...
-    });
-  });
-  ```
+    ```
 
 **Implementation**:
 
 Algorithms to update with their new patterns:
 
 1. `src/algorithms/DijkstraAlgorithm.ts` (lines 27-28, 46-47, 52-53):
-   ```typescript
-   static suggestedStyles = (): SuggestedStylesConfig => ({
-       layers: [
-           {
-               edge: {
-                   selector: "algorithmResults.graphty.dijkstra.isInPath == `true`",
-                   style: { enabled: true },
-                   calculatedStyle: {
-                       inputs: ["algorithmResults.graphty.dijkstra.isInPath"],
-                       output: "style.line.color",
-                       expr: "{ return StyleHelpers.color.binary.blueHighlight(arguments[0]) }",
-                   },
-               },
-               // ... width remains static
-           },
-           {
-               node: {
-                   selector: "algorithmResults.graphty.dijkstra.isInPath == `true`",
-                   style: { enabled: true },
-                   calculatedStyle: {
-                       inputs: ["algorithmResults.graphty.dijkstra.isInPath"],
-                       output: "style.texture.color",
-                       expr: "{ return StyleHelpers.color.binary.blueHighlight(arguments[0]) }",
-                   },
-               },
-               // glow effect also uses calculatedStyle
-           },
-       ],
-   });
-   ```
+
+    ```typescript
+    static suggestedStyles = (): SuggestedStylesConfig => ({
+        layers: [
+            {
+                edge: {
+                    selector: "algorithmResults.graphty.dijkstra.isInPath == `true`",
+                    style: { enabled: true },
+                    calculatedStyle: {
+                        inputs: ["algorithmResults.graphty.dijkstra.isInPath"],
+                        output: "style.line.color",
+                        expr: "{ return StyleHelpers.color.binary.blueHighlight(arguments[0]) }",
+                    },
+                },
+                // ... width remains static
+            },
+            {
+                node: {
+                    selector: "algorithmResults.graphty.dijkstra.isInPath == `true`",
+                    style: { enabled: true },
+                    calculatedStyle: {
+                        inputs: ["algorithmResults.graphty.dijkstra.isInPath"],
+                        output: "style.texture.color",
+                        expr: "{ return StyleHelpers.color.binary.blueHighlight(arguments[0]) }",
+                    },
+                },
+                // glow effect also uses calculatedStyle
+            },
+        ],
+    });
+    ```
 
 2. `src/algorithms/KruskalAlgorithm.ts` (lines 27, 44):
-   ```typescript
-   // Use greenSuccess for MST edges (success/highlighted)
-   calculatedStyle: {
-       inputs: ["algorithmResults.graphty.kruskal.inMST"],
-       output: "style.line.color",
-       expr: "{ return StyleHelpers.color.binary.greenSuccess(arguments[0]) }",
-   },
-   ```
+
+    ```typescript
+    // Use greenSuccess for MST edges (success/highlighted)
+    calculatedStyle: {
+        inputs: ["algorithmResults.graphty.kruskal.inMST"],
+        output: "style.line.color",
+        expr: "{ return StyleHelpers.color.binary.greenSuccess(arguments[0]) }",
+    },
+    ```
 
 3. `src/algorithms/PrimAlgorithm.ts` (lines 36, 53):
-   - Same pattern as Kruskal (MST algorithm)
+    - Same pattern as Kruskal (MST algorithm)
 
 4. `src/algorithms/MinCutAlgorithm.ts` (lines 32, 50, 65, 80):
-   ```typescript
-   // Cut edges: use orangeWarning
-   // Partitions: use categorical colors from a two-color palette
-   calculatedStyle: {
-       inputs: ["algorithmResults.graphty.\"min-cut\".partition"],
-       output: "style.texture.color",
-       expr: "{ return StyleHelpers.color.categorical.okabeIto(Number(arguments[0]) - 1) }",
-   },
-   ```
+
+    ```typescript
+    // Cut edges: use orangeWarning
+    // Partitions: use categorical colors from a two-color palette
+    calculatedStyle: {
+        inputs: ["algorithmResults.graphty.\"min-cut\".partition"],
+        output: "style.texture.color",
+        expr: "{ return StyleHelpers.color.categorical.okabeIto(Number(arguments[0]) - 1) }",
+    },
+    ```
 
 5. `src/algorithms/MaxFlowAlgorithm.ts` (lines 60, 65, 79, 84):
-   ```typescript
-   // Source node: greenSuccess(true)
-   // Sink node: use orangeWarning(true) or a different binary helper
-   calculatedStyle: {
-       inputs: ["algorithmResults.graphty.\"max-flow\".isSource"],
-       output: "style.texture.color",
-       expr: "{ return StyleHelpers.color.binary.greenSuccess(arguments[0]) }",
-   },
-   ```
+
+    ```typescript
+    // Source node: greenSuccess(true)
+    // Sink node: use orangeWarning(true) or a different binary helper
+    calculatedStyle: {
+        inputs: ["algorithmResults.graphty.\"max-flow\".isSource"],
+        output: "style.texture.color",
+        expr: "{ return StyleHelpers.color.binary.greenSuccess(arguments[0]) }",
+    },
+    ```
 
 6. `src/algorithms/BipartiteMatchingAlgorithm.ts` (lines 28, 44, 60, 75):
-   ```typescript
-   // Matched edges: use blueHighlight or custom purple from palette
-   // Partitions: use categorical okabeIto for left/right
-   ```
+    ```typescript
+    // Matched edges: use blueHighlight or custom purple from palette
+    // Partitions: use categorical okabeIto for left/right
+    ```
 
 **New Addition - Palette Index Export**:
 
 - `src/config/palettes/index.ts` (new file):
-  ```typescript
-  export * from "./binary";
-  export * from "./sequential";
-  export * from "./categorical";
-  export * from "./diverging";
-  ```
+    ```typescript
+    export * from "./binary";
+    export * from "./sequential";
+    export * from "./categorical";
+    export * from "./diverging";
+    ```
 
 **Dependencies**:
+
 - External: None
 - Internal: Phase 1 and 2 (algorithms should be correct before changing visuals)
 
 **Verification**:
+
 1. Run: `npm run test:default` - all tests pass
 2. Run: `npm run lint` - no new errors
 3. Visual verification: Run Storybook, verify algorithm stories still render correctly
@@ -257,191 +272,193 @@ Algorithms to update with their new patterns:
 **Tests to Write First**:
 
 - `test/algorithms/utils/graph-utils.test.ts`: Test shared utilities
-  ```typescript
-  describe("graph utilities", () => {
-    describe("buildAdjacencyList", () => {
-      it("builds undirected adjacency list", () => {
-        const graph = createMockGraph({
-          nodes: ["A", "B", "C"],
-          edges: [{ src: "A", dst: "B" }]
+
+    ```typescript
+    describe("graph utilities", () => {
+        describe("buildAdjacencyList", () => {
+            it("builds undirected adjacency list", () => {
+                const graph = createMockGraph({
+                    nodes: ["A", "B", "C"],
+                    edges: [{ src: "A", dst: "B" }],
+                });
+
+                const adj = buildAdjacencyList(graph, { directed: false });
+
+                assert.isTrue(adj.get("A")?.has("B"));
+                assert.isTrue(adj.get("B")?.has("A")); // Undirected
+            });
+
+            it("builds directed adjacency list", () => {
+                const graph = createMockGraph({
+                    nodes: ["A", "B"],
+                    edges: [{ src: "A", dst: "B" }],
+                });
+
+                const adj = buildAdjacencyList(graph, { directed: true });
+
+                assert.isTrue(adj.get("A")?.has("B"));
+                assert.isFalse(adj.get("B")?.has("A")); // Directed
+            });
+
+            it("includes edge weights when available", () => {
+                const graph = createMockGraph({
+                    nodes: ["A", "B"],
+                    edges: [{ src: "A", dst: "B", weight: 5 }],
+                });
+
+                const adj = buildAdjacencyList(graph, { includeWeights: true });
+
+                assert.equal(adj.get("A")?.get("B"), 5);
+            });
         });
-
-        const adj = buildAdjacencyList(graph, { directed: false });
-
-        assert.isTrue(adj.get("A")?.has("B"));
-        assert.isTrue(adj.get("B")?.has("A")); // Undirected
-      });
-
-      it("builds directed adjacency list", () => {
-        const graph = createMockGraph({
-          nodes: ["A", "B"],
-          edges: [{ src: "A", dst: "B" }]
-        });
-
-        const adj = buildAdjacencyList(graph, { directed: true });
-
-        assert.isTrue(adj.get("A")?.has("B"));
-        assert.isFalse(adj.get("B")?.has("A")); // Directed
-      });
-
-      it("includes edge weights when available", () => {
-        const graph = createMockGraph({
-          nodes: ["A", "B"],
-          edges: [{ src: "A", dst: "B", weight: 5 }]
-        });
-
-        const adj = buildAdjacencyList(graph, { includeWeights: true });
-
-        assert.equal(adj.get("A")?.get("B"), 5);
-      });
     });
-  });
-  ```
+    ```
 
 - `test/algorithms/utils/community-utils.test.ts`: Test community detection utilities
-  ```typescript
-  describe("community utilities", () => {
-    describe("calculateModularity", () => {
-      it("returns 0 for empty graph", () => {
-        const graph = createMockGraph({ nodes: [], edges: [] });
-        const communities = new Map();
 
-        assert.equal(calculateModularity(graph, communities, 1.0), 0);
-      });
+    ```typescript
+    describe("community utilities", () => {
+        describe("calculateModularity", () => {
+            it("returns 0 for empty graph", () => {
+                const graph = createMockGraph({ nodes: [], edges: [] });
+                const communities = new Map();
 
-      it("calculates correct modularity for simple graph", () => {
-        // Test with known modularity value
-      });
+                assert.equal(calculateModularity(graph, communities, 1.0), 0);
+            });
+
+            it("calculates correct modularity for simple graph", () => {
+                // Test with known modularity value
+            });
+        });
+
+        describe("getNodeDegree", () => {
+            it("counts both incoming and outgoing edges", () => {
+                // ...
+            });
+        });
     });
-
-    describe("getNodeDegree", () => {
-      it("counts both incoming and outgoing edges", () => {
-        // ...
-      });
-    });
-  });
-  ```
+    ```
 
 **Implementation**:
 
 - `src/algorithms/utils/graphUtils.ts` (new file):
-  ```typescript
-  import type {Graph} from "../../graph/Graph";
 
-  export interface AdjacencyOptions {
-      directed?: boolean;
-      includeWeights?: boolean;
-  }
+    ```typescript
+    import type { Graph } from "../../graph/Graph";
 
-  /**
-   * Build an adjacency list from graph edges
-   * @param graph - The graph to build adjacency from
-   * @param options - Configuration options
-   * @returns Map of node ID to Set of neighbor IDs (or Map if weights included)
-   */
-  export function buildAdjacencyList(
-      graph: Graph,
-      options: AdjacencyOptions = {}
-  ): Map<string, Set<string>> {
-      const { directed = false } = options;
-      const adjacency = new Map<string, Set<string>>();
-      const { nodes, edges } = graph.getDataManager();
+    export interface AdjacencyOptions {
+        directed?: boolean;
+        includeWeights?: boolean;
+    }
 
-      // Initialize all nodes
-      for (const nodeId of nodes.keys()) {
-          adjacency.set(String(nodeId), new Set());
-      }
+    /**
+     * Build an adjacency list from graph edges
+     * @param graph - The graph to build adjacency from
+     * @param options - Configuration options
+     * @returns Map of node ID to Set of neighbor IDs (or Map if weights included)
+     */
+    export function buildAdjacencyList(graph: Graph, options: AdjacencyOptions = {}): Map<string, Set<string>> {
+        const { directed = false } = options;
+        const adjacency = new Map<string, Set<string>>();
+        const { nodes, edges } = graph.getDataManager();
 
-      // Add edges
-      for (const edge of edges.values()) {
-          const src = String(edge.srcId);
-          const dst = String(edge.dstId);
+        // Initialize all nodes
+        for (const nodeId of nodes.keys()) {
+            adjacency.set(String(nodeId), new Set());
+        }
 
-          adjacency.get(src)?.add(dst);
+        // Add edges
+        for (const edge of edges.values()) {
+            const src = String(edge.srcId);
+            const dst = String(edge.dstId);
 
-          if (!directed) {
-              adjacency.get(dst)?.add(src);
-          }
-      }
+            adjacency.get(src)?.add(dst);
 
-      return adjacency;
-  }
+            if (!directed) {
+                adjacency.get(dst)?.add(src);
+            }
+        }
 
-  export function buildWeightedAdjacencyList(
-      graph: Graph,
-      options: AdjacencyOptions = {}
-  ): Map<string, Map<string, number>> {
-      // Similar but with weights
-  }
-  ```
+        return adjacency;
+    }
+
+    export function buildWeightedAdjacencyList(
+        graph: Graph,
+        options: AdjacencyOptions = {},
+    ): Map<string, Map<string, number>> {
+        // Similar but with weights
+    }
+    ```
 
 - `src/algorithms/utils/communityUtils.ts` (new file):
-  ```typescript
-  /**
-   * Shared utilities for community detection algorithms (Louvain, Leiden)
-   */
 
-  export function calculateModularity(
-      graph: Graph,
-      communities: Map<number | string, number>,
-      resolution: number
-  ): number {
-      // Extracted from LouvainAlgorithm.calculateModularity
-  }
+    ```typescript
+    /**
+     * Shared utilities for community detection algorithms (Louvain, Leiden)
+     */
 
-  export function nodeModularityContribution(
-      graph: Graph,
-      nodeId: number | string,
-      community: number,
-      communities: Map<number | string, number>,
-      resolution: number
-  ): number {
-      // Extracted from LouvainAlgorithm.nodeModularityContribution
-  }
+    export function calculateModularity(
+        graph: Graph,
+        communities: Map<number | string, number>,
+        resolution: number,
+    ): number {
+        // Extracted from LouvainAlgorithm.calculateModularity
+    }
 
-  export function getNeighborCommunities(
-      graph: Graph,
-      nodeId: number | string,
-      communities: Map<number | string, number>
-  ): Set<number> {
-      // Extracted from LouvainAlgorithm.getNeighborCommunities
-  }
+    export function nodeModularityContribution(
+        graph: Graph,
+        nodeId: number | string,
+        community: number,
+        communities: Map<number | string, number>,
+        resolution: number,
+    ): number {
+        // Extracted from LouvainAlgorithm.nodeModularityContribution
+    }
 
-  export function extractCommunities(
-      communities: Map<number | string, number>
-  ): (number | string)[][] {
-      // Extracted from LouvainAlgorithm.extractCommunities
-  }
+    export function getNeighborCommunities(
+        graph: Graph,
+        nodeId: number | string,
+        communities: Map<number | string, number>,
+    ): Set<number> {
+        // Extracted from LouvainAlgorithm.getNeighborCommunities
+    }
 
-  export function getTotalEdgeWeight(graph: Graph): number {
-      // Extracted from LouvainAlgorithm.getTotalEdgeWeight
-  }
+    export function extractCommunities(communities: Map<number | string, number>): (number | string)[][] {
+        // Extracted from LouvainAlgorithm.extractCommunities
+    }
 
-  export function getNodeDegree(graph: Graph, nodeId: number | string): number {
-      // Extracted from LouvainAlgorithm.getNodeDegree
-  }
-  ```
+    export function getTotalEdgeWeight(graph: Graph): number {
+        // Extracted from LouvainAlgorithm.getTotalEdgeWeight
+    }
+
+    export function getNodeDegree(graph: Graph, nodeId: number | string): number {
+        // Extracted from LouvainAlgorithm.getNodeDegree
+    }
+    ```
 
 - `src/algorithms/utils/index.ts`: Export all utilities
-  ```typescript
-  export * from "./graphUtils";
-  export * from "./communityUtils";
-  export * from "./graphConverter"; // existing
-  ```
+
+    ```typescript
+    export * from "./graphUtils";
+    export * from "./communityUtils";
+    export * from "./graphConverter"; // existing
+    ```
 
 - Update algorithms to use shared utilities:
-  - `src/algorithms/LouvainAlgorithm.ts`: Import and use from communityUtils
-  - `src/algorithms/LeidenAlgorithm.ts`: Import and use from communityUtils
-  - `src/algorithms/DijkstraAlgorithm.ts`: Use buildWeightedAdjacencyList
-  - `src/algorithms/ConnectedComponentsAlgorithm.ts`: Use buildAdjacencyList
-  - `src/algorithms/DFSAlgorithm.ts`: Use buildAdjacencyList
-  - `src/algorithms/StronglyConnectedComponentsAlgorithm.ts`: Use buildAdjacencyList
+    - `src/algorithms/LouvainAlgorithm.ts`: Import and use from communityUtils
+    - `src/algorithms/LeidenAlgorithm.ts`: Import and use from communityUtils
+    - `src/algorithms/DijkstraAlgorithm.ts`: Use buildWeightedAdjacencyList
+    - `src/algorithms/ConnectedComponentsAlgorithm.ts`: Use buildAdjacencyList
+    - `src/algorithms/DFSAlgorithm.ts`: Use buildAdjacencyList
+    - `src/algorithms/StronglyConnectedComponentsAlgorithm.ts`: Use buildAdjacencyList
 
 **Dependencies**:
+
 - External: None
 - Internal: Phases 1-3 (algorithms should be correct before refactoring)
 
 **Verification**:
+
 1. Run: `npm run test:default` - all tests pass (existing + new utility tests)
 2. Run: `npm run lint` - no new errors
 3. Run: `npm run build` - builds successfully
@@ -458,132 +475,138 @@ Algorithms to update with their new patterns:
 **Tests to Write First**:
 
 - Update `test/algorithms/algorithm.test.ts` with proper typing:
-  ```typescript
-  import type {NodeData, EdgeData} from "../../src/config";
 
-  interface MockNode extends NodeData {
-      algorithmResults?: Record<string, unknown>;
-  }
+    ```typescript
+    import type { NodeData, EdgeData } from "../../src/config";
 
-  interface MockEdge extends EdgeData {
-      algorithmResults?: Record<string, unknown>;
-  }
+    interface MockNode extends NodeData {
+        algorithmResults?: Record<string, unknown>;
+    }
 
-  interface MockGraph {
-      nodes: Map<string | number, MockNode>;
-      edges: Map<string | number, MockEdge>;
-      algorithmResults?: Record<string, unknown>;
-      getDataManager(): {
-          nodes: Map<string | number, MockNode>;
-          edges: Map<string | number, MockEdge>;
-      };
-  }
+    interface MockEdge extends EdgeData {
+        algorithmResults?: Record<string, unknown>;
+    }
 
-  function createMockGraph(opts: MockGraphOpts = {}): MockGraph {
-      // Properly typed mock graph factory
-  }
-  ```
+    interface MockGraph {
+        nodes: Map<string | number, MockNode>;
+        edges: Map<string | number, MockEdge>;
+        algorithmResults?: Record<string, unknown>;
+        getDataManager(): {
+            nodes: Map<string | number, MockNode>;
+            edges: Map<string | number, MockEdge>;
+        };
+    }
+
+    function createMockGraph(opts: MockGraphOpts = {}): MockGraph {
+        // Properly typed mock graph factory
+    }
+    ```
 
 - `test/algorithms/pagerank-algorithm.test.ts`: Verify graph-level results
-  ```typescript
-  describe("PageRankAlgorithm", () => {
-    it("stores graph-level convergence info", async () => {
-      const graph = createMockGraph({...});
-      const alg = new PageRankAlgorithm(graph);
-      await alg.run();
 
-      assert.isDefined(graph.algorithmResults?.graphty?.pagerank?.iterations);
-      assert.isDefined(graph.algorithmResults?.graphty?.pagerank?.converged);
+    ```typescript
+    describe("PageRankAlgorithm", () => {
+      it("stores graph-level convergence info", async () => {
+        const graph = createMockGraph({...});
+        const alg = new PageRankAlgorithm(graph);
+        await alg.run();
+
+        assert.isDefined(graph.algorithmResults?.graphty?.pagerank?.iterations);
+        assert.isDefined(graph.algorithmResults?.graphty?.pagerank?.converged);
+      });
     });
-  });
-  ```
+    ```
 
 **Implementation**:
 
 - `test/helpers/mockGraph.ts` (new file):
-  ```typescript
-  /**
-   * Shared mock graph factory for algorithm tests
-   */
-  import type {NodeData, EdgeData} from "../../src/config";
 
-  export interface MockGraphOpts {
-      nodes?: Array<{ id: string | number; [key: string]: unknown }>;
-      edges?: Array<{ srcId: string | number; dstId: string | number; [key: string]: unknown }>;
-      dataPath?: string;
-  }
+    ```typescript
+    /**
+     * Shared mock graph factory for algorithm tests
+     */
+    import type { NodeData, EdgeData } from "../../src/config";
 
-  export interface MockNode extends NodeData {
-      algorithmResults?: Record<string, unknown>;
-  }
+    export interface MockGraphOpts {
+        nodes?: Array<{ id: string | number; [key: string]: unknown }>;
+        edges?: Array<{ srcId: string | number; dstId: string | number; [key: string]: unknown }>;
+        dataPath?: string;
+    }
 
-  export interface MockEdge extends EdgeData {
-      algorithmResults?: Record<string, unknown>;
-  }
+    export interface MockNode extends NodeData {
+        algorithmResults?: Record<string, unknown>;
+    }
 
-  export interface MockGraph {
-      nodes: Map<string | number, MockNode>;
-      edges: Map<string | number, MockEdge>;
-      algorithmResults?: Record<string, unknown>;
-      getDataManager(): {
-          nodes: Map<string | number, MockNode>;
-          edges: Map<string | number, MockEdge>;
-      };
-  }
+    export interface MockEdge extends EdgeData {
+        algorithmResults?: Record<string, unknown>;
+    }
 
-  export async function createMockGraph(opts: MockGraphOpts = {}): Promise<MockGraph> {
-      const nodes = new Map<string | number, MockNode>();
-      const edges = new Map<string | number, MockEdge>();
+    export interface MockGraph {
+        nodes: Map<string | number, MockNode>;
+        edges: Map<string | number, MockEdge>;
+        algorithmResults?: Record<string, unknown>;
+        getDataManager(): {
+            nodes: Map<string | number, MockNode>;
+            edges: Map<string | number, MockEdge>;
+        };
+    }
 
-      if (opts.nodes) {
-          for (const n of opts.nodes) {
-              nodes.set(n.id, n as MockNode);
-          }
-      }
+    export async function createMockGraph(opts: MockGraphOpts = {}): Promise<MockGraph> {
+        const nodes = new Map<string | number, MockNode>();
+        const edges = new Map<string | number, MockEdge>();
 
-      if (opts.edges) {
-          for (const e of opts.edges) {
-              edges.set(`${e.srcId}:${e.dstId}`, e as MockEdge);
-          }
-      }
+        if (opts.nodes) {
+            for (const n of opts.nodes) {
+                nodes.set(n.id, n as MockNode);
+            }
+        }
 
-      if (typeof opts.dataPath === "string") {
-          const imp = await import(opts.dataPath);
-          for (const n of imp.nodes) {
-              nodes.set(n.id, n);
-          }
-          for (const e of imp.edges) {
-              edges.set(`${e.srcId}:${e.dstId}`, e);
-          }
-      }
+        if (opts.edges) {
+            for (const e of opts.edges) {
+                edges.set(`${e.srcId}:${e.dstId}`, e as MockEdge);
+            }
+        }
 
-      return {
-          nodes,
-          edges,
-          getDataManager() {
-              return { nodes, edges };
-          },
-      };
-  }
-  ```
+        if (typeof opts.dataPath === "string") {
+            const imp = await import(opts.dataPath);
+            for (const n of imp.nodes) {
+                nodes.set(n.id, n);
+            }
+            for (const e of imp.edges) {
+                edges.set(`${e.srcId}:${e.dstId}`, e);
+            }
+        }
+
+        return {
+            nodes,
+            edges,
+            getDataManager() {
+                return { nodes, edges };
+            },
+        };
+    }
+    ```
 
 - `src/algorithms/PageRankAlgorithm.ts`: Add graph-level results
-  ```typescript
-  // After the main loop, add:
-  this.addGraphResult("iterations", iteration);
-  this.addGraphResult("converged", hasConverged);
-  this.addGraphResult("dampingFactor", dampingFactor);
-  ```
+
+    ```typescript
+    // After the main loop, add:
+    this.addGraphResult("iterations", iteration);
+    this.addGraphResult("converged", hasConverged);
+    this.addGraphResult("dampingFactor", dampingFactor);
+    ```
 
 - Update existing test files to use shared mock:
-  - `test/algorithms/algorithm.test.ts`
-  - `test/algorithms/algorithm-infrastructure.test.ts`
+    - `test/algorithms/algorithm.test.ts`
+    - `test/algorithms/algorithm-infrastructure.test.ts`
 
 **Dependencies**:
+
 - External: None
 - Internal: None (can run in parallel with Phase 3)
 
 **Verification**:
+
 1. Run: `npm run test:default` - all tests pass with no type errors
 2. Run: `npm run lint` - no eslint-disable comments for any in test mocks
 3. Run: `npm run build` - builds successfully
@@ -592,17 +615,17 @@ Algorithms to update with their new patterns:
 
 ## Common Utilities Needed
 
-| Utility | Purpose | Used By |
-|---------|---------|---------|
-| `buildAdjacencyList()` | Build node adjacency from edges | Dijkstra, DFS, BFS, ConnectedComponents, SCC |
-| `buildWeightedAdjacencyList()` | Build weighted adjacency | Dijkstra, community algorithms |
-| `calculateModularity()` | Compute graph modularity | Louvain, Leiden |
-| `nodeModularityContribution()` | Node's modularity contribution | Louvain, Leiden |
-| `getNeighborCommunities()` | Find neighbor communities | Louvain, Leiden |
-| `extractCommunities()` | Convert community map to arrays | Louvain, Leiden |
-| `getTotalEdgeWeight()` | Sum all edge weights | Louvain, Leiden |
-| `getNodeDegree()` | Count node degree | Louvain, Leiden, Degree |
-| `createMockGraph()` | Type-safe test mock factory | All algorithm tests |
+| Utility                        | Purpose                         | Used By                                      |
+| ------------------------------ | ------------------------------- | -------------------------------------------- |
+| `buildAdjacencyList()`         | Build node adjacency from edges | Dijkstra, DFS, BFS, ConnectedComponents, SCC |
+| `buildWeightedAdjacencyList()` | Build weighted adjacency        | Dijkstra, community algorithms               |
+| `calculateModularity()`        | Compute graph modularity        | Louvain, Leiden                              |
+| `nodeModularityContribution()` | Node's modularity contribution  | Louvain, Leiden                              |
+| `getNeighborCommunities()`     | Find neighbor communities       | Louvain, Leiden                              |
+| `extractCommunities()`         | Convert community map to arrays | Louvain, Leiden                              |
+| `getTotalEdgeWeight()`         | Sum all edge weights            | Louvain, Leiden                              |
+| `getNodeDegree()`              | Count node degree               | Louvain, Leiden, Degree                      |
+| `createMockGraph()`            | Type-safe test mock factory     | All algorithm tests                          |
 
 ---
 
@@ -614,13 +637,13 @@ No external libraries are needed for these fixes. All changes use existing code 
 
 ## Risk Mitigation
 
-| Risk | Mitigation Strategy |
-|------|---------------------|
-| Breaking existing visualizations | Run visual tests after Phase 2 to verify appearance |
-| Performance regression in utility extraction | Benchmark key algorithms before/after Phase 3 |
-| Type errors in shared utilities | Write comprehensive tests before implementation |
-| Changing algorithm results format | Keep backward compatibility for all result keys |
-| Test suite becomes slower | Use efficient mock graph creation, avoid redundant setup |
+| Risk                                         | Mitigation Strategy                                      |
+| -------------------------------------------- | -------------------------------------------------------- |
+| Breaking existing visualizations             | Run visual tests after Phase 2 to verify appearance      |
+| Performance regression in utility extraction | Benchmark key algorithms before/after Phase 3            |
+| Type errors in shared utilities              | Write comprehensive tests before implementation          |
+| Changing algorithm results format            | Keep backward compatibility for all result keys          |
+| Test suite becomes slower                    | Use efficient mock graph creation, avoid redundant setup |
 
 ---
 

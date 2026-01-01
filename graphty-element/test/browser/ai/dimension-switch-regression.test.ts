@@ -13,29 +13,24 @@
  * @module test/browser/ai/dimension-switch-regression
  */
 
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import type {MockLlmProvider} from "../../../src/ai/providers/MockLlmProvider";
-import type {Graph} from "../../../src/Graph";
-import type {Node} from "../../../src/Node";
-import {
-    cleanupE2EGraph,
-    createE2EGraph,
-    DEFAULT_TEST_EDGES,
-    DEFAULT_TEST_NODES,
-} from "../../helpers/e2e-graph-setup";
+import type { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
+import type { Graph } from "../../../src/Graph";
+import type { Node } from "../../../src/Node";
+import { cleanupE2EGraph, createE2EGraph, DEFAULT_TEST_EDGES, DEFAULT_TEST_NODES } from "../../helpers/e2e-graph-setup";
 
 describe("Dimension Switch Regression Test", () => {
     let graph: Graph;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Create a real graphty-element with test data (starts in 3D mode)
         const result = await createE2EGraph({
             nodes: DEFAULT_TEST_NODES,
             edges: DEFAULT_TEST_EDGES,
             enableAi: true,
         });
-        ({graph} = result);
+        ({ graph } = result);
     });
 
     afterEach(() => {
@@ -99,7 +94,7 @@ describe("Dimension Switch Regression Test", () => {
             assert.strictEqual(areAllNodeMeshesValid(), true, "All node meshes should be valid initially");
         });
 
-        it("node meshes should remain valid after switching from 3D to 2D", async() => {
+        it("node meshes should remain valid after switching from 3D to 2D", async () => {
             // Verify initial state (3D mode, all meshes valid)
             assert.strictEqual(graph.getViewMode() === "2d", false, "Should start in 3D mode");
             assert.strictEqual(areAllNodeMeshesValid(), true, "All meshes should be valid in 3D mode");
@@ -108,7 +103,7 @@ describe("Dimension Switch Regression Test", () => {
             const provider = getProvider();
             provider.setResponse("switch to 2D", {
                 text: "",
-                toolCalls: [{id: "1", name: "setDimension", arguments: {dimension: "2d"}}],
+                toolCalls: [{ id: "1", name: "setDimension", arguments: { dimension: "2d" } }],
             });
 
             // Execute dimension switch via AI command
@@ -133,12 +128,12 @@ describe("Dimension Switch Regression Test", () => {
             );
         });
 
-        it("node meshes should remain valid after switching from 2D to 3D", async() => {
+        it("node meshes should remain valid after switching from 2D to 3D", async () => {
             // First switch to 2D
             const provider = getProvider();
             provider.setResponse("switch to 2D", {
                 text: "",
-                toolCalls: [{id: "1", name: "setDimension", arguments: {dimension: "2d"}}],
+                toolCalls: [{ id: "1", name: "setDimension", arguments: { dimension: "2d" } }],
             });
 
             await graph.aiCommand("switch to 2D");
@@ -148,7 +143,7 @@ describe("Dimension Switch Regression Test", () => {
             // Now switch back to 3D
             provider.setResponse("switch to 3D", {
                 text: "",
-                toolCalls: [{id: "1", name: "setDimension", arguments: {dimension: "3d"}}],
+                toolCalls: [{ id: "1", name: "setDimension", arguments: { dimension: "3d" } }],
             });
 
             const result = await graph.aiCommand("switch to 3D");
@@ -171,7 +166,7 @@ describe("Dimension Switch Regression Test", () => {
             );
         });
 
-        it("node meshes should remain valid after multiple dimension switches", async() => {
+        it("node meshes should remain valid after multiple dimension switches", async () => {
             const provider = getProvider();
 
             // Perform multiple switches
@@ -179,7 +174,7 @@ describe("Dimension Switch Regression Test", () => {
             for (const dimension of switches) {
                 provider.setResponse(`switch to ${dimension}`, {
                     text: "",
-                    toolCalls: [{id: "1", name: "setDimension", arguments: {dimension}}],
+                    toolCalls: [{ id: "1", name: "setDimension", arguments: { dimension } }],
                 });
 
                 const result = await graph.aiCommand(`switch to ${dimension}`);
@@ -197,7 +192,7 @@ describe("Dimension Switch Regression Test", () => {
     });
 
     describe("edge meshes remain valid after dimension switch", () => {
-        it("edge meshes should remain valid after switching to 2D", async() => {
+        it("edge meshes should remain valid after switching to 2D", async () => {
             const dataManager = graph.getDataManager();
             const edges = Array.from(dataManager.edges.values());
 
@@ -208,7 +203,7 @@ describe("Dimension Switch Regression Test", () => {
             const provider = getProvider();
             provider.setResponse("switch to 2D", {
                 text: "",
-                toolCalls: [{id: "1", name: "setDimension", arguments: {dimension: "2d"}}],
+                toolCalls: [{ id: "1", name: "setDimension", arguments: { dimension: "2d" } }],
             });
 
             await graph.aiCommand("switch to 2D");

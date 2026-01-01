@@ -1,12 +1,12 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Testing legacy backward-compatible API */
-import {assert, describe, it} from "vitest";
+ 
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {EigenvectorCentralityAlgorithm} from "../../../src/algorithms/EigenvectorCentralityAlgorithm";
-import {HITSAlgorithm} from "../../../src/algorithms/HITSAlgorithm";
-import {KatzCentralityAlgorithm} from "../../../src/algorithms/KatzCentralityAlgorithm";
-import {OptionValidationError} from "../../../src/algorithms/types/OptionSchema";
-import {createMockGraph, getNodeResult} from "../../helpers/mockGraph";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { EigenvectorCentralityAlgorithm } from "../../../src/algorithms/EigenvectorCentralityAlgorithm";
+import { HITSAlgorithm } from "../../../src/algorithms/HITSAlgorithm";
+import { KatzCentralityAlgorithm } from "../../../src/algorithms/KatzCentralityAlgorithm";
+import { OptionValidationError } from "../../../src/algorithms/types/OptionSchema";
+import { createMockGraph, getNodeResult } from "../../helpers/mockGraph";
 
 describe("Centrality Algorithm Options", () => {
     describe("EigenvectorCentralityAlgorithm", () => {
@@ -37,13 +37,13 @@ describe("Centrality Algorithm Options", () => {
         });
 
         describe("option defaults", () => {
-            it("uses default options when none provided", async() => {
+            it("uses default options when none provided", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B"},
-                        {srcId: "B", dstId: "C"},
-                        {srcId: "C", dstId: "A"},
+                        { srcId: "A", dstId: "B" },
+                        { srcId: "B", dstId: "C" },
+                        { srcId: "C", dstId: "A" },
                     ],
                 });
                 const algo = new EigenvectorCentralityAlgorithm(graph);
@@ -57,56 +57,56 @@ describe("Centrality Algorithm Options", () => {
         });
 
         describe("option validation", () => {
-            it("accepts valid maxIterations", async() => {
+            it("accepts valid maxIterations", async () => {
                 const graph = await createMockGraph();
-                assert.doesNotThrow(() => new EigenvectorCentralityAlgorithm(graph, {maxIterations: 200}));
+                assert.doesNotThrow(() => new EigenvectorCentralityAlgorithm(graph, { maxIterations: 200 }));
             });
 
-            it("rejects maxIterations < 1", async() => {
+            it("rejects maxIterations < 1", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
-                    () => new EigenvectorCentralityAlgorithm(graph, {maxIterations: 0}),
+                    () => new EigenvectorCentralityAlgorithm(graph, { maxIterations: 0 }),
                     OptionValidationError,
                     "must be >= 1",
                 );
             });
 
-            it("rejects maxIterations > 1000", async() => {
+            it("rejects maxIterations > 1000", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
-                    () => new EigenvectorCentralityAlgorithm(graph, {maxIterations: 1001}),
+                    () => new EigenvectorCentralityAlgorithm(graph, { maxIterations: 1001 }),
                     OptionValidationError,
                     "must be <= 1000",
                 );
             });
 
-            it("rejects non-integer maxIterations", async() => {
+            it("rejects non-integer maxIterations", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
-                    () => new EigenvectorCentralityAlgorithm(graph, {maxIterations: 50.5}),
+                    () => new EigenvectorCentralityAlgorithm(graph, { maxIterations: 50.5 }),
                     OptionValidationError,
                     "must be an integer",
                 );
             });
 
-            it("accepts valid tolerance", async() => {
+            it("accepts valid tolerance", async () => {
                 const graph = await createMockGraph();
-                assert.doesNotThrow(() => new EigenvectorCentralityAlgorithm(graph, {tolerance: 0.001}));
+                assert.doesNotThrow(() => new EigenvectorCentralityAlgorithm(graph, { tolerance: 0.001 }));
             });
 
-            it("rejects tolerance < 1e-10", async() => {
+            it("rejects tolerance < 1e-10", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
-                    () => new EigenvectorCentralityAlgorithm(graph, {tolerance: 1e-11}),
+                    () => new EigenvectorCentralityAlgorithm(graph, { tolerance: 1e-11 }),
                     OptionValidationError,
                     "must be >= ",
                 );
             });
 
-            it("rejects tolerance > 0.01", async() => {
+            it("rejects tolerance > 0.01", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
-                    () => new EigenvectorCentralityAlgorithm(graph, {tolerance: 0.1}),
+                    () => new EigenvectorCentralityAlgorithm(graph, { tolerance: 0.1 }),
                     OptionValidationError,
                     "must be <= 0.01",
                 );
@@ -114,17 +114,17 @@ describe("Centrality Algorithm Options", () => {
         });
 
         describe("custom options in run()", () => {
-            it("uses custom maxIterations", async() => {
+            it("uses custom maxIterations", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B"},
-                        {srcId: "B", dstId: "C"},
-                        {srcId: "C", dstId: "A"},
+                        { srcId: "A", dstId: "B" },
+                        { srcId: "B", dstId: "C" },
+                        { srcId: "C", dstId: "A" },
                     ],
                 });
                 // Run with reduced iterations
-                const algo = new EigenvectorCentralityAlgorithm(graph, {maxIterations: 5});
+                const algo = new EigenvectorCentralityAlgorithm(graph, { maxIterations: 5 });
                 await algo.run();
 
                 // Verify scores were calculated
@@ -190,13 +190,13 @@ describe("Centrality Algorithm Options", () => {
         });
 
         describe("option defaults", () => {
-            it("uses default options when none provided", async() => {
+            it("uses default options when none provided", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B"},
-                        {srcId: "B", dstId: "C"},
-                        {srcId: "C", dstId: "A"},
+                        { srcId: "A", dstId: "B" },
+                        { srcId: "B", dstId: "C" },
+                        { srcId: "C", dstId: "A" },
                     ],
                 });
                 const algo = new KatzCentralityAlgorithm(graph);
@@ -210,56 +210,56 @@ describe("Centrality Algorithm Options", () => {
         });
 
         describe("option validation", () => {
-            it("accepts valid alpha", async() => {
+            it("accepts valid alpha", async () => {
                 const graph = await createMockGraph();
-                assert.doesNotThrow(() => new KatzCentralityAlgorithm(graph, {alpha: 0.2}));
+                assert.doesNotThrow(() => new KatzCentralityAlgorithm(graph, { alpha: 0.2 }));
             });
 
-            it("rejects alpha < 0.01", async() => {
+            it("rejects alpha < 0.01", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
-                    () => new KatzCentralityAlgorithm(graph, {alpha: 0.005}),
+                    () => new KatzCentralityAlgorithm(graph, { alpha: 0.005 }),
                     OptionValidationError,
                     "must be >= 0.01",
                 );
             });
 
-            it("rejects alpha > 0.5", async() => {
+            it("rejects alpha > 0.5", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
-                    () => new KatzCentralityAlgorithm(graph, {alpha: 0.6}),
+                    () => new KatzCentralityAlgorithm(graph, { alpha: 0.6 }),
                     OptionValidationError,
                     "must be <= 0.5",
                 );
             });
 
-            it("accepts valid beta", async() => {
+            it("accepts valid beta", async () => {
                 const graph = await createMockGraph();
-                assert.doesNotThrow(() => new KatzCentralityAlgorithm(graph, {beta: 2.0}));
+                assert.doesNotThrow(() => new KatzCentralityAlgorithm(graph, { beta: 2.0 }));
             });
 
-            it("rejects beta < 0", async() => {
+            it("rejects beta < 0", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
-                    () => new KatzCentralityAlgorithm(graph, {beta: -0.5}),
+                    () => new KatzCentralityAlgorithm(graph, { beta: -0.5 }),
                     OptionValidationError,
                     "must be >= 0",
                 );
             });
 
-            it("rejects beta > 10", async() => {
+            it("rejects beta > 10", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
-                    () => new KatzCentralityAlgorithm(graph, {beta: 11}),
+                    () => new KatzCentralityAlgorithm(graph, { beta: 11 }),
                     OptionValidationError,
                     "must be <= 10",
                 );
             });
 
-            it("rejects non-integer maxIterations", async() => {
+            it("rejects non-integer maxIterations", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
-                    () => new KatzCentralityAlgorithm(graph, {maxIterations: 100.5}),
+                    () => new KatzCentralityAlgorithm(graph, { maxIterations: 100.5 }),
                     OptionValidationError,
                     "must be an integer",
                 );
@@ -267,16 +267,16 @@ describe("Centrality Algorithm Options", () => {
         });
 
         describe("custom options in run()", () => {
-            it("uses custom alpha and beta", async() => {
+            it("uses custom alpha and beta", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B"},
-                        {srcId: "B", dstId: "C"},
-                        {srcId: "C", dstId: "A"},
+                        { srcId: "A", dstId: "B" },
+                        { srcId: "B", dstId: "C" },
+                        { srcId: "C", dstId: "A" },
                     ],
                 });
-                const algo = new KatzCentralityAlgorithm(graph, {alpha: 0.2, beta: 2.0});
+                const algo = new KatzCentralityAlgorithm(graph, { alpha: 0.2, beta: 2.0 });
                 await algo.run();
 
                 // Verify scores were calculated
@@ -324,13 +324,13 @@ describe("Centrality Algorithm Options", () => {
         });
 
         describe("option defaults", () => {
-            it("uses default options when none provided", async() => {
+            it("uses default options when none provided", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B"},
-                        {srcId: "B", dstId: "C"},
-                        {srcId: "C", dstId: "A"},
+                        { srcId: "A", dstId: "B" },
+                        { srcId: "B", dstId: "C" },
+                        { srcId: "C", dstId: "A" },
                     ],
                 });
                 const algo = new HITSAlgorithm(graph);
@@ -347,56 +347,56 @@ describe("Centrality Algorithm Options", () => {
         });
 
         describe("option validation", () => {
-            it("accepts valid maxIterations", async() => {
+            it("accepts valid maxIterations", async () => {
                 const graph = await createMockGraph();
-                assert.doesNotThrow(() => new HITSAlgorithm(graph, {maxIterations: 200}));
+                assert.doesNotThrow(() => new HITSAlgorithm(graph, { maxIterations: 200 }));
             });
 
-            it("rejects maxIterations < 1", async() => {
+            it("rejects maxIterations < 1", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
-                    () => new HITSAlgorithm(graph, {maxIterations: 0}),
+                    () => new HITSAlgorithm(graph, { maxIterations: 0 }),
                     OptionValidationError,
                     "must be >= 1",
                 );
             });
 
-            it("rejects maxIterations > 1000", async() => {
+            it("rejects maxIterations > 1000", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
-                    () => new HITSAlgorithm(graph, {maxIterations: 1001}),
+                    () => new HITSAlgorithm(graph, { maxIterations: 1001 }),
                     OptionValidationError,
                     "must be <= 1000",
                 );
             });
 
-            it("rejects non-integer maxIterations", async() => {
+            it("rejects non-integer maxIterations", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
-                    () => new HITSAlgorithm(graph, {maxIterations: 50.5}),
+                    () => new HITSAlgorithm(graph, { maxIterations: 50.5 }),
                     OptionValidationError,
                     "must be an integer",
                 );
             });
 
-            it("accepts valid tolerance", async() => {
+            it("accepts valid tolerance", async () => {
                 const graph = await createMockGraph();
-                assert.doesNotThrow(() => new HITSAlgorithm(graph, {tolerance: 0.001}));
+                assert.doesNotThrow(() => new HITSAlgorithm(graph, { tolerance: 0.001 }));
             });
 
-            it("rejects tolerance < 1e-10", async() => {
+            it("rejects tolerance < 1e-10", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
-                    () => new HITSAlgorithm(graph, {tolerance: 1e-11}),
+                    () => new HITSAlgorithm(graph, { tolerance: 1e-11 }),
                     OptionValidationError,
                     "must be >= ",
                 );
             });
 
-            it("rejects tolerance > 0.01", async() => {
+            it("rejects tolerance > 0.01", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
-                    () => new HITSAlgorithm(graph, {tolerance: 0.1}),
+                    () => new HITSAlgorithm(graph, { tolerance: 0.1 }),
                     OptionValidationError,
                     "must be <= 0.01",
                 );
@@ -404,17 +404,17 @@ describe("Centrality Algorithm Options", () => {
         });
 
         describe("custom options in run()", () => {
-            it("uses custom maxIterations", async() => {
+            it("uses custom maxIterations", async () => {
                 const graph = await createMockGraph({
-                    nodes: [{id: "A"}, {id: "B"}, {id: "C"}],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
-                        {srcId: "A", dstId: "B"},
-                        {srcId: "B", dstId: "C"},
-                        {srcId: "C", dstId: "A"},
+                        { srcId: "A", dstId: "B" },
+                        { srcId: "B", dstId: "C" },
+                        { srcId: "C", dstId: "A" },
                     ],
                 });
                 // Run with reduced iterations
-                const algo = new HITSAlgorithm(graph, {maxIterations: 5});
+                const algo = new HITSAlgorithm(graph, { maxIterations: 5 });
                 await algo.run();
 
                 // Verify scores were calculated

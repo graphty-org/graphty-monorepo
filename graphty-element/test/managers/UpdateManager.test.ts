@@ -1,26 +1,26 @@
-import {afterEach, assert, beforeEach, describe, it, vi} from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
-import {Graph} from "../../src/Graph";
-import {UpdateManager} from "../../src/managers/UpdateManager";
-import {cleanupTestGraph, createTestGraph} from "../helpers/testSetup";
+import { Graph } from "../../src/Graph";
+import { UpdateManager } from "../../src/managers/UpdateManager";
+import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("UpdateManager", () => {
     let graph: Graph;
     let updateManager: UpdateManager;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         graph = await createTestGraph();
 
         // Add test data with explicit positions for fixed layout
         // Positions need to create a bounding box larger than minBoundingBoxSize (0.1)
         await graph.addNodes([
-            {id: "1", position: {x: -5, y: 0, z: 0}},
-            {id: "2", position: {x: 5, y: 0, z: 0}},
-            {id: "3", position: {x: 0, y: 5, z: 0}},
+            { id: "1", position: { x: -5, y: 0, z: 0 } },
+            { id: "2", position: { x: 5, y: 0, z: 0 } },
+            { id: "3", position: { x: 0, y: 5, z: 0 } },
         ]);
         await graph.addEdges([
-            {src: "1", dst: "2"},
-            {src: "2", dst: "3"},
+            { src: "1", dst: "2" },
+            { src: "2", dst: "3" },
         ]);
 
         // Set fixed layout
@@ -35,7 +35,7 @@ describe("UpdateManager", () => {
     });
 
     describe("initialization", () => {
-        it("should initialize without errors", async() => {
+        it("should initialize without errors", async () => {
             await updateManager.init();
             assert.isNotNull(updateManager);
         });
@@ -80,10 +80,7 @@ describe("UpdateManager", () => {
             updateManager.update();
 
             // Verify edges were updated even though layout wasn't running
-            assert.isTrue(
-                edgeSpy.mock.calls.length > 0,
-                "Edges should be updated even when layout is not running",
-            );
+            assert.isTrue(edgeSpy.mock.calls.length > 0, "Edges should be updated even when layout is not running");
         });
 
         it("should update nodes even when layout is not running", () => {
@@ -102,14 +99,11 @@ describe("UpdateManager", () => {
             updateManager.update();
 
             // Verify nodes were updated
-            assert.isTrue(
-                nodeSpy.mock.calls.length > 0,
-                "Nodes should be updated even when layout is not running",
-            );
+            assert.isTrue(nodeSpy.mock.calls.length > 0, "Nodes should be updated even when layout is not running");
         });
 
         it("should always update camera regardless of layout state", () => {
-            const {camera} = graph;
+            const { camera } = graph;
             const cameraSpy = vi.spyOn(camera, "update");
 
             const layoutManager = graph.getLayoutManager();
@@ -117,10 +111,7 @@ describe("UpdateManager", () => {
 
             updateManager.update();
 
-            assert.isTrue(
-                cameraSpy.mock.calls.length > 0,
-                "Camera should always be updated",
-            );
+            assert.isTrue(cameraSpy.mock.calls.length > 0, "Camera should always be updated");
         });
     });
 
@@ -180,7 +171,7 @@ describe("UpdateManager", () => {
             assert.isTrue(
                 stepSpy.mock.calls.length > 0,
                 "layoutManager.step() must be called when layout is running - " +
-                "without this, force-directed layouts never animate and nodes overlap",
+                    "without this, force-directed layouts never animate and nodes overlap",
             );
         });
 

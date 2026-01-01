@@ -16,10 +16,10 @@
  *   --zoom-levels    Capture at multiple zoom levels to demonstrate world-space scaling
  */
 
-/* eslint-disable no-console */
+ 
 
-import {resolve} from "path";
-import {chromium} from "playwright";
+import { resolve } from "path";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 const TMP_DIR = resolve(process.cwd(), "tmp");
@@ -63,28 +63,25 @@ const getZoomLevels = (): ZoomLevel[] => {
  */
 interface PageLike {
     locator: (selector: string) => {
-        screenshot: (options: {path: string}) => Promise<unknown>;
+        screenshot: (options: { path: string }) => Promise<unknown>;
     };
     waitForTimeout: (ms: number) => Promise<void>;
     evaluate: <T>(fn: (arg: T) => void, arg: T) => Promise<void>;
 }
 
-async function setCameraZoom(
-    page: PageLike,
-    radiusMultiplier: number,
-): Promise<void> {
+async function setCameraZoom(page: PageLike, radiusMultiplier: number): Promise<void> {
     await page.evaluate((multiplier: number) => {
         const elem = document.querySelector("graphty-element") as {
-            graph?: {camera: {radius: number}};
+            graph?: { camera: { radius: number } };
         } | null;
 
         if (elem?.graph?.camera) {
             // Store original radius on first call
-            if (!(window as {originalRadius?: number}).originalRadius) {
-                (window as {originalRadius?: number}).originalRadius = elem.graph.camera.radius;
+            if (!(window as { originalRadius?: number }).originalRadius) {
+                (window as { originalRadius?: number }).originalRadius = elem.graph.camera.radius;
             }
 
-            const originalRadius = (window as {originalRadius?: number}).originalRadius ?? elem.graph.camera.radius;
+            const originalRadius = (window as { originalRadius?: number }).originalRadius ?? elem.graph.camera.radius;
             elem.graph.camera.radius = originalRadius * multiplier;
         }
     }, radiusMultiplier);
@@ -105,7 +102,7 @@ function getTimestamp(): string {
  * Main capture function
  */
 async function captureScreenshots(storyId: string, includeZoomLevels = false): Promise<void> {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
     try {
@@ -115,7 +112,7 @@ async function captureScreenshots(storyId: string, includeZoomLevels = false): P
         await page.goto(storyUrl);
 
         // Wait for the component to load and render
-        await page.waitForSelector("graphty-element", {timeout: 10000});
+        await page.waitForSelector("graphty-element", { timeout: 10000 });
         console.log("Component loaded");
 
         // Wait for initial render to complete

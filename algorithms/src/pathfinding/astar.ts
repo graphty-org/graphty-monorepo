@@ -1,11 +1,10 @@
-import {graphNode} from "../utils/graphNode.js";
-import {MinPriorityQueue} from "../utils/priorityQueue.js";
-import {pathfindingUtils} from "./utils.js";
+import { graphNode } from "../utils/graphNode.js";
+import { MinPriorityQueue } from "../utils/priorityQueue.js";
+import { pathfindingUtils } from "./utils.js";
 
 /**
  * A* pathfinding algorithm
  * Finds the shortest path from start to goal using a heuristic function
- *
  * @param graph - The graph represented as an adjacency list
  * @param start - The starting node
  * @param goal - The goal node
@@ -20,7 +19,7 @@ export function astar<T>(
     start: T,
     goal: T,
     heuristic: (node: T, goal: T) => number,
-): {path: T[], cost: number} | null {
+): { path: T[]; cost: number } | null {
     if (!graph.has(start) || !graph.has(goal)) {
         return null;
     }
@@ -40,7 +39,7 @@ export function astar<T>(
         return null;
     }
 
-    openSet.insert({node: start, distance: startFScore});
+    openSet.insert({ node: start, distance: startFScore });
 
     while (!openSet.isEmpty()) {
         const current = openSet.extractMin();
@@ -58,7 +57,7 @@ export function astar<T>(
                 return null;
             }
 
-            return {path, cost: goalCost};
+            return { path, cost: goalCost };
         }
 
         closedSet.add(currentNode);
@@ -90,7 +89,7 @@ export function astar<T>(
                 // Add to open set if not already there
                 const neighborFScore = fScore.get(neighbor);
                 if (neighborFScore !== undefined) {
-                    openSet.insert({node: neighbor, distance: neighborFScore});
+                    openSet.insert({ node: neighbor, distance: neighborFScore });
                 }
             }
         }
@@ -102,6 +101,11 @@ export function astar<T>(
 /**
  * A* pathfinding with path reconstruction details
  * Returns detailed information about the search process
+ * @param graph - The graph represented as an adjacency list
+ * @param start - The starting node
+ * @param goal - The goal node
+ * @param heuristic - Heuristic function that estimates distance from node to goal
+ * @returns Detailed result including path, cost, visited nodes, and score maps
  */
 export function astarWithDetails<T>(
     graph: Map<T, Map<T, number>>,
@@ -109,12 +113,12 @@ export function astarWithDetails<T>(
     goal: T,
     heuristic: (node: T, goal: T) => number,
 ): {
-        path: T[] | null;
-        cost: number;
-        visited: Set<T>;
-        gScores: Map<T, number>;
-        fScores: Map<T, number>;
-    } {
+    path: T[] | null;
+    cost: number;
+    visited: Set<T>;
+    gScores: Map<T, number>;
+    fScores: Map<T, number>;
+} {
     const openSet = new MinPriorityQueue<graphNode<T>>();
     const gScore = new Map<T, number>();
     const fScore = new Map<T, number>();
@@ -134,7 +138,7 @@ export function astarWithDetails<T>(
         };
     }
 
-    openSet.insert({node: start, distance: startFScore});
+    openSet.insert({ node: start, distance: startFScore });
 
     while (!openSet.isEmpty()) {
         const current = openSet.extractMin();
@@ -181,7 +185,7 @@ export function astarWithDetails<T>(
                 fScore.set(neighbor, tentativeGScore + heuristic(neighbor, goal));
                 const neighborFScore = fScore.get(neighbor);
                 if (neighborFScore !== undefined) {
-                    openSet.insert({node: neighbor, distance: neighborFScore});
+                    openSet.insert({ node: neighbor, distance: neighborFScore });
                 }
             }
         }
@@ -201,29 +205,40 @@ export function astarWithDetails<T>(
  */
 export const heuristics = {
     /**
-   * Manhattan distance heuristic for grid-based graphs
-   */
+     * Manhattan distance heuristic for grid-based graphs
+     * @param a - First coordinate as [x, y] tuple
+     * @param b - Second coordinate as [x, y] tuple
+     * @returns The Manhattan distance between the two points
+     */
     manhattan: (a: [number, number], b: [number, number]): number => {
         return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
     },
 
     /**
-   * Euclidean distance heuristic
-   */
+     * Euclidean distance heuristic
+     * @param a - First coordinate as [x, y] tuple
+     * @param b - Second coordinate as [x, y] tuple
+     * @returns The Euclidean distance between the two points
+     */
     euclidean: (a: [number, number], b: [number, number]): number => {
         return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2));
     },
 
     /**
-   * Chebyshev distance heuristic (diagonal movement allowed)
-   */
+     * Chebyshev distance heuristic (diagonal movement allowed)
+     * @param a - First coordinate as [x, y] tuple
+     * @param b - Second coordinate as [x, y] tuple
+     * @returns The Chebyshev distance between the two points
+     */
     chebyshev: (a: [number, number], b: [number, number]): number => {
         return Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]));
     },
 
     /**
-   * Zero heuristic (makes A* behave like Dijkstra)
-   */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     * Zero heuristic (makes A* behave like Dijkstra)
+     * @param _a - First node (unused)
+     * @param _b - Second node (unused)
+     * @returns Always returns 0
+     */
     zero: <T>(_a: T, _b: T): number => 0,
 };

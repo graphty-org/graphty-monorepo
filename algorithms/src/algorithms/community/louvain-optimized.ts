@@ -1,5 +1,5 @@
-import type {Graph} from "../../core/graph.js";
-import type {CommunityResult, NodeId} from "../../types/index.js";
+import type { Graph } from "../../core/graph.js";
+import type { CommunityResult, NodeId } from "../../types/index.js";
 
 /**
  * Optimized Louvain community detection algorithm with early pruning and threshold cycling
@@ -50,6 +50,9 @@ interface PruningStats {
     stableNodesPruned: number;
 }
 
+/**
+ * Optimized Louvain implementation with early pruning and threshold cycling
+ */
 export class OptimizedLouvain {
     private graph: Graph;
     private communities: Map<NodeId, number>;
@@ -59,6 +62,10 @@ export class OptimizedLouvain {
     private totalWeight: number;
     private pruningStats: PruningStats;
 
+    /**
+     * Create an optimized Louvain detector for the given graph
+     * @param graph - The input graph to detect communities in
+     */
     constructor(graph: Graph) {
         this.graph = graph;
         this.communities = new Map();
@@ -75,6 +82,8 @@ export class OptimizedLouvain {
 
     /**
      * Run optimized Louvain algorithm
+     * @param options - Algorithm configuration options
+     * @returns Community detection result with communities, modularity, and iterations
      */
     public detectCommunities(options: OptimizedLouvainOptions = {}): CommunityResult {
         const {
@@ -95,14 +104,12 @@ export class OptimizedLouvain {
 
         while (iteration < maxIterations && improved) {
             // Get nodes in optimal processing order
-            const orderedNodes = importanceOrdering ?
-                this.getNodesInImportanceOrder() :
-                Array.from(this.graph.nodes()).map((n) => n.id);
+            const orderedNodes = importanceOrdering
+                ? this.getNodesInImportanceOrder()
+                : Array.from(this.graph.nodes()).map((n) => n.id);
 
             // Apply adaptive threshold
-            const threshold = thresholdCycling ?
-                this.getAdaptiveThreshold(iteration, pruningThreshold) :
-                0;
+            const threshold = thresholdCycling ? this.getAdaptiveThreshold(iteration, pruningThreshold) : 0;
 
             // Perform local optimization
             improved = this.performLocalMoving(orderedNodes, {
@@ -193,6 +200,7 @@ export class OptimizedLouvain {
 
     /**
      * Get nodes ordered by importance (degree * log(weight))
+     * @returns Array of node IDs sorted by descending importance
      */
     private getNodesInImportanceOrder(): NodeId[] {
         const nodeImportance = new Map<NodeId, number>();
@@ -213,6 +221,12 @@ export class OptimizedLouvain {
 
     /**
      * Perform local moving phase with optimizations
+     * @param nodes - Array of node IDs to process
+     * @param options - Local moving options
+     * @param options.pruneLeaves - Whether to skip leaf nodes
+     * @param options.threshold - Minimum gain threshold for moves
+     * @param options.resolution - Resolution parameter for modularity
+     * @returns True if any improvement was made, false otherwise
      */
     private performLocalMoving(
         nodes: NodeId[],
@@ -222,7 +236,7 @@ export class OptimizedLouvain {
             resolution: number;
         },
     ): boolean {
-        const {pruneLeaves, threshold, resolution} = options;
+        const { pruneLeaves, threshold, resolution } = options;
         let improvement = false;
         let hasChanged = true;
 
@@ -284,6 +298,8 @@ export class OptimizedLouvain {
 
     /**
      * Check if node is a leaf (degree 1)
+     * @param nodeId - The node ID to check
+     * @returns True if the node has degree 1, false otherwise
      */
     private isLeafNode(nodeId: NodeId): boolean {
         const degree = this.nodeDegrees.get(nodeId) ?? 0;
@@ -292,6 +308,9 @@ export class OptimizedLouvain {
 
     /**
      * Get adaptive threshold that decreases with iterations
+     * @param iteration - Current iteration number
+     * @param baseThreshold - Base threshold value to scale
+     * @returns Adaptive threshold value that decays over iterations
      */
     private getAdaptiveThreshold(iteration: number, baseThreshold: number): number {
         // Exponentially decay threshold with iterations
@@ -301,12 +320,12 @@ export class OptimizedLouvain {
 
     /**
      * Calculate modularity gain from moving a node to a community
+     * @param nodeId - The node ID to move
+     * @param targetCommunity - The target community ID
+     * @param resolution - Resolution parameter for modularity calculation
+     * @returns The modularity gain from moving the node
      */
-    private calculateModularityGain(
-        nodeId: NodeId,
-        targetCommunity: number,
-        resolution: number,
-    ): number {
+    private calculateModularityGain(nodeId: NodeId, targetCommunity: number, resolution: number): number {
         const nodeWeight = this.nodeWeights.get(nodeId) ?? 0;
 
         // Sum of weights from node to target community
@@ -333,13 +352,16 @@ export class OptimizedLouvain {
         const targetWeight = this.communityWeights.get(targetCommunity) ?? 0;
 
         // Modularity gain formula
-        const gain = (weightToTarget - ((resolution * nodeWeight * targetWeight) / (2 * this.totalWeight))) / this.totalWeight;
+        const gain =
+            (weightToTarget - (resolution * nodeWeight * targetWeight) / (2 * this.totalWeight)) / this.totalWeight;
 
         return gain;
     }
 
     /**
      * Remove node from community (for gain calculation)
+     * @param nodeId - The node ID to remove
+     * @param community - The community ID to remove from
      */
     private removeNodeFromCommunity(nodeId: NodeId, community: number): void {
         const nodeWeight = this.nodeWeights.get(nodeId) ?? 0;
@@ -349,6 +371,8 @@ export class OptimizedLouvain {
 
     /**
      * Add node to community
+     * @param nodeId - The node ID to add
+     * @param community - The community ID to add to
      */
     private addNodeToCommunity(nodeId: NodeId, community: number): void {
         const nodeWeight = this.nodeWeights.get(nodeId) ?? 0;
@@ -358,6 +382,8 @@ export class OptimizedLouvain {
 
     /**
      * Get neighboring communities of a node
+     * @param nodeId - The node ID to find neighbor communities for
+     * @returns Set of community IDs that neighbors belong to
      */
     private getNeighborCommunities(nodeId: NodeId): Set<number> {
         const communities = new Set<number>();
@@ -384,6 +410,8 @@ export class OptimizedLouvain {
 
     /**
      * Calculate total modularity
+     * @param resolution - Resolution parameter for modularity calculation
+     * @returns The modularity score of the current partition
      */
     private calculateModularity(resolution: number): number {
         if (this.totalWeight === 0) {
@@ -427,19 +455,20 @@ export class OptimizedLouvain {
 
     /**
      * Get pruning statistics
+     * @returns Statistics about nodes pruned during optimization
      */
     public getPruningStats(): PruningStats {
-        return {... this.pruningStats};
+        return { ...this.pruningStats };
     }
 }
 
 /**
  * Optimized Louvain algorithm with automatic optimization selection
+ * @param graph - The input graph to detect communities in
+ * @param options - Algorithm configuration options
+ * @returns Community detection result with communities, modularity, and iterations
  */
-export function louvainOptimized(
-    graph: Graph,
-    options: OptimizedLouvainOptions = {},
-): CommunityResult {
+export function louvainOptimized(graph: Graph, options: OptimizedLouvainOptions = {}): CommunityResult {
     const optimizer = new OptimizedLouvain(graph);
     return optimizer.detectCommunities(options);
 }

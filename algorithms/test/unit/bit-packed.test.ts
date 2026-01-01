@@ -1,6 +1,6 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {CompactDistanceArray, GraphBitSet, VisitedBitArray} from "../../src/optimized/bit-packed.js";
+import { CompactDistanceArray, GraphBitSet, VisitedBitArray } from "../../src/optimized/bit-packed.js";
 
 describe("GraphBitSet", () => {
     it("should add and check elements", () => {

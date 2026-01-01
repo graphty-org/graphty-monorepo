@@ -3,6 +3,7 @@
 This comprehensive guide documents how Babylon.js uses Playwright for testing, including configuration, test patterns, and error detection mechanisms. Use this guide to replicate a similar testing infrastructure in your project.
 
 ## Table of Contents
+
 1. [Overview](#overview)
 2. [Project Structure](#project-structure)
 3. [Playwright Configuration](#playwright-configuration)
@@ -18,6 +19,7 @@ This comprehensive guide documents how Babylon.js uses Playwright for testing, i
 ## Overview
 
 Babylon.js uses Playwright for comprehensive testing across multiple rendering engines (WebGL1, WebGL2, WebGPU) with support for:
+
 - Visual regression testing
 - Performance benchmarking
 - User interaction testing
@@ -67,29 +69,27 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
     // Test directory
     testDir: "./test",
-    
+
     // Parallel execution
     fullyParallel: true,
-    
+
     // Retry configuration
     retries: process.env.CI ? 2 : 1,
-    
+
     // Worker configuration
     workers: process.env.CIWORKERS ? parseInt(process.env.CIWORKERS) : undefined,
-    
+
     // Reporter configuration
-    reporter: process.env.CI ? [
-        ["line"],
-        ["junit", { outputFile: "junit.xml" }],
-        ["html", { outputFolder: "playwright-report" }]
-    ] : "html",
-    
+    reporter: process.env.CI
+        ? [["line"], ["junit", { outputFile: "junit.xml" }], ["html", { outputFolder: "playwright-report" }]]
+        : "html",
+
     // Shared test settings
     use: {
         trace: "on-first-retry",
-        video: "on-first-retry"
+        video: "on-first-retry",
     },
-    
+
     // Test projects for different engines/features
     projects: [
         {
@@ -97,31 +97,31 @@ export default defineConfig({
             use: {
                 ...devices["Desktop Chrome"],
                 launchOptions: {
-                    args: ["--use-angle=default", "--ignore-gpu-blacklist", "--ignore-gpu-blocklist"]
-                }
-            }
+                    args: ["--use-angle=default", "--ignore-gpu-blacklist", "--ignore-gpu-blocklist"],
+                },
+            },
         },
         {
             name: "webgpu",
             use: {
                 ...devices["Desktop Chrome"],
                 launchOptions: {
-                    args: ["--enable-unsafe-webgpu", "--use-angle=default"]
-                }
-            }
+                    args: ["--enable-unsafe-webgpu", "--use-angle=default"],
+                },
+            },
         },
         {
             name: "interaction",
-            use: { ...devices["Desktop Chrome"] }
+            use: { ...devices["Desktop Chrome"] },
         },
         {
             name: "performance",
-            use: { ...devices["Desktop Chrome"] }
-        }
+            use: { ...devices["Desktop Chrome"] },
+        },
     ],
-    
+
     // Snapshot configuration for visual regression
-    snapshotPathTemplate: "{testDir}/{testFileDir}/ReferenceImages/{arg}{ext}"
+    snapshotPathTemplate: "{testDir}/{testFileDir}/ReferenceImages/{arg}{ext}",
 });
 ```
 
@@ -142,7 +142,7 @@ export const evaluatePlaywrightVisTests = async (
     assertionEnabled: boolean = true,
     evalSuiteFn?: (page: Page, env: TestEnvironment) => void,
     configPath?: string,
-    excludeRegex?: RegExp
+    excludeRegex?: RegExp,
 ) => {
     // Implementation details...
 };
@@ -153,7 +153,7 @@ export const evaluateInitEngineForVisualization = async (
     engineType: "webgl2" | "webgl1" | "webgpu",
     baseUrl: string,
     useRightHandedSystem: boolean = false,
-    options?: any
+    options?: any,
 ) => {
     // Creates appropriate engine based on type
     // Configures engine options
@@ -170,7 +170,7 @@ export const evaluatePrepareScene = async (
     scriptToRun?: string,
     specificRoot?: string,
     sceneMetadata?: any,
-    replaceUrl?: boolean
+    replaceUrl?: boolean,
 ) => {
     // Loads scenes from various sources
     // Handles playground IDs, scripts, and files
@@ -182,7 +182,7 @@ export const evaluateRenderSceneForVisualization = async (
     page: Page,
     renderCount: number = 1,
     shortDelay: boolean = false,
-    waitTime: number = 0
+    waitTime: number = 0,
 ) => {
     // Manages render loop
     // Handles timing and delays
@@ -219,6 +219,7 @@ interface TestCase {
 ## Error Detection Mechanisms
 
 ### 1. WebGL Error Detection
+
 ```typescript
 // Check for GL errors after rendering
 const hasGLError = await evaluateIsGLError(page);
@@ -228,6 +229,7 @@ if (hasGLError) {
 ```
 
 ### 2. Console Error Monitoring
+
 ```typescript
 // Capture console errors
 page.on("console", (msg) => {
@@ -238,15 +240,17 @@ page.on("console", (msg) => {
 ```
 
 ### 3. Visual Regression Thresholds
+
 ```typescript
 // Configure screenshot comparison
 await expect(page).toHaveScreenshot(referenceImage, {
-    threshold: testCase.threshold || 0.035,  // 3.5% color change
-    maxDiffPixelRatio: testCase.errorRatio || 0.011  // 1.1% pixels
+    threshold: testCase.threshold || 0.035, // 3.5% color change
+    maxDiffPixelRatio: testCase.errorRatio || 0.011, // 1.1% pixels
 });
 ```
 
 ### 4. Test Success Tracking
+
 ```typescript
 // Global success flag
 await page.evaluate(() => {
@@ -259,6 +263,7 @@ expect(success).toBe(true);
 ```
 
 ### 5. Exception Handling
+
 ```typescript
 try {
     await evaluateRenderSceneForVisualization(page, renderCount);
@@ -277,25 +282,17 @@ try {
 evaluatePlaywrightVisTests("webgl2", "config", false, false, true, false);
 
 // With custom test logic
-evaluatePlaywrightVisTests(
-    "webgl2",
-    "config",
-    false,
-    false,
-    true,
-    true,
-    (page, env) => {
-        test.beforeEach(async () => {
-            await evaluateInitEngineForVisualization(page, env.engineType, env.baseUrl);
-        });
-        
-        test("custom visual test", async () => {
-            await evaluatePrepareScene(page, env.baseUrl, "#ABCDEF");
-            await evaluateRenderSceneForVisualization(page, 5);
-            await expect(page).toHaveScreenshot("custom-test.png");
-        });
-    }
-);
+evaluatePlaywrightVisTests("webgl2", "config", false, false, true, true, (page, env) => {
+    test.beforeEach(async () => {
+        await evaluateInitEngineForVisualization(page, env.engineType, env.baseUrl);
+    });
+
+    test("custom visual test", async () => {
+        await evaluatePrepareScene(page, env.baseUrl, "#ABCDEF");
+        await evaluateRenderSceneForVisualization(page, 5);
+        await expect(page).toHaveScreenshot("custom-test.png");
+    });
+});
 ```
 
 ### 2. Interaction Tests
@@ -303,13 +300,13 @@ evaluatePlaywrightVisTests(
 ```typescript
 test.describe("User Interactions", () => {
     let page: Page;
-    
+
     test.beforeAll(async ({ browser }) => {
         page = await browser.newPage();
         await page.goto(baseUrl + "/empty.html");
         await page.waitForSelector("#babylon-canvas");
     });
-    
+
     test("mouse interactions", async () => {
         // Initialize scene
         await page.evaluate(() => {
@@ -318,13 +315,13 @@ test.describe("User Interactions", () => {
             const scene = new BABYLON.Scene(engine);
             // Setup scene...
         });
-        
+
         // Perform interactions
         await page.mouse.move(400, 300);
         await page.mouse.down({ button: "left" });
         await page.mouse.move(500, 400, { steps: 10 });
         await page.mouse.up({ button: "left" });
-        
+
         // Verify results
         const result = await page.evaluate(() => {
             return window.scene.activeCamera.position;
@@ -344,17 +341,13 @@ test("performance regression", async ({ page }) => {
             return scene;
         }
     `;
-    
+
     // Test stable version
-    const stableTime = await checkPerformanceOfScene(
-        page, baseUrl, "stable", createScene, 5, 100
-    );
-    
+    const stableTime = await checkPerformanceOfScene(page, baseUrl, "stable", createScene, 5, 100);
+
     // Test development version
-    const devTime = await checkPerformanceOfScene(
-        page, baseUrl, "dev", createScene, 5, 100
-    );
-    
+    const devTime = await checkPerformanceOfScene(page, baseUrl, "dev", createScene, 5, 100);
+
     // Compare performance (allow 5% regression)
     expect(devTime / stableTime).toBeLessThanOrEqual(1.05);
 });
@@ -375,11 +368,16 @@ The core interaction testing uses `TestDeviceInputSystem` to simulate all input 
 export class TestDeviceInputSystem implements ITestDeviceInputSystem {
     // Simulate device connection
     connectDevice(deviceType: DeviceType, deviceSlot: number, numberOfInputs: number): void;
-    
+
     // Simulate input changes
-    changeInput(deviceType: DeviceType, deviceSlot: number, inputIndex: number, 
-                currentState: number, createEvent?: boolean): void;
-    
+    changeInput(
+        deviceType: DeviceType,
+        deviceSlot: number,
+        inputIndex: number,
+        currentState: number,
+        createEvent?: boolean,
+    ): void;
+
     // Poll current input state
     pollInput(deviceType: DeviceType, deviceSlot: number, inputIndex: number): number;
 }
@@ -391,7 +389,7 @@ Real browser interaction testing using Playwright's mouse and touch simulation:
 
 ```typescript
 // Real browser mouse simulation
-await page.mouse.move(x + width/2, y + height/2, { steps: 10 });
+await page.mouse.move(x + width / 2, y + height / 2, { steps: 10 });
 await page.mouse.down({ button: "left" });
 await page.mouse.up({ button: "left" });
 ```
@@ -403,24 +401,26 @@ await page.mouse.up({ button: "left" });
 ```typescript
 // babylon.inputManager.test.ts
 test("callbacks can pick and fire", () => {
-    let downCt = 0, upCt = 0, moveCt = 0;
-    
+    let downCt = 0,
+        upCt = 0,
+        moveCt = 0;
+
     const downFn = (evt: IPointerEvent, pickInfo: PickingInfo) => {
         if (pickInfo.hit) downHitCt++;
         downCt++;
     };
-    
+
     scene.onPointerDown = downFn;
     scene.onPointerMove = moveFn;
     scene.onPointerUp = upFn;
-    
+
     // Simulate mouse movement and clicks
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.Horizontal, 128, false);
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.Vertical, 128, false);
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.Move, 1);
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.LeftClick, 1);
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.LeftClick, 0);
-    
+
     expect(downCt).toBe(expected);
     expect(upCt).toBe(expected);
     expect(moveCt).toBe(expected);
@@ -436,10 +436,10 @@ test("can process InputManager pointer events", async () => {
         sceneMetadata: { playgroundId: "#YQUTAY#12" },
         globalConfig: getGlobalConfig(),
     });
-    
+
     const element = page.locator("#babylon-canvas");
     const result = await element.boundingBox();
-    
+
     // Test all mouse buttons
     await page.mouse.move(result.x + result.width / 2, result.y + result.height / 2, { steps: 10 });
     await page.mouse.down({ button: "left" });
@@ -448,14 +448,14 @@ test("can process InputManager pointer events", async () => {
     await page.mouse.up({ button: "right" });
     await page.mouse.down({ button: "middle" });
     await page.mouse.up({ button: "middle" });
-    
+
     // Test double-click
     await page.evaluate(() => {
         BABYLON.Scene.DoubleClickDelay = 500;
     });
     await page.mouse.click(result.x + result.width / 2, result.y + result.height / 2);
     await page.mouse.click(result.x + result.width / 2, result.y + result.height / 2);
-    
+
     const testStatus = await page.evaluate(() => window.testSuccessful);
     expect(testStatus).toBe(true);
 });
@@ -468,25 +468,25 @@ test("can process InputManager pointer events", async () => {
 ```typescript
 test("Does not fire POINTERTAP events during multi-touch gesture", () => {
     let tapCt = 0;
-    
+
     scene?.onPointerObservable.add(() => {
         tapCt++;
     }, PointerEventTypes.POINTERTAP);
-    
+
     // Connect multiple touch devices
     deviceInputSystem.connectDevice(DeviceType.Touch, 0, TestDeviceInputSystem.MAX_POINTER_INPUTS);
     deviceInputSystem.connectDevice(DeviceType.Touch, 1, TestDeviceInputSystem.MAX_POINTER_INPUTS);
-    
+
     // Single tap - should fire
     deviceInputSystem.changeInput(DeviceType.Touch, 0, PointerInput.LeftClick, 1);
     deviceInputSystem.changeInput(DeviceType.Touch, 0, PointerInput.LeftClick, 0);
-    
+
     // Multi-touch gesture - should NOT fire tap events
     deviceInputSystem.changeInput(DeviceType.Touch, 0, PointerInput.LeftClick, 1);
     deviceInputSystem.changeInput(DeviceType.Touch, 1, PointerInput.LeftClick, 1);
     deviceInputSystem.changeInput(DeviceType.Touch, 0, PointerInput.LeftClick, 0);
     deviceInputSystem.changeInput(DeviceType.Touch, 1, PointerInput.LeftClick, 0);
-    
+
     expect(tapCt).toBe(1); // Only single tap counted
 });
 ```
@@ -498,20 +498,20 @@ test("pinch gesture detection", () => {
     // Setup two-finger touch
     deviceInputSystem.connectDevice(DeviceType.Touch, 0, TestDeviceInputSystem.MAX_POINTER_INPUTS);
     deviceInputSystem.connectDevice(DeviceType.Touch, 1, TestDeviceInputSystem.MAX_POINTER_INPUTS);
-    
+
     // Start pinch gesture
     deviceInputSystem.changeInput(DeviceType.Touch, 0, PointerInput.LeftClick, 1);
     deviceInputSystem.changeInput(DeviceType.Touch, 1, PointerInput.LeftClick, 1);
-    
+
     // Move fingers apart (zoom out)
     deviceInputSystem.changeInput(DeviceType.Touch, 0, PointerInput.Horizontal, 0, false);
     deviceInputSystem.changeInput(DeviceType.Touch, 0, PointerInput.Vertical, 0, false);
     deviceInputSystem.changeInput(DeviceType.Touch, 0, PointerInput.Move, 1);
-    
+
     deviceInputSystem.changeInput(DeviceType.Touch, 1, PointerInput.Horizontal, 127, false);
     deviceInputSystem.changeInput(DeviceType.Touch, 1, PointerInput.Vertical, 127, false);
     deviceInputSystem.changeInput(DeviceType.Touch, 1, PointerInput.Move, 1);
-    
+
     // End gesture
     deviceInputSystem.changeInput(DeviceType.Touch, 0, PointerInput.LeftClick, 0);
     deviceInputSystem.changeInput(DeviceType.Touch, 1, PointerInput.LeftClick, 0);
@@ -528,16 +528,16 @@ test("check pointer capture", async () => {
         sceneMetadata: { playgroundId: "#5NMCCT#2" },
         globalConfig: getGlobalConfig(),
     });
-    
+
     const element = page.locator("#babylon-canvas");
     const result = await element.boundingBox();
-    
+
     // Test pointer capture during drag
     await page.mouse.move(result.x + result.width / 2, result.y + result.height / 2);
     await page.mouse.down();
     await page.mouse.move(result.x + result.width / 2 + 200, result.y + result.height / 2, { steps: 10 });
     await page.mouse.up();
-    
+
     const testStatus = await page.evaluate(() => window.testSuccessful);
     expect(testStatus).toBe(true);
 });
@@ -549,15 +549,15 @@ test("check pointer capture", async () => {
 test("check meta key allowing keyup", async () => {
     const element = page.locator("#babylon-canvas");
     const result = await element.boundingBox();
-    
+
     await page.mouse.move(result.x + result.width / 2, result.y + result.height / 2);
     await page.mouse.click(result.x + result.width / 2, result.y + result.height / 2);
-    
+
     // Test meta key combinations
     await page.keyboard.down("Meta");
     await page.keyboard.press("c");
     await page.keyboard.up("Meta");
-    
+
     const testStatus = await page.evaluate(() => window.testSuccessful);
     expect(testStatus).toBe(true);
 });
@@ -572,12 +572,12 @@ test("check meta key allowing keyup", async () => {
 test("arc rotate camera mouse controls", () => {
     const camera = new ArcRotateCamera("camera", 0, 0, 10, Vector3.Zero(), scene);
     camera.attachControl();
-    
+
     // Test rotation
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.LeftClick, 1);
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.Horizontal, 64, false);
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.Move, 1);
-    
+
     expect(camera.alpha).not.toBe(0); // Camera should have rotated
 });
 ```
@@ -588,24 +588,24 @@ test("arc rotate camera mouse controls", () => {
 test("stops movement when pointerlock is released", () => {
     const camera = new FreeCamera("camera", new Vector3(0, 0, -10), scene);
     camera.attachControl();
-    
+
     // Enable pointer lock
     Object.defineProperty(document, "pointerLockElement", {
         value: canvas,
         writable: true,
     });
     engine.isPointerLock = true;
-    
+
     // Test camera movement with pointer lock
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.Move, 1);
     const offsetWithLock = camera.cameraRotation.x;
-    
+
     // Disable pointer lock
     Object.defineProperty(document, "pointerLockElement", {
         value: undefined,
         writable: true,
     });
-    
+
     // Movement should stop
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.Move, 1);
     expect(camera.cameraRotation.x).toBe(offsetWithLock);
@@ -619,16 +619,16 @@ test("stops movement when pointerlock is released", () => {
 ```typescript
 test("onPointerObservable can pick only when necessary", () => {
     const pickSpy = jest.spyOn(scene, "pick");
-    
+
     scene.onPointerObservable.add((eventData) => {
         // Only generate pick info when actually needed
         const pickInfo = eventData.pickInfo;
         expect(pickSpy).toHaveBeenCalledTimes(expectedCalls);
     });
-    
+
     // Perform interactions
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.Move, 1);
-    
+
     // Verify picking optimization
     expect(pickSpy).toHaveBeenCalledTimes(minimumRequired);
 });
@@ -639,17 +639,17 @@ test("onPointerObservable can pick only when necessary", () => {
 ```typescript
 test("Doesn't let TAPs pass through utility layer", () => {
     let tapCt = 0;
-    
+
     const utilityLayer = new UtilityLayerRenderer(scene);
     const ground = MeshBuilder.CreateGround("ground", { width: 6, height: 6 }, scene);
     const sphere = MeshBuilder.CreateSphere("sphere", { diameter: 2 }, utilityLayer.utilityLayerScene);
-    
+
     scene.onPointerObservable.add((eventData) => {
         if (eventData.pickInfo?.pickedMesh === ground) {
             tapCt++;
         }
     }, PointerEventTypes.POINTERTAP);
-    
+
     // Tap on sphere - should NOT hit ground
     // Tap on ground - should hit ground
     expect(tapCt).toBe(1); // Only ground tap counted
@@ -660,8 +660,9 @@ test("Doesn't let TAPs pass through utility layer", () => {
 
 ```typescript
 test("onPointerObservable returns correct PointerEventTypes", () => {
-    let tapCt = 0, dblTapCt = 0;
-    
+    let tapCt = 0,
+        dblTapCt = 0;
+
     scene.onPointerObservable.add((eventData) => {
         switch (eventData.type) {
             case PointerEventTypes.POINTERTAP:
@@ -672,13 +673,13 @@ test("onPointerObservable returns correct PointerEventTypes", () => {
                 break;
         }
     });
-    
+
     // Perform double-click
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.LeftClick, 1);
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.LeftClick, 0);
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.LeftClick, 1);
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.LeftClick, 0);
-    
+
     expect(tapCt).toBe(expectedTaps);
     expect(dblTapCt).toBe(expectedDoubleTaps);
 });
@@ -709,14 +710,14 @@ afterEach(() => {
 ```typescript
 test("can reset touch inputs on detachControl", () => {
     camera.attachControl();
-    
+
     // Perform touch interaction
     deviceInputSystem.changeInput(DeviceType.Touch, 1, PointerInput.LeftClick, 1);
     deviceInputSystem.changeInput(DeviceType.Touch, 1, PointerInput.Move, 1);
-    
+
     // Detach controls should reset input state
     camera.detachControl();
-    
+
     // Verify state is reset
     camera.attachControl();
     // Test that previous touch state doesn't interfere
@@ -731,23 +732,24 @@ jest.useFakeTimers();
 
 test("double-click timing", async () => {
     const DoubleClickDelay = 300;
-    
+
     // First click
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.LeftClick, 1);
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.LeftClick, 0);
-    
+
     // Advance time
     jest.advanceTimersByTime(DoubleClickDelay / 2);
-    
+
     // Second click (within double-click window)
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.LeftClick, 1);
     deviceInputSystem.changeInput(DeviceType.Mouse, 0, PointerInput.LeftClick, 0);
-    
+
     expect(dblTapCt).toBe(1);
 });
 ```
 
 The interaction testing in Babylon.js demonstrates a sophisticated approach that covers:
+
 - **Low-level device simulation** for unit testing
 - **Real browser interaction** for integration testing
 - **Multi-touch gesture detection**
@@ -810,30 +812,30 @@ async function checkPerformanceOfScene(
     version: "stable" | "dev",
     createSceneScript: string,
     passes: number,
-    frames: number
+    frames: number,
 ): Promise<number> {
     // Load appropriate version
     await page.goto(`${baseUrl}/${version}/empty.html`);
-    
+
     // Initialize engine and scene
     await page.evaluate(createSceneScript);
-    
+
     // Measure performance
     const times = [];
     for (let i = 0; i < passes; i++) {
         const startTime = await page.evaluate(() => performance.now());
-        
+
         // Render frames
         for (let j = 0; j < frames; j++) {
             await page.evaluate(() => {
                 window.scene.render();
             });
         }
-        
+
         const endTime = await page.evaluate(() => performance.now());
         times.push(endTime - startTime);
     }
-    
+
     // Return average time
     return times.reduce((a, b) => a + b) / times.length;
 }
@@ -884,6 +886,7 @@ your-project/
 ### Step 3: Implement Core Utilities
 
 Create a utilities file with essential functions:
+
 - Engine initialization
 - Scene preparation
 - Rendering management
@@ -893,6 +896,7 @@ Create a utilities file with essential functions:
 ### Step 4: Set Up Test Projects
 
 Configure different test projects in `playwright.config.ts`:
+
 - Different rendering engines
 - Browser configurations
 - Test-specific settings
@@ -900,6 +904,7 @@ Configure different test projects in `playwright.config.ts`:
 ### Step 5: Create Test Templates
 
 #### Visual Regression Template
+
 ```typescript
 import { evaluatePlaywrightVisTests } from "./utils/test-helpers";
 
@@ -907,6 +912,7 @@ evaluatePlaywrightVisTests("webgl2", "config", false, false, true, true);
 ```
 
 #### Interaction Test Template
+
 ```typescript
 import { test, expect } from "@playwright/test";
 
@@ -931,18 +937,18 @@ test.describe("Feature Tests", () => {
 name: Playwright Tests
 on: [push, pull_request]
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-      - run: npm ci
-      - run: npm run test:visualization
-      - uses: actions/upload-artifact@v3
-        if: failure()
-        with:
-          name: playwright-report
-          path: playwright-report/
+    test:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - uses: actions/setup-node@v3
+            - run: npm ci
+            - run: npm run test:visualization
+            - uses: actions/upload-artifact@v3
+              if: failure()
+              with:
+                  name: playwright-report
+                  path: playwright-report/
 ```
 
 ## Best Practices
@@ -998,23 +1004,23 @@ class CustomReporter {
 ### Common Issues and Solutions
 
 1. **Flaky Visual Tests**
-   - Increase render count before capture
-   - Add delays for animations to complete
-   - Use more lenient thresholds
+    - Increase render count before capture
+    - Add delays for animations to complete
+    - Use more lenient thresholds
 
 2. **WebGL Context Loss**
-   - Implement context restoration handling
-   - Add retry logic for context-dependent tests
+    - Implement context restoration handling
+    - Add retry logic for context-dependent tests
 
 3. **Performance Variations**
-   - Run multiple passes and average results
-   - Use dedicated performance testing machines
-   - Disable background processes
+    - Run multiple passes and average results
+    - Use dedicated performance testing machines
+    - Disable background processes
 
 4. **Cross-Browser Differences**
-   - Use browser-specific thresholds
-   - Handle vendor-specific WebGL extensions
-   - Test feature availability before use
+    - Use browser-specific thresholds
+    - Handle vendor-specific WebGL extensions
+    - Test feature availability before use
 
 ## Conclusion
 

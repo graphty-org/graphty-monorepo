@@ -10,7 +10,7 @@
 // Configuration and optimization control
 // These deprecated functions are intentionally re-exported for backward compatibility
 // eslint-disable-next-line @typescript-eslint/no-deprecated
-export {configureOptimizations, getOptimizationConfig, type GraphAlgorithmConfig} from "./graph-adapter.js";
+export { configureOptimizations, getOptimizationConfig, type GraphAlgorithmConfig } from "./graph-adapter.js";
 
 // Note: The main BFS functions in algorithms/traversal/bfs.ts automatically
 // use these optimizations for large graphs (>10k nodes) when optimizations are enabled.
@@ -26,9 +26,9 @@ export {configureOptimizations, getOptimizationConfig, type GraphAlgorithmConfig
 // for large graphs without requiring manual configuration.
 
 // Export data structures for advanced users
-export {CompactDistanceArray, GraphBitSet, VisitedBitArray} from "./bit-packed.js";
-export {CSRGraph} from "./csr-graph.js";
-export {DirectionOptimizedBFS} from "./direction-optimized-bfs.js";
+export { CompactDistanceArray, GraphBitSet, VisitedBitArray } from "./bit-packed.js";
+export { CSRGraph } from "./csr-graph.js";
+export { DirectionOptimizedBFS } from "./direction-optimized-bfs.js";
 
 // Export utilities
-export {createOptimizedGraph, isCSRGraph, toCSRGraph} from "./graph-adapter.js";
+export { createOptimizedGraph, isCSRGraph, toCSRGraph } from "./graph-adapter.js";

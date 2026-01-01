@@ -1,6 +1,6 @@
-import {bfsAugmentingPath} from "../algorithms/traversal/bfs-variants.js";
-import type {Graph} from "../core/graph.js";
-import {graphToMap} from "../utils/graph-converters.js";
+import { bfsAugmentingPath } from "../algorithms/traversal/bfs-variants.js";
+import type { Graph } from "../core/graph.js";
+import { graphToMap } from "../utils/graph-converters.js";
 
 /**
  * Ford-Fulkerson Algorithm for Maximum Flow
@@ -24,15 +24,15 @@ export interface FlowNetwork {
 export interface MaxFlowResult {
     maxFlow: number;
     flowGraph: Map<string, Map<string, number>>;
-    minCut?: {source: Set<string>, sink: Set<string>, edges: [string, string][]};
+    minCut?: { source: Set<string>; sink: Set<string>; edges: [string, string][] };
 }
 
 /**
  * Create residual graph from original graph
+ * @param graph - The original graph with capacity values
+ * @returns A residual graph initialized with the original capacities
  */
-function createResidualGraph(
-    graph: Map<string, Map<string, number>>,
-): Map<string, Map<string, number>> {
+function createResidualGraph(graph: Map<string, Map<string, number>>): Map<string, Map<string, number>> {
     const residual = new Map<string, Map<string, number>>();
 
     for (const [u, neighbors] of graph) {
@@ -50,6 +50,10 @@ function createResidualGraph(
 
 /**
  * Find augmenting path using DFS
+ * @param residualGraph - The residual graph with remaining capacities
+ * @param source - The source node
+ * @param sink - The sink node
+ * @returns An array of nodes forming the path, or null if no path exists
  */
 function findAugmentingPathDFS(
     residualGraph: Map<string, Map<string, number>>,
@@ -92,6 +96,11 @@ function findAugmentingPathDFS(
 
 /**
  * Update flow along an augmenting path
+ * @param residualGraph - The residual graph to update
+ * @param flowGraph - The flow graph to update with new flow values
+ * @param originalGraph - The original graph for edge direction reference
+ * @param path - The augmenting path to update flow along
+ * @param pathFlow - The amount of flow to push through the path
  */
 function updateFlow(
     residualGraph: Map<string, Map<string, number>>,
@@ -146,11 +155,14 @@ function updateFlow(
 
 /**
  * Find minimum cut from source side
+ * @param residualGraph - The residual graph after max flow computation
+ * @param source - The source node
+ * @returns The minimum cut partition with source and sink sets and cut edges
  */
 function findMinCut(
     residualGraph: Map<string, Map<string, number>>,
     source: string,
-): {source: Set<string>, sink: Set<string>, edges: [string, string][]} {
+): { source: Set<string>; sink: Set<string>; edges: [string, string][] } {
     // Find all reachable nodes from source in residual graph
     const sourceSet = new Set<string>();
     const queue = [source];
@@ -195,20 +207,29 @@ function findMinCut(
         }
     }
 
-    return {source: sourceSet, sink: sinkSet, edges: cutEdges};
+    return { source: sourceSet, sink: sinkSet, edges: cutEdges };
 }
 
 /**
  * Core max flow algorithm implementation
+ * @param graph - The graph with capacity values
+ * @param source - The source node
+ * @param sink - The sink node
+ * @param findPath - Function to find an augmenting path in the residual graph
+ * @returns The maximum flow result including flow value, flow graph, and minimum cut
  */
 function maxFlowCore(
     graph: Map<string, Map<string, number>>,
     source: string,
     sink: string,
-    findPath: (residual: Map<string, Map<string, number>>, src: string, snk: string) => {path: string[], pathCapacity: number} | null,
+    findPath: (
+        residual: Map<string, Map<string, number>>,
+        src: string,
+        snk: string,
+    ) => { path: string[]; pathCapacity: number } | null,
 ): MaxFlowResult {
     if (!graph.has(source) || !graph.has(sink)) {
-        return {maxFlow: 0, flowGraph: new Map()};
+        return { maxFlow: 0, flowGraph: new Map() };
     }
 
     // Create residual graph
@@ -230,7 +251,7 @@ function maxFlowCore(
     let pathResult = findPath(residualGraph, source, sink);
 
     while (pathResult !== null) {
-        const {path, pathCapacity} = pathResult;
+        const { path, pathCapacity } = pathResult;
 
         // Update flow
         updateFlow(residualGraph, flowGraph, graph, path, pathCapacity);
@@ -243,19 +264,23 @@ function maxFlowCore(
     // Find minimum cut
     const minCut = findMinCut(residualGraph, source);
 
-    return {maxFlow, flowGraph, minCut};
+    return { maxFlow, flowGraph, minCut };
 }
 
 /**
  * Internal implementation of Ford-Fulkerson algorithm using DFS
+ * @param graph - The graph with capacity values
+ * @param source - The source node
+ * @param sink - The sink node
+ * @returns The maximum flow result
  */
-function fordFulkersonImpl(
-    graph: Map<string, Map<string, number>>,
-    source: string,
-    sink: string,
-): MaxFlowResult {
+function fordFulkersonImpl(graph: Map<string, Map<string, number>>, source: string, sink: string): MaxFlowResult {
     // Adapter function for DFS path finding
-    const findPathDFS = (residual: Map<string, Map<string, number>>, src: string, snk: string): {path: string[], pathCapacity: number} | null => {
+    const findPathDFS = (
+        residual: Map<string, Map<string, number>>,
+        src: string,
+        snk: string,
+    ): { path: string[]; pathCapacity: number } | null => {
         const path = findAugmentingPathDFS(residual, src, snk);
         if (!path) {
             return null;
@@ -274,7 +299,7 @@ function fordFulkersonImpl(
             }
         }
 
-        return {path, pathCapacity};
+        return { path, pathCapacity };
     };
 
     return maxFlowCore(graph, source, sink, findPathDFS);
@@ -282,14 +307,18 @@ function fordFulkersonImpl(
 
 /**
  * Internal implementation of Edmonds-Karp algorithm
+ * @param graph - The graph with capacity values
+ * @param source - The source node
+ * @param sink - The sink node
+ * @returns The maximum flow result
  */
-function edmondsKarpImpl(
-    graph: Map<string, Map<string, number>>,
-    source: string,
-    sink: string,
-): MaxFlowResult {
+function edmondsKarpImpl(graph: Map<string, Map<string, number>>, source: string, sink: string): MaxFlowResult {
     // Use BFS variant for path finding
-    const findPathBFS = (residual: Map<string, Map<string, number>>, src: string, snk: string): {path: string[], pathCapacity: number} | null => {
+    const findPathBFS = (
+        residual: Map<string, Map<string, number>>,
+        src: string,
+        snk: string,
+    ): { path: string[]; pathCapacity: number } | null => {
         return bfsAugmentingPath(residual, src, snk);
     };
 
@@ -298,12 +327,16 @@ function edmondsKarpImpl(
 
 /**
  * Utility function to create a flow network for bipartite matching
+ * @param leftNodes - Array of left partition node identifiers
+ * @param rightNodes - Array of right partition node identifiers
+ * @param edges - Array of edges connecting left nodes to right nodes
+ * @returns The flow network graph with source and sink nodes
  */
 export function createBipartiteFlowNetwork(
     leftNodes: string[],
     rightNodes: string[],
     edges: [string, string][],
-): {graph: Map<string, Map<string, number>>, source: string, sink: string} {
+): { graph: Map<string, Map<string, number>>; source: string; sink: string } {
     const graph = new Map<string, Map<string, number>>();
     const source = "__source__";
     const sink = "__sink__";
@@ -345,12 +378,11 @@ export function createBipartiteFlowNetwork(
 
     graph.set(sink, new Map());
 
-    return {graph, source, sink};
+    return { graph, source, sink };
 }
 
 /**
  * Ford-Fulkerson algorithm using DFS for finding augmenting paths
- *
  * @param graph - Adjacency list representation with capacities - accepts Graph class or Map
  * @param source - Source node
  * @param sink - Sink node
@@ -359,11 +391,7 @@ export function createBipartiteFlowNetwork(
  * Time Complexity: O(E * f) where f is the maximum flow
  * Space Complexity: O(V + E)
  */
-export function fordFulkerson(
-    graph: Graph,
-    source: string,
-    sink: string,
-): MaxFlowResult {
+export function fordFulkerson(graph: Graph, source: string, sink: string): MaxFlowResult {
     // Convert Graph to Map representation
     const graphMap = graphToMap(graph);
     return fordFulkersonImpl(graphMap, source, sink);
@@ -372,7 +400,6 @@ export function fordFulkerson(
 /**
  * Edmonds-Karp algorithm (Ford-Fulkerson with BFS)
  * More efficient implementation with better time complexity
- *
  * @param graph - Adjacency list representation with capacities - accepts Graph class or Map
  * @param source - Source node
  * @param sink - Sink node

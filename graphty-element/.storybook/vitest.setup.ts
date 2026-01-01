@@ -1,5 +1,5 @@
-import {Logger} from "@babylonjs/core";
-import {setProjectAnnotations} from "@storybook/web-components-vite";
+import { Logger } from "@babylonjs/core";
+import { setProjectAnnotations } from "@storybook/web-components-vite";
 
 import * as projectAnnotations from "./preview";
 
@@ -12,11 +12,12 @@ if (typeof window !== "undefined") {
     window.litIssuedWarnings = new Set(); // Prevent duplicate warnings
     // Suppress console warnings from Lit during tests
     const originalWarn = console.warn;
-    console.warn = (... args: unknown[]) => {
+    console.warn = (...args: unknown[]) => {
         const message = args[0];
-        if (typeof message === "string" &&
-            (message.includes("Lit is in dev mode") ||
-             message.includes("Multiple versions of Lit loaded"))) {
+        if (
+            typeof message === "string" &&
+            (message.includes("Lit is in dev mode") || message.includes("Multiple versions of Lit loaded"))
+        ) {
             return; // Suppress Lit warnings
         }
 

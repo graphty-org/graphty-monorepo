@@ -1,13 +1,13 @@
-import {Box, Group, ScrollArea, Text} from "@mantine/core";
-import {Settings} from "lucide-react";
-import React, {useCallback} from "react";
+import { Box, Group, ScrollArea, Text } from "@mantine/core";
+import { Settings } from "lucide-react";
+import React, { useCallback } from "react";
 
-import {RIGHT_SIDEBAR_WIDTH} from "../../constants/layout";
-import type {GraphInfo} from "../../types/selection";
-import {DataAccordion} from "../data-view";
-import {GraphPropertiesPanel} from "../sidebar/panels/GraphPropertiesPanel";
-import {StyleLayerPropertiesPanel} from "../sidebar/panels/StyleLayerPropertiesPanel";
-import type {LayerItem} from "./LeftSidebar";
+import { RIGHT_SIDEBAR_WIDTH } from "../../constants/layout";
+import type { GraphInfo } from "../../types/selection";
+import { DataAccordion } from "../data-view";
+import { GraphPropertiesPanel } from "../sidebar/panels/GraphPropertiesPanel";
+import { StyleLayerPropertiesPanel } from "../sidebar/panels/StyleLayerPropertiesPanel";
+import type { LayerItem } from "./LeftSidebar";
 
 interface RightSidebarProps {
     className?: string;
@@ -29,41 +29,56 @@ function renderPanelContent(
     onEdgeUpdate: RightSidebarProps["onEdgeUpdate"],
 ): React.JSX.Element {
     if (selectedLayer) {
-        return (
-            <StyleLayerPropertiesPanel
-                layer={selectedLayer}
-                onUpdate={onLayerUpdate}
-                onEdgeUpdate={onEdgeUpdate}
-            />
-        );
+        return <StyleLayerPropertiesPanel layer={selectedLayer} onUpdate={onLayerUpdate} onEdgeUpdate={onEdgeUpdate} />;
     }
 
     if (graphInfo) {
-        return (
-            <GraphPropertiesPanel
-                graphInfo={graphInfo}
-            />
-        );
+        return <GraphPropertiesPanel graphInfo={graphInfo} />;
     }
 
     return (
-        <Box style={{textAlign: "center", paddingTop: "24px", paddingBottom: "24px"}}>
-            <Box style={{display: "flex", justifyContent: "center", marginBottom: "8px"}}>
-                <Settings size={24} style={{color: "var(--mantine-color-dimmed)"}} />
+        <Box style={{ textAlign: "center", paddingTop: "24px", paddingBottom: "24px" }}>
+            <Box style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}>
+                <Settings size={24} style={{ color: "var(--mantine-color-dimmed)" }} />
             </Box>
-            <Text size="xs" c="dimmed" style={{fontSize: "11px"}}>
+            <Text size="xs" c="dimmed" style={{ fontSize: "11px" }}>
                 Select a layer to view properties
             </Text>
         </Box>
     );
 }
 
-export function RightSidebar({className, style, selectedLayer, graphInfo, onLayerUpdate, onEdgeUpdate, onLayerDeselect, selectedElementData}: RightSidebarProps): React.JSX.Element {
-    const handleKeyDown = useCallback((event: React.KeyboardEvent): void => {
-        if (event.key === "Escape" && selectedLayer && onLayerDeselect) {
-            onLayerDeselect();
-        }
-    }, [selectedLayer, onLayerDeselect]);
+/**
+ * Right sidebar showing properties panel for the selected layer or graph.
+ * @param root0 - Component props
+ * @param root0.className - Optional CSS class name
+ * @param root0.style - Optional inline styles
+ * @param root0.selectedLayer - The currently selected layer
+ * @param root0.graphInfo - Information about the current graph
+ * @param root0.onLayerUpdate - Called when layer node properties are updated
+ * @param root0.onEdgeUpdate - Called when layer edge properties are updated
+ * @param root0.onLayerDeselect - Called when Escape is pressed to deselect
+ * @param root0.selectedElementData - Data for the selected graph element
+ * @returns The right sidebar component
+ */
+export function RightSidebar({
+    className,
+    style,
+    selectedLayer,
+    graphInfo,
+    onLayerUpdate,
+    onEdgeUpdate,
+    onLayerDeselect,
+    selectedElementData,
+}: RightSidebarProps): React.JSX.Element {
+    const handleKeyDown = useCallback(
+        (event: React.KeyboardEvent): void => {
+            if (event.key === "Escape" && selectedLayer && onLayerDeselect) {
+                onLayerDeselect();
+            }
+        },
+        [selectedLayer, onLayerDeselect],
+    );
 
     return (
         <Box
@@ -81,7 +96,7 @@ export function RightSidebar({className, style, selectedLayer, graphInfo, onLaye
                 height: "100%",
                 overflow: "hidden",
                 outline: "none",
-                ... style,
+                ...style,
             }}
         >
             {/* Sidebar Header */}
@@ -93,20 +108,16 @@ export function RightSidebar({className, style, selectedLayer, graphInfo, onLaye
                 }}
             >
                 <Group gap="xs">
-                    <Settings size={14} style={{color: "var(--mantine-color-dimmed)"}} />
-                    <Text
-                        size="xs"
-                        fw={500}
-                        style={{fontSize: "12px"}}
-                    >
+                    <Settings size={14} style={{ color: "var(--mantine-color-dimmed)" }} />
+                    <Text size="xs" fw={500} style={{ fontSize: "12px" }}>
                         {selectedLayer ? selectedLayer.name : "Graph Properties"}
                     </Text>
                 </Group>
             </Box>
 
             {/* Sidebar Content */}
-            <ScrollArea style={{flex: 1}} scrollbarSize={8}>
-                <Box style={{padding: "16px"}}>
+            <ScrollArea style={{ flex: 1 }} scrollbarSize={8}>
+                <Box style={{ padding: "16px" }}>
                     {renderPanelContent(selectedLayer, graphInfo, onLayerUpdate, onEdgeUpdate)}
                 </Box>
             </ScrollArea>

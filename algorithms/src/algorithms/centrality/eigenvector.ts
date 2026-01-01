@@ -1,5 +1,5 @@
-import type {Graph} from "../../core/graph.js";
-import type {CentralityOptions, CentralityResult} from "../../types/index.js";
+import type { Graph } from "../../core/graph.js";
+import type { CentralityOptions, CentralityResult } from "../../types/index.js";
 
 /**
  * Eigenvector centrality implementation
@@ -19,19 +19,14 @@ export interface EigenvectorCentralityOptions extends CentralityOptions {
 }
 
 /**
- * Calculate eigenvector centrality for all nodes in the graph
- * Uses the power iteration method to find the dominant eigenvector
+ * Calculate eigenvector centrality for all nodes in the graph.
+ * Uses the power iteration method to find the dominant eigenvector.
+ * @param graph - The graph to compute eigenvector centrality on
+ * @param options - Configuration options for the computation
+ * @returns Object mapping node IDs to their eigenvector centrality scores
  */
-export function eigenvectorCentrality(
-    graph: Graph,
-    options: EigenvectorCentralityOptions = {},
-): CentralityResult {
-    const {
-        maxIterations = 100,
-        tolerance = 1e-6,
-        normalized = true,
-        startVector,
-    } = options;
+export function eigenvectorCentrality(graph: Graph, options: EigenvectorCentralityOptions = {}): CentralityResult {
+    const { maxIterations = 100, tolerance = 1e-6, normalized = true, startVector } = options;
 
     const centrality: CentralityResult = {};
     const nodes = Array.from(graph.nodes());
@@ -146,7 +141,11 @@ export function eigenvectorCentrality(
 }
 
 /**
- * Calculate eigenvector centrality for a specific node
+ * Calculate eigenvector centrality for a specific node.
+ * @param graph - The graph to compute eigenvector centrality on
+ * @param nodeId - The ID of the node to calculate centrality for
+ * @param options - Configuration options for the computation
+ * @returns The eigenvector centrality score for the specified node
  */
 export function nodeEigenvectorCentrality(
     graph: Graph,

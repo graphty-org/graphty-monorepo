@@ -1,6 +1,6 @@
-import type {Meta, StoryObj} from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 
-import {CopyButton} from "./CopyButton";
+import { CopyButton } from "./CopyButton";
 
 const meta: Meta<typeof CopyButton> = {
     title: "Components/DataView/CopyButton",
@@ -10,7 +10,7 @@ const meta: Meta<typeof CopyButton> = {
     },
     decorators: [
         (Story) => (
-            <div style={{padding: "2rem", backgroundColor: "var(--mantine-color-dark-7)"}}>
+            <div style={{ padding: "2rem", backgroundColor: "var(--mantine-color-dark-7)" }}>
                 <Story />
             </div>
         ),
@@ -38,7 +38,7 @@ export const WithPath: Story = {
 /** Copy button with object value - shows JSON stringified */
 export const ObjectValue: Story = {
     args: {
-        value: {name: "John", age: 30, roles: ["admin", "user"]},
+        value: { name: "John", age: 30, roles: ["admin", "user"] },
     },
 };
 

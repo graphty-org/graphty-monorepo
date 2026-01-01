@@ -1,7 +1,12 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {depthFirstSearch, findStronglyConnectedComponents, hasCycleDFS, topologicalSort} from "../../src/algorithms/traversal/dfs.js";
-import {Graph} from "../../src/core/graph.js";
+import {
+    depthFirstSearch,
+    findStronglyConnectedComponents,
+    hasCycleDFS,
+    topologicalSort,
+} from "../../src/algorithms/traversal/dfs.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("DFS Algorithms", () => {
     describe("depthFirstSearch", () => {
@@ -48,8 +53,8 @@ describe("DFS Algorithms", () => {
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
-            const iterativeResult = depthFirstSearch(graph, "a", {recursive: false});
-            const recursiveResult = depthFirstSearch(graph, "a", {recursive: true});
+            const iterativeResult = depthFirstSearch(graph, "a", { recursive: false });
+            const recursiveResult = depthFirstSearch(graph, "a", { recursive: true });
 
             expect(iterativeResult.visited).toEqual(recursiveResult.visited);
             expect(iterativeResult.order).toEqual(recursiveResult.order);
@@ -61,7 +66,7 @@ describe("DFS Algorithms", () => {
             graph.addEdge("a", "b");
             graph.addEdge("a", "c");
 
-            const result = depthFirstSearch(graph, "a", {preOrder: false});
+            const result = depthFirstSearch(graph, "a", { preOrder: false });
 
             expect(result.order).toHaveLength(3);
             // In post-order, children come before parent
@@ -80,7 +85,7 @@ describe("DFS Algorithms", () => {
             graph.addEdge("b", "d");
             graph.addEdge("c", "e");
 
-            const result = depthFirstSearch(graph, "a", {targetNode: "b"});
+            const result = depthFirstSearch(graph, "a", { targetNode: "b" });
 
             expect(result.visited.has("b")).toBe(true);
             expect(result.order).toContain("b");
@@ -88,21 +93,21 @@ describe("DFS Algorithms", () => {
 
         it("should call visitor callback with correct parameters", () => {
             const graph = new Graph();
-            const visits: {node: string, depth: number}[] = [];
+            const visits: { node: string; depth: number }[] = [];
 
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
 
             depthFirstSearch(graph, "a", {
                 visitCallback: (node, depth) => {
-                    visits.push({node: node.toString(), depth});
+                    visits.push({ node: node.toString(), depth });
                 },
             });
 
             expect(visits).toHaveLength(3);
-            expect(visits[0]).toEqual({node: "a", depth: 0});
-            expect(visits[1]).toEqual({node: "b", depth: 1});
-            expect(visits[2]).toEqual({node: "c", depth: 2});
+            expect(visits[0]).toEqual({ node: "a", depth: 0 });
+            expect(visits[1]).toEqual({ node: "b", depth: 1 });
+            expect(visits[2]).toEqual({ node: "c", depth: 2 });
         });
 
         it("should throw error for non-existent start node", () => {
@@ -142,7 +147,7 @@ describe("DFS Algorithms", () => {
         });
 
         it("should detect cycle in directed graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a directed cycle
             graph.addEdge("a", "b");
@@ -191,7 +196,7 @@ describe("DFS Algorithms", () => {
         });
 
         it("should detect self-loop as cycle", () => {
-            const graph = new Graph({directed: true, allowSelfLoops: true});
+            const graph = new Graph({ directed: true, allowSelfLoops: true });
 
             graph.addEdge("a", "a");
 
@@ -201,7 +206,7 @@ describe("DFS Algorithms", () => {
 
     describe("topologicalSort", () => {
         it("should produce valid topological ordering for DAG", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a DAG: a -> b -> d; a -> c -> d
             graph.addEdge("a", "b");
@@ -227,7 +232,7 @@ describe("DFS Algorithms", () => {
         });
 
         it("should return null for graph with cycles", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a cycle
             graph.addEdge("a", "b");
@@ -240,7 +245,7 @@ describe("DFS Algorithms", () => {
         });
 
         it("should handle single node", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addNode("only");
 
@@ -250,7 +255,7 @@ describe("DFS Algorithms", () => {
         });
 
         it("should handle empty graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             const result = topologicalSort(graph);
 
@@ -258,7 +263,7 @@ describe("DFS Algorithms", () => {
         });
 
         it("should throw error for undirected graph", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             graph.addEdge("a", "b");
 
@@ -266,7 +271,7 @@ describe("DFS Algorithms", () => {
         });
 
         it("should handle disconnected DAG", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Two disconnected DAGs
             graph.addEdge("a", "b");
@@ -288,7 +293,7 @@ describe("DFS Algorithms", () => {
         });
 
         it("should handle complex DAG", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // More complex DAG representing dependencies
             graph.addEdge("shirt", "tie");
@@ -319,7 +324,7 @@ describe("DFS Algorithms", () => {
 
     describe("findStronglyConnectedComponents", () => {
         it("should find SCCs in directed graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a graph with two SCCs
             graph.addEdge("a", "b");
@@ -344,7 +349,7 @@ describe("DFS Algorithms", () => {
         });
 
         it("should handle single node components", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a path (each node is its own SCC)
             graph.addEdge("a", "b");
@@ -357,7 +362,7 @@ describe("DFS Algorithms", () => {
         });
 
         it("should handle graph with self-loops", () => {
-            const graph = new Graph({directed: true, allowSelfLoops: true});
+            const graph = new Graph({ directed: true, allowSelfLoops: true });
 
             graph.addEdge("a", "a"); // Self-loop
             graph.addEdge("a", "b");
@@ -370,15 +375,17 @@ describe("DFS Algorithms", () => {
         });
 
         it("should throw error for undirected graph", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             graph.addEdge("a", "b");
 
-            expect(() => findStronglyConnectedComponents(graph)).toThrow("Strongly connected components require a directed graph");
+            expect(() => findStronglyConnectedComponents(graph)).toThrow(
+                "Strongly connected components require a directed graph",
+            );
         });
 
         it("should handle empty graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             const components = findStronglyConnectedComponents(graph);
 
@@ -386,7 +393,7 @@ describe("DFS Algorithms", () => {
         });
 
         it("should handle single node", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addNode("only");
 
@@ -396,7 +403,7 @@ describe("DFS Algorithms", () => {
         });
 
         it("should handle complex SCC structure", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Complex graph with multiple SCCs
             // SCC 1: {a, b}
@@ -423,7 +430,7 @@ describe("DFS Algorithms", () => {
 
     describe("edge cases", () => {
         it("should handle self-loops in DFS traversal", () => {
-            const graph = new Graph({allowSelfLoops: true});
+            const graph = new Graph({ allowSelfLoops: true });
 
             graph.addEdge("a", "a");
             graph.addEdge("a", "b");
@@ -435,7 +442,7 @@ describe("DFS Algorithms", () => {
         });
 
         it("should handle directed graphs in DFS", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
             graph.addEdge("c", "a"); // a can't reach c in directed graph
@@ -448,7 +455,7 @@ describe("DFS Algorithms", () => {
         });
 
         it("should work with numeric node IDs", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge(1, 2);
             graph.addEdge(2, 3);
@@ -482,7 +489,7 @@ describe("DFS Algorithms", () => {
             }
 
             // Should not throw stack overflow
-            expect(() => depthFirstSearch(graph, 0, {recursive: true})).not.toThrow();
+            expect(() => depthFirstSearch(graph, 0, { recursive: true })).not.toThrow();
         });
     });
 });

@@ -1,6 +1,6 @@
-import {useCallback, useState} from "react";
+import { useCallback, useState } from "react";
 
-import type {DataSourceInfo, GraphInfo, GraphTypeConfig} from "../types/selection";
+import type { DataSourceInfo, GraphInfo, GraphTypeConfig } from "../types/selection";
 
 /**
  * Default graph info state.
@@ -20,6 +20,8 @@ const DEFAULT_GRAPH_INFO: GraphInfo = {
 /**
  * Hook for managing graph information state.
  * Provides methods to update graph statistics and configuration.
+ * @param initialInfo - Initial graph info to merge with defaults
+ * @returns Graph info state and update methods
  */
 export function useGraphInfo(initialInfo?: Partial<GraphInfo>): {
     graphInfo: GraphInfo;
@@ -29,8 +31,8 @@ export function useGraphInfo(initialInfo?: Partial<GraphInfo>): {
     setGraphType: (graphType: GraphTypeConfig) => void;
 } {
     const [graphInfo, setGraphInfo] = useState<GraphInfo>({
-        ... DEFAULT_GRAPH_INFO,
-        ... initialInfo,
+        ...DEFAULT_GRAPH_INFO,
+        ...initialInfo,
     });
 
     const updateStats = useCallback((nodeCount: number, edgeCount: number) => {
@@ -38,12 +40,11 @@ export function useGraphInfo(initialInfo?: Partial<GraphInfo>): {
             // Calculate density: for directed graph, density = edges / (nodes * (nodes - 1))
             // For undirected: density = 2 * edges / (nodes * (nodes - 1))
             const possibleEdges = nodeCount * (nodeCount - 1);
-            const density = possibleEdges > 0 ?
-                (prev.graphType.directed ? edgeCount : edgeCount * 2) / possibleEdges :
-                0;
+            const density =
+                possibleEdges > 0 ? (prev.graphType.directed ? edgeCount : edgeCount * 2) / possibleEdges : 0;
 
             return {
-                ... prev,
+                ...prev,
                 nodeCount,
                 edgeCount,
                 density,
@@ -53,14 +54,14 @@ export function useGraphInfo(initialInfo?: Partial<GraphInfo>): {
 
     const addDataSource = useCallback((source: DataSourceInfo) => {
         setGraphInfo((prev) => ({
-            ... prev,
-            dataSources: [... prev.dataSources, source],
+            ...prev,
+            dataSources: [...prev.dataSources, source],
         }));
     }, []);
 
     const clearDataSources = useCallback(() => {
         setGraphInfo((prev) => ({
-            ... prev,
+            ...prev,
             dataSources: [],
         }));
     }, []);
@@ -69,12 +70,11 @@ export function useGraphInfo(initialInfo?: Partial<GraphInfo>): {
         setGraphInfo((prev) => {
             // Recalculate density when graph type changes (directed vs undirected)
             const possibleEdges = prev.nodeCount * (prev.nodeCount - 1);
-            const density = possibleEdges > 0 ?
-                (graphType.directed ? prev.edgeCount : prev.edgeCount * 2) / possibleEdges :
-                0;
+            const density =
+                possibleEdges > 0 ? (graphType.directed ? prev.edgeCount : prev.edgeCount * 2) / possibleEdges : 0;
 
             return {
-                ... prev,
+                ...prev,
                 graphType,
                 density,
             };

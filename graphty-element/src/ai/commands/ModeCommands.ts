@@ -3,47 +3,45 @@
  * @module ai/commands/ModeCommands
  */
 
-import {z} from "zod";
+import { z } from "zod";
 
-import type {Graph} from "../../Graph";
-import type {CommandResult, GraphCommand} from "./types";
+import type { Graph } from "../../Graph";
+import type { CommandResult, GraphCommand } from "./types";
 
 /**
  * Immersive mode options.
  */
-const ImmersiveModeSchema = z.enum(["vr", "ar", "exit"]).describe(
-    "VR for virtual reality, AR for augmented reality, exit to return to normal view",
-);
+const ImmersiveModeSchema = z
+    .enum(["vr", "ar", "exit"])
+    .describe("VR for virtual reality, AR for augmented reality, exit to return to normal view");
 
 /**
  * Command to enter or exit VR/AR immersive modes (WebXR).
  */
 export const setImmersiveMode: GraphCommand = {
     name: "setImmersiveMode",
-    description: "Enter or exit VR/AR immersive modes using WebXR. Use 'vr' for virtual reality (headset), 'ar' for augmented reality (pass-through or mobile AR), or 'exit' to return to normal desktop view.",
+    description:
+        "Enter or exit VR/AR immersive modes using WebXR. Use 'vr' for virtual reality (headset), 'ar' for augmented reality (pass-through or mobile AR), or 'exit' to return to normal desktop view.",
     parameters: z.object({
         mode: ImmersiveModeSchema,
     }),
     examples: [
-        {input: "Enter VR mode", params: {mode: "vr"}},
-        {input: "Switch to AR", params: {mode: "ar"}},
-        {input: "Exit immersive mode", params: {mode: "exit"}},
-        {input: "Leave VR", params: {mode: "exit"}},
-        {input: "Put me in virtual reality", params: {mode: "vr"}},
-        {input: "Show augmented reality view", params: {mode: "ar"}},
-        {input: "Go back to normal view", params: {mode: "exit"}},
+        { input: "Enter VR mode", params: { mode: "vr" } },
+        { input: "Switch to AR", params: { mode: "ar" } },
+        { input: "Exit immersive mode", params: { mode: "exit" } },
+        { input: "Leave VR", params: { mode: "exit" } },
+        { input: "Put me in virtual reality", params: { mode: "vr" } },
+        { input: "Show augmented reality view", params: { mode: "ar" } },
+        { input: "Go back to normal view", params: { mode: "exit" } },
     ],
 
-    async execute(
-        graph: Graph,
-        params: Record<string, unknown>,
-    ): Promise<CommandResult> {
-        const {mode} = params as {mode: "vr" | "ar" | "exit"};
+    async execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
+        const { mode } = params as { mode: "vr" | "ar" | "exit" };
 
         try {
             if (mode === "exit") {
                 // Exit immersive mode
-                const exitFn = (graph as Graph & {exitImmersiveMode?: () => Promise<void>}).exitImmersiveMode;
+                const exitFn = (graph as Graph & { exitImmersiveMode?: () => Promise<void> }).exitImmersiveMode;
                 if (exitFn) {
                     await exitFn.call(graph);
                 }
@@ -55,7 +53,7 @@ export const setImmersiveMode: GraphCommand = {
             }
 
             // Check for XR helper
-            const {getXRHelper} = (graph as Graph & {getXRHelper?: () => unknown});
+            const { getXRHelper } = graph as Graph & { getXRHelper?: () => unknown };
             const xrHelper = getXRHelper?.call(graph) as {
                 enterVR?: () => Promise<void>;
                 enterAR?: () => Promise<void>;
@@ -69,7 +67,7 @@ export const setImmersiveMode: GraphCommand = {
             }
 
             if (mode === "vr") {
-                const {enterVR} = xrHelper;
+                const { enterVR } = xrHelper;
                 if (!enterVR) {
                     return {
                         success: false,
@@ -85,7 +83,7 @@ export const setImmersiveMode: GraphCommand = {
             }
 
             // mode === "ar"
-            const {enterAR} = xrHelper;
+            const { enterAR } = xrHelper;
             if (!enterAR) {
                 return {
                     success: false,

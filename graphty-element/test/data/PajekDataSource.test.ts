@@ -1,12 +1,12 @@
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {PajekDataSource} from "../../src/data/PajekDataSource.js";
+import { PajekDataSource } from "../../src/data/PajekDataSource.js";
 
 describe("PajekDataSource", () => {
     describe("constructor", () => {
         it("should create instance with data string", () => {
             const source = new PajekDataSource({
-                data: "*Vertices 1\n1 \"A\"\n",
+                data: '*Vertices 1\n1 "A"\n',
             });
             assert.ok(source);
             assert.equal(source.type, "pajek");
@@ -19,7 +19,7 @@ describe("PajekDataSource", () => {
             assert.ok(source);
         });
 
-        it("should throw error if no data source provided", async() => {
+        it("should throw error if no data source provided", async () => {
             const source = new PajekDataSource({});
             let error: Error | null = null;
             try {
@@ -34,11 +34,11 @@ describe("PajekDataSource", () => {
     });
 
     describe("parsing vertices", () => {
-        it("should parse simple vertices", async() => {
+        it("should parse simple vertices", async () => {
             const data = `*Vertices 2
 1 "Node1"
 2 "Node2"`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 
@@ -50,12 +50,12 @@ describe("PajekDataSource", () => {
             assert.equal(chunk.value.nodes[1].label, "Node2");
         });
 
-        it("should parse vertices with coordinates", async() => {
+        it("should parse vertices with coordinates", async () => {
             const data = `*Vertices 3
 1 "A" 0.1 0.2 0.3
 2 "B" 0.4 0.5 0.6
 3 "C" 1.0 2.0 3.0`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 
@@ -69,11 +69,11 @@ describe("PajekDataSource", () => {
             assert.equal(chunk.value.nodes[2].z, 3.0);
         });
 
-        it("should handle partial coordinates", async() => {
+        it("should handle partial coordinates", async () => {
             const data = `*Vertices 2
 1 "A" 0.1 0.2
 2 "B"`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 
@@ -84,12 +84,12 @@ describe("PajekDataSource", () => {
             assert.isUndefined(chunk.value.nodes[1].x);
         });
 
-        it("should convert 1-indexed IDs to strings", async() => {
+        it("should convert 1-indexed IDs to strings", async () => {
             const data = `*Vertices 3
 1 "First"
 2 "Second"
 3 "Third"`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 
@@ -99,11 +99,11 @@ describe("PajekDataSource", () => {
             assert.equal(chunk.value.nodes[2].id, "3");
         });
 
-        it("should handle vertices without labels", async() => {
+        it("should handle vertices without labels", async () => {
             const data = `*Vertices 2
 1
 2`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 
@@ -115,13 +115,13 @@ describe("PajekDataSource", () => {
     });
 
     describe("parsing arcs (directed edges)", () => {
-        it("should parse arcs", async() => {
+        it("should parse arcs", async () => {
             const data = `*Vertices 2
 1 "A"
 2 "B"
 *Arcs
 1 2 1.0`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 
@@ -133,7 +133,7 @@ describe("PajekDataSource", () => {
             assert.equal(chunk.value.edges[0].weight, 1.0);
         });
 
-        it("should parse multiple arcs", async() => {
+        it("should parse multiple arcs", async () => {
             const data = `*Vertices 3
 1 "A"
 2 "B"
@@ -142,7 +142,7 @@ describe("PajekDataSource", () => {
 1 2 1.5
 2 3 2.0
 3 1 0.5`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 
@@ -153,13 +153,13 @@ describe("PajekDataSource", () => {
             assert.equal(chunk.value.edges[2].weight, 0.5);
         });
 
-        it("should handle arcs without weights", async() => {
+        it("should handle arcs without weights", async () => {
             const data = `*Vertices 2
 1 "A"
 2 "B"
 *Arcs
 1 2`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 
@@ -170,13 +170,13 @@ describe("PajekDataSource", () => {
     });
 
     describe("parsing edges (undirected)", () => {
-        it("should parse edges", async() => {
+        it("should parse edges", async () => {
             const data = `*Vertices 2
 1 "A"
 2 "B"
 *Edges
 1 2 1.0`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 
@@ -188,7 +188,7 @@ describe("PajekDataSource", () => {
             assert.equal(chunk.value.edges[0].weight, 1.0);
         });
 
-        it("should parse multiple edges", async() => {
+        it("should parse multiple edges", async () => {
             const data = `*Vertices 3
 1 "A"
 2 "B"
@@ -196,7 +196,7 @@ describe("PajekDataSource", () => {
 *Edges
 1 2 1.0
 2 3 2.0`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 
@@ -208,7 +208,7 @@ describe("PajekDataSource", () => {
     });
 
     describe("mixed graphs", () => {
-        it("should handle both arcs and edges", async() => {
+        it("should handle both arcs and edges", async () => {
             const data = `*Vertices 4
 1 "A"
 2 "B"
@@ -220,7 +220,7 @@ describe("PajekDataSource", () => {
 *Edges
 3 4 2.0
 1 4 1.0`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 
@@ -238,14 +238,14 @@ describe("PajekDataSource", () => {
     });
 
     describe("chunking", () => {
-        it("should respect chunkSize parameter", async() => {
+        it("should respect chunkSize parameter", async () => {
             const data = `*Vertices 5
 1 "A"
 2 "B"
 3 "C"
 4 "D"
 5 "E"`;
-            const source = new PajekDataSource({data, chunkSize: 2});
+            const source = new PajekDataSource({ data, chunkSize: 2 });
             const gen = source.sourceFetchData();
 
             const chunk1 = await gen.next();
@@ -261,7 +261,7 @@ describe("PajekDataSource", () => {
             assert.equal(chunk4.done, true);
         });
 
-        it("should include all edges with first chunk", async() => {
+        it("should include all edges with first chunk", async () => {
             const data = `*Vertices 4
 1 "A"
 2 "B"
@@ -271,7 +271,7 @@ describe("PajekDataSource", () => {
 1 2
 2 3
 3 4`;
-            const source = new PajekDataSource({data, chunkSize: 2});
+            const source = new PajekDataSource({ data, chunkSize: 2 });
             const gen = source.sourceFetchData();
 
             const chunk1 = await gen.next();
@@ -285,12 +285,12 @@ describe("PajekDataSource", () => {
     });
 
     describe("error handling", () => {
-        it("should handle malformed vertex lines gracefully", async() => {
+        it("should handle malformed vertex lines gracefully", async () => {
             const data = `*Vertices 3
 1 "A"
 2 "B"
 3 "C"`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 
@@ -302,7 +302,7 @@ describe("PajekDataSource", () => {
             assert.equal(chunk.value.nodes[2].id, "3");
         });
 
-        it("should handle malformed edge lines gracefully", async() => {
+        it("should handle malformed edge lines gracefully", async () => {
             const data = `*Vertices 3
 1 "A"
 2 "B"
@@ -311,7 +311,7 @@ describe("PajekDataSource", () => {
 1 2 1.0
 2 3 1.0
 1 3 0.5`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 
@@ -319,13 +319,13 @@ describe("PajekDataSource", () => {
             assert.equal(chunk.value.edges.length, 3);
         });
 
-        it("should track errors in ErrorAggregator", async() => {
+        it("should track errors in ErrorAggregator", async () => {
             const data = `*Vertices 2
 1 "A"
 2 "B"
 *Edges
 1 2`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             await gen.next();
 
@@ -336,11 +336,11 @@ describe("PajekDataSource", () => {
     });
 
     describe("empty sections", () => {
-        it("should handle vertices-only file", async() => {
+        it("should handle vertices-only file", async () => {
             const data = `*Vertices 2
 1 "A"
 2 "B"`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 
@@ -349,14 +349,14 @@ describe("PajekDataSource", () => {
             assert.equal(chunk.value.edges.length, 0);
         });
 
-        it("should handle empty arcs section", async() => {
+        it("should handle empty arcs section", async () => {
             const data = `*Vertices 2
 1 "A"
 2 "B"
 *Arcs
 *Edges
 1 2`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 
@@ -367,13 +367,13 @@ describe("PajekDataSource", () => {
     });
 
     describe("whitespace and comments", () => {
-        it("should handle extra whitespace", async() => {
+        it("should handle extra whitespace", async () => {
             const data = `*Vertices 2
   1   "A"
      2 "B"
 *Edges
   1   2   1.0  `;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 
@@ -382,7 +382,7 @@ describe("PajekDataSource", () => {
             assert.equal(chunk.value.edges.length, 1);
         });
 
-        it("should handle blank lines", async() => {
+        it("should handle blank lines", async () => {
             const data = `*Vertices 2
 
 1 "A"
@@ -392,7 +392,7 @@ describe("PajekDataSource", () => {
 *Edges
 
 1 2`;
-            const source = new PajekDataSource({data});
+            const source = new PajekDataSource({ data });
             const gen = source.sourceFetchData();
             const chunk = await gen.next();
 

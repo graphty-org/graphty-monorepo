@@ -5,10 +5,10 @@
  * @module ai/schema/SchemaManager
  */
 
-import type {Graph} from "../../Graph";
-import {SchemaExtractor} from "./SchemaExtractor";
-import {formatSchemaForPrompt} from "./SchemaFormatter";
-import type {SchemaExtractorOptions, SchemaSummary} from "./types";
+import type { Graph } from "../../Graph";
+import { SchemaExtractor } from "./SchemaExtractor";
+import { formatSchemaForPrompt } from "./SchemaFormatter";
+import type { SchemaExtractorOptions, SchemaSummary } from "./types";
 
 /**
  * Manages the lifecycle of schema extraction and caching.

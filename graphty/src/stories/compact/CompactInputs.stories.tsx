@@ -12,8 +12,8 @@ import {
     Textarea,
     TextInput,
 } from "@mantine/core";
-import type {Meta, StoryObj} from "@storybook/react";
-import {ChevronDown} from "lucide-react";
+import type { Meta, StoryObj } from "@storybook/react";
+import { ChevronDown } from "lucide-react";
 
 /**
  * Compact Input Components
@@ -28,7 +28,7 @@ const meta: Meta = {
     },
     decorators: [
         (Story) => (
-            <Box p="md" style={{minWidth: 400, backgroundColor: "var(--mantine-color-body)"}}>
+            <Box p="md" style={{ minWidth: 400, backgroundColor: "var(--mantine-color-body)" }}>
                 <Story />
             </Box>
         ),
@@ -58,19 +58,27 @@ export const TextInputWithIcons: Story = {
                 size="compact"
                 label="Width"
                 value="400"
-                leftSection={<Text size="xs" c="dimmed" fw={500}>W</Text>}
+                leftSection={
+                    <Text size="xs" c="dimmed" fw={500}>
+                        W
+                    </Text>
+                }
                 leftSectionWidth={24}
                 leftSectionPointerEvents="none"
-                styles={{input: {paddingLeft: 28}}}
+                styles={{ input: { paddingLeft: 28 } }}
             />
             <TextInput
                 size="compact"
                 label="Height"
                 value="300"
-                leftSection={<Text size="xs" c="dimmed" fw={500}>H</Text>}
+                leftSection={
+                    <Text size="xs" c="dimmed" fw={500}>
+                        H
+                    </Text>
+                }
                 leftSectionWidth={24}
                 leftSectionPointerEvents="none"
-                styles={{input: {paddingLeft: 28}}}
+                styles={{ input: { paddingLeft: 28 } }}
             />
         </Stack>
     ),
@@ -81,20 +89,36 @@ export const TextInputSizeComparison: Story = {
     render: () => (
         <Stack gap="xs">
             <Group gap="md" align="flex-end">
-                <Box w={100}><Text size="xs" c="dimmed">xs (28px)</Text></Box>
-                <TextInput size="xs" placeholder="Size xs" style={{flex: 1}} />
+                <Box w={100}>
+                    <Text size="xs" c="dimmed">
+                        xs (28px)
+                    </Text>
+                </Box>
+                <TextInput size="xs" placeholder="Size xs" style={{ flex: 1 }} />
             </Group>
             <Group gap="md" align="flex-end">
-                <Box w={100}><Text size="xs" c="dimmed">compact (24px)</Text></Box>
-                <TextInput size="compact" placeholder="Size compact" style={{flex: 1}} />
+                <Box w={100}>
+                    <Text size="xs" c="dimmed">
+                        compact (24px)
+                    </Text>
+                </Box>
+                <TextInput size="compact" placeholder="Size compact" style={{ flex: 1 }} />
             </Group>
             <Group gap="md" align="flex-end">
-                <Box w={100}><Text size="xs" c="dimmed">sm (32px)</Text></Box>
-                <TextInput size="sm" placeholder="Size sm" style={{flex: 1}} />
+                <Box w={100}>
+                    <Text size="xs" c="dimmed">
+                        sm (32px)
+                    </Text>
+                </Box>
+                <TextInput size="sm" placeholder="Size sm" style={{ flex: 1 }} />
             </Group>
             <Group gap="md" align="flex-end">
-                <Box w={100}><Text size="xs" c="dimmed">md (36px)</Text></Box>
-                <TextInput size="md" placeholder="Size md" style={{flex: 1}} />
+                <Box w={100}>
+                    <Text size="xs" c="dimmed">
+                        md (36px)
+                    </Text>
+                </Box>
+                <TextInput size="md" placeholder="Size md" style={{ flex: 1 }} />
             </Group>
         </Stack>
     ),
@@ -108,7 +132,14 @@ export const NumberInputBasic: Story = {
             <NumberInput size="compact" label="With controls" defaultValue={42} min={0} max={100} />
             <NumberInput size="compact" label="Without controls" defaultValue={42} hideControls />
             <NumberInput size="compact" label="With suffix" defaultValue={100} suffix="%" hideControls />
-            <NumberInput size="compact" label="With decimal" defaultValue={3.14} decimalScale={2} step={0.01} hideControls />
+            <NumberInput
+                size="compact"
+                label="With decimal"
+                defaultValue={3.14}
+                decimalScale={2}
+                step={0.01}
+                hideControls
+            />
         </Stack>
     ),
 };
@@ -117,9 +148,9 @@ export const NumberInputWithUnits: Story = {
     name: "NumberInput - With Units",
     render: () => (
         <Group gap={8}>
-            <NumberInput size="compact" defaultValue={0} suffix="°" hideControls style={{flex: 1}} />
-            <NumberInput size="compact" defaultValue={100} suffix="%" hideControls style={{flex: 1}} />
-            <NumberInput size="compact" defaultValue={12} suffix="px" hideControls style={{flex: 1}} />
+            <NumberInput size="compact" defaultValue={0} suffix="°" hideControls style={{ flex: 1 }} />
+            <NumberInput size="compact" defaultValue={100} suffix="%" hideControls style={{ flex: 1 }} />
+            <NumberInput size="compact" defaultValue={12} suffix="px" hideControls style={{ flex: 1 }} />
         </Group>
     ),
 };
@@ -129,11 +160,7 @@ export const NativeSelectBasic: Story = {
     name: "NativeSelect - Basic",
     render: () => (
         <Stack gap="md">
-            <NativeSelect
-                size="compact"
-                label="Basic select"
-                data={["Option 1", "Option 2", "Option 3"]}
-            />
+            <NativeSelect size="compact" label="Basic select" data={["Option 1", "Option 2", "Option 3"]} />
             <NativeSelect
                 size="compact"
                 label="With custom icon"
@@ -144,8 +171,8 @@ export const NativeSelectBasic: Story = {
                 size="compact"
                 label="With groups"
                 data={[
-                    {group: "Basic", items: ["Sphere", "Cube"]},
-                    {group: "Advanced", items: ["Torus", "Cone"]},
+                    { group: "Basic", items: ["Sphere", "Cube"] },
+                    { group: "Advanced", items: ["Torus", "Cone"] },
                 ]}
             />
         </Stack>
@@ -195,23 +222,14 @@ export const ColorInputBasic: Story = {
     name: "ColorInput - Basic",
     render: () => (
         <Stack gap="md">
-            <ColorInput
-                size="compact"
-                label="Color picker"
-                defaultValue="#5B8FF9"
-            />
+            <ColorInput size="compact" label="Color picker" defaultValue="#5B8FF9" />
             <ColorInput
                 size="compact"
                 label="With swatches"
                 defaultValue="#FF6B6B"
                 swatches={["#5B8FF9", "#FF6B6B", "#61D095", "#F7B731", "#9B59B6"]}
             />
-            <ColorInput
-                size="compact"
-                label="With alpha"
-                format="hexa"
-                defaultValue="#5B8FF980"
-            />
+            <ColorInput size="compact" label="With alpha" format="hexa" defaultValue="#5B8FF980" />
         </Stack>
     ),
 };
@@ -221,12 +239,7 @@ export const TextareaBasic: Story = {
     name: "Textarea - Basic",
     render: () => (
         <Stack gap="md">
-            <Textarea
-                size="compact"
-                label="Description"
-                placeholder="Enter description..."
-                rows={3}
-            />
+            <Textarea size="compact" label="Description" placeholder="Enter description..." rows={3} />
             <Textarea
                 size="compact"
                 label="Auto-resize"
@@ -244,11 +257,7 @@ export const PasswordInputBasic: Story = {
     name: "PasswordInput - Basic",
     render: () => (
         <Stack gap="md">
-            <PasswordInput
-                size="compact"
-                label="Password"
-                placeholder="Enter password..."
-            />
+            <PasswordInput size="compact" label="Password" placeholder="Enter password..." />
             <PasswordInput
                 size="compact"
                 label="With visibility toggle"
@@ -265,7 +274,9 @@ export const AllInputs: Story = {
     render: () => (
         <Stack gap="lg">
             <Box>
-                <Text fw={500} mb="xs">Text Inputs</Text>
+                <Text fw={500} mb="xs">
+                    Text Inputs
+                </Text>
                 <Group grow>
                     <TextInput size="compact" placeholder="TextInput" />
                     <PasswordInput size="compact" placeholder="PasswordInput" />
@@ -273,7 +284,9 @@ export const AllInputs: Story = {
             </Box>
 
             <Box>
-                <Text fw={500} mb="xs">Number Input</Text>
+                <Text fw={500} mb="xs">
+                    Number Input
+                </Text>
                 <Group grow>
                     <NumberInput size="compact" placeholder="With controls" />
                     <NumberInput size="compact" placeholder="No controls" hideControls />
@@ -281,7 +294,9 @@ export const AllInputs: Story = {
             </Box>
 
             <Box>
-                <Text fw={500} mb="xs">Select Inputs</Text>
+                <Text fw={500} mb="xs">
+                    Select Inputs
+                </Text>
                 <Group grow>
                     <NativeSelect size="compact" data={["Option 1", "Option 2"]} />
                     <Select size="compact" data={["Option 1", "Option 2"]} placeholder="Select" />
@@ -289,7 +304,9 @@ export const AllInputs: Story = {
             </Box>
 
             <Box>
-                <Text fw={500} mb="xs">Other Inputs</Text>
+                <Text fw={500} mb="xs">
+                    Other Inputs
+                </Text>
                 <Group grow>
                     <Autocomplete size="compact" placeholder="Autocomplete" data={["React", "Vue"]} />
                     <ColorInput size="compact" defaultValue="#5B8FF9" />
@@ -297,7 +314,9 @@ export const AllInputs: Story = {
             </Box>
 
             <Box>
-                <Text fw={500} mb="xs">Textarea</Text>
+                <Text fw={500} mb="xs">
+                    Textarea
+                </Text>
                 <Textarea size="compact" placeholder="Multi-line input..." rows={2} />
             </Box>
         </Stack>

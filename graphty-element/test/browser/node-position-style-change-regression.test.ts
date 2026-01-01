@@ -12,21 +12,21 @@
  * @see src/Node.ts - updateStyle() method
  */
 
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import {Graph} from "../../src/Graph";
-import type {TestGraph} from "../helpers/testSetup";
+import { Graph } from "../../src/Graph";
+import type { TestGraph } from "../helpers/testSetup";
 
 // Test data
 const TEST_NODES = [
-    {id: "node1", label: "Node 1", type: "server"},
-    {id: "node2", label: "Node 2", type: "database"},
-    {id: "node3", label: "Node 3", type: "server"},
+    { id: "node1", label: "Node 1", type: "server" },
+    { id: "node2", label: "Node 2", type: "database" },
+    { id: "node3", label: "Node 3", type: "server" },
 ];
 
 const TEST_EDGES = [
-    {src: "node1", dst: "node2"},
-    {src: "node2", dst: "node3"},
+    { src: "node1", dst: "node2" },
+    { src: "node2", dst: "node3" },
 ];
 
 // Helper to wait for a delay
@@ -38,7 +38,7 @@ describe("Node position preservation during style changes (regression)", () => {
     let container: HTMLElement;
     let graph: Graph;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         container = document.createElement("div");
         container.style.width = "800px";
         container.style.height = "600px";
@@ -57,7 +57,7 @@ describe("Node position preservation during style changes (regression)", () => {
      * Polls the layout manager's isSettled property until it returns true.
      */
     async function waitForLayoutSettle(maxWaitMs = 5000): Promise<void> {
-        const {layoutManager} = graph as unknown as TestGraph;
+        const { layoutManager } = graph as unknown as TestGraph;
         const startTime = Date.now();
 
         while (Date.now() - startTime < maxWaitMs) {
@@ -76,9 +76,9 @@ describe("Node position preservation during style changes (regression)", () => {
     /**
      * Get positions for all nodes
      */
-    function getNodePositions(): Map<string, {x: number, y: number, z: number}> {
-        const positions = new Map<string, {x: number, y: number, z: number}>();
-        const {dataManager} = graph as unknown as TestGraph;
+    function getNodePositions(): Map<string, { x: number; y: number; z: number }> {
+        const positions = new Map<string, { x: number; y: number; z: number }>();
+        const { dataManager } = graph as unknown as TestGraph;
 
         for (const [id, node] of dataManager.nodes) {
             positions.set(String(id), {
@@ -94,7 +94,7 @@ describe("Node position preservation during style changes (regression)", () => {
     /**
      * Verify that at least some nodes have non-zero positions
      */
-    function verifyNonZeroPositions(positions: Map<string, {x: number, y: number, z: number}>): void {
+    function verifyNonZeroPositions(positions: Map<string, { x: number; y: number; z: number }>): void {
         let hasNonZero = false;
         for (const pos of positions.values()) {
             if (Math.abs(pos.x) > 0.001 || Math.abs(pos.y) > 0.001 || Math.abs(pos.z) > 0.001) {
@@ -103,18 +103,15 @@ describe("Node position preservation during style changes (regression)", () => {
             }
         }
 
-        assert.isTrue(
-            hasNonZero,
-            "At least some nodes should have non-zero positions after layout settles",
-        );
+        assert.isTrue(hasNonZero, "At least some nodes should have non-zero positions after layout settles");
     }
 
     /**
      * Verify positions match within tolerance
      */
     function verifyPositionsMatch(
-        before: Map<string, {x: number, y: number, z: number}>,
-        after: Map<string, {x: number, y: number, z: number}>,
+        before: Map<string, { x: number; y: number; z: number }>,
+        after: Map<string, { x: number; y: number; z: number }>,
         tolerance = 0.001,
     ): void {
         for (const [id, posBefore] of before) {
@@ -122,29 +119,14 @@ describe("Node position preservation during style changes (regression)", () => {
             assert.isDefined(posAfter, `Should have position for node ${id}`);
 
             // posAfter is guaranteed to be defined after the assert above
-            const pos = posAfter as {x: number, y: number, z: number};
-            assert.approximately(
-                pos.x,
-                posBefore.x,
-                tolerance,
-                `Node ${id} x position should be preserved`,
-            );
-            assert.approximately(
-                pos.y,
-                posBefore.y,
-                tolerance,
-                `Node ${id} y position should be preserved`,
-            );
-            assert.approximately(
-                pos.z,
-                posBefore.z,
-                tolerance,
-                `Node ${id} z position should be preserved`,
-            );
+            const pos = posAfter as { x: number; y: number; z: number };
+            assert.approximately(pos.x, posBefore.x, tolerance, `Node ${id} x position should be preserved`);
+            assert.approximately(pos.y, posBefore.y, tolerance, `Node ${id} y position should be preserved`);
+            assert.approximately(pos.z, posBefore.z, tolerance, `Node ${id} z position should be preserved`);
         }
     }
 
-    it("should preserve node positions when styles are applied after layout settles", async() => {
+    it("should preserve node positions when styles are applied after layout settles", async () => {
         // Add test nodes and edges
         await graph.addNodes(TEST_NODES);
         await graph.addEdges(TEST_EDGES);
@@ -165,7 +147,7 @@ describe("Node position preservation during style changes (regression)", () => {
                 selector: "type == 'server'",
                 style: {
                     enabled: true,
-                    texture: {color: "#FF0000"},
+                    texture: { color: "#FF0000" },
                 },
             },
             metadata: {
@@ -181,16 +163,14 @@ describe("Node position preservation during style changes (regression)", () => {
         verifyPositionsMatch(positionsBefore, positionsAfter);
     });
 
-    it("should preserve node positions when clearing styles after layout settles", async() => {
+    it("should preserve node positions when clearing styles after layout settles", async () => {
         // Add test nodes
         await graph.addNodes([
-            {id: "node1", label: "Node 1"},
-            {id: "node2", label: "Node 2"},
+            { id: "node1", label: "Node 1" },
+            { id: "node2", label: "Node 2" },
         ]);
 
-        await graph.addEdges([
-            {src: "node1", dst: "node2"},
-        ]);
+        await graph.addEdges([{ src: "node1", dst: "node2" }]);
 
         // Wait for layout to settle
         await waitForLayoutSettle();
@@ -202,7 +182,7 @@ describe("Node position preservation during style changes (regression)", () => {
                 selector: "",
                 style: {
                     enabled: true,
-                    texture: {color: "#00FF00"},
+                    texture: { color: "#00FF00" },
                 },
             },
             metadata: {
@@ -218,7 +198,7 @@ describe("Node position preservation during style changes (regression)", () => {
 
         // Clear styles (which triggers another style update)
         styleManager.removeLayersByMetadata((metadata) => {
-            const meta = metadata as {name?: string} | null;
+            const meta = metadata as { name?: string } | null;
             return meta?.name === "test-layer";
         });
 
@@ -230,17 +210,17 @@ describe("Node position preservation during style changes (regression)", () => {
         verifyPositionsMatch(positionsBefore, positionsAfter);
     });
 
-    it("should preserve positions for multiple consecutive style changes", async() => {
+    it("should preserve positions for multiple consecutive style changes", async () => {
         // Add test nodes
         await graph.addNodes([
-            {id: "a", label: "A"},
-            {id: "b", label: "B"},
-            {id: "c", label: "C"},
+            { id: "a", label: "A" },
+            { id: "b", label: "B" },
+            { id: "c", label: "C" },
         ]);
 
         await graph.addEdges([
-            {src: "a", dst: "b"},
-            {src: "b", dst: "c"},
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
         ]);
 
         // Wait for layout to settle
@@ -258,7 +238,7 @@ describe("Node position preservation during style changes (regression)", () => {
                     selector: "",
                     style: {
                         enabled: true,
-                        texture: {color: `#${(i * 50).toString(16).padStart(2, "0")}0000`},
+                        texture: { color: `#${(i * 50).toString(16).padStart(2, "0")}0000` },
                     },
                 },
                 metadata: {
@@ -278,16 +258,14 @@ describe("Node position preservation during style changes (regression)", () => {
         verifyPositionsMatch(originalPositions, finalPositions);
     });
 
-    it("should preserve positions when changing node shape", async() => {
+    it("should preserve positions when changing node shape", async () => {
         // This is a more aggressive test - shape changes always recreate meshes
         await graph.addNodes([
-            {id: "node1", label: "Node 1"},
-            {id: "node2", label: "Node 2"},
+            { id: "node1", label: "Node 1" },
+            { id: "node2", label: "Node 2" },
         ]);
 
-        await graph.addEdges([
-            {src: "node1", dst: "node2"},
-        ]);
+        await graph.addEdges([{ src: "node1", dst: "node2" }]);
 
         // Wait for layout to settle
         await waitForLayoutSettle();
@@ -303,7 +281,7 @@ describe("Node position preservation during style changes (regression)", () => {
                 selector: "",
                 style: {
                     enabled: true,
-                    shape: {type: "box", size: 1},
+                    shape: { type: "box", size: 1 },
                 },
             },
             metadata: {

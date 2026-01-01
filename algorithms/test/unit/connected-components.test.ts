@@ -1,4 +1,4 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
     condensationGraph,
@@ -13,7 +13,7 @@ import {
     stronglyConnectedComponents,
     weaklyConnectedComponents,
 } from "../../src/algorithms/components/connected.js";
-import {Graph} from "../../src/core/graph.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Connected Components", () => {
     describe("connectedComponents", () => {
@@ -67,11 +67,13 @@ describe("Connected Components", () => {
         });
 
         it("should throw error for directed graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
 
-            expect(() => connectedComponents(graph)).toThrow("Connected components algorithm requires an undirected graph");
+            expect(() => connectedComponents(graph)).toThrow(
+                "Connected components algorithm requires an undirected graph",
+            );
         });
 
         it("should handle complex graph", () => {
@@ -133,11 +135,13 @@ describe("Connected Components", () => {
         });
 
         it("should throw error for directed graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
 
-            expect(() => connectedComponentsDFS(graph)).toThrow("Connected components algorithm requires an undirected graph");
+            expect(() => connectedComponentsDFS(graph)).toThrow(
+                "Connected components algorithm requires an undirected graph",
+            );
         });
     });
 
@@ -243,17 +247,19 @@ describe("Connected Components", () => {
         });
 
         it("should throw error for directed graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
 
-            expect(() => getConnectedComponent(graph, "a")).toThrow("Connected components algorithm requires an undirected graph");
+            expect(() => getConnectedComponent(graph, "a")).toThrow(
+                "Connected components algorithm requires an undirected graph",
+            );
         });
     });
 
     describe("stronglyConnectedComponents", () => {
         it("should find SCCs in directed graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create two SCCs
             graph.addEdge("a", "b");
@@ -273,7 +279,7 @@ describe("Connected Components", () => {
         });
 
         it("should handle single node components", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Create a DAG (each node is its own SCC)
             graph.addEdge("a", "b");
@@ -286,7 +292,7 @@ describe("Connected Components", () => {
         });
 
         it("should handle self-loops", () => {
-            const graph = new Graph({directed: true, allowSelfLoops: true});
+            const graph = new Graph({ directed: true, allowSelfLoops: true });
 
             graph.addEdge("a", "a");
             graph.addEdge("a", "b");
@@ -303,11 +309,13 @@ describe("Connected Components", () => {
 
             graph.addEdge("a", "b");
 
-            expect(() => stronglyConnectedComponents(graph)).toThrow("Strongly connected components require a directed graph");
+            expect(() => stronglyConnectedComponents(graph)).toThrow(
+                "Strongly connected components require a directed graph",
+            );
         });
 
         it("should handle empty graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             const components = stronglyConnectedComponents(graph);
 
@@ -315,7 +323,7 @@ describe("Connected Components", () => {
         });
 
         it("should handle complex SCC structure", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Complex graph with multiple SCCs
             graph.addEdge("a", "b");
@@ -339,7 +347,7 @@ describe("Connected Components", () => {
 
     describe("isStronglyConnected", () => {
         it("should return true for strongly connected graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
@@ -349,7 +357,7 @@ describe("Connected Components", () => {
         });
 
         it("should return false for weakly connected graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
@@ -368,7 +376,7 @@ describe("Connected Components", () => {
 
     describe("weaklyConnectedComponents", () => {
         it("should find weakly connected components", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Two weakly connected components
             graph.addEdge("a", "b");
@@ -382,7 +390,7 @@ describe("Connected Components", () => {
         });
 
         it("should treat directed edges as undirected", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
             graph.addEdge("c", "b"); // b is reachable from both a and c
@@ -398,13 +406,15 @@ describe("Connected Components", () => {
 
             graph.addEdge("a", "b");
 
-            expect(() => weaklyConnectedComponents(graph)).toThrow("Weakly connected components are for directed graphs");
+            expect(() => weaklyConnectedComponents(graph)).toThrow(
+                "Weakly connected components are for directed graphs",
+            );
         });
     });
 
     describe("isWeaklyConnected", () => {
         it("should return true for weakly connected graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
             graph.addEdge("c", "b");
@@ -413,7 +423,7 @@ describe("Connected Components", () => {
         });
 
         it("should return false for disconnected graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
             graph.addEdge("c", "d");
@@ -432,7 +442,7 @@ describe("Connected Components", () => {
 
     describe("condensationGraph", () => {
         it("should create condensation graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             // Two SCCs with connection
             graph.addEdge("a", "b");
@@ -457,7 +467,7 @@ describe("Connected Components", () => {
         });
 
         it("should handle single SCC", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("a", "b");
             graph.addEdge("b", "c");
@@ -481,7 +491,7 @@ describe("Connected Components", () => {
 
     describe("edge cases", () => {
         it("should handle graphs with self-loops", () => {
-            const graph = new Graph({allowSelfLoops: true});
+            const graph = new Graph({ allowSelfLoops: true });
 
             graph.addEdge("a", "a");
             graph.addEdge("a", "b");
@@ -520,4 +530,3 @@ describe("Connected Components", () => {
         });
     });
 });
-

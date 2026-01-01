@@ -1,7 +1,7 @@
-import {afterEach, assert, beforeEach, test, vi} from "vitest";
+import { afterEach, assert, beforeEach, test, vi } from "vitest";
 
-import {Graph} from "../../../src/Graph.js";
-import {restoreMockMediaRecorder, setupMockMediaRecorder} from "./mock-media-recorder.js";
+import { Graph } from "../../../src/Graph.js";
+import { restoreMockMediaRecorder, setupMockMediaRecorder } from "./mock-media-recorder.js";
 
 // Store original MediaRecorder
 let originalMediaRecorder: typeof MediaRecorder;
@@ -18,7 +18,7 @@ afterEach(() => {
     restoreMockMediaRecorder(vi, originalMediaRecorder);
 });
 
-test("can capture video with stationary camera", async() => {
+test("can capture video with stationary camera", async () => {
     const canvas = document.createElement("canvas");
     canvas.width = 800;
     canvas.height = 600;
@@ -51,7 +51,7 @@ test("auto-detects best supported codec", () => {
     assert.ok(isVP9Supported || isVP8Supported || isWebMSupported);
 });
 
-test("fires animation-progress events", async() => {
+test("fires animation-progress events", async () => {
     const canvas = document.createElement("canvas");
     canvas.width = 800;
     canvas.height = 600;
@@ -60,9 +60,11 @@ test("fires animation-progress events", async() => {
     const progressEvents: number[] = [];
 
     // Use eventManager to listen for events
-    const {eventManager} = (graph as {eventManager: {addListener: (event: string, handler: (data: unknown) => void) => void}});
+    const { eventManager } = graph as {
+        eventManager: { addListener: (event: string, handler: (data: unknown) => void) => void };
+    };
     eventManager.addListener("animation-progress", (data) => {
-        const progressData = data as {progress: number};
+        const progressData = data as { progress: number };
         progressEvents.push(progressData.progress);
     });
 
@@ -79,7 +81,7 @@ test("fires animation-progress events", async() => {
     graph.dispose();
 });
 
-test("respects custom fps setting", async() => {
+test("respects custom fps setting", async () => {
     const canvas = document.createElement("canvas");
     canvas.width = 800;
     canvas.height = 600;
@@ -96,7 +98,7 @@ test("respects custom fps setting", async() => {
     graph.dispose();
 });
 
-test("respects custom dimensions", async() => {
+test("respects custom dimensions", async () => {
     const canvas = document.createElement("canvas");
     canvas.width = 800;
     canvas.height = 600;
@@ -116,7 +118,7 @@ test("respects custom dimensions", async() => {
     graph.dispose();
 });
 
-test("calculates expected frames correctly", async() => {
+test("calculates expected frames correctly", async () => {
     const canvas = document.createElement("canvas");
     canvas.width = 800;
     canvas.height = 600;
@@ -136,7 +138,7 @@ test("calculates expected frames correctly", async() => {
     graph.dispose();
 });
 
-test("supports cancellation", async() => {
+test("supports cancellation", async () => {
     const canvas = document.createElement("canvas");
     canvas.width = 800;
     canvas.height = 600;

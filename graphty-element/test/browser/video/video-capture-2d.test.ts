@@ -1,9 +1,9 @@
-import {afterEach, assert, beforeEach, describe, test, vi} from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
-import {Graph} from "../../../src/Graph.js";
-import type {CameraWaypoint} from "../../../src/video/VideoCapture.js";
-import {cleanupTestGraph, createTestGraph} from "../../helpers/testSetup.js";
-import {restoreMockMediaRecorder, setupMockMediaRecorder} from "./mock-media-recorder.js";
+import { Graph } from "../../../src/Graph.js";
+import type { CameraWaypoint } from "../../../src/video/VideoCapture.js";
+import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup.js";
+import { restoreMockMediaRecorder, setupMockMediaRecorder } from "./mock-media-recorder.js";
 
 // Store original MediaRecorder
 let originalMediaRecorder: typeof MediaRecorder;
@@ -23,7 +23,7 @@ afterEach(() => {
 describe("Video Capture - 2D Orthographic Camera", () => {
     let graph: Graph;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Create test graph
         graph = await createTestGraph();
 
@@ -34,7 +34,7 @@ describe("Video Capture - 2D Orthographic Camera", () => {
             graph: {
                 twoD: true,
                 viewMode: "2d",
-                background: {backgroundType: "color", color: "#f0f0f0"},
+                background: { backgroundType: "color", color: "#f0f0f0" },
                 addDefaultStyle: true,
                 startingCameraDistance: 30,
                 layout: "fixed", // Use fixed to avoid layout delays
@@ -76,7 +76,7 @@ describe("Video Capture - 2D Orthographic Camera", () => {
         cleanupTestGraph(graph);
     });
 
-    test("can capture video with 2D orthographic camera", async() => {
+    test("can capture video with 2D orthographic camera", async () => {
         const result = await graph.captureAnimation({
             duration: 1000,
             fps: 30,
@@ -93,7 +93,7 @@ describe("Video Capture - 2D Orthographic Camera", () => {
         assert.ok(result.metadata.height > 0);
     });
 
-    test("2D video capture respects custom dimensions", async() => {
+    test("2D video capture respects custom dimensions", async () => {
         const result = await graph.captureAnimation({
             duration: 500,
             fps: 30,
@@ -106,13 +106,15 @@ describe("Video Capture - 2D Orthographic Camera", () => {
         assert.equal(result.metadata.height, 1080);
     });
 
-    test("2D video capture fires animation-progress events", async() => {
+    test("2D video capture fires animation-progress events", async () => {
         const progressEvents: number[] = [];
 
         // Use eventManager to listen for events
-        const {eventManager} = (graph as {eventManager: {addListener: (event: string, handler: (data: unknown) => void) => void}});
+        const { eventManager } = graph as {
+            eventManager: { addListener: (event: string, handler: (data: unknown) => void) => void };
+        };
         eventManager.addListener("animation-progress", (data) => {
-            const progressData = data as {progress: number};
+            const progressData = data as { progress: number };
             progressEvents.push(progressData.progress);
         });
 
@@ -131,7 +133,7 @@ describe("Video Capture - 2D Orthographic Camera", () => {
 describe("Video Capture - 2D Animated Camera", () => {
     let graph: Graph;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Create test graph
         graph = await createTestGraph();
 
@@ -142,7 +144,7 @@ describe("Video Capture - 2D Animated Camera", () => {
             graph: {
                 twoD: true,
                 viewMode: "2d",
-                background: {backgroundType: "color", color: "#f0f0f0"},
+                background: { backgroundType: "color", color: "#f0f0f0" },
                 addDefaultStyle: true,
                 startingCameraDistance: 30,
                 layout: "fixed", // Use fixed to avoid layout delays
@@ -184,12 +186,12 @@ describe("Video Capture - 2D Animated Camera", () => {
         cleanupTestGraph(graph);
     });
 
-    test("can capture video with 2D animated camera using waypoints", async() => {
+    test("can capture video with 2D animated camera using waypoints", async () => {
         // For 2D cameras, z position is used as zoom proxy
         // Higher z = more zoomed out, lower z = more zoomed in
         const cameraPath: CameraWaypoint[] = [
-            {position: {x: 0, y: 0, z: 10}, target: {x: 0, y: 0, z: 0}},
-            {position: {x: 5, y: 5, z: 15}, target: {x: 0, y: 0, z: 0}, duration: 500},
+            { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+            { position: { x: 5, y: 5, z: 15 }, target: { x: 0, y: 0, z: 0 }, duration: 500 },
         ];
 
         const result = await graph.captureAnimation({
@@ -205,13 +207,13 @@ describe("Video Capture - 2D Animated Camera", () => {
         assert.equal(result.metadata.format, "webm");
     });
 
-    test("2D animated video supports multiple waypoints", async() => {
+    test("2D animated video supports multiple waypoints", async () => {
         // Create a path that pans and zooms
         const cameraPath: CameraWaypoint[] = [
-            {position: {x: 0, y: 0, z: 10}, target: {x: 0, y: 0, z: 0}}, // Start centered
-            {position: {x: 5, y: 0, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 250}, // Pan right
-            {position: {x: 5, y: 5, z: 5}, target: {x: 0, y: 0, z: 0}, duration: 250}, // Pan up + zoom in
-            {position: {x: 0, y: 0, z: 10}, target: {x: 0, y: 0, z: 0}, duration: 250}, // Return to start
+            { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } }, // Start centered
+            { position: { x: 5, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 250 }, // Pan right
+            { position: { x: 5, y: 5, z: 5 }, target: { x: 0, y: 0, z: 0 }, duration: 250 }, // Pan up + zoom in
+            { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 250 }, // Return to start
         ];
 
         const result = await graph.captureAnimation({
@@ -225,10 +227,10 @@ describe("Video Capture - 2D Animated Camera", () => {
         assert.equal(result.metadata.fps, 30);
     });
 
-    test("2D animated video supports easing options", async() => {
+    test("2D animated video supports easing options", async () => {
         const cameraPath: CameraWaypoint[] = [
-            {position: {x: 0, y: 0, z: 10}, target: {x: 0, y: 0, z: 0}},
-            {position: {x: 10, y: 10, z: 20}, target: {x: 0, y: 0, z: 0}, duration: 500},
+            { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+            { position: { x: 10, y: 10, z: 20 }, target: { x: 0, y: 0, z: 0 }, duration: 500 },
         ];
 
         // Test all easing options with 2D camera
@@ -245,19 +247,21 @@ describe("Video Capture - 2D Animated Camera", () => {
         }
     });
 
-    test("2D animated video fires animation-progress events", async() => {
+    test("2D animated video fires animation-progress events", async () => {
         const progressEvents: number[] = [];
 
         // Use eventManager to listen for events
-        const {eventManager} = (graph as {eventManager: {addListener: (event: string, handler: (data: unknown) => void) => void}});
+        const { eventManager } = graph as {
+            eventManager: { addListener: (event: string, handler: (data: unknown) => void) => void };
+        };
         eventManager.addListener("animation-progress", (data) => {
-            const progressData = data as {progress: number};
+            const progressData = data as { progress: number };
             progressEvents.push(progressData.progress);
         });
 
         const cameraPath: CameraWaypoint[] = [
-            {position: {x: 0, y: 0, z: 10}, target: {x: 0, y: 0, z: 0}},
-            {position: {x: 5, y: 5, z: 15}, target: {x: 0, y: 0, z: 0}, duration: 500},
+            { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+            { position: { x: 5, y: 5, z: 15 }, target: { x: 0, y: 0, z: 0 }, duration: 500 },
         ];
 
         await graph.captureAnimation({
@@ -272,10 +276,8 @@ describe("Video Capture - 2D Animated Camera", () => {
         assert.ok(progressEvents[progressEvents.length - 1] >= 90);
     });
 
-    test("2D animated video throws error with insufficient waypoints", async() => {
-        const cameraPath: CameraWaypoint[] = [
-            {position: {x: 0, y: 0, z: 10}, target: {x: 0, y: 0, z: 0}},
-        ];
+    test("2D animated video throws error with insufficient waypoints", async () => {
+        const cameraPath: CameraWaypoint[] = [{ position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } }];
 
         try {
             await graph.captureAnimation({
@@ -290,7 +292,7 @@ describe("Video Capture - 2D Animated Camera", () => {
         }
     });
 
-    test("2D animated video throws error without camera path", async() => {
+    test("2D animated video throws error without camera path", async () => {
         try {
             await graph.captureAnimation({
                 duration: 500,
@@ -308,7 +310,7 @@ describe("Video Capture - 2D Animated Camera", () => {
 describe("Video Capture - 2D Camera Preservation", () => {
     let graph: Graph;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Create test graph
         graph = await createTestGraph();
 
@@ -319,7 +321,7 @@ describe("Video Capture - 2D Camera Preservation", () => {
             graph: {
                 twoD: true,
                 viewMode: "2d",
-                background: {backgroundType: "color", color: "#f0f0f0"},
+                background: { backgroundType: "color", color: "#f0f0f0" },
                 addDefaultStyle: true,
                 startingCameraDistance: 30,
                 layout: "fixed",
@@ -358,7 +360,7 @@ describe("Video Capture - 2D Camera Preservation", () => {
         cleanupTestGraph(graph);
     });
 
-    test("2D mode is maintained during video capture", async() => {
+    test("2D mode is maintained during video capture", async () => {
         // Verify 2D mode before capture
         assert.isTrue(graph.getViewMode() === "2d", "Graph should be in 2D mode before capture");
 
@@ -373,7 +375,7 @@ describe("Video Capture - 2D Camera Preservation", () => {
         assert.ok(result.blob instanceof Blob);
     });
 
-    test("2D video capture supports cancellation", async() => {
+    test("2D video capture supports cancellation", async () => {
         // Start a long capture
         const capturePromise = graph.captureAnimation({
             duration: 5000,

@@ -1,8 +1,8 @@
-import {stronglyConnectedComponents} from "@graphty/algorithms";
+import { stronglyConnectedComponents } from "@graphty/algorithms";
 
-import type {SuggestedStylesConfig} from "../config";
-import {Algorithm} from "./Algorithm";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import type { SuggestedStylesConfig } from "../config";
+import { Algorithm } from "./Algorithm";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  *
@@ -49,7 +49,7 @@ export class StronglyConnectedComponentsAlgorithm extends Algorithm {
         }
 
         // Convert to @graphty/algorithms format - SCC requires directed graph
-        const graphData = toAlgorithmGraph(g, {directed: true, addReverseEdges: false});
+        const graphData = toAlgorithmGraph(g, { directed: true, addReverseEdges: false });
 
         // Run Strongly Connected Components algorithm - returns NodeId[][] directly
         const components = stronglyConnectedComponents(graphData);

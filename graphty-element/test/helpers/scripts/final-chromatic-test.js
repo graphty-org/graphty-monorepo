@@ -1,5 +1,5 @@
-import {createHash} from "crypto";
-import {chromium} from "playwright";
+import { createHash } from "crypto";
+import { chromium } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 
@@ -8,7 +8,7 @@ async function testForChromatic(page, storyId) {
 
     // Navigate to story and wait for complete initialization
     await page.goto(`${STORYBOOK_URL}/iframe.html?id=${storyId}&viewMode=story`);
-    await page.waitForSelector("graphty-element", {timeout: 15000});
+    await page.waitForSelector("graphty-element", { timeout: 15000 });
 
     // Wait a generous amount of time for Storybook play functions to complete
     console.log("  Waiting for play function and layout settling...");
@@ -50,9 +50,9 @@ async function testForChromatic(page, storyId) {
     // Take consistency screenshots
     const hashes = [];
     for (let i = 0; i < 3; i++) {
-    // Reload the story each time to test true consistency
+        // Reload the story each time to test true consistency
         await page.goto(`${STORYBOOK_URL}/iframe.html?id=${storyId}&viewMode=story`);
-        await page.waitForSelector("graphty-element", {timeout: 15000});
+        await page.waitForSelector("graphty-element", { timeout: 15000 });
         await page.waitForTimeout(10000); // Wait for layout settling
 
         const screenshot = await page.locator("graphty-element").screenshot();
@@ -84,18 +84,15 @@ async function testForChromatic(page, storyId) {
         console.log("    ✅ Consistent and has content - Chromatic ready!");
     }
 
-    return {storyId, consistent: allIdentical, hasContent: hasNodes, ready: allIdentical && hasNodes};
+    return { storyId, consistent: allIdentical, hasContent: hasNodes, ready: allIdentical && hasNodes };
 }
 
 async function main() {
-    const browser = await chromium.launch({headless: true});
+    const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
     // Test the main animated layout stories that had issues
-    const stories = [
-        "layout-3d--ngraph",
-        "layout-3d--d-3",
-    ];
+    const stories = ["layout-3d--ngraph", "layout-3d--d-3"];
 
     const results = [];
 

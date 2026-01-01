@@ -7,17 +7,20 @@ This project uses a dual-build system to support both local development and GitH
 ### For GitHub Pages Deployment:
 
 1. **Build the examples**:
-   ```bash
-   npm run build:examples
-   ```
-   This compiles TypeScript and copies `layout.js` to the `examples/` folder.
+
+    ```bash
+    npm run build:examples
+    ```
+
+    This compiles TypeScript and copies `layout.js` to the `examples/` folder.
 
 2. **Commit the built files**:
-   ```bash
-   git add examples/layout.js
-   git commit -m "Update examples with latest layout.js"
-   git push
-   ```
+
+    ```bash
+    git add examples/layout.js
+    git commit -m "Update examples with latest layout.js"
+    git push
+    ```
 
 3. **GitHub Pages will serve** the examples directly from the `examples/` folder.
 
@@ -52,6 +55,7 @@ layout/
 ### GitHub Actions (Optional):
 
 For automated deployment, you could add a GitHub Action that:
+
 1. Runs `npm run build:examples`
 2. Commits the updated `examples/layout.js`
 3. Deploys to GitHub Pages

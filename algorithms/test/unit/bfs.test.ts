@@ -1,13 +1,14 @@
-import {afterEach, beforeEach, describe, expect, it} from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
     breadthFirstSearch,
     isBipartite,
     shortestPathBFS,
-    singleSourceShortestPathBFS} from "../../src/algorithms/traversal/bfs.js";
-import {Graph} from "../../src/core/graph.js";
-import {configureOptimizations} from "../../src/optimized/graph-adapter.js";
-import type {NodeId} from "../../src/types/index.js";
+    singleSourceShortestPathBFS,
+} from "../../src/algorithms/traversal/bfs.js";
+import { Graph } from "../../src/core/graph.js";
+import { configureOptimizations } from "../../src/optimized/graph-adapter.js";
+import type { NodeId } from "../../src/types/index.js";
 
 describe("BFS Algorithms", () => {
     // Reset optimizations before each test to ensure isolation
@@ -73,7 +74,7 @@ describe("BFS Algorithms", () => {
                 graph.addEdge(i, i + 1);
             }
 
-            const result = breadthFirstSearch(graph, 0, {targetNode: 5});
+            const result = breadthFirstSearch(graph, 0, { targetNode: 5 });
 
             // Should have visited nodes 0-5 but not beyond
             expect(result.visited.has(5)).toBe(true);
@@ -88,14 +89,14 @@ describe("BFS Algorithms", () => {
             graph.addEdge("A", "C");
             graph.addEdge("B", "D");
 
-            const visits: Array<{node: NodeId; level: number}> = [];
+            const visits: Array<{ node: NodeId; level: number }> = [];
 
             breadthFirstSearch(graph, "A", {
-                visitCallback: (node, level) => visits.push({node, level}),
+                visitCallback: (node, level) => visits.push({ node, level }),
             });
 
             expect(visits).toHaveLength(4);
-            expect(visits[0]).toEqual({node: "A", level: 0});
+            expect(visits[0]).toEqual({ node: "A", level: 0 });
 
             // B and C at level 1
             const level1Nodes = visits.filter((v) => v.level === 1).map((v) => v.node);
@@ -110,9 +111,7 @@ describe("BFS Algorithms", () => {
             const graph = new Graph();
             graph.addNode("A");
 
-            expect(() => breadthFirstSearch(graph, "B")).toThrow(
-                "Start node B not found in graph",
-            );
+            expect(() => breadthFirstSearch(graph, "B")).toThrow("Start node B not found in graph");
         });
 
         it("should handle disconnected components", () => {
@@ -190,13 +189,9 @@ describe("BFS Algorithms", () => {
             const graph = new Graph();
             graph.addNode("A");
 
-            expect(() => shortestPathBFS(graph, "A", "B")).toThrow(
-                "Target node B not found in graph",
-            );
+            expect(() => shortestPathBFS(graph, "A", "B")).toThrow("Target node B not found in graph");
 
-            expect(() => shortestPathBFS(graph, "B", "A")).toThrow(
-                "Source node B not found in graph",
-            );
+            expect(() => shortestPathBFS(graph, "B", "A")).toThrow("Source node B not found in graph");
         });
 
         it("should find shortest path in complex graph", () => {
@@ -233,8 +228,7 @@ describe("BFS Algorithms", () => {
 
             // Each consecutive pair should be connected
             for (let i = 0; i < path.length - 1; i++) {
-                expect(graph.hasEdge(path[i], path[i + 1]) ||
-               graph.hasEdge(path[i + 1], path[i])).toBe(true);
+                expect(graph.hasEdge(path[i], path[i + 1]) || graph.hasEdge(path[i + 1], path[i])).toBe(true);
             }
         });
     });
@@ -306,7 +300,7 @@ describe("BFS Algorithms", () => {
 
     describe("isBipartite", () => {
         it("should return true for bipartite graph", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a simple bipartite graph (square)
             graph.addEdge("A", "B");
@@ -318,7 +312,7 @@ describe("BFS Algorithms", () => {
         });
 
         it("should return false for graph with odd cycle", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a triangle (odd cycle)
             graph.addEdge("A", "B");
@@ -329,7 +323,7 @@ describe("BFS Algorithms", () => {
         });
 
         it("should return true for graph with even cycle", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a hexagon (even cycle)
             graph.addEdge("A", "B");
@@ -343,7 +337,7 @@ describe("BFS Algorithms", () => {
         });
 
         it("should handle disconnected components", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Component 1: bipartite
             graph.addEdge("A", "B");
@@ -360,29 +354,27 @@ describe("BFS Algorithms", () => {
         });
 
         it("should handle single node", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
             graph.addNode("A");
 
             expect(isBipartite(graph)).toBe(true);
         });
 
         it("should handle empty graph", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             expect(isBipartite(graph)).toBe(true);
         });
 
         it("should throw error for directed graph", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
             graph.addEdge("A", "B");
 
-            expect(() => isBipartite(graph)).toThrow(
-                "Bipartite test requires an undirected graph",
-            );
+            expect(() => isBipartite(graph)).toThrow("Bipartite test requires an undirected graph");
         });
 
         it("should detect non-bipartite in complex graph", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a more complex graph with an odd cycle embedded
             graph.addEdge("A", "B");
@@ -434,7 +426,7 @@ describe("BFS Algorithms", () => {
                 expect(result.order.length).toBe(nodeCount);
             });
 
-            it("should automatically optimize based on graph size", {timeout: 120000}, () => {
+            it("should automatically optimize based on graph size", { timeout: 120000 }, () => {
                 // Small graph - should use standard BFS
                 const smallGraph = new Graph();
                 for (let i = 0; i < 100; i++) {
@@ -563,7 +555,7 @@ describe("BFS Algorithms", () => {
 
     describe("Edge Cases", () => {
         it("should handle self-loops correctly", () => {
-            const graph = new Graph({allowSelfLoops: true});
+            const graph = new Graph({ allowSelfLoops: true });
 
             graph.addEdge("A", "A"); // Self-loop
             graph.addEdge("A", "B");
@@ -577,7 +569,7 @@ describe("BFS Algorithms", () => {
         });
 
         it("should handle directed graphs", () => {
-            const graph = new Graph({directed: true});
+            const graph = new Graph({ directed: true });
 
             graph.addEdge("A", "B");
             graph.addEdge("B", "C");

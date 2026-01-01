@@ -1,4 +1,4 @@
-import type {NodeId} from "../types/index.js";
+import type { NodeId } from "../types/index.js";
 
 /**
  * Interface for read-only graph operations
@@ -44,19 +44,29 @@ interface CSRGraphData<TNodeId> {
 export class CSRGraph<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     private data: CSRGraphData<TNodeId>;
 
+    /**
+     * Creates a new CSRGraph from an adjacency list representation.
+     * @param adjacencyList - Map of node IDs to arrays of neighbor node IDs
+     * @param weights - Optional map of edge weights keyed by "source-target" strings
+     * @param buildReverse - Whether to build reverse edges for bottom-up BFS (default true)
+     */
     constructor(adjacencyList: Map<TNodeId, TNodeId[]>, weights?: Map<string, number>, buildReverse = true) {
         this.data = this.buildCSR(adjacencyList, weights, buildReverse);
     }
 
     /**
-   * Build CSR structure from adjacency list
-   */
+     * Build CSR structure from adjacency list.
+     * @param adjacencyList - Map of node IDs to arrays of neighbor node IDs
+     * @param weights - Optional map of edge weights keyed by "source-target" strings
+     * @param buildReverse - Whether to build reverse edges for bottom-up BFS
+     * @returns The constructed CSR graph data structure
+     */
     private buildCSR(
         adjacencyList: Map<TNodeId, TNodeId[]>,
         weights?: Map<string, number>,
         buildReverse = true,
     ): CSRGraphData<TNodeId> {
-    // Collect all unique nodes (both sources and targets)
+        // Collect all unique nodes (both sources and targets)
         const allNodes = new Set<TNodeId>();
         for (const [source, neighbors] of adjacencyList) {
             allNodes.add(source);
@@ -115,7 +125,7 @@ export class CSRGraph<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
                         throw new Error(`Node ${String(n)} not found in nodeIdToIndex map`);
                     }
 
-                    return {id: n, index};
+                    return { id: n, index };
                 })
                 .sort((a, b) => a.index - b.index);
 
@@ -193,18 +203,37 @@ export class CSRGraph<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     }
 
     // Core API methods
+    /**
+     * Get the total number of nodes in the graph.
+     * @returns The number of nodes
+     */
     nodeCount(): number {
         return this.data.indexToNodeId.length;
     }
 
+    /**
+     * Get the total number of edges in the graph.
+     * @returns The number of edges
+     */
     edgeCount(): number {
         return this.data.columnIndices.length;
     }
 
+    /**
+     * Check if a node exists in the graph.
+     * @param nodeId - The node ID to check
+     * @returns True if the node exists, false otherwise
+     */
     hasNode(nodeId: TNodeId): boolean {
         return this.data.nodeIdToIndex.has(nodeId);
     }
 
+    /**
+     * Check if an edge exists between two nodes.
+     * @param source - The source node ID
+     * @param target - The target node ID
+     * @returns True if the edge exists, false otherwise
+     */
     hasEdge(source: TNodeId, target: TNodeId): boolean {
         const sourceIndex = this.data.nodeIdToIndex.get(source);
         const targetIndex = this.data.nodeIdToIndex.get(target);
@@ -225,8 +254,10 @@ export class CSRGraph<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     }
 
     /**
-   * Get neighbors as node IDs
-   */
+     * Get neighbors of a node as node IDs.
+     * @param nodeId - The node ID to get neighbors for
+     * @returns An iterator over neighbor node IDs
+     */
     neighbors(nodeId: TNodeId): IterableIterator<TNodeId> {
         const nodeIndex = this.data.nodeIdToIndex.get(nodeId);
         if (nodeIndex === undefined) {
@@ -236,7 +267,7 @@ export class CSRGraph<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
         const start = this.data.rowPointers[nodeIndex];
         const end = this.data.rowPointers[nodeIndex + 1];
 
-        const {columnIndices, indexToNodeId} = this.data;
+        const { columnIndices, indexToNodeId } = this.data;
         function* generateNeighbors(): Generator<TNodeId> {
             if (start !== undefined && end !== undefined) {
                 for (let i = start; i < end; i++) {
@@ -255,15 +286,18 @@ export class CSRGraph<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     }
 
     /**
-   * Get all nodes
-   */
+     * Get all nodes in the graph.
+     * @returns An iterator over all node IDs
+     */
     nodes(): IterableIterator<TNodeId> {
         return this.data.indexToNodeId.values();
     }
 
     /**
-   * Get neighbors as indices (internal use)
-   */
+     * Get neighbors as indices (internal use).
+     * @param nodeIndex - The internal index of the node
+     * @returns Array of neighbor indices
+     */
     getNeighborIndices(nodeIndex: number): number[] {
         if (nodeIndex < 0 || nodeIndex >= this.data.indexToNodeId.length) {
             return [];
@@ -278,6 +312,11 @@ export class CSRGraph<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
         return Array.from(this.data.columnIndices.subarray(start, end));
     }
 
+    /**
+     * Get the out-degree (number of outgoing edges) of a node.
+     * @param nodeId - The node ID to get the out-degree for
+     * @returns The number of outgoing edges from the node
+     */
     outDegree(nodeId: TNodeId): number {
         const nodeIndex = this.data.nodeIdToIndex.get(nodeId);
         if (nodeIndex === undefined) {
@@ -288,8 +327,10 @@ export class CSRGraph<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     }
 
     /**
-   * Get out-degree by index (internal use)
-   */
+     * Get out-degree by index (internal use).
+     * @param nodeIndex - The internal index of the node
+     * @returns The number of outgoing edges from the node
+     */
     outDegreeByIndex(nodeIndex: number): number {
         const start = this.data.rowPointers[nodeIndex];
         const end = this.data.rowPointers[nodeIndex + 1];
@@ -301,8 +342,10 @@ export class CSRGraph<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     }
 
     /**
-   * Iterator support for neighbor indices
-   */
+     * Iterator support for neighbor indices.
+     * @param nodeIndex - The internal index of the node
+     * @yields The indices of neighboring nodes
+     */
     *iterateNeighborIndices(nodeIndex: number): Generator<number> {
         const start = this.data.rowPointers[nodeIndex];
         const end = this.data.rowPointers[nodeIndex + 1];
@@ -318,8 +361,10 @@ export class CSRGraph<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     }
 
     /**
-   * Iterator support for incoming neighbor indices (for bottom-up BFS)
-   */
+     * Iterator support for incoming neighbor indices (for bottom-up BFS).
+     * @param nodeIndex - The internal index of the node
+     * @yields The indices of nodes with edges pointing to this node
+     */
     *iterateIncomingNeighborIndices(nodeIndex: number): Generator<number> {
         if (!this.data.reverseRowPointers || !this.data.reverseColumnIndices) {
             return;
@@ -339,8 +384,10 @@ export class CSRGraph<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     }
 
     /**
-   * Convert node ID to index
-   */
+     * Convert node ID to internal index.
+     * @param nodeId - The node ID to convert
+     * @returns The internal index for the node
+     */
     nodeToIndex(nodeId: TNodeId): number {
         const index = this.data.nodeIdToIndex.get(nodeId);
         if (index === undefined) {
@@ -351,8 +398,10 @@ export class CSRGraph<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     }
 
     /**
-   * Convert index to node ID
-   */
+     * Convert internal index to node ID.
+     * @param index - The internal index to convert
+     * @returns The node ID for the given index
+     */
     indexToNodeId(index: number): TNodeId {
         const nodeId = this.data.indexToNodeId[index];
         if (nodeId === undefined) {
@@ -363,8 +412,11 @@ export class CSRGraph<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     }
 
     /**
-   * Get edge weight
-   */
+     * Get edge weight between two nodes.
+     * @param source - The source node ID
+     * @param target - The target node ID
+     * @returns The edge weight, or undefined if the edge doesn't exist or has no weight
+     */
     getEdgeWeight(source: TNodeId, target: TNodeId): number | undefined {
         if (!this.data.edgeWeights) {
             return undefined;
@@ -393,8 +445,13 @@ export class CSRGraph<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     }
 
     /**
-   * Binary search for target in sorted array
-   */
+     * Binary search for target in sorted array.
+     * @param arr - The typed array to search in
+     * @param target - The value to search for
+     * @param start - The starting index (inclusive)
+     * @param end - The ending index (exclusive)
+     * @returns The index of the target, or -1 if not found
+     */
     private binarySearch(arr: Uint32Array, target: number, start: number, end: number): number {
         let left = start;
         let right = end - 1;
@@ -422,13 +479,19 @@ export class CSRGraph<TNodeId = NodeId> implements ReadonlyGraph<TNodeId> {
     }
 
     /**
-   * Create CSR graph from standard Graph
-   */
+     * Create CSR graph from standard Graph interface.
+     * @param graph - The graph object to convert, must implement nodes, neighbors, hasNode, and optionally getEdge
+     * @param graph.nodes - Function that returns an iterator over node objects with id property
+     * @param graph.neighbors - Function that returns an iterator over neighbor node IDs
+     * @param graph.hasNode - Function that checks if a node exists in the graph
+     * @param graph.getEdge - Optional function that returns edge data including weight
+     * @returns A new CSRGraph instance
+     */
     static fromGraph<TNodeId = NodeId>(graph: {
-        nodes(): IterableIterator<{id: TNodeId}>;
+        nodes(): IterableIterator<{ id: TNodeId }>;
         neighbors(nodeId: TNodeId): IterableIterator<TNodeId>;
         hasNode(nodeId: TNodeId): boolean;
-        getEdge?(source: TNodeId, target: TNodeId): {weight?: number} | undefined;
+        getEdge?(source: TNodeId, target: TNodeId): { weight?: number } | undefined;
     }): CSRGraph<TNodeId> {
         const adjacencyList = new Map<TNodeId, TNodeId[]>();
         const weights = new Map<string, number>();

@@ -1,16 +1,20 @@
-import {assert, beforeEach, describe, it} from "vitest";
-import {z} from "zod";
+import { assert, beforeEach, describe, it } from "vitest";
+import { z } from "zod";
 
-import {CommandRegistry} from "../../../src/ai/commands";
-import type {CommandContext, CommandResult, GraphCommand} from "../../../src/ai/commands/types";
+import { CommandRegistry } from "../../../src/ai/commands";
+import type { CommandContext, CommandResult, GraphCommand } from "../../../src/ai/commands/types";
 
 // Helper to create a minimal command context for testing
 function createMockContext(): CommandContext {
     return {
         graph: {} as CommandContext["graph"],
         abortSignal: new AbortController().signal,
-        emitEvent: () => { /* no-op */ },
-        updateStatus: () => { /* no-op */ },
+        emitEvent: () => {
+            /* no-op */
+        },
+        updateStatus: () => {
+            /* no-op */
+        },
     };
 }
 
@@ -26,9 +30,9 @@ describe("CommandRegistry", () => {
             const command: GraphCommand = {
                 name: "testCommand",
                 description: "A test command",
-                parameters: z.object({value: z.string()}),
+                parameters: z.object({ value: z.string() }),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             };
 
             registry.register(command);
@@ -39,12 +43,12 @@ describe("CommandRegistry", () => {
             const command: GraphCommand = {
                 name: "setColor",
                 description: "Set node color",
-                parameters: z.object({color: z.string()}),
+                parameters: z.object({ color: z.string() }),
                 examples: [
-                    {input: "make it red", params: {color: "red"}},
-                    {input: "color blue", params: {color: "blue"}},
+                    { input: "make it red", params: { color: "red" } },
+                    { input: "color blue", params: { color: "blue" } },
                 ],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             };
 
             registry.register(command);
@@ -58,7 +62,7 @@ describe("CommandRegistry", () => {
                 description: "First command",
                 parameters: z.object({}),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             };
 
             registry.register(command);
@@ -73,9 +77,9 @@ describe("CommandRegistry", () => {
             const command: GraphCommand = {
                 name: "getWeather",
                 description: "Get weather for a city",
-                parameters: z.object({city: z.string()}),
-                examples: [{input: "weather in Paris", params: {city: "Paris"}}],
-                execute: () => Promise.resolve({success: true, message: "sunny"}),
+                parameters: z.object({ city: z.string() }),
+                examples: [{ input: "weather in Paris", params: { city: "Paris" } }],
+                execute: () => Promise.resolve({ success: true, message: "sunny" }),
             };
 
             registry.register(command);
@@ -98,7 +102,7 @@ describe("CommandRegistry", () => {
                 description: "Exists",
                 parameters: z.object({}),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             });
 
             assert.strictEqual(registry.has("exists"), true);
@@ -116,14 +120,14 @@ describe("CommandRegistry", () => {
                 description: "First",
                 parameters: z.object({}),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             });
             registry.register({
                 name: "second",
                 description: "Second",
                 parameters: z.object({}),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             });
 
             const all = registry.getAll();
@@ -145,14 +149,14 @@ describe("CommandRegistry", () => {
                 description: "Alpha",
                 parameters: z.object({}),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             });
             registry.register({
                 name: "beta",
                 description: "Beta",
                 parameters: z.object({}),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             });
 
             const names = registry.getNames();
@@ -168,7 +172,7 @@ describe("CommandRegistry", () => {
                 description: "To be removed",
                 parameters: z.object({}),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             });
 
             assert.strictEqual(registry.has("toRemove"), true);
@@ -189,14 +193,14 @@ describe("CommandRegistry", () => {
                 description: "First",
                 parameters: z.object({}),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             });
             registry.register({
                 name: "second",
                 description: "Second",
                 parameters: z.object({}),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             });
 
             registry.clear();
@@ -209,9 +213,9 @@ describe("CommandRegistry", () => {
             registry.register({
                 name: "getWeather",
                 description: "Get weather for a city",
-                parameters: z.object({city: z.string()}),
-                examples: [{input: "weather in Paris", params: {city: "Paris"}}],
-                execute: () => Promise.resolve({success: true, message: "sunny"}),
+                parameters: z.object({ city: z.string() }),
+                examples: [{ input: "weather in Paris", params: { city: "Paris" } }],
+                execute: () => Promise.resolve({ success: true, message: "sunny" }),
             });
 
             const tools = registry.toToolDefinitions();
@@ -225,16 +229,16 @@ describe("CommandRegistry", () => {
             registry.register({
                 name: "setLayout",
                 description: "Set graph layout",
-                parameters: z.object({type: z.string()}),
+                parameters: z.object({ type: z.string() }),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             });
             registry.register({
                 name: "setColor",
                 description: "Set node color",
-                parameters: z.object({color: z.string()}),
+                parameters: z.object({ color: z.string() }),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             });
 
             const tools = registry.toToolDefinitions();
@@ -243,7 +247,7 @@ describe("CommandRegistry", () => {
     });
 
     describe("command execution", () => {
-        it("execute function receives correct parameters", async() => {
+        it("execute function receives correct parameters", async () => {
             let receivedParams: Record<string, unknown> | null = null;
 
             registry.register({
@@ -257,18 +261,18 @@ describe("CommandRegistry", () => {
                 execute: (_graph, params) => {
                     receivedParams = params;
 
-                    return Promise.resolve({success: true, message: "tracked"});
+                    return Promise.resolve({ success: true, message: "tracked" });
                 },
             });
 
             const command = registry.get("trackParams");
             const mockContext = createMockContext();
-            await command?.execute(mockContext.graph, {color: "red", size: 10}, mockContext);
+            await command?.execute(mockContext.graph, { color: "red", size: 10 }, mockContext);
 
-            assert.deepStrictEqual(receivedParams, {color: "red", size: 10});
+            assert.deepStrictEqual(receivedParams, { color: "red", size: 10 });
         });
 
-        it("execute function receives context", async() => {
+        it("execute function receives context", async () => {
             let receivedContext: CommandContext | undefined;
 
             registry.register({
@@ -279,7 +283,7 @@ describe("CommandRegistry", () => {
                 execute: (_graph, _params, context) => {
                     receivedContext = context;
 
-                    return Promise.resolve({success: true, message: "tracked"});
+                    return Promise.resolve({ success: true, message: "tracked" });
                 },
             });
 
@@ -291,18 +295,19 @@ describe("CommandRegistry", () => {
             assert.ok(receivedContext.abortSignal);
         });
 
-        it("execute function can return CommandResult with data", async() => {
+        it("execute function can return CommandResult with data", async () => {
             registry.register({
                 name: "withData",
                 description: "Returns data",
                 parameters: z.object({}),
                 examples: [],
-                execute: (): Promise<CommandResult> => Promise.resolve({
-                    success: true,
-                    message: "got data",
-                    data: {count: 42},
-                    affectedNodes: ["node1", "node2"],
-                }),
+                execute: (): Promise<CommandResult> =>
+                    Promise.resolve({
+                        success: true,
+                        message: "got data",
+                        data: { count: 42 },
+                        affectedNodes: ["node1", "node2"],
+                    }),
             });
 
             const command = registry.get("withData");
@@ -310,20 +315,21 @@ describe("CommandRegistry", () => {
             const result = await command?.execute(mockContext.graph, {}, mockContext);
 
             assert.strictEqual(result?.success, true);
-            assert.deepStrictEqual(result?.data, {count: 42});
+            assert.deepStrictEqual(result?.data, { count: 42 });
             assert.deepStrictEqual(result?.affectedNodes, ["node1", "node2"]);
         });
 
-        it("execute function can return failure result", async() => {
+        it("execute function can return failure result", async () => {
             registry.register({
                 name: "failing",
                 description: "Fails",
                 parameters: z.object({}),
                 examples: [],
-                execute: (): Promise<CommandResult> => Promise.resolve({
-                    success: false,
-                    message: "Something went wrong",
-                }),
+                execute: (): Promise<CommandResult> =>
+                    Promise.resolve({
+                        success: false,
+                        message: "Something went wrong",
+                    }),
             });
 
             const command = registry.get("failing");
@@ -348,7 +354,7 @@ describe("CommandRegistry", () => {
                     selector: z.string(),
                 }),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             });
 
             const command = registry.get("nested");
@@ -363,7 +369,7 @@ describe("CommandRegistry", () => {
                     nodeIds: z.array(z.string()),
                 }),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             });
 
             const command = registry.get("withArray");
@@ -380,7 +386,7 @@ describe("CommandRegistry", () => {
                     withDefault: z.number().default(10),
                 }),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             });
 
             const command = registry.get("withOptional");
@@ -395,7 +401,7 @@ describe("CommandRegistry", () => {
                     direction: z.enum(["up", "down", "left", "right"]),
                 }),
                 examples: [],
-                execute: () => Promise.resolve({success: true, message: "done"}),
+                execute: () => Promise.resolve({ success: true, message: "done" }),
             });
 
             const command = registry.get("withEnum");

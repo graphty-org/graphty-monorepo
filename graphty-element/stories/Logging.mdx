@@ -40,10 +40,10 @@ import { GraphtyLogger, LogLevel } from "@graphty/graphty-element";
 
 // Configure logging
 await GraphtyLogger.configure({
-  enabled: true,
-  level: LogLevel.DEBUG,
-  modules: "*", // or ["layout", "xr"] for specific modules
-  format: { timestamp: true, module: true },
+    enabled: true,
+    level: LogLevel.DEBUG,
+    modules: "*", // or ["layout", "xr"] for specific modules
+    format: { timestamp: true, module: true },
 });
 
 // Get a logger for a category
@@ -57,14 +57,14 @@ logger.error("Something went wrong", new Error("Test error"));
 
 From least to most verbose:
 
-| Level | Value | Description |
-|-------|-------|-------------|
-| `SILENT` | 0 | No logging |
-| `ERROR` | 1 | Errors only |
-| `WARN` | 2 | Warnings and above |
-| `INFO` | 3 | Info and above (default) |
-| `DEBUG` | 4 | Debug and above |
-| `TRACE` | 5 | All messages |
+| Level    | Value | Description              |
+| -------- | ----- | ------------------------ |
+| `SILENT` | 0     | No logging               |
+| `ERROR`  | 1     | Errors only              |
+| `WARN`   | 2     | Warnings and above       |
+| `INFO`   | 3     | Info and above (default) |
+| `DEBUG`  | 4     | Debug and above          |
+| `TRACE`  | 5     | All messages             |
 
 ## Module Categories
 
@@ -79,42 +79,37 @@ Logs are organized hierarchically by module. Common categories include:
 
 ## URL Parameter Reference
 
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `graphty-element-logging` | Enable logging. `true` for all, or comma-separated modules | `?graphty-element-logging=layout,xr` |
-| `graphty-element-log-level` | Global log level | `?graphty-element-log-level=debug` |
-| `graphty-element-remote-log` | URL of remote log server | `?graphty-element-remote-log=https://localhost:9080` |
+| Parameter                    | Description                                                | Example                                              |
+| ---------------------------- | ---------------------------------------------------------- | ---------------------------------------------------- |
+| `graphty-element-logging`    | Enable logging. `true` for all, or comma-separated modules | `?graphty-element-logging=layout,xr`                 |
+| `graphty-element-log-level`  | Global log level                                           | `?graphty-element-log-level=debug`                   |
+| `graphty-element-remote-log` | URL of remote log server                                   | `?graphty-element-remote-log=https://localhost:9080` |
 
 ## Programmatic API
 
 ### Configuration
 
 ```typescript
-import {
-  GraphtyLogger,
-  LogLevel,
-  configureLogging,
-  getLoggingConfig
-} from "@graphty/graphty-element";
+import { GraphtyLogger, LogLevel, configureLogging, getLoggingConfig } from "@graphty/graphty-element";
 
 // Configure via GraphtyLogger
 await GraphtyLogger.configure({
-  enabled: true,
-  level: LogLevel.DEBUG,
-  modules: "*",
-  format: {
-    timestamp: true,
-    module: true,
-    colors: true
-  },
+    enabled: true,
+    level: LogLevel.DEBUG,
+    modules: "*",
+    format: {
+        timestamp: true,
+        module: true,
+        colors: true,
+    },
 });
 
 // Or via configureLogging function
 configureLogging({
-  enabled: true,
-  level: LogLevel.INFO,
-  modules: ["layout", "xr"],
-  format: { timestamp: true, module: true },
+    enabled: true,
+    level: LogLevel.INFO,
+    modules: ["layout", "xr"],
+    format: { timestamp: true, module: true },
 });
 
 // Get current configuration
@@ -137,7 +132,7 @@ logger.error("Error occurred", new Error("Details"), { context: "test" });
 
 // Check if level is enabled (useful for expensive operations)
 if (logger.isDebugEnabled()) {
-  logger.debug("Expensive data:", computeExpensiveData());
+    logger.debug("Expensive data:", computeExpensiveData());
 }
 ```
 
@@ -150,21 +145,21 @@ import { GraphtyLogger, type Sink, type LogRecord } from "@graphty/graphty-eleme
 
 // Create a custom sink
 const customSink: Sink = {
-  name: "my-analytics",
-  write: (record: LogRecord) => {
-    // Send to analytics service
-    analytics.track("log_event", {
-      level: record.level,
-      category: record.category.join("."),
-      message: record.message,
-      data: record.data,
-      timestamp: record.timestamp.toISOString(),
-    });
-  },
-  // Optional: async flush for batched operations
-  flush: async () => {
-    await analytics.flush();
-  },
+    name: "my-analytics",
+    write: (record: LogRecord) => {
+        // Send to analytics service
+        analytics.track("log_event", {
+            level: record.level,
+            category: record.category.join("."),
+            message: record.message,
+            data: record.data,
+            timestamp: record.timestamp.toISOString(),
+        });
+    },
+    // Optional: async flush for batched operations
+    flush: async () => {
+        await analytics.flush();
+    },
 };
 
 // Register the sink
@@ -186,12 +181,12 @@ Custom sinks receive `LogRecord` objects with this structure:
 
 ```typescript
 interface LogRecord {
-  timestamp: Date;           // When the log was created
-  level: LogLevel;           // Log level (ERROR, WARN, INFO, DEBUG, TRACE)
-  category: string[];        // Module path, e.g., ["graphty", "layout"]
-  message: string;           // The log message
-  data?: Record<string, unknown>;  // Optional structured data
-  error?: Error;             // Optional error object (for error logs)
+    timestamp: Date; // When the log was created
+    level: LogLevel; // Log level (ERROR, WARN, INFO, DEBUG, TRACE)
+    category: string[]; // Module path, e.g., ["graphty", "layout"]
+    message: string; // The log message
+    data?: Record<string, unknown>; // Optional structured data
+    error?: Error; // Optional error object (for error logs)
 }
 ```
 
@@ -227,11 +222,11 @@ Or configure programmatically:
 
 ```typescript
 await GraphtyLogger.configure({
-  enabled: true,
-  level: LogLevel.DEBUG,
-  modules: "*",
-  format: { timestamp: true, module: true },
-  remoteLogUrl: "https://localhost:9080",
+    enabled: true,
+    level: LogLevel.DEBUG,
+    modules: "*",
+    format: { timestamp: true, module: true },
+    remoteLogUrl: "https://localhost:9080",
 });
 ```
 
@@ -240,12 +235,7 @@ await GraphtyLogger.configure({
 Logging configuration can be persisted across page reloads:
 
 ```typescript
-import {
-  saveLoggingConfig,
-  loadLoggingConfig,
-  clearLoggingConfig,
-  getLoggingConfig
-} from "@graphty/graphty-element";
+import { saveLoggingConfig, loadLoggingConfig, clearLoggingConfig, getLoggingConfig } from "@graphty/graphty-element";
 
 // Save current config to sessionStorage
 saveLoggingConfig(getLoggingConfig());
@@ -253,7 +243,7 @@ saveLoggingConfig(getLoggingConfig());
 // Load saved config
 const savedConfig = loadLoggingConfig();
 if (savedConfig) {
-  configureLogging(savedConfig);
+    configureLogging(savedConfig);
 }
 
 // Clear saved config
@@ -272,7 +262,7 @@ logger.debug("Data:", computeExpensiveData());
 
 // Good: Only compute if debug is enabled
 if (logger.isDebugEnabled()) {
-  logger.debug("Data:", computeExpensiveData());
+    logger.debug("Data:", computeExpensiveData());
 }
 ```
 
@@ -281,9 +271,9 @@ if (logger.isDebugEnabled()) {
 ```typescript
 // Good: Include relevant data as second argument
 logger.info("Layout completed", {
-  nodeCount: 1000,
-  edgeCount: 2500,
-  durationMs: 150
+    nodeCount: 1000,
+    edgeCount: 2500,
+    durationMs: 150,
 });
 
 // Avoid: Concatenating data into message string

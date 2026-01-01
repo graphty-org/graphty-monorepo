@@ -1,7 +1,7 @@
-import {algorithmMetaBase, createAlgorithmStory, type Story} from "../helpers";
+import { algorithmMetaBase, createAlgorithmStory, type Story } from "../helpers";
 
 const meta = {
-    ... algorithmMetaBase,
+    ...algorithmMetaBase,
     title: "Algorithms/Shortest Path",
 };
 export default meta;

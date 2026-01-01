@@ -8,7 +8,7 @@ import {
     Vector3,
 } from "@babylonjs/core";
 
-import type {CameraWaypoint} from "./VideoCapture.js";
+import type { CameraWaypoint } from "./VideoCapture.js";
 
 export type EasingType = "linear" | "easeInOut" | "easeIn" | "easeOut";
 
@@ -64,7 +64,7 @@ export class CameraPathAnimator {
             // For 2D cameras, extract zoom/pan from waypoints if available
             // Zoom requires animating all four ortho bounds
             this.animations.push(
-                ... this.createOrthoZoomAnimations(waypoints),
+                ...this.createOrthoZoomAnimations(waypoints),
                 this.createPanXAnimation(waypoints),
                 this.createPanYAnimation(waypoints),
             );
@@ -139,10 +139,10 @@ export class CameraPathAnimator {
      */
     private createOrthoZoomAnimations(waypoints: CameraWaypoint[]): Animation[] {
         // Get the camera's current aspect ratio to maintain proportions
-        const currentLeft = (this.camera as {orthoLeft?: number | null}).orthoLeft ?? -10;
-        const currentRight = (this.camera as {orthoRight?: number | null}).orthoRight ?? 10;
-        const currentTop = (this.camera as {orthoTop?: number | null}).orthoTop ?? 10;
-        const currentBottom = (this.camera as {orthoBottom?: number | null}).orthoBottom ?? -10;
+        const currentLeft = (this.camera as { orthoLeft?: number | null }).orthoLeft ?? -10;
+        const currentRight = (this.camera as { orthoRight?: number | null }).orthoRight ?? 10;
+        const currentTop = (this.camera as { orthoTop?: number | null }).orthoTop ?? 10;
+        const currentBottom = (this.camera as { orthoBottom?: number | null }).orthoBottom ?? -10;
 
         // Calculate aspect ratio from current ortho bounds
         const currentWidth = currentRight - currentLeft;
@@ -155,7 +155,7 @@ export class CameraPathAnimator {
         const calculateOrthoKeys = (
             waypoints: CameraWaypoint[],
             property: "left" | "right" | "top" | "bottom",
-        ): {frame: number, value: number}[] => {
+        ): { frame: number; value: number }[] => {
             return waypoints.map((wp) => {
                 const orthoSize = wp.position.z || 10; // Use z as ortho half-height
                 const halfHeight = orthoSize;
@@ -416,7 +416,7 @@ export class CameraPathAnimator {
         position?: Vector3;
         target?: Vector3;
         zoom?: number;
-        pan?: {x: number, y: number};
+        pan?: { x: number; y: number };
     } {
         if (this.animations.length === 0) {
             throw new Error("No animations created. Call createCameraAnimations first.");
@@ -428,9 +428,7 @@ export class CameraPathAnimator {
             // Calculate zoom from ortho bounds (use top and bottom for size calculation)
             const orthoTop = this.evaluateFloatAnimation("orthoTop", frame);
             const orthoBottom = this.evaluateFloatAnimation("orthoBottom", frame);
-            const zoom = orthoTop !== undefined && orthoBottom !== undefined ?
-                (orthoTop - orthoBottom) / 2 :
-                undefined;
+            const zoom = orthoTop !== undefined && orthoBottom !== undefined ? (orthoTop - orthoBottom) / 2 : undefined;
 
             return {
                 zoom,

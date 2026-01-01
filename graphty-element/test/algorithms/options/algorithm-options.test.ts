@@ -1,9 +1,9 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Testing legacy backward-compatible API */
-import {assert, describe, it} from "vitest";
+ 
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {type OptionsSchema, OptionValidationError} from "../../../src/algorithms/types/OptionSchema";
-import {createMockGraph} from "../../helpers/mockGraph";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { type OptionsSchema, OptionValidationError } from "../../../src/algorithms/types/OptionSchema";
+import { createMockGraph } from "../../helpers/mockGraph";
 
 /**
  * Test algorithm with options
@@ -77,7 +77,7 @@ Algorithm.register(TestAlgorithmWithoutOptions);
 
 describe("Algorithm Options", () => {
     describe("Algorithm with options schema", () => {
-        it("uses default options when none provided", async() => {
+        it("uses default options when none provided", async () => {
             const graph = await createMockGraph();
             const algo = new TestAlgorithmWithOptions(graph);
 
@@ -87,7 +87,7 @@ describe("Algorithm Options", () => {
             assert.strictEqual(opts.useCache, true);
         });
 
-        it("accepts valid custom options", async() => {
+        it("accepts valid custom options", async () => {
             const graph = await createMockGraph();
             const algo = new TestAlgorithmWithOptions(graph, {
                 dampingFactor: 0.9,
@@ -100,30 +100,30 @@ describe("Algorithm Options", () => {
             assert.strictEqual(opts.useCache, true); // default
         });
 
-        it("rejects invalid options at construction", async() => {
+        it("rejects invalid options at construction", async () => {
             const graph = await createMockGraph();
 
             assert.throws(
-                () => new TestAlgorithmWithOptions(graph, {dampingFactor: 1.5}),
+                () => new TestAlgorithmWithOptions(graph, { dampingFactor: 1.5 }),
                 OptionValidationError,
                 "must be <= 1",
             );
         });
 
-        it("rejects invalid option types", async() => {
+        it("rejects invalid option types", async () => {
             const graph = await createMockGraph();
 
             assert.throws(
                 // @ts-expect-error - intentionally passing wrong type
-                () => new TestAlgorithmWithOptions(graph, {maxIterations: "100"}),
+                () => new TestAlgorithmWithOptions(graph, { maxIterations: "100" }),
                 OptionValidationError,
                 "must be a number",
             );
         });
 
-        it("options are used in run()", async() => {
+        it("options are used in run()", async () => {
             const graph = await createMockGraph({
-                nodes: [{id: "A"}],
+                nodes: [{ id: "A" }],
                 edges: [],
             });
 
@@ -143,7 +143,7 @@ describe("Algorithm Options", () => {
     });
 
     describe("Algorithm without options schema", () => {
-        it("works with empty options", async() => {
+        it("works with empty options", async () => {
             const graph = await createMockGraph();
             // Should not throw
             const algo = new TestAlgorithmWithoutOptions(graph);
@@ -174,7 +174,7 @@ describe("Algorithm Options", () => {
     });
 
     describe("Algorithm.get factory", () => {
-        it("creates algorithm instance via registry", async() => {
+        it("creates algorithm instance via registry", async () => {
             const graph = await createMockGraph();
             const algo = Algorithm.get(graph, "test", "with-options");
 

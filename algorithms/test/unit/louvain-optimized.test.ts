@@ -1,13 +1,13 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {louvain} from "../../src/algorithms/community/louvain.js";
-import {OptimizedLouvain} from "../../src/algorithms/community/louvain-optimized.js";
-import {Graph} from "../../src/core/graph.js";
+import { louvain } from "../../src/algorithms/community/louvain.js";
+import { OptimizedLouvain } from "../../src/algorithms/community/louvain-optimized.js";
+import { Graph } from "../../src/core/graph.js";
 
 describe("Optimized Louvain Algorithm", () => {
     describe("OptimizedLouvain class", () => {
         it("should detect communities correctly", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a graph with clear community structure
             // Community 1: 0-3
@@ -58,7 +58,7 @@ describe("Optimized Louvain Algorithm", () => {
         });
 
         it("should produce valid results on complex graphs", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a deterministic graph with known structure
             // Two cliques connected by a bridge
@@ -76,7 +76,7 @@ describe("Optimized Louvain Algorithm", () => {
             graph.addEdge(9, 10);
 
             // Both algorithms should find 2 communities with high modularity
-            const standardResult = louvain(graph, {useOptimized: false});
+            const standardResult = louvain(graph, { useOptimized: false });
             const optimizedResult = new OptimizedLouvain(graph).detectCommunities();
 
             // Standard should find 2 communities
@@ -91,7 +91,7 @@ describe("Optimized Louvain Algorithm", () => {
         });
 
         it("should handle weighted graphs", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Community 1 with strong internal weights
             graph.addEdge(0, 1, 10);
@@ -129,7 +129,7 @@ describe("Optimized Louvain Algorithm", () => {
         });
 
         it("should prune leaf nodes effectively", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a star graph with many leaf nodes
             const center = 0;
@@ -157,7 +157,7 @@ describe("Optimized Louvain Algorithm", () => {
         });
 
         it("should use adaptive threshold cycling", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a graph where threshold cycling helps
             for (let i = 0; i < 30; i++) {
@@ -187,7 +187,7 @@ describe("Optimized Louvain Algorithm", () => {
         });
 
         it("should order nodes by importance", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a graph with nodes of varying importance
             // Hub nodes
@@ -229,7 +229,7 @@ describe("Optimized Louvain Algorithm", () => {
 
     describe("louvain with automatic optimization", () => {
         it("should use optimized version for large graphs", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create graph with >50 nodes
             for (let i = 0; i < 100; i++) {
@@ -247,7 +247,7 @@ describe("Optimized Louvain Algorithm", () => {
         });
 
         it("should use standard algorithm for small graphs", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create small graph with <50 nodes
             for (let i = 0; i < 10; i++) {
@@ -261,7 +261,7 @@ describe("Optimized Louvain Algorithm", () => {
         });
 
         it("should respect explicit useOptimized option", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Small graph
             for (let i = 0; i < 10; i++) {
@@ -269,11 +269,11 @@ describe("Optimized Louvain Algorithm", () => {
             }
 
             // Force optimized version on small graph
-            const optimizedResult = louvain(graph, {useOptimized: true});
+            const optimizedResult = louvain(graph, { useOptimized: true });
             expect(optimizedResult.communities).toBeDefined();
 
             // Force standard version
-            const standardResult = louvain(graph, {useOptimized: false});
+            const standardResult = louvain(graph, { useOptimized: false });
             expect(standardResult.communities).toBeDefined();
 
             // Results should be similar
@@ -283,7 +283,7 @@ describe("Optimized Louvain Algorithm", () => {
 
     describe("Performance characteristics", () => {
         it("should be faster on graphs with many leaf nodes", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create a graph with many leaf nodes
             // Core structure
@@ -303,12 +303,12 @@ describe("Optimized Louvain Algorithm", () => {
 
             // Benchmark standard
             const standardStart = performance.now();
-            louvain(graph, {useOptimized: false});
+            louvain(graph, { useOptimized: false });
             const standardTime = performance.now() - standardStart;
 
             // Benchmark optimized
             const optimizedStart = performance.now();
-            const optimizedResult = louvain(graph, {useOptimized: true});
+            const optimizedResult = louvain(graph, { useOptimized: true });
             const optimizedTime = performance.now() - optimizedStart;
 
             console.log(`Standard: ${standardTime.toFixed(2)}ms, Optimized: ${optimizedTime.toFixed(2)}ms`);
@@ -319,7 +319,7 @@ describe("Optimized Louvain Algorithm", () => {
         });
 
         it("should handle large sparse graphs efficiently", () => {
-            const graph = new Graph({directed: false});
+            const graph = new Graph({ directed: false });
 
             // Create large sparse graph
             const n = 500;

@@ -1,10 +1,10 @@
-import {eigenvectorCentrality} from "@graphty/algorithms";
-import {z} from "zod/v4";
+import { eigenvectorCentrality } from "@graphty/algorithms";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig} from "../config";
-import {Algorithm} from "./Algorithm";
-import type {OptionsSchema} from "./types/OptionSchema";
-import {toAlgorithmGraph} from "./utils/graphConverter";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
+import { Algorithm } from "./Algorithm";
+import type { OptionsSchema } from "./types/OptionSchema";
+import { toAlgorithmGraph } from "./utils/graphConverter";
 
 /**
  * Zod-based options schema for Eigenvector Centrality algorithm
@@ -119,9 +119,9 @@ export class EigenvectorCentralityAlgorithm extends Algorithm<EigenvectorCentral
             label: "Direction Mode",
             description: "Direction mode for directed graphs",
             options: [
-                {value: "total", label: "Total (both directions)"},
-                {value: "in", label: "In-degree (incoming edges)"},
-                {value: "out", label: "Out-degree (outgoing edges)"},
+                { value: "total", label: "Total (both directions)" },
+                { value: "in", label: "In-degree (incoming edges)" },
+                { value: "out", label: "Out-degree (outgoing edges)" },
             ],
             advanced: true,
         },
@@ -173,9 +173,9 @@ export class EigenvectorCentralityAlgorithm extends Algorithm<EigenvectorCentral
         }
 
         // Get options from schema and programmatic options
-        const {maxIterations, tolerance, normalized, mode, endpoints} = this.schemaOptions;
+        const { maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
         // Map types are programmatic-only (not in schema)
-        const startVector = (this._schemaOptions).startVector ?? undefined;
+        const startVector = this._schemaOptions.startVector ?? undefined;
 
         // Convert to @graphty/algorithms format and run
         const graphData = toAlgorithmGraph(g);

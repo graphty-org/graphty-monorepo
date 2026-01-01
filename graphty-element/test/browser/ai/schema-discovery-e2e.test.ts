@@ -8,45 +8,40 @@
  * @module test/browser/ai/schema-discovery-e2e
  */
 
-import {afterEach, assert, beforeEach, describe, it} from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import type {MockLlmProvider} from "../../../src/ai/providers/MockLlmProvider";
-import type {Graph} from "../../../src/Graph";
-import {
-    cleanupE2EGraph,
-    createE2EGraph,
-    type TestEdgeData,
-    type TestNodeData,
-} from "../../helpers/e2e-graph-setup";
+import type { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
+import type { Graph } from "../../../src/Graph";
+import { cleanupE2EGraph, createE2EGraph, type TestEdgeData, type TestNodeData } from "../../helpers/e2e-graph-setup";
 
 /**
  * Test nodes with rich property types for schema testing.
  */
 const SCHEMA_TEST_NODES: TestNodeData[] = [
-    {id: "A", label: "Alpha", type: "server", priority: 1, active: true},
-    {id: "B", label: "Beta", type: "client", priority: 2, active: false},
-    {id: "C", label: "Gamma", type: "server", priority: 3, active: true},
-    {id: "D", label: "Delta", type: "router", priority: 4, active: false},
-    {id: "E", label: "Epsilon", type: "client", priority: 5, active: true},
+    { id: "A", label: "Alpha", type: "server", priority: 1, active: true },
+    { id: "B", label: "Beta", type: "client", priority: 2, active: false },
+    { id: "C", label: "Gamma", type: "server", priority: 3, active: true },
+    { id: "D", label: "Delta", type: "router", priority: 4, active: false },
+    { id: "E", label: "Epsilon", type: "client", priority: 5, active: true },
 ];
 
 /**
  * Test edges with varied data for schema testing.
  */
 const SCHEMA_TEST_EDGES: TestEdgeData[] = [
-    {src: "A", dst: "B", weight: 10, relation: "connects"},
-    {src: "A", dst: "C", weight: 20, relation: "manages"},
-    {src: "B", dst: "D", weight: 15, relation: "connects"},
-    {src: "C", dst: "E", weight: 25, relation: "manages"},
-    {src: "D", dst: "E", weight: 30, relation: "routes"},
+    { src: "A", dst: "B", weight: 10, relation: "connects" },
+    { src: "A", dst: "C", weight: 20, relation: "manages" },
+    { src: "B", dst: "D", weight: 15, relation: "connects" },
+    { src: "C", dst: "E", weight: 25, relation: "manages" },
+    { src: "D", dst: "E", weight: 30, relation: "routes" },
 ];
 
 /**
  * Type for sampleData command results.
  */
 interface SampleDataResult {
-    nodes?: {id: string, data: Record<string, unknown>}[];
-    edges?: {id: string, source: string, target: string, data: Record<string, unknown>}[];
+    nodes?: { id: string; data: Record<string, unknown> }[];
+    edges?: { id: string; source: string; target: string; data: Record<string, unknown> }[];
 }
 
 /**
@@ -58,7 +53,7 @@ interface DescribePropertyStringResult {
     type: "string";
     totalCount: number;
     uniqueCount: number;
-    distribution: Record<string, {count: number, percentage: number}>;
+    distribution: Record<string, { count: number; percentage: number }>;
 }
 
 /**
@@ -69,8 +64,8 @@ interface DescribePropertyNumberResult {
     target: string;
     type: "number";
     totalCount: number;
-    statistics: {min: number, max: number, avg: number, median: number};
-    histogram: {range: string, count: number}[];
+    statistics: { min: number; max: number; avg: number; median: number };
+    histogram: { range: string; count: number }[];
 }
 
 /**
@@ -82,22 +77,22 @@ interface DescribePropertyBooleanResult {
     type: "boolean";
     totalCount: number;
     distribution: {
-        true: {count: number, percentage: number};
-        false: {count: number, percentage: number};
+        true: { count: number; percentage: number };
+        false: { count: number; percentage: number };
     };
 }
 
 describe("Schema Discovery End-to-End", () => {
     let graph: Graph;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Create a real graphty-element with schema-rich test data
         const result = await createE2EGraph({
             nodes: SCHEMA_TEST_NODES,
             edges: SCHEMA_TEST_EDGES,
             enableAi: true,
         });
-        ({graph} = result);
+        ({ graph } = result);
     });
 
     afterEach(() => {
@@ -184,12 +179,12 @@ describe("Schema Discovery End-to-End", () => {
     });
 
     describe("sampleData command", () => {
-        it("returns real node data", async() => {
+        it("returns real node data", async () => {
             const provider = getProvider();
 
             provider.setResponse("sample nodes", {
                 text: "",
-                toolCalls: [{id: "1", name: "sampleData", arguments: {target: "nodes", count: 3}}],
+                toolCalls: [{ id: "1", name: "sampleData", arguments: { target: "nodes", count: 3 } }],
             });
 
             const result = await graph.aiCommand("show me some sample nodes");
@@ -205,12 +200,12 @@ describe("Schema Discovery End-to-End", () => {
             assert.ok(typeof node.data === "object");
         });
 
-        it("returns real edge data", async() => {
+        it("returns real edge data", async () => {
             const provider = getProvider();
 
             provider.setResponse("sample edges", {
                 text: "",
-                toolCalls: [{id: "1", name: "sampleData", arguments: {target: "edges", count: 2}}],
+                toolCalls: [{ id: "1", name: "sampleData", arguments: { target: "edges", count: 2 } }],
             });
 
             const result = await graph.aiCommand("show me some sample edges");
@@ -228,12 +223,12 @@ describe("Schema Discovery End-to-End", () => {
             assert.ok(typeof edge.data === "object");
         });
 
-        it("returns both nodes and edges by default", async() => {
+        it("returns both nodes and edges by default", async () => {
             const provider = getProvider();
 
             provider.setResponse("sample data", {
                 text: "",
-                toolCalls: [{id: "1", name: "sampleData", arguments: {}}],
+                toolCalls: [{ id: "1", name: "sampleData", arguments: {} }],
             });
 
             const result = await graph.aiCommand("show me sample data");
@@ -244,12 +239,12 @@ describe("Schema Discovery End-to-End", () => {
             assert.ok(data.edges, "Should return edges");
         });
 
-        it("node samples contain actual data properties", async() => {
+        it("node samples contain actual data properties", async () => {
             const provider = getProvider();
 
             provider.setResponse("all nodes", {
                 text: "",
-                toolCalls: [{id: "1", name: "sampleData", arguments: {target: "nodes", count: 5}}],
+                toolCalls: [{ id: "1", name: "sampleData", arguments: { target: "nodes", count: 5 } }],
             });
 
             const result = await graph.aiCommand("sample all nodes");
@@ -259,22 +254,21 @@ describe("Schema Discovery End-to-End", () => {
             assert.ok(data.nodes);
 
             // Check that at least one node has our expected properties
-            const hasExpectedData = data.nodes.some((node) =>
-                node.data.type !== undefined ||
-                node.data.priority !== undefined ||
-                node.data.label !== undefined,
+            const hasExpectedData = data.nodes.some(
+                (node) =>
+                    node.data.type !== undefined || node.data.priority !== undefined || node.data.label !== undefined,
             );
             assert.ok(hasExpectedData, "Nodes should contain expected data properties");
         });
     });
 
     describe("describeProperty command", () => {
-        it("analyzes string property (type)", async() => {
+        it("analyzes string property (type)", async () => {
             const provider = getProvider();
 
             provider.setResponse("type property", {
                 text: "",
-                toolCalls: [{id: "1", name: "describeProperty", arguments: {property: "type", target: "nodes"}}],
+                toolCalls: [{ id: "1", name: "describeProperty", arguments: { property: "type", target: "nodes" } }],
             });
 
             const result = await graph.aiCommand("describe the type property");
@@ -287,12 +281,14 @@ describe("Schema Discovery End-to-End", () => {
             assert.ok(data.uniqueCount > 0, "Should have unique values");
         });
 
-        it("analyzes number property (priority)", async() => {
+        it("analyzes number property (priority)", async () => {
             const provider = getProvider();
 
             provider.setResponse("describe priority", {
                 text: "",
-                toolCalls: [{id: "1", name: "describeProperty", arguments: {property: "priority", target: "nodes"}}],
+                toolCalls: [
+                    { id: "1", name: "describeProperty", arguments: { property: "priority", target: "nodes" } },
+                ],
             });
 
             const result = await graph.aiCommand("describe priority property");
@@ -306,12 +302,12 @@ describe("Schema Discovery End-to-End", () => {
             assert.strictEqual(data.statistics.max, 5);
         });
 
-        it("analyzes boolean property (active)", async() => {
+        it("analyzes boolean property (active)", async () => {
             const provider = getProvider();
 
             provider.setResponse("describe active", {
                 text: "",
-                toolCalls: [{id: "1", name: "describeProperty", arguments: {property: "active", target: "nodes"}}],
+                toolCalls: [{ id: "1", name: "describeProperty", arguments: { property: "active", target: "nodes" } }],
             });
 
             const result = await graph.aiCommand("describe active property");
@@ -325,12 +321,12 @@ describe("Schema Discovery End-to-End", () => {
             assert.ok(data.distribution.false, "Should have false count");
         });
 
-        it("analyzes edge property (weight)", async() => {
+        it("analyzes edge property (weight)", async () => {
             const provider = getProvider();
 
             provider.setResponse("edge weight", {
                 text: "",
-                toolCalls: [{id: "1", name: "describeProperty", arguments: {property: "weight", target: "edges"}}],
+                toolCalls: [{ id: "1", name: "describeProperty", arguments: { property: "weight", target: "edges" } }],
             });
 
             const result = await graph.aiCommand("describe edge weight");
@@ -342,12 +338,14 @@ describe("Schema Discovery End-to-End", () => {
             assert.ok(data.statistics, "Should have statistics");
         });
 
-        it("returns not found for missing property", async() => {
+        it("returns not found for missing property", async () => {
             const provider = getProvider();
 
             provider.setResponse("nonexistent property", {
                 text: "",
-                toolCalls: [{id: "1", name: "describeProperty", arguments: {property: "nonexistent", target: "nodes"}}],
+                toolCalls: [
+                    { id: "1", name: "describeProperty", arguments: { property: "nonexistent", target: "nodes" } },
+                ],
             });
 
             const result = await graph.aiCommand("describe nonexistent property");
@@ -356,28 +354,25 @@ describe("Schema Discovery End-to-End", () => {
             assert.ok(result.message.includes("not found"), "Should indicate property not found");
         });
 
-        it("suggests available properties when not found", async() => {
+        it("suggests available properties when not found", async () => {
             const provider = getProvider();
 
             provider.setResponse("xyz123", {
                 text: "",
-                toolCalls: [{id: "1", name: "describeProperty", arguments: {property: "xyz123", target: "nodes"}}],
+                toolCalls: [{ id: "1", name: "describeProperty", arguments: { property: "xyz123", target: "nodes" } }],
             });
 
             const result = await graph.aiCommand("describe xyz123");
 
             assert.strictEqual(result.success, false);
             // Should mention available properties in message or data
-            const dataWithProps = result.data as {availableProperties?: string[]} | undefined;
-            assert.ok(
-                result.message.includes("Available") ||
-                dataWithProps?.availableProperties !== undefined,
-            );
+            const dataWithProps = result.data as { availableProperties?: string[] } | undefined;
+            assert.ok(result.message.includes("Available") || dataWithProps?.availableProperties !== undefined);
         });
     });
 
     describe("LLM selector writing support", () => {
-        it("LLM can use schema info to write type selectors", async() => {
+        it("LLM can use schema info to write type selectors", async () => {
             const provider = getProvider();
 
             // First, verify schema is available
@@ -395,61 +390,61 @@ describe("Schema Discovery End-to-End", () => {
             // Now simulate LLM using that info to create a selector
             provider.setResponse("server nodes", {
                 text: "",
-                toolCalls: [{id: "1", name: "findNodes", arguments: {selector: "type == 'server'"}}],
+                toolCalls: [{ id: "1", name: "findNodes", arguments: { selector: "type == 'server'" } }],
             });
 
             const result = await graph.aiCommand("find all server nodes");
 
             assert.strictEqual(result.success, true);
             // Our test data has 2 server nodes (A and C)
-            const data = result.data as {count: number, nodeIds: string[]};
+            const data = result.data as { count: number; nodeIds: string[] };
             assert.strictEqual(data.count, 2);
             assert.ok(data.nodeIds.includes("A"));
             assert.ok(data.nodeIds.includes("C"));
         });
 
-        it("LLM can use schema info for numeric comparisons", async() => {
+        it("LLM can use schema info for numeric comparisons", async () => {
             const provider = getProvider();
 
             // Simulate LLM creating a selector based on schema knowledge
             provider.setResponse("high priority", {
                 text: "",
-                toolCalls: [{id: "1", name: "findNodes", arguments: {selector: "priority >= 3"}}],
+                toolCalls: [{ id: "1", name: "findNodes", arguments: { selector: "priority >= 3" } }],
             });
 
             const result = await graph.aiCommand("find high priority nodes");
 
             assert.strictEqual(result.success, true);
             // Nodes with priority >= 3 are C (3), D (4), E (5)
-            const data = result.data as {count: number, nodeIds: string[]};
+            const data = result.data as { count: number; nodeIds: string[] };
             assert.strictEqual(data.count, 3);
         });
 
-        it("LLM can use schema info for boolean filters", async() => {
+        it("LLM can use schema info for boolean filters", async () => {
             const provider = getProvider();
 
             provider.setResponse("find active", {
                 text: "",
-                toolCalls: [{id: "1", name: "findNodes", arguments: {selector: "active == 'true'"}}],
+                toolCalls: [{ id: "1", name: "findNodes", arguments: { selector: "active == 'true'" } }],
             });
 
             const result = await graph.aiCommand("find active nodes");
 
             assert.strictEqual(result.success, true);
             // Active nodes are A, C, E (3 total)
-            const data = result.data as {count: number, nodeIds: string[]};
+            const data = result.data as { count: number; nodeIds: string[] };
             assert.strictEqual(data.count, 3);
         });
     });
 
     describe("schema and sample commands in sequence", () => {
-        it("sampleData then describeProperty for discovered property", async() => {
+        it("sampleData then describeProperty for discovered property", async () => {
             const provider = getProvider();
 
             // First sample nodes to "discover" properties
             provider.setResponse("sample", {
                 text: "",
-                toolCalls: [{id: "1", name: "sampleData", arguments: {target: "nodes", count: 2}}],
+                toolCalls: [{ id: "1", name: "sampleData", arguments: { target: "nodes", count: 2 } }],
             });
             const sampleResult = await graph.aiCommand("show samples");
             assert.strictEqual(sampleResult.success, true);
@@ -457,19 +452,19 @@ describe("Schema Discovery End-to-End", () => {
             // Then describe a discovered property
             provider.setResponse("describe", {
                 text: "",
-                toolCalls: [{id: "1", name: "describeProperty", arguments: {property: "type", target: "nodes"}}],
+                toolCalls: [{ id: "1", name: "describeProperty", arguments: { property: "type", target: "nodes" } }],
             });
             const describeResult = await graph.aiCommand("describe type");
             assert.strictEqual(describeResult.success, true);
         });
 
-        it("describeProperty then findAndStyle using discovered values", async() => {
+        it("describeProperty then findAndStyle using discovered values", async () => {
             const provider = getProvider();
 
             // First describe to get enum values
             provider.setResponse("describe type", {
                 text: "",
-                toolCalls: [{id: "1", name: "describeProperty", arguments: {property: "type", target: "nodes"}}],
+                toolCalls: [{ id: "1", name: "describeProperty", arguments: { property: "type", target: "nodes" } }],
             });
             const describeResult = await graph.aiCommand("describe type");
             assert.strictEqual(describeResult.success, true);
@@ -481,23 +476,29 @@ describe("Schema Discovery End-to-End", () => {
             // Now style using the discovered value
             provider.setResponse("style servers", {
                 text: "",
-                toolCalls: [{id: "1", name: "findAndStyleNodes", arguments: {
-                    selector: "type == 'server'",
-                    style: {color: "#ff0000"},
-                    layerName: "server-highlight",
-                }}],
+                toolCalls: [
+                    {
+                        id: "1",
+                        name: "findAndStyleNodes",
+                        arguments: {
+                            selector: "type == 'server'",
+                            style: { color: "#ff0000" },
+                            layerName: "server-highlight",
+                        },
+                    },
+                ],
             });
             const styleResult = await graph.aiCommand("highlight servers in red");
             assert.strictEqual(styleResult.success, true);
         });
 
-        it("multiple sampleData calls for different targets", async() => {
+        it("multiple sampleData calls for different targets", async () => {
             const provider = getProvider();
 
             // Sample nodes
             provider.setResponse("sample nodes", {
                 text: "",
-                toolCalls: [{id: "1", name: "sampleData", arguments: {target: "nodes", count: 3}}],
+                toolCalls: [{ id: "1", name: "sampleData", arguments: { target: "nodes", count: 3 } }],
             });
             const nodeResult = await graph.aiCommand("sample nodes");
             assert.strictEqual(nodeResult.success, true);
@@ -505,7 +506,7 @@ describe("Schema Discovery End-to-End", () => {
             // Sample edges
             provider.setResponse("sample edges", {
                 text: "",
-                toolCalls: [{id: "1", name: "sampleData", arguments: {target: "edges", count: 2}}],
+                toolCalls: [{ id: "1", name: "sampleData", arguments: { target: "edges", count: 2 } }],
             });
             const edgeResult = await graph.aiCommand("sample edges");
             assert.strictEqual(edgeResult.success, true);

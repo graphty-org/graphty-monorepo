@@ -1,59 +1,59 @@
-import {fireEvent, waitFor} from "@testing-library/react";
-import {describe, expect, it, vi} from "vitest";
-import {z} from "zod";
+import { fireEvent, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
-import {render, screen} from "../../../test/test-utils";
-import {LayoutOptionsForm} from "../LayoutOptionsForm";
+import { render, screen } from "../../../test/test-utils";
+import { LayoutOptionsForm } from "../LayoutOptionsForm";
 
 describe("LayoutOptionsForm", () => {
     describe("Number field rendering", () => {
         it("should render number input for z.number() schema field", () => {
-            const schema = z.object({iterations: z.number().positive().default(50)});
+            const schema = z.object({ iterations: z.number().positive().default(50) });
             render(<LayoutOptionsForm schema={schema} values={{}} onChange={vi.fn()} />);
             expect(screen.getByLabelText("Iterations")).toBeInTheDocument();
         });
 
         it("should pre-fill default values from schema for number fields", () => {
-            const schema = z.object({iterations: z.number().default(50)});
+            const schema = z.object({ iterations: z.number().default(50) });
             render(<LayoutOptionsForm schema={schema} values={{}} onChange={vi.fn()} />);
             expect(screen.getByDisplayValue("50")).toBeInTheDocument();
         });
 
         it("should use provided values over defaults", () => {
-            const schema = z.object({iterations: z.number().default(50)});
-            render(<LayoutOptionsForm schema={schema} values={{iterations: 100}} onChange={vi.fn()} />);
+            const schema = z.object({ iterations: z.number().default(50) });
+            render(<LayoutOptionsForm schema={schema} values={{ iterations: 100 }} onChange={vi.fn()} />);
             expect(screen.getByDisplayValue("100")).toBeInTheDocument();
         });
 
-        it("should call onChange when number input value changes", async() => {
-            const schema = z.object({iterations: z.number().default(50)});
+        it("should call onChange when number input value changes", async () => {
+            const schema = z.object({ iterations: z.number().default(50) });
             const onChange = vi.fn();
             render(<LayoutOptionsForm schema={schema} values={{}} onChange={onChange} />);
 
             const input = screen.getByLabelText("Iterations");
-            fireEvent.change(input, {target: {value: "75"}});
+            fireEvent.change(input, { target: { value: "75" } });
 
             await waitFor(() => {
-                expect(onChange).toHaveBeenCalledWith(expect.objectContaining({iterations: 75}));
+                expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ iterations: 75 }));
             });
         });
     });
 
     describe("Boolean field rendering", () => {
         it("should render checkbox for z.boolean() schema field", () => {
-            const schema = z.object({strongGravity: z.boolean().default(false)});
+            const schema = z.object({ strongGravity: z.boolean().default(false) });
             render(<LayoutOptionsForm schema={schema} values={{}} onChange={vi.fn()} />);
             expect(screen.getByRole("checkbox")).toBeInTheDocument();
         });
 
         it("should pre-fill default values from schema for boolean fields", () => {
-            const schema = z.object({enabled: z.boolean().default(true)});
+            const schema = z.object({ enabled: z.boolean().default(true) });
             render(<LayoutOptionsForm schema={schema} values={{}} onChange={vi.fn()} />);
             expect(screen.getByRole("checkbox")).toBeChecked();
         });
 
-        it("should call onChange when checkbox is toggled", async() => {
-            const schema = z.object({enabled: z.boolean().default(false)});
+        it("should call onChange when checkbox is toggled", async () => {
+            const schema = z.object({ enabled: z.boolean().default(false) });
             const onChange = vi.fn();
             render(<LayoutOptionsForm schema={schema} values={{}} onChange={onChange} />);
 
@@ -61,26 +61,26 @@ describe("LayoutOptionsForm", () => {
             fireEvent.click(checkbox);
 
             await waitFor(() => {
-                expect(onChange).toHaveBeenCalledWith(expect.objectContaining({enabled: true}));
+                expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ enabled: true }));
             });
         });
     });
 
     describe("Enum field rendering", () => {
         it("should render select for z.enum() schema field", () => {
-            const schema = z.object({align: z.enum(["vertical", "horizontal"]).default("vertical")});
+            const schema = z.object({ align: z.enum(["vertical", "horizontal"]).default("vertical") });
             render(<LayoutOptionsForm schema={schema} values={{}} onChange={vi.fn()} />);
 
             // Mantine Select renders as a textbox with combobox role
-            const select = screen.getByRole("textbox", {name: /align/i});
+            const select = screen.getByRole("textbox", { name: /align/i });
             expect(select).toBeInTheDocument();
         });
 
         it("should pre-fill default values from schema for enum fields", () => {
-            const schema = z.object({align: z.enum(["vertical", "horizontal"]).default("vertical")});
+            const schema = z.object({ align: z.enum(["vertical", "horizontal"]).default("vertical") });
             render(<LayoutOptionsForm schema={schema} values={{}} onChange={vi.fn()} />);
 
-            const select = screen.getByRole("textbox", {name: /align/i});
+            const select = screen.getByRole("textbox", { name: /align/i });
             // Mantine Select displays the label (title case) not the value
             expect(select).toHaveValue("Vertical");
         });
@@ -93,12 +93,7 @@ describe("LayoutOptionsForm", () => {
                 scalingFactor: z.number().default(100),
             });
             render(
-                <LayoutOptionsForm
-                    schema={schema}
-                    values={{}}
-                    onChange={vi.fn()}
-                    hiddenFields={["scalingFactor"]}
-                />,
+                <LayoutOptionsForm schema={schema} values={{}} onChange={vi.fn()} hiddenFields={["scalingFactor"]} />,
             );
 
             expect(screen.getByLabelText("Visible")).toBeInTheDocument();
@@ -148,7 +143,7 @@ describe("LayoutOptionsForm", () => {
     describe("Empty schema", () => {
         it("should handle empty schema gracefully", () => {
             const schema = z.object({});
-            const {container} = render(<LayoutOptionsForm schema={schema} values={{}} onChange={vi.fn()} />);
+            const { container } = render(<LayoutOptionsForm schema={schema} values={{}} onChange={vi.fn()} />);
             // Should render empty stack without errors
             expect(container.querySelector("[class*='mantine-Stack']")).toBeInTheDocument();
         });

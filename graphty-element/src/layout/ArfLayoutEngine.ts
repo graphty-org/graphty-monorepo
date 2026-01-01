@@ -1,8 +1,8 @@
-import {arfLayout, Edge as LayoutEdge, Node as LayoutNode} from "@graphty/layout";
-import {z} from "zod/v4";
+import { arfLayout, Edge as LayoutEdge, Node as LayoutNode } from "@graphty/layout";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema} from "../config";
-import {SimpleLayoutConfig, SimpleLayoutEngine} from "./LayoutEngine";
+import { defineOptions, type OptionsSchema } from "../config";
+import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for ARF Layout
@@ -50,11 +50,8 @@ export const arfLayoutOptionsSchema = defineOptions({
 });
 
 export const ArfLayoutConfig = z.strictObject({
-    ... SimpleLayoutConfig.shape,
-    pos: z.record(
-        z.number(),
-        z.array(z.number()),
-    ).or(z.null()).default(null),
+    ...SimpleLayoutConfig.shape,
+    pos: z.record(z.number(), z.array(z.number())).or(z.null()).default(null),
     scaling: z.number().positive().default(1),
     a: z.number().positive().default(1.1),
     maxIter: z.number().positive().default(1000),
@@ -106,7 +103,7 @@ export class ArfLayout extends SimpleLayoutEngine {
         const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
 
         this.positions = arfLayout(
-            {nodes, edges},
+            { nodes, edges },
             this.config.pos,
             this.config.scaling,
             this.config.a,

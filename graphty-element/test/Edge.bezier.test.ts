@@ -1,10 +1,10 @@
-import {NullEngine, Scene, Vector3} from "@babylonjs/core";
-import {assert, beforeEach, describe, test} from "vitest";
+import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { assert, beforeEach, describe, test } from "vitest";
 
-import type {EdgeStyleConfig} from "../src/config";
-import {EdgeMesh} from "../src/meshes/EdgeMesh";
-import {MeshCache} from "../src/meshes/MeshCache";
-import {isDisposed} from "./helpers/testSetup";
+import type { EdgeStyleConfig } from "../src/config";
+import { EdgeMesh } from "../src/meshes/EdgeMesh";
+import { MeshCache } from "../src/meshes/MeshCache";
+import { isDisposed } from "./helpers/testSetup";
 
 describe("Bezier Curve Edge Integration", () => {
     let scene: Scene;

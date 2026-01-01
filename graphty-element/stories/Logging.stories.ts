@@ -1,4 +1,4 @@
-import type {Meta} from "@storybook/web-components-vite";
+import type { Meta } from "@storybook/web-components-vite";
 
 const meta: Meta = {
     title: "Logging",

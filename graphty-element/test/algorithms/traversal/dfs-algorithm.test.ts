@@ -1,15 +1,15 @@
-/* eslint-disable @typescript-eslint/no-deprecated */
-import {assert, describe, it} from "vitest";
+ 
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {DFSAlgorithm} from "../../../src/algorithms/DFSAlgorithm";
-import type {AdHocData} from "../../../src/config";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { DFSAlgorithm } from "../../../src/algorithms/DFSAlgorithm";
+import type { AdHocData } from "../../../src/config";
 
 interface MockGraphOpts {
     dataPath?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
     const nodes = new Map<string | number, AdHocData>();
     const edges = new Map<string | number, AdHocData>();
@@ -56,14 +56,14 @@ describe("DFSAlgorithm", () => {
     });
 
     describe("Algorithm Execution", () => {
-        it("exists", async() => {
+        it("exists", async () => {
             new DFSAlgorithm(await mockGraph());
         });
 
-        it("assigns discoveryTime to source node starting at 0", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("assigns discoveryTime to source node starting at 0", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new DFSAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean"});
+            algo.configure({ source: "Valjean" });
             await algo.run();
 
             const sourceNode = fakeGraph.nodes.get("Valjean");
@@ -71,10 +71,10 @@ describe("DFSAlgorithm", () => {
             assert.strictEqual(sourceNode.algorithmResults.graphty.dfs.discoveryTime, 0);
         });
 
-        it("assigns discoveryTime to all reachable nodes", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("assigns discoveryTime to all reachable nodes", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new DFSAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean"});
+            algo.configure({ source: "Valjean" });
             await algo.run();
 
             // All visited nodes should have discoveryTime >= 0
@@ -86,10 +86,10 @@ describe("DFSAlgorithm", () => {
             }
         });
 
-        it("assigns finishTime to all reachable nodes", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("assigns finishTime to all reachable nodes", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new DFSAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean"});
+            algo.configure({ source: "Valjean" });
             await algo.run();
 
             for (const node of fakeGraph.nodes.values()) {
@@ -100,10 +100,10 @@ describe("DFSAlgorithm", () => {
             }
         });
 
-        it("ensures finishTime > discoveryTime for each node", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("ensures finishTime > discoveryTime for each node", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new DFSAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean"});
+            algo.configure({ source: "Valjean" });
             await algo.run();
 
             for (const node of fakeGraph.nodes.values()) {
@@ -115,10 +115,10 @@ describe("DFSAlgorithm", () => {
             }
         });
 
-        it("assigns normalized discoveryTimePct between 0 and 1", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("assigns normalized discoveryTimePct between 0 and 1", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new DFSAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean"});
+            algo.configure({ source: "Valjean" });
             await algo.run();
 
             for (const node of fakeGraph.nodes.values()) {
@@ -130,10 +130,10 @@ describe("DFSAlgorithm", () => {
             }
         });
 
-        it("marks all reachable nodes as visited", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("marks all reachable nodes as visited", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new DFSAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean"});
+            algo.configure({ source: "Valjean" });
             await algo.run();
 
             let visitedCount = 0;
@@ -145,38 +145,38 @@ describe("DFSAlgorithm", () => {
             assert.isAtLeast(visitedCount, 1);
         });
 
-        it("stores maxTime at graph level", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("stores maxTime at graph level", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new DFSAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean"});
+            algo.configure({ source: "Valjean" });
             await algo.run();
 
-            const {results} = algo;
+            const { results } = algo;
             assert.ok(results.graph?.graphty?.dfs?.maxTime !== undefined);
             assert.isAtLeast(results.graph.graphty.dfs.maxTime, 0);
         });
 
-        it("stores visitedCount at graph level", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("stores visitedCount at graph level", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new DFSAlgorithm(fakeGraph);
-            algo.configure({source: "Valjean"});
+            algo.configure({ source: "Valjean" });
             await algo.run();
 
-            const {results} = algo;
+            const { results } = algo;
             assert.ok(results.graph?.graphty?.dfs?.visitedCount !== undefined);
             assert.isAtLeast(results.graph.graphty.dfs.visitedCount, 1);
         });
 
-        it("handles empty graph", async() => {
+        it("handles empty graph", async () => {
             const emptyGraph = await mockGraph();
             const algo = new DFSAlgorithm(emptyGraph);
-            algo.configure({source: "A"});
+            algo.configure({ source: "A" });
             await algo.run();
             // Should not throw
         });
 
-        it("uses first node as default source when not configured", async() => {
-            const fakeGraph = await mockGraph({dataPath: "../../../test/helpers/data4.json"});
+        it("uses first node as default source when not configured", async () => {
+            const fakeGraph = await mockGraph({ dataPath: "../../../test/helpers/data4.json" });
             const algo = new DFSAlgorithm(fakeGraph);
             // Don't call configure - let it use default source
             await algo.run();
@@ -226,9 +226,7 @@ describe("DFSAlgorithm", () => {
             const styles = DFSAlgorithm.getSuggestedStyles();
             assert.ok(styles);
 
-            const colorLayer = styles.layers.find((l) =>
-                l.node?.calculatedStyle?.output.includes("color"),
-            );
+            const colorLayer = styles.layers.find((l) => l.node?.calculatedStyle?.output.includes("color"));
             assert.ok(colorLayer);
             assert.ok(colorLayer.node);
             assert.ok(colorLayer.node.calculatedStyle);

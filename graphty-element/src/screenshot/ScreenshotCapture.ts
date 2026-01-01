@@ -8,14 +8,14 @@ import {
     type WebGPUEngine,
 } from "@babylonjs/core";
 
-import type {Graph} from "../Graph.js";
-import {copyToClipboard} from "./clipboard.js";
-import {SCREENSHOT_CONSTANTS} from "./constants.js";
-import {calculateDimensions} from "./dimensions.js";
-import {resolvePreset} from "./presets.js";
-import {ScreenshotError, ScreenshotErrorCode} from "./ScreenshotError.js";
-import {enableTransparentBackground, restoreBackground} from "./transparency.js";
-import type {ClipboardStatus, QualityEnhancementOptions, ScreenshotOptions, ScreenshotResult} from "./types.js";
+import type { Graph } from "../Graph.js";
+import { copyToClipboard } from "./clipboard.js";
+import { SCREENSHOT_CONSTANTS } from "./constants.js";
+import { calculateDimensions } from "./dimensions.js";
+import { resolvePreset } from "./presets.js";
+import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
+import { enableTransparentBackground, restoreBackground } from "./transparency.js";
+import type { ClipboardStatus, QualityEnhancementOptions, ScreenshotOptions, ScreenshotResult } from "./types.js";
 
 /**
  * Handles screenshot capture for graph visualizations using Babylon.js rendering engine.
@@ -57,9 +57,8 @@ export class ScreenshotCapture {
         }
 
         // Fallback: look for PhotoDome or common skybox patterns
-        const fallbackMesh = this.scene.meshes.find((m) =>
-            m.name.toLowerCase().includes("dome") ||
-            m.name.toLowerCase().includes("skybox"),
+        const fallbackMesh = this.scene.meshes.find(
+            (m) => m.name.toLowerCase().includes("dome") || m.name.toLowerCase().includes("skybox"),
         ) as Mesh | null;
 
         return fallbackMesh ?? null;
@@ -82,10 +81,10 @@ export class ScreenshotCapture {
 
             await this.graph.operationQueue.queueOperationAsync(
                 "render-update",
-                async() => {
+                async () => {
                     result = await this.doScreenshotCapture(options);
                 },
-                {description: "capture screenshot"},
+                { description: "capture screenshot" },
             );
 
             // Result will always be set by the queued operation
@@ -112,7 +111,7 @@ export class ScreenshotCapture {
         // Check engine configuration
         const gl = (this.engine as Engine)._gl;
 
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+         
         if (gl && !gl.getContextAttributes()?.preserveDrawingBuffer) {
             throw new ScreenshotError(
                 "Screenshot requires Engine to be created with preserveDrawingBuffer: true",
@@ -124,7 +123,7 @@ export class ScreenshotCapture {
         const timing = {
             waitForSettle: true,
             waitForOperations: true,
-            ... options.timing,
+            ...options.timing,
         };
 
         // 1. Wait for pending operations if requested
@@ -151,9 +150,8 @@ export class ScreenshotCapture {
             }
 
             // Resolve preset or use provided state
-            const cameraState = "preset" in options.camera ?
-                this.graph.resolveCameraPreset(options.camera.preset) :
-                options.camera;
+            const cameraState =
+                "preset" in options.camera ? this.graph.resolveCameraPreset(options.camera.preset) : options.camera;
 
             await this.graph.setCameraState(cameraState);
             await this.waitForRender();
@@ -171,9 +169,11 @@ export class ScreenshotCapture {
 
             // Determine format and quality
             const format = finalOptions.format ?? "png";
-            const quality = finalOptions.quality ?? (format === "jpeg" ?
-                SCREENSHOT_CONSTANTS.DEFAULT_JPEG_QUALITY :
-                SCREENSHOT_CONSTANTS.DEFAULT_PNG_QUALITY);
+            const quality =
+                finalOptions.quality ??
+                (format === "jpeg"
+                    ? SCREENSHOT_CONSTANTS.DEFAULT_JPEG_QUALITY
+                    : SCREENSHOT_CONSTANTS.DEFAULT_PNG_QUALITY);
 
             // Validate format-specific options
             if (finalOptions.transparentBackground && format !== "png" && format !== "webp") {
@@ -199,9 +199,9 @@ export class ScreenshotCapture {
 
                 // Normalize enhanceQuality to options object
                 const enhancementOptions: QualityEnhancementOptions =
-                    typeof finalOptions.enhanceQuality === "boolean" ?
-                        {} : // Use defaults
-                        finalOptions.enhanceQuality;
+                    typeof finalOptions.enhanceQuality === "boolean"
+                        ? {} // Use defaults
+                        : finalOptions.enhanceQuality;
 
                 enhancementState = this.enableQualityEnhancement(enhancementOptions, dimensions);
                 // Wait for renders with the enhancement applied
@@ -211,7 +211,7 @@ export class ScreenshotCapture {
 
             try {
                 // Handle destinations
-                const destinations = finalOptions.destination ?? {blob: true};
+                const destinations = finalOptions.destination ?? { blob: true };
                 let clipboardStatus: ClipboardStatus = "success";
                 let clipboardError: Error | undefined;
 
@@ -232,7 +232,7 @@ export class ScreenshotCapture {
 
                 // If clipboard is requested, start clipboard write immediately (before blob is ready)
                 // This preserves the user gesture context
-                let clipboardPromise: Promise<{status: ClipboardStatus, error?: Error}> | undefined;
+                let clipboardPromise: Promise<{ status: ClipboardStatus; error?: Error }> | undefined;
                 if (destinations.clipboard) {
                     clipboardPromise = copyToClipboard(blobPromise);
                 }
@@ -244,10 +244,7 @@ export class ScreenshotCapture {
                 let downloaded = false;
                 if (destinations.download) {
                     try {
-                        this.downloadBlob(
-                            blob,
-                            finalOptions.downloadFilename ?? `graph-${Date.now()}.${format}`,
-                        );
+                        this.downloadBlob(blob, finalOptions.downloadFilename ?? `graph-${Date.now()}.${format}`);
                         downloaded = true;
                     } catch {
                         // Download failed, but we continue
@@ -267,7 +264,7 @@ export class ScreenshotCapture {
 
                 // Emit screenshot-ready event with enhancement info
                 if (finalOptions.enhanceQuality) {
-                    this.graph.eventManager.emitGraphEvent("screenshot-ready", {enhancementTime});
+                    this.graph.eventManager.emitGraphEvent("screenshot-ready", { enhancementTime });
                 }
 
                 return {
@@ -359,10 +356,12 @@ export class ScreenshotCapture {
                 if (!completed) {
                     completed = true;
                     cleanup();
-                    reject(new ScreenshotError(
-                        "Layout did not settle within timeout",
-                        ScreenshotErrorCode.LAYOUT_SETTLE_TIMEOUT,
-                    ));
+                    reject(
+                        new ScreenshotError(
+                            "Layout did not settle within timeout",
+                            ScreenshotErrorCode.LAYOUT_SETTLE_TIMEOUT,
+                        ),
+                    );
                 }
             }, SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS);
 
@@ -377,7 +376,7 @@ export class ScreenshotCapture {
             listenerId = this.graph.eventManager.addListener("graph-settled", handler);
 
             // Check immediately in case it's already settled
-            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+             
             if (!completed && layoutManager.isSettled) {
                 completed = true;
                 cleanup();
@@ -434,10 +433,7 @@ export class ScreenshotCapture {
 
             // Use Babylon.js CreateScreenshotAsync
             if (!this.scene.activeCamera) {
-                throw new ScreenshotError(
-                    "No active camera in scene",
-                    ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED,
-                );
+                throw new ScreenshotError("No active camera in scene", ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED);
             }
 
             const dataUrl = await CreateScreenshotAsync(this.engine, this.scene.activeCamera, {
@@ -481,10 +477,10 @@ export class ScreenshotCapture {
         // If we need a different format, convert it
         // For now, CreateScreenshotAsync always returns PNG, so we need to convert
         if (mimeType !== "image/png") {
-            return this.convertBlobFormat(new Blob([arrayBuffer], {type: "image/png"}), mimeType, quality);
+            return this.convertBlobFormat(new Blob([arrayBuffer], { type: "image/png" }), mimeType, quality);
         }
 
-        return new Blob([arrayBuffer], {type: mimeType});
+        return new Blob([arrayBuffer], { type: mimeType });
     }
 
     /**
@@ -655,7 +651,7 @@ export class ScreenshotCapture {
      */
     private enableQualityEnhancement(
         options: QualityEnhancementOptions,
-        dimensions: {width: number, height: number},
+        dimensions: { width: number; height: number },
     ): EnhancementState {
         const camera = this.scene.activeCamera;
         if (!camera) {
@@ -689,11 +685,7 @@ export class ScreenshotCapture {
             state.pipeline = pipeline;
         } else if (useFxaa) {
             // FXAA only, no pipeline needed
-            const fxaa = new FxaaPostProcess(
-                "screenshotFxaa",
-                1.0,
-                camera,
-            );
+            const fxaa = new FxaaPostProcess("screenshotFxaa", 1.0, camera);
             state.fxaaPostProcess = fxaa;
         }
 

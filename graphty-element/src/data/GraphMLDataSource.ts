@@ -1,7 +1,7 @@
-import {XMLParser} from "fast-xml-parser";
+import { XMLParser } from "fast-xml-parser";
 
-import type {AdHocData} from "../config/common.js";
-import {BaseDataSourceConfig, DataSource, DataSourceChunk} from "./DataSource.js";
+import type { AdHocData } from "../config/common.js";
+import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 
 // GraphML has no additional config currently, so just use the base config
 export type GraphMLDataSourceConfig = BaseDataSourceConfig;
@@ -29,7 +29,7 @@ interface YFilesShapeNode {
         "@_type"?: string;
         "@_width"?: string;
     };
-    "y:NodeLabel"?: string | {"#text"?: string};
+    "y:NodeLabel"?: string | { "#text"?: string };
     "y:Shape"?: {
         "@_type"?: string;
     };
@@ -92,7 +92,7 @@ export class GraphMLDataSource extends DataSource {
             throw new Error(`Failed to parse GraphML XML: ${error instanceof Error ? error.message : String(error)}`);
         }
 
-        const {graphml} = parsed;
+        const { graphml } = parsed;
         if (!graphml) {
             throw new Error("Invalid GraphML: missing <graphml> root element");
         }
@@ -101,7 +101,7 @@ export class GraphMLDataSource extends DataSource {
         const keys = this.parseKeyDefinitions(graphml.key);
 
         // Get graph element
-        const {graph} = graphml;
+        const { graph } = graphml;
         if (!graph) {
             // Empty graphml file - return empty data
             return;
@@ -162,7 +162,7 @@ export class GraphMLDataSource extends DataSource {
                     continue;
                 }
 
-                const parsedNode: Record<string, unknown> = {id};
+                const parsedNode: Record<string, unknown> = { id };
 
                 // Parse data elements
                 if (node.data) {
@@ -224,7 +224,7 @@ export class GraphMLDataSource extends DataSource {
                     continue;
                 }
 
-                const parsedEdge: Record<string, unknown> = {src, dst};
+                const parsedEdge: Record<string, unknown> = { src, dst };
 
                 // Parse data elements
                 if (edge.data) {
@@ -237,7 +237,9 @@ export class GraphMLDataSource extends DataSource {
                         if (keyDef?.for === "edge") {
                             // Check if this is yFiles edge graphics data
                             if (keyDef.yfilesType === "edgegraphics" && data["y:PolyLineEdge"]) {
-                                const yFilesProps = this.parseYFilesPolyLineEdge(data["y:PolyLineEdge"] as YFilesPolyLineEdge);
+                                const yFilesProps = this.parseYFilesPolyLineEdge(
+                                    data["y:PolyLineEdge"] as YFilesPolyLineEdge,
+                                );
                                 Object.assign(parsedEdge, yFilesProps);
                             } else {
                                 // Standard GraphML data element
@@ -341,7 +343,7 @@ export class GraphMLDataSource extends DataSource {
         // Extract geometry
         if (shapeNode["y:Geometry"]) {
             const geom = shapeNode["y:Geometry"];
-            const position: {x?: number, y?: number, z?: number} = {};
+            const position: { x?: number; y?: number; z?: number } = {};
 
             if (geom["@_x"]) {
                 position.x = Number.parseFloat(geom["@_x"]);

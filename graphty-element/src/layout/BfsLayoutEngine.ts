@@ -1,8 +1,8 @@
-import {bfsLayout, Edge as LayoutEdge, Node as LayoutNode} from "@graphty/layout";
-import {z} from "zod/v4";
+import { bfsLayout, Edge as LayoutEdge, Node as LayoutNode } from "@graphty/layout";
+import { z } from "zod/v4";
 
-import {defineOptions, type OptionsSchema} from "../config";
-import {SimpleLayoutConfig, SimpleLayoutEngine} from "./LayoutEngine";
+import { defineOptions, type OptionsSchema } from "../config";
+import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for BFS Layout
@@ -40,7 +40,7 @@ export const bfsLayoutOptionsSchema = defineOptions({
 });
 
 export const BfsLayoutConfig = z.strictObject({
-    ... SimpleLayoutConfig.shape,
+    ...SimpleLayoutConfig.shape,
     start: z.number().or(z.string()),
     align: z.enum(["vertical", "horizontal"]).default("vertical"),
     scale: z.number().positive().default(1),
@@ -92,7 +92,7 @@ export class BfsLayout extends SimpleLayoutEngine {
         const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
 
         this.positions = bfsLayout(
-            {nodes, edges},
+            { nodes, edges },
             this.config.start,
             this.config.align,
             this.config.scale,

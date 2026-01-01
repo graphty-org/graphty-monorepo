@@ -1,4 +1,4 @@
-import type {Edge, GraphConfig, Node, NodeId} from "../types/index.js";
+import type { Edge, GraphConfig, Node, NodeId } from "../types/index.js";
 
 /**
  * Core Graph data structure for the Graphty Algorithms library
@@ -13,12 +13,16 @@ export class Graph {
     private config: GraphConfig;
     private edgeCount: number;
 
+    /**
+     * Creates a new Graph instance.
+     * @param config - Configuration options for the graph
+     */
     constructor(config: Partial<GraphConfig> = {}) {
         this.config = {
             directed: false,
             allowSelfLoops: true,
             allowParallelEdges: false,
-            ... config,
+            ...config,
         };
         this.nodeMap = new Map();
         this.adjacencyList = new Map();
@@ -28,10 +32,12 @@ export class Graph {
 
     /**
      * Add a node to the graph
+     * @param id - The unique identifier for the node
+     * @param data - Optional key-value data to attach to the node
      */
     addNode(id: NodeId, data?: Record<string, unknown>): void {
         if (!this.nodeMap.has(id)) {
-            this.nodeMap.set(id, {id, data});
+            this.nodeMap.set(id, { id, data });
             this.adjacencyList.set(id, new Map());
 
             if (this.config.directed) {
@@ -42,6 +48,8 @@ export class Graph {
 
     /**
      * Remove a node from the graph
+     * @param id - The unique identifier of the node to remove
+     * @returns True if the node was removed, false if it did not exist
      */
     removeNode(id: NodeId): boolean {
         if (!this.nodeMap.has(id)) {
@@ -85,6 +93,10 @@ export class Graph {
 
     /**
      * Add an edge to the graph
+     * @param source - The source node identifier
+     * @param target - The target node identifier
+     * @param weight - The weight of the edge (defaults to 1)
+     * @param data - Optional key-value data to attach to the edge
      */
     addEdge(source: NodeId, target: NodeId, weight = 1, data?: Record<string, unknown>): void {
         // Ensure both nodes exist
@@ -101,7 +113,7 @@ export class Graph {
             throw new Error("Parallel edges are not allowed in this graph");
         }
 
-        const edge: Edge = {source, target, weight, data};
+        const edge: Edge = { source, target, weight, data };
 
         // Add to adjacency list
         const sourceAdjacency = this.adjacencyList.get(source);
@@ -120,7 +132,7 @@ export class Graph {
         } else {
             // For undirected graphs, add the reverse edge
             if (source !== target) {
-                const reverseEdge: Edge = {source: target, target: source, weight, data};
+                const reverseEdge: Edge = { source: target, target: source, weight, data };
                 const targetAdjacency = this.adjacencyList.get(target);
 
                 if (targetAdjacency) {
@@ -134,6 +146,9 @@ export class Graph {
 
     /**
      * Remove an edge from the graph
+     * @param source - The source node identifier
+     * @param target - The target node identifier
+     * @returns True if the edge was removed, false if it did not exist
      */
     removeEdge(source: NodeId, target: NodeId): boolean {
         const sourceEdges = this.adjacencyList.get(source);
@@ -162,6 +177,8 @@ export class Graph {
 
     /**
      * Check if a node exists in the graph
+     * @param id - The unique identifier of the node to check
+     * @returns True if the node exists, false otherwise
      */
     hasNode(id: NodeId): boolean {
         return this.nodeMap.has(id);
@@ -169,6 +186,9 @@ export class Graph {
 
     /**
      * Check if an edge exists in the graph
+     * @param source - The source node identifier
+     * @param target - The target node identifier
+     * @returns True if the edge exists, false otherwise
      */
     hasEdge(source: NodeId, target: NodeId): boolean {
         const sourceEdges = this.adjacencyList.get(source);
@@ -177,6 +197,8 @@ export class Graph {
 
     /**
      * Get a node by ID
+     * @param id - The unique identifier of the node to retrieve
+     * @returns The node if found, undefined otherwise
      */
     getNode(id: NodeId): Node | undefined {
         return this.nodeMap.get(id);
@@ -184,6 +206,9 @@ export class Graph {
 
     /**
      * Get an edge by source and target
+     * @param source - The source node identifier
+     * @param target - The target node identifier
+     * @returns The edge if found, undefined otherwise
      */
     getEdge(source: NodeId, target: NodeId): Edge | undefined {
         const sourceEdges = this.adjacencyList.get(source);
@@ -192,6 +217,7 @@ export class Graph {
 
     /**
      * Get the number of nodes in the graph
+     * @returns The total count of nodes
      */
     get nodeCount(): number {
         return this.nodeMap.size;
@@ -199,6 +225,7 @@ export class Graph {
 
     /**
      * Get the number of edges in the graph
+     * @returns The total count of edges
      */
     get totalEdgeCount(): number {
         return this.edgeCount;
@@ -206,6 +233,7 @@ export class Graph {
 
     /**
      * Check if the graph is directed
+     * @returns True if the graph is directed, false otherwise
      */
     get isDirected(): boolean {
         return this.config.directed;
@@ -213,6 +241,7 @@ export class Graph {
 
     /**
      * Get all nodes in the graph
+     * @returns An iterator over all nodes
      */
     nodes(): IterableIterator<Node> {
         return this.nodeMap.values();
@@ -220,6 +249,7 @@ export class Graph {
 
     /**
      * Get all edges in the graph
+     * @yields Each unique edge in the graph
      */
     *edges(): IterableIterator<Edge> {
         for (const [source, edges] of this.adjacencyList) {
@@ -236,6 +266,8 @@ export class Graph {
 
     /**
      * Get neighbors of a node (outgoing edges)
+     * @param nodeId - The node identifier to get neighbors for
+     * @returns An iterator over the neighbor node identifiers
      */
     neighbors(nodeId: NodeId): IterableIterator<NodeId> {
         const edges = this.adjacencyList.get(nodeId);
@@ -244,6 +276,8 @@ export class Graph {
 
     /**
      * Get incoming neighbors of a node (directed graphs only)
+     * @param nodeId - The node identifier to get incoming neighbors for
+     * @returns An iterator over the incoming neighbor node identifiers
      */
     inNeighbors(nodeId: NodeId): IterableIterator<NodeId> {
         if (!this.config.directed) {
@@ -256,6 +290,8 @@ export class Graph {
 
     /**
      * Get outgoing neighbors of a node
+     * @param nodeId - The node identifier to get outgoing neighbors for
+     * @returns An iterator over the outgoing neighbor node identifiers
      */
     outNeighbors(nodeId: NodeId): IterableIterator<NodeId> {
         return this.neighbors(nodeId);
@@ -263,6 +299,8 @@ export class Graph {
 
     /**
      * Get the degree of a node
+     * @param nodeId - The node identifier to get the degree for
+     * @returns The total degree of the node
      */
     degree(nodeId: NodeId): number {
         if (this.config.directed) {
@@ -275,6 +313,8 @@ export class Graph {
 
     /**
      * Get the in-degree of a node
+     * @param nodeId - The node identifier to get the in-degree for
+     * @returns The number of incoming edges to the node
      */
     inDegree(nodeId: NodeId): number {
         if (!this.config.directed) {
@@ -287,6 +327,8 @@ export class Graph {
 
     /**
      * Get the out-degree of a node
+     * @param nodeId - The node identifier to get the out-degree for
+     * @returns The number of outgoing edges from the node
      */
     outDegree(nodeId: NodeId): number {
         const edges = this.adjacencyList.get(nodeId);
@@ -295,23 +337,19 @@ export class Graph {
 
     /**
      * Create a copy of the graph
+     * @returns A new Graph instance with the same nodes and edges
      */
     clone(): Graph {
         const cloned = new Graph(this.config);
 
         // Copy nodes
         for (const node of this.nodeMap.values()) {
-            cloned.addNode(node.id, node.data ? {... node.data} : undefined);
+            cloned.addNode(node.id, node.data ? { ...node.data } : undefined);
         }
 
         // Copy edges
         for (const edge of this.edges()) {
-            cloned.addEdge(
-                edge.source,
-                edge.target,
-                edge.weight,
-                edge.data ? {... edge.data} : undefined,
-            );
+            cloned.addEdge(edge.source, edge.target, edge.weight, edge.data ? { ...edge.data } : undefined);
         }
 
         return cloned;
@@ -319,9 +357,10 @@ export class Graph {
 
     /**
      * Get graph configuration
+     * @returns A copy of the graph configuration object
      */
     getConfig(): GraphConfig {
-        return {... this.config};
+        return { ...this.config };
     }
 
     /**
@@ -337,6 +376,7 @@ export class Graph {
     /**
      * Get the number of unique edges in the graph
      * For undirected graphs, each edge is counted once
+     * @returns The count of unique edges
      */
     get uniqueEdgeCount(): number {
         if (this.config.directed) {
@@ -345,7 +385,7 @@ export class Graph {
 
         // For undirected graphs, we need to count each edge only once
         let count = 0;
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+         
         for (const _edge of this.edges()) {
             count++;
         }

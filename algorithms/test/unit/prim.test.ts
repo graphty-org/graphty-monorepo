@@ -1,12 +1,12 @@
-import {beforeEach, describe, expect, it} from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import {Graph, primMST} from "../../src/index.js";
+import { Graph, primMST } from "../../src/index.js";
 
 describe("Prim's Algorithm", () => {
     let graph: Graph;
 
     beforeEach(() => {
-        graph = new Graph({directed: false});
+        graph = new Graph({ directed: false });
     });
 
     describe("primMST", () => {
@@ -96,7 +96,7 @@ describe("Prim's Algorithm", () => {
         });
 
         it("should throw error for directed graph", () => {
-            const directedGraph = new Graph({directed: true});
+            const directedGraph = new Graph({ directed: true });
             directedGraph.addNode("A");
             directedGraph.addNode("B");
             directedGraph.addEdge("A", "B", 1);
@@ -279,7 +279,7 @@ describe("Prim's Algorithm", () => {
 
         it("should handle empty graph with null nodes array", () => {
             // This tests the first nodes.length === 0 check
-            const emptyGraph = new Graph({directed: false});
+            const emptyGraph = new Graph({ directed: false });
 
             const result = primMST(emptyGraph);
 
@@ -335,7 +335,7 @@ describe("Prim's Algorithm", () => {
 
         it("should handle graph with only one node and null check", () => {
             // This tests the !start check more thoroughly
-            const singleNodeGraph = new Graph({directed: false});
+            const singleNodeGraph = new Graph({ directed: false });
             singleNodeGraph.addNode("only");
 
             const result = primMST(singleNodeGraph);

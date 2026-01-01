@@ -1,4 +1,4 @@
-import {defineConfig} from "vitest/config";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
     test: {
@@ -19,10 +19,7 @@ export default defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
-                    include: [
-                        "test/**/*.test.ts",
-                        "src/**/*.test.ts",
-                    ],
+                    include: ["test/**/*.test.ts", "src/**/*.test.ts"],
                 },
             },
             {
@@ -32,11 +29,9 @@ export default defineConfig({
                         enabled: true,
                         headless: true,
                         provider: "playwright",
-                        instances: [{browser: "chromium"}],
+                        instances: [{ browser: "chromium" }],
                     },
-                    include: [
-                        "test/browser/**/*.test.ts",
-                    ],
+                    include: ["test/browser/**/*.test.ts"],
                     testTimeout: 60000,
                 },
             },

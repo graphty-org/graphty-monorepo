@@ -1,8 +1,8 @@
-import type {Graphty} from "../../../src/graphty-element";
-import {algorithmMetaBase, createAlgorithmStory, type Story, templateCreator} from "../helpers";
+import type { Graphty } from "../../../src/graphty-element";
+import { algorithmMetaBase, createAlgorithmStory, type Story, templateCreator } from "../helpers";
 
 const meta = {
-    ... algorithmMetaBase,
+    ...algorithmMetaBase,
     title: "Algorithms/Flow",
 };
 export default meta;
@@ -11,42 +11,42 @@ export default meta;
 const bipartiteJobMatchingData = {
     nodes: [
         // Left partition: Job Candidates
-        {id: "alice", label: "Alice", partition: "candidate"},
-        {id: "bob", label: "Bob", partition: "candidate"},
-        {id: "carol", label: "Carol", partition: "candidate"},
-        {id: "dave", label: "Dave", partition: "candidate"},
-        {id: "eve", label: "Eve", partition: "candidate"},
-        {id: "frank", label: "Frank", partition: "candidate"},
-        {id: "grace", label: "Grace", partition: "candidate"},
+        { id: "alice", label: "Alice", partition: "candidate" },
+        { id: "bob", label: "Bob", partition: "candidate" },
+        { id: "carol", label: "Carol", partition: "candidate" },
+        { id: "dave", label: "Dave", partition: "candidate" },
+        { id: "eve", label: "Eve", partition: "candidate" },
+        { id: "frank", label: "Frank", partition: "candidate" },
+        { id: "grace", label: "Grace", partition: "candidate" },
         // Right partition: Job Openings
-        {id: "senior_dev", label: "Senior Dev", partition: "job"},
-        {id: "ux_designer", label: "UX Designer", partition: "job"},
-        {id: "backend", label: "Backend Eng", partition: "job"},
-        {id: "data_sci", label: "Data Scientist", partition: "job"},
-        {id: "tech_lead", label: "Tech Lead", partition: "job"},
-        {id: "frontend", label: "Frontend Eng", partition: "job"},
-        {id: "security", label: "Security Eng", partition: "job"},
+        { id: "senior_dev", label: "Senior Dev", partition: "job" },
+        { id: "ux_designer", label: "UX Designer", partition: "job" },
+        { id: "backend", label: "Backend Eng", partition: "job" },
+        { id: "data_sci", label: "Data Scientist", partition: "job" },
+        { id: "tech_lead", label: "Tech Lead", partition: "job" },
+        { id: "frontend", label: "Frontend Eng", partition: "job" },
+        { id: "security", label: "Security Eng", partition: "job" },
     ],
     edges: [
         // Alice: experienced, qualifies for multiple roles
-        {src: "alice", dst: "senior_dev"},
-        {src: "alice", dst: "backend"},
-        {src: "alice", dst: "frontend"},
+        { src: "alice", dst: "senior_dev" },
+        { src: "alice", dst: "backend" },
+        { src: "alice", dst: "frontend" },
         // Bob: UX specialist
-        {src: "bob", dst: "ux_designer"},
+        { src: "bob", dst: "ux_designer" },
         // Carol: backend focus
-        {src: "carol", dst: "backend"},
-        {src: "carol", dst: "senior_dev"},
+        { src: "carol", dst: "backend" },
+        { src: "carol", dst: "senior_dev" },
         // Dave: data specialist
-        {src: "dave", dst: "data_sci"},
+        { src: "dave", dst: "data_sci" },
         // Eve: management
-        {src: "eve", dst: "tech_lead"},
+        { src: "eve", dst: "tech_lead" },
         // Frank: frontend focus
-        {src: "frank", dst: "frontend"},
+        { src: "frank", dst: "frontend" },
         // Grace: security/systems
-        {src: "grace", dst: "backend"},
-        {src: "grace", dst: "security"},
-        {src: "grace", dst: "senior_dev"},
+        { src: "grace", dst: "backend" },
+        { src: "grace", dst: "security" },
+        { src: "grace", dst: "senior_dev" },
     ],
 };
 
@@ -76,7 +76,7 @@ export const BipartiteMatching: Story = {
         }),
         runAlgorithmsOnLoad: true,
     },
-    play: async({canvasElement}) => {
+    play: async ({ canvasElement }) => {
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
         const element = canvasElement.querySelector("graphty-element");
@@ -85,7 +85,7 @@ export const BipartiteMatching: Story = {
         }
 
         const graphtyElement = element as Graphty;
-        const {graph} = graphtyElement;
+        const { graph } = graphtyElement;
         const dm = graph.getDataManager();
         const layoutManager = graph.getLayoutManager();
 
@@ -93,7 +93,7 @@ export const BipartiteMatching: Story = {
         await graph.runAlgorithmsFromTemplate();
 
         // Store current positions before style application (applyStylesToExistingNodes resets them)
-        const savedPositions = new Map<string, {x: number, y: number, z: number}>();
+        const savedPositions = new Map<string, { x: number; y: number; z: number }>();
         for (const [id, node] of dm.nodes) {
             savedPositions.set(String(id), {
                 x: node.mesh.position.x,

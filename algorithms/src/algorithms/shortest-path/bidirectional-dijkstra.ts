@@ -1,6 +1,6 @@
-import type {Graph} from "../../core/graph.js";
-import {PriorityQueue} from "../../data-structures/priority-queue.js";
-import type {NodeId, ShortestPathResult} from "../../types/index.js";
+import type { Graph } from "../../core/graph.js";
+import { PriorityQueue } from "../../data-structures/priority-queue.js";
+import type { NodeId, ShortestPathResult } from "../../types/index.js";
 
 interface SearchState {
     distances: Map<NodeId, number>;
@@ -30,6 +30,10 @@ export class BidirectionalDijkstra {
     private meetingNode: NodeId | null = null;
     private shortestDistance = Infinity;
 
+    /**
+     * Creates a new BidirectionalDijkstra instance
+     * @param graph - The graph to search for shortest paths
+     */
     constructor(graph: Graph) {
         this.graph = graph;
         this.forwardSearch = this.initSearchState();
@@ -46,10 +50,13 @@ export class BidirectionalDijkstra {
     }
 
     /**
-   * Find shortest path between source and target nodes
-   */
+     * Find shortest path between source and target nodes
+     * @param source - The starting node for the path
+     * @param target - The destination node for the path
+     * @returns The shortest path result or null if no path exists
+     */
     public findShortestPath(source: NodeId, target: NodeId): ShortestPathResult | null {
-    // Reset state for new search
+        // Reset state for new search
         this.reset();
         if (!this.graph.hasNode(source)) {
             throw new Error(`Source node ${String(source)} not found in graph`);
@@ -79,15 +86,16 @@ export class BidirectionalDijkstra {
         this.backwardSearch.frontier.enqueue(target, 0);
 
         // Main search loop
-        while (!this.forwardSearch.frontier.isEmpty() ||
-           !this.backwardSearch.frontier.isEmpty()) {
+        while (!this.forwardSearch.frontier.isEmpty() || !this.backwardSearch.frontier.isEmpty()) {
             // Alternate between forward and backward search
             // Choose the search with smaller frontier for better performance
             let searchExpanded = false;
 
-            if (!this.forwardSearch.frontier.isEmpty() &&
-          (this.backwardSearch.frontier.isEmpty() ||
-           this.forwardSearch.frontier.size() <= this.backwardSearch.frontier.size())) {
+            if (
+                !this.forwardSearch.frontier.isEmpty() &&
+                (this.backwardSearch.frontier.isEmpty() ||
+                    this.forwardSearch.frontier.size() <= this.backwardSearch.frontier.size())
+            ) {
                 if (this.expandSearch(this.forwardSearch, this.backwardSearch, true)) {
                     break;
                 }
@@ -102,8 +110,7 @@ export class BidirectionalDijkstra {
             }
 
             // Continue until both frontiers are empty or we've found an optimal path
-            if (this.forwardSearch.frontier.isEmpty() &&
-          this.backwardSearch.frontier.isEmpty()) {
+            if (this.forwardSearch.frontier.isEmpty() && this.backwardSearch.frontier.isEmpty()) {
                 break;
             }
         }
@@ -119,11 +126,7 @@ export class BidirectionalDijkstra {
         };
     }
 
-    private expandSearch(
-        search: SearchState,
-        oppositeSearch: SearchState,
-        isForward: boolean,
-    ): boolean {
+    private expandSearch(search: SearchState, oppositeSearch: SearchState, isForward: boolean): boolean {
         const current = search.frontier.dequeue();
         if (current === undefined) {
             return false;
@@ -150,18 +153,16 @@ export class BidirectionalDijkstra {
         }
 
         // Explore neighbors
-        const neighbors = isForward ?
-            Array.from(this.graph.neighbors(current)) :
-            Array.from(this.graph.inNeighbors(current));
+        const neighbors = isForward
+            ? Array.from(this.graph.neighbors(current))
+            : Array.from(this.graph.inNeighbors(current));
 
         for (const neighbor of neighbors) {
             if (search.visited.has(neighbor)) {
                 continue;
             }
 
-            const edge = isForward ?
-                this.graph.getEdge(current, neighbor) :
-                this.graph.getEdge(neighbor, current);
+            const edge = isForward ? this.graph.getEdge(current, neighbor) : this.graph.getEdge(neighbor, current);
 
             if (!edge) {
                 continue;
@@ -175,8 +176,7 @@ export class BidirectionalDijkstra {
             const newDistance = distance + edgeWeight;
             const currentNeighborDistance = search.distances.get(neighbor);
 
-            if (!search.distances.has(neighbor) ||
-          newDistance < (currentNeighborDistance ?? Infinity)) {
+            if (!search.distances.has(neighbor) || newDistance < (currentNeighborDistance ?? Infinity)) {
                 search.distances.set(neighbor, newDistance);
                 search.previous.set(neighbor, current);
                 search.frontier.enqueue(neighbor, newDistance);
@@ -237,8 +237,8 @@ export class BidirectionalDijkstra {
     }
 
     /**
-   * Reset the search state for reuse
-   */
+     * Reset the search state for reuse
+     */
     public reset(): void {
         this.forwardSearch = this.initSearchState();
         this.backwardSearch = this.initSearchState();

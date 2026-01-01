@@ -1,8 +1,8 @@
-import {afterEach, assert, beforeEach, describe, type MockInstance, test, vi} from "vitest";
+import { afterEach, assert, beforeEach, describe, type MockInstance, test, vi } from "vitest";
 
-import {GraphtyLogger} from "../../../src/logging/GraphtyLogger.js";
-import {resetLoggingConfig} from "../../../src/logging/LoggerConfig.js";
-import {LogLevel, type LogRecord, type Sink} from "../../../src/logging/types.js";
+import { GraphtyLogger } from "../../../src/logging/GraphtyLogger.js";
+import { resetLoggingConfig } from "../../../src/logging/LoggerConfig.js";
+import { LogLevel, type LogRecord, type Sink } from "../../../src/logging/types.js";
 
 // Empty mock function to satisfy linter
 function noop(): void {
@@ -12,7 +12,7 @@ function noop(): void {
 describe("Custom Sink", () => {
     let consoleErrorSpy: MockInstance;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Reset logging config before each test
         resetLoggingConfig();
         // Spy on console methods
@@ -26,7 +26,7 @@ describe("Custom Sink", () => {
             enabled: true,
             level: LogLevel.TRACE, // Enable all levels
             modules: "*",
-            format: {timestamp: true, module: true},
+            format: { timestamp: true, module: true },
         });
     });
 
@@ -91,7 +91,7 @@ describe("Custom Sink", () => {
             assert.deepStrictEqual(records[2].category, ["graphty", "camera"]);
         });
 
-        test("should not receive records when logging is disabled", async() => {
+        test("should not receive records when logging is disabled", async () => {
             const records: LogRecord[] = [];
             const customSink: Sink = {
                 name: "disabled-test-sink",
@@ -107,7 +107,7 @@ describe("Custom Sink", () => {
                 enabled: false,
                 level: LogLevel.DEBUG,
                 modules: "*",
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
@@ -116,7 +116,7 @@ describe("Custom Sink", () => {
             assert.strictEqual(records.length, 0, "Should not receive records when disabled");
         });
 
-        test("should not receive records for filtered modules", async() => {
+        test("should not receive records for filtered modules", async () => {
             const records: LogRecord[] = [];
             const customSink: Sink = {
                 name: "module-filter-sink",
@@ -132,7 +132,7 @@ describe("Custom Sink", () => {
                 enabled: true,
                 level: LogLevel.DEBUG,
                 modules: ["layout"],
-                format: {timestamp: true, module: true},
+                format: { timestamp: true, module: true },
             });
 
             const layoutLogger = GraphtyLogger.getLogger(["graphty", "layout"]);
@@ -157,7 +157,7 @@ describe("Custom Sink", () => {
             GraphtyLogger.addSink(customSink);
 
             const logger = GraphtyLogger.getLogger(["graphty", "test", "format"]);
-            logger.info("test message", {key: "value", num: 42});
+            logger.info("test message", { key: "value", num: 42 });
 
             assert.strictEqual(writeFn.mock.calls.length, 1);
             const record: LogRecord = writeFn.mock.calls[0][0];
@@ -167,7 +167,7 @@ describe("Custom Sink", () => {
             assert.strictEqual(record.level, LogLevel.INFO, "level should match");
             assert.deepStrictEqual(record.category, ["graphty", "test", "format"], "category should match");
             assert.strictEqual(record.message, "test message", "message should match");
-            assert.deepStrictEqual(record.data, {key: "value", num: 42}, "data should match");
+            assert.deepStrictEqual(record.data, { key: "value", num: 42 }, "data should match");
         });
 
         test("should include error in LogRecord for error logs", () => {
@@ -181,7 +181,7 @@ describe("Custom Sink", () => {
 
             const logger = GraphtyLogger.getLogger(["graphty", "test"]);
             const testError = new Error("test error");
-            logger.error("something went wrong", testError, {context: "test"});
+            logger.error("something went wrong", testError, { context: "test" });
 
             assert.strictEqual(writeFn.mock.calls.length, 1);
             const record: LogRecord = writeFn.mock.calls[0][0];
@@ -189,7 +189,7 @@ describe("Custom Sink", () => {
             assert.strictEqual(record.level, LogLevel.ERROR);
             assert.strictEqual(record.message, "something went wrong");
             assert.strictEqual(record.error, testError, "error should be included");
-            assert.deepStrictEqual(record.data, {context: "test"});
+            assert.deepStrictEqual(record.data, { context: "test" });
         });
 
         test("should have undefined data when no data provided", () => {
@@ -229,12 +229,12 @@ describe("Custom Sink", () => {
     });
 
     describe("async flush support", () => {
-        test("should support async flush", async() => {
+        test("should support async flush", async () => {
             let flushed = false;
             const customSink: Sink = {
                 name: "async-flush-sink",
                 write: vi.fn(),
-                flush: async() => {
+                flush: async () => {
                     // Simulate async operation
                     await new Promise((resolve) => setTimeout(resolve, 10));
                     flushed = true;
@@ -253,13 +253,13 @@ describe("Custom Sink", () => {
             assert.isTrue(flushed, "Should be flushed after calling flush");
         });
 
-        test("should flush all sinks that support flushing", async() => {
+        test("should flush all sinks that support flushing", async () => {
             const flushOrder: string[] = [];
 
             const sink1: Sink = {
                 name: "flush-sink-1",
                 write: vi.fn(),
-                flush: async() => {
+                flush: async () => {
                     await new Promise((resolve) => setTimeout(resolve, 5));
                     flushOrder.push("sink1");
                 },
@@ -268,7 +268,7 @@ describe("Custom Sink", () => {
             const sink2: Sink = {
                 name: "flush-sink-2",
                 write: vi.fn(),
-                flush: async() => {
+                flush: async () => {
                     await Promise.resolve();
                     flushOrder.push("sink2");
                 },
@@ -292,11 +292,11 @@ describe("Custom Sink", () => {
             assert.strictEqual(flushOrder.length, 2, "Only 2 sinks should be flushed");
         });
 
-        test("should handle flush errors gracefully", async() => {
+        test("should handle flush errors gracefully", async () => {
             const sink1: Sink = {
                 name: "error-flush-sink",
                 write: vi.fn(),
-                flush: async() => {
+                flush: async () => {
                     await Promise.resolve();
                     throw new Error("Flush failed");
                 },
@@ -305,7 +305,7 @@ describe("Custom Sink", () => {
             const sink2: Sink = {
                 name: "good-flush-sink",
                 write: vi.fn(),
-                flush: async() => {
+                flush: async () => {
                     await Promise.resolve();
                 },
             };

@@ -1,8 +1,8 @@
-import {z} from "zod/v4";
+import { z } from "zod/v4";
 import * as z4 from "zod/v4/core";
 
-import {AdHocData} from "../config";
-import {ErrorAggregator} from "./ErrorAggregator.js";
+import { AdHocData } from "../config";
+import { ErrorAggregator } from "./ErrorAggregator.js";
 
 // Base configuration interface
 export interface BaseDataSourceConfig {
@@ -64,20 +64,16 @@ export abstract class DataSource {
         extractionFailed: (path: string, error: string) => string;
     } {
         return {
-            missingInput: () =>
-                `${this.type}DataSource requires data, file, or url`,
+            missingInput: () => `${this.type}DataSource requires data, file, or url`,
 
             fetchFailed: (url: string, attempts: number, error: string) =>
                 `Failed to fetch ${this.type} from ${url} after ${attempts} attempts: ${error}`,
 
-            parseFailed: (error: string) =>
-                `Failed to parse ${this.type}: ${error}`,
+            parseFailed: (error: string) => `Failed to parse ${this.type}: ${error}`,
 
-            invalidFormat: (reason: string) =>
-                `Invalid ${this.type} format: ${reason}`,
+            invalidFormat: (reason: string) => `Invalid ${this.type} format: ${reason}`,
 
-            extractionFailed: (path: string, error: string) =>
-                `Failed to extract data using path '${path}': ${error}`,
+            extractionFailed: (path: string, error: string) => `Failed to extract data using path '${path}': ${error}`,
         };
     }
 
@@ -89,11 +85,7 @@ export abstract class DataSource {
      * @param timeout - Timeout in milliseconds for each attempt
      * @returns Promise resolving to the fetch Response
      */
-    protected async fetchWithRetry(
-        url: string,
-        retries = 3,
-        timeout = 30000,
-    ): Promise<Response> {
+    protected async fetchWithRetry(url: string, retries = 3, timeout = 30000): Promise<Response> {
         // Data URLs don't need retries or timeouts
         if (url.startsWith("data:")) {
             return await fetch(url);
@@ -108,7 +100,7 @@ export abstract class DataSource {
                 }, timeout);
 
                 try {
-                    const response = await fetch(url, {signal: controller.signal});
+                    const response = await fetch(url, { signal: controller.signal });
                     clearTimeout(timeoutId);
 
                     if (!response.ok) {
@@ -130,9 +122,7 @@ export abstract class DataSource {
 
                 if (isLastAttempt) {
                     const errorMsg = error instanceof Error ? error.message : String(error);
-                    throw new Error(
-                        `Failed to fetch from ${url} after ${retries} attempts: ${errorMsg}`,
-                    );
+                    throw new Error(`Failed to fetch from ${url} after ${retries} attempts: ${errorMsg}`);
                 }
 
                 // Exponential backoff: wait 1s, 2s, 4s...
@@ -176,20 +166,17 @@ export abstract class DataSource {
      * @param edges - Array of edge data objects
      * @yields DataSourceChunk objects containing chunked nodes and edges
      */
-    protected *chunkData(
-        nodes: AdHocData[],
-        edges: AdHocData[],
-    ): Generator<DataSourceChunk, void, unknown> {
+    protected *chunkData(nodes: AdHocData[], edges: AdHocData[]): Generator<DataSourceChunk, void, unknown> {
         // Yield nodes in chunks
         for (let i = 0; i < nodes.length; i += this.chunkSize) {
             const nodeChunk = nodes.slice(i, i + this.chunkSize);
             const edgeChunk = i === 0 ? edges : [];
-            yield {nodes: nodeChunk, edges: edgeChunk};
+            yield { nodes: nodeChunk, edges: edgeChunk };
         }
 
         // If no nodes but edges exist, yield edges-only chunk
         if (nodes.length === 0 && edges.length > 0) {
-            yield {nodes: [], edges};
+            yield { nodes: [], edges };
         }
     }
 
@@ -219,7 +206,7 @@ export abstract class DataSource {
                     // Invalid nodes are logged to errorAggregator but skipped
                 }
             } else {
-                validNodes.push(... chunk.nodes);
+                validNodes.push(...chunk.nodes);
             }
 
             // Filter out invalid edges
@@ -232,12 +219,12 @@ export abstract class DataSource {
                     }
                 }
             } else {
-                validEdges.push(... chunk.edges);
+                validEdges.push(...chunk.edges);
             }
 
             // Only yield if we have data (or if we're not filtering)
             if (validNodes.length > 0 || validEdges.length > 0) {
-                yield {nodes: validNodes, edges: validEdges};
+                yield { nodes: validNodes, edges: validEdges };
             }
 
             // Stop if we've hit the error limit

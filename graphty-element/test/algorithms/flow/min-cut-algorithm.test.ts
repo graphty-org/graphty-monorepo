@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/no-deprecated */
-import {assert, describe, it} from "vitest";
+ 
+import { assert, describe, it } from "vitest";
 
-import {Algorithm} from "../../../src/algorithms/Algorithm";
-import {MinCutAlgorithm} from "../../../src/algorithms/MinCutAlgorithm";
+import { Algorithm } from "../../../src/algorithms/Algorithm";
+import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 
 describe("MinCutAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -37,7 +37,7 @@ describe("MinCutAlgorithm", () => {
             // Find an edge layer with calculatedStyle for cut edges
             const cutEdgeLayer = styles.layers.find((l) => l.edge?.calculatedStyle?.inputs[0]?.includes("inCut"));
             assert.ok(cutEdgeLayer, "Should have edge layer for cut edges");
-            const {edge} = cutEdgeLayer;
+            const { edge } = cutEdgeLayer;
             assert.ok(edge);
             const edgeStyle = edge.style;
             assert.ok(edgeStyle);
@@ -51,7 +51,7 @@ describe("MinCutAlgorithm", () => {
             // First edge layer uses calculatedStyle for color
             const cutEdgeLayer = styles.layers.find((l) => l.edge?.calculatedStyle);
             assert.ok(cutEdgeLayer);
-            const {edge} = cutEdgeLayer;
+            const { edge } = cutEdgeLayer;
             assert.ok(edge);
             assert.ok(edge.calculatedStyle);
             assert.ok(edge.calculatedStyle.inputs[0].includes("inCut"));
@@ -96,10 +96,10 @@ describe("MinCutAlgorithm", () => {
                 return selector?.includes("inCut");
             });
             assert.ok(cutEdgeLayer);
-            const {edge} = cutEdgeLayer;
+            const { edge } = cutEdgeLayer;
             assert.ok(edge);
 
-            const {selector} = edge;
+            const { selector } = edge;
             assert.ok(selector);
 
             // Should reference algorithmResults.graphty.min-cut
@@ -164,7 +164,7 @@ describe("MinCutAlgorithm", () => {
             // First edge layer uses calculatedStyle
             const cutEdgeLayer = styles.layers.find((l) => l.edge?.calculatedStyle);
             assert.ok(cutEdgeLayer);
-            const {edge} = cutEdgeLayer;
+            const { edge } = cutEdgeLayer;
             assert.ok(edge);
             assert.ok(edge.calculatedStyle);
 
@@ -185,7 +185,7 @@ describe("MinCutAlgorithm", () => {
             if (nonCutEdgeLayer?.edge) {
                 assert.ok(nonCutEdgeLayer.edge.style);
                 // Should have reduced opacity
-                const {style} = nonCutEdgeLayer.edge;
+                const { style } = nonCutEdgeLayer.edge;
                 const hasReducedOpacity = typeof style.line?.opacity === "number" && style.line.opacity < 1;
                 assert.ok(hasReducedOpacity, "Non-cut edges should have reduced opacity");
             }

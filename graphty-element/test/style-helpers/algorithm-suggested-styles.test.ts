@@ -2,26 +2,26 @@
  * @fileoverview Tests to ensure all algorithm suggestedStyles use StyleHelpers
  * instead of hardcoded colors for accessibility (colorblind safety).
  */
-import {assert, describe, it} from "vitest";
+import { assert, describe, it } from "vitest";
 
-import {AlgorithmStatics} from "../../src/algorithms/Algorithm";
+import { AlgorithmStatics } from "../../src/algorithms/Algorithm";
 // Import all algorithm modules to trigger auto-registration
-import {BFSAlgorithm} from "../../src/algorithms/BFSAlgorithm";
-import {BipartiteMatchingAlgorithm} from "../../src/algorithms/BipartiteMatchingAlgorithm";
-import {ConnectedComponentsAlgorithm} from "../../src/algorithms/ConnectedComponentsAlgorithm";
-import {DegreeAlgorithm} from "../../src/algorithms/DegreeAlgorithm";
-import {DFSAlgorithm} from "../../src/algorithms/DFSAlgorithm";
-import {DijkstraAlgorithm} from "../../src/algorithms/DijkstraAlgorithm";
-import {GirvanNewmanAlgorithm} from "../../src/algorithms/GirvanNewmanAlgorithm";
-import {KruskalAlgorithm} from "../../src/algorithms/KruskalAlgorithm";
-import {LabelPropagationAlgorithm} from "../../src/algorithms/LabelPropagationAlgorithm";
-import {LeidenAlgorithm} from "../../src/algorithms/LeidenAlgorithm";
-import {LouvainAlgorithm} from "../../src/algorithms/LouvainAlgorithm";
-import {MaxFlowAlgorithm} from "../../src/algorithms/MaxFlowAlgorithm";
-import {MinCutAlgorithm} from "../../src/algorithms/MinCutAlgorithm";
-import {PageRankAlgorithm} from "../../src/algorithms/PageRankAlgorithm";
-import {PrimAlgorithm} from "../../src/algorithms/PrimAlgorithm";
-import {StronglyConnectedComponentsAlgorithm} from "../../src/algorithms/StronglyConnectedComponentsAlgorithm";
+import { BFSAlgorithm } from "../../src/algorithms/BFSAlgorithm";
+import { BipartiteMatchingAlgorithm } from "../../src/algorithms/BipartiteMatchingAlgorithm";
+import { ConnectedComponentsAlgorithm } from "../../src/algorithms/ConnectedComponentsAlgorithm";
+import { DegreeAlgorithm } from "../../src/algorithms/DegreeAlgorithm";
+import { DFSAlgorithm } from "../../src/algorithms/DFSAlgorithm";
+import { DijkstraAlgorithm } from "../../src/algorithms/DijkstraAlgorithm";
+import { GirvanNewmanAlgorithm } from "../../src/algorithms/GirvanNewmanAlgorithm";
+import { KruskalAlgorithm } from "../../src/algorithms/KruskalAlgorithm";
+import { LabelPropagationAlgorithm } from "../../src/algorithms/LabelPropagationAlgorithm";
+import { LeidenAlgorithm } from "../../src/algorithms/LeidenAlgorithm";
+import { LouvainAlgorithm } from "../../src/algorithms/LouvainAlgorithm";
+import { MaxFlowAlgorithm } from "../../src/algorithms/MaxFlowAlgorithm";
+import { MinCutAlgorithm } from "../../src/algorithms/MinCutAlgorithm";
+import { PageRankAlgorithm } from "../../src/algorithms/PageRankAlgorithm";
+import { PrimAlgorithm } from "../../src/algorithms/PrimAlgorithm";
+import { StronglyConnectedComponentsAlgorithm } from "../../src/algorithms/StronglyConnectedComponentsAlgorithm";
 
 // All algorithms with their registry keys
 const algorithmClasses: [string, AlgorithmStatics][] = [
@@ -93,10 +93,7 @@ describe("Algorithm suggestedStyles colorblind safety", () => {
                 assert.ok(styles, `${algorithmKey} should have suggested styles`);
 
                 // Verify layers exist
-                assert.ok(
-                    styles.layers.length > 0,
-                    `${algorithmKey} should have at least one layer`,
-                );
+                assert.ok(styles.layers.length > 0, `${algorithmKey} should have at least one layer`);
             }
         }
     });

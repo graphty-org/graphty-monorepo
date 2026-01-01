@@ -1,6 +1,6 @@
-import {Graph} from "../../core/graph.js";
-import type {CommunityResult, ComponentResult, GirvanNewmanOptions, NodeId} from "../../types/index.js";
-import {connectedComponents} from "../components/connected.js";
+import { Graph } from "../../core/graph.js";
+import type { CommunityResult, ComponentResult, GirvanNewmanOptions, NodeId } from "../../types/index.js";
+import { connectedComponents } from "../components/connected.js";
 
 /**
  * Girvan-Newman community detection algorithm
@@ -14,18 +14,14 @@ import {connectedComponents} from "../components/connected.js";
  *
  * References:
  * - Girvan, M., & Newman, M. E. J. (2002). Community structure in social
- *   and biological networks. Proceedings of the National Academy of Sciences,
- *   99(12), 7821-7826.
- *
+ * and biological networks. Proceedings of the National Academy of Sciences,
+ * 99(12), 7821-7826.
  * @param graph - The input graph
  * @param options - Algorithm options
  * @returns Array of community detection results representing the dendrogram
  */
-export function girvanNewman(
-    graph: Graph,
-    options: GirvanNewmanOptions = {},
-): CommunityResult[] {
-    const {maxCommunities} = options;
+export function girvanNewman(graph: Graph, options: GirvanNewmanOptions = {}): CommunityResult[] {
+    const { maxCommunities } = options;
     const minCommunitySize = options.minCommunitySize ?? 1;
     const maxIterations = options.maxIterations ?? 100; // Prevent infinite loops
 
@@ -50,20 +46,20 @@ export function girvanNewman(
         }
 
         // Find edges with maximum betweenness
-        const maxBetweenness = Math.max(... edgeBetweenness.values());
-        const edgesToRemove: {source: NodeId, target: NodeId}[] = [];
+        const maxBetweenness = Math.max(...edgeBetweenness.values());
+        const edgesToRemove: { source: NodeId; target: NodeId }[] = [];
 
         for (const [edgeKey, centrality] of edgeBetweenness) {
             if (Math.abs(centrality - maxBetweenness) < 1e-10) {
                 const [source, target] = edgeKey.split("|");
                 if (source && target) {
-                    edgesToRemove.push({source, target});
+                    edgesToRemove.push({ source, target });
                 }
             }
         }
 
         // Remove edges with highest betweenness
-        for (const {source, target} of edgesToRemove) {
+        for (const { source, target } of edgesToRemove) {
             workingGraph.removeEdge(source, target);
         }
 
@@ -71,9 +67,7 @@ export function girvanNewman(
         components = getConnectedComponentsResult(workingGraph);
 
         // Filter communities by minimum size
-        const validCommunities = components.components.filter(
-            (community) => community.length >= minCommunitySize,
-        );
+        const validCommunities = components.components.filter((community) => community.length >= minCommunitySize);
 
         // Calculate modularity for the new community structure
         const modularity = calculateModularity(graph, components.componentMap);
@@ -102,6 +96,8 @@ export function girvanNewman(
  *
  * Edge betweenness is the fraction of shortest paths that pass through the edge.
  * We adapt node betweenness centrality calculation to work with edges.
+ * @param graph - The input graph to analyze
+ * @returns Map of edge keys to their betweenness centrality values
  */
 function calculateEdgeBetweenness(graph: Graph): Map<string, number> {
     const edgeBetweenness = new Map<string, number>();
@@ -117,7 +113,7 @@ function calculateEdgeBetweenness(graph: Graph): Map<string, number> {
         const source = sourceNode.id;
 
         // Run BFS to find all shortest paths from source
-        const {distances, predecessors, pathCounts} = findAllShortestPaths(graph, source);
+        const { distances, predecessors, pathCounts } = findAllShortestPaths(graph, source);
 
         // Calculate dependency for each node and accumulate edge betweenness
         const dependency = new Map<NodeId, number>();
@@ -191,8 +187,14 @@ function calculateEdgeBetweenness(graph: Graph): Map<string, number> {
 
 /**
  * Find all shortest paths from a source node using optimized BFS
+ * @param graph - The input graph to search
+ * @param source - The source node to compute shortest paths from
+ * @returns Object containing distances, predecessors, and path counts
  */
-function findAllShortestPaths(graph: Graph, source: NodeId): {
+function findAllShortestPaths(
+    graph: Graph,
+    source: NodeId,
+): {
     distances: Map<NodeId, number>;
     predecessors: Map<NodeId, NodeId[]>;
     pathCounts: Map<NodeId, number>;
@@ -262,11 +264,14 @@ function findAllShortestPaths(graph: Graph, source: NodeId): {
         }
     }
 
-    return {distances, predecessors, pathCounts};
+    return { distances, predecessors, pathCounts };
 }
 
 /**
  * Generate a consistent edge key for undirected graphs
+ * @param source - The source node ID
+ * @param target - The target node ID
+ * @returns A consistent string key for the edge (ordered alphabetically)
  */
 function getEdgeKey(source: NodeId, target: NodeId): string {
     // For undirected graphs, ensure consistent ordering
@@ -282,11 +287,11 @@ function getEdgeKey(source: NodeId, target: NodeId): string {
 
 /**
  * Calculate modularity for a given community structure - optimized version
+ * @param graph - The original graph
+ * @param communityMap - Map from node IDs to community indices
+ * @returns The modularity score of the partition
  */
-function calculateModularity(
-    graph: Graph,
-    communityMap: Map<NodeId, number>,
-): number {
+function calculateModularity(graph: Graph, communityMap: Map<NodeId, number>): number {
     const totalEdgeWeight = getTotalEdgeWeight(graph);
     if (totalEdgeWeight === 0) {
         return 0;
@@ -313,7 +318,7 @@ function calculateModularity(
                 continue;
             }
 
-            modularity += edgeWeight - ((degreeI * degreeJ) / (2 * totalEdgeWeight));
+            modularity += edgeWeight - (degreeI * degreeJ) / (2 * totalEdgeWeight);
         }
     }
 
@@ -322,6 +327,8 @@ function calculateModularity(
 
 /**
  * Calculate total edge weight in the graph
+ * @param graph - The input graph
+ * @returns Total sum of all edge weights
  */
 function getTotalEdgeWeight(graph: Graph): number {
     let totalWeight = 0;
@@ -335,6 +342,9 @@ function getTotalEdgeWeight(graph: Graph): number {
 
 /**
  * Get the total degree (sum of edge weights) for a node
+ * @param graph - The input graph
+ * @param nodeId - The node ID to compute degree for
+ * @returns The weighted degree of the node
  */
 function getNodeDegree(graph: Graph, nodeId: NodeId): number {
     let degree = 0;
@@ -349,6 +359,8 @@ function getNodeDegree(graph: Graph, nodeId: NodeId): number {
 
 /**
  * Convert connected components result to ComponentResult format
+ * @param graph - The input graph
+ * @returns Object containing components array and node-to-component map
  */
 function getConnectedComponentsResult(graph: Graph): ComponentResult {
     const components = connectedComponents(graph);
@@ -360,6 +372,5 @@ function getConnectedComponentsResult(graph: Graph): ComponentResult {
         });
     });
 
-    return {components, componentMap};
+    return { components, componentMap };
 }
-

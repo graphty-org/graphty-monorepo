@@ -43,7 +43,7 @@ export function easeOut(t: number): number {
  * @returns Eased value (0-1)
  */
 export function easeInOut(t: number): number {
-    return t < 0.5 ? 2 * t * t : -1 + ((4 - (2 * t)) * t);
+    return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 }
 
 /**
@@ -62,7 +62,7 @@ export function easeInCubic(t: number): number {
  */
 export function easeOutCubic(t: number): number {
     const t1 = t - 1;
-    return ((t1 * t1) * t1) + 1;
+    return t1 * t1 * t1 + 1;
 }
 
 /**
@@ -71,7 +71,7 @@ export function easeOutCubic(t: number): number {
  * @returns Eased value (0-1)
  */
 export function easeInOutCubic(t: number): number {
-    return t < 0.5 ? 4 * t * t * t : (((t - 1) * ((2 * t) - 2)) * ((2 * t) - 2)) + 1;
+    return t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1;
 }
 
 /**
@@ -86,7 +86,7 @@ export function easeOutElastic(t: number): number {
 
     const p = 0.3;
     const s = p / 4;
-    return (Math.pow(2, -10 * t) * Math.sin((((t - s) * (2 * Math.PI)) / p))) + 1;
+    return Math.pow(2, -10 * t) * Math.sin(((t - s) * (2 * Math.PI)) / p) + 1;
 }
 
 /**
@@ -95,18 +95,18 @@ export function easeOutElastic(t: number): number {
  * @returns Eased value (0-1)
  */
 export function easeOutBounce(t: number): number {
-    if (t < (1 / 2.75)) {
+    if (t < 1 / 2.75) {
         return 7.5625 * t * t;
-    } else if (t < (2 / 2.75)) {
-        const t2 = t - (1.5 / 2.75);
-        return (7.5625 * t2 * t2) + 0.75;
-    } else if (t < (2.5 / 2.75)) {
-        const t2 = t - (2.25 / 2.75);
-        return (7.5625 * t2 * t2) + 0.9375;
+    } else if (t < 2 / 2.75) {
+        const t2 = t - 1.5 / 2.75;
+        return 7.5625 * t2 * t2 + 0.75;
+    } else if (t < 2.5 / 2.75) {
+        const t2 = t - 2.25 / 2.75;
+        return 7.5625 * t2 * t2 + 0.9375;
     }
 
-    const t2 = t - (2.625 / 2.75);
-    return (7.5625 * t2 * t2) + 0.984375;
+    const t2 = t - 2.625 / 2.75;
+    return 7.5625 * t2 * t2 + 0.984375;
 }
 
 /**
@@ -120,15 +120,10 @@ export function easeOutBounce(t: number): number {
  * // Smooth size transition from 1 to 5
  * interpolate(1, 5, 0.5, easeInOut) // → 3
  */
-export function interpolate(
-    from: number,
-    to: number,
-    progress: number,
-    easing: EasingFunction = linear,
-): number {
+export function interpolate(from: number, to: number, progress: number, easing: EasingFunction = linear): number {
     const t = Math.max(0, Math.min(1, progress)); // Clamp to [0, 1]
     const easedProgress = easing(t);
-    return from + ((to - from) * easedProgress);
+    return from + (to - from) * easedProgress;
 }
 
 /**
@@ -176,14 +171,9 @@ export function pulse(progress: number, frequency = 1): number {
  * // Gentle size oscillation between 0.5 and 1.5
  * const size = 1 + wave(time, 1, 0.5, 0);
  */
-export function wave(
-    progress: number,
-    frequency = 1,
-    amplitude = 1,
-    offset = 0.5,
-): number {
+export function wave(progress: number, frequency = 1, amplitude = 1, offset = 0.5): number {
     const angle = (progress * frequency) % 1;
-    return offset + (amplitude * Math.sin(angle * 2 * Math.PI));
+    return offset + amplitude * Math.sin(angle * 2 * Math.PI);
 }
 
 /**
@@ -196,11 +186,7 @@ export function wave(
  * // Start animation halfway through
  * delayedStart(0.6, 0.5, easeOut) // → ~0.2 (adjusted for delay)
  */
-export function delayedStart(
-    progress: number,
-    delay: number,
-    easing: EasingFunction = linear,
-): number {
+export function delayedStart(progress: number, delay: number, easing: EasingFunction = linear): number {
     if (progress < delay) {
         return 0;
     }
@@ -231,7 +217,7 @@ export function stagger(
     staggerDelay = 0.1,
     easing: EasingFunction = linear,
 ): number {
-    const delay = (elementIndex / Math.max(1, (totalElements - 1))) * staggerDelay;
+    const delay = (elementIndex / Math.max(1, totalElements - 1)) * staggerDelay;
     return delayedStart(progress, delay, easing);
 }
 
@@ -252,10 +238,10 @@ export function spring(progress: number, stiffness = 170, damping = 26): number 
 
     if (zeta < 1) {
         // Underdamped
-        const wd = w * Math.sqrt(1 - (zeta * zeta));
-        return 1 - (Math.exp((-zeta * w) * t) * Math.cos(wd * t));
+        const wd = w * Math.sqrt(1 - zeta * zeta);
+        return 1 - Math.exp(-zeta * w * t) * Math.cos(wd * t);
     }
 
     // Critically damped or overdamped
-    return 1 - Math.exp((-w) * t);
+    return 1 - Math.exp(-w * t);
 }

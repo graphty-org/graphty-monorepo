@@ -1,7 +1,7 @@
-import {describe, expect, test} from "vitest";
+import { describe, expect, test } from "vitest";
 
-import {MockDeviceInputSystem} from "../../../src/input/mock-device-input-system";
-import {MouseButton} from "../../../src/input/types";
+import { MockDeviceInputSystem } from "../../../src/input/mock-device-input-system";
+import { MouseButton } from "../../../src/input/types";
 
 describe("Interaction Testing Infrastructure", () => {
     test("MockDeviceInputSystem can be created", () => {
@@ -60,16 +60,12 @@ describe("Interaction Testing Infrastructure", () => {
         });
 
         // Start touch
-        mockInput.simulateTouchStart([
-            {id: 1, x: 100, y: 100},
-        ]);
+        mockInput.simulateTouchStart([{ id: 1, x: 100, y: 100 }]);
         expect(touchStartFired).toBe(true);
         expect(mockInput.getActiveTouches()).toHaveLength(1);
 
         // Move touch
-        mockInput.simulateTouchMove([
-            {id: 1, x: 150, y: 150},
-        ]);
+        mockInput.simulateTouchMove([{ id: 1, x: 150, y: 150 }]);
         expect(touchMoveFired).toBe(true);
 
         // End touch
@@ -108,7 +104,7 @@ describe("Interaction Testing Infrastructure", () => {
 
         let dragStarted = false;
         let dragEnded = false;
-        const positions: {x: number, y: number}[] = [];
+        const positions: { x: number; y: number }[] = [];
 
         mockInput.onPointerDown.add(() => {
             dragStarted = true;
@@ -117,7 +113,7 @@ describe("Interaction Testing Infrastructure", () => {
             dragEnded = true;
         });
         mockInput.onPointerMove.add((info) => {
-            positions.push({x: info.x, y: info.y});
+            positions.push({ x: info.x, y: info.y });
         });
 
         // Simulate drag

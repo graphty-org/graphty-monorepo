@@ -1,8 +1,8 @@
-import {NullEngine, Scene} from "@babylonjs/core";
-import {assert} from "chai";
-import {afterEach, beforeEach, describe, test} from "vitest";
+import { NullEngine, Scene } from "@babylonjs/core";
+import { assert } from "chai";
+import { afterEach, beforeEach, describe, test } from "vitest";
 
-import {XRSessionManager} from "../../src/xr/XRSessionManager";
+import { XRSessionManager } from "../../src/xr/XRSessionManager";
 
 describe("XRSessionManager", () => {
     let engine: NullEngine;
@@ -13,8 +13,8 @@ describe("XRSessionManager", () => {
         engine = new NullEngine();
         scene = new Scene(engine);
         manager = new XRSessionManager(scene, {
-            vr: {enabled: true, referenceSpaceType: "local-floor"},
-            ar: {enabled: true, referenceSpaceType: "local-floor"},
+            vr: { enabled: true, referenceSpaceType: "local-floor" },
+            ar: { enabled: true, referenceSpaceType: "local-floor" },
         });
     });
 
@@ -25,7 +25,7 @@ describe("XRSessionManager", () => {
     });
 
     test("should initialize without WebXR support", () => {
-    // In NullEngine environment, navigator.xr is undefined
+        // In NullEngine environment, navigator.xr is undefined
         assert.isFalse(manager.isXRSupported());
     });
 
@@ -35,15 +35,15 @@ describe("XRSessionManager", () => {
     });
 
     test("should handle disposal without active session", () => {
-    // Should not throw
+        // Should not throw
         manager.dispose();
         assert.isNull(manager.getXRCamera());
     });
 
     test("should store configuration correctly", () => {
         const config = {
-            vr: {enabled: false, referenceSpaceType: "local" as const},
-            ar: {enabled: true, referenceSpaceType: "unbounded" as const},
+            vr: { enabled: false, referenceSpaceType: "local" as const },
+            ar: { enabled: true, referenceSpaceType: "unbounded" as const },
         };
         const customManager = new XRSessionManager(scene, config);
 

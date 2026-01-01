@@ -25,10 +25,12 @@ At Config 2024, Figma introduced UI3, a major redesign of their interface. Key p
 Figma's right sidebar has two main tabs based on context:
 
 **With Edit Access:**
+
 - **Design tab**: Editable properties for selected layers
 - **Prototype tab**: Prototyping and interaction settings
 
 **With View-Only Access:**
+
 - **Comment tab**: Collaboration comments
 - **Properties tab**: Read-only inspection
 
@@ -54,7 +56,9 @@ When a layer is selected, Figma organizes properties into logical sections:
 Figma uses a **two-tier system** for text properties:
 
 #### Tier 1: Inline in Sidebar (Always Visible)
+
 The Typography section shows the most common controls:
+
 - Font family
 - Font weight/style
 - Font size
@@ -63,9 +67,11 @@ The Typography section shows the most common controls:
 - Text alignment (horizontal & vertical)
 
 #### Tier 2: Type Settings Pop-out Panel
+
 Clicking the settings icon (⚙️) opens a dedicated panel with **tabs**:
 
 **Basics Tab:**
+
 - Horizontal alignment options
 - Text decoration (strikethrough, underline)
 - Letter case transformations
@@ -75,12 +81,14 @@ Clicking the settings icon (⚙️) opens a dedicated panel with **tabs**:
 - Text truncation and max lines
 
 **Details Tab:**
+
 - Indentation controls (paragraph indent, hanging quotes, hanging lists)
 - Letter case with case-sensitive forms
 - Number properties (style, position, fractions, slashed zero)
 - OpenType feature adjustments (font-specific)
 
 **Variable Tab** (for variable fonts):
+
 - Weight, width, optical size, slant adjustments
 
 **Source**: [Explore text properties](https://help.figma.com/hc/en-us/articles/360039956634-Explore-text-properties)
@@ -108,6 +116,7 @@ Figma and the design community use accordions for:
 - **Panels** contain the detailed content
 
 Best practices:
+
 - Use when displaying content in a space-saving manner
 - Hide secondary information to reduce visual clutter
 - Common in accordion-style menus and expandable sections
@@ -186,6 +195,7 @@ Label
 ```
 
 **Pop-out Panel Structure**:
+
 ```
 ┌─────────────────────────────────┐
 │ Label Settings               ✕ │
@@ -218,12 +228,14 @@ Label
 ```
 
 **Pros**:
+
 - Follows Figma's established pattern
 - Dramatically reduces sidebar clutter
 - Clear separation of essential vs advanced
 - Tabbed organization for related features
 
 **Cons**:
+
 - Requires implementing pop-out/popover component
 - Extra click to access advanced features
 - Need to manage pop-out positioning and state
@@ -255,11 +267,13 @@ Label
 ```
 
 **Pros**:
+
 - Uses existing `ControlSubGroup` component
 - No new component types needed
 - All options visible in hierarchy
 
 **Cons**:
+
 - Still shows many collapsed headers
 - Doesn't match Figma's pattern as closely
 - More scrolling required
@@ -282,20 +296,24 @@ Label
 ```
 
 Where [⚙️] next to Position opens a small pop-out for:
+
 - Offset, Billboard, Location, Animation, Resolution, Depth Fade
 
 **Pros**:
+
 - Balances discoverability with simplicity
 - Less implementation complexity than full pop-out
 - Most controls still accessible inline
 
 **Cons**:
+
 - Hybrid patterns can be confusing
 - Two different interaction patterns to learn
 
 ### 3.4 Recommended Approach: Option A (Figma-Style Pop-out)
 
 **Rationale**:
+
 1. **Proven pattern** - Figma has validated this with millions of users
 2. **Maximum clutter reduction** - Only 4 essential controls visible
 3. **Scalable** - Easy to add features to pop-out without sidebar impact
@@ -308,21 +326,21 @@ Where [⚙️] next to Position opens a small pop-out for:
 
 ### 4.1 Component Requirements
 
-| Component | Purpose | Mantine Equivalent |
-|-----------|---------|-------------------|
-| PopoverPanel | Floating settings panel | `Popover` or `Modal` |
-| TabGroup | Organize pop-out content | `Tabs` |
-| SettingsButton | Trigger for pop-out | `ActionIcon` with gear icon |
-| CollapsibleSection | Inline expandable areas | Existing `ControlSubGroup` |
+| Component          | Purpose                  | Mantine Equivalent          |
+| ------------------ | ------------------------ | --------------------------- |
+| PopoverPanel       | Floating settings panel  | `Popover` or `Modal`        |
+| TabGroup           | Organize pop-out content | `Tabs`                      |
+| SettingsButton     | Trigger for pop-out      | `ActionIcon` with gear icon |
+| CollapsibleSection | Inline expandable areas  | Existing `ControlSubGroup`  |
 
 ### 4.2 Property Tier Assignment
 
-| Tier | Location | Properties | Clicks to Access |
-|------|----------|-----------|------------------|
-| Essential | Inline | Text, Font, Size, Color | 0 |
-| Common | Pop-out > Position tab | Position, Offset, Billboard, Location | 1 |
-| Style | Pop-out > Style tab | Weight, Background, Outline, Shadow | 1 |
-| Advanced | Pop-out > Advanced tab | Resolution, Depth Fade, Animation | 1 |
+| Tier      | Location               | Properties                            | Clicks to Access |
+| --------- | ---------------------- | ------------------------------------- | ---------------- |
+| Essential | Inline                 | Text, Font, Size, Color               | 0                |
+| Common    | Pop-out > Position tab | Position, Offset, Billboard, Location | 1                |
+| Style     | Pop-out > Style tab    | Weight, Background, Outline, Shadow   | 1                |
+| Advanced  | Pop-out > Advanced tab | Resolution, Depth Fade, Animation     | 1                |
 
 ### 4.3 Responsive Behavior
 
@@ -341,22 +359,26 @@ Where [⚙️] next to Position opens a small pop-out for:
 ## Part 5: References
 
 ### Figma Documentation
+
 - [Design, prototype, and explore layer properties](https://help.figma.com/hc/en-us/articles/360039832014-Design-prototype-and-explore-layer-properties-in-the-right-sidebar)
 - [Explore text properties](https://help.figma.com/hc/en-us/articles/360039956634-Explore-text-properties)
 - [Navigating UI3: Figma's new UI](https://help.figma.com/hc/en-us/articles/23954856027159-Navigating-UI3-Figma-s-new-UI)
 - [Create and apply text styles](https://help.figma.com/hc/en-us/articles/360039957034-Create-and-apply-text-styles)
 
 ### Design Philosophy
+
 - [Figma on Figma: Our Approach to Designing UI3](https://www.figma.com/blog/our-approach-to-designing-ui3/)
 - [Typography systems in Figma](https://www.figma.com/best-practices/typography-systems-in-figma/)
 
 ### UI Patterns
+
 - [Progressive Disclosure Examples](https://medium.com/@Flowmapp/progressive-disclosure-10-great-examples-to-check-5e54c5e0b5b6)
 - [Progressive Disclosure - The Decision Lab](https://thedecisionlab.com/reference-guide/design/progressive-disclosure)
 - [Accordion Design Variations](https://www.figma.com/community/file/1411437020002656213/accordion-design-variations)
 - [Expand Collapse UI Design Guide](https://pixso.net/tips/expand-collapse-ui-design/)
 
 ### Figma Community Resources
+
 - [Collapsible Panel Component](https://www.figma.com/community/file/1431884911958753664/collapsible-panel)
 - [Figma Design Principles](https://www.figma.com/community/file/817913152610525667/figma-design-principles)
 
@@ -369,6 +391,7 @@ Where [⚙️] next to Position opens a small pop-out for:
 Figma uses **two different patterns** for optional features, depending on the use case:
 
 #### Pattern A: Plus/Minus (+/-) with Eye Icon
+
 **Used for**: Features that can have **multiple instances** (fills, strokes, effects/shadows)
 
 ```
@@ -381,6 +404,7 @@ Fill
 ```
 
 **Interaction**:
+
 - **+ (Plus)**: Adds a new instance (e.g., another fill, another shadow)
 - **- (Minus)**: Removes the instance entirely
 - **Eye icon**: Toggles visibility without removing (non-destructive hide)
@@ -389,6 +413,7 @@ Fill
 **Source**: [Guide to fills](https://help.figma.com/hc/en-us/articles/360041003694-Guide-to-fills)
 
 #### Pattern B: Toggle Switch
+
 **Used for**: Features that are **boolean on/off** (single instance, layer visibility)
 
 ```
@@ -399,6 +424,7 @@ Properties
 ```
 
 **Interaction**:
+
 - Click to toggle between on/off states
 - When off, dependent controls may be hidden or disabled
 - No "remove" concept - the property always exists, just enabled or disabled
@@ -419,11 +445,11 @@ This is a deliberate design choice - toggle switches are more visually scannable
 
 ### 6.3 When to Use Each Pattern
 
-| Pattern | Use When | Example |
-|---------|----------|---------|
-| **+/- with Eye** | Multiple instances possible | Multiple fills, multiple shadows, multiple effects |
-| **Toggle Switch** | Single on/off feature | "Has Icon", "Billboard mode", layer visibility |
-| **Section Header Toggle** | Feature with child properties | "Auto layout" (expands to show child controls) |
+| Pattern                   | Use When                      | Example                                            |
+| ------------------------- | ----------------------------- | -------------------------------------------------- |
+| **+/- with Eye**          | Multiple instances possible   | Multiple fills, multiple shadows, multiple effects |
+| **Toggle Switch**         | Single on/off feature         | "Has Icon", "Billboard mode", layer visibility     |
+| **Section Header Toggle** | Feature with child properties | "Auto layout" (expands to show child controls)     |
 
 ### 6.4 Effects Panel Deep Dive
 
@@ -437,6 +463,7 @@ Effects                              [+]
 ```
 
 **Key behaviors**:
+
 - Clicking **+** opens a dropdown to select effect type (Drop shadow, Inner shadow, Layer blur, Background blur, Noise, Texture, Glass)
 - Each effect has its own **eye icon** for visibility
 - Each effect has a **settings icon** (⚙️) that opens a popover with detailed controls
@@ -447,19 +474,20 @@ Effects                              [+]
 
 ### 6.5 Comparison to Current Graphty Implementation
 
-| Graphty Current | Figma Equivalent | Recommendation |
-|-----------------|------------------|----------------|
-| `☑ Enabled` checkbox for Label | Toggle switch | **Switch to toggle** |
-| `☑ Glow` checkbox | +/- pattern OR toggle | **See section 6.6** |
-| `☑ Outline` checkbox | +/- pattern OR toggle | **See section 6.6** |
-| `☑ Background` checkbox | Toggle switch | **Switch to toggle** |
-| `☑ Billboard` checkbox | Toggle switch | **Switch to toggle** |
+| Graphty Current                | Figma Equivalent      | Recommendation       |
+| ------------------------------ | --------------------- | -------------------- |
+| `☑ Enabled` checkbox for Label | Toggle switch         | **Switch to toggle** |
+| `☑ Glow` checkbox              | +/- pattern OR toggle | **See section 6.6**  |
+| `☑ Outline` checkbox           | +/- pattern OR toggle | **See section 6.6**  |
+| `☑ Background` checkbox        | Toggle switch         | **Switch to toggle** |
+| `☑ Billboard` checkbox         | Toggle switch         | **Switch to toggle** |
 
 ### 6.6 Recommendation for Graphty Effects
 
 Our "Effects" section has: Glow, Outline, Wireframe, Flat Shaded
 
 **Analysis**:
+
 - These are **not** multiple-instance features (you can't have 3 glows)
 - They are **boolean on/off** features
 - However, Glow and Outline have **child properties** when enabled (color, strength/width)
@@ -498,6 +526,7 @@ But this adds complexity for features that are simple on/off toggles. **The togg
 ### 7.1 Replace Checkboxes with Toggle Switches
 
 **Before** (current):
+
 ```
 ☑ Enabled
 ☑ Billboard
@@ -505,6 +534,7 @@ But this adds complexity for features that are simple on/off toggles. **The togg
 ```
 
 **After** (recommended):
+
 ```
 Enabled     [●====]
 Billboard   [●====]
@@ -512,6 +542,7 @@ Background  [====○]
 ```
 
 **Benefits**:
+
 - Matches Figma's design language
 - More visually scannable
 - Clearer on/off state indication
@@ -522,6 +553,7 @@ Background  [====○]
 ### 7.2 Effects Section Options
 
 **Option A: Toggle Switches (Simpler)**
+
 ```
 Effects
 ├── Glow        [●====]  → expands to show Color, Strength
@@ -531,6 +563,7 @@ Effects
 ```
 
 **Option B: +/- Pattern (More Figma-like)**
+
 ```
 Effects                    [+]
 ├── [eye] Glow    [⚙️] [-]
@@ -566,6 +599,7 @@ Label
 ## Part 8: Additional References
 
 ### Optional Features & Toggle Patterns
+
 - [Apply and adjust stroke properties](https://help.figma.com/hc/en-us/articles/360049283914-Apply-and-adjust-stroke-properties)
 - [Apply effects to layers](https://help.figma.com/hc/en-us/articles/360041488473-Apply-effects-to-layers)
 - [Toggle visibility to hide layers](https://help.figma.com/hc/en-us/articles/360041112614-Toggle-visibility-to-hide-layers)
@@ -573,6 +607,7 @@ Label
 - [Figma Component Properties Guide](https://www.thedesignership.com/blog/figma-component-properties-guide)
 
 ### UI Component Resources
+
 - [Toggles, Switches & Checkboxes UI Kit](https://www.figma.com/community/file/1317167172273052708/toggles-switches-checkboxes-ui-kit)
 - [Figma toggle components - Untitled UI](https://www.untitledui.com/components/toggles)
 - [Toggle Switch Variants](https://www.figma.com/community/file/1197516601322622426/toggle-switch-variants-and-components)

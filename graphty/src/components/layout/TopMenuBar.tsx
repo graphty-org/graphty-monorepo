@@ -1,5 +1,5 @@
-import {ActionIcon, Box, Group, Menu as MantineMenu, Title} from "@mantine/core";
-import {Database, Download, Menu, MessageSquare, Settings, Share, Sparkles, Upload} from "lucide-react";
+import { ActionIcon, Box, Group, Menu as MantineMenu, Title } from "@mantine/core";
+import { Database, Download, Menu, MessageSquare, Settings, Share, Sparkles, Upload } from "lucide-react";
 import React from "react";
 
 interface TopMenuBarProps {
@@ -17,6 +17,22 @@ interface TopMenuBarProps {
     onOpenAiSettings?: () => void;
 }
 
+/**
+ * Top menu bar with file menu, title, and action buttons.
+ * @param root0 - Component props
+ * @param root0.className - Optional CSS class name
+ * @param root0.style - Optional inline styles
+ * @param root0.onToggleLeftSidebar - Toggle left sidebar visibility
+ * @param root0.onToggleRightSidebar - Toggle right sidebar visibility
+ * @param root0.onToggleToolbar - Toggle toolbar visibility
+ * @param root0.onLoadData - Open load data modal
+ * @param root0.onViewData - Open view data modal
+ * @param root0.hasData - Whether data is loaded (enables View Data)
+ * @param root0.onRunLayouts - Open run layouts modal
+ * @param root0.onSendFeedback - Open feedback modal
+ * @param root0.onOpenAiSettings - Open AI settings modal
+ * @returns The top menu bar component
+ */
 export function TopMenuBar({
     className,
     style,
@@ -42,18 +58,14 @@ export function TopMenuBar({
                 paddingRight: "16px",
                 backgroundColor: "var(--mantine-color-body)",
                 borderBottom: "1px solid var(--mantine-color-default-border)",
-                ... style,
+                ...style,
             }}
         >
             {/* Left side - Menu dropdown */}
             <Group gap="xs">
                 <MantineMenu shadow="md" width={200}>
                     <MantineMenu.Target>
-                        <ActionIcon
-                            variant="subtle"
-                            color="gray"
-                            aria-label="Main menu"
-                        >
+                        <ActionIcon variant="subtle" color="gray" aria-label="Main menu">
                             <Menu size={20} />
                         </ActionIcon>
                     </MantineMenu.Target>
@@ -73,40 +85,26 @@ export function TopMenuBar({
                         <MantineMenu.Item leftSection={<Sparkles size={14} />} onClick={onRunLayouts}>
                             Run Layouts...
                         </MantineMenu.Item>
-                        <MantineMenu.Item leftSection={<Download size={14} />}>
-                            Export
-                        </MantineMenu.Item>
+                        <MantineMenu.Item leftSection={<Download size={14} />}>Export</MantineMenu.Item>
 
                         <MantineMenu.Divider />
 
                         <MantineMenu.Label>View</MantineMenu.Label>
-                        <MantineMenu.Item onClick={onToggleLeftSidebar}>
-                            Toggle Layers Panel
-                        </MantineMenu.Item>
-                        <MantineMenu.Item onClick={onToggleRightSidebar}>
-                            Toggle Properties Panel
-                        </MantineMenu.Item>
-                        <MantineMenu.Item onClick={onToggleToolbar}>
-                            Toggle Toolbar
-                        </MantineMenu.Item>
+                        <MantineMenu.Item onClick={onToggleLeftSidebar}>Toggle Layers Panel</MantineMenu.Item>
+                        <MantineMenu.Item onClick={onToggleRightSidebar}>Toggle Properties Panel</MantineMenu.Item>
+                        <MantineMenu.Item onClick={onToggleToolbar}>Toggle Toolbar</MantineMenu.Item>
 
                         <MantineMenu.Divider />
 
                         <MantineMenu.Label>AI</MantineMenu.Label>
-                        <MantineMenu.Item
-                            leftSection={<Sparkles size={14} />}
-                            onClick={onOpenAiSettings}
-                        >
+                        <MantineMenu.Item leftSection={<Sparkles size={14} />} onClick={onOpenAiSettings}>
                             AI Settings...
                         </MantineMenu.Item>
 
                         <MantineMenu.Divider />
 
                         <MantineMenu.Label>Help</MantineMenu.Label>
-                        <MantineMenu.Item
-                            leftSection={<MessageSquare size={14} />}
-                            onClick={onSendFeedback}
-                        >
+                        <MantineMenu.Item leftSection={<MessageSquare size={14} />} onClick={onSendFeedback}>
                             Send feedback...
                         </MantineMenu.Item>
                     </MantineMenu.Dropdown>
@@ -114,26 +112,16 @@ export function TopMenuBar({
             </Group>
 
             {/* Center - Logo/Title */}
-            <Box style={{flex: 1, display: "flex", justifyContent: "center"}}>
-                <Title order={3}>
-                    Graphty
-                </Title>
+            <Box style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+                <Title order={3}>Graphty</Title>
             </Box>
 
             {/* Right side - Action buttons */}
             <Group gap="xs">
-                <ActionIcon
-                    variant="subtle"
-                    color="gray"
-                    aria-label="Export graph"
-                >
+                <ActionIcon variant="subtle" color="gray" aria-label="Export graph">
                     <Download size={18} />
                 </ActionIcon>
-                <ActionIcon
-                    variant="subtle"
-                    color="gray"
-                    aria-label="Share graph"
-                >
+                <ActionIcon variant="subtle" color="gray" aria-label="Share graph">
                     <Share size={18} />
                 </ActionIcon>
                 <ActionIcon

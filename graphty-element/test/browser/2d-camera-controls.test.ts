@@ -1,18 +1,18 @@
 // @ts-nocheck
-import {PointerEventTypes, PointerInfo, PointerInfoPre, Vector3} from "@babylonjs/core";
-import {afterEach, assert, beforeEach, describe, test, vi} from "vitest";
+import { PointerEventTypes, PointerInfo, PointerInfoPre, Vector3 } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
-import {TwoDCameraController} from "../../src/cameras/TwoDCameraController";
-import {InputController} from "../../src/cameras/TwoDInputController";
-import {Graph} from "../../src/Graph";
-import {cleanupTestGraph, createTestGraph} from "../helpers/testSetup";
+import { TwoDCameraController } from "../../src/cameras/TwoDCameraController";
+import { InputController } from "../../src/cameras/TwoDInputController";
+import { Graph } from "../../src/Graph";
+import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("2D Camera Controls", () => {
     let graph: Graph;
     let cameraController: TwoDCameraController;
     let inputController: InputController;
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         // Create test graph
         graph = await createTestGraph();
 
@@ -22,7 +22,7 @@ describe("2D Camera Controls", () => {
             majorVersion: "1",
             graph: {
                 twoD: true,
-                background: {backgroundType: "color", color: "#f0f0f0"},
+                background: { backgroundType: "color", color: "#f0f0f0" },
                 addDefaultStyle: true,
                 startingCameraDistance: 30,
                 layout: "ngraph",
@@ -59,12 +59,13 @@ describe("2D Camera Controls", () => {
         // Get the camera controller
         const cameraManager = graph.camera;
         // @ts-expect-error Accessing private property for testing
-        cameraController = (cameraManager as unknown as {activeCameraController: TwoDCameraController}).activeCameraController;
+        cameraController = (cameraManager as unknown as { activeCameraController: TwoDCameraController })
+            .activeCameraController;
         assert.isDefined(cameraController, "Camera controller should be defined after switching to 2D mode");
 
         // Access the input controller through camera manager
         // @ts-expect-error Accessing private property for testing
-        inputController = (cameraManager as unknown as {activeInputHandler: InputController}).activeInputHandler;
+        inputController = (cameraManager as unknown as { activeInputHandler: InputController }).activeInputHandler;
         assert.isDefined(inputController, "Input controller should be defined");
     });
 
@@ -121,124 +122,124 @@ describe("2D Camera Controls", () => {
     });
 
     test("keyboard WASD controls update velocity", () => {
-        const {canvas} = graph;
+        const { canvas } = graph;
 
         // Reset velocity before each test
-        cameraController.velocity = {x: 0, y: 0, zoom: 0, rotate: 0};
+        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
 
         // Test W key (up)
-        canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "w"}));
+        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "w" }));
         inputController.applyKeyboardInertia();
 
         assert.isTrue(cameraController.velocity.y > 0, "W key should increase Y velocity");
 
         // Reset and test S key (down)
-        cameraController.velocity = {x: 0, y: 0, zoom: 0, rotate: 0};
-        canvas.dispatchEvent(new KeyboardEvent("keyup", {key: "w"}));
-        canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "s"}));
+        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
+        canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "w" }));
+        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "s" }));
         inputController.applyKeyboardInertia();
 
         assert.isTrue(cameraController.velocity.y < 0, "S key should decrease Y velocity");
 
         // Reset and test A key (left)
-        cameraController.velocity = {x: 0, y: 0, zoom: 0, rotate: 0};
-        canvas.dispatchEvent(new KeyboardEvent("keyup", {key: "s"}));
-        canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "a"}));
+        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
+        canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "s" }));
+        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "a" }));
         inputController.applyKeyboardInertia();
 
         assert.isTrue(cameraController.velocity.x < 0, "A key should decrease X velocity");
 
         // Reset and test D key (right)
-        cameraController.velocity = {x: 0, y: 0, zoom: 0, rotate: 0};
-        canvas.dispatchEvent(new KeyboardEvent("keyup", {key: "a"}));
-        canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "d"}));
+        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
+        canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "a" }));
+        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "d" }));
         inputController.applyKeyboardInertia();
 
         assert.isTrue(cameraController.velocity.x > 0, "D key should increase X velocity");
     });
 
     test("keyboard arrow keys work like WASD", () => {
-        const {canvas} = graph;
+        const { canvas } = graph;
 
         // Reset velocity before each test
-        cameraController.velocity = {x: 0, y: 0, zoom: 0, rotate: 0};
+        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
 
         // Test Arrow Up (like W)
-        canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "ArrowUp"}));
+        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp" }));
         inputController.applyKeyboardInertia();
 
         assert.isTrue(cameraController.velocity.y > 0, "Arrow Up should increase Y velocity");
 
         // Reset and test Arrow Down (like S)
-        cameraController.velocity = {x: 0, y: 0, zoom: 0, rotate: 0};
-        canvas.dispatchEvent(new KeyboardEvent("keyup", {key: "ArrowUp"}));
-        canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "ArrowDown"}));
+        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
+        canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowUp" }));
+        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
         inputController.applyKeyboardInertia();
 
         assert.isTrue(cameraController.velocity.y < 0, "Arrow Down should decrease Y velocity");
 
         // Reset and test Arrow Left (like A)
-        cameraController.velocity = {x: 0, y: 0, zoom: 0, rotate: 0};
-        canvas.dispatchEvent(new KeyboardEvent("keyup", {key: "ArrowDown"}));
-        canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "ArrowLeft"}));
+        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
+        canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowDown" }));
+        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
         inputController.applyKeyboardInertia();
 
         assert.isTrue(cameraController.velocity.x < 0, "Arrow Left should decrease X velocity");
 
         // Reset and test Arrow Right (like D)
-        cameraController.velocity = {x: 0, y: 0, zoom: 0, rotate: 0};
-        canvas.dispatchEvent(new KeyboardEvent("keyup", {key: "ArrowLeft"}));
-        canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "ArrowRight"}));
+        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
+        canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowLeft" }));
+        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
         inputController.applyKeyboardInertia();
 
         assert.isTrue(cameraController.velocity.x > 0, "Arrow Right should increase X velocity");
     });
 
     test("keyboard zoom controls update zoom velocity", () => {
-        const {canvas} = graph;
+        const { canvas } = graph;
 
         // Reset velocity before each test
-        cameraController.velocity = {x: 0, y: 0, zoom: 0, rotate: 0};
+        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
 
         // Test + key (zoom in)
-        canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "+"}));
+        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "+" }));
         inputController.applyKeyboardInertia();
 
         assert.isTrue(cameraController.velocity.zoom < 0, "+ key should decrease zoom velocity (zoom in)");
 
         // Reset and test = key (alternative zoom in)
-        cameraController.velocity = {x: 0, y: 0, zoom: 0, rotate: 0};
-        canvas.dispatchEvent(new KeyboardEvent("keyup", {key: "+"}));
-        canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "="}));
+        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
+        canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "+" }));
+        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "=" }));
         inputController.applyKeyboardInertia();
 
         assert.isTrue(cameraController.velocity.zoom < 0, "= key should decrease zoom velocity (zoom in)");
 
         // Reset and test - key (zoom out)
-        cameraController.velocity = {x: 0, y: 0, zoom: 0, rotate: 0};
-        canvas.dispatchEvent(new KeyboardEvent("keyup", {key: "="}));
-        canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "-"}));
+        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
+        canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "=" }));
+        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "-" }));
         inputController.applyKeyboardInertia();
 
         assert.isTrue(cameraController.velocity.zoom > 0, "- key should increase zoom velocity (zoom out)");
     });
 
     test("keyboard rotation controls Q/E update rotate velocity", () => {
-        const {canvas} = graph;
+        const { canvas } = graph;
 
         // Reset velocity before each test
-        cameraController.velocity = {x: 0, y: 0, zoom: 0, rotate: 0};
+        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
 
         // Test Q key (rotate counter-clockwise)
-        canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "q"}));
+        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "q" }));
         inputController.applyKeyboardInertia();
 
         assert.isTrue(cameraController.velocity.rotate > 0, "Q key should increase rotate velocity");
 
         // Reset and test E key (rotate clockwise)
-        cameraController.velocity = {x: 0, y: 0, zoom: 0, rotate: 0};
-        canvas.dispatchEvent(new KeyboardEvent("keyup", {key: "q"}));
-        canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "e"}));
+        cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
+        canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "q" }));
+        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "e" }));
         inputController.applyKeyboardInertia();
 
         assert.isTrue(cameraController.velocity.rotate < 0, "E key should decrease rotate velocity");
@@ -251,20 +252,23 @@ describe("2D Camera Controls", () => {
         const initialZoom = (initialOrthoTop ?? 1) - (initialOrthoBottom ?? -1);
 
         // Simulate wheel zoom in (negative deltaY)
-        scene.onPrePointerObservable.notifyObservers({
-            type: PointerEventTypes.POINTERWHEEL,
-            event: {
-                deltaY: -100,
-                preventDefault: vi.fn(),
-            } as unknown as WheelEvent,
-        } as unknown as PointerInfoPre, PointerEventTypes.POINTERWHEEL);
+        scene.onPrePointerObservable.notifyObservers(
+            {
+                type: PointerEventTypes.POINTERWHEEL,
+                event: {
+                    deltaY: -100,
+                    preventDefault: vi.fn(),
+                } as unknown as WheelEvent,
+            } as unknown as PointerInfoPre,
+            PointerEventTypes.POINTERWHEEL,
+        );
 
         const newZoom = (cameraController.camera.orthoTop ?? 1) - (cameraController.camera.orthoBottom ?? -1);
         assert.isTrue(newZoom < initialZoom, "Negative wheel delta should zoom in (decrease ortho range)");
     });
 
     test("canvas gains focus on pointer down", () => {
-        const {canvas} = graph;
+        const { canvas } = graph;
         const scene = graph.getScene();
 
         // Mock focus method
@@ -286,30 +290,39 @@ describe("2D Camera Controls", () => {
     });
 
     test("canvas is made focusable with tabindex", () => {
-        const {canvas} = graph;
+        const { canvas } = graph;
 
         // Canvas should have tabindex attribute for keyboard focus
         assert.equal(canvas.getAttribute("tabindex"), "0");
     });
 
     test("input controller can be enabled and disabled", () => {
-        assert.isTrue((inputController as unknown as {enabled: boolean}).enabled, "Input controller should start enabled");
+        assert.isTrue(
+            (inputController as unknown as { enabled: boolean }).enabled,
+            "Input controller should start enabled",
+        );
 
         inputController.disable();
-        assert.isFalse((inputController as unknown as {enabled: boolean}).enabled, "Input controller should be disabled");
+        assert.isFalse(
+            (inputController as unknown as { enabled: boolean }).enabled,
+            "Input controller should be disabled",
+        );
 
         inputController.enable();
-        assert.isTrue((inputController as unknown as {enabled: boolean}).enabled, "Input controller should be re-enabled");
+        assert.isTrue(
+            (inputController as unknown as { enabled: boolean }).enabled,
+            "Input controller should be re-enabled",
+        );
     });
 
     test("keyboard input has no effect when disabled", () => {
-        const {canvas} = graph;
+        const { canvas } = graph;
 
         // Disable input controller
         inputController.disable();
 
         // Try keyboard input
-        canvas.dispatchEvent(new KeyboardEvent("keydown", {key: "w"}));
+        canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "w" }));
         inputController.applyKeyboardInertia();
 
         // Velocity should remain zero

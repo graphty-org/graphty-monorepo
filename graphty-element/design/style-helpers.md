@@ -10,6 +10,7 @@
 StyleHelpers provide reusable utility functions that map algorithm results to visual styles. This system enables consistent, professional, accessible visualizations across all 27+ planned algorithms.
 
 **Related Documents**:
+
 - **[Color Palettes Specification](./color-palettes-specification.md)** - Research-backed color system (Okabe-Ito, Viridis, Paul Tol)
 - **[StyleHelpers Framework](./style-helpers-framework.md)** - Detailed analysis of algorithm result types and visual mappings
 - **[Algorithm Suggested Styles](./algorithm-suggested-styles.md)** - Original design for suggested styles feature
@@ -101,6 +102,7 @@ export namespace Sequential {
 ```
 
 **Implementation Example** (DegreeAlgorithm):
+
 ```typescript
 static suggestedStyles = (): SuggestedStylesConfig => ({
   layers: [{
@@ -120,6 +122,7 @@ static suggestedStyles = (): SuggestedStylesConfig => ({
 ```
 
 **Color Values** (Viridis default):
+
 ```
 0.0 → #440154 (deep purple)
 0.2 → #2a788e (teal)
@@ -172,6 +175,7 @@ export namespace Categorical {
 ```
 
 **Implementation Example** (LouvainAlgorithm):
+
 ```typescript
 static suggestedStyles = (): SuggestedStylesConfig => ({
   layers: [{
@@ -191,6 +195,7 @@ static suggestedStyles = (): SuggestedStylesConfig => ({
 ```
 
 **Color Values** (Okabe-Ito default):
+
 ```
 0 → #E69F00 (Orange)
 1 → #56B4E9 (Sky Blue)
@@ -233,6 +238,7 @@ export namespace Diverging {
 ```
 
 **Implementation Example** (hypothetical clustering quality):
+
 ```typescript
 static suggestedStyles = (): SuggestedStylesConfig => ({
   layers: [{
@@ -253,6 +259,7 @@ static suggestedStyles = (): SuggestedStylesConfig => ({
 ```
 
 **Color Values** (Purple-Green default):
+
 ```
 0.0 → #762a83 (purple - low)
 0.5 → #f7f7f7 (white - midpoint)
@@ -294,6 +301,7 @@ export namespace Binary {
 ```
 
 **Implementation Example** (DijkstraAlgorithm):
+
 ```typescript
 static suggestedStyles = (): SuggestedStylesConfig => ({
   layers: [
@@ -324,6 +332,7 @@ static suggestedStyles = (): SuggestedStylesConfig => ({
 ```
 
 **Color Values**:
+
 ```
 blueHighlight: true  → #0072B2 (Okabe-Ito blue)
 blueHighlight: false → #CCCCCC (light gray)
@@ -365,6 +374,7 @@ export namespace Size {
 ```
 
 **Implementation Example** (PageRankAlgorithm):
+
 ```typescript
 static suggestedStyles = (): SuggestedStylesConfig => ({
   layers: [{
@@ -486,6 +496,7 @@ export namespace Opacity {
 ```
 
 **Implementation Example** (de-emphasize low-degree nodes):
+
 ```typescript
 calculatedStyle: {
   inputs: ["algorithmResults.graphty.degree.degreePct"],
@@ -533,6 +544,7 @@ export namespace Label {
 ```
 
 **Implementation Example**:
+
 ```typescript
 label: {
   enabled: true,
@@ -601,6 +613,7 @@ export namespace Label {
 ```
 
 **Example** (only show labels for nodes above 50%):
+
 ```typescript
 label: {
   enabled: true,
@@ -646,6 +659,7 @@ export namespace EdgeWidth {
 ```
 
 **Implementation Example** (MaxFlowAlgorithm):
+
 ```typescript
 static suggestedStyles = (): SuggestedStylesConfig => ({
   layers: [{
@@ -675,17 +689,18 @@ static suggestedStyles = (): SuggestedStylesConfig => ({
 ```typescript
 // In StyleManager or expression evaluator
 const evalContext = {
-  arguments: inputValues,
-  StyleHelpers: StyleHelpers, // ⭐ Inject all helpers
+    arguments: inputValues,
+    StyleHelpers: StyleHelpers, // ⭐ Inject all helpers
 };
 
-const fn = new Function('StyleHelpers', 'arguments', `return (${expr})`);
+const fn = new Function("StyleHelpers", "arguments", `return (${expr})`);
 const result = fn(StyleHelpers, inputValues);
 ```
 
 This allows expressions to access helpers:
+
 ```typescript
-expr: `{ return StyleHelpers.color.sequential.viridis(arguments[0]) }`
+expr: `{ return StyleHelpers.color.sequential.viridis(arguments[0]) }`;
 ```
 
 ---
@@ -694,39 +709,73 @@ expr: `{ return StyleHelpers.color.sequential.viridis(arguments[0]) }`
 
 ```typescript
 export const StyleHelpers = {
-  color: {
-    sequential: {
-      viridis, plasma, inferno,
-      blues, greens, oranges
+    color: {
+        sequential: {
+            viridis,
+            plasma,
+            inferno,
+            blues,
+            greens,
+            oranges,
+        },
+        diverging: {
+            purpleGreen,
+            blueOrange,
+            redBlue,
+        },
+        categorical: {
+            okabeIto,
+            tolVibrant,
+            tolMuted,
+            carbon,
+            pastel,
+        },
+        binary: {
+            blueHighlight,
+            greenSuccess,
+            orangeWarning,
+            custom,
+        },
     },
-    diverging: {
-      purpleGreen, blueOrange, redBlue
+    size: {
+        linear,
+        linearClipped,
+        log,
+        logSafe,
+        exp,
+        square,
+        cubic,
+        bins,
+        small_medium_large,
+        five_tiers,
     },
-    categorical: {
-      okabeIto, tolVibrant, tolMuted,
-      carbon, pastel
+    opacity: {
+        linear,
+        threshold,
+        binary,
+        inverse,
     },
-    binary: {
-      blueHighlight, greenSuccess, orangeWarning, custom
+    label: {
+        percentage,
+        fixed,
+        scientific,
+        compact,
+        integer,
+        substitute,
+        rankLabel,
+        scoreLabel,
+        communityLabel,
+        levelLabel,
+        ifAbove,
+        topN,
+        conditional,
     },
-  },
-  size: {
-    linear, linearClipped,
-    log, logSafe,
-    exp, square, cubic,
-    bins, small_medium_large, five_tiers
-  },
-  opacity: {
-    linear, threshold, binary, inverse
-  },
-  label: {
-    percentage, fixed, scientific, compact, integer,
-    substitute, rankLabel, scoreLabel, communityLabel, levelLabel,
-    ifAbove, topN, conditional
-  },
-  edgeWidth: {
-    linear, log, binary, stepped
-  },
+    edgeWidth: {
+        linear,
+        log,
+        binary,
+        stepped,
+    },
 };
 ```
 
@@ -737,6 +786,7 @@ export const StyleHelpers = {
 ### Phase 1: Core Essentials (1-2 days)
 
 **Priority 1 - Ship with existing algorithms**:
+
 1. ✅ `color.sequential.viridis`
 2. ✅ `color.categorical.okabeIto`
 3. ✅ `color.binary.blueHighlight`
@@ -745,6 +795,7 @@ export const StyleHelpers = {
 6. ✅ `label.percentage`
 
 **Deliverable**:
+
 - StyleHelpers module structure created
 - Priority 1 helpers implemented with color palette integration
 - DegreeAlgorithm, PageRankAlgorithm, LouvainAlgorithm updated to use helpers
@@ -752,6 +803,7 @@ export const StyleHelpers = {
 - Helpers available in calculatedStyle context
 
 **Success Criteria**:
+
 - All 3 algorithms use StyleHelpers with new color palettes
 - Tests pass
 - Visual tests show correct Okabe-Ito and Viridis rendering
@@ -761,6 +813,7 @@ export const StyleHelpers = {
 ### Phase 2: Extended Options (2-3 days)
 
 **Priority 2 - User choices**:
+
 1. Sequential alternatives: plasma, inferno, blues, greens, oranges
 2. Categorical alternatives: tolVibrant, tolMuted, carbon, pastel
 3. Diverging palettes: purpleGreen, blueOrange
@@ -770,6 +823,7 @@ export const StyleHelpers = {
 7. Edge width helpers
 
 **Deliverable**:
+
 - 3-6 options per helper category
 - Storybook visual catalog showing all palettes
 - Documentation with visual examples
@@ -779,6 +833,7 @@ export const StyleHelpers = {
 ### Phase 3: Advanced & Polish (2-3 days)
 
 **Priority 3 - Advanced features**:
+
 1. Combined multi-dimensional helpers
 2. Animation helpers
 3. Conditional label helpers
@@ -787,6 +842,7 @@ export const StyleHelpers = {
 6. Interactive palette picker
 
 **Deliverable**:
+
 - Complete StyleHelpers system
 - Comprehensive documentation
 - Accessibility audit passed
@@ -801,19 +857,19 @@ export const StyleHelpers = {
 ```typescript
 // test/utils/styleHelpers/color/sequential.test.ts
 describe("Sequential.viridis", () => {
-  it("returns deep purple (#440154) for value 0", () => {
-    assert.strictEqual(StyleHelpers.color.sequential.viridis(0), "#440154");
-  });
+    it("returns deep purple (#440154) for value 0", () => {
+        assert.strictEqual(StyleHelpers.color.sequential.viridis(0), "#440154");
+    });
 
-  it("returns bright yellow (#fde724) for value 1", () => {
-    assert.strictEqual(StyleHelpers.color.sequential.viridis(1), "#fde724");
-  });
+    it("returns bright yellow (#fde724) for value 1", () => {
+        assert.strictEqual(StyleHelpers.color.sequential.viridis(1), "#fde724");
+    });
 
-  it("interpolates smoothly", () => {
-    const c1 = StyleHelpers.color.sequential.viridis(0.25);
-    const c2 = StyleHelpers.color.sequential.viridis(0.75);
-    assert.notStrictEqual(c1, c2);
-  });
+    it("interpolates smoothly", () => {
+        const c1 = StyleHelpers.color.sequential.viridis(0.25);
+        const c2 = StyleHelpers.color.sequential.viridis(0.75);
+        assert.notStrictEqual(c1, c2);
+    });
 });
 ```
 
@@ -824,24 +880,24 @@ describe("Sequential.viridis", () => {
 ```typescript
 // stories/StyleHelpers.stories.ts
 export const SequentialGradients: Story = {
-  render: () => {
-    // Show viridis, plasma, inferno side-by-side
-    // Render gradient bars with 0, 0.1, 0.2, ... 1.0
-  },
+    render: () => {
+        // Show viridis, plasma, inferno side-by-side
+        // Render gradient bars with 0, 0.1, 0.2, ... 1.0
+    },
 };
 
 export const CategoricalPalettes: Story = {
-  render: () => {
-    // Show Okabe-Ito, Paul Tol variants
-    // Render 8 colored circles per palette
-  },
+    render: () => {
+        // Show Okabe-Ito, Paul Tol variants
+        // Render 8 colored circles per palette
+    },
 };
 
 export const ColorblindSimulation: Story = {
-  render: () => {
-    // Show normal view + deuteranopia + protanopia + tritanopia
-    // Verify all defaults remain distinguishable
-  },
+    render: () => {
+        // Show normal view + deuteranopia + protanopia + tritanopia
+        // Verify all defaults remain distinguishable
+    },
 };
 ```
 
@@ -850,6 +906,7 @@ export const ColorblindSimulation: Story = {
 ### Accessibility Testing
 
 For every palette:
+
 - ✅ Deuteranopia simulator (red-green, ~5% males)
 - ✅ Protanopia simulator (red-green, ~1% males)
 - ✅ Tritanopia simulator (blue-yellow, ~0.01%)
@@ -902,6 +959,7 @@ static suggestedStyles = (): SuggestedStylesConfig => ({
 ```
 
 **Benefits**:
+
 - ✅ Colorblind-safe (Viridis tested)
 - ✅ Perceptually uniform (accurate interpretation)
 - ✅ Professional aesthetic (industry standard)

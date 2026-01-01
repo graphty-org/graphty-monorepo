@@ -23,7 +23,7 @@ export class ConsoleCaptureUI {
         methods.forEach((method) => {
             this.originalMethods[method] = console[method];
 
-            (console as any)[method] = (... args: any[]) => {
+            (console as any)[method] = (...args: any[]) => {
                 this.logs.push({
                     type: method,
                     args: args,
@@ -187,17 +187,19 @@ export class ConsoleCaptureUI {
     }
 
     private formatLog(log: LogEntry): string {
-        const args = log.args.map((arg) => {
-            if (typeof arg === "object") {
-                try {
-                    return JSON.stringify(arg, null, 2);
-                } catch {
-                    return String(arg);
+        const args = log.args
+            .map((arg) => {
+                if (typeof arg === "object") {
+                    try {
+                        return JSON.stringify(arg, null, 2);
+                    } catch {
+                        return String(arg);
+                    }
                 }
-            }
 
-            return String(arg);
-        }).join(" ");
+                return String(arg);
+            })
+            .join(" ");
 
         return `[${log.timestamp}] [${log.type.toUpperCase()}] ${args}`;
     }
@@ -394,7 +396,7 @@ export class ConsoleCaptureUI {
 
     downloadLogs(): void {
         const text = this.getLogs();
-        const blob = new Blob([text], {type: "text/plain"});
+        const blob = new Blob([text], { type: "text/plain" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;

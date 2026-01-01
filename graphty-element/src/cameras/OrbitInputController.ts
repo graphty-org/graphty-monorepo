@@ -1,7 +1,7 @@
 // OrbitInputController.ts
 import Hammer from "hammerjs";
 
-import {OrbitCameraController, OrbitConfig} from "./OrbitCameraController";
+import { OrbitCameraController, OrbitConfig } from "./OrbitCameraController";
 
 /**
  * Handles user input for the orbit camera controller.

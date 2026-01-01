@@ -1,24 +1,24 @@
-import type {Meta, StoryObj} from "@storybook/web-components-vite";
+import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import {Graphty} from "../src/graphty-element";
-import {eventWaitingDecorator, renderFn, templateCreator} from "./helpers";
+import { Graphty } from "../src/graphty-element";
+import { eventWaitingDecorator, renderFn, templateCreator } from "./helpers";
 
 // Simple test data: 5 nodes, 6 edges - positioned close together in 3D space
 const simpleNodeData = [
-    {id: "A", type: "primary", position: {x: 0, y: 2, z: 0}},
-    {id: "B", type: "secondary", position: {x: -2, y: 0, z: 0}},
-    {id: "C", type: "primary", position: {x: 2, y: 0, z: 0}},
-    {id: "D", type: "secondary", position: {x: 0, y: -2, z: 0}},
-    {id: "E", type: "tertiary", position: {x: 0, y: 0, z: 2}},
+    { id: "A", type: "primary", position: { x: 0, y: 2, z: 0 } },
+    { id: "B", type: "secondary", position: { x: -2, y: 0, z: 0 } },
+    { id: "C", type: "primary", position: { x: 2, y: 0, z: 0 } },
+    { id: "D", type: "secondary", position: { x: 0, y: -2, z: 0 } },
+    { id: "E", type: "tertiary", position: { x: 0, y: 0, z: 2 } },
 ];
 
 const simpleEdgeData = [
-    {src: "A", dst: "B", weight: 1},
-    {src: "A", dst: "C", weight: 2},
-    {src: "B", dst: "D", weight: 1},
-    {src: "C", dst: "D", weight: 2},
-    {src: "D", dst: "E", weight: 1},
-    {src: "E", dst: "A", weight: 2},
+    { src: "A", dst: "B", weight: 1 },
+    { src: "A", dst: "C", weight: 2 },
+    { src: "B", dst: "D", weight: 1 },
+    { src: "C", dst: "D", weight: 2 },
+    { src: "D", dst: "E", weight: 1 },
+    { src: "E", dst: "A", weight: 2 },
 ];
 
 const meta: Meta = {
@@ -53,8 +53,8 @@ export const TwoLayerNodeColors: Story = {
     args: {
         styleTemplate: templateCreator({
             layers: [
-                {node: {selector: "type == 'primary'", style: {enabled: true, texture: {color: "red"}}}},
-                {node: {selector: "type == 'secondary'", style: {enabled: true, texture: {color: "blue"}}}},
+                { node: { selector: "type == 'primary'", style: { enabled: true, texture: { color: "red" } } } },
+                { node: { selector: "type == 'secondary'", style: { enabled: true, texture: { color: "blue" } } } },
             ],
         }),
     },
@@ -69,8 +69,8 @@ export const ShapeAndColorLayers: Story = {
     args: {
         styleTemplate: templateCreator({
             layers: [
-                {node: {selector: "type == 'primary'", style: {enabled: true, shape: {type: "box"}}}},
-                {node: {selector: "type == 'secondary'", style: {enabled: true, texture: {color: "green"}}}},
+                { node: { selector: "type == 'primary'", style: { enabled: true, shape: { type: "box" } } } },
+                { node: { selector: "type == 'secondary'", style: { enabled: true, texture: { color: "green" } } } },
             ],
         }),
     },
@@ -86,9 +86,9 @@ export const ThreeLayerSizes: Story = {
     args: {
         styleTemplate: templateCreator({
             layers: [
-                {node: {selector: "id == 'A'", style: {enabled: true, shape: {size: 2}}}},
-                {node: {selector: "id == 'B' || id == 'C'", style: {enabled: true, shape: {size: 1.5}}}},
-                {node: {selector: "id == 'E'", style: {enabled: true, shape: {size: 0.5}}}},
+                { node: { selector: "id == 'A'", style: { enabled: true, shape: { size: 2 } } } },
+                { node: { selector: "id == 'B' || id == 'C'", style: { enabled: true, shape: { size: 1.5 } } } },
+                { node: { selector: "id == 'E'", style: { enabled: true, shape: { size: 0.5 } } } },
             ],
         }),
     },
@@ -103,8 +103,8 @@ export const EdgeWidthLayers: Story = {
     args: {
         styleTemplate: templateCreator({
             layers: [
-                {edge: {selector: "weight == `1`", style: {enabled: true, line: {width: 0.1}}}},
-                {edge: {selector: "weight == `2`", style: {enabled: true, line: {width: 0.5}}}},
+                { edge: { selector: "weight == `1`", style: { enabled: true, line: { width: 0.1 } } } },
+                { edge: { selector: "weight == `2`", style: { enabled: true, line: { width: 0.5 } } } },
             ],
         }),
     },
@@ -120,9 +120,27 @@ export const ArrowHeadStyles: Story = {
     args: {
         styleTemplate: templateCreator({
             layers: [
-                {edge: {selector: "weight == `1`", style: {enabled: true, arrowHead: {type: "sphere-dot", size: 1.5, color: "white", opacity: 1}}}},
-                {edge: {selector: "weight == `2`", style: {enabled: true, arrowHead: {type: "diamond", size: 1.5, color: "white", opacity: 1}}}},
-                {edge: {selector: "", style: {enabled: true, arrowHead: {type: "normal", size: 1, color: "yellow", opacity: 1}}}},
+                {
+                    edge: {
+                        selector: "weight == `1`",
+                        style: {
+                            enabled: true,
+                            arrowHead: { type: "sphere-dot", size: 1.5, color: "white", opacity: 1 },
+                        },
+                    },
+                },
+                {
+                    edge: {
+                        selector: "weight == `2`",
+                        style: { enabled: true, arrowHead: { type: "diamond", size: 1.5, color: "white", opacity: 1 } },
+                    },
+                },
+                {
+                    edge: {
+                        selector: "",
+                        style: { enabled: true, arrowHead: { type: "normal", size: 1, color: "yellow", opacity: 1 } },
+                    },
+                },
             ],
         }),
     },
@@ -139,10 +157,15 @@ export const MixedNodeProperties: Story = {
     args: {
         styleTemplate: templateCreator({
             layers: [
-                {node: {selector: "type == 'primary'", style: {enabled: true, texture: {color: "red"}}}},
-                {node: {selector: "type == 'secondary'", style: {enabled: true, texture: {color: "blue"}}}},
-                {node: {selector: "type == 'tertiary'", style: {enabled: true, texture: {color: "yellow"}, shape: {type: "cylinder"}}}},
-                {node: {selector: "id == 'A'", style: {enabled: true, shape: {size: 2.5}}}},
+                { node: { selector: "type == 'primary'", style: { enabled: true, texture: { color: "red" } } } },
+                { node: { selector: "type == 'secondary'", style: { enabled: true, texture: { color: "blue" } } } },
+                {
+                    node: {
+                        selector: "type == 'tertiary'",
+                        style: { enabled: true, texture: { color: "yellow" }, shape: { type: "cylinder" } },
+                    },
+                },
+                { node: { selector: "id == 'A'", style: { enabled: true, shape: { size: 2.5 } } } },
             ],
         }),
     },
@@ -157,8 +180,26 @@ export const EdgeColorVariations: Story = {
     args: {
         styleTemplate: templateCreator({
             layers: [
-                {edge: {selector: "weight == `1`", style: {enabled: true, line: {color: "green"}, arrowHead: {type: "normal", size: 1, color: "green", opacity: 1}}}},
-                {edge: {selector: "weight == `2`", style: {enabled: true, line: {color: "red"}, arrowHead: {type: "normal", size: 1, color: "red", opacity: 1}}}},
+                {
+                    edge: {
+                        selector: "weight == `1`",
+                        style: {
+                            enabled: true,
+                            line: { color: "green" },
+                            arrowHead: { type: "normal", size: 1, color: "green", opacity: 1 },
+                        },
+                    },
+                },
+                {
+                    edge: {
+                        selector: "weight == `2`",
+                        style: {
+                            enabled: true,
+                            line: { color: "red" },
+                            arrowHead: { type: "normal", size: 1, color: "red", opacity: 1 },
+                        },
+                    },
+                },
             ],
         }),
     },
@@ -174,9 +215,33 @@ export const OpacityLayers: Story = {
     args: {
         styleTemplate: templateCreator({
             layers: [
-                {node: {selector: "id == 'A'", style: {enabled: true, texture: {color: {colorType: "solid", value: "#FF0000", opacity: 0.3}}}}},
-                {node: {selector: "id == 'B' || id == 'C'", style: {enabled: true, texture: {color: {colorType: "solid", value: "#00FF00", opacity: 0.6}}}}},
-                {node: {selector: "id == 'D' || id == 'E'", style: {enabled: true, texture: {color: {colorType: "solid", value: "#0000FF", opacity: 0.9}}}}},
+                {
+                    node: {
+                        selector: "id == 'A'",
+                        style: {
+                            enabled: true,
+                            texture: { color: { colorType: "solid", value: "#FF0000", opacity: 0.3 } },
+                        },
+                    },
+                },
+                {
+                    node: {
+                        selector: "id == 'B' || id == 'C'",
+                        style: {
+                            enabled: true,
+                            texture: { color: { colorType: "solid", value: "#00FF00", opacity: 0.6 } },
+                        },
+                    },
+                },
+                {
+                    node: {
+                        selector: "id == 'D' || id == 'E'",
+                        style: {
+                            enabled: true,
+                            texture: { color: { colorType: "solid", value: "#0000FF", opacity: 0.9 } },
+                        },
+                    },
+                },
             ],
         }),
     },
@@ -191,8 +256,13 @@ export const WireframeEffectLayers: Story = {
     args: {
         styleTemplate: templateCreator({
             layers: [
-                {node: {selector: "type == 'primary'", style: {enabled: true, effect: {wireframe: true}, texture: {color: "red"}}}},
-                {node: {selector: "type == 'secondary'", style: {enabled: true, texture: {color: "blue"}}}},
+                {
+                    node: {
+                        selector: "type == 'primary'",
+                        style: { enabled: true, effect: { wireframe: true }, texture: { color: "red" } },
+                    },
+                },
+                { node: { selector: "type == 'secondary'", style: { enabled: true, texture: { color: "blue" } } } },
             ],
         }),
     },
@@ -209,10 +279,10 @@ export const ComplexMultiProperty: Story = {
     args: {
         styleTemplate: templateCreator({
             layers: [
-                {node: {selector: "", style: {enabled: true, texture: {color: "green"}, shape: {size: 1}}}},
-                {node: {selector: "type == 'primary'", style: {enabled: true, texture: {color: "red"}}}},
-                {node: {selector: "id == 'A'", style: {enabled: true, shape: {type: "box", size: 2}}}},
-                {node: {selector: "type == 'secondary'", style: {enabled: true, shape: {type: "sphere"}}}},
+                { node: { selector: "", style: { enabled: true, texture: { color: "green" }, shape: { size: 1 } } } },
+                { node: { selector: "type == 'primary'", style: { enabled: true, texture: { color: "red" } } } },
+                { node: { selector: "id == 'A'", style: { enabled: true, shape: { type: "box", size: 2 } } } },
+                { node: { selector: "type == 'secondary'", style: { enabled: true, shape: { type: "sphere" } } } },
             ],
         }),
     },
@@ -227,8 +297,18 @@ export const LabelEnabledLayers: Story = {
     args: {
         styleTemplate: templateCreator({
             layers: [
-                {node: {selector: "type == 'primary'", style: {enabled: true, label: {enabled: true, textPath: "id"}}}},
-                {node: {selector: "id == 'E'", style: {enabled: true, label: {enabled: true, textPath: "id", textColor: "red"}}}},
+                {
+                    node: {
+                        selector: "type == 'primary'",
+                        style: { enabled: true, label: { enabled: true, textPath: "id" } },
+                    },
+                },
+                {
+                    node: {
+                        selector: "id == 'E'",
+                        style: { enabled: true, label: { enabled: true, textPath: "id", textColor: "red" } },
+                    },
+                },
             ],
         }),
     },
@@ -244,9 +324,28 @@ export const ArrowSizeVariations: Story = {
     args: {
         styleTemplate: templateCreator({
             layers: [
-                {edge: {selector: "weight == `1`", style: {enabled: true, arrowHead: {type: "normal", size: 0.5, color: "white", opacity: 1}}}},
-                {edge: {selector: "weight == `2`", style: {enabled: true, arrowHead: {type: "normal", size: 2.0, color: "white", opacity: 1}}}},
-                {edge: {selector: "src == 'A'", style: {enabled: true, line: {color: "purple"}, arrowHead: {type: "normal", size: 1, color: "purple", opacity: 1}}}},
+                {
+                    edge: {
+                        selector: "weight == `1`",
+                        style: { enabled: true, arrowHead: { type: "normal", size: 0.5, color: "white", opacity: 1 } },
+                    },
+                },
+                {
+                    edge: {
+                        selector: "weight == `2`",
+                        style: { enabled: true, arrowHead: { type: "normal", size: 2.0, color: "white", opacity: 1 } },
+                    },
+                },
+                {
+                    edge: {
+                        selector: "src == 'A'",
+                        style: {
+                            enabled: true,
+                            line: { color: "purple" },
+                            arrowHead: { type: "normal", size: 1, color: "purple", opacity: 1 },
+                        },
+                    },
+                },
             ],
         }),
     },
@@ -261,8 +360,18 @@ export const ShapeVariationsWithColor: Story = {
     args: {
         styleTemplate: templateCreator({
             layers: [
-                {node: {selector: "type == 'primary'", style: {enabled: true, shape: {type: "tetrahedron"}, texture: {color: "red"}}}},
-                {node: {selector: "type == 'secondary'", style: {enabled: true, shape: {type: "octahedron"}, texture: {color: "blue"}}}},
+                {
+                    node: {
+                        selector: "type == 'primary'",
+                        style: { enabled: true, shape: { type: "tetrahedron" }, texture: { color: "red" } },
+                    },
+                },
+                {
+                    node: {
+                        selector: "type == 'secondary'",
+                        style: { enabled: true, shape: { type: "octahedron" }, texture: { color: "blue" } },
+                    },
+                },
             ],
         }),
     },
@@ -282,15 +391,15 @@ export const ShapeVariationsWithColor: Story = {
 export const AxisAlignedColoredSpheres: Story = {
     args: {
         nodeData: [
-            {id: "origin", position: {x: 0, y: 0, z: 0}},
-            {id: "x-axis", position: {x: 5, y: 0, z: 0}},
-            {id: "y-axis", position: {x: 0, y: 5, z: 0}},
-            {id: "z-axis", position: {x: 0, y: 0, z: 5}},
+            { id: "origin", position: { x: 0, y: 0, z: 0 } },
+            { id: "x-axis", position: { x: 5, y: 0, z: 0 } },
+            { id: "y-axis", position: { x: 0, y: 5, z: 0 } },
+            { id: "z-axis", position: { x: 0, y: 0, z: 5 } },
         ],
         edgeData: [
-            {src: "origin", dst: "x-axis"},
-            {src: "origin", dst: "y-axis"},
-            {src: "origin", dst: "z-axis"},
+            { src: "origin", dst: "x-axis" },
+            { src: "origin", dst: "y-axis" },
+            { src: "origin", dst: "z-axis" },
         ],
         layout: "fixed",
         layoutConfig: {
@@ -299,13 +408,33 @@ export const AxisAlignedColoredSpheres: Story = {
         styleTemplate: templateCreator({
             layers: [
                 // Origin: tiny black sphere
-                {node: {selector: "id == 'origin'", style: {enabled: true, shape: {size: 0.5}, texture: {color: "black"}}}},
+                {
+                    node: {
+                        selector: "id == 'origin'",
+                        style: { enabled: true, shape: { size: 0.5 }, texture: { color: "black" } },
+                    },
+                },
                 // X-axis: large red sphere
-                {node: {selector: "id == 'x-axis'", style: {enabled: true, shape: {size: 1.5}, texture: {color: "red"}}}},
+                {
+                    node: {
+                        selector: "id == 'x-axis'",
+                        style: { enabled: true, shape: { size: 1.5 }, texture: { color: "red" } },
+                    },
+                },
                 // Y-axis: large green sphere
-                {node: {selector: "id == 'y-axis'", style: {enabled: true, shape: {size: 1.5}, texture: {color: "green"}}}},
+                {
+                    node: {
+                        selector: "id == 'y-axis'",
+                        style: { enabled: true, shape: { size: 1.5 }, texture: { color: "green" } },
+                    },
+                },
                 // Z-axis: large blue sphere
-                {node: {selector: "id == 'z-axis'", style: {enabled: true, shape: {size: 1.5}, texture: {color: "blue"}}}},
+                {
+                    node: {
+                        selector: "id == 'z-axis'",
+                        style: { enabled: true, shape: { size: 1.5 }, texture: { color: "blue" } },
+                    },
+                },
             ],
         }),
     },

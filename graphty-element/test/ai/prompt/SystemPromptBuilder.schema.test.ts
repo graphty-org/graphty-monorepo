@@ -3,11 +3,11 @@
  * @module test/ai/prompt/SystemPromptBuilder.schema.test
  */
 
-import {assert, beforeEach, describe, it} from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 
-import {SystemPromptBuilder} from "../../../src/ai/prompt/SystemPromptBuilder";
-import type {SchemaSummary} from "../../../src/ai/schema/types";
-import type {Graph} from "../../../src/Graph";
+import { SystemPromptBuilder } from "../../../src/ai/prompt/SystemPromptBuilder";
+import type { SchemaSummary } from "../../../src/ai/schema/types";
+import type { Graph } from "../../../src/Graph";
 
 /**
  * Create a minimal mock graph for testing.
@@ -18,7 +18,7 @@ function createMockGraph(): Graph {
         getEdgeCount: () => 5,
         getViewMode: () => "3d",
         getLayoutManager: () => ({
-            layoutEngine: {type: "ngraph"},
+            layoutEngine: { type: "ngraph" },
         }),
     } as unknown as Graph;
 }
@@ -29,16 +29,16 @@ function createMockGraph(): Graph {
 function createTestSchema(overrides: Partial<SchemaSummary> = {}): SchemaSummary {
     return {
         nodeProperties: [
-            {name: "type", type: "string", nullable: false, enumValues: ["server", "client"]},
-            {name: "age", type: "integer", nullable: false, range: {min: 1, max: 100}},
+            { name: "type", type: "string", nullable: false, enumValues: ["server", "client"] },
+            { name: "age", type: "integer", nullable: false, range: { min: 1, max: 100 } },
         ],
         edgeProperties: [
-            {name: "weight", type: "number", nullable: false},
-            {name: "relation", type: "string", nullable: false},
+            { name: "weight", type: "number", nullable: false },
+            { name: "relation", type: "string", nullable: false },
         ],
         nodeCount: 10,
         edgeCount: 5,
-        ... overrides,
+        ...overrides,
     };
 }
 
@@ -69,8 +69,10 @@ describe("SystemPromptBuilder with schema", () => {
 
             // Should not have schema-specific content like property definitions
             // It should still have basic graph state info though
-            assert.ok(!prompt.includes("Node Properties:") && !prompt.includes("nodeProperties"),
-                "Should not include node properties header");
+            assert.ok(
+                !prompt.includes("Node Properties:") && !prompt.includes("nodeProperties"),
+                "Should not include node properties header",
+            );
         });
 
         it("formats schema in markdown", () => {
@@ -86,7 +88,7 @@ describe("SystemPromptBuilder with schema", () => {
         it("updates schema section when setSchema called again", () => {
             // Set initial schema
             const schema1 = createTestSchema({
-                nodeProperties: [{name: "firstProp", type: "string", nullable: false}],
+                nodeProperties: [{ name: "firstProp", type: "string", nullable: false }],
             });
             builder.setSchema(schema1);
 
@@ -95,7 +97,7 @@ describe("SystemPromptBuilder with schema", () => {
 
             // Update schema
             const schema2 = createTestSchema({
-                nodeProperties: [{name: "secondProp", type: "number", nullable: false}],
+                nodeProperties: [{ name: "secondProp", type: "number", nullable: false }],
             });
             builder.setSchema(schema2);
 
@@ -143,10 +145,7 @@ describe("SystemPromptBuilder with schema", () => {
             const prompt = builder.build();
 
             // Should include range info for 'age' property
-            assert.ok(
-                prompt.includes("1") && prompt.includes("100"),
-                "Should include range values",
-            );
+            assert.ok(prompt.includes("1") && prompt.includes("100"), "Should include range values");
         });
     });
 
@@ -155,12 +154,11 @@ describe("SystemPromptBuilder with schema", () => {
             const schema = createTestSchema();
             builder.setSchema(schema);
 
-            const prompt = builder.build({includeStats: true});
+            const prompt = builder.build({ includeStats: true });
 
             // Find positions of sections
             const statsPos = prompt.indexOf("Current Graph State");
-            const schemaPos = prompt.includes("Data Schema") ?
-                prompt.indexOf("Data Schema") : prompt.indexOf("Schema");
+            const schemaPos = prompt.includes("Data Schema") ? prompt.indexOf("Data Schema") : prompt.indexOf("Schema");
 
             // Schema should come after stats (if both exist)
             if (statsPos !== -1 && schemaPos !== -1) {
@@ -182,7 +180,7 @@ describe("SystemPromptBuilder with schema", () => {
             builder.setSchema(schema);
 
             // Build without schema even when set
-            const prompt = builder.build({includeSchema: false});
+            const prompt = builder.build({ includeSchema: false });
 
             // Should not include schema-specific headers
             assert.ok(

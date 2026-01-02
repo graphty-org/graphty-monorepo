@@ -204,11 +204,11 @@ jobs:
                     - graphty-element-storybook-3
                     - graphty-element-storybook-4
                 include:
-                    # algorithms - single shard
+                    # algorithms - single shard (browser tests require Playwright)
                     - shard: algorithms
                       package: algorithms
                       test-command: pnpm exec nx run algorithms:coverage
-                      needs-browser: false
+                      needs-browser: true
                       needs-storybook: false
                     # layout - single shard
                     - shard: layout
@@ -225,54 +225,56 @@ jobs:
                     # graphty-element default tests (Node.js, no browser)
                     - shard: graphty-element-default
                       package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=default --reporter=blob --coverage
+                      test-command: cd graphty-element && pnpm exec vitest run --project=default --reporter=blob --reporter=default --coverage
                       needs-browser: false
                       needs-storybook: false
                     # graphty-element browser tests (5 shards)
+                    # Note: Using both blob and default reporters to capture test results and show failures in logs
                     - shard: graphty-element-browser-1
                       package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=1/5 --reporter=blob --coverage
+                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=1/5 --reporter=blob --reporter=default --coverage
                       needs-browser: true
                       needs-storybook: false
                     - shard: graphty-element-browser-2
                       package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=2/5 --reporter=blob --coverage
+                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=2/5 --reporter=blob --reporter=default --coverage
                       needs-browser: true
                       needs-storybook: false
                     - shard: graphty-element-browser-3
                       package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=3/5 --reporter=blob --coverage
+                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=3/5 --reporter=blob --reporter=default --coverage
                       needs-browser: true
                       needs-storybook: false
                     - shard: graphty-element-browser-4
                       package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=4/5 --reporter=blob --coverage
+                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=4/5 --reporter=blob --reporter=default --coverage
                       needs-browser: true
                       needs-storybook: false
                     - shard: graphty-element-browser-5
                       package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=5/5 --reporter=blob --coverage
+                      test-command: cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --shard=5/5 --reporter=blob --reporter=default --coverage
                       needs-browser: true
                       needs-storybook: false
                     # graphty-element storybook tests (4 shards)
+                    # Note: Using both blob and default reporters to capture test results and show failures in logs
                     - shard: graphty-element-storybook-1
                       package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=1/4 --reporter=blob --coverage
+                      test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=1/4 --reporter=blob --reporter=default --coverage
                       needs-browser: true
                       needs-storybook: true
                     - shard: graphty-element-storybook-2
                       package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=2/4 --reporter=blob --coverage
+                      test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=2/4 --reporter=blob --reporter=default --coverage
                       needs-browser: true
                       needs-storybook: true
                     - shard: graphty-element-storybook-3
                       package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=3/4 --reporter=blob --coverage
+                      test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=3/4 --reporter=blob --reporter=default --coverage
                       needs-browser: true
                       needs-storybook: true
                     - shard: graphty-element-storybook-4
                       package: graphty-element
-                      test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=4/4 --reporter=blob --coverage
+                      test-command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=4/4 --reporter=blob --reporter=default --coverage
                       needs-browser: true
                       needs-storybook: true
 

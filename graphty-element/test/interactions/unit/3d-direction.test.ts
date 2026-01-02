@@ -84,7 +84,7 @@ describe("3D Input Direction Verification", () => {
         teardownTestGraph(graph);
     });
 
-    test("ArrowLeft rotates camera LEFT (increases yaw)", () => {
+    test("ArrowLeft rotates camera LEFT (decreases yaw)", () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
@@ -104,12 +104,12 @@ describe("3D Input Direction Verification", () => {
         // Then at lines 180-182:
         // if (Math.abs(this.rotationVelocityY) > 0.00001) {
         //     cam.rotate(-this.rotationVelocityY / this.config.trackballRotationSpeed, 0);
-        // So ArrowLeft adds positive velocityY, then rotate is called with -velocityY
-        // This causes negative dx to rotate(), which via PivotController should increase yaw (turn left)
-        assert.isAbove(finalRotation.yaw, initialRotation.yaw, "ArrowLeft should rotate camera LEFT (increase yaw)");
+        // So ArrowLeft adds positive velocityY, then rotate is called with -velocityY (negative dx)
+        // After the XR convention fix, rotate() uses dx directly (not -dx), so negative dx decreases yaw
+        assert.isBelow(finalRotation.yaw, initialRotation.yaw, "ArrowLeft should rotate camera LEFT (decrease yaw)");
     });
 
-    test("ArrowRight rotates camera RIGHT (decreases yaw)", () => {
+    test("ArrowRight rotates camera RIGHT (increases yaw)", () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
@@ -126,8 +126,9 @@ describe("3D Input Direction Verification", () => {
 
         // Looking at OrbitInputController.ts lines 147-148:
         // if (keys.arrowright) { this.rotationVelocityY -= this.config.keyboardRotationSpeed; }
-        // Then rotate(-velocityY, 0) = rotate(positive, 0) = positive dx = turn right = decrease yaw
-        assert.isBelow(finalRotation.yaw, initialRotation.yaw, "ArrowRight should rotate camera RIGHT (decrease yaw)");
+        // Then rotate(-velocityY, 0) = rotate(positive, 0) = positive dx
+        // After the XR convention fix, rotate() uses dx directly, so positive dx increases yaw
+        assert.isAbove(finalRotation.yaw, initialRotation.yaw, "ArrowRight should rotate camera RIGHT (increase yaw)");
     });
 
     test("ArrowUp tilts camera UP", () => {
@@ -269,20 +270,20 @@ describe("3D Input Direction Verification", () => {
         // Simulate mouse drag to the RIGHT (positive dx)
         // Looking at OrbitInputController.ts line 43:
         // this.controller.rotate(dx, dy);
-        // And in OrbitCameraController.ts lines 62-65:
-        // this.pivotController.rotate(-dx * trackballRotationSpeed, -dy * trackballRotationSpeed);
-        // So dx > 0 means rotate with -dx*speed = negative yaw delta = turn right
+        // And in OrbitCameraController.ts (after XR convention fix):
+        // this.pivotController.rotate(dx * trackballRotationSpeed, -dy * trackballRotationSpeed);
+        // So dx > 0 means rotate with positive dx*speed = positive yaw delta = turn right
         const dx = 50;
         cameraController.rotate(dx, 0);
 
         // Get final rotation
         const finalRotation = getPivotRotation(cameraController);
 
-        // Drag RIGHT should rotate camera RIGHT (decrease yaw)
-        assert.isBelow(
+        // Drag RIGHT should rotate camera RIGHT (increase yaw with XR convention)
+        assert.isAbove(
             finalRotation.yaw,
             initialRotation.yaw,
-            "Mouse drag RIGHT should rotate camera RIGHT (decrease yaw)",
+            "Mouse drag RIGHT should rotate camera RIGHT (increase yaw)",
         );
     });
 

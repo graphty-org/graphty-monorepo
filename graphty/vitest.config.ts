@@ -23,8 +23,20 @@ export default defineConfig({
         exclude: ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"],
         setupFiles: "./src/test/setup.ts",
         coverage: {
-            reporter: ["text", "json", "html"],
-            exclude: ["node_modules/", "src/test/", "**/*.d.ts", "**/*.config.*", "**/.eslintrc.*", "dist/"],
+            all: true,
+            provider: "v8",
+            reporter: ["text", "json-summary", "json", "lcov", "html"],
+            include: ["src/**/*.ts", "src/**/*.tsx"],
+            exclude: [
+                "node_modules/",
+                "src/test/",
+                "**/*.d.ts",
+                "**/*.config.*",
+                "**/.eslintrc.*",
+                "dist/",
+                "**/*.test.ts",
+                "**/*.test.tsx",
+            ],
         },
     },
 });

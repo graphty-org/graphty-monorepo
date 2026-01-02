@@ -26,6 +26,7 @@
         "test:ui": "vitest --ui",
         "test:run": "vitest run --project=default",
         "test:coverage": "vitest run --coverage",
+        "coverage": "vitest run --coverage",
         "test:browser": "vitest --project=browser",
         "test:all": "vitest run --project=default --project=browser",
         "test:performance": "tsx test/helpers/run-performance-regression.ts",

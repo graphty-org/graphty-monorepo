@@ -11,6 +11,7 @@
         "test:run": "vitest run",
         "test:ui": "vitest --ui",
         "test:coverage": "vitest run --coverage",
+        "coverage": "vitest run --coverage",
         "lint": "eslint && tsc --noEmit",
         "lint:fix": "eslint --fix",
         "storybook": "storybook dev -p 9035 --no-open --https --ssl-cert ~/ssl/STAR_ato_ms.crt --ssl-key ~/ssl/atoms.key",

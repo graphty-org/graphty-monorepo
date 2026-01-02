@@ -207,19 +207,19 @@ jobs:
                     # algorithms - single shard
                     - shard: algorithms
                       package: algorithms
-                      test-command: pnpm exec nx run algorithms:test --ci --coverage
+                      test-command: pnpm exec nx run algorithms:coverage
                       needs-browser: false
                       needs-storybook: false
                     # layout - single shard
                     - shard: layout
                       package: layout
-                      test-command: pnpm exec nx run layout:test --ci --coverage
+                      test-command: pnpm exec nx run layout:coverage
                       needs-browser: false
                       needs-storybook: false
                     # graphty - single shard (uses Playwright for browser-based vitest)
                     - shard: graphty
                       package: graphty
-                      test-command: pnpm exec nx run graphty:test --ci --coverage
+                      test-command: pnpm exec nx run graphty:coverage
                       needs-browser: true
                       needs-storybook: false
                     # graphty-element default tests (Node.js, no browser)

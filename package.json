@@ -7,6 +7,9 @@
     "scripts": {
         "build": "pnpm exec nx run-many --target=build",
         "test": "pnpm exec nx run-many --target=test",
+        "coverage": "pnpm -r run coverage && ./tools/merge-coverage.sh",
+        "coverage:merge": "./tools/merge-coverage.sh",
+        "coverage:merge:ci": "./tools/merge-coverage.sh --ci",
         "lint": "pnpm exec nx run-many --target=lint",
         "typecheck": "pnpm exec nx run-many --target=typecheck",
         "format": "prettier --write .",
@@ -30,6 +33,7 @@
         }
     },
     "devDependencies": {
+        "lcov-result-merger": "^5.0.1",
         "@commitlint/cli": "^19.8.1",
         "prettier": "^3.4.2",
         "@commitlint/config-conventional": "^19.8.1",

@@ -52,66 +52,34 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
             - name: Download all coverage reports
               uses: actions/download-artifact@v4
               with:
                   pattern: coverage-*
                   path: coverage-reports
-                  # Don't use merge-multiple - each artifact's lcov.info would overwrite others
-                  # Instead, each artifact gets its own subdirectory
                   run-id: ${{ github.event.workflow_run.id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Merge coverage reports
+            - name: List downloaded artifacts
               run: |
-                  mkdir -p coverage
-                  # Find all lcov.info files and rewrite paths to be relative to monorepo root
-                  # Coverage files have paths relative to package dir, but Coveralls needs them
-                  # relative to the repo root
-                  for dir in coverage-reports/coverage-*; do
-                    if [ -f "$dir/lcov.info" ]; then
-                      # Extract package name from artifact name (coverage-{package}-{shard})
-                      artifact_name=$(basename "$dir")
-                      # Map artifact prefixes to package directories
-                      if [[ "$artifact_name" == coverage-graphty-element-* ]]; then
-                        pkg_dir="graphty-element"
-                      elif [[ "$artifact_name" == coverage-algorithms* ]]; then
-                        pkg_dir="algorithms"
-                      elif [[ "$artifact_name" == coverage-layout* ]]; then
-                        pkg_dir="layout"
-                      elif [[ "$artifact_name" == coverage-graphty ]]; then
-                        pkg_dir="graphty"
-                      else
-                        echo "Unknown artifact: $artifact_name, skipping path rewrite"
-                        continue
-                      fi
+                  echo "Downloaded coverage artifacts:"
+                  find coverage-reports -name 'lcov.info' -exec ls -la {} \;
 
-                      echo "Rewriting paths in $dir/lcov.info with prefix $pkg_dir/"
-                      # Rewrite SF: (source file) paths to include package directory
-                      sed -i "s|^SF:|SF:$pkg_dir/|" "$dir/lcov.info"
-                    fi
-                  done
-
-                  # Find all lcov.info files
-                  LCOV_FILES=$(find coverage-reports -name 'lcov.info' 2>/dev/null | sort)
-                  if [ -z "$LCOV_FILES" ]; then
-                    echo "No coverage files found"
-                    exit 0
-                  fi
-                  echo "Found coverage files:"
-                  echo "$LCOV_FILES"
-                  # Use lcov-result-merger to properly merge lcov files
-                  # Simple cat creates malformed output that Coveralls can't parse
-                  npx lcov-result-merger 'coverage-reports/**/lcov.info' coverage/lcov.info
-                  if [ -f coverage/lcov.info ] && [ -s coverage/lcov.info ]; then
-                    echo "Merged coverage:"
-                    echo "  Lines: $(wc -l < coverage/lcov.info)"
-                    echo "Sample paths after rewrite:"
-                    grep "^SF:" coverage/lcov.info | head -10
-                  else
-                    echo "Merge produced empty file"
-                    exit 0
-                  fi
+            - name: Merge coverage reports
+              run: ./tools/merge-coverage.sh --ci --artifacts coverage-reports
 
             - name: Publish to Coveralls
               if: hashFiles('coverage/lcov.info') != ''

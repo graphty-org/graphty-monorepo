@@ -1,0 +1,205 @@
+#!/bin/bash
+# coverage-merge.sh - Merge coverage from all vitest shards
+#
+# This script merges coverage reports from sharded test runs into a single
+# coverage report. It expects coverage files in .coverage-parts/ directory.
+#
+# Usage:
+#   ./scripts/coverage-merge.sh              # Merge coverage from .coverage-parts/
+#   ./scripts/coverage-merge.sh --help       # Show help
+#
+# Expected input structure (.coverage-parts/):
+#   default/lcov.info
+#   browser-1/lcov.info ... browser-5/lcov.info
+#   storybook-1/lcov.info ... storybook-4/lcov.info
+#
+# Output:
+#   coverage/lcov.info (merged)
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+COVERAGE_PARTS_DIR="$ROOT_DIR/.coverage-parts"
+OUTPUT_DIR="$ROOT_DIR/coverage"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}[OK]${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --help|-h)
+            echo "Usage: $0"
+            echo ""
+            echo "Merges coverage reports from .coverage-parts/ into coverage/lcov.info"
+            echo ""
+            echo "Expected input structure (.coverage-parts/):"
+            echo "  default/lcov.info"
+            echo "  browser-1/lcov.info ... browser-5/lcov.info"
+            echo "  storybook-1/lcov.info ... storybook-4/lcov.info"
+            echo ""
+            echo "To generate coverage parts, run the sharded test commands:"
+            echo "  pnpm run coverage:shard:default"
+            echo "  pnpm run coverage:shard:browser"
+            echo "  pnpm run coverage:shard:storybook"
+            exit 0
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+cd "$ROOT_DIR"
+
+# Check if coverage parts directory exists
+if [ ! -d "$COVERAGE_PARTS_DIR" ]; then
+    log_error "Coverage parts directory not found: $COVERAGE_PARTS_DIR"
+    log_error "Run the sharded coverage commands first (e.g., pnpm run coverage:shards)"
+    exit 1
+fi
+
+# Find all lcov.info files in coverage parts
+COVERAGE_FILES=$(find "$COVERAGE_PARTS_DIR" -name "lcov.info" 2>/dev/null)
+COVERAGE_COUNT=$(echo "$COVERAGE_FILES" | grep -c "lcov.info" || echo "0")
+
+if [ "$COVERAGE_COUNT" -eq 0 ]; then
+    log_error "No coverage files found in $COVERAGE_PARTS_DIR"
+    log_error "Run the sharded coverage commands first"
+    exit 1
+fi
+
+log_info "Found $COVERAGE_COUNT coverage files to merge"
+
+# Create output directory
+mkdir -p "$OUTPUT_DIR"
+
+# Collect all lcov files into a temp directory with flat names for merging
+TEMP_MERGE_DIR=$(mktemp -d)
+trap "rm -rf $TEMP_MERGE_DIR" EXIT
+
+i=1
+for lcov_file in $COVERAGE_FILES; do
+    # Get the shard name from parent directory
+    shard_name=$(basename "$(dirname "$lcov_file")")
+    cp "$lcov_file" "$TEMP_MERGE_DIR/${shard_name}.info"
+    log_info "  - $shard_name"
+    ((i++)) || true
+done
+
+# Merge coverage files
+log_info "Merging coverage reports..."
+
+if [ "$COVERAGE_COUNT" -eq 1 ]; then
+    # Single file, just copy it
+    cp "$TEMP_MERGE_DIR"/*.info "$OUTPUT_DIR/lcov.info"
+    log_success "Single coverage file copied to $OUTPUT_DIR/lcov.info"
+else
+    # Multiple files, merge them
+    TEMP_MERGED="$TEMP_MERGE_DIR/merged-raw.info"
+    if pnpm exec lcov-result-merger "$TEMP_MERGE_DIR/*.info" "$TEMP_MERGED"; then
+        log_success "Coverage merged"
+    else
+        log_error "Failed to merge coverage files"
+        exit 1
+    fi
+
+    # lcov-result-merger doesn't add LF/LH/BRF/BRH entries, so we need to add them
+    # This awk script processes the merged lcov and adds proper summary entries
+    log_info "Adding coverage summary entries..."
+    awk '
+    BEGIN { lf=0; lh=0; brf=0; brh=0; }
+    /^SF:/ {
+        # Start of new source file - reset counters
+        lf=0; lh=0; brf=0; brh=0;
+        print; next;
+    }
+    /^DA:/ {
+        # Data line: DA:line_number,execution_count
+        lf++;
+        split($0, parts, ",");
+        if (parts[2] > 0) lh++;
+        print; next;
+    }
+    /^BRDA:/ {
+        # Branch data: BRDA:line,block,branch,taken
+        brf++;
+        split($0, parts, ",");
+        if (parts[4] != "-" && parts[4] > 0) brh++;
+        print; next;
+    }
+    /^end_of_record/ {
+        # End of source file - print summary entries before end_of_record
+        print "LF:" lf;
+        print "LH:" lh;
+        if (brf > 0) {
+            print "BRF:" brf;
+            print "BRH:" brh;
+        }
+        print; next;
+    }
+    { print; }
+    ' "$TEMP_MERGED" > "$OUTPUT_DIR/lcov.info"
+
+    log_success "Coverage summary entries added to $OUTPUT_DIR/lcov.info"
+fi
+
+# Show summary
+echo ""
+echo "========================================"
+echo "       COVERAGE SUMMARY"
+echo "========================================"
+echo ""
+
+# List what was merged
+echo "Merged coverage from:"
+for f in "$TEMP_MERGE_DIR"/*.info; do
+    if [ -f "$f" ] && [[ "$(basename "$f")" != "merged-raw.info" ]]; then
+        name=$(basename "$f" .info)
+        lines=$(wc -l < "$f")
+        echo "  - $name ($lines lines)"
+    fi
+done
+echo ""
+
+# Calculate totals
+LF=$(awk -F: '/^LF:/{sum+=$2}END{print sum+0}' "$OUTPUT_DIR/lcov.info")
+LH=$(awk -F: '/^LH:/{sum+=$2}END{print sum+0}' "$OUTPUT_DIR/lcov.info")
+
+if [ "$LF" -gt 0 ]; then
+    PCT=$(awk "BEGIN {printf \"%.1f\", ($LH/$LF)*100}")
+    echo "Total: $LH / $LF lines covered ($PCT%)"
+else
+    echo "Total: no coverage data"
+fi
+
+echo ""
+echo "========================================"
+echo ""
+
+log_info "Coverage report: $OUTPUT_DIR/lcov.info"
+log_info "HTML report: $OUTPUT_DIR/index.html"
+
+exit 0

@@ -29,6 +29,8 @@ tmp/
 storybook-static/
 **/__screenshots__/
 coverage/
+.coverage-parts/
+.coverage-shards/
 
 # Generated TypeScript files in root (from tsconfig.build.json)
 /index.js

@@ -56,6 +56,8 @@ lerna-debug.log*
 # Coverage
 coverage/
 .nyc_output/
+.coverage-shards/
+.coverage-packages/
 
 # Environment
 .env

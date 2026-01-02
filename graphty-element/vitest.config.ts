@@ -203,7 +203,17 @@ export default defineConfig({
         ],
         coverage: {
             all: true,
-            reporter: ["text", "json-summary", "json", "lcov"],
+            provider: "v8",
+            reporter: ["text", "json-summary", "json", "lcov", "html"],
+            // Allow override via COVERAGE_DIR env var for sharded coverage runs
+            reportsDirectory: process.env.COVERAGE_DIR || "coverage",
+            include: ["src/**/*.ts"],
+            exclude: [
+                "**/*.d.ts",
+                "**/*.test.ts",
+                "**/*.spec.ts",
+                "**/types/**",
+            ],
         },
         // dangerouslyIgnoreUnhandledErrors: true,
         slowTestThreshold: 60000,

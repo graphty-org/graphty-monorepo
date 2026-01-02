@@ -75,6 +75,9 @@ importers:
       knip:
         specifier: ^5.61.3
         version: 5.77.4(@types/node@20.19.27)(typescript@5.9.3)
+      lcov-result-merger:
+        specifier: ^5.0.1
+        version: 5.0.1
       nx:
         specifier: 22.3.3
         version: 22.3.3
@@ -6542,6 +6545,11 @@ packages:
   koa@3.0.3:
     resolution: {integrity: sha512-MeuwbCoN1daWS32/Ni5qkzmrOtQO2qrnfdxDHjrm6s4b59yG4nexAJ0pTEFyzjLp0pBVO80CZp0vW8Ze30Ebow==}
     engines: {node: '>= 18'}
+
+  lcov-result-merger@5.0.1:
+    resolution: {integrity: sha512-i53RjTYfqbHgerqGtuJjDfARDU340zNxXrJudQZU3o8ak9rrx8FDQUKf38Cjm6MtbqonqiDFmoKuUe++uZbvOg==}
+    engines: {node: '>=14'}
+    hasBin: true
 
   levn@0.4.1:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
@@ -16828,6 +16836,11 @@ snapshots:
       statuses: 2.0.2
       type-is: 2.0.1
       vary: 1.1.2
+
+  lcov-result-merger@5.0.1:
+    dependencies:
+      fast-glob: 3.3.3
+      yargs: 16.2.0
 
   levn@0.4.1:
     dependencies:

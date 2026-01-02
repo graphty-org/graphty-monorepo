@@ -27,6 +27,7 @@
         "test:run": "vitest run --project=default",
         "test:coverage": "vitest run --coverage",
         "coverage": "vitest run --coverage",
+        "coverage:preview": "npx serve coverage -p 9051",
         "test:browser": "vitest --project=browser",
         "test:all": "vitest run --project=default --project=browser",
         "test:performance": "tsx test/helpers/run-performance-regression.ts",

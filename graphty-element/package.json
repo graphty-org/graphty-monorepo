@@ -96,6 +96,7 @@
         "coverage:shard:storybook:3": "COVERAGE_DIR=.coverage-parts/storybook-3 vitest run --project=storybook --shard=3/4 --coverage",
         "coverage:shard:storybook:4": "COVERAGE_DIR=.coverage-parts/storybook-4 vitest run --project=storybook --shard=4/4 --coverage",
         "coverage:fast": "vitest run --project=default --coverage",
+        "coverage:preview": "npx serve coverage -p 9053",
         "lint": "eslint && tsc --noEmit",
         "lint:fix": "eslint --fix",
         "lint:pkg": "knip",

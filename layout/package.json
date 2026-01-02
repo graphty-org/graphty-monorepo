@@ -27,6 +27,9 @@
         "test:run": "vitest run",
         "test:coverage": "vitest run --coverage",
         "coverage": "vitest run --coverage",
+        "coverage:preview": "npx serve coverage -p 9052",
+        "lint": "tsc --noEmit",
+        "typecheck": "tsc --noEmit",
         "prepare": "husky",
         "build": "tsc",
         "build:bundle": "node scripts/build-bundle.js",
@@ -36,7 +39,8 @@
         "dev": "tsc --watch",
         "commit": "cz",
         "serve": "npm run build:bundle && vite",
-        "examples": "npm run build:bundle && vite"
+        "examples": "npm run build:bundle && vite",
+        "ready:commit": "npm run build && npm run lint && npm run test:run"
     },
     "repository": {
         "type": "git",

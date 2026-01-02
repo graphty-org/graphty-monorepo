@@ -15,7 +15,24 @@
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "prepush": "NX_DAEMON=false pnpm exec nx affected -t build lint test --base=origin/master --head=HEAD --parallel=3",
-        "prepare": "husky"
+        "prepare": "husky",
+        "dev:algorithms": "pnpm --filter @graphty/algorithms run dev",
+        "dev:layout": "pnpm --filter @graphty/layout run dev",
+        "dev:graphty-element": "pnpm --filter @graphty/graphty-element run dev",
+        "dev:graphty": "pnpm --filter @graphty/graphty run dev",
+        "storybook:graphty-element": "pnpm --filter @graphty/graphty-element run storybook",
+        "storybook:graphty": "pnpm --filter @graphty/graphty run storybook",
+        "serve:algorithms": "pnpm --filter @graphty/algorithms run serve",
+        "serve:layout": "pnpm --filter @graphty/layout run serve",
+        "examples:algorithms": "pnpm --filter @graphty/algorithms run examples:html",
+        "examples:layout": "pnpm --filter @graphty/layout run examples",
+        "docs:dev": "pnpm --filter @graphty/graphty-element run docs:dev",
+        "docs:build": "pnpm --filter @graphty/graphty-element run docs:build",
+        "docs:preview": "pnpm --filter @graphty/graphty-element run docs:preview",
+        "coverage:preview:algorithms": "npx serve algorithms/coverage -p 9051",
+        "coverage:preview:layout": "npx serve layout/coverage -p 9052",
+        "coverage:preview:graphty-element": "npx serve graphty-element/coverage -p 9053",
+        "coverage:preview:graphty": "npx serve graphty/coverage -p 9054"
     },
     "engines": {
         "node": ">=18.0.0"

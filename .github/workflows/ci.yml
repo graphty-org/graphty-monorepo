@@ -190,7 +190,8 @@ jobs:
             fail-fast: false
             matrix:
                 shard:
-                    - algorithms
+                    - algorithms-default
+                    - algorithms-browser
                     - layout
                     - graphty
                     - graphty-element-default
@@ -204,10 +205,16 @@ jobs:
                     - graphty-element-storybook-3
                     - graphty-element-storybook-4
                 include:
-                    # algorithms - single shard (browser tests require Playwright)
-                    - shard: algorithms
+                    # algorithms - two shards (default and browser separated to avoid worker timeout)
+                    # Each shard outputs to coverage/ directory; CI artifacts are named coverage-algorithms-{default,browser}
+                    - shard: algorithms-default
                       package: algorithms
-                      test-command: pnpm exec nx run algorithms:coverage
+                      test-command: cd algorithms && pnpm exec vitest run --project=default --coverage
+                      needs-browser: false
+                      needs-storybook: false
+                    - shard: algorithms-browser
+                      package: algorithms
+                      test-command: cd algorithms && pnpm exec vitest run --project=browser --coverage
                       needs-browser: true
                       needs-storybook: false
                     # layout - single shard
@@ -372,7 +379,7 @@ jobs:
                   if-no-files-found: ignore
 
             - name: Upload coverage (algorithms/layout/graphty)
-              if: ${{ !cancelled() && (matrix.shard == 'algorithms' || matrix.shard == 'layout' || matrix.shard == 'graphty') }}
+              if: ${{ !cancelled() && (startsWith(matrix.shard, 'algorithms-') || matrix.shard == 'layout' || matrix.shard == 'graphty') }}
               uses: actions/upload-artifact@v4
               with:
                   name: coverage-${{ matrix.shard }}

@@ -40,6 +40,8 @@ export default defineConfig({
             all: true,
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],
+            // Allow override via COVERAGE_DIR env var for sharded coverage runs
+            reportsDirectory: process.env.COVERAGE_DIR || "coverage",
             include: ["src/**/*.ts"],
             exclude: [
                 "**/*.d.ts",
@@ -48,12 +50,16 @@ export default defineConfig({
                 "**/types/**",
                 "**/index.ts", // Usually just re-exports
             ],
-            thresholds: {
-                lines: 80,
-                functions: 80,
-                branches: 75,
-                statements: 80,
-            },
+            // Disable thresholds during sharded runs (each shard alone won't meet thresholds)
+            // Thresholds are checked at CI level after merging coverage
+            thresholds: process.env.COVERAGE_DIR
+                ? undefined
+                : {
+                      lines: 80,
+                      functions: 80,
+                      branches: 75,
+                      statements: 80,
+                  },
         },
         reporters: ["verbose"],
         slowTestThreshold: 5000,

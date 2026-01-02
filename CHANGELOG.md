@@ -1,3 +1,19 @@
+## 0.1.1 (2026-01-02)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 1.5.1
+
+## 1.5.1 (2026-01-02)
+
+### 🩹 Fixes
+
+- 3d camera rotation direction matches mouse drag ([8013e18](https://github.com/graphty-org/graphty-monorepo/commit/8013e18))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.3.0 (2026-01-01)
 
 ### 🚀 Features

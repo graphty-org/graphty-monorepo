@@ -22,6 +22,9 @@ import {
 
 import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import { ApiKeyManager } from "./ai/keys";
+import { GraphtyLogger, type Logger } from "./logging";
+
+const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 import { Algorithm } from "./algorithms/Algorithm";
 import {
     BUILTIN_PRESETS,
@@ -566,10 +569,9 @@ export class Graph implements GraphContext {
                         // End layout session tracking
                         this.statsManager.endLayoutSession();
                         const snapshot = this.statsManager.getSnapshot();
-                        // eslint-disable-next-line no-console
-                        console.log(
-                            `🎯 Layout settled! (${snapshot.cpu.find((m) => m.label === "Graph.update")?.count ?? 0} update calls)`,
-                        );
+                        graphLogger.debug("Layout settled", {
+                            updateCalls: snapshot.cpu.find((m) => m.label === "Graph.update")?.count ?? 0,
+                        });
                         this.statsManager.reportDetailed();
                         // Reset measurements after reporting so next settlement shows fresh data
                         this.statsManager.resetMeasurements();
@@ -578,8 +580,7 @@ export class Graph implements GraphContext {
                         this.wasSettled = false;
                         // Restart layout session tracking
                         this.statsManager.startLayoutSession();
-                        // eslint-disable-next-line no-console
-                        console.log("🔄 Layout became unsettled, will report on next settlement");
+                        graphLogger.debug("Layout became unsettled, will report on next settlement");
                     }
                 }
             });

@@ -169,7 +169,6 @@ export class Edge {
             },
             this.context.getScene(),
         );
-        // console.log("Edge constructor: arrowTailMesh assigned:", this.arrowTailMesh?.name, this.arrowTailMesh !== null);
 
         // create edge line mesh
         // Note: Edge.transformArrowCap() provides start/end positions already adjusted for node surfaces and arrows
@@ -277,24 +276,10 @@ export class Edge {
         const srcMoved = !(this._lastSrcPos?.equalsWithEpsilon(srcPos, 0.001) ?? false);
         const dstMoved = !(this._lastDstPos?.equalsWithEpsilon(dstPos, 0.001) ?? false);
 
-        // console.log("Edge.update dirty check:", {
-        //     srcMoved,
-        //     dstMoved,
-        //     _lastSrcPos: this._lastSrcPos ? {x: this._lastSrcPos.x, y: this._lastSrcPos.y, z: this._lastSrcPos.z} : null,
-        //     _lastDstPos: this._lastDstPos ? {x: this._lastDstPos.x, y: this._lastDstPos.y, z: this._lastDstPos.z} : null,
-        //     srcPos: {x: srcPos.x, y: srcPos.y, z: srcPos.z},
-        //     dstPos: {x: dstPos.x, y: dstPos.y, z: dstPos.z},
-        // });
-
         if (!srcMoved && !dstMoved) {
-            // Nodes haven't moved, skip update
-            // console.log("Edge.update: Skipping update (nodes haven't moved)");
             this.context.getStatsManager().endMeasurement("Edge.update");
             return;
         }
-
-        // Nodes have moved, perform update
-        // console.log("Edge.update: Performing update (nodes moved)");
 
         const { srcPoint, dstPoint } = this.transformArrowCap();
         const finalSrcPoint = srcPoint ?? new Vector3(lnk.src.x, lnk.src.y, lnk.src.z);
@@ -364,7 +349,6 @@ export class Edge {
      * @param styleId - The new style ID to apply
      */
     updateStyle(styleId: EdgeStyleId): void {
-        // console.log("Edge.updateStyle called:", {oldStyleId: this.styleId, newStyleId: styleId, meshDisposed: this.mesh.isDisposed()});
         // Only skip update if styleId is the same AND mesh is not disposed
         // (mesh can be disposed when switching 2D/3D modes via meshCache.clear())
         // PHASE 5: PatternedLineMesh doesn't have isDisposed(), check if it's AbstractMesh first
@@ -374,11 +358,9 @@ export class Edge {
                 : this.mesh.isDisposed();
 
         if (styleId === this.styleId && !meshDisposed) {
-            // console.log("Edge.updateStyle: skipping update (same style and mesh not disposed)");
             return;
         }
 
-        // console.log("Edge.updateStyle: proceeding with update");
         this.styleId = styleId;
 
         // Invalidate position cache to force edge redraw with new style
@@ -613,9 +595,6 @@ export class Edge {
 
                 // Pure geometric positioning (same as main path, but using node centers/radii)
                 const direction = fallbackDst.subtract(fallbackSrc).normalize();
-
-                // DEBUG: Log node positions and calculated direction
-                // console.log(`Edge: src=(${fallbackSrc.x.toFixed(3)}, ${fallbackSrc.y.toFixed(3)}, ${fallbackSrc.z.toFixed(3)}), dst=(${fallbackDst.x.toFixed(3)}, ${fallbackDst.y.toFixed(3)}, ${fallbackDst.z.toFixed(3)}), dir=(${direction.x.toFixed(3)}, ${direction.y.toFixed(3)}, ${direction.z.toFixed(3)})`);
 
                 // Get arrow length (including size multiplier)
                 this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.styleAndGeometry");

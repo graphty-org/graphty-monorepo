@@ -7,9 +7,12 @@ import {
     type WebXRInputSource,
 } from "@babylonjs/core";
 
+import { GraphtyLogger, type Logger } from "../logging";
 import type { NodeDragHandler } from "../NodeBehavior";
 import { applyDeadzone } from "./InputUtils";
 import type { PivotController } from "./PivotController";
+
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "camera", "xr", "input"]);
 
 // Re-export applyDeadzone for backwards compatibility
 export { applyDeadzone } from "./InputUtils";
@@ -601,8 +604,7 @@ export class XRInputHandler {
                             if (isPinching) {
                                 // Log when trigger state changes
                                 if (!this.wasPinching[handedness]) {
-                                    // eslint-disable-next-line no-console
-                                    console.log(`🎮 TRIGGER_PRESS ${handedness} (val=${triggerValue.toFixed(2)})`);
+                                    logger.debug("Trigger press", { handedness, value: triggerValue });
                                 }
 
                                 this.wasPinching[handedness] = true;
@@ -614,8 +616,7 @@ export class XRInputHandler {
                                     pinchStrength: triggerValue,
                                 };
                             } else if (this.wasPinching[handedness]) {
-                                // eslint-disable-next-line no-console
-                                console.log(`🎮 TRIGGER_RELEASE ${handedness} (val=${triggerValue.toFixed(2)})`);
+                                logger.debug("Trigger release", { handedness, value: triggerValue });
                                 this.wasPinching[handedness] = false;
                                 this.resetGestureState();
                             }
@@ -659,10 +660,7 @@ export class XRInputHandler {
                             : pinchDist < PINCH_THRESHOLD; // Not pinching - use tighter threshold
 
                         if (isP !== wasP) {
-                            // eslint-disable-next-line no-console
-                            console.log(
-                                `🤲 PINCH_${isP ? "START" : "END"} ${handedness} (dist=${pinchDist.toFixed(3)})`,
-                            );
+                            logger.debug(isP ? "Pinch start" : "Pinch end", { handedness, distance: pinchDist });
                             if (!isP) {
                                 this.resetGestureState();
                             }
@@ -818,14 +816,11 @@ export class XRInputHandler {
         const nodeMeshPosition = node.mesh.position;
         const { pickedPoint } = pickInfo;
 
-        // DEBUG: Log drag start with all relevant positions
-        // eslint-disable-next-line no-console
-        console.log(`🎯 DRAG_START ${handedness}`, {
-            handPos: `(${handPosition.x.toFixed(3)}, ${handPosition.y.toFixed(3)}, ${handPosition.z.toFixed(3)})`,
-            nodePos: `(${nodeMeshPosition.x.toFixed(3)}, ${nodeMeshPosition.y.toFixed(3)}, ${nodeMeshPosition.z.toFixed(3)})`,
-            pickPt: pickedPoint
-                ? `(${pickedPoint.x.toFixed(3)}, ${pickedPoint.y.toFixed(3)}, ${pickedPoint.z.toFixed(3)})`
-                : "null",
+        logger.debug("Drag start", {
+            handedness,
+            handPos: { x: handPosition.x, y: handPosition.y, z: handPosition.z },
+            nodePos: { x: nodeMeshPosition.x, y: nodeMeshPosition.y, z: nodeMeshPosition.z },
+            pickPt: pickedPoint ? { x: pickedPoint.x, y: pickedPoint.y, z: pickedPoint.z } : null,
         });
 
         this.isDraggingNode = true;
@@ -876,8 +871,7 @@ export class XRInputHandler {
 
             // Threshold exceeded! Now we're actually dragging
             this.dragThresholdExceeded = true;
-            // eslint-disable-next-line no-console
-            console.log(`🎯 DRAG_THRESHOLD_EXCEEDED (dist=${distanceFromStart.toFixed(3)})`);
+            logger.debug("Drag threshold exceeded", { distance: distanceFromStart });
 
             // NOW call onDragStart since user has committed to dragging
             const node = this.draggedNodeHandler.getNode();
@@ -931,14 +925,14 @@ export class XRInputHandler {
         const currentNodePos = node.mesh.position.clone();
         const newPosition = currentNodePos.add(finalDelta);
 
-        // DEBUG: Log only first 5 updates to catch initial movement issues
+        // Log only first 5 updates to catch initial movement issues
         if (this.dragUpdateCount <= 5) {
-            // eslint-disable-next-line no-console
-            console.log(`🎯 DRAG_UPDATE #${this.dragUpdateCount}`, {
-                delta: `(${xrDelta.x.toFixed(4)}, ${xrDelta.y.toFixed(4)}, ${xrDelta.z.toFixed(4)})`,
-                vel: velocity.toFixed(3),
-                amp: amplification.toFixed(2),
-                newPos: `(${newPosition.x.toFixed(3)}, ${newPosition.y.toFixed(3)}, ${newPosition.z.toFixed(3)})`,
+            logger.trace("Drag update", {
+                updateCount: this.dragUpdateCount,
+                delta: { x: xrDelta.x, y: xrDelta.y, z: xrDelta.z },
+                velocity,
+                amplification,
+                newPos: { x: newPosition.x, y: newPosition.y, z: newPosition.z },
             });
         }
 
@@ -1007,13 +1001,11 @@ export class XRInputHandler {
         if (this.draggedNodeHandler) {
             if (this.dragThresholdExceeded) {
                 // User actually dragged - end the drag normally
-                // eslint-disable-next-line no-console
-                console.log(`🎯 DRAG_END (${this.dragUpdateCount} updates)`);
+                logger.debug("Drag end", { updateCount: this.dragUpdateCount });
                 this.draggedNodeHandler.onDragEnd();
             } else {
                 // User released before threshold - this is a SELECTION, not a drag
-                // eslint-disable-next-line no-console
-                console.log("🎯 SELECT (threshold not exceeded)");
+                logger.debug("Select (threshold not exceeded)");
 
                 // Select the node using the drag handler's select() method
                 this.draggedNodeHandler.select();

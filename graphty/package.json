@@ -4,7 +4,6 @@
     "description": "React application for graph visualization built with Mantine and graphty-element",
     "author": "Adam Powers <apowers@ato.ms>",
     "license": "MIT",
-    "private": true,
     "type": "module",
     "scripts": {
         "dev": "vite",

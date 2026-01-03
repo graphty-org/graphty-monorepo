@@ -47,7 +47,8 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/graphty-org/layout.git"
+        "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
+        "directory": "layout"
     },
     "keywords": [
         "graph",
@@ -57,9 +58,9 @@
     ],
     "license": "MIT",
     "bugs": {
-        "url": "https://github.com/graphty-org/layout/issues"
+        "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
-    "homepage": "https://github.com/graphty-org/layout#readme",
+    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/layout#readme",
     "config": {
         "commitizen": {
             "path": "./node_modules/cz-conventional-changelog"

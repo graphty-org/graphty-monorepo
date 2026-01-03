@@ -40,6 +40,12 @@ jobs:
                   node-version: 22.x
                   cache: "pnpm"
 
+            # Upgrade npm to 11.5.1+ for OIDC trusted publishing support
+            - name: Upgrade npm for trusted publishing
+              run: |
+                  npm install -g npm@latest
+                  npm --version
+
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
               env:
@@ -89,14 +95,18 @@ jobs:
 
             - name: Publish packages
               run: |
+                  echo "npm version: $(npm --version)"
+                  echo "node version: $(node --version)"
                   if [ "${{ inputs.dry_run }}" = "true" ]; then
                       echo "DRY RUN: Would publish packages"
-                      pnpm exec nx release publish --dry-run
+                      pnpm exec nx release publish --dry-run --verbose
                   else
-                      pnpm exec nx release publish
+                      pnpm exec nx release publish --verbose
                   fi
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   # OIDC trusted publishing - npm will use the GitHub Actions OIDC token
                   NPM_CONFIG_PROVENANCE: true
+                  # Clear any NODE_AUTH_TOKEN that might interfere with OIDC
+                  NODE_AUTH_TOKEN: ""
                   HUSKY: "0"

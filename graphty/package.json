@@ -21,7 +21,6 @@
         "test:visual": "npx chromatic",
         "test:visual:debug": "npx chromatic --debug",
         "chromatic": "npx chromatic --exit-zero-on-changes",
-        "prepare": "husky",
         "husky:prepush": "echo no prepush check",
         "ready:commit": "npm run build && npm run lint && npm run test:run"
     },

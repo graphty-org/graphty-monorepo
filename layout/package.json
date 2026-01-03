@@ -21,6 +21,10 @@
     "directories": {
         "example": "examples"
     },
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
     "scripts": {
         "test": "vitest",
         "test:ui": "vitest --ui",
@@ -30,7 +34,6 @@
         "coverage:preview": "npx serve coverage -p 9052",
         "lint": "tsc --noEmit",
         "typecheck": "tsc --noEmit",
-        "prepare": "husky",
         "build": "tsc",
         "build:bundle": "node scripts/build-bundle.js",
         "build:all": "npm run build && npm run build:bundle",

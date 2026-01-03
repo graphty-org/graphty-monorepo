@@ -168,7 +168,7 @@ export default tseslint.config(
             // ==========================================
             // CODE QUALITY
             // ==========================================
-            "no-console": ["warn", { allow: ["warn", "error"] }],
+            "no-console": ["error", { allow: ["warn", "error"] }],
             "no-duplicate-imports": "error",
             "no-useless-constructor": "error",
             "no-useless-rename": "error",

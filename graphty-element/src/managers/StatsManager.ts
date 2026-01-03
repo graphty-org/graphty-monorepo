@@ -7,8 +7,11 @@ import {
     type WebGPUEngine,
 } from "@babylonjs/core";
 
+import { GraphtyLogger, type Logger } from "../logging";
 import type { EventManager } from "./EventManager";
 import type { Manager } from "./interfaces";
+
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "stats"]);
 
 /**
  * Internal measurement statistics for profiling
@@ -485,10 +488,10 @@ export class StatsManager implements Manager {
             try {
                 this.longTaskObserver = new PerformanceObserver((list) => {
                     for (const entry of list.getEntries()) {
-                        // eslint-disable-next-line no-console
-                        console.log(
-                            `⚠️ Long Task Detected (>50ms blocking): ${entry.duration.toFixed(2)}ms at ${entry.startTime.toFixed(2)}ms`,
-                        );
+                        logger.warn("Long task detected (>50ms blocking)", {
+                            duration: entry.duration,
+                            startTime: entry.startTime,
+                        });
                     }
                 });
                 this.longTaskObserver.observe({ type: "longtask", buffered: true });
@@ -568,21 +571,13 @@ export class StatsManager implements Manager {
     private reportHighBlockingFrame(profile: FrameProfile): void {
         const topOps = [...profile.operations].sort((a, b) => b.duration - a.duration).slice(0, 5);
 
-        // eslint-disable-next-line no-console
-        console.log(`⚠️ High Blocking Frame #${profile.frameNumber}:`);
-        // eslint-disable-next-line no-console
-        console.log(`├─ Total Frame Time: ${profile.interFrameTime.toFixed(2)}ms`);
-        // eslint-disable-next-line no-console
-        console.log(`├─ CPU Time: ${profile.totalCpuTime.toFixed(2)}ms`);
-        // eslint-disable-next-line no-console
-        console.log(
-            `├─ Blocking Time: ${profile.blockingTime.toFixed(2)}ms (${profile.blockingRatio.toFixed(2)}x CPU time)`,
-        );
-        // eslint-disable-next-line no-console
-        console.log("└─ Top Operations:");
-        topOps.forEach((op, i) => {
-            // eslint-disable-next-line no-console
-            console.log(`   ${i + 1}. ${op.label}: ${op.duration.toFixed(2)}ms`);
+        logger.warn("High blocking frame detected", {
+            frameNumber: profile.frameNumber,
+            totalFrameTime: profile.interFrameTime,
+            cpuTime: profile.totalCpuTime,
+            blockingTime: profile.blockingTime,
+            blockingRatio: profile.blockingRatio,
+            topOperations: topOps.map((op) => ({ label: op.label, duration: op.duration })),
         });
     }
 
@@ -969,8 +964,11 @@ export class StatsManager implements Manager {
         };
     }
 
+    /* eslint-disable no-console -- reportDetailed intentionally uses browser console APIs for rich DevTools output */
     /**
-     * Report detailed performance data to console
+     * Report detailed performance data to console.
+     * This method intentionally uses browser console APIs (console.group, console.table)
+     * for rich formatted output in browser DevTools.
      */
     reportDetailed(): void {
         // Don't print anything if profiling is disabled
@@ -980,14 +978,11 @@ export class StatsManager implements Manager {
 
         const snapshot = this.getSnapshot();
 
-        // eslint-disable-next-line no-console
         console.group("📊 Performance Report");
 
         // CPU metrics
         if (snapshot.cpu.length > 0) {
-            // eslint-disable-next-line no-console
             console.group("CPU Metrics");
-            // eslint-disable-next-line no-console
             console.table(
                 snapshot.cpu.map((m) => ({
                     Label: m.label,
@@ -1002,23 +997,22 @@ export class StatsManager implements Manager {
             );
 
             // Also output as simple logs for console capture utilities (e.g., Storybook)
-            // eslint-disable-next-line no-console
+
             console.log("CPU Metrics:");
             snapshot.cpu.forEach((m) => {
-                // eslint-disable-next-line no-console
                 console.log(`  ${m.label}: ${m.count} calls, ${m.total.toFixed(2)}ms total, ${m.avg.toFixed(2)}ms avg`);
             });
 
-            // eslint-disable-next-line no-console
+
             console.groupEnd();
         }
 
         // Event Counters
         const countersSnapshot = this.getCountersSnapshot();
         if (countersSnapshot.length > 0) {
-            // eslint-disable-next-line no-console
+
             console.group("Event Counters");
-            // eslint-disable-next-line no-console
+
             console.table(
                 countersSnapshot.map((c) => ({
                     Label: c.label,
@@ -1026,85 +1020,76 @@ export class StatsManager implements Manager {
                     Operations: c.operations,
                 })),
             );
-            // eslint-disable-next-line no-console
+
             console.groupEnd();
         }
 
         // GPU metrics (VERBOSE - all properties)
         if (snapshot.gpu) {
-            // eslint-disable-next-line no-console
+
             console.log("GPU Metrics (BabylonJS EngineInstrumentation):");
-            // eslint-disable-next-line no-console
+
             console.group("GPU Metrics (BabylonJS EngineInstrumentation)");
 
-            // eslint-disable-next-line no-console
+
             console.log("  GPU Frame Time (ms):");
-            // eslint-disable-next-line no-console
+
             console.group("GPU Frame Time (ms)");
-            // eslint-disable-next-line no-console
+
             console.log("  Current:", snapshot.gpu.gpuFrameTime.current.toFixed(3));
-            // eslint-disable-next-line no-console
+
             console.log("  Average:", snapshot.gpu.gpuFrameTime.avg.toFixed(3));
-            // eslint-disable-next-line no-console
+
             console.log("  Last Sec Avg:", snapshot.gpu.gpuFrameTime.lastSecAvg.toFixed(3));
-            // eslint-disable-next-line no-console
+
             console.log("  Min:", snapshot.gpu.gpuFrameTime.min.toFixed(3));
-            // eslint-disable-next-line no-console
+
             console.log("  Max:", snapshot.gpu.gpuFrameTime.max.toFixed(3));
-            // eslint-disable-next-line no-console
+
             console.log("  Total:", snapshot.gpu.gpuFrameTime.total.toFixed(3));
-            // eslint-disable-next-line no-console
+
             console.groupEnd();
 
-            // eslint-disable-next-line no-console
+
             console.log("  Shader Compilation (ms):");
-            // eslint-disable-next-line no-console
+
             console.group("Shader Compilation (ms)");
-            // eslint-disable-next-line no-console
+
             console.log("  Current:", snapshot.gpu.shaderCompilation.current.toFixed(2));
-            // eslint-disable-next-line no-console
+
             console.log("  Average:", snapshot.gpu.shaderCompilation.avg.toFixed(2));
-            // eslint-disable-next-line no-console
+
             console.log("  Last Sec Avg:", snapshot.gpu.shaderCompilation.lastSecAvg.toFixed(2));
-            // eslint-disable-next-line no-console
+
             console.log("  Min:", snapshot.gpu.shaderCompilation.min.toFixed(2));
-            // eslint-disable-next-line no-console
+
             console.log("  Max:", snapshot.gpu.shaderCompilation.max.toFixed(2));
-            // eslint-disable-next-line no-console
+
             console.log("  Total:", snapshot.gpu.shaderCompilation.total.toFixed(2));
-            // eslint-disable-next-line no-console
+
             console.groupEnd();
 
-            // eslint-disable-next-line no-console
+
             console.groupEnd();
         }
 
         // Scene metrics (VERBOSE - all properties for all 7 counters)
         if (snapshot.scene) {
-            // eslint-disable-next-line no-console
+
             console.log("Scene Metrics (BabylonJS SceneInstrumentation):");
-            // eslint-disable-next-line no-console
+
             console.group("Scene Metrics (BabylonJS SceneInstrumentation)");
 
             // Helper to print counter stats
             const printCounterStats = (name: string, counter: PerfCounterSnapshot, unit = "ms"): void => {
-                // eslint-disable-next-line no-console
                 console.log(`  ${name}:`);
-                // eslint-disable-next-line no-console
                 console.group(name);
-                // eslint-disable-next-line no-console
                 console.log(`  Current: ${counter.current.toFixed(2)} ${unit}`);
-                // eslint-disable-next-line no-console
                 console.log(`  Average: ${counter.avg.toFixed(2)} ${unit}`);
-                // eslint-disable-next-line no-console
                 console.log(`  Last Sec Avg: ${counter.lastSecAvg.toFixed(2)} ${unit}`);
-                // eslint-disable-next-line no-console
                 console.log(`  Min: ${counter.min.toFixed(2)} ${unit}`);
-                // eslint-disable-next-line no-console
                 console.log(`  Max: ${counter.max.toFixed(2)} ${unit}`);
-                // eslint-disable-next-line no-console
                 console.log(`  Total: ${counter.total.toFixed(2)} ${unit}`);
-                // eslint-disable-next-line no-console
                 console.groupEnd();
             };
 
@@ -1116,63 +1101,63 @@ export class StatsManager implements Manager {
             printCounterStats("Render Targets Render Time", snapshot.scene.renderTargetsRenderTime);
 
             // Draw Calls is special - count metric + timing
-            // eslint-disable-next-line no-console
+
             console.log("  Draw Calls:");
-            // eslint-disable-next-line no-console
+
             console.group("Draw Calls");
-            // eslint-disable-next-line no-console
+
             console.log(`  Count: ${snapshot.scene.drawCalls.count}`);
-            // eslint-disable-next-line no-console
+
             console.log(`  Current: ${snapshot.scene.drawCalls.current.toFixed(0)}`);
-            // eslint-disable-next-line no-console
+
             console.log(`  Average: ${snapshot.scene.drawCalls.avg.toFixed(2)}`);
-            // eslint-disable-next-line no-console
+
             console.log(`  Last Sec Avg: ${snapshot.scene.drawCalls.lastSecAvg.toFixed(2)}`);
-            // eslint-disable-next-line no-console
+
             console.log(`  Min: ${snapshot.scene.drawCalls.min.toFixed(0)}`);
-            // eslint-disable-next-line no-console
+
             console.log(`  Max: ${snapshot.scene.drawCalls.max.toFixed(0)}`);
-            // eslint-disable-next-line no-console
+
             console.log(`  Total: ${snapshot.scene.drawCalls.total.toFixed(0)}`);
-            // eslint-disable-next-line no-console
+
             console.groupEnd();
 
-            // eslint-disable-next-line no-console
+
             console.groupEnd();
         }
 
         // Layout session summary (if available)
         if (snapshot.layoutSession) {
             const ls = snapshot.layoutSession;
-            // eslint-disable-next-line no-console
+
             console.log("Layout Session Performance:");
-            // eslint-disable-next-line no-console
+
             console.group("Layout Session Performance");
 
-            // eslint-disable-next-line no-console
+
             console.log(`Total Time: ${ls.totalElapsed.toFixed(2)}ms (${ls.frameCount} frames)`);
-            // eslint-disable-next-line no-console
+
             console.log(`├─ CPU Work: ${ls.totalCpuTime.toFixed(2)}ms (${ls.percentages.cpu.toFixed(1)}%)`);
-            // eslint-disable-next-line no-console
+
             console.log(`├─ GPU Rendering: ${ls.totalGpuTime.toFixed(2)}ms (${ls.percentages.gpu.toFixed(1)}%)`);
-            // eslint-disable-next-line no-console
+
             console.log(
                 `└─ Blocking/Overhead: ${ls.blockingOverhead.toFixed(2)}ms (${ls.percentages.blocking.toFixed(1)}%)`,
             );
-            // eslint-disable-next-line no-console
+
             console.log("");
-            // eslint-disable-next-line no-console
+
             console.log("Per-Frame Averages:");
-            // eslint-disable-next-line no-console
+
             console.log(`├─ Total: ${ls.perFrame.total.toFixed(2)}ms/frame`);
-            // eslint-disable-next-line no-console
+
             console.log(`├─ CPU: ${ls.perFrame.cpu.toFixed(2)}ms/frame`);
-            // eslint-disable-next-line no-console
+
             console.log(`├─ GPU: ${ls.perFrame.gpu.toFixed(2)}ms/frame`);
-            // eslint-disable-next-line no-console
+
             console.log(`└─ Blocking: ${ls.perFrame.blocking.toFixed(2)}ms/frame`);
 
-            // eslint-disable-next-line no-console
+
             console.groupEnd();
         }
 
@@ -1181,26 +1166,18 @@ export class StatsManager implements Manager {
             const blockingReport = this.getBlockingReport();
 
             if (blockingReport.length > 0) {
-                // eslint-disable-next-line no-console
                 console.log("");
-                // eslint-disable-next-line no-console
                 console.log("🔍 Blocking Correlation Analysis:");
-                // eslint-disable-next-line no-console
                 console.group("Blocking Correlation Analysis");
 
-                // eslint-disable-next-line no-console
                 console.log(`Analyzed ${this.frameProfiles.length} frames`);
-                // eslint-disable-next-line no-console
                 console.log("High-blocking threshold: blocking > 1.0x CPU time");
-                // eslint-disable-next-line no-console
                 console.log("");
 
                 // Show top 10 operations by high-blocking percentage
                 const topBlockingOps = blockingReport.slice(0, 10);
 
-                // eslint-disable-next-line no-console
                 console.log("Top operations correlated with blocking:");
-                // eslint-disable-next-line no-console
                 console.table(
                     topBlockingOps.map((op) => ({
                         Operation: op.label,
@@ -1215,28 +1192,24 @@ export class StatsManager implements Manager {
                 );
 
                 // Also output as simple logs
-                // eslint-disable-next-line no-console
                 console.log("Top operations correlated with blocking:");
                 topBlockingOps.forEach((op, i) => {
-                    // eslint-disable-next-line no-console
                     console.log(
                         `  ${i + 1}. ${op.label}: ${op.highBlockingPercentage.toFixed(1)}% high-blocking frames (${op.highBlockingFrames}/${op.appearanceCount})`,
                     );
                     const ratioStr = Number.isNaN(op.avgBlockingRatioWhenPresent)
                         ? "N/A"
                         : `${op.avgBlockingRatioWhenPresent.toFixed(2)}x`;
-                    // eslint-disable-next-line no-console
                     console.log(`     Avg blocking ratio: ${ratioStr}`);
                 });
 
-                // eslint-disable-next-line no-console
                 console.groupEnd();
             }
         }
 
-        // eslint-disable-next-line no-console
         console.groupEnd();
     }
+    /* eslint-enable no-console */
 
     /**
      * Increment a counter by a specified amount

@@ -1,8 +1,10 @@
-/* eslint-disable no-console -- XR debugging requires console logging for development */
 import { type Scene, type TransformNode, type WebXRDefaultExperience, WebXRState } from "@babylonjs/core";
 
+import { GraphtyLogger, type Logger } from "../logging";
 import { PivotController } from "./PivotController";
 import { XRInputHandler } from "./XRInputHandler";
+
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "camera", "xr"]);
 
 /**
  * XRPivotCameraController manages XR camera interactions using a pivot-based system.
@@ -35,7 +37,7 @@ export class XRPivotCameraController {
         this.pivotController = new PivotController(scene);
         this.inputHandler = new XRInputHandler(this.pivotController, xr);
 
-        console.log("📷 [XRPivotCameraController] Created");
+        logger.debug("Created");
 
         this.setupXRListeners();
     }
@@ -46,20 +48,20 @@ export class XRPivotCameraController {
      * When exiting XR, disables input and unparents camera.
      */
     private setupXRListeners(): void {
-        console.log("📷 [XRPivotCameraController] Setting up XR state listeners");
+        logger.debug("Setting up XR state listeners");
 
         // Check if we're already in XR (can happen if controller is created after session started)
         const currentState = this.xr.baseExperience.state;
-        console.log(`📷 [XRPivotCameraController] Current XR state: ${WebXRState[currentState]}`);
+        logger.debug("Current XR state", { state: WebXRState[currentState] });
 
         if (currentState === WebXRState.IN_XR) {
-            console.log("📷 [XRPivotCameraController] Already in XR, enabling immediately");
+            logger.debug("Already in XR, enabling immediately");
             this.enableXRMode();
         }
 
         this.xr.baseExperience.onStateChangedObservable.add((state) => {
             const stateName = WebXRState[state];
-            console.log(`📷 [XRPivotCameraController] XR state changed: ${stateName}`);
+            logger.debug("XR state changed", { state: stateName });
 
             if (state === WebXRState.IN_XR) {
                 this.enableXRMode();
@@ -70,9 +72,9 @@ export class XRPivotCameraController {
 
         // Also listen for initial XR pose to log camera position
         this.xr.baseExperience.onInitialXRPoseSetObservable.add((xrCamera) => {
-            console.log("📷 [XRPivotCameraController] Initial XR pose set:", {
+            logger.debug("Initial XR pose set", {
                 cameraName: xrCamera.name,
-                position: `(${xrCamera.position.x.toFixed(2)}, ${xrCamera.position.y.toFixed(2)}, ${xrCamera.position.z.toFixed(2)})`,
+                position: { x: xrCamera.position.x, y: xrCamera.position.y, z: xrCamera.position.z },
             });
         });
     }
@@ -84,10 +86,9 @@ export class XRPivotCameraController {
         // Parent XR camera to pivot
         const { camera } = this.xr.baseExperience;
         camera.parent = this.pivotController.pivot;
-        console.log("📷 [XRPivotCameraController] XR camera parented to pivot:", {
+        logger.debug("XR camera parented to pivot", {
             pivotName: this.pivotController.pivot.name,
             cameraName: camera.name,
-            cameraParent: this.pivotController.pivot.name,
         });
 
         // Parent hand tracking meshes to the pivot as well
@@ -95,7 +96,7 @@ export class XRPivotCameraController {
         this.parentHandMeshesToPivot();
 
         this.inputHandler.enable();
-        console.log("📷 [XRPivotCameraController] Input handler enabled");
+        logger.debug("Input handler enabled");
     }
 
     /**
@@ -109,7 +110,7 @@ export class XRPivotCameraController {
             const handTracking = featuresManager.getEnabledFeature("xr-hand-tracking") as unknown;
 
             if (!handTracking) {
-                console.log("📷 [XRPivotCameraController] No hand tracking feature to parent");
+                logger.debug("No hand tracking feature to parent");
                 return;
             }
 
@@ -121,29 +122,29 @@ export class XRPivotCameraController {
             // Parent left hand mesh if exists
             if (htFeature.leftHand?.handMesh) {
                 htFeature.leftHand.handMesh.parent = this.pivotController.pivot;
-                console.log("📷 [XRPivotCameraController] Left hand mesh parented to pivot");
+                logger.debug("Left hand mesh parented to pivot");
             }
 
             // Parent right hand mesh if exists
             if (htFeature.rightHand?.handMesh) {
                 htFeature.rightHand.handMesh.parent = this.pivotController.pivot;
-                console.log("📷 [XRPivotCameraController] Right hand mesh parented to pivot");
+                logger.debug("Right hand mesh parented to pivot");
             }
 
             // Also try to find and parent joint meshes
             // Joint meshes might be named "xr-hand-joint-*"
             const meshes = this.scene.meshes.filter((m) => m.name.includes("hand") || m.name.includes("Hand"));
             if (meshes.length > 0) {
-                console.log(`📷 [XRPivotCameraController] Found ${meshes.length} hand-related meshes`);
+                logger.debug("Found hand-related meshes", { count: meshes.length });
                 for (const mesh of meshes) {
                     if (!mesh.parent) {
                         mesh.parent = this.pivotController.pivot;
-                        console.log(`📷 [XRPivotCameraController] Parented mesh: ${mesh.name}`);
+                        logger.debug("Parented mesh", { name: mesh.name });
                     }
                 }
             }
         } catch (error) {
-            console.warn("📷 [XRPivotCameraController] Error parenting hand meshes:", error);
+            logger.warn("Error parenting hand meshes", { error: String(error) });
         }
     }
 
@@ -151,7 +152,7 @@ export class XRPivotCameraController {
      * Disable XR mode - unparent camera and disable input.
      */
     private disableXRMode(): void {
-        console.log("📷 [XRPivotCameraController] Exiting XR, disabling input");
+        logger.debug("Exiting XR, disabling input");
         this.inputHandler.disable();
         this.xr.baseExperience.camera.parent = null;
     }
@@ -167,11 +168,12 @@ export class XRPivotCameraController {
         if (this.frameCount % 300 === 0) {
             const { camera } = this.xr.baseExperience;
             const { pivot } = this.pivotController;
-            console.log(`💓 [XRPivotCameraController] Heartbeat frame ${this.frameCount}:`, {
+            logger.trace("Heartbeat", {
+                frame: this.frameCount,
                 inputEnabled: this.inputHandler.isEnabled(),
                 cameraParent: camera.parent ? camera.parent.name : "null",
-                pivotPos: `(${pivot.position.x.toFixed(2)}, ${pivot.position.y.toFixed(2)}, ${pivot.position.z.toFixed(2)})`,
-                pivotScale: pivot.scaling.x.toFixed(3),
+                pivotPos: { x: pivot.position.x, y: pivot.position.y, z: pivot.position.z },
+                pivotScale: pivot.scaling.x,
             });
         }
 

@@ -1,5 +1,9 @@
 import { Axis, Quaternion, type Scene, Space, TransformNode, Vector3 } from "@babylonjs/core";
 
+import { GraphtyLogger, type Logger } from "../logging";
+
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "camera", "pivot"]);
+
 /**
  * PivotController manages a TransformNode that serves as the pivot point for camera operations.
  * This is a shared abstraction used by both 3D (OrbitCameraController) and XR (XRPivotCameraController)
@@ -29,7 +33,7 @@ export class PivotController {
         this.pivot = new TransformNode("xrPivot", scene);
         this.pivot.position = Vector3.Zero();
         this.pivot.rotationQuaternion = Quaternion.Identity();
-        // Debug: console.log("🔧 [PivotController] Created pivot node");
+        logger.debug("Created pivot node");
     }
 
     /**
@@ -60,15 +64,15 @@ export class PivotController {
             this.pivot.rotate(Axis.X, pitchDelta, Space.LOCAL);
         }
 
-        // Debug logging (throttled)
-        // if (this.frameCount % 30 === 0) {
-        //     console.log("🔧 [Pivot] Rotate:", {
-        //         yawDelta: `${((yawDelta * 180) / Math.PI).toFixed(2)}°`,
-        //         pitchDelta: `${((pitchDelta * 180) / Math.PI).toFixed(2)}°`,
-        //         accYaw: `${((this.accumulatedYaw * 180) / Math.PI).toFixed(1)}°`,
-        //         accPitch: `${((this.accumulatedPitch * 180) / Math.PI).toFixed(1)}°`,
-        //     });
-        // }
+        // Throttled trace logging
+        if (this.frameCount % 30 === 0) {
+            logger.trace("Rotate", {
+                yawDelta: (yawDelta * 180) / Math.PI,
+                pitchDelta: (pitchDelta * 180) / Math.PI,
+                accYaw: (this.accumulatedYaw * 180) / Math.PI,
+                accPitch: (this.accumulatedPitch * 180) / Math.PI,
+            });
+        }
     }
 
     /**
@@ -87,13 +91,13 @@ export class PivotController {
         const rotationQuat = Quaternion.RotationAxis(normalizedAxis, angle);
         this.pivot.rotationQuaternion = rotationQuat.multiply(currentRotation);
 
-        // Debug logging (throttled)
-        // if (this.frameCount % 30 === 0) {
-        //     console.log("🔧 [Pivot] RotateAroundAxis:", {
-        //         axis: `(${normalizedAxis.x.toFixed(2)}, ${normalizedAxis.y.toFixed(2)}, ${normalizedAxis.z.toFixed(2)})`,
-        //         angle: `${((angle * 180) / Math.PI).toFixed(2)}°`,
-        //     });
-        // }
+        // Throttled trace logging
+        if (this.frameCount % 30 === 0) {
+            logger.trace("RotateAroundAxis", {
+                axis: { x: normalizedAxis.x, y: normalizedAxis.y, z: normalizedAxis.z },
+                angle: (angle * 180) / Math.PI,
+            });
+        }
     }
 
     /**
@@ -124,13 +128,13 @@ export class PivotController {
             this.pivot.scaling.setAll(10);
         }
 
-        // Debug logging (throttled)
-        // if (this.frameCount % 30 === 0 && Math.abs(clamped - 1) > 0.001) {
-        //     console.log("🔧 [Pivot] Zoom:", {
-        //         factor: clamped.toFixed(4),
-        //         scale: this.pivot.scaling.x.toFixed(3),
-        //     });
-        // }
+        // Throttled trace logging
+        if (this.frameCount % 30 === 0 && Math.abs(clamped - 1) > 0.001) {
+            logger.trace("Zoom", {
+                factor: clamped.toFixed(4),
+                scale: this.pivot.scaling.x.toFixed(3),
+            });
+        }
     }
 
     /**
@@ -144,14 +148,14 @@ export class PivotController {
 
         this.pivot.position.addInPlace(delta);
 
-        // Debug logging (throttled)
-        // if (this.frameCount % 30 === 0) {
-        //     const pos = this.pivot.position;
-        //     console.log("🔧 [Pivot] Pan:", {
-        //         delta: `(${delta.x.toFixed(3)}, ${delta.y.toFixed(3)}, ${delta.z.toFixed(3)})`,
-        //         pos: `(${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)})`,
-        //     });
-        // }
+        // Throttled trace logging
+        if (this.frameCount % 30 === 0) {
+            const pos = this.pivot.position;
+            logger.trace("Pan", {
+                delta: `(${delta.x.toFixed(3)}, ${delta.y.toFixed(3)}, ${delta.z.toFixed(3)})`,
+                pos: `(${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)})`,
+            });
+        }
     }
 
     /**
@@ -189,6 +193,6 @@ export class PivotController {
         this.pivot.scaling.setAll(1.0);
         this.accumulatedYaw = 0;
         this.accumulatedPitch = 0;
-        // Debug: console.log("🔧 [Pivot] Reset to initial state");
+        logger.debug("Reset to initial state");
     }
 }

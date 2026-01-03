@@ -374,24 +374,11 @@ void main(void) {
      * @returns Parent mesh containing all dot disc meshes
      */
     private static createPointsForDots(options: CustomLineOptions, scene: Scene): Mesh {
-        // console.log("createPointsForDots called with:", {
-        //     points: options.points.length,
-        //     width: options.width,
-        //     color: options.color,
-        //     pattern: options.pattern,
-        // });
-
         // Calculate dot radius in world units
         const dotRadius = 0.1; // Fixed radius in world units for consistent appearance
 
         // Calculate dot positions along the path
         const dotPositions = this.calculateDotPositions(options.points, dotRadius);
-
-        // console.log("calculateDotPositions returned:", {
-        //     count: dotPositions.length,
-        //     dotRadius,
-        //     positions: dotPositions.map((p) => ({x: p.x, y: p.y, z: p.z})),
-        // });
 
         // Create parent mesh to hold all dots
         const parentMesh = new Mesh("circular-dots", scene);
@@ -427,8 +414,6 @@ void main(void) {
         }
 
         parentMesh.alwaysSelectAsActiveMesh = true;
-
-        // console.log("createPointsForDots created parent mesh with", dotPositions.length, "disc dots");
 
         return parentMesh;
     }
@@ -878,11 +863,6 @@ void main(void) {
 
         // Set uniforms
         const colorObj = Color3.FromHexString(options.color);
-        // console.log("CustomLineRenderer.createFromGeometry: Setting uniforms:", {
-        //     color: options.color,
-        //     width: options.width,
-        //     opacity: options.opacity ?? 1.0,
-        // });
         shaderMaterial.setVector3("color", new Vector3(colorObj.r, colorObj.g, colorObj.b));
         shaderMaterial.setFloat("width", options.width);
         shaderMaterial.setFloat("opacity", options.opacity ?? 1.0);
@@ -891,7 +871,6 @@ void main(void) {
         shaderMaterial.setFloat("pattern", 0); // 0 = solid
         shaderMaterial.setFloat("dashLength", 3.0); // Default (unused for solid)
         shaderMaterial.setFloat("gapLength", 2.0); // Default (unused for solid)
-        // console.log("CustomLineRenderer.createFromGeometry: All uniforms set");
 
         // Register material for shared resolution updates
         this.activeMaterials.add(shaderMaterial);

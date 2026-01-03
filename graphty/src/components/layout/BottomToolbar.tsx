@@ -1,16 +1,35 @@
 import { ActionIcon, Divider, Group, Menu, Paper, ScrollArea, Text } from "@mantine/core";
-import { ArrowRight, Box, Hand, MousePointer, Plus, Square, Trash2, Video, ZoomIn } from "lucide-react";
+import { ArrowRight, Box, Glasses, Hand, MousePointer, Plus, Smartphone, Square, Trash2, Video, ZoomIn } from "lucide-react";
 import React, { useState } from "react";
 
 import { AiActionButton } from "../ai";
 
-export type ViewMode = "2d" | "3d";
+export type ViewMode = "2d" | "3d" | "vr" | "ar";
+
+/**
+ * Helper to determine XR menu item text color based on selection and availability
+ * @param isSelected - Whether this menu item is currently selected
+ * @param isAvailable - Whether the XR mode is available on this device
+ * @returns The color string or undefined for default color
+ */
+function getXrMenuItemColor(isSelected: boolean, isAvailable: boolean): string | undefined {
+    if (isSelected) {
+        return "white";
+    }
+    if (!isAvailable) {
+        return "var(--mantine-color-dimmed)";
+    }
+    return undefined;
+}
 
 interface BottomToolbarProps {
     className?: string;
     style?: React.CSSProperties;
     viewMode?: ViewMode;
     onViewModeChange?: (mode: ViewMode) => void;
+    // XR availability
+    vrAvailable?: boolean;
+    arAvailable?: boolean;
     // AI-related props
     aiIsConfigured?: boolean;
     aiIsProcessing?: boolean;
@@ -23,8 +42,10 @@ interface BottomToolbarProps {
  * @param root0 - Component props
  * @param root0.className - Optional CSS class name
  * @param root0.style - Optional inline styles
- * @param root0.viewMode - Current 2D or 3D view mode
+ * @param root0.viewMode - Current view mode (2d, 3d, vr, or ar)
  * @param root0.onViewModeChange - Called when view mode changes
+ * @param root0.vrAvailable - Whether VR mode is available (WebXR VR support)
+ * @param root0.arAvailable - Whether AR mode is available (WebXR AR support)
  * @param root0.aiIsConfigured - Whether AI is configured
  * @param root0.aiIsProcessing - Whether AI is processing
  * @param root0.aiIsReady - Whether AI is ready
@@ -36,6 +57,8 @@ export function BottomToolbar({
     style,
     viewMode = "3d",
     onViewModeChange,
+    vrAvailable = false,
+    arAvailable = false,
     aiIsConfigured = false,
     aiIsProcessing = false,
     aiIsReady = false,
@@ -149,6 +172,33 @@ export function BottomToolbar({
                                 }}
                             >
                                 <Text size="sm">3D</Text>
+                            </Menu.Item>
+                            <Menu.Divider />
+                            <Menu.Item
+                                leftSection={<Glasses size={14} />}
+                                onClick={() => vrAvailable && onViewModeChange?.("vr")}
+                                disabled={!vrAvailable}
+                                style={{
+                                    backgroundColor: viewMode === "vr" ? "var(--mantine-color-blue-filled)" : undefined,
+                                    color: getXrMenuItemColor(viewMode === "vr", vrAvailable),
+                                    opacity: vrAvailable ? 1 : 0.5,
+                                    cursor: vrAvailable ? "pointer" : "not-allowed",
+                                }}
+                            >
+                                <Text size="sm">VR</Text>
+                            </Menu.Item>
+                            <Menu.Item
+                                leftSection={<Smartphone size={14} />}
+                                onClick={() => arAvailable && onViewModeChange?.("ar")}
+                                disabled={!arAvailable}
+                                style={{
+                                    backgroundColor: viewMode === "ar" ? "var(--mantine-color-blue-filled)" : undefined,
+                                    color: getXrMenuItemColor(viewMode === "ar", arAvailable),
+                                    opacity: arAvailable ? 1 : 0.5,
+                                    cursor: arAvailable ? "pointer" : "not-allowed",
+                                }}
+                            >
+                                <Text size="sm">AR</Text>
                             </Menu.Item>
                         </Menu.Dropdown>
                     </Menu>

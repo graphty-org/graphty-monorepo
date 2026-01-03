@@ -74,18 +74,12 @@ export class Graphty extends LitElement {
         }
     }
 
-    // update(changedProperties: Map<string, unknown>) {
-    //     super.update(changedProperties);
-    //     // console.log(`update: ${[... changedProperties.keys()].join(", ")}`);
-    // }
-
     /**
      * Called after the first update of the element. Initializes async graph setup.
      * @param changedProperties - Map of changed property names to their previous values
      */
     firstUpdated(changedProperties: Map<string, unknown>): void {
         super.firstUpdated(changedProperties);
-        // console.log(`firstUpdated: ${[... changedProperties.keys()].join(", ")}`);
 
         this.asyncFirstUpdated().catch((e: unknown) => {
             throw e;

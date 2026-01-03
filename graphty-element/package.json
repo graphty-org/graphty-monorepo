@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graphty-element",
-    "version": "1.5.0",
+    "version": "1.5.4",
     "description": "A Web Component library for 3D/2D graph visualization built with Lit and Babylon.js",
     "type": "module",
     "main": "./dist/graphty.umd.cjs",
@@ -46,11 +46,12 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/graphty-org/graphty-element.git"
+        "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
+        "directory": "graphty-element"
     },
-    "homepage": "https://github.com/graphty-org/graphty-element",
+    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/graphty-element#readme",
     "bugs": {
-        "url": "https://github.com/graphty-org/graphty-element/issues"
+        "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
     "scripts": {
         "test": "npm run test:shards:parallel && npm run test:visual",
@@ -108,7 +109,6 @@
         "build:storybook": "npm run build-storybook",
         "storybook": "rm -rf node_modules/.vite && npm run build-storybook && . ./.env 2>/dev/null; storybook dev -p ${PORT:-6006} --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",
         "chromatic": "npx chromatic --exit-zero-on-changes",
-        "prepare": "husky",
         "build-storybook": "storybook build",
         "ready:commit": "npm run build && npm run lint && npm test",
         "merge:upstream": "git pull origin master --no-rebase",

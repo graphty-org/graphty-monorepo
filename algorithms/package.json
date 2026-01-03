@@ -1,6 +1,6 @@
 {
     "name": "@graphty/algorithms",
-    "version": "1.4.0",
+    "version": "1.4.2",
     "description": "Graph algorithms library for browser environments implemented in TypeScript",
     "author": "Adam Powers <apowers@ato.ms>",
     "main": "dist/algorithms.js",
@@ -50,7 +50,6 @@
         "lint:pkg": "knip",
         "lint:all": "npm run lint && npm run lint:pkg",
         "typecheck": "tsc --noEmit",
-        "prepare": "husky",
         "build": "tsc",
         "build:bundle": "node scripts/build-bundle.js",
         "build:all": "npm run build && npm run build:bundle",
@@ -73,7 +72,8 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/graphty-org/algorithms.git"
+        "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
+        "directory": "algorithms"
     },
     "keywords": [
         "graph",
@@ -93,9 +93,9 @@
         "provenance": true
     },
     "bugs": {
-        "url": "https://github.com/graphty-org/algorithms/issues"
+        "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
-    "homepage": "https://github.com/graphty-org/algorithms#readme",
+    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/algorithms#readme",
     "engines": {
         "node": ">=18.19.0"
     },

@@ -370,6 +370,8 @@ export function AppLayout({ className }: AppLayoutProps): React.JSX.Element {
     const [layers, setLayers] = useState<LayerItem[]>([]);
     const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<ViewMode>("3d");
+    const [vrAvailable, setVrAvailable] = useState(false);
+    const [arAvailable, setArAvailable] = useState(false);
     const [loadDataModalOpen, setLoadDataModalOpen] = useState(false);
     const [viewDataModalOpen, setViewDataModalOpen] = useState(false);
     const [runLayoutsModalOpen, setRunLayoutsModalOpen] = useState(false);
@@ -434,6 +436,32 @@ export function AppLayout({ className }: AppLayoutProps): React.JSX.Element {
             setDefaultProvider(aiKeyStorage.configuredProviders[0]);
         }
     }, [defaultProvider, aiKeyStorage.configuredProviders]);
+
+    // Detect WebXR availability from graphty-element
+    useEffect(() => {
+        const checkXRAvailability = async (): Promise<void> => {
+            // Access the graphty-element through the handle
+            // Note: graphtyRef.current is a GraphtyHandle, we need access to the underlying element
+            // For now, use navigator.xr directly since graphty-element's methods aren't exposed via the handle
+            if (typeof navigator !== "undefined" && navigator.xr) {
+                try {
+                    const vrSupported = await navigator.xr.isSessionSupported("immersive-vr");
+                    setVrAvailable(vrSupported);
+                } catch {
+                    setVrAvailable(false);
+                }
+
+                try {
+                    const arSupported = await navigator.xr.isSessionSupported("immersive-ar");
+                    setArAvailable(arSupported);
+                } catch {
+                    setArAvailable(false);
+                }
+            }
+        };
+
+        void checkXRAvailability();
+    }, []);
 
     const handleAddLayer = (): void => {
         const newLayer: LayerItem = {
@@ -735,7 +763,7 @@ export function AppLayout({ className }: AppLayoutProps): React.JSX.Element {
                 <Graphty
                     ref={graphtyRef}
                     layers={layers}
-                    layout2d={viewMode === "2d"}
+                    viewMode={viewMode}
                     layout={currentLayout}
                     layoutConfig={currentLayoutConfig}
                 />
@@ -797,6 +825,8 @@ export function AppLayout({ className }: AppLayoutProps): React.JSX.Element {
                         <BottomToolbar
                             viewMode={viewMode}
                             onViewModeChange={setViewMode}
+                            vrAvailable={vrAvailable}
+                            arAvailable={arAvailable}
                             aiIsConfigured={aiKeyStorage.hasAnyProvider}
                             aiIsProcessing={aiManager.isProcessing}
                             aiIsReady={aiKeyStorage.isReady}

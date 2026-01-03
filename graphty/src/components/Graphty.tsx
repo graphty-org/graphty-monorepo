@@ -29,7 +29,10 @@ interface GraphtyElementType extends HTMLElement {
     nodeData?: { id: number | string; [key: string]: unknown }[];
     edgeData?: { src: number | string; dst: number | string; [key: string]: unknown }[];
     layout?: string;
+    /** @deprecated Use viewMode instead */
     layout2d?: boolean;
+    /** View mode: "2d", "3d", "vr", or "ar" */
+    viewMode?: "2d" | "3d" | "vr" | "ar";
     layoutConfig?: Record<string, unknown>;
     styleTemplate?: unknown;
     dataSource?: string;
@@ -322,9 +325,14 @@ function convertRichTextStyle(textStyle: RichTextStyle): Record<string, unknown>
     return result;
 }
 
+export type ViewMode = "2d" | "3d" | "vr" | "ar";
+
 interface GraphtyProps {
     layers: LayerItem[];
+    /** @deprecated Use viewMode instead */
     layout2d?: boolean;
+    /** View mode: "2d", "3d", "vr", or "ar" */
+    viewMode?: ViewMode;
     dataSource?: string;
     dataSourceConfig?: Record<string, unknown>;
     replaceExisting?: boolean;
@@ -451,9 +459,12 @@ declare module "react" {
 }
 
 export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
-    { layers, layout2d = false, dataSource, dataSourceConfig, replaceExisting, layout = "d3", layoutConfig },
+    { layers, viewMode, dataSource, dataSourceConfig, replaceExisting, layout = "d3", layoutConfig, ...rest },
     ref,
 ): React.JSX.Element {
+    // Resolve viewMode from props, with backward compatibility for deprecated layout2d prop
+    const deprecatedLayout2d = (rest as { layout2d?: boolean }).layout2d;
+    const resolvedViewMode: ViewMode = viewMode ?? (deprecatedLayout2d ? "2d" : "3d");
     const containerRef = useRef<HTMLDivElement>(null);
     const graphtyRef = useRef<GraphtyElementType>(null);
     const prevDataSourceRef = useRef<{ dataSource?: string; dataSourceConfig?: Record<string, unknown> } | undefined>(
@@ -695,9 +706,9 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
 
     useEffect(() => {
         if (graphtyRef.current) {
-            graphtyRef.current.layout2d = layout2d;
+            graphtyRef.current.viewMode = resolvedViewMode;
         }
-    }, [layout2d]);
+    }, [resolvedViewMode]);
 
     return (
         <Box

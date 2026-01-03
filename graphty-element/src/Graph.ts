@@ -22,6 +22,9 @@ import {
 
 import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import { ApiKeyManager } from "./ai/keys";
+import { GraphtyLogger, type Logger } from "./logging";
+
+const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 import { Algorithm } from "./algorithms/Algorithm";
 import {
     BUILTIN_PRESETS,
@@ -566,10 +569,9 @@ export class Graph implements GraphContext {
                         // End layout session tracking
                         this.statsManager.endLayoutSession();
                         const snapshot = this.statsManager.getSnapshot();
-                        // eslint-disable-next-line no-console
-                        console.log(
-                            `🎯 Layout settled! (${snapshot.cpu.find((m) => m.label === "Graph.update")?.count ?? 0} update calls)`,
-                        );
+                        graphLogger.debug("Layout settled", {
+                            updateCalls: snapshot.cpu.find((m) => m.label === "Graph.update")?.count ?? 0,
+                        });
                         this.statsManager.reportDetailed();
                         // Reset measurements after reporting so next settlement shows fresh data
                         this.statsManager.resetMeasurements();
@@ -578,8 +580,7 @@ export class Graph implements GraphContext {
                         this.wasSettled = false;
                         // Restart layout session tracking
                         this.statsManager.startLayoutSession();
-                        // eslint-disable-next-line no-console
-                        console.log("🔄 Layout became unsettled, will report on next settlement");
+                        graphLogger.debug("Layout became unsettled, will report on next settlement");
                     }
                 }
             });
@@ -1948,28 +1949,11 @@ export class Graph implements GraphContext {
         // Update layout dimension if needed
         await this.layoutManager.updateLayoutDimension(isTwoD);
 
-        // After mode switch, force a full update cycle to ensure:
-        // 1. Nodes get their positions from the new layout engine
-        // 2. Edges are transformed to connect to the new node positions
-        // This is necessary because updateLayoutDimension() may have created a new layout engine
-        // with different positions, but node/edge meshes haven't been updated yet.
+        // After mode switch, update node positions and edges
+        // The goal is to preserve the current view - just render it in the new mode
         if (modeSwitchingBetween2D3D) {
-            // Step the layout to ensure positions are computed
-            this.layoutManager.step();
-
-            // Update all nodes with positions from the new layout
-            for (const node of this.getNodes()) {
-                node.update();
-            }
-
-            // Update rays and all edges to connect to the updated node positions
-            Edge.updateRays(this);
-            for (const edge of this.dataManager.edges.values()) {
-                edge.update();
-            }
-
-            // Handle Z-coordinate flattening/restoration AFTER layout positions are applied
-            // This ensures we override the layout engine's Z values with our saved/flattened values
+            // Handle Z-coordinate flattening/restoration BEFORE updating edges
+            // This ensures edges connect to the correct 2D/3D positions
             if (isTwoD) {
                 // 3D→2D: flatten Z to 0 (positions were saved earlier)
                 for (const node of this.getNodes()) {
@@ -1985,10 +1969,38 @@ export class Graph implements GraphContext {
                 }
                 this.savedZPositions.clear();
             }
-        }
 
-        // Request zoom to fit when mode changes
-        this.updateManager.enableZoomToFit();
+            // Now update edges to connect to the updated node positions
+            Edge.updateRays(this);
+            for (const edge of this.dataManager.edges.values()) {
+                edge.update();
+            }
+
+            // Calculate bounding box and zoom camera to fit the graph
+            // This ensures the graph is visible after the mode switch
+            const nodes = this.getNodes();
+            if (nodes.length > 0) {
+                let minX = Infinity,
+                    minY = Infinity,
+                    minZ = Infinity;
+                let maxX = -Infinity,
+                    maxY = -Infinity,
+                    maxZ = -Infinity;
+
+                for (const node of nodes) {
+                    const pos = node.mesh.position;
+                    const sz = node.size / 2;
+                    minX = Math.min(minX, pos.x - sz);
+                    minY = Math.min(minY, pos.y - sz);
+                    minZ = Math.min(minZ, pos.z - sz);
+                    maxX = Math.max(maxX, pos.x + sz);
+                    maxY = Math.max(maxY, pos.y + sz);
+                    maxZ = Math.max(maxZ, pos.z + sz);
+                }
+
+                this.camera.zoomToBoundingBox(new Vector3(minX, minY, minZ), new Vector3(maxX, maxY, maxZ));
+            }
+        }
     }
 
     /**

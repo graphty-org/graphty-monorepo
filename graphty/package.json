@@ -1,7 +1,9 @@
 {
     "name": "@graphty/graphty",
-    "private": true,
-    "version": "0.1.0",
+    "version": "0.1.4",
+    "description": "React application for graph visualization built with Mantine and graphty-element",
+    "author": "Adam Powers <apowers@ato.ms>",
+    "license": "MIT",
     "type": "module",
     "scripts": {
         "dev": "vite",
@@ -21,7 +23,6 @@
         "test:visual": "npx chromatic",
         "test:visual:debug": "npx chromatic --debug",
         "chromatic": "npx chromatic --exit-zero-on-changes",
-        "prepare": "husky",
         "husky:prepush": "echo no prepush check",
         "ready:commit": "npm run build && npm run lint && npm run test:run"
     },
@@ -77,6 +78,26 @@
     "overrides": {
         "storybook": "$storybook"
     },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
+        "directory": "graphty"
+    },
+    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/graphty#readme",
+    "bugs": {
+        "url": "https://github.com/graphty-org/graphty-monorepo/issues"
+    },
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
+    "keywords": [
+        "graph",
+        "visualization",
+        "react",
+        "mantine",
+        "graphty"
+    ],
     "config": {
         "commitizen": {
             "path": "./node_modules/cz-conventional-changelog"

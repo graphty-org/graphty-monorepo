@@ -1,9 +1,10 @@
 # @graphty/algorithms
 
-[![Build Status](https://github.com/graphty-org/algorithms/actions/workflows/test.yml/badge.svg)](https://github.com/graphty-org/algorithms/actions/workflows/test.yml)
-[![Coverage Status](https://coveralls.io/repos/github/graphty-org/algorithms/badge.svg)](https://coveralls.io/github/graphty-org/algorithms)
+[![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
+[![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
 [![npm version](https://img.shields.io/npm/v/@graphty/algorithms.svg)](https://www.npmjs.com/package/@graphty/algorithms)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty-org.github.io/docs/algorithms/)
 [![Examples](https://img.shields.io/badge/demo-github%20pages-blue)](https://graphty-org.github.io/algorithms/)
 
 A comprehensive TypeScript graph algorithms library with 98 algorithms optimized for browser environments and visualization applications.

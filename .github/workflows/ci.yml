@@ -101,10 +101,10 @@ jobs:
             - name: Build Storybook (graphty)
               run: pnpm exec nx run graphty:build-storybook
 
-            # Build documentation (only on master, for deploy-pages)
-            - name: Build graphty-element docs
+            # Build unified documentation (only on master, for deploy-pages)
+            - name: Build docs
               if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-              run: pnpm exec nx run graphty-element:docs:build
+              run: npm run docs:build
 
             - name: Build algorithms gh-pages
               if: github.ref == 'refs/heads/master' && github.event_name == 'push'
@@ -157,12 +157,12 @@ jobs:
                   retention-days: 1
 
             # Upload documentation artifacts (only on master)
-            - name: Upload graphty-element docs
+            - name: Upload unified docs
               if: github.ref == 'refs/heads/master' && github.event_name == 'push'
               uses: actions/upload-artifact@v4
               with:
-                  name: build-docs-element
-                  path: graphty-element/docs/.vitepress/dist/
+                  name: build-docs
+                  path: docs/.vitepress/dist/
                   retention-days: 1
 
             - name: Upload algorithms gh-pages

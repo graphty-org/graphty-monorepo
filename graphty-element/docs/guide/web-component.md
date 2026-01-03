@@ -477,6 +477,6 @@ See the **[JavaScript API Guide](./javascript-api)** for the complete `Graph` cl
 
 ## Interactive Examples
 
-- [Default Graph](https://graphty-org.github.io/graphty-element/storybook/?path=/story/graphty--graphty) - Basic configuration
-- [View Modes](https://graphty-org.github.io/graphty-element/storybook/?path=/story/viewmode--switch-view-modes) - 2D/3D switching
-- [Layouts](https://graphty-org.github.io/graphty-element/storybook/?path=/story/layout-3d--circular) - Different layout algorithms
+- [Default Graph](https://graphty-org.github.io/storybook/element/?path=/story/graphty--graphty) - Basic configuration
+- [View Modes](https://graphty-org.github.io/storybook/element/?path=/story/viewmode--switch-view-modes) - 2D/3D switching
+- [Layouts](https://graphty-org.github.io/storybook/element/?path=/story/layout-3d--circular) - Different layout algorithms

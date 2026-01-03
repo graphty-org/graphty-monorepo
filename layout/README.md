@@ -1,9 +1,10 @@
-# Layout
+# @graphty/layout
 
-[![CI](https://github.com/graphty-org/layout/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/layout/actions/workflows/ci.yml)
-[![Coverage Status](https://coveralls.io/repos/github/graphty-org/layout/badge.svg?branch=main)](https://coveralls.io/github/graphty-org/layout?branch=main)
-[![npm version](https://badge.fury.io/js/%40graphty%2Flayout.svg)](https://badge.fury.io/js/%40graphty%2Flayout)
+[![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
+[![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
+[![npm version](https://img.shields.io/npm/v/@graphty/layout.svg)](https://www.npmjs.com/package/@graphty/layout)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty-org.github.io/docs/layout/)
 [![Examples](https://img.shields.io/badge/demo-github%20pages-blue)](https://graphty-org.github.io/layout/examples/index.html)
 
 **[View Interactive Examples →](https://graphty-org.github.io/layout/examples/index.html)**

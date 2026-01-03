@@ -283,4 +283,4 @@ onUnmounted(() => {
 
 ## Interactive Examples
 
-- [Selection Events](https://graphty-org.github.io/graphty-element/storybook/?path=/story/selection--mode-3-d)
+- [Selection Events](https://graphty-org.github.io/storybook/element/?path=/story/selection--mode-3-d)

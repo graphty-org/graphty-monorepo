@@ -968,7 +968,7 @@ export class Graph implements GraphContext {
      * @returns Promise that resolves when nodes are added
      * @since 1.0.0
      * @see {@link addEdges} for adding edges
-     * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/data--default | Data Loading Examples}
+     * @see {@link https://graphty-org.github.io/storybook/element/?path=/story/data--default | Data Loading Examples}
      * @example
      * ```typescript
      * // Add nodes with default ID field
@@ -1042,7 +1042,7 @@ export class Graph implements GraphContext {
      * @returns Promise that resolves when edges are added
      * @since 1.0.0
      * @see {@link addNodes} for adding nodes first
-     * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/data--default | Data Loading Examples}
+     * @see {@link https://graphty-org.github.io/storybook/element/?path=/story/data--default | Data Loading Examples}
      * @example
      * ```typescript
      * // Add edges with default source/target fields
@@ -1110,8 +1110,8 @@ export class Graph implements GraphContext {
      * @returns Promise that resolves when layout is initialized
      * @since 1.0.0
      * @see {@link waitForSettled} to wait for layout completion
-     * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/layout--default | 3D Layout Examples}
-     * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/layout2d--default | 2D Layout Examples}
+     * @see {@link https://graphty-org.github.io/storybook/element/?path=/story/layout--default | 3D Layout Examples}
+     * @see {@link https://graphty-org.github.io/storybook/element/?path=/story/layout2d--default | 2D Layout Examples}
      * @example
      * ```typescript
      * // Use force-directed layout with custom settings
@@ -1173,8 +1173,8 @@ export class Graph implements GraphContext {
      * @returns Promise that resolves when algorithm completes
      * @since 1.0.0
      * @see {@link applySuggestedStyles} to visualize results
-     * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/algorithms-centrality--degree | Centrality Examples}
-     * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/algorithms-community--louvain | Community Detection}
+     * @see {@link https://graphty-org.github.io/storybook/element/?path=/story/algorithms-centrality--degree | Centrality Examples}
+     * @see {@link https://graphty-org.github.io/storybook/element/?path=/story/algorithms-community--louvain | Community Detection}
      * @example
      * ```typescript
      * // Run degree centrality
@@ -1669,7 +1669,7 @@ export class Graph implements GraphContext {
      * @since 1.0.0
      * @see {@link deselectNode} to clear selection
      * @see {@link getSelectedNode} to get current selection
-     * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/selection--default | Selection Examples}
+     * @see {@link https://graphty-org.github.io/storybook/element/?path=/story/selection--default | Selection Examples}
      * @example
      * ```typescript
      * // Select a node and show its details

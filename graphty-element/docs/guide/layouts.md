@@ -218,5 +218,5 @@ Create your own layout algorithms. See [Custom Layouts](./extending/custom-layou
 
 ## Interactive Examples
 
-- [3D Layouts](https://graphty-org.github.io/graphty-element/storybook/?path=/story/layout-3d--circular)
-- [2D Layouts](https://graphty-org.github.io/graphty-element/storybook/?path=/story/layout-2d--circular)
+- [3D Layouts](https://graphty-org.github.io/storybook/element/?path=/story/layout-3d--circular)
+- [2D Layouts](https://graphty-org.github.io/storybook/element/?path=/story/layout-2d--circular)

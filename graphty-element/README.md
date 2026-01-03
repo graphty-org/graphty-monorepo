@@ -3,8 +3,8 @@
 [![npm version](https://img.shields.io/npm/v/@graphty/graphty-element.svg)](https://www.npmjs.com/package/@graphty/graphty-element)
 [![CI/CD](https://github.com/graphty-org/graphty-element/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-element/actions/workflows/ci.yml)
 [![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-element/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-element?branch=master)
-[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty-org.github.io/docs/graphty/)
-[![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty-org.github.io/storybook/element/)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/graphty-element/)
+[![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty.app/storybook/element/)
 
 A Web Component for 3D/2D graph visualization built with Lit and Babylon.js.
 
@@ -49,20 +49,20 @@ npm install @graphty/graphty-element @babylonjs/core lit
 
 ## Documentation
 
-- [Getting Started Guide](https://graphty-org.github.io/docs/graphty/guide/getting-started)
-- [Installation](https://graphty-org.github.io/docs/graphty/guide/installation)
-- [API Reference](https://graphty-org.github.io/docs/graphty/api/)
-- [Interactive Examples (Storybook)](https://graphty-org.github.io/storybook/element/)
+- [Getting Started Guide](https://graphty.app/docs/graphty-element/guide/getting-started)
+- [Installation](https://graphty.app/docs/graphty-element/guide/installation)
+- [API Reference](https://graphty.app/docs/graphty-element/api/)
+- [Interactive Examples (Storybook)](https://graphty.app/storybook/element/)
 
 ## Features
 
-- **3D and 2D Rendering** - Full 3D graph visualization with camera controls, or simplified 2D mode ([Camera Guide](https://graphty-org.github.io/docs/graphty/guide/camera))
-- **Multiple Layout Algorithms** - Force-directed, circular, hierarchical, and more ([Layouts Guide](https://graphty-org.github.io/docs/graphty/guide/layouts))
-- **Rich Styling System** - CSS-like styling with layers, selectors, and dynamic properties ([Styling Guide](https://graphty-org.github.io/docs/graphty/guide/styling))
-- **Interactive** - Node dragging, hover effects, selection, and custom behaviors ([Events Guide](https://graphty-org.github.io/docs/graphty/guide/events))
-- **Extensible** - Plugin architecture for custom layouts, algorithms, and data sources ([Extending Guide](https://graphty-org.github.io/docs/graphty/guide/extending/))
-- **Graph Algorithms** - Built-in algorithms for analysis ([Algorithms Guide](https://graphty-org.github.io/docs/graphty/guide/algorithms))
-- **VR/AR Support** - WebXR integration for immersive visualization ([VR/AR Guide](https://graphty-org.github.io/docs/graphty/guide/vr-ar))
+- **3D and 2D Rendering** - Full 3D graph visualization with camera controls, or simplified 2D mode ([Camera Guide](https://graphty.app/docs/graphty-element/guide/camera))
+- **Multiple Layout Algorithms** - Force-directed, circular, hierarchical, and more ([Layouts Guide](https://graphty.app/docs/graphty-element/guide/layouts))
+- **Rich Styling System** - CSS-like styling with layers, selectors, and dynamic properties ([Styling Guide](https://graphty.app/docs/graphty-element/guide/styling))
+- **Interactive** - Node dragging, hover effects, selection, and custom behaviors ([Events Guide](https://graphty.app/docs/graphty-element/guide/events))
+- **Extensible** - Plugin architecture for custom layouts, algorithms, and data sources ([Extending Guide](https://graphty.app/docs/graphty-element/guide/extending/))
+- **Graph Algorithms** - Built-in algorithms for analysis ([Algorithms Guide](https://graphty.app/docs/graphty-element/guide/algorithms))
+- **VR/AR Support** - WebXR integration for immersive visualization ([VR/AR Guide](https://graphty.app/docs/graphty-element/guide/vr-ar))
 
 ## Browser Support
 

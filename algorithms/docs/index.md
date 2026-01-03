@@ -14,7 +14,7 @@ hero:
       link: /algorithms/api/
     - theme: alt
       text: Interactive Examples
-      link: https://graphty-org.github.io/algorithms/
+      link: https://graphty.app/algorithms/
 
 features:
   - title: Getting Started

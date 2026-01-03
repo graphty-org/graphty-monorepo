@@ -14,7 +14,7 @@ hero:
       link: /graphty-element/api/
     - theme: alt
       text: Live Examples
-      link: https://graphty-org.github.io/storybook/element/
+      link: https://graphty.app/storybook/element/
 
 features:
   - title: Getting Started

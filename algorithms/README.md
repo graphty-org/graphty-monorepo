@@ -4,8 +4,8 @@
 [![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
 [![npm version](https://img.shields.io/npm/v/@graphty/algorithms.svg)](https://www.npmjs.com/package/@graphty/algorithms)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty-org.github.io/docs/algorithms/)
-[![Examples](https://img.shields.io/badge/demo-github%20pages-blue)](https://graphty-org.github.io/algorithms/)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/algorithms/)
+[![Examples](https://img.shields.io/badge/demo-github%20pages-blue)](https://graphty.app/algorithms/)
 
 A comprehensive TypeScript graph algorithms library with 98 algorithms optimized for browser environments and visualization applications.
 
@@ -15,8 +15,8 @@ A comprehensive TypeScript graph algorithms library with 98 algorithms optimized
 - **Browser-optimized**: Designed to run efficiently in web browsers
 - **Modular**: Import only the algorithms you need
 - **Comprehensive**: 98 graph algorithms including traversal, shortest paths, centrality, clustering, flow, matching, link prediction, and more
-- **Interactive Examples**: [Live demos](https://graphty-org.github.io/algorithms/) with visualizations for all algorithms
-- **Performance Analysis**: [Detailed benchmarks](https://graphty-org.github.io/algorithms/benchmarks/) comparing algorithm performance
+- **Interactive Examples**: [Live demos](https://graphty.app/algorithms/) with visualizations for all algorithms
+- **Performance Analysis**: [Detailed benchmarks](https://graphty.app/algorithms/benchmarks/) comparing algorithm performance
 - **Well-tested**: Extensive test suite with high coverage
 - **Standards-compliant**: Follows conventional commits and semantic versioning
 
@@ -1028,12 +1028,12 @@ const result = grsbm(graph, {
 
 ## Interactive Examples
 
-Try out all algorithms with interactive visualizations: **[Live Demo →](https://graphty-org.github.io/algorithms/)**
+Try out all algorithms with interactive visualizations: **[Live Demo →](https://graphty.app/algorithms/)**
 
 The library includes comprehensive examples demonstrating each algorithm. You can:
 
-- **[Browse Interactive HTML Examples](https://graphty-org.github.io/algorithms/examples/)** - Visual demonstrations with step-by-step execution
-- **[View Performance Benchmarks](https://graphty-org.github.io/algorithms/benchmarks/)** - Comparative analysis of algorithm performance
+- **[Browse Interactive HTML Examples](https://graphty.app/algorithms/examples/)** - Visual demonstrations with step-by-step execution
+- **[View Performance Benchmarks](https://graphty.app/algorithms/benchmarks/)** - Comparative analysis of algorithm performance
 - **[Explore Code Examples](https://github.com/graphty-org/algorithms/tree/main/examples)** - Implementation examples for each algorithm
 
 ### Basic Algorithms
@@ -1345,7 +1345,7 @@ interface GRSBMResult {
     - GRSBM: O(m log n) where m is edges
 - **Memory Usage**: O(V + E) for graph storage
 - **Browser Optimization**: Algorithms use iterative approaches where possible to avoid stack overflow
-- **Performance Benchmarks**: View detailed performance comparisons at [https://graphty-org.github.io/algorithms/benchmarks/](https://graphty-org.github.io/algorithms/benchmarks/)
+- **Performance Benchmarks**: View detailed performance comparisons at [https://graphty.app/algorithms/benchmarks/](https://graphty.app/algorithms/benchmarks/)
 
 ## Development
 

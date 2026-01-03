@@ -47,7 +47,7 @@ This plan implements a comprehensive documentation system for graphty-element co
             nav: [
                 { text: "Guide", link: "/guide/getting-started" },
                 { text: "API", link: "/api/" },
-                { text: "Examples", link: "https://graphty-org.github.io/graphty-element/storybook/" },
+                { text: "Examples", link: "https://graphty.app/graphty-element/storybook/" },
             ],
 
             sidebar: {
@@ -1111,8 +1111,8 @@ graph.zoomToFit();
     [![npm version](https://img.shields.io/npm/v/@graphty/graphty-element.svg)](https://www.npmjs.com/package/@graphty/graphty-element)
     [![CI/CD](https://github.com/graphty-org/graphty-element/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-element/actions/workflows/ci.yml)
     [![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-element/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-element?branch=master)
-    [![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty-org.github.io/graphty-element/)
-    [![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty-org.github.io/graphty-element/storybook/)
+    [![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/graphty-element/)
+    [![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty.app/graphty-element/storybook/)
 
     A Web Component for 3D/2D graph visualization built with Lit and Babylon.js.
 
@@ -1122,9 +1122,9 @@ graph.zoomToFit();
 
     ## Documentation
 
-    - [Getting Started Guide](https://graphty-org.github.io/graphty-element/guide/getting-started)
-    - [API Reference](https://graphty-org.github.io/graphty-element/api/)
-    - [Interactive Examples (Storybook)](https://graphty-org.github.io/graphty-element/storybook/)
+    - [Getting Started Guide](https://graphty.app/graphty-element/guide/getting-started)
+    - [API Reference](https://graphty.app/graphty-element/api/)
+    - [Interactive Examples (Storybook)](https://graphty.app/graphty-element/storybook/)
 
     ## Features
 
@@ -1282,7 +1282,7 @@ Every public API must include:
  * @since 1.0.0
  *
  * @see {@link RelatedMethod} for related functionality
- * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/example--story | Storybook Example}
+ * @see {@link https://graphty.app/graphty-element/storybook/?path=/story/example--story | Storybook Example}
  *
  * @example
  * ```typescript
@@ -1333,7 +1333,7 @@ Every public API must include:
  *
  * @see {@link addEdges} for adding edges
  * @see {@link removeNodes} for removing nodes
- * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/data--default | Data Loading Examples}
+ * @see {@link https://graphty.app/graphty-element/storybook/?path=/story/data--default | Data Loading Examples}
  *
  * @example
  * ```typescript
@@ -1390,7 +1390,7 @@ Every public API must include:
  *
  * @see {@link deselectNode} to clear selection
  * @see {@link getSelectedNode} to get current selection
- * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/selection--default | Selection Examples}
+ * @see {@link https://graphty.app/graphty-element/storybook/?path=/story/selection--default | Selection Examples}
  *
  * @example
  * ```typescript
@@ -1444,8 +1444,8 @@ Every public API must include:
  * @since 1.0.0
  *
  * @see {@link waitForSettled} to wait for layout completion
- * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/layout--default | 3D Layout Examples}
- * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/layout2d--default | 2D Layout Examples}
+ * @see {@link https://graphty.app/graphty-element/storybook/?path=/story/layout--default | 3D Layout Examples}
+ * @see {@link https://graphty.app/graphty-element/storybook/?path=/story/layout2d--default | 2D Layout Examples}
  *
  * @example
  * ```typescript
@@ -1501,8 +1501,8 @@ Every public API must include:
  * @since 1.0.0
  *
  * @see {@link applySuggestedStyles} to visualize results
- * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/algorithms-centrality--degree | Centrality Examples}
- * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/algorithms-community--louvain | Community Detection}
+ * @see {@link https://graphty.app/graphty-element/storybook/?path=/story/algorithms-centrality--degree | Centrality Examples}
+ * @see {@link https://graphty.app/graphty-element/storybook/?path=/story/algorithms-community--louvain | Community Detection}
  *
  * @example
  * ```typescript
@@ -1575,7 +1575,7 @@ Every public API must include:
  * @param callback - Function to call when event occurs
  * @since 1.0.0
  *
- * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/selection--default | Event Examples}
+ * @see {@link https://graphty.app/graphty-element/storybook/?path=/story/selection--default | Event Examples}
  *
  * @example
  * ```typescript
@@ -1691,7 +1691,7 @@ The `StyleHelpers` object provides data-to-visual mapping utilities. Each functi
  *
  * @see {@link plasma} for higher contrast alternative
  * @see {@link blues} for single-hue alternative
- * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/algorithms-palettepicker--default | Palette Examples}
+ * @see {@link https://graphty.app/graphty-element/storybook/?path=/story/algorithms-palettepicker--default | Palette Examples}
  *
  * @example
  * ```typescript
@@ -1741,7 +1741,7 @@ The `StyleHelpers` object provides data-to-visual mapping utilities. Each functi
  * @since 1.0.0
  *
  * @see {@link paulTolVibrant} for higher saturation
- * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/algorithms-community--louvain | Community Detection Example}
+ * @see {@link https://graphty.app/graphty-element/storybook/?path=/story/algorithms-community--louvain | Community Detection Example}
  *
  * @example
  * ```typescript
@@ -1867,7 +1867,7 @@ Each property needs JSDoc with:
  *
  * @see {@link edgeData} for edge data
  * @see {@link addNodes} for incremental loading
- * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/graphty--default | Basic Examples}
+ * @see {@link https://graphty.app/graphty-element/storybook/?path=/story/graphty--default | Basic Examples}
  *
  * @example HTML attribute (JSON string)
  * ```html
@@ -1911,7 +1911,7 @@ Each manager class needs class-level and method-level documentation.
  * - Algorithm-driven styles (based on algorithm results)
  * - Selection/highlight styles
  *
- * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/layeredstyles--default | Layered Styles Example}
+ * @see {@link https://graphty.app/graphty-element/storybook/?path=/story/layeredstyles--default | Layered Styles Example}
  *
  * @example
  * ```typescript

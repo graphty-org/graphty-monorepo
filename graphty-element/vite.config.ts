@@ -6,9 +6,10 @@ import VitePluginCustomElementsManifest from "vite-plugin-cem";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-    // Load env file based on `mode` in the current working directory.
+    // Load env file from monorepo root (one level up from this package).
     // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
-    const env = loadEnv(mode, process.cwd(), "");
+    const monorepoRoot = resolve(__dirname, "..");
+    const env = loadEnv(mode, monorepoRoot, "");
     const config: UserConfig = {
         plugins: [
             // eslint(),

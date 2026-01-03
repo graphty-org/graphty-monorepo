@@ -1,3 +1,27 @@
+## 0.1.4 (2026-01-03)
+
+### 🩹 Fixes
+
+- view mode and switching in graphty ([63def4e](https://github.com/graphty-org/graphty-monorepo/commit/63def4e))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 1.5.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.5.4 (2026-01-03)
+
+### 🩹 Fixes
+
+- view mode and switching in graphty ([63def4e](https://github.com/graphty-org/graphty-monorepo/commit/63def4e))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.3.2 (2026-01-03)
 
 ### 🩹 Fixes

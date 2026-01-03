@@ -1,3 +1,40 @@
+## 1.3.1 (2026-01-03)
+
+This was a version bump only for layout to align it with other projects, there were no code changes.
+
+## 0.1.2 (2026-01-03)
+
+### 🩹 Fixes
+
+- clean up console.log and logging ([55a475a](https://github.com/graphty-org/graphty-monorepo/commit/55a475a))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 1.5.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.4.1 (2026-01-03)
+
+This was a version bump only for algorithms to align it with other projects, there were no code changes.
+
+## 1.5.2 (2026-01-03)
+
+### 🩹 Fixes
+
+- clean up console.log and logging ([55a475a](https://github.com/graphty-org/graphty-monorepo/commit/55a475a))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 1.4.1
+- Updated layout to 1.3.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.1 (2026-01-02)
 
 ### 🧱 Updated Dependencies

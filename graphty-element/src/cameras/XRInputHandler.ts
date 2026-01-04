@@ -85,8 +85,9 @@ export class XRInputHandler {
     private readonly PAN_SPEED = 0.08;
     private readonly ZOOM_SPEED = 0.02;
     private readonly GESTURE_ZOOM_SENSITIVITY = 2.0;
-    private readonly PINCH_START = 0.7;
-    private readonly PINCH_END = 0.5;
+    // Pinch gesture thresholds - kept for potential future use
+    private readonly _PINCH_START = 0.7;
+    private readonly _PINCH_END = 0.5;
 
     // Input switch delay tracking
     private lastControllerRemovedTime = 0;
@@ -105,7 +106,7 @@ export class XRInputHandler {
     private readonly VELOCITY_SLOW_THRESHOLD = 0.005; // meters/second - below this = precision mode
     private readonly VELOCITY_FAST_THRESHOLD = 0.03; // meters/second - above this = speed mode
     private readonly AMP_SLOW = 5.0; // Precision zone: usable but controlled
-    private readonly AMP_MEDIUM = 10.0; // Natural zone: comfortable movement
+    private readonly _AMP_MEDIUM = 10.0; // Natural zone: comfortable movement (kept for reference)
     private readonly AMP_FAST = 20.0; // Speed zone: fast repositioning
     private lastDragTime = 0; // For velocity calculation
 
@@ -490,9 +491,9 @@ export class XRInputHandler {
 
         // LEFT STICK: Rotation (matching demo behavior)
         // X = yaw (push right = positive yaw = scene rotates right around you)
-        // Y = pitch (push forward = negative pitch = look up)
+        // Y = pitch (push forward = graph moves up, consistent with mouse/touch)
         const yawDelta = leftX * this.YAW_SPEED;
-        const pitchDelta = -leftY * this.PITCH_SPEED;
+        const pitchDelta = leftY * this.PITCH_SPEED;
 
         if (Math.abs(yawDelta) > 0.0001 || Math.abs(pitchDelta) > 0.0001) {
             this.pivotController.rotate(yawDelta, pitchDelta);

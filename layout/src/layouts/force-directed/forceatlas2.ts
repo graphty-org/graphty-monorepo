@@ -1,5 +1,5 @@
 import type { Edge, Graph, Node, PositionMap } from "../../types";
-import { getEdgesFromGraph,getNodesFromGraph } from "../../utils/graph";
+import { getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
 import { RandomNumberGenerator } from "../../utils/random";
 import { rescaleLayout } from "../../utils/rescale";
@@ -35,7 +35,7 @@ export function forceatlas2Layout(
     nodeMass: Record<Node, number> | null = null,
     nodeSize: Record<Node, number> | null = null,
     weight: string | null = null,
-    dissuadeHubs: boolean = false,
+    _dissuadeHubs: boolean = false,
     linlog: boolean = false,
     seed: number | null = null,
     dim: number = 2,
@@ -172,8 +172,8 @@ export function forceatlas2Layout(
     // Simulation parameters
     let speed = 1;
     let speedEfficiency = 1;
-    const swing = 1;
-    const traction = 1;
+    const _swing = 1; // Reserved for adaptive speed control
+    const _traction = 1; // Reserved for adaptive speed control
 
     // Helper function to estimate factor for force scaling
     function estimateFactor(

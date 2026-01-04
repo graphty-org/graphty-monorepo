@@ -161,7 +161,7 @@ export class D3GraphEngine extends LayoutEngine {
             .force("center", forceCenter())
             .force("dagRadial", null)
             .stop();
-        this.d3ForceLayout.force("link").id((d) => (d as D3InputNode).id);
+        this.d3ForceLayout.force("link").id((d: D3Node) => (d as D3InputNode).id);
     }
 
     /**

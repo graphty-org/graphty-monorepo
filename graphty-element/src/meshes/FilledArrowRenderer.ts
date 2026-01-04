@@ -909,7 +909,7 @@ void main() {
     static create2DArrow(
         type: string,
         length: number,
-        width: number,
+        _width: number,
         color: string,
         opacity: number,
         scene: Scene,

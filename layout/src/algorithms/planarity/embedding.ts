@@ -94,7 +94,7 @@ export function createTriangulationEmbedding(nodes: Node[], edges: Edge[], seed:
  * @param adjMap - Adjacency map
  * @returns Cycle as array of nodes, or null if none found
  */
-export function findCycle(nodes: Node[], edges: Edge[], adjMap: Record<Node, Set<Node>>): Node[] | null {
+export function findCycle(nodes: Node[], _edges: Edge[], adjMap: Record<Node, Set<Node>>): Node[] | null {
     if (nodes.length === 0) {return null;}
     if (nodes.length <= 2) {return nodes;} // Not a real cycle but handle it
 

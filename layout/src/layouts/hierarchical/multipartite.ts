@@ -1,5 +1,5 @@
 import type { Graph, Node, PositionMap } from "../../types";
-import { getNeighbors,getNodesFromGraph } from "../../utils/graph";
+import { getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
 import { rescaleLayout } from "../../utils/rescale";
 
@@ -58,7 +58,7 @@ export function multipartiteLayout(
     let pos: PositionMap = {};
 
     // Process each layer
-    Object.entries(layers).forEach(([layer, nodes], layerIdx) => {
+    Object.entries(layers).forEach(([_layer, nodes], layerIdx) => {
         const layerNodes = Array.isArray(nodes) ? nodes : [nodes];
         const layerSize = layerNodes.length;
 

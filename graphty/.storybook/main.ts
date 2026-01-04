@@ -22,24 +22,25 @@ const config: StorybookConfig = {
     async viteFinal(config, { configType }) {
         const fs = await import("fs");
         const path = await import("path");
-        const os = await import("os");
+        const { mergeConfig, loadEnv } = await import("vite");
 
-        // SSL configuration via environment variables or default paths
-        // Environment variables: SSL_KEY_PATH, SSL_CERT_PATH
-        // Default paths: ~/ssl/atoms.key, ~/ssl/STAR_ato_ms.crt
-        const sslDir = path.join(os.homedir(), "ssl");
-        const sslKeyPath = process.env.SSL_KEY_PATH ?? path.join(sslDir, "atoms.key");
-        const sslCertPath = process.env.SSL_CERT_PATH ?? path.join(sslDir, "STAR_ato_ms.crt");
+        // Load env file from monorepo root (one level up from this package)
+        const monorepoRoot = path.resolve(__dirname, "../..");
+        const env = loadEnv(configType === "DEVELOPMENT" ? "development" : "production", monorepoRoot, "");
 
-        // Check if SSL files exist before trying to use them
-        const sslKeyExists = fs.existsSync(sslKeyPath);
-        const sslCertExists = fs.existsSync(sslCertPath);
-        const useHttps = sslKeyExists && sslCertExists;
+        // SSL configuration via environment variables
+        const sslKeyPath = env.HTTPS_KEY_PATH;
+        const sslCertPath = env.HTTPS_CERT_PATH;
+        const useHttps = sslKeyPath && sslCertPath && fs.existsSync(sslKeyPath) && fs.existsSync(sslCertPath);
 
         const server: Record<string, unknown> = {
-            host: true,
+            host: env.HOST ?? true,
             allowedHosts: true,
         };
+
+        if (env.PORT) {
+            server.port = parseInt(env.PORT);
+        }
 
         if (useHttps) {
             server.https = {
@@ -47,8 +48,6 @@ const config: StorybookConfig = {
                 cert: fs.readFileSync(sslCertPath),
             };
         }
-
-        const { mergeConfig } = await import("vite");
 
         if (configType === "DEVELOPMENT") {
             // Your development configuration goes here

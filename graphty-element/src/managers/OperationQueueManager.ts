@@ -842,7 +842,7 @@ export class OperationQueueManager implements Manager {
      * Wait for a specific operation to complete
      * @param id - Operation ID to wait for
      */
-    private async waitForOperation(id: string): Promise<void> {
+    private async _waitForOperation(id: string): Promise<void> {
         while (this.pendingOperations.has(id) || this.queuedOperations.has(id) || this.runningOperations.has(id)) {
             await new Promise((resolve) => setTimeout(resolve, OPERATION_POLL_INTERVAL_MS));
         }
@@ -1007,7 +1007,7 @@ export class OperationQueueManager implements Manager {
      */
     private async queueTriggeredOperation(
         category: OperationCategory,
-        sourceMetadata?: OperationMetadata,
+        _sourceMetadata?: OperationMetadata,
         execute?: (context: OperationContext) => Promise<void> | void,
         description?: string,
     ): Promise<void> {

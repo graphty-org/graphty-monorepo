@@ -269,7 +269,7 @@ export class CameraPathAnimator {
      * @param currentWaypoint - The waypoint to calculate frame for
      * @returns Frame number for the waypoint
      */
-    private timestampToFrame(timestamp: number, waypoints: CameraWaypoint[], currentWaypoint: CameraWaypoint): number {
+    private timestampToFrame(_timestamp: number, waypoints: CameraWaypoint[], currentWaypoint: CameraWaypoint): number {
         let cumulativeTime = 0;
 
         for (const wp of waypoints) {

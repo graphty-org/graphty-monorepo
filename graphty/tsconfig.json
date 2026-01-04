@@ -1,7 +1,8 @@
 {
+    "extends": "../tsconfig.base.json",
     "compilerOptions": {
         "target": "ES2022",
-        "useDefineForClassFields": true,
+        "useDefineForClassFields": false,
         "lib": ["ES2022", "DOM", "DOM.Iterable"],
         "module": "ESNext",
         "skipLibCheck": true,
@@ -16,14 +17,23 @@
 
         /* Linting */
         "strict": true,
-        "noUnusedLocals": true,
-        "noUnusedParameters": true,
+        /* Disabled to avoid checking sibling packages' source files via path aliases */
+        /* Sibling packages have their own tsconfig with these checks enabled */
+        "noUnusedLocals": false,
+        "noUnusedParameters": false,
         "noFallthroughCasesInSwitch": true,
 
-        /* Path mapping */
+        /* Decorators - match graphty-element settings */
+        "experimentalDecorators": true,
+
+        /* Path mapping - extend base paths */
         "baseUrl": ".",
         "paths": {
-            "@/*": ["./src/*"]
+            "@/*": ["./src/*"],
+            "@graphty/algorithms": ["../algorithms/src/index.ts"],
+            "@graphty/layout": ["../layout/src/index.ts"],
+            "@graphty/graphty-element": ["../graphty-element/index.ts"],
+            "@graphty/graphty": ["./src/index.ts"]
         }
     },
     "include": ["src", ".storybook"],

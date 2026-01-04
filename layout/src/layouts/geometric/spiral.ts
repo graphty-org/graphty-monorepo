@@ -2,7 +2,7 @@
  * Spiral layout algorithm
  */
 
-import { Graph, Node, PositionMap } from "../../types";
+import type { Graph, PositionMap } from "../../types";
 import { getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
 import { rescaleLayout } from "../../utils/rescale";

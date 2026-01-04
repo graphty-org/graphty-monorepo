@@ -25,7 +25,7 @@ export interface XRSessionConfig {
  */
 export class XRSessionManager {
     private scene: Scene;
-    private config: XRSessionConfig;
+    private _config: XRSessionConfig;
     private xrHelper: WebXRDefaultExperience | null = null;
     private activeMode: "immersive-vr" | "immersive-ar" | null = null;
 
@@ -36,7 +36,7 @@ export class XRSessionManager {
      */
     constructor(scene: Scene, config: XRSessionConfig) {
         this.scene = scene;
-        this.config = config;
+        this._config = config;
         logger.debug("Created", { vr: config.vr, ar: config.ar });
     }
 

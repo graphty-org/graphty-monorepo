@@ -2,7 +2,7 @@
  * Spectral layout algorithm using eigenvectors of the graph Laplacian
  */
 
-import { Edge, Graph, Node, PositionMap } from "../../types";
+import type { Graph, Node, PositionMap } from "../../types";
 import { getEdgesFromGraph,getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
 import { rescaleLayout } from "../../utils/rescale";

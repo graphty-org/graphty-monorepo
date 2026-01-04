@@ -2,7 +2,7 @@
  * Kamada-Kawai layout algorithm optimization functions
  */
 
-import { Edge,Graph, Node } from "../../types";
+import type { Graph } from "../../types";
 import { getEdgesFromGraph,getNodesFromGraph } from "../../utils/graph";
 import { _lbfgsDirection } from "./lbfgs";
 import { _backtrackingLineSearch } from "./line-search";

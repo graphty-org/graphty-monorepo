@@ -3,7 +3,7 @@
  */
 
 import { checkPlanarity, combinatorialEmbeddingToPos } from "../../algorithms/planarity";
-import { Edge, Graph, Node, PositionMap } from "../../types";
+import type { Graph, PositionMap } from "../../types";
 import { getEdgesFromGraph,getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
 import { rescaleLayout } from "../../utils/rescale";

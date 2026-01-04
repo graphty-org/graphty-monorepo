@@ -248,7 +248,7 @@ export function grsbm(graph: Graph, config: GRSBMConfig = {}): GRSBMResult {
 function spectralBisection(
     graph: Graph,
     cluster: GRSBMCluster,
-    numEigenvectors: number,
+    _numEigenvectors: number,
     tolerance: number,
     maxIterations: number,
 ): {

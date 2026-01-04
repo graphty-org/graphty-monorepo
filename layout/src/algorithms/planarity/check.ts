@@ -17,7 +17,7 @@ import { isK5, isK33 } from "./special-graphs";
  * @returns Object containing isPlanar flag and embedding
  */
 export function checkPlanarity(
-    G: Graph,
+    _G: Graph,
     nodes: Node[],
     edges: Edge[],
     seed: number | null = null,

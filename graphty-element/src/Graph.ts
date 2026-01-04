@@ -1446,7 +1446,7 @@ export class Graph implements GraphContext {
      * @param settings - Object containing rendering configuration options
      * @param options - Queue options for operation ordering
      */
-    async setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void> {
+    async setRenderSettings(_settings: Record<string, unknown>, options?: QueueableOptions): Promise<void> {
         if (options?.skipQueue) {
             // Apply render settings directly
             // TODO: Add render settings support when available

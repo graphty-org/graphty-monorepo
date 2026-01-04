@@ -262,7 +262,7 @@ function initializeClusterCenters(embeddings: Map<NodeId, number[]>, numClusters
 function updateEmbeddings(
     graph: Graph,
     embeddings: Map<NodeId, number[]>,
-    clusters: Map<NodeId, number>,
+    _clusters: Map<NodeId, number>,
     learningRate: number,
     lambda: number,
 ): void {

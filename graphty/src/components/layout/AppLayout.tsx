@@ -10,6 +10,7 @@ import { ViewDataModal } from "../data-view";
 import { FeedbackModal } from "../FeedbackModal";
 import { Graphty, type GraphtyHandle } from "../Graphty";
 import { LoadDataModal, type LoadDataRequest } from "../LoadDataModal";
+import { RunAlgorithmModal } from "../RunAlgorithmModal";
 import { RunLayoutsModal } from "../RunLayoutsModal";
 import { BottomToolbar, ViewMode } from "./BottomToolbar";
 import { LayerItem, LeftSidebar } from "./LeftSidebar";
@@ -375,6 +376,7 @@ export function AppLayout({ className }: AppLayoutProps): React.JSX.Element {
     const [loadDataModalOpen, setLoadDataModalOpen] = useState(false);
     const [viewDataModalOpen, setViewDataModalOpen] = useState(false);
     const [runLayoutsModalOpen, setRunLayoutsModalOpen] = useState(false);
+    const [runAlgorithmModalOpen, setRunAlgorithmModalOpen] = useState(false);
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [dataLoadedState, setDataLoadedState] = useState<DataLoadedState>({ hasData: false });
     const [currentLayout, setCurrentLayout] = useState<string>("d3");
@@ -666,6 +668,9 @@ export function AppLayout({ className }: AppLayoutProps): React.JSX.Element {
                 onRunLayouts={() => {
                     setRunLayoutsModalOpen(true);
                 }}
+                onRunAlgorithm={() => {
+                    setRunAlgorithmModalOpen(true);
+                }}
                 onSendFeedback={handleSendFeedback}
                 onOpenAiSettings={() => {
                     setAiSettingsModalOpen(true);
@@ -702,6 +707,15 @@ export function AppLayout({ className }: AppLayoutProps): React.JSX.Element {
                 is2DMode={viewMode === "2d"}
                 currentLayout={currentLayout}
                 currentLayoutConfig={currentLayoutConfig}
+            />
+
+            {/* Run Algorithm Modal */}
+            <RunAlgorithmModal
+                opened={runAlgorithmModalOpen}
+                onClose={() => {
+                    setRunAlgorithmModalOpen(false);
+                }}
+                graphtyRef={graphtyRef}
             />
 
             {/* Feedback Modal */}

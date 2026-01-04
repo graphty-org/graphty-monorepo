@@ -1,6 +1,7 @@
 {
     "name": "@graphty/graphty",
     "version": "0.1.4",
+    "private": true,
     "description": "React application for graph visualization built with Mantine and graphty-element",
     "author": "Adam Powers <apowers@ato.ms>",
     "license": "MIT",
@@ -71,10 +72,6 @@
     "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/graphty#readme",
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
-    },
-    "publishConfig": {
-        "access": "public",
-        "provenance": true
     },
     "keywords": [
         "graph",

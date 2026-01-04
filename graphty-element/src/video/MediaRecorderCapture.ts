@@ -1,6 +1,9 @@
+import { GraphtyLogger, type Logger } from "../logging";
 import { VIDEO_CONSTANTS } from "../screenshot/constants.js";
 import { ScreenshotError, ScreenshotErrorCode } from "../screenshot/ScreenshotError.js";
 import type { AnimationOptions, AnimationResult } from "./VideoCapture.js";
+
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "video", "recorder"]);
 
 /**
  * Error thrown when animation capture is cancelled by the user
@@ -74,8 +77,7 @@ export class MediaRecorderCapture {
      */
     private log(message: string): void {
         if (this.debug) {
-            // eslint-disable-next-line no-console
-            console.log(message);
+            logger.debug(message);
         }
     }
     /**

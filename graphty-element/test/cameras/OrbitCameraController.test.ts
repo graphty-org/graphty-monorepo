@@ -112,17 +112,17 @@ describe("OrbitCameraController", () => {
         });
 
         test("should apply trackballRotationSpeed to rotation", () => {
-            // With trackballRotationSpeed = 0.01, a dx of 100 should give yaw = -1 radian
+            // With trackballRotationSpeed = 0.01, a dx of 100 should give yaw = 1 radian
             const dx = 100;
 
             controller.rotate(dx, 0);
 
-            // The pivot should be rotated by -dx * speed around Y axis
+            // The pivot should be rotated by dx * speed around Y axis (matching XR convention)
             const rot = controller.pivot.rotationQuaternion;
             assert.isNotNull(rot, "Rotation quaternion should exist");
             // For a pure Y rotation of angle theta, quat.y = sin(theta/2)
-            // Expected yaw = -100 * 0.01 = -1 radian
-            // sin(-0.5) ≈ -0.479
+            // Expected yaw = 100 * 0.01 = 1 radian
+            // sin(0.5) ≈ 0.479
             assert.isAbove(Math.abs(rot.y), 0.1, "Y component should reflect rotation");
         });
 

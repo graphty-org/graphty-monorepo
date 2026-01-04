@@ -1,3 +1,129 @@
+## 0.1.4 (2026-01-03)
+
+### 🩹 Fixes
+
+- view mode and switching in graphty ([63def4e](https://github.com/graphty-org/graphty-monorepo/commit/63def4e))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 1.5.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.5.4 (2026-01-03)
+
+### 🩹 Fixes
+
+- view mode and switching in graphty ([63def4e](https://github.com/graphty-org/graphty-monorepo/commit/63def4e))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.3.2 (2026-01-03)
+
+### 🩹 Fixes
+
+- update repo urls to fix release provenance ([a7b24e8](https://github.com/graphty-org/graphty-monorepo/commit/a7b24e8))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.3 (2026-01-03)
+
+### 🩹 Fixes
+
+- update repo urls to fix release provenance ([a7b24e8](https://github.com/graphty-org/graphty-monorepo/commit/a7b24e8))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 1.5.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.4.2 (2026-01-03)
+
+### 🩹 Fixes
+
+- update repo urls to fix release provenance ([a7b24e8](https://github.com/graphty-org/graphty-monorepo/commit/a7b24e8))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.5.3 (2026-01-03)
+
+### 🩹 Fixes
+
+- update repo urls to fix release provenance ([a7b24e8](https://github.com/graphty-org/graphty-monorepo/commit/a7b24e8))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 1.4.2
+- Updated layout to 1.3.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.3.1 (2026-01-03)
+
+This was a version bump only for layout to align it with other projects, there were no code changes.
+
+## 0.1.2 (2026-01-03)
+
+### 🩹 Fixes
+
+- clean up console.log and logging ([55a475a](https://github.com/graphty-org/graphty-monorepo/commit/55a475a))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 1.5.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.4.1 (2026-01-03)
+
+This was a version bump only for algorithms to align it with other projects, there were no code changes.
+
+## 1.5.2 (2026-01-03)
+
+### 🩹 Fixes
+
+- clean up console.log and logging ([55a475a](https://github.com/graphty-org/graphty-monorepo/commit/55a475a))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 1.4.1
+- Updated layout to 1.3.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.1 (2026-01-02)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 1.5.1
+
+## 1.5.1 (2026-01-02)
+
+### 🩹 Fixes
+
+- 3d camera rotation direction matches mouse drag ([8013e18](https://github.com/graphty-org/graphty-monorepo/commit/8013e18))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.3.0 (2026-01-01)
 
 ### 🚀 Features

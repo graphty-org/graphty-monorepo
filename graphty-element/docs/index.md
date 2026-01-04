@@ -2,51 +2,43 @@
 layout: home
 
 hero:
-    name: Graphty
-    text: 3D/2D Graph Visualization Web Component
-    tagline: Build interactive graph visualizations with a powerful Web Component library built on Lit and Babylon.js
-    actions:
-        - theme: brand
-          text: Get Started
-          link: /guide/getting-started
-        - theme: alt
-          text: API Reference
-          link: /api/
-        - theme: alt
-          text: Live Examples
-          link: https://graphty-org.github.io/graphty-element/storybook/
+  name: graphty-element
+  text: 3D/2D Graph Visualization
+  tagline: Web Component built with Lit and Babylon.js
+  actions:
+    - theme: brand
+      text: Get Started
+      link: /graphty-element/guide/getting-started
+    - theme: alt
+      text: API Reference
+      link: /graphty-element/api/
+    - theme: alt
+      text: Live Examples
+      link: https://graphty.app/storybook/element/
 
 features:
-    - title: 3D Rendering
-      details: Powered by Babylon.js for high-performance 3D graph visualization with WebGL and WebGPU support.
-    - title: Multiple Layouts
-      details: Choose from force-directed, hierarchical, circular, grid, and more layout algorithms for optimal graph presentation.
-    - title: Extensible Architecture
-      details: Plugin system for custom layouts, algorithms, and data sources. Build exactly what you need.
-    - title: VR/AR Support
-      details: WebXR-ready for immersive graph exploration in virtual and augmented reality environments.
+  - title: Getting Started
+    details: Installation, quick start guide, and your first graph visualization.
+    link: /graphty-element/guide/getting-started
+    linkText: Start here
+  - title: Web Component API
+    details: HTML attributes and properties for configuring the graphty-element.
+    link: /graphty-element/guide/web-component
+    linkText: Learn more
+  - title: JavaScript API
+    details: Programmatic control - add nodes, run algorithms, capture screenshots.
+    link: /graphty-element/guide/javascript-api
+    linkText: Learn more
+  - title: Styling
+    details: Customize node shapes, colors, edges, and labels with CSS-like styling.
+    link: /graphty-element/guide/styling
+    linkText: Learn more
+  - title: Layouts
+    details: Force-directed, circular, hierarchical, and custom layout algorithms.
+    link: /graphty-element/guide/layouts
+    linkText: Learn more
+  - title: Extending
+    details: Create custom layouts, algorithms, and data sources.
+    link: /graphty-element/guide/extending/custom-layouts
+    linkText: Learn more
 ---
-
-## Quick Start
-
-Install via npm:
-
-```bash
-npm install @graphty/graphty-element
-```
-
-Create your first graph:
-
-```html
-<script type="module">
-    import "@graphty/graphty-element";
-</script>
-
-<graphty-element
-    node-data='[{"id": "a"}, {"id": "b"}, {"id": "c"}]'
-    edge-data='[{"source": "a", "target": "b"}, {"source": "b", "target": "c"}]'
->
-</graphty-element>
-```
-
-See it in action: [Basic Graph](https://graphty-org.github.io/graphty-element/storybook/?path=/story/graphty--graphty)

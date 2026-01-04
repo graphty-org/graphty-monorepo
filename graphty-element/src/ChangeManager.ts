@@ -36,7 +36,6 @@ export class ChangeManager {
             // see if this data change triggers calculated values,
             // and run the calculated values if it does
             const cvs = this.watchedInputs.get(`${dataType}.${path}`);
-            // console.log("onChange:", this.watchedInputs, `${dataType}.${path}`, cvs);
             if (cvs) {
                 // Run ALL calculated values watching this input path
                 for (const cv of cvs) {
@@ -137,8 +136,6 @@ function getSchema(schemas: Record<string, z4.$ZodType | undefined>, output: str
 
     const topSchema = schemas[outputDataType];
     if (!topSchema) {
-        // console.log("schema.def.shape", schema.def.shape);
-        // console.log("outputPath", outputPath);
         return undefined;
     }
 

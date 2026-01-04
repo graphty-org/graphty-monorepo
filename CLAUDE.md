@@ -6,6 +6,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Graphty is a modular graph visualization ecosystem built as a TypeScript monorepo managed by **pnpm** and **Nx**.
 
+## Naming Conventions
+
+**IMPORTANT**: Always use the full package name to avoid confusion:
+
+| Package | Correct Name | DO NOT Use |
+|---------|--------------|------------|
+| `@graphty/graphty-element` | **graphty-element** | "graphty" (ambiguous) |
+| `@graphty/graphty` | **graphty** or **graphty app** | - |
+| `@graphty/algorithms` | **algorithms** | - |
+| `@graphty/layout` | **layout** | - |
+
+- The Web Component library is **graphty-element** (not "graphty")
+- The React application is **graphty** or **graphty app**
+- In documentation URLs, use `/graphty-element/` for the Web Component docs
+- When referring to the visualization library, always say "graphty-element"
+
 ## Package Directory
 
 | Package | Location | Version | Description |

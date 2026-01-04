@@ -1,6 +1,6 @@
 {
     "name": "@graphty/layout",
-    "version": "1.3.0",
+    "version": "1.3.2",
     "description": "graph layout algorithms based on networkx",
     "author": "Adam Powers <apowers@ato.ms>",
     "main": "dist/layout.js",
@@ -21,6 +21,10 @@
     "directories": {
         "example": "examples"
     },
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
     "scripts": {
         "test": "vitest",
         "test:ui": "vitest --ui",
@@ -30,7 +34,6 @@
         "coverage:preview": "npx serve coverage -p 9052",
         "lint": "eslint && tsc --noEmit",
         "typecheck": "tsc --noEmit",
-        "prepare": "husky",
         "build": "tsc",
         "build:bundle": "node scripts/build-bundle.js",
         "build:all": "npm run build && npm run build:bundle",
@@ -40,11 +43,18 @@
         "commit": "cz",
         "serve": "npm run build:bundle && vite",
         "examples": "npm run build:bundle && vite",
-        "ready:commit": "npm run build && npm run lint && npm run test:run"
+        "ready:commit": "npm run build && npm run lint && npm run test:run",
+        "docs:api": "typedoc && node scripts/sanitize-api-docs.js",
+        "docs:api:watch": "typedoc --watch",
+        "docs:dev": "vitepress dev docs",
+        "docs:watch": "npm run docs:api && (npm run docs:api:watch & npm run docs:dev & wait)",
+        "docs:build": "npm run docs:api && vitepress build docs",
+        "docs:preview": "vitepress preview docs"
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/graphty-org/layout.git"
+        "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
+        "directory": "layout"
     },
     "keywords": [
         "graph",
@@ -54,17 +64,13 @@
     ],
     "license": "MIT",
     "bugs": {
-        "url": "https://github.com/graphty-org/layout/issues"
+        "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
-    "homepage": "https://github.com/graphty-org/layout#readme",
+    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/layout#readme",
     "config": {
         "commitizen": {
             "path": "./node_modules/cz-conventional-changelog"
         }
-    },
-    "publishConfig": {
-        "access": "public",
-        "provenance": true
     },
     "devDependencies": {}
 }

@@ -34,8 +34,16 @@ export default tseslint.config(
             "**/examples/**",
             // Build scripts are Node.js tools, not source code
             "**/scripts/**",
+            // Stories are linted separately with relaxed rules but excluded from tsconfig
+            "**/stories/**",
             // Vite plugins are build tools
             "**/vite-plugin-*.js",
+            // VitePress cache and generated files
+            "**/.vitepress/cache/**",
+            "**/.vitepress/dist/**",
+            // Docs directory (VitePress content)
+            "docs/**",
+            "**/docs/**",
             // Algorithms tests have pre-existing TypeScript issues; they work with vitest
             // but fail tsc --noEmit. Ignoring until tests can be refactored.
             "algorithms/test/**",
@@ -168,7 +176,7 @@ export default tseslint.config(
             // ==========================================
             // CODE QUALITY
             // ==========================================
-            "no-console": ["warn", { allow: ["warn", "error"] }],
+            "no-console": ["error", { allow: ["warn", "error"] }],
             "no-duplicate-imports": "error",
             "no-useless-constructor": "error",
             "no-useless-rename": "error",

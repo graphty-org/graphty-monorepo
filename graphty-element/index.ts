@@ -329,7 +329,7 @@ export { formatSchemaForPrompt, SchemaExtractor, SchemaManager } from "./src/ai/
  * @remarks
  * These functions help test whether color palettes are accessible to users
  * with various forms of color vision deficiency.
- * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/algorithms-palettepicker--default | Palette Examples}
+ * @see {@link https://graphty.app/storybook/element/?path=/story/algorithms-palettepicker--default | Palette Examples}
  */
 export {
     areDistinguishableInGrayscale,

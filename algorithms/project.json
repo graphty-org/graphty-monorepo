@@ -72,6 +72,15 @@
                 "cwd": "algorithms"
             },
             "dependsOn": ["build"]
+        },
+        "docs:build": {
+            "executor": "nx:run-commands",
+            "outputs": ["{projectRoot}/docs/.vitepress/dist"],
+            "options": {
+                "command": "npm run docs:build",
+                "cwd": "algorithms"
+            },
+            "dependsOn": ["build"]
         }
     }
 }

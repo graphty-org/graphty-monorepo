@@ -1,5 +1,8 @@
-/* eslint-disable no-console -- XR debugging requires console logging for development */
 import type { Camera, Scene, WebXRDefaultExperience } from "@babylonjs/core";
+
+import { GraphtyLogger, type Logger } from "../logging";
+
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "xr", "session"]);
 
 export type XRReferenceSpaceType = "local" | "local-floor" | "bounded-floor" | "unbounded";
 
@@ -34,7 +37,7 @@ export class XRSessionManager {
     constructor(scene: Scene, config: XRSessionConfig) {
         this.scene = scene;
         this.config = config;
-        console.log("🎮 [XRSessionManager] Created with config:", config);
+        logger.debug("Created", { vr: config.vr, ar: config.ar });
     }
 
     /**
@@ -47,7 +50,7 @@ export class XRSessionManager {
         const hasWindow = typeof window !== "undefined";
         const isSecureContext = hasWindow && window.isSecureContext;
 
-        console.log("[XR Detection]", {
+        logger.debug("XR detection", {
             hasNavigator,
             hasXR,
             isSecureContext,
@@ -118,7 +121,7 @@ export class XRSessionManager {
         }
 
         try {
-            console.log("🎮 [XRSessionManager] Creating VR XR experience...");
+            logger.debug("Creating VR XR experience");
 
             // Import WebXR module dynamically
             const { WebXRDefaultExperience, WebXRFeatureName } = await import("@babylonjs/core");
@@ -129,12 +132,12 @@ export class XRSessionManager {
                 disableTeleportation: true, // Match demo
             });
 
-            console.log("🎮 [XRSessionManager] XR experience created, enabling hand tracking with hand meshes...");
+            logger.debug("XR experience created, enabling hand tracking with hand meshes");
 
             // Enable hand tracking with default rigged hand meshes (purple hands)
             // Using simple config that matches the working demo
             try {
-                const handTracking = this.xrHelper.baseExperience.featuresManager.enableFeature(
+                this.xrHelper.baseExperience.featuresManager.enableFeature(
                     WebXRFeatureName.HAND_TRACKING,
                     "latest",
                     {
@@ -142,26 +145,26 @@ export class XRSessionManager {
                         jointMeshes: { enablePhysics: false },
                     },
                 );
-                console.log("🤲 [XRSessionManager] Hand tracking enabled:", handTracking);
+                logger.debug("Hand tracking enabled");
             } catch (handError) {
-                console.error("🤲 [XRSessionManager] Failed to enable hand tracking:", handError);
+                logger.warn("Failed to enable hand tracking", { error: String(handError) });
             }
 
             // Actually enter the VR session
-            console.log("🎮 [XRSessionManager] Entering VR session...");
-            const enterResult = await this.xrHelper.baseExperience.enterXRAsync("immersive-vr", "local-floor");
-            console.log("🎮 [XRSessionManager] Entered VR session:", enterResult);
+            logger.debug("Entering VR session");
+            await this.xrHelper.baseExperience.enterXRAsync("immersive-vr", "local-floor");
+            logger.debug("Entered VR session");
 
             // Log available features
             const enabledFeatures = this.xrHelper.baseExperience.featuresManager.getEnabledFeatures();
-            console.log("🎮 [XRSessionManager] Enabled XR features:", enabledFeatures);
+            logger.debug("Enabled XR features", { features: enabledFeatures.join(", ") });
 
             // If previous camera provided and not VR-specific, optionally transfer position
             if (previousCamera) {
                 const xrCamera = this.getXRCamera();
                 if (xrCamera) {
                     xrCamera.position.copyFrom(previousCamera.position);
-                    console.log("🎮 [XRSessionManager] Transferred camera position from previous camera");
+                    logger.debug("Transferred camera position from previous camera");
                 }
             }
 
@@ -189,7 +192,7 @@ export class XRSessionManager {
         }
 
         try {
-            console.log("🎮 [XRSessionManager] Creating AR XR experience...");
+            logger.debug("Creating AR XR experience");
 
             // Import WebXR module dynamically
             const { WebXRDefaultExperience } = await import("@babylonjs/core");
@@ -207,25 +210,23 @@ export class XRSessionManager {
                 },
             });
 
-            console.log(
-                "🎮 [XRSessionManager] AR mode: Created without hand tracking (controller gestures still work)",
-            );
+            logger.debug("AR mode: Created without hand tracking (controller gestures still work)");
 
             // Actually enter the AR session
-            console.log("🎮 [XRSessionManager] Entering AR session...");
-            const enterResult = await this.xrHelper.baseExperience.enterXRAsync("immersive-ar", "local-floor");
-            console.log("🎮 [XRSessionManager] Entered AR session:", enterResult);
+            logger.debug("Entering AR session");
+            await this.xrHelper.baseExperience.enterXRAsync("immersive-ar", "local-floor");
+            logger.debug("Entered AR session");
 
             // Log available features
             const enabledFeatures = this.xrHelper.baseExperience.featuresManager.getEnabledFeatures();
-            console.log("🎮 [XRSessionManager] Enabled XR features:", enabledFeatures);
+            logger.debug("Enabled XR features", { features: enabledFeatures.join(", ") });
 
             // Always transfer camera position for AR mode
             if (previousCamera) {
                 const xrCamera = this.getXRCamera();
                 if (xrCamera) {
                     xrCamera.position.copyFrom(previousCamera.position);
-                    console.log("🎮 [XRSessionManager] Transferred camera position from previous camera");
+                    logger.debug("Transferred camera position from previous camera");
                 }
             }
 

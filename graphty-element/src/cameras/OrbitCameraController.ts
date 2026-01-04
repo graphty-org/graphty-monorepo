@@ -71,8 +71,9 @@ export class OrbitCameraController {
      */
     public rotate(dx: number, dy: number): void {
         // Delegate to PivotController
-        // Note: negative values because mouse movement is inverted from rotation direction
-        this.pivotController.rotate(-dx * this.config.trackballRotationSpeed, -dy * this.config.trackballRotationSpeed);
+        // Match XR rotation convention: drag right = rotate right (positive yaw)
+        // Pitch (dy) remains inverted for natural "drag up = look up" behavior
+        this.pivotController.rotate(dx * this.config.trackballRotationSpeed, -dy * this.config.trackballRotationSpeed);
         this.updateCameraPosition();
     }
 

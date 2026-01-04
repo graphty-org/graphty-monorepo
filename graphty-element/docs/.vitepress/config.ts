@@ -95,14 +95,14 @@ export default defineConfig({
             ],
         },
 
-        socialLinks: [{ icon: "github", link: "https://github.com/graphty-org/graphty-element" }],
+        socialLinks: [{ icon: "github", link: "https://github.com/graphty-org/graphty-monorepo" }],
 
         search: {
             provider: "local",
         },
 
         editLink: {
-            pattern: "https://github.com/graphty-org/graphty-element/edit/master/docs/:path",
+            pattern: "https://github.com/graphty-org/graphty-monorepo/edit/master/graphty-element/docs/:path",
         },
     },
 });

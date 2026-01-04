@@ -1,5 +1,5 @@
 import type { Edge, Graph, Node, PositionMap } from "../../types";
-import { getEdgesFromGraph,getNodesFromGraph } from "../../utils/graph";
+import { getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
 import { RandomNumberGenerator } from "../../utils/random";
 import { rescaleLayout } from "../../utils/rescale";
@@ -17,7 +17,7 @@ import { rescaleLayout } from "../../utils/rescale";
  * @param nodeMass - Dictionary mapping nodes to their masses
  * @param nodeSize - Dictionary mapping nodes to their sizes
  * @param weight - Edge attribute for weight
- * @param dissuadeHubs - Whether to prevent hub nodes from clustering
+ * @param _dissuadeHubs - Whether to prevent hub nodes from clustering (unused)
  * @param linlog - Whether to use logarithmic attraction
  * @param seed - Random seed for initial positions
  * @param dim - Dimension of layout
@@ -35,7 +35,7 @@ export function forceatlas2Layout(
     nodeMass: Record<Node, number> | null = null,
     nodeSize: Record<Node, number> | null = null,
     weight: string | null = null,
-    dissuadeHubs: boolean = false,
+    _dissuadeHubs: boolean = false,
     linlog: boolean = false,
     seed: number | null = null,
     dim: number = 2,
@@ -75,8 +75,8 @@ export function forceatlas2Layout(
         }
     } else {
         // Some nodes don't have positions, initialize within the range of existing positions
-        const minPos = Array(dim).fill(Number.POSITIVE_INFINITY);
-        const maxPos = Array(dim).fill(Number.NEGATIVE_INFINITY);
+        const minPos: number[] = Array(dim).fill(Number.POSITIVE_INFINITY);
+        const maxPos: number[] = Array(dim).fill(Number.NEGATIVE_INFINITY);
 
         // Find min and max of existing positions
         for (const node in pos) {
@@ -125,17 +125,22 @@ export function forceatlas2Layout(
     // Set node masses and sizes
     for (let i = 0; i < nodes.length; i++) {
         const node = nodes[i];
-        mass[i] =
-            nodeMass && nodeMass[node] ? nodeMass[node] : Array.isArray(graph) ? 1 : getNodeDegree(graph, node) + 1;
+        if (nodeMass && nodeMass[node]) {
+            mass[i] = nodeMass[node];
+        } else if (Array.isArray(graph)) {
+            mass[i] = 1;
+        } else {
+            mass[i] = getNodeDegree(graph, node) + 1;
+        }
 
         size[i] = nodeSize && nodeSize[node] ? nodeSize[node] : 1;
     }
 
     // Create adjacency matrix
     const n = nodes.length;
-    const A = Array(n)
+    const A: number[][] = Array(n)
         .fill(0)
-        .map(() => Array(n).fill(0));
+        .map(() => Array(n).fill(0) as number[]);
 
     // Populate adjacency matrix with edge weights
     const edges = Array.isArray(graph) ? ([] as Edge[]) : graph.edges();
@@ -159,66 +164,69 @@ export function forceatlas2Layout(
     }
 
     // Initialize force arrays
-    const gravities = Array(n)
+    const gravities: number[][] = Array(n)
         .fill(0)
-        .map(() => Array(dim).fill(0));
-    const attraction = Array(n)
+        .map(() => Array(dim).fill(0) as number[]);
+    const attraction: number[][] = Array(n)
         .fill(0)
-        .map(() => Array(dim).fill(0));
-    const repulsion = Array(n)
+        .map(() => Array(dim).fill(0) as number[]);
+    const repulsion: number[][] = Array(n)
         .fill(0)
-        .map(() => Array(dim).fill(0));
+        .map(() => Array(dim).fill(0) as number[]);
 
     // Simulation parameters
     let speed = 1;
     let speedEfficiency = 1;
-    const swing = 1;
-    const traction = 1;
+    const _swing = 1;
+    const _traction = 1;
 
     // Helper function to estimate factor for force scaling
     function estimateFactor(
-        n: number,
-        swing: number,
-        traction: number,
-        speed: number,
-        speedEfficiency: number,
-        jitterTolerance: number,
+        nodeCount: number,
+        swingValue: number,
+        tractionValue: number,
+        currentSpeed: number,
+        currentSpeedEfficiency: number,
+        jitterToleranceParam: number,
     ): [number, number] {
+        let resultSpeed = currentSpeed;
+        let resultSpeedEfficiency = currentSpeedEfficiency;
+
         // Optimal jitter parameters
-        const optJitter = 0.05 * Math.sqrt(n);
+        const optJitter = 0.05 * Math.sqrt(nodeCount);
         const minJitter = Math.sqrt(optJitter);
         const maxJitter = 10;
         const minSpeedEfficiency = 0.05;
 
         // Estimate jitter based on current state
-        const other = Math.min(maxJitter, (optJitter * traction) / (n * n));
-        let jitter = jitterTolerance * Math.max(minJitter, other);
+        const other = Math.min(maxJitter, (optJitter * tractionValue) / (nodeCount * nodeCount));
+        let jitter = jitterToleranceParam * Math.max(minJitter, other);
 
         // Adjust speed efficiency based on swing/traction ratio
-        if (swing / traction > 2.0) {
-            if (speedEfficiency > minSpeedEfficiency) {
-                speedEfficiency *= 0.5;
+        if (swingValue / tractionValue > 2.0) {
+            if (resultSpeedEfficiency > minSpeedEfficiency) {
+                resultSpeedEfficiency *= 0.5;
             }
-            jitter = Math.max(jitter, jitterTolerance);
+            jitter = Math.max(jitter, jitterToleranceParam);
         }
 
         // Calculate target speed
-        const targetSpeed = swing === 0 ? Number.POSITIVE_INFINITY : (jitter * speedEfficiency * traction) / swing;
+        const targetSpeed = swingValue === 0 ? Number.POSITIVE_INFINITY : (jitter * resultSpeedEfficiency * tractionValue) / swingValue;
 
         // Further adjust speed efficiency
-        if (swing > jitter * traction) {
-            if (speedEfficiency > minSpeedEfficiency) {
-                speedEfficiency *= 0.7;
+        if (swingValue > jitter * tractionValue) {
+            if (resultSpeedEfficiency > minSpeedEfficiency) {
+                resultSpeedEfficiency *= 0.7;
             }
-        } else if (speed < 1000) {
-            speedEfficiency *= 1.3;
+        } else if (resultSpeed < 1000) {
+            resultSpeedEfficiency *= 1.3;
         }
 
         // Limit the speed increase
         const maxRise = 0.5;
-        speed = speed + Math.min(targetSpeed - speed, maxRise * speed);
+        resultSpeed = resultSpeed + Math.min(targetSpeed - resultSpeed, maxRise * resultSpeed);
 
-        return [speed, speedEfficiency];
+        return [resultSpeed, resultSpeedEfficiency];
     }
 
     // Main simulation loop
@@ -233,17 +241,17 @@ export function forceatlas2Layout(
         }
 
         // Compute pairwise differences and distances
-        const diff = Array(n)
+        const diff: number[][][] = Array(n)
             .fill(0)
             .map(() =>
                 Array(n)
                     .fill(0)
-                    .map(() => Array(dim).fill(0)),
+                    .map(() => Array(dim).fill(0) as number[]),
             );
 
-        const distance = Array(n)
+        const distance: number[][] = Array(n)
             .fill(0)
-            .map(() => Array(n).fill(0));
+            .map(() => Array(n).fill(0) as number[]);
 
         for (let i = 0; i < n; i++) {
             for (let j = 0; j < n; j++) {
@@ -253,7 +261,7 @@ export function forceatlas2Layout(
                     diff[i][j][d] = posArray[i][d] - posArray[j][d];
                 }
 
-                distance[i][j] = Math.sqrt(diff[i][j].reduce((sum, d) => sum + d * d, 0));
+                distance[i][j] = Math.sqrt(diff[i][j].reduce((sum: number, d: number) => sum + d * d, 0));
                 // Prevent division by zero
                 if (distance[i][j] < 0.01) {distance[i][j] = 0.01;}
             }
@@ -324,7 +332,7 @@ export function forceatlas2Layout(
 
         // Calculate gravity forces
         // First find the center of mass
-        const centerOfMass = Array(dim).fill(0);
+        const centerOfMass: number[] = Array(dim).fill(0);
         for (let i = 0; i < n; i++) {
             for (let d = 0; d < dim; d++) {
                 centerOfMass[d] += posArray[i][d] / n;
@@ -344,7 +352,7 @@ export function forceatlas2Layout(
                 }
             } else {
                 // Regular gravity model
-                const dist = Math.sqrt(posCentered.reduce((sum, val) => sum + val * val, 0));
+                const dist = Math.sqrt(posCentered.reduce((sum: number, val: number) => sum + val * val, 0));
 
                 if (dist > 0.01) {
                     for (let d = 0; d < dim; d++) {
@@ -369,13 +377,13 @@ export function forceatlas2Layout(
 
             // Calculate swing and traction for this node
             const oldPos = [...posArray[i]];
-            const newPos = oldPos.map((p, d) => p + update[i][d]);
+            const newPos = oldPos.map((p, d) => p + (update[i][d] as number));
 
             const swingVector = oldPos.map((p, d) => p - newPos[d]);
             const tractionVector = oldPos.map((p, d) => p + newPos[d]);
 
-            const swingMagnitude = Math.sqrt(swingVector.reduce((sum, val) => sum + val * val, 0));
-            const tractionMagnitude = Math.sqrt(tractionVector.reduce((sum, val) => sum + val * val, 0));
+            const swingMagnitude = Math.sqrt(swingVector.reduce((sum: number, val: number) => sum + val * val, 0));
+            const tractionMagnitude = Math.sqrt(tractionVector.reduce((sum: number, val: number) => sum + val * val, 0));
 
             totalSwing += mass[i] * swingMagnitude;
             totalTraction += 0.5 * mass[i] * tractionMagnitude;
@@ -399,7 +407,7 @@ export function forceatlas2Layout(
 
             if (adjustSizes) {
                 // Calculate displacement magnitude
-                const df = Math.sqrt(update[i].reduce((sum, val) => sum + val * val, 0));
+                const df = Math.sqrt(update[i].reduce((sum: number, val: number) => sum + val * val, 0));
                 const swinging = mass[i] * df;
 
                 // Determine scaling factor with size adjustments
@@ -407,7 +415,7 @@ export function forceatlas2Layout(
                 factor = Math.min(factor * df, 10) / df;
             } else {
                 // Standard scaling factor
-                const swinging = mass[i] * Math.sqrt(update[i].reduce((sum, val) => sum + val * val, 0));
+                const swinging = (mass[i] as number) * Math.sqrt(update[i].reduce((sum: number, val: number) => sum + val * val, 0));
                 factor = speed / (1 + Math.sqrt(speed * swinging));
             }
 

@@ -2,7 +2,7 @@
  * Kamada-Kawai layout algorithm optimization functions
  */
 
-import { Edge,Graph, Node } from "../../types";
+import { Graph } from "../../types";
 import { getEdgesFromGraph,getNodesFromGraph } from "../../utils/graph";
 import { _lbfgsDirection } from "./lbfgs";
 import { _backtrackingLineSearch } from "./line-search";
@@ -166,13 +166,13 @@ export function _kamadaKawaiCostfn(
     let cost = 0;
 
     // Add mean position penalty term
-    const sumPos = Array(dim).fill(0);
+    const sumPos: number[] = Array(dim).fill(0);
     for (let i = 0; i < nNodes; i++) {
         for (let d = 0; d < dim; d++) {
             sumPos[d] += positions[i][d];
         }
     }
-    cost += 0.5 * meanWeight * sumPos.reduce((sum, val) => sum + val * val, 0);
+    cost += 0.5 * meanWeight * sumPos.reduce((sum: number, val: number) => sum + val * val, 0);
 
     // Add distance penalty terms
     for (let i = 0; i < nNodes; i++) {
@@ -194,7 +194,7 @@ export function _kamadaKawaiCostfn(
     // Add gradient of mean position penalty
     for (let i = 0; i < nNodes; i++) {
         for (let d = 0; d < dim; d++) {
-            grad[i * dim + d] += meanWeight * sumPos[d];
+            (grad[i * dim + d] as number) += meanWeight * sumPos[d];
         }
     }
 
@@ -212,8 +212,8 @@ export function _kamadaKawaiCostfn(
 
             for (let d = 0; d < dim; d++) {
                 const force = idealInvDist * offset * direction[d];
-                grad[i * dim + d] += force;
-                grad[j * dim + d] -= force;
+                (grad[i * dim + d] as number) += force;
+                (grad[j * dim + d] as number) -= force;
             }
         }
     }

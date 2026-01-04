@@ -167,7 +167,7 @@ export function findCycle(nodes: Node[], edges: Edge[], adjMap: Record<Node, Set
         let current = u;
 
         while (parent[current] !== undefined && parent[current] !== v) {
-            current = parent[current]!;
+            current = parent[current] as Node;
             cycle.push(current);
         }
 

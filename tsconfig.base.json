@@ -15,15 +15,8 @@
         "noUnusedParameters": true,
         "noImplicitReturns": true,
         "noFallthroughCasesInSwitch": true,
-        "rootDir": ".",
-        "baseUrl": ".",
-        "paths": {
-            "@graphty/algorithms": ["algorithms/src/index.ts"],
-            "@graphty/layout": ["layout/src/index.ts"],
-            "@graphty/graphty-element": ["graphty-element/src/index.ts"],
-            "@graphty/graphty": ["graphty/src/index.ts"],
-            "gpu-3d-force-layout": ["gpu-3d-force-layout/src/index.ts"]
-        }
+        "isolatedModules": true,
+        "resolveJsonModule": true
     },
     "exclude": ["node_modules", "tmp", "dist", ".nx"]
 }

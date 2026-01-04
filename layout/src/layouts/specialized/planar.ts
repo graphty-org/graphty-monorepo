@@ -3,7 +3,7 @@
  */
 
 import { checkPlanarity, combinatorialEmbeddingToPos } from "../../algorithms/planarity";
-import { Edge, Graph, Node, PositionMap } from "../../types";
+import { Graph, PositionMap } from "../../types";
 import { getEdgesFromGraph,getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
 import { rescaleLayout } from "../../utils/rescale";
@@ -36,7 +36,7 @@ export function planarLayout(
     }
 
     const graph = processed.G;
-    center = processed.center;
+    ({ center } = processed);
 
     const nodes = getNodesFromGraph(graph);
     const edges = getEdgesFromGraph(graph);

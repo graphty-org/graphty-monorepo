@@ -86,7 +86,7 @@ export function tryFindBipartitePartition(nodes: Node[], edges: Edge[]): [Node[]
     colorMap[nodes[0]] = 0;
 
     while (queue.length > 0) {
-        const node = queue.shift()!;
+        const node = queue.shift() as Node;
         const nodeColor = colorMap[node];
 
         for (const neighbor of adjList[node]) {

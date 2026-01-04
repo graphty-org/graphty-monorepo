@@ -1,4 +1,4 @@
-import type { Edge, Graph, Node, PositionMap } from "../../types";
+import type { Graph, Node, PositionMap } from "../../types";
 import { getNeighbors,getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
 import { multipartiteLayout } from "./multipartite";
@@ -27,7 +27,7 @@ export function bfsLayout(
     }
 
     const graph = processed.G;
-    center = processed.center;
+    ({ center } = processed);
 
     const allNodes = getNodesFromGraph(graph);
 

@@ -2,7 +2,7 @@
  * Spiral layout algorithm
  */
 
-import { Graph, Node, PositionMap } from "../../types";
+import { Graph, PositionMap } from "../../types";
 import { getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
 import { rescaleLayout } from "../../utils/rescale";
@@ -31,7 +31,7 @@ export function spiralLayout(
 
     const processed = _processParams(G, center || [0, 0], dim);
     const nodes = getNodesFromGraph(processed.G);
-    center = processed.center;
+    ({ center } = processed);
 
     const pos: PositionMap = {};
 
@@ -74,7 +74,7 @@ export function spiralLayout(
     }
 
     // Rescale positions and add center offset
-    const scaledPositions = rescaleLayout(posArray as any, scale) as any;
+    const scaledPositions = rescaleLayout(posArray, scale) as number[][];
     for (let i = 0; i < scaledPositions.length; i++) {
         scaledPositions[i][0] += center[0];
         scaledPositions[i][1] += center[1];

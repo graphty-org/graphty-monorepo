@@ -1,5 +1,4 @@
-import type { DistanceMap } from "../../algorithms/optimization";
-import { _computeShortestPathDistances, _kamadaKawaiSolve } from "../../algorithms/optimization";
+import { _computeShortestPathDistances, _kamadaKawaiSolve, type DistanceMap } from "../../algorithms/optimization";
 import type { Graph, Node, PositionMap } from "../../types";
 import { getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
@@ -28,7 +27,7 @@ export function kamadaKawaiLayout(
 ): PositionMap {
     const processed = _processParams(G, center, dim);
     const graph = processed.G;
-    center = processed.center;
+    ({ center } = processed);
 
     const nodes = getNodesFromGraph(graph);
 

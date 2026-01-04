@@ -1,31 +1,22 @@
 {
+    "extends": "../tsconfig.base.json",
     "compilerOptions": {
         "target": "ES2022",
-        "useDefineForClassFields": true,
-        "lib": ["ES2022", "DOM", "DOM.Iterable"],
         "module": "ESNext",
-        "skipLibCheck": true,
-
-        /* Bundler mode */
-        "moduleResolution": "bundler",
-        "allowImportingTsExtensions": true,
-        "resolveJsonModule": true,
-        "isolatedModules": true,
-        "noEmit": true,
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
         "jsx": "react-jsx",
-
-        /* Linting */
-        "strict": true,
+        "noEmit": true,
+        "useDefineForClassFields": true,
+        "allowImportingTsExtensions": true,
         "noUnusedLocals": true,
         "noUnusedParameters": true,
-        "noFallthroughCasesInSwitch": true,
-
-        /* Path mapping */
         "baseUrl": ".",
         "paths": {
             "@/*": ["./src/*"]
         }
     },
-    "include": ["src", ".storybook"],
-    "references": [{ "path": "./tsconfig.node.json" }]
+    "references": [
+        { "path": "./tsconfig.node.json" }
+    ],
+    "include": ["src", ".storybook"]
 }

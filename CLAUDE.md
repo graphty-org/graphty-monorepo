@@ -14,7 +14,6 @@ Graphty is a modular graph visualization ecosystem built as a TypeScript monorep
 | `@graphty/layout` | `layout/` | 1.3.0 | Graph layout algorithms (NetworkX TypeScript port) |
 | `@graphty/graphty-element` | `graphty-element/` | 1.5.0 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
 | `@graphty/graphty` | `graphty/` | 0.1.0 | React wrapper application (private, Mantine UI) |
-| `gpu-3d-force-layout` | `gpu-3d-force-layout/` | - | WebGPU-accelerated layout engine (experimental) |
 
 ## Monorepo Structure
 
@@ -24,10 +23,7 @@ graphty-monorepo/
 ├── layout/               # @graphty/layout package
 ├── graphty-element/      # @graphty/graphty-element package
 ├── graphty/              # @graphty/graphty React app
-├── gpu-3d-force-layout/  # WebGPU experiments
-├── tools/                # Build scripts and shared configs
-│   ├── vite/             # Shared Vite configuration
-│   ├── vitest/           # Shared Vitest configuration
+├── tools/                # Build scripts
 │   ├── merge-coverage.sh # Coverage report merging
 │   ├── run-tests.sh      # Unified test runner
 │   └── validate-outputs.cjs  # Build output validation
@@ -35,7 +31,9 @@ graphty-monorepo/
 ├── .github/workflows/    # CI/CD workflows
 ├── nx.json               # Nx configuration
 ├── pnpm-workspace.yaml   # pnpm workspace config
-├── tsconfig.base.json    # Shared TypeScript config
+├── tsconfig.base.json    # Shared TypeScript config (project references)
+├── vite.shared.config.ts # Shared Vite config factory
+├── vitest.shared.config.ts # Shared Vitest config factory
 └── eslint.config.js      # Shared ESLint config
 ```
 
@@ -97,19 +95,26 @@ pnpm run coverage:preview:graphty-element  # Port 9053
 pnpm run coverage:preview:graphty          # Port 9054
 ```
 
-## Tools Directory
+## Shared Configuration
 
-The `tools/` directory contains shared build infrastructure:
+The monorepo uses shared configuration files in the root directory:
 
 | File | Purpose |
 |------|---------|
-| `vite/vite.shared.config.ts` | Shared Vite config factory (port assignments, build formats) |
-| `vitest/vitest.shared.config.ts` | Shared Vitest config (coverage thresholds, environment) |
+| `vite.shared.config.ts` | Shared Vite config factory (port assignments, build formats) |
+| `vitest.shared.config.ts` | Shared Vitest config factory (coverage thresholds, environment) |
+| `tsconfig.base.json` | Shared TypeScript settings with project references |
+| `eslint.config.js` | Shared ESLint flat config |
+
+## Tools Directory
+
+The `tools/` directory contains build scripts:
+
+| File | Purpose |
+|------|---------|
 | `merge-coverage.sh` | Merges coverage from all packages, supports CI artifacts |
 | `run-tests.sh` | Runs all tests with minimal output, parallel execution |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
-| `migrate-package.cjs` | Package migration utilities |
-| `verify-phase-*.sh` | Migration verification scripts |
 
 ### Port Assignments
 
@@ -118,7 +123,6 @@ All dev servers use ports 9000-9099:
 - layout: 9010
 - graphty-element: 9020
 - graphty: 9050
-- gpu-3d-force-layout: 9060
 - Coverage previews: 9051-9054
 
 ## Testing Infrastructure
@@ -239,10 +243,10 @@ AlgorithmRegistry.register("custom-algo", customAlgorithm);
 |------|---------|
 | `nx.json` | Nx build system config (caching, plugins, release) |
 | `pnpm-workspace.yaml` | pnpm workspace packages |
-| `tsconfig.base.json` | Shared TypeScript config with path aliases |
+| `tsconfig.base.json` | Shared TypeScript config with project references |
 | `eslint.config.js` | Shared ESLint flat config |
-| `tools/vite/vite.shared.config.ts` | Vite build configuration factory |
-| `tools/vitest/vitest.shared.config.ts` | Vitest test configuration factory |
+| `vite.shared.config.ts` | Vite build configuration factory |
+| `vitest.shared.config.ts` | Vitest test configuration factory |
 
 ### Package CLAUDE.md Files
 
@@ -259,10 +263,11 @@ Each package has its own CLAUDE.md with package-specific guidance:
 - Strict mode enabled across all packages
 - Never disable `@typescript-eslint/no-explicit-any`
 - Use type imports: `import type { ... }`
-- Path aliases defined in `tsconfig.base.json`:
-  - `@graphty/algorithms` → `algorithms/src/index.ts`
-  - `@graphty/layout` → `layout/src/index.ts`
-  - etc.
+- Uses TypeScript project references for cross-package dependencies:
+  - `tsconfig.base.json` provides shared compiler options
+  - Each package extends base config and sets `composite: true`
+  - Dependent packages declare `references` array pointing to dependencies
+  - Build order enforced by TypeScript: `algorithms` → `layout` → `graphty-element` → `graphty`
 
 ### Testing
 

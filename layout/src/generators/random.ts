@@ -20,7 +20,7 @@ export function randomGraph(n: number, p: number, seed?: number): Graph {
     const random =
         seed !== undefined
             ? () => {
-                  currentSeed = (currentSeed! * 9301 + 49297) % 233280;
+                  currentSeed = ((currentSeed as number) * 9301 + 49297) % 233280;
                   return currentSeed / 233280;
               }
             : Math.random;

@@ -36,8 +36,8 @@ export function rescaleLayout(
     const targetDim = Math.max(dim, center.length);
 
     // Calculate center of positions, handling NaN values (Bug #3)
-    const posCenter = Array(dim).fill(0);
-    const counts = Array(dim).fill(0);
+    const posCenter: number[] = Array(dim).fill(0);
+    const counts: number[] = Array(dim).fill(0);
 
     for (const p of posValues) {
         for (let i = 0; i < dim; i++) {

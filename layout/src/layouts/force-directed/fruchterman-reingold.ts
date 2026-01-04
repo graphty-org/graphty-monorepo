@@ -2,7 +2,7 @@
  * Fruchterman-Reingold force-directed layout algorithm
  */
 
-import { Edge, Graph, Node, PositionMap } from "../../types";
+import { Graph, Node, PositionMap } from "../../types";
 import { getEdgesFromGraph,getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
 import { RandomNumberGenerator } from "../../utils/random";
@@ -34,7 +34,7 @@ export function fruchtermanReingoldLayout(
 ): PositionMap {
     const processed = _processParams(G, center, dim);
     const graph = processed.G;
-    center = processed.center;
+    ({ center } = processed);
 
     const nodes = getNodesFromGraph(graph);
     const edges = getEdgesFromGraph(graph);

@@ -28,7 +28,7 @@
         "test:coverage": "vitest run --coverage",
         "coverage": "vitest run --coverage",
         "coverage:preview": "npx serve coverage -p 9052",
-        "lint": "tsc --noEmit",
+        "lint": "eslint && tsc --noEmit",
         "typecheck": "tsc --noEmit",
         "prepare": "husky",
         "build": "tsc",
@@ -62,15 +62,9 @@
             "path": "./node_modules/cz-conventional-changelog"
         }
     },
-    "devDependencies": {
-        "@semantic-release/changelog": "^6.0.3",
-        "@semantic-release/git": "^10.0.1",
-        "@vitest/coverage-v8": "^3.2.4",
-        "@vitest/ui": "^3.2.4",
-        "happy-dom": "^18.0.1",
-        "semantic-release": "^24.2.7",
-        "typescript": "^5.3.3",
-        "vite": "^7.0.5",
-        "vitest": "^3.2.4"
-    }
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
+    "devDependencies": {}
 }

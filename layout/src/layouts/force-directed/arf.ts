@@ -40,7 +40,7 @@ export function arfLayout(
         const rng = new RandomNumberGenerator(seed ?? undefined);
         const defaultPos: PositionMap = {};
         nodes.forEach((node: Node) => {
-            if (!pos![node]) {
+            if (!(pos as PositionMap)[node]) {
                 defaultPos[node] = [rng.rand() as number, rng.rand() as number];
             }
         });

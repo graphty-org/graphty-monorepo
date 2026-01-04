@@ -61,10 +61,10 @@ export class RandomNumberGenerator {
             return result;
         }
 
-        const result: any[] = [];
+        const result: (number | number[] | number[][])[] = [];
         for (let i = 0; i < shape[0]; i++) {
             result.push(this.rand(shape.slice(1)));
         }
-        return result;
+        return result as number[][];
     }
 }

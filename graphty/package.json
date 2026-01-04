@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graphty",
-    "version": "0.1.4",
+    "version": "0.2.0",
     "description": "React application for graph visualization built with Mantine and graphty-element",
     "author": "Adam Powers <apowers@ato.ms>",
     "license": "MIT",

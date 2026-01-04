@@ -1,21 +1,17 @@
 {
+    "extends": "../tsconfig.base.json",
     "compilerOptions": {
-        "strict": true,
         "target": "ES2022",
         "module": "ESNext",
-        "useDefineForClassFields": false,
         "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "experimentalDecorators": true,
+        "useDefineForClassFields": false,
         "types": ["vite/client"],
-        "skipLibCheck": true,
-        /* Bundler mode */
-        "moduleResolution": "bundler",
-        "allowImportingTsExtensions": true,
-        "resolveJsonModule": true,
-        "isolatedModules": true,
         "noEmit": true,
-        /* Lit features */
-        "experimentalDecorators": true
+        "allowImportingTsExtensions": true,
+        "noUnusedLocals": false,
+        "noUnusedParameters": false
     },
     "include": ["**/*.ts", ".storybook/**/*.ts"],
-    "exclude": ["tmp/**/*"]
+    "exclude": ["tmp/**/*", "vitest.config.ts", "vite.config.ts", "stories/**/*"]
 }

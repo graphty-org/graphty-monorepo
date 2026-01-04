@@ -240,7 +240,7 @@ export function grsbm(graph: Graph, config: GRSBMConfig = {}): GRSBMResult {
  * Perform spectral bisection on a cluster
  * @param graph - The input graph
  * @param cluster - The cluster to bisect
- * @param numEigenvectors - Number of eigenvectors to compute
+ * @param _numEigenvectors - Number of eigenvectors to compute (reserved for future use)
  * @param tolerance - Convergence tolerance
  * @param maxIterations - Maximum number of iterations
  * @returns Bisection result with left/right members, scores, and explanation, or null if bisection failed

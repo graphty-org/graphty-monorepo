@@ -411,7 +411,7 @@ void main() {
      * lineDirection is set per-instance when creating thin instances.
      * @param type - Arrow type (normal, inverted, diamond, etc.)
      * @param length - Arrow length in world units
-     * @param width - Arrow width in world units
+     * @param _width - Arrow width in world units (reserved for future use)
      * @param color - Arrow color as hex string
      * @param opacity - Arrow opacity (0-1)
      * @param scene - Babylon.js scene

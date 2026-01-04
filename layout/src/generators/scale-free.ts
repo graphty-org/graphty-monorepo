@@ -25,7 +25,7 @@ export function scaleFreeGraph(n: number, m: number, seed?: number): Graph {
     const random =
         seed !== undefined
             ? () => {
-                  currentSeed = (currentSeed! * 9301 + 49297) % 233280;
+                  currentSeed = ((currentSeed as number) * 9301 + 49297) % 233280;
                   return currentSeed / 233280;
               }
             : Math.random;
@@ -42,7 +42,7 @@ export function scaleFreeGraph(n: number, m: number, seed?: number): Graph {
     // Add remaining nodes
     for (let i = m + 1; i < n; i++) {
         const targets = new Set<number>();
-        const totalDegree = degrees.reduce((sum, d) => sum + d, 0);
+        const totalDegree = degrees.reduce((sum: number, d: number) => sum + d, 0);
 
         // Choose m targets based on preferential attachment
         while (targets.size < m) {
@@ -50,7 +50,7 @@ export function scaleFreeGraph(n: number, m: number, seed?: number): Graph {
             let cumSum = 0;
 
             for (let j = 0; j < i; j++) {
-                cumSum += degrees[j];
+                cumSum += degrees[j] as number;
                 if (r <= cumSum && !targets.has(j)) {
                     targets.add(j);
                     break;

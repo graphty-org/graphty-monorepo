@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the plan for creating interactive HTML examples for the @graphty/algorithms package, similar to the [graphty/layout examples](https://graphty-org.github.io/layout/examples/index.html). The examples will demonstrate each algorithm's functionality with interactive visualizations.
+This document outlines the plan for creating interactive HTML examples for the @graphty/algorithms package, similar to the [graphty/layout examples](https://graphty.app/layout/examples/index.html). The examples will demonstrate each algorithm's functionality with interactive visualizations.
 
 ## Current Approach and Design Principles
 
@@ -534,7 +534,7 @@ Each algorithm page will include:
 ### GitHub Pages Integration
 
 - Automated deployment via GitHub Actions
-- Similar to layout examples at `graphty-org.github.io/algorithms/examples/`
+- Similar to layout examples at `graphty.app/algorithms/examples/`
 - CDN delivery for optimal performance
 
 ### Documentation Integration

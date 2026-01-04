@@ -900,7 +900,7 @@ void main() {
      * but applies a 2D StandardMaterial instead of billboarded ShaderMaterial.
      * @param type - Arrow type (normal, diamond, box, dot, vee, tee, etc.)
      * @param length - Arrow length in world units
-     * @param width - Arrow width in world units
+     * @param _width - Arrow width in world units (reserved for future use)
      * @param color - Hex color string
      * @param opacity - Opacity value 0-1
      * @param scene - Babylon.js scene

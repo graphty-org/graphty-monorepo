@@ -23,7 +23,7 @@ export function spectralLayout(
 ): PositionMap {
     const processed = _processParams(G, center, dim);
     const graph = processed.G;
-    center = processed.center;
+    ({ center } = processed);
 
     const nodes = getNodesFromGraph(graph);
 
@@ -47,9 +47,9 @@ export function spectralLayout(
         nodeIndices[node] = i;
     });
 
-    const A = Array(N)
+    const A: number[][] = Array(N)
         .fill(0)
-        .map(() => Array(N).fill(0));
+        .map(() => Array(N).fill(0) as number[]);
     const edges = getEdgesFromGraph(graph);
 
     for (const [source, target] of edges) {
@@ -60,12 +60,12 @@ export function spectralLayout(
     }
 
     // Create Laplacian matrix: L = D - A where D is degree matrix
-    const L = Array(N)
+    const L: number[][] = Array(N)
         .fill(0)
-        .map(() => Array(N).fill(0));
+        .map(() => Array(N).fill(0) as number[]);
     for (let i = 0; i < N; i++) {
         // Compute degree (sum of row)
-        L[i][i] = A[i].reduce((sum, val) => sum + val, 0);
+        L[i][i] = A[i].reduce((sum: number, val: number) => sum + val, 0);
         for (let j = 0; j < N; j++) {
             L[i][j] -= A[i][j];
         }
@@ -95,7 +95,7 @@ export function spectralLayout(
         // This is a simplification of the actual algorithm
         for (let iter = 0; iter < 100; iter++) {
             // Apply Laplacian
-            const newVec = Array(N).fill(0);
+            const newVec: number[] = Array(N).fill(0);
             for (let i = 0; i < N; i++) {
                 for (let j = 0; j < N; j++) {
                     newVec[i] += L[i][j] * vector[j];
@@ -103,13 +103,13 @@ export function spectralLayout(
             }
 
             // Orthogonalize against the constant vector (eigenvector with eigenvalue 0)
-            const mean = newVec.reduce((acc, val) => acc + val, 0) / N;
+            const mean = newVec.reduce((acc: number, val: number) => acc + val, 0) / N;
             newVec.forEach((val, idx, arr) => {
                 arr[idx] = val - mean;
             });
 
             // Normalize
-            const newNorm = Math.sqrt(newVec.reduce((acc, val) => acc + val * val, 0));
+            const newNorm = Math.sqrt(newVec.reduce((acc: number, val: number) => acc + val * val, 0));
             if (newNorm < 1e-10) {continue;} // Skip if vector is close to zero
 
             vector = newVec.map((val) => val / newNorm);
@@ -129,7 +129,7 @@ export function spectralLayout(
     }
 
     // Rescale and create position dictionary
-    const scaledPositions = rescaleLayout(positions as any, scale);
+    const scaledPositions = rescaleLayout(positions, scale);
     const pos: PositionMap = {};
     nodes.forEach((node: Node, i: number) => {
         pos[node] = (scaledPositions as number[][])[i].map((val: number, j: number) => val + center[j]);

@@ -105,6 +105,7 @@ export class PrimAlgorithm extends Algorithm<PrimOptions> {
     /**
      * Configure the algorithm with an optional start node
      * @param options - Configuration options
+     * @param options.startNode - The optional start node ID
      * @returns This algorithm instance for chaining
      * @deprecated Use constructor options instead. This method is kept for backward compatibility.
      */

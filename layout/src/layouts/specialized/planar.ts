@@ -36,7 +36,7 @@ export function planarLayout(
     }
 
     const graph = processed.G;
-    center = processed.center;
+    ({ center } = processed);
 
     const nodes = getNodesFromGraph(graph);
     const edges = getEdgesFromGraph(graph);

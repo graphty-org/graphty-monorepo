@@ -167,7 +167,7 @@ export class Graphty extends LitElement {
      * properties can be used in style selectors and accessed via `node.data`.
      * @since 1.0.0
      * @see {@link edgeData} for edge data
-     * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/graphty--default | Basic Examples}
+     * @see {@link https://graphty.app/storybook/element/?path=/story/graphty--default | Basic Examples}
      * @example HTML attribute (JSON string)
      * ```html
      * <graphty-element
@@ -390,7 +390,7 @@ export class Graphty extends LitElement {
      * - `fixed`: Pre-defined positions from node data
      * @since 1.0.0
      * @see {@link layoutConfig} for layout-specific options
-     * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/layout--default | Layout Examples}
+     * @see {@link https://graphty.app/storybook/element/?path=/story/layout--default | Layout Examples}
      * @example
      * ```typescript
      * // Set force-directed layout
@@ -459,7 +459,7 @@ export class Graphty extends LitElement {
      *
      * VR and AR modes require WebXR support in the browser.
      * @since 1.0.0
-     * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/viewmode--default | View Mode Examples}
+     * @see {@link https://graphty.app/storybook/element/?path=/story/viewmode--default | View Mode Examples}
      * @example
      * ```typescript
      * element.viewMode = "2d";  // Switch to 2D orthographic view
@@ -533,7 +533,7 @@ export class Graphty extends LitElement {
      * - A partial configuration object to override defaults
      * - A complete StyleSchema configuration
      * @since 1.0.0
-     * @see {@link https://graphty-org.github.io/graphty-element/storybook/?path=/story/graphstyles--default | Style Examples}
+     * @see {@link https://graphty.app/storybook/element/?path=/story/graphstyles--default | Style Examples}
      * @example
      * ```typescript
      * // Apply dark theme

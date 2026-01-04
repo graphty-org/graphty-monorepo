@@ -1001,7 +1001,7 @@ export class OperationQueueManager implements Manager {
     /**
      * Queue a triggered operation
      * @param category - Category of the triggered operation
-     * @param sourceMetadata - Metadata from the source operation
+     * @param _sourceMetadata - Metadata from the source operation (reserved for future use)
      * @param execute - Optional execution function
      * @param description - Optional description of the operation
      */

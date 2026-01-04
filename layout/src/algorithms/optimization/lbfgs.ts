@@ -7,7 +7,7 @@
  * @param grad - Current gradient
  * @param sList - List of position differences (s_k)
  * @param yList - List of gradient differences (y_k)
- * @param m - Memory size
+ * @param _m - Memory size (unused, kept for API compatibility)
  * @returns Direction vector
  */
 export function _lbfgsDirection(grad: number[], sList: number[][], yList: number[][], _m: number): number[] {

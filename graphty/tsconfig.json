@@ -5,15 +5,9 @@
         "useDefineForClassFields": false,
         "lib": ["ES2022", "DOM", "DOM.Iterable"],
         "module": "ESNext",
-        "skipLibCheck": true,
-
-        /* Bundler mode */
-        "moduleResolution": "bundler",
-        "allowImportingTsExtensions": true,
-        "resolveJsonModule": true,
-        "isolatedModules": true,
-        "noEmit": true,
         "jsx": "react-jsx",
+        "noEmit": true,
+        "allowImportingTsExtensions": true,
 
         /* Linting */
         "strict": true,
@@ -36,6 +30,8 @@
             "@graphty/graphty": ["./src/index.ts"]
         }
     },
-    "include": ["src", ".storybook"],
-    "references": [{ "path": "./tsconfig.node.json" }]
+    "references": [
+        { "path": "./tsconfig.node.json" }
+    ],
+    "include": ["src", ".storybook"]
 }

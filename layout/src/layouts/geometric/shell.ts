@@ -29,7 +29,7 @@ export function shellLayout(
 
     const processed = _processParams(G, center, dim);
     const nodes = getNodesFromGraph(processed.G);
-    center = processed.center;
+    ({ center } = processed);
 
     const pos: PositionMap = {};
 

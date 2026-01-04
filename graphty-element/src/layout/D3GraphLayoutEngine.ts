@@ -153,15 +153,19 @@ export class D3GraphEngine extends LayoutEngine {
         // https://github.com/vasturiano/d3-force-3d?tab=readme-ov-file#links
         const fl = forceLink();
         fl.strength(0.9);
+        // Type assertions needed due to d3-force-3d type definition issues with strict mode
+        /* eslint-disable @typescript-eslint/no-explicit-any -- d3-force-3d types are incompatible */
         this.d3ForceLayout = forceSimulation()
             .numDimensions(3)
             .alpha(1)
-            .force("link", fl)
-            .force("charge", forceManyBody())
-            .force("center", forceCenter())
+            .force("link", fl as any)
+            .force("charge", forceManyBody() as any)
+            .force("center", forceCenter() as any)
             .force("dagRadial", null)
             .stop();
-        this.d3ForceLayout.force("link").id((d: D3Node) => (d as D3InputNode).id);
+        /* eslint-enable @typescript-eslint/no-explicit-any */
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- d3-force-3d types are incompatible
+        (this.d3ForceLayout.force("link") as any).id((d: D3Node) => (d as D3InputNode).id);
     }
 
     /**
@@ -184,7 +188,8 @@ export class D3GraphEngine extends LayoutEngine {
             nodeList = nodeList.concat([...this.newNodeMap.values()]);
             this.d3ForceLayout
                 .alpha(1) // re-heat the simulation
-                .nodes(nodeList)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- d3-force-3d types are incompatible
+                .nodes(nodeList as any)
                 .stop();
 
             // copy over new nodes
@@ -202,7 +207,8 @@ export class D3GraphEngine extends LayoutEngine {
             // update edges
             let linkList: (D3Edge | D3InputEdge)[] = [...this.edgeMapping.values()];
             linkList = linkList.concat([...this.newEdgeMap.values()]);
-            this.d3ForceLayout.force("link").links(linkList);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- d3-force-3d types are incompatible
+            (this.d3ForceLayout.force("link") as any).links(linkList);
 
             // copy over new edges
             for (const entry of this.newEdgeMap.entries()) {

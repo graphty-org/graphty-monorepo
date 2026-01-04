@@ -1,7 +1,5 @@
 packages:
-    - "packages/*"
     - "algorithms"
     - "layout"
     - "graphty-element"
     - "graphty"
-    - "gpu-3d-force-layout"

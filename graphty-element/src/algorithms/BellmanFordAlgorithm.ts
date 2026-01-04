@@ -124,6 +124,8 @@ export class BellmanFordAlgorithm extends Algorithm<BellmanFordOptions> {
     /**
      * Configure the algorithm with source and optional target nodes
      * @param options - Configuration options
+     * @param options.source - The source node ID
+     * @param options.target - The optional target node ID
      * @returns This algorithm instance for chaining
      * @deprecated Use constructor options instead. This method is kept for backward compatibility.
      */

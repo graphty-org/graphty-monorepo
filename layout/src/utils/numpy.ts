@@ -4,28 +4,28 @@
  */
 
 export const np = {
-    zeros: function (shape: number | number[]): number | number[] | number[][] | any[] {
+    zeros: function (shape: number | number[]): number[] | number[][] {
         if (typeof shape === "number") {
-            return Array(shape).fill(0);
+            return Array(shape).fill(0) as number[];
         }
         if (shape.length === 1) {
-            return Array(shape[0]).fill(0);
+            return Array(shape[0]).fill(0) as number[];
         }
         return Array(shape[0])
             .fill(0)
-            .map(() => this.zeros(shape.slice(1)));
+            .map(() => this.zeros(shape.slice(1))) as number[][];
     },
 
-    ones: function (shape: number | number[]): number | any[] {
+    ones: function (shape: number | number[]): number[] | number[][] {
         if (typeof shape === "number") {
-            return Array(shape).fill(1);
+            return Array(shape).fill(1) as number[];
         }
         if (shape.length === 1) {
-            return Array(shape[0]).fill(1);
+            return Array(shape[0]).fill(1) as number[];
         }
         return Array(shape[0])
             .fill(1)
-            .map(() => this.ones(shape.slice(1)));
+            .map(() => this.ones(shape.slice(1))) as number[][];
     },
 
     linspace: function (start: number, stop: number, num: number): number[] {
@@ -36,12 +36,12 @@ export const np = {
         return Array.from({ length: num }, (_, i) => start + i * step);
     },
 
-    array: function (arr: any): any[] {
+    array: function (arr: number | number[]): number[] {
         return Array.isArray(arr) ? [...arr] : [arr];
     },
 
-    repeat: function (a: any, repeats: number): any[] {
-        const result: any[] = [];
+    repeat: function (a: number | number[], repeats: number): number[] {
+        const result: number[] = [];
         for (let i = 0; i < repeats; i++) {
             result.push(...np.array(a));
         }

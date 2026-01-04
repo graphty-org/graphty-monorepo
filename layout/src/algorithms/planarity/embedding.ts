@@ -90,7 +90,7 @@ export function createTriangulationEmbedding(nodes: Node[], edges: Edge[], seed:
 /**
  * Find a simple cycle in the graph (for outer face)
  * @param nodes - List of nodes
- * @param edges - List of edges
+ * @param _edges - List of edges (reserved for future use)
  * @param adjMap - Adjacency map
  * @returns Cycle as array of nodes, or null if none found
  */
@@ -167,7 +167,7 @@ export function findCycle(nodes: Node[], _edges: Edge[], adjMap: Record<Node, Se
         let current = u;
 
         while (parent[current] !== undefined && parent[current] !== v) {
-            current = parent[current]!;
+            current = parent[current] as Node;
             cycle.push(current);
         }
 

@@ -25,7 +25,7 @@ export function multipartiteLayout(
 
     const processed = _processParams(G, center || [0, 0], 2);
     const graph = processed.G;
-    center = processed.center;
+    ({ center } = processed);
 
     const allNodes = getNodesFromGraph(graph);
 

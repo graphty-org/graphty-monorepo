@@ -27,7 +27,7 @@ export function bfsLayout(
     }
 
     const graph = processed.G;
-    center = processed.center;
+    ({ center } = processed);
 
     const allNodes = getNodesFromGraph(graph);
 

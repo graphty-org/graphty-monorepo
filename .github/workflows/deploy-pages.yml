@@ -51,11 +51,11 @@ jobs:
                   run-id: ${{ github.event.workflow_run.id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Download graphty-element docs
+            - name: Download unified docs
               uses: actions/download-artifact@v4
               with:
-                  name: build-docs-element
-                  path: ./graphty-element/docs/.vitepress/dist/
+                  name: build-docs
+                  path: ./docs/.vitepress/dist/
                   run-id: ${{ github.event.workflow_run.id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -78,11 +78,14 @@ jobs:
             # Assemble the unified GitHub Pages site
             # URL Structure:
             #   / = graphty app (React app - graphty.app)
-            #   /docs/ = graphty-element docs (VitePress)
+            #   /docs/ = unified documentation (VitePress)
+            #   /docs/graphty/ = graphty-element docs
+            #   /docs/algorithms/ = algorithms docs
+            #   /docs/layout/ = layout docs
             #   /storybook/element/ = graphty-element Storybook
             #   /storybook/app/ = graphty Storybook
-            #   /algorithms/ = algorithms gh-pages
-            #   /layout/ = layout gh-pages
+            #   /algorithms/ = algorithms gh-pages (examples + benchmarks)
+            #   /layout/ = layout gh-pages (examples)
             - name: Assemble GitHub Pages site
               run: |
                   mkdir -p ./public
@@ -95,13 +98,13 @@ jobs:
                     echo "⚠️ graphty dist not found"
                   fi
 
-                  # graphty-element docs (/docs/)
-                  if [ -d "./graphty-element/docs/.vitepress/dist" ]; then
+                  # Unified docs (/docs/)
+                  if [ -d "./docs/.vitepress/dist" ]; then
                     mkdir -p ./public/docs
-                    cp -r ./graphty-element/docs/.vitepress/dist/* ./public/docs/
-                    echo "✅ Copied graphty-element docs to /docs/"
+                    cp -r ./docs/.vitepress/dist/* ./public/docs/
+                    echo "✅ Copied unified docs to /docs/"
                   else
-                    echo "⚠️ graphty-element docs not found"
+                    echo "⚠️ unified docs not found"
                   fi
 
                   # graphty-element Storybook (/storybook/element/)

@@ -23,7 +23,7 @@ export function randomLayout(
 ): PositionMap {
     const processed = _processParams(G, center, dim);
     const nodes = getNodesFromGraph(processed.G);
-    center = processed.center;
+    ({ center } = processed);
 
     const rng = new RandomNumberGenerator(seed ?? undefined);
     const pos: PositionMap = {};

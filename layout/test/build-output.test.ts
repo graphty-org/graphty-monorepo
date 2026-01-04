@@ -28,10 +28,18 @@ describe("Build Output Tests", () => {
     it("should have TypeScript configuration for ES modules", () => {
         const tsconfig = JSON.parse(readFileSync(resolve("./tsconfig.json"), "utf-8"));
 
-        // Check module settings
-        expect(tsconfig.compilerOptions.module).toBe("ES2020");
-        expect(tsconfig.compilerOptions.target).toBe("ES2020");
-        expect(tsconfig.compilerOptions.declaration).toBe(true);
+        // Check that tsconfig extends base or has required settings
+        // With extends pattern, settings come from base config
+        if (tsconfig.extends) {
+            expect(tsconfig.extends).toContain("tsconfig.base.json");
+            // composite: true is required for project references
+            expect(tsconfig.compilerOptions.composite).toBe(true);
+        } else {
+            // Legacy: check module settings directly
+            expect(tsconfig.compilerOptions.module).toBe("ES2020");
+            expect(tsconfig.compilerOptions.target).toBe("ES2020");
+            expect(tsconfig.compilerOptions.declaration).toBe(true);
+        }
     });
 
     const distExists = existsSync(resolve("./dist/src/index.js"));

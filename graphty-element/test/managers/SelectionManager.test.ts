@@ -104,9 +104,9 @@ describe("SelectionManager", () => {
             assert.equal(event.currentNodeId, "test-node");
         });
 
-        it("select() sets _selected to true in node data", () => {
+        it("select() sets graphty.selected to true in algorithmResults", () => {
             selectionManager.select(mockNode);
-            assert.isTrue(mockNode.data._selected);
+            assert.isTrue(mockNode.algorithmResults.graphty?.selected);
         });
     });
 
@@ -156,12 +156,12 @@ describe("SelectionManager", () => {
             assert.equal(callback.mock.calls.length, 0);
         });
 
-        it("deselect() sets _selected to false in previously selected node data", () => {
+        it("deselect() sets graphty.selected to false in previously selected node algorithmResults", () => {
             selectionManager.select(mockNode);
-            assert.isTrue(mockNode.data._selected);
+            assert.isTrue(mockNode.algorithmResults.graphty?.selected);
 
             selectionManager.deselect();
-            assert.isFalse(mockNode.data._selected);
+            assert.isFalse(mockNode.algorithmResults.graphty?.selected);
         });
     });
 
@@ -183,13 +183,13 @@ describe("SelectionManager", () => {
             assert.isTrue(selectionManager.isSelected(node2));
         });
 
-        it("selecting a different node sets _selected correctly on both nodes", () => {
+        it("selecting a different node sets graphty.selected correctly on both nodes", () => {
             selectionManager.select(node1);
-            assert.isTrue(node1.data._selected);
+            assert.isTrue(node1.algorithmResults.graphty?.selected);
 
             selectionManager.select(node2);
-            assert.isFalse(node1.data._selected);
-            assert.isTrue(node2.data._selected);
+            assert.isFalse(node1.algorithmResults.graphty?.selected);
+            assert.isTrue(node2.algorithmResults.graphty?.selected);
         });
 
         it("selecting the same node is a no-op (no event)", () => {
@@ -227,19 +227,21 @@ describe("SelectionManager", () => {
             const layer = selectionManager.getSelectionStyleLayer();
             assert.isNotNull(layer);
             assert.isDefined(layer.metadata);
-            assert.isTrue((layer.metadata as unknown as { isSelectionLayer: boolean }).isSelectionLayer);
+            assert.equal((layer.metadata as { name: string }).name, "selection");
         });
 
         it("selection layer has correct node selector", () => {
             const layer = selectionManager.getSelectionStyleLayer();
             assert.isDefined(layer.node);
-            assert.equal(layer.node?.selector, "_selected == `true`");
+            assert.equal(layer.node?.selector, "algorithmResults.graphty.selected == `true`");
         });
 
-        it("selection layer has color style by default", () => {
+        it("selection layer has calculatedStyle for color by default", () => {
             const layer = selectionManager.getSelectionStyleLayer();
-            assert.isDefined(layer.node?.style?.texture);
-            assert.equal(layer.node?.style?.texture?.color, "#FFD700");
+            assert.isDefined(layer.node?.calculatedStyle);
+            assert.equal(layer.node?.calculatedStyle?.output, "style.texture.color");
+            // The expression returns gold color
+            assert.include(layer.node?.calculatedStyle?.expr ?? "", "#FFD700");
         });
     });
 

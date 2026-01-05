@@ -413,6 +413,12 @@ export class NodeDragHandler {
             selectionManager.select(this.node);
         }
 
+        // Pin the node to prevent layout drift during selection styling
+        // This matches the behavior of drag (which pins after drag end)
+        if (this.node.pinOnDrag) {
+            this.node.pin();
+        }
+
         // Emit node-click event
         const eventManager = context.getEventManager?.();
         if (eventManager && this.clickState?.pointerEvent) {

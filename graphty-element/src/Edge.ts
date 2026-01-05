@@ -242,6 +242,15 @@ export class Edge {
     }
 
     /**
+     * Invalidates the position cache, forcing the edge to be recalculated on the next update.
+     * Call this when a connected node's size changes (e.g., due to selection).
+     */
+    invalidatePositionCache(): void {
+        this._lastSrcPos = null;
+        this._lastDstPos = null;
+    }
+
+    /**
      * Updates the edge's visual representation based on current node positions and style changes.
      * Performs dirty checking to skip updates when nodes haven't moved.
      */

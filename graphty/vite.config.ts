@@ -45,6 +45,10 @@ export default defineConfig(({ mode }) => {
                     resolve(__dirname, ".."),
                 ],
             },
+            watch: {
+                // Watch graphty-element source for HMR across monorepo packages
+                // The alias resolves to source files, so Vite should pick up changes
+            },
         },
         build: {
             outDir: "dist",

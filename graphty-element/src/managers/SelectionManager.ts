@@ -7,34 +7,28 @@ import type { Manager } from "./interfaces";
 import type { StyleManager } from "./StyleManager";
 
 /**
- * Selection layer metadata type.
- * Extends the base metadata with a selection layer marker.
- */
-interface SelectionLayerMetadata {
-    name: string;
-    isSelectionLayer: boolean;
-}
-
-/**
- * Default selection style - gold/yellow color with slight size increase.
+ * Default selection style - gold/yellow color.
  * Uses color change instead of outline because HighlightLayer doesn't work
  * well with InstancedMesh (which MeshCache uses for performance).
  * This can be customized by users by modifying or replacing the selection layer.
+ *
+ * Selection state is stored in algorithmResults.graphty.selected rather than data._selected
+ * to keep the data object clean and ensure proper style layer interaction with algorithm styles.
+ *
+ * The selection layer is added last in the layer stack (highest precedence)
+ * to ensure it overrides other layers.
  */
 const DEFAULT_SELECTION_STYLE: StyleLayerType = {
     metadata: {
         name: "selection",
-        isSelectionLayer: true,
-    } as SelectionLayerMetadata as StyleLayerType["metadata"],
+    },
     node: {
-        selector: "_selected == `true`",
+        selector: "algorithmResults.graphty.selected == `true`",
         style: {
+            enabled: true,
             texture: {
                 color: "#FFD700", // Gold color for selected nodes
             },
-            // Note: We intentionally do NOT change size here.
-            // Size changes cause edge endpoints to shift (edges connect to node surface),
-            // which creates visual instability when selecting nodes.
         },
     },
 };
@@ -197,14 +191,12 @@ export class SelectionManager implements Manager {
      * @param layer - The new selection style layer configuration.
      */
     setSelectionStyleLayer(layer: StyleLayerType): void {
-        // Ensure the layer has the selection metadata
-        const newMetadata: SelectionLayerMetadata = {
-            name: (layer.metadata as SelectionLayerMetadata | undefined)?.name ?? "selection",
-            isSelectionLayer: true,
-        };
+        // Ensure the layer has a name in metadata
+        const metadata = layer.metadata ?? {};
+        const name = (metadata as { name?: string }).name ?? "selection";
         this.selectionStyleLayer = {
             ...layer,
-            metadata: newMetadata as StyleLayerType["metadata"],
+            metadata: { ...metadata, name },
         };
     }
 
@@ -223,19 +215,38 @@ export class SelectionManager implements Manager {
     }
 
     /**
-     * Update the _selected property in node data and trigger style recalculation.
+     * Update the graphty.selected property in algorithmResults and trigger style recalculation.
+     * Selection state is stored in algorithmResults.graphty.selected rather than data._selected
+     * to keep the data object clean and ensure proper style layer interaction with algorithm styles.
      * @param node - The node to update
      * @param selected - Whether the node is selected
      */
     private updateNodeSelectionData(node: Node, selected: boolean): void {
-        // Update the node data
-        node.data._selected = selected;
+        // Update the node algorithmResults with selection state
+        // Uses the graphty namespace for graphty-specific computed values
+        if (!node.algorithmResults.graphty) {
+            node.algorithmResults.graphty = {};
+        }
+        node.algorithmResults.graphty.selected = selected;
 
         // Trigger style recalculation
         // StyleManager caches styles by data, so we need to recalculate
         if (this.styleManager) {
+            const styles = this.styleManager.getStyles();
             const styleId = this.styleManager.getStyleForNode(node.data, node.algorithmResults);
             node.updateStyle(styleId);
+
+            // Reload calculated values (e.g., HITS color/size, selection color) which repopulates styleUpdates
+            // This is necessary because styleUpdates is cleared after each merge in update()
+            // Pass algorithmResults so selection-based calculatedStyle selectors can match
+            node.changeManager.loadCalculatedValues(
+                styles.getCalculatedStylesForNode(node.data, node.algorithmResults),
+                true,
+            );
+
+            // Call update() to merge the calculated style updates with the new base style
+            // This ensures algorithm-computed styles like HITS colors/sizes are preserved
+            node.update();
         } else {
             // Fallback: directly compute style via Styles class
             // This happens in tests where StyleManager isn't available

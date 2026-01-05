@@ -221,6 +221,9 @@ export class D3GraphEngine extends LayoutEngine {
                 this.edgeMapping.set(e, d3edge);
             }
             this.newEdgeMap.clear();
+
+            // Clear reheat flag so we don't keep reheating every tick
+            this.reheat = false;
         }
     }
 
@@ -343,7 +346,9 @@ export class D3GraphEngine extends LayoutEngine {
         d3node.fx = d3node.x;
         d3node.fy = d3node.y;
         d3node.fz = d3node.z;
-        this.reheat = true; // TODO: is this necessary?
+        // Note: We intentionally do NOT reheat the simulation when pinning.
+        // Pinning just locks the node's current position - it shouldn't restart
+        // the simulation. Reheating here would cause the layout to never settle.
     }
 
     /**

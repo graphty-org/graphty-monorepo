@@ -286,10 +286,28 @@ export function getAlgorithmsByCategory(category: AlgorithmCategory): AlgorithmI
     return ALGORITHM_CATALOG.filter((algo) => algo.category === category);
 }
 
+/** Style layer item for the UI layer list */
+export interface AlgorithmStyleLayer {
+    id: string;
+    name: string;
+    styleLayer: {
+        node?: {
+            selector: string;
+            style: Record<string, unknown>;
+        };
+        edge?: {
+            selector: string;
+            style: Record<string, unknown>;
+        };
+    };
+}
+
 interface RunAlgorithmModalProps {
     opened: boolean;
     onClose: () => void;
     graphtyRef: RefObject<GraphtyHandle | null>;
+    /** Callback to add algorithm style layers to the UI layer list */
+    onAddLayers?: (layers: AlgorithmStyleLayer[]) => void;
 }
 
 /**
@@ -298,9 +316,10 @@ interface RunAlgorithmModalProps {
  * @param root0.opened - Whether the modal is open
  * @param root0.onClose - Callback to close the modal
  * @param root0.graphtyRef - Reference to the Graphty component
+ * @param root0.onAddLayers - Callback to add algorithm style layers to the UI
  * @returns The modal component
  */
-export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmModalProps): React.JSX.Element {
+export function RunAlgorithmModal({ opened, onClose, graphtyRef, onAddLayers }: RunAlgorithmModalProps): React.JSX.Element {
     const categories = getCategories();
     const [selectedCategory, setSelectedCategory] = useState<AlgorithmCategory>(categories[0]);
     const [selectedAlgorithm, setSelectedAlgorithm] = useState<AlgorithmInfo | null>(null);
@@ -448,22 +467,78 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmM
             return;
         }
 
+        // Run the algorithm without internal style application - we'll add styles through React
         runAlgorithm
             .call(graph, selectedAlgorithm.namespace, selectedAlgorithm.type, {
-                applySuggestedStyles,
+                applySuggestedStyles: false, // We handle styles through React layer system
                 ...(hasAlgorithmOptions ? { algorithmOptions } : {}),
             })
             .then(() => {
-                // Workaround: graphty-element applies styles before adding the algorithm layer,
-                // so we need to re-apply styles after the algorithm runs to trigger calculatedStyle
-                if (applySuggestedStyles) {
-                    // Use type assertion for dataManager methods not in the minimal interface
-                    const dataManager = graph.dataManager as unknown as {
-                        applyStylesToExistingNodes?: () => void;
-                        applyStylesToExistingEdges?: () => void;
-                    };
-                    dataManager.applyStylesToExistingNodes?.();
-                    dataManager.applyStylesToExistingEdges?.();
+                // If applySuggestedStyles is enabled, get the suggested styles and add them to the UI
+                if (applySuggestedStyles && onAddLayers) {
+                    // Cast to access static methods that aren't included in the basic AlgorithmClass type
+                    const algoClass = Algorithm.getClass(selectedAlgorithm.namespace, selectedAlgorithm.type) as {
+                        hasSuggestedStyles(): boolean;
+                        getSuggestedStyles(): {
+                            layers: Array<{
+                                metadata?: { name?: string };
+                                node?: {
+                                    selector?: string;
+                                    style?: Record<string, unknown>;
+                                    calculatedStyle?: unknown;
+                                };
+                                edge?: {
+                                    selector?: string;
+                                    style?: Record<string, unknown>;
+                                    calculatedStyle?: unknown;
+                                };
+                            }>;
+                        } | null;
+                    } | null;
+
+                    if (algoClass?.hasSuggestedStyles()) {
+                        const suggestedStyles = algoClass.getSuggestedStyles();
+                        if (suggestedStyles?.layers) {
+                            // Convert suggested styles to UI layer format
+                            const uiLayers: AlgorithmStyleLayer[] = suggestedStyles.layers.map((layer, index) => {
+                                const layerId = `algo-${selectedAlgorithm.namespace}-${selectedAlgorithm.type}-${String(index)}-${String(Date.now())}`;
+                                const layerName = layer.metadata?.name ?? `${selectedAlgorithm.type} Style ${String(index + 1)}`;
+
+                                return {
+                                    id: layerId,
+                                    name: layerName,
+                                    styleLayer: {
+                                        node: layer.node
+                                            ? {
+                                                  selector: layer.node.selector ?? "",
+                                                  style: {
+                                                      ...layer.node.style,
+                                                      // Include calculatedStyle for dynamic styling
+                                                      ...(layer.node.calculatedStyle
+                                                          ? { calculatedStyle: layer.node.calculatedStyle }
+                                                          : {}),
+                                                  },
+                                              }
+                                            : undefined,
+                                        edge: layer.edge
+                                            ? {
+                                                  selector: layer.edge.selector ?? "",
+                                                  style: {
+                                                      ...layer.edge.style,
+                                                      ...(layer.edge.calculatedStyle
+                                                          ? { calculatedStyle: layer.edge.calculatedStyle }
+                                                          : {}),
+                                                  },
+                                              }
+                                            : undefined,
+                                    },
+                                };
+                            });
+
+                            // Add layers to the UI
+                            onAddLayers(uiLayers);
+                        }
+                    }
                 }
 
                 // Show success message briefly before closing
@@ -478,7 +553,7 @@ export function RunAlgorithmModal({ opened, onClose, graphtyRef }: RunAlgorithmM
                 setError(message);
                 setIsExecuting(false);
             });
-    }, [graphtyRef, selectedAlgorithm, applySuggestedStyles, selectedSourceNode, selectedTargetNode, optionsValues, onClose]);
+    }, [graphtyRef, selectedAlgorithm, applySuggestedStyles, selectedSourceNode, selectedTargetNode, optionsValues, onClose, onAddLayers]);
 
     const canRun = graphtyRef.current?.graph !== undefined && selectedAlgorithm !== null && !isExecuting && !success;
 

@@ -41,6 +41,7 @@ import {
     defaultXRConfig,
     FetchEdgesFn,
     FetchNodesFn,
+    StyleLayerType,
     StyleSchema,
     SuggestedStylesConfig,
     type ViewMode,
@@ -390,7 +391,9 @@ export class Graph implements GraphContext {
             // Recompute and apply styles to all existing nodes and edges
             for (const n of this.dataManager.nodes.values()) {
                 const styleId = currentStyles.getStyleForNode(n.data);
-                n.changeManager.loadCalculatedValues(currentStyles.getCalculatedStylesForNode(n.data));
+                n.changeManager.loadCalculatedValues(
+                    currentStyles.getCalculatedStylesForNode(n.data, n.algorithmResults),
+                );
                 n.updateStyle(styleId);
             }
 
@@ -550,13 +553,16 @@ export class Graph implements GraphContext {
                             node.label?.startAnimation();
                         }
 
-                        // Force a final zoom to fit after layout has truly settled
-                        this.updateManager.enableZoomToFit();
-
-                        // Capture initial camera state after first settlement for resetCamera()
-                        // Use setTimeout to allow zoom-to-fit to complete first
+                        // Only zoom to fit on FIRST settlement after data load.
+                        // Subsequent settlements (e.g., after node selection/style change)
+                        // should NOT trigger zoom to fit - the user's camera position should be preserved.
                         if (!this.initialCameraStateCaptured) {
                             this.initialCameraStateCaptured = true;
+                            // Force a final zoom to fit after layout has truly settled
+                            this.updateManager.enableZoomToFit();
+
+                            // Capture initial camera state after first settlement for resetCamera()
+                            // Use setTimeout to allow zoom-to-fit to complete first
                             setTimeout(() => {
                                 this.initialCameraState = this.getCameraState();
                             }, 100);
@@ -1576,6 +1582,14 @@ export class Graph implements GraphContext {
      */
     getStyleManager(): StyleManager {
         return this.styleManager;
+    }
+
+    /**
+     * Get a copy of all style layers.
+     * @returns Array of style layers
+     */
+    getLayers(): StyleLayerType[] {
+        return this.styleManager.getLayers();
     }
 
     /**

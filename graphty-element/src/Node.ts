@@ -76,7 +76,7 @@ export class Node {
         this.algorithmResults = this.changeManager.watch("algorithmResults", {} as unknown as AdHocData);
         this.styleUpdates = this.changeManager.addData("style", {} as unknown as AdHocData, NodeStyle);
         this.changeManager.loadCalculatedValues(
-            this.context.getStyleManager().getStyles().getCalculatedStylesForNode(data),
+            this.context.getStyleManager().getStyles().getCalculatedStylesForNode(data, this.algorithmResults),
         );
 
         // copy nodeMeshOpts
@@ -207,7 +207,18 @@ export class Node {
         }
 
         const o = Styles.getStyleForNodeStyleId(styleId);
+        const oldSize = this.size;
         this.size = o.shape?.size ?? 0;
+
+        // If size changed, invalidate connected edges so they recalculate their endpoints
+        if (this.size !== oldSize) {
+            const dataManager = this.context.getDataManager();
+            for (const edge of dataManager.edges.values()) {
+                if (edge.srcNode === this || edge.dstNode === this) {
+                    edge.invalidatePositionCache();
+                }
+            }
+        }
 
         this.mesh = NodeMesh.create(
             this.context.getMeshCache(),

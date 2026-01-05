@@ -53,6 +53,9 @@ export class Styles {
 
         if (this.config.graph.addDefaultStyle) {
             this.#layers.unshift({
+                metadata: {
+                    name: "default",
+                },
                 node: {
                     selector: "",
                     style: NodeStyle.parse(defaultNodeStyle),
@@ -126,7 +129,6 @@ export class Styles {
      */
     addLayer(layer: StyleLayerType): void {
         this.#layers.push(layer);
-
         // TODO: recalculate
     }
 
@@ -137,7 +139,6 @@ export class Styles {
      */
     insertLayer(position: number, layer: StyleLayerType): void {
         this.#layers.splice(position, 0, layer);
-
         // TODO: recalculate
     }
 
@@ -150,6 +151,57 @@ export class Styles {
         const originalLength = this.#layers.length;
         this.#layers = this.#layers.filter((layer) => !predicate(layer.metadata));
         return this.#layers.length !== originalLength;
+    }
+
+    /**
+     * Removes a layer at a specific index.
+     * @param index - Index of the layer to remove
+     * @returns True if the layer was removed
+     */
+    removeLayerByIndex(index: number): boolean {
+        if (index < 0 || index >= this.#layers.length) {
+            return false;
+        }
+        this.#layers.splice(index, 1);
+        return true;
+    }
+
+    /**
+     * Updates a layer at a specific index.
+     * @param index - Index of the layer to update
+     * @param layer - New layer configuration
+     * @returns True if the layer was updated
+     */
+    updateLayerByIndex(index: number, layer: StyleLayerType): boolean {
+        if (index < 0 || index >= this.#layers.length) {
+            return false;
+        }
+        this.#layers[index] = layer;
+        return true;
+    }
+
+    /**
+     * Reorders layers by moving a layer from one index to another.
+     * @param fromIndex - Current index of the layer
+     * @param toIndex - Target index for the layer
+     * @returns True if the layer was moved
+     */
+    reorderLayers(fromIndex: number, toIndex: number): boolean {
+        if (
+            fromIndex < 0 ||
+            fromIndex >= this.#layers.length ||
+            toIndex < 0 ||
+            toIndex >= this.#layers.length ||
+            fromIndex === toIndex
+        ) {
+            return false;
+        }
+
+        const [layer] = this.#layers.splice(fromIndex, 1);
+        // Adjust target index if we removed an element before the target
+        const adjustedToIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+        this.#layers.splice(adjustedToIndex, 0, layer);
+        return true;
     }
 
     /**
@@ -184,14 +236,18 @@ export class Styles {
     /**
      * Retrieves calculated style values for a node from matching layers.
      * @param data - Node data for selector matching
+     * @param algorithmResults - Optional algorithm results for selector matching
      * @returns Array of calculated values to apply to the node
      */
-    getCalculatedStylesForNode(data: AdHocData): CalculatedValue[] {
+    getCalculatedStylesForNode(data: AdHocData, algorithmResults?: AdHocData): CalculatedValue[] {
+        // Combine data and algorithmResults for selector matching
+        const combinedData = algorithmResults ? { ...data, algorithmResults } : data;
+
         const ret: CalculatedValue[] = [];
         for (const layer of this.layers) {
             const { node } = layer;
 
-            const nodeMatch = selectorMatchesNode(node, data);
+            const nodeMatch = selectorMatchesNode(node, combinedData);
 
             if (nodeMatch && node?.calculatedStyle) {
                 const { inputs, output, expr } = node.calculatedStyle;

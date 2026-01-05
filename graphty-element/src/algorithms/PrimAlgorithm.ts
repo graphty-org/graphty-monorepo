@@ -10,14 +10,32 @@
  */
 
 import { primMST } from "@graphty/algorithms";
+import { z } from "zod/v4";
 
-import { SuggestedStylesConfig } from "../config";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
 import { Algorithm } from "./Algorithm";
+import type { OptionsSchema } from "./types/OptionSchema";
 import { toAlgorithmGraph } from "./utils/graphConverter";
 
-interface PrimOptions {
+/**
+ * Zod-based options schema for Prim algorithm
+ */
+export const primOptionsSchema = defineOptions({
+    startNode: {
+        schema: z.union([z.string(), z.number()]).nullable().default(null),
+        meta: {
+            label: "Start Node",
+            description: "Starting node for MST growth (uses first node if not set)",
+        },
+    },
+});
+
+/**
+ * Options for Prim algorithm
+ */
+interface PrimOptions extends Record<string, unknown> {
     /** Optional starting node for the algorithm */
-    startNode?: number | string;
+    startNode: number | string | null;
 }
 
 /**
@@ -26,10 +44,26 @@ interface PrimOptions {
  * Computes the minimum spanning tree of an undirected graph by growing
  * the tree from a starting node.
  */
-export class PrimAlgorithm extends Algorithm {
+export class PrimAlgorithm extends Algorithm<PrimOptions> {
     static namespace = "graphty";
     static type = "prim";
-    private options: PrimOptions | null = null;
+
+    static zodOptionsSchema: ZodOptionsSchema = primOptionsSchema;
+
+    static optionsSchema: OptionsSchema = {
+        startNode: {
+            type: "nodeId",
+            default: null,
+            label: "Start Node",
+            description: "Starting node for MST growth (uses first node if not set)",
+            required: false,
+        },
+    };
+
+    /**
+     * Legacy options set via configure() for backward compatibility
+     */
+    private legacyOptions: PrimOptions | null = null;
 
     static suggestedStyles = (): SuggestedStylesConfig => ({
         layers: [
@@ -71,10 +105,12 @@ export class PrimAlgorithm extends Algorithm {
     /**
      * Configure the algorithm with an optional start node
      * @param options - Configuration options
+     * @param options.startNode - The optional start node ID
      * @returns This algorithm instance for chaining
+     * @deprecated Use constructor options instead. This method is kept for backward compatibility.
      */
-    configure(options: PrimOptions): this {
-        this.options = options;
+    configure(options: { startNode?: number | string }): this {
+        this.legacyOptions = { startNode: options.startNode ?? null };
         return this;
     }
 
@@ -91,10 +127,14 @@ export class PrimAlgorithm extends Algorithm {
             return;
         }
 
+        // Get startNode from legacy options, schema options, or use undefined (algorithm will pick first node)
+        // Legacy configure() takes precedence for backward compatibility
+        const startNode = this.legacyOptions?.startNode ?? this._schemaOptions.startNode ?? undefined;
+
         // Convert to @graphty/algorithms format and run Prim's algorithm
         // Note: Prim's algorithm requires a truly undirected graph (not a directed graph with reverse edges)
         const graphData = toAlgorithmGraph(g, { directed: false, addReverseEdges: false });
-        const mstResult = primMST(graphData, this.options?.startNode);
+        const mstResult = primMST(graphData, startNode);
 
         // Create set of MST edge keys for fast lookup
         // Store both directions since the graph is undirected

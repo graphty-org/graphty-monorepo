@@ -177,8 +177,8 @@ export function forceatlas2Layout(
     // Simulation parameters
     let speed = 1;
     let speedEfficiency = 1;
-    const _swing = 1;
-    const _traction = 1;
+    const _swing = 1; // Reserved for adaptive speed control
+    const _traction = 1; // Reserved for adaptive speed control
 
     // Helper function to estimate factor for force scaling
     function estimateFactor(

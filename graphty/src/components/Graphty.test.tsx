@@ -10,9 +10,16 @@ vi.mock("@graphty/graphty-element", () => {
     };
 });
 
-// Mock custom element
+// Mock custom element with graph property that has getLayers method
 class MockGraphtyElement extends HTMLElement {
     private _layout?: string;
+    // Mock graph property with getLayers method
+    graph = {
+        getLayers: (): unknown[] => [],
+        getStyleManager: () => ({
+            getLayers: () => [],
+        }),
+    };
 
     connectedCallback(): void {
         // React 19 might set properties instead of attributes for custom elements

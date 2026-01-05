@@ -10,14 +10,14 @@ import { isK5, isK33 } from "./special-graphs";
 /**
  * Check if graph is planar using a simplified version of Boyer-Myrvold algorithm.
  * Returns planarity and embedding information.
- * @param G - Graph
+ * @param _G - Graph (reserved for future use)
  * @param nodes - List of nodes
  * @param edges - List of edges
  * @param seed - Random seed for deterministic embedding generation
  * @returns Object containing isPlanar flag and embedding
  */
 export function checkPlanarity(
-    G: Graph,
+    _G: Graph,
     nodes: Node[],
     edges: Edge[],
     seed: number | null = null,

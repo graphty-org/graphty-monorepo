@@ -37,13 +37,7 @@ interface GraphtyElementType extends HTMLElement {
     styleTemplate?: unknown;
     dataSource?: string;
     dataSourceConfig?: Record<string, unknown>;
-    graph?: {
-        dataManager: {
-            clear: () => void;
-            nodes: Map<string | number, GraphNode>;
-            edges: Map<string, GraphEdge>;
-        };
-    };
+    graph?: Graph;
 }
 
 /**
@@ -61,7 +55,7 @@ const SHAPE_TYPE_MAP: Record<string, string> = {
  * @param shape - The shape configuration to convert
  * @returns The converted shape config for graphty-element
  */
-function convertShapeConfig(shape: ShapeConfig): { type?: string; size?: number } {
+function _convertShapeConfig(shape: ShapeConfig): { type?: string; size?: number } {
     const type = SHAPE_TYPE_MAP[shape.type] ?? shape.type;
     return {
         type,
@@ -74,7 +68,7 @@ function convertShapeConfig(shape: ShapeConfig): { type?: string; size?: number 
  * @param colorConfig - The color configuration to convert
  * @returns The converted color config for graphty-element texture
  */
-function convertColorConfig(
+function _convertColorConfig(
     colorConfig: ColorConfig,
 ): string | { colorType: string; value?: string; colors?: string[]; direction?: number; opacity?: number } {
     switch (colorConfig.mode) {
@@ -162,7 +156,7 @@ function convertArrowConfig(
  * @param edgeStyle - The edge style configuration to convert
  * @returns The converted edge style for graphty-element
  */
-function convertEdgeStyle(edgeStyle: EdgeStyle): Record<string, unknown> {
+function _convertEdgeStyle(edgeStyle: EdgeStyle): Record<string, unknown> {
     const result: Record<string, unknown> = {};
 
     if (edgeStyle.line) {
@@ -207,7 +201,7 @@ function convertEdgeStyle(edgeStyle: EdgeStyle): Record<string, unknown> {
  * @param effects - The node effects configuration to convert
  * @returns The converted effects config for graphty-element, or undefined if no effects are set
  */
-function convertEffectsConfig(effects: NodeEffectsConfig): Record<string, unknown> | undefined {
+function _convertEffectsConfig(effects: NodeEffectsConfig): Record<string, unknown> | undefined {
     const result: Record<string, unknown> = {};
 
     // Add glow if enabled
@@ -327,6 +321,33 @@ function convertRichTextStyle(textStyle: RichTextStyle): Record<string, unknown>
 
 export type ViewMode = "2d" | "3d" | "vr" | "ar";
 
+/** Event detail for selection-changed events */
+export interface SelectionChangedDetail {
+    previousNodeId: string | number | null;
+    currentNodeId: string | number | null;
+    currentNodeData: Record<string, unknown> | null;
+}
+
+/** Style layer from graphty-element */
+export interface StyleLayer {
+    metadata?: Record<string, unknown>;
+    node?: {
+        selector?: string;
+        style?: Record<string, unknown>;
+        calculatedStyle?: Record<string, unknown>;
+    };
+    edge?: {
+        selector?: string;
+        style?: Record<string, unknown>;
+        calculatedStyle?: Record<string, unknown>;
+    };
+}
+
+/** Event detail for style-changed events */
+export interface StylesChangedDetail {
+    layers: StyleLayer[];
+}
+
 interface GraphtyProps {
     layers: LayerItem[];
     /** @deprecated Use viewMode instead */
@@ -338,6 +359,10 @@ interface GraphtyProps {
     replaceExisting?: boolean;
     layout?: string;
     layoutConfig?: Record<string, unknown>;
+    /** Called when a node is selected or deselected */
+    onSelectionChange?: (detail: SelectionChangedDetail) => void;
+    /** Called when style layers change in graphty-element */
+    onStylesChange?: (detail: StylesChangedDetail) => void;
 }
 
 // Format detection utilities
@@ -430,8 +455,30 @@ export interface Graph {
         nodes: Map<string | number, GraphNode>;
         edges: Map<string, GraphEdge>;
     };
+    /** Get all style layers */
+    getLayers: () => StyleLayer[];
+    /** Get the StyleManager for layer mutations */
+    getStyleManager: () => StyleManager;
     // Additional Graph methods accessible via the instance
     [key: string]: unknown;
+}
+
+/**
+ * StyleManager interface for layer management operations.
+ */
+export interface StyleManager {
+    /** Add a layer at the end */
+    addLayer: (layer: StyleLayer) => void;
+    /** Insert a layer at a specific position */
+    insertLayer: (position: number, layer: StyleLayer) => void;
+    /** Remove a layer at a specific index */
+    removeLayerByIndex: (index: number) => boolean;
+    /** Update a layer at a specific index */
+    updateLayerByIndex: (index: number, layer: StyleLayer) => boolean;
+    /** Reorder layers by moving from one index to another */
+    reorderLayers: (fromIndex: number, toIndex: number) => boolean;
+    /** Get all layers */
+    getLayers: () => StyleLayer[];
 }
 
 export interface GraphtyHandle {
@@ -459,7 +506,7 @@ declare module "react" {
 }
 
 export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
-    { layers, viewMode, dataSource, dataSourceConfig, replaceExisting, layout = "d3", layoutConfig, ...rest },
+    { layers: _layers, viewMode, dataSource, dataSourceConfig, replaceExisting, layout = "d3", layoutConfig, onSelectionChange, onStylesChange, ...rest },
     ref,
 ): React.JSX.Element {
     // Resolve viewMode from props, with backward compatibility for deprecated layout2d prop
@@ -620,95 +667,102 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
         }
     }, [layout, layoutConfig]);
 
-    // Handle style layer changes
-    useEffect(() => {
-        if (graphtyRef.current) {
-            // Create styleTemplate from layers
-            // Reverse the array so layers at the top of the UI have higher precedence
-            const styleTemplate = {
-                graphtyTemplate: true,
-                majorVersion: "1",
-                graph: {
-                    addDefaultStyle: true,
-                },
-                layers: [...layers]
-                    .reverse()
-                    .map((layer) => {
-                        const layerObj: { node?: unknown; edge?: unknown } = {};
-
-                        // Convert node style if present - check for undefined, not falsy (allow empty string)
-                        if (layer.styleLayer.node !== undefined) {
-                            const nodeStyle: Record<string, unknown> = {};
-                            const { style } = layer.styleLayer.node;
-
-                            // Convert shape if present
-                            if (style.shape) {
-                                nodeStyle.shape = convertShapeConfig(style.shape as ShapeConfig);
-                            }
-
-                            // Convert color to texture.color format if present
-                            if (style.color && typeof style.color === "object" && "mode" in style.color) {
-                                nodeStyle.texture = {
-                                    color: convertColorConfig(style.color as ColorConfig),
-                                };
-                            } else if (style.texture && typeof style.texture === "object") {
-                                // Legacy texture.color format - pass through
-                                nodeStyle.texture = style.texture;
-                            }
-
-                            // Convert effects if present
-                            if (style.effects && typeof style.effects === "object") {
-                                const convertedEffects = convertEffectsConfig(style.effects as NodeEffectsConfig);
-                                if (convertedEffects) {
-                                    nodeStyle.effect = convertedEffects;
-                                }
-                            }
-
-                            // Convert label if present and enabled
-                            if (style.label && typeof style.label === "object") {
-                                const convertedLabel = convertRichTextStyle(style.label as RichTextStyle);
-                                if (convertedLabel) {
-                                    nodeStyle.label = convertedLabel;
-                                }
-                            }
-
-                            // Convert tooltip if present and enabled
-                            if (style.tooltip && typeof style.tooltip === "object") {
-                                const convertedTooltip = convertRichTextStyle(style.tooltip as RichTextStyle);
-                                if (convertedTooltip) {
-                                    nodeStyle.tooltip = convertedTooltip;
-                                }
-                            }
-
-                            layerObj.node = {
-                                selector: layer.styleLayer.node.selector || "",
-                                style: nodeStyle,
-                            };
-                        }
-
-                        // Convert edge style if present - check for undefined, not falsy
-                        if (layer.styleLayer.edge !== undefined) {
-                            const edgeStyle = layer.styleLayer.edge.style as EdgeStyle | undefined;
-                            layerObj.edge = {
-                                selector: layer.styleLayer.edge.selector || "",
-                                style: edgeStyle ? convertEdgeStyle(edgeStyle) : {},
-                            };
-                        }
-
-                        return layerObj;
-                    })
-                    .filter((layer) => layer.node !== undefined || layer.edge !== undefined),
-            };
-
-            graphtyRef.current.styleTemplate = styleTemplate;
-        }
-    }, [layers]);
+    // NOTE: Layer state is managed by graphty-element (Single Source of Truth).
+    // We no longer push layers via styleTemplate. Instead:
+    // 1. graphty queries layers from graphty-element via getLayers()
+    // 2. User makes changes via UI
+    // 3. graphty calls StyleManager API methods (addLayer, updateLayerByIndex, etc.)
+    // 4. graphty-element fires style-changed event
+    // 5. graphty re-queries and re-renders
 
     useEffect(() => {
         if (graphtyRef.current) {
             graphtyRef.current.viewMode = resolvedViewMode;
         }
     }, [resolvedViewMode]);
+
+    // Handle selection-changed events from graphty-element
+    useEffect(() => {
+        const element = graphtyRef.current;
+        if (!element || !onSelectionChange) {
+            return undefined;
+        }
+
+        const handleSelectionChanged = (event: Event): void => {
+            const customEvent = event as CustomEvent<{
+                previousNodeId: string | number | null;
+                currentNodeId: string | number | null;
+                currentNode: { data: Record<string, unknown> } | null;
+            }>;
+
+            const { previousNodeId, currentNodeId, currentNode } = customEvent.detail;
+
+            onSelectionChange({
+                previousNodeId,
+                currentNodeId,
+                currentNodeData: currentNode?.data ?? null,
+            });
+        };
+
+        element.addEventListener("selection-changed", handleSelectionChanged);
+
+        return () => {
+            element.removeEventListener("selection-changed", handleSelectionChanged);
+        };
+    }, [onSelectionChange]);
+
+    // Handle style-changed events from graphty-element
+    useEffect(() => {
+        const element = graphtyRef.current;
+        if (!element || !onStylesChange) {
+            return undefined;
+        }
+
+        const handleStyleChanged = (): void => {
+            // Query current state from graphty-element
+            // Guard against partially initialized graph in test environments
+            const { graph } = element;
+            if (!graph || typeof graph.getLayers !== "function") {
+                return;
+            }
+            const layers = graph.getLayers();
+            onStylesChange({ layers });
+        };
+
+        element.addEventListener("style-changed", handleStyleChanged);
+
+        // Sync initial layers when the graph becomes available
+        // Poll until graph is ready (graphty-element initializes asynchronously)
+        let pollInterval: ReturnType<typeof setInterval> | null = null;
+        let synced = false;
+
+        const syncInitialLayers = (): void => {
+            // Guard against partially initialized graph in test environments
+            if (element.graph && typeof element.graph.getLayers === "function" && !synced) {
+                synced = true;
+                if (pollInterval) {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+                }
+                handleStyleChanged();
+            }
+        };
+
+        // Try immediately (graph may already be ready)
+        syncInitialLayers();
+
+        // If not ready, poll until it is
+        if (!synced) {
+            pollInterval = setInterval(syncInitialLayers, 50);
+        }
+
+        return () => {
+            element.removeEventListener("style-changed", handleStyleChanged);
+            if (pollInterval) {
+                clearInterval(pollInterval);
+            }
+        };
+    }, [onStylesChange]);
 
     return (
         <Box

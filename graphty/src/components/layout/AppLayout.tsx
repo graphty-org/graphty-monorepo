@@ -5,14 +5,21 @@ import { useAiKeyStorage } from "../../hooks/useAiKeyStorage";
 import { useAiManager } from "../../hooks/useAiManager";
 import { useGraphInfo } from "../../hooks/useGraphInfo";
 import type { ProviderType } from "../../types/ai";
+import {
+    createEmptyStyleLayer,
+    type IndexedLayerItem,
+    layerItemToStyleLayer,
+    styleLayersToLayerItems,
+} from "../../utils/layerConversion";
 import { AiChatDialog, AiSettingsModal } from "../ai";
 import { ViewDataModal } from "../data-view";
 import { FeedbackModal } from "../FeedbackModal";
-import { Graphty, type GraphtyHandle } from "../Graphty";
+import { Graphty, type GraphtyHandle, type SelectionChangedDetail, type StyleLayer, type StylesChangedDetail } from "../Graphty";
 import { LoadDataModal, type LoadDataRequest } from "../LoadDataModal";
+import { type AlgorithmStyleLayer, RunAlgorithmModal } from "../RunAlgorithmModal";
 import { RunLayoutsModal } from "../RunLayoutsModal";
 import { BottomToolbar, ViewMode } from "./BottomToolbar";
-import { LayerItem, LeftSidebar } from "./LeftSidebar";
+import { type LayerItem, LeftSidebar } from "./LeftSidebar";
 import { RightSidebar } from "./RightSidebar";
 import { TopMenuBar } from "./TopMenuBar";
 
@@ -367,7 +374,8 @@ export function AppLayout({ className }: AppLayoutProps): React.JSX.Element {
     const [leftSidebarVisible, setLeftSidebarVisible] = useState(true);
     const [rightSidebarVisible, setRightSidebarVisible] = useState(true);
     const [toolbarVisible, setToolbarVisible] = useState(true);
-    const [layers, setLayers] = useState<LayerItem[]>([]);
+    // Layers are now derived from graphty-element (single source of truth)
+    const [layers, setLayers] = useState<IndexedLayerItem[]>([]);
     const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<ViewMode>("3d");
     const [vrAvailable, setVrAvailable] = useState(false);
@@ -375,12 +383,13 @@ export function AppLayout({ className }: AppLayoutProps): React.JSX.Element {
     const [loadDataModalOpen, setLoadDataModalOpen] = useState(false);
     const [viewDataModalOpen, setViewDataModalOpen] = useState(false);
     const [runLayoutsModalOpen, setRunLayoutsModalOpen] = useState(false);
+    const [runAlgorithmModalOpen, setRunAlgorithmModalOpen] = useState(false);
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [dataLoadedState, setDataLoadedState] = useState<DataLoadedState>({ hasData: false });
     const [currentLayout, setCurrentLayout] = useState<string>("d3");
     const [currentLayoutConfig, setCurrentLayoutConfig] = useState<Record<string, unknown>>({});
-    // Placeholder state for selected element data - will be connected to graph selection events in future
-    const [selectedElementData] = useState<SelectedElementData>(null);
+    // State for selected element data - updated when a graph node is selected
+    const [selectedElementData, setSelectedElementData] = useState<SelectedElementData>(null);
     const layerCounter = useRef(1);
     const graphtyRef = useRef<GraphtyHandle>(null);
     const testDataLoadedRef = useRef(false);
@@ -463,79 +472,152 @@ export function AppLayout({ className }: AppLayoutProps): React.JSX.Element {
         void checkXRAvailability();
     }, []);
 
+    // Handle style-changed events from graphty-element - refresh layers from source of truth
+    const handleStylesChange = useCallback((detail: StylesChangedDetail): void => {
+        const indexedLayers = styleLayersToLayerItems(detail.layers);
+        setLayers(indexedLayers);
+    }, []);
+
+    // Add a new layer via graphty-element API
     const handleAddLayer = (): void => {
-        const newLayer: LayerItem = {
-            id: `layer-${Date.now()}`,
-            name: `New Layer ${layerCounter.current}`,
-            styleLayer: {
-                node: {
-                    selector: "",
-                    style: {},
-                },
-                edge: {
-                    selector: "",
-                    style: {},
-                },
-            },
-        };
+        const graph = graphtyRef.current?.graph;
+        if (!graph) {
+            console.warn("Cannot add layer: graph not initialized");
+            return;
+        }
+
+        const newLayerName = `New Layer ${layerCounter.current}`;
         layerCounter.current += 1;
-        setLayers([...layers, newLayer]);
-        setSelectedLayerId(newLayer.id);
+
+        const styleLayer = createEmptyStyleLayer(newLayerName);
+        graph.getStyleManager().addLayer(styleLayer);
+        // Note: UI will update via onStylesChange callback when style-changed event fires
     };
 
-    const handleLayersChange = (updatedLayers: LayerItem[]): void => {
-        setLayers(updatedLayers);
-    };
+    // Handle layer reordering from drag-and-drop
+    const handleLayersChange = useCallback((updatedLayers: LayerItem[]): void => {
+        const graph = graphtyRef.current?.graph;
+        if (!graph) {
+            return;
+        }
+
+        // Find which layer moved by comparing with current layers
+        // For now, we'll rebuild the order - this could be optimized
+        // The LeftSidebar handles drag-and-drop and gives us the new order
+        // We need to translate this to reorderLayers calls
+
+        // For simple reordering, find the moved item and its new position
+        const currentIds = layers.map((l) => l.id);
+        const newIds = updatedLayers.map((l) => l.id);
+
+        // Find the item that moved
+        for (let i = 0; i < newIds.length; i++) {
+            if (currentIds[i] !== newIds[i]) {
+                // Found a difference - determine the move
+                const movedId = newIds[i];
+                const oldIndex = currentIds.indexOf(movedId);
+                const newIndex = i;
+
+                if (oldIndex !== -1 && oldIndex !== newIndex) {
+                    // Find the actual indices in graphty-element (accounting for system layers)
+                    const fromLayer = layers.find((l) => l.id === movedId);
+                    const toLayer = layers[newIndex] as IndexedLayerItem | undefined;
+
+                    if (fromLayer && toLayer) {
+                        graph.getStyleManager().reorderLayers(fromLayer.index, toLayer.index);
+                    }
+                }
+                break;
+            }
+        }
+    }, [layers]);
 
     const handleLayerSelect = (layerId: string): void => {
         setSelectedLayerId(layerId);
     };
 
-    const handleLayerUpdate = (layerId: string, updates: Partial<LayerItem["styleLayer"]["node"]>): void => {
-        const updatedLayers = layers.map((layer) => {
-            if (layer.id === layerId) {
-                return {
-                    ...layer,
-                    styleLayer: {
-                        ...layer.styleLayer,
-                        node: {
-                            selector: "",
-                            style: {},
-                            ...layer.styleLayer.node,
-                            ...updates,
-                        },
-                    },
-                };
-            }
+    // Update node style for a layer via graphty-element API
+    const handleLayerUpdate = useCallback((layerId: string, updates: Partial<LayerItem["styleLayer"]["node"]>): void => {
+        const graph = graphtyRef.current?.graph;
+        if (!graph) {
+            return;
+        }
 
-            return layer;
-        });
+        const layer = layers.find((l) => l.id === layerId);
+        if (!layer) {
+            return;
+        }
 
-        setLayers(updatedLayers);
-    };
+        // Build the updated layer
+        const updatedLayerItem: LayerItem = {
+            ...layer,
+            styleLayer: {
+                ...layer.styleLayer,
+                node: {
+                    selector: "",
+                    style: {},
+                    ...layer.styleLayer.node,
+                    ...updates,
+                },
+            },
+        };
 
-    const handleEdgeUpdate = (layerId: string, updates: Partial<LayerItem["styleLayer"]["edge"]>): void => {
-        const updatedLayers = layers.map((layer) => {
-            if (layer.id === layerId) {
-                return {
-                    ...layer,
-                    styleLayer: {
-                        ...layer.styleLayer,
-                        edge: {
-                            selector: "",
-                            style: {},
-                            ...layer.styleLayer.edge,
-                            ...updates,
-                        },
-                    },
-                };
-            }
+        const styleLayer = layerItemToStyleLayer(updatedLayerItem);
+        graph.getStyleManager().updateLayerByIndex(layer.index, styleLayer);
+    }, [layers]);
 
-            return layer;
-        });
+    // Update edge style for a layer via graphty-element API
+    const handleEdgeUpdate = useCallback((layerId: string, updates: Partial<LayerItem["styleLayer"]["edge"]>): void => {
+        const graph = graphtyRef.current?.graph;
+        if (!graph) {
+            return;
+        }
 
-        setLayers(updatedLayers);
-    };
+        const layer = layers.find((l) => l.id === layerId);
+        if (!layer) {
+            return;
+        }
+
+        // Build the updated layer
+        const updatedLayerItem: LayerItem = {
+            ...layer,
+            styleLayer: {
+                ...layer.styleLayer,
+                edge: {
+                    selector: "",
+                    style: {},
+                    ...layer.styleLayer.edge,
+                    ...updates,
+                },
+            },
+        };
+
+        const styleLayer = layerItemToStyleLayer(updatedLayerItem);
+        graph.getStyleManager().updateLayerByIndex(layer.index, styleLayer);
+    }, [layers]);
+
+    // Handle algorithm style layers being added via graphty-element API
+    const handleAddAlgorithmLayers = useCallback((algorithmLayers: AlgorithmStyleLayer[]) => {
+        const graph = graphtyRef.current?.graph;
+        if (!graph) {
+            console.warn("Cannot add algorithm layers: graph not initialized");
+            return;
+        }
+
+        // Add each algorithm layer via the StyleManager
+        for (const algoLayer of algorithmLayers) {
+            const styleLayer: StyleLayer = {
+                metadata: {
+                    name: algoLayer.name,
+                    algorithmSource: algoLayer.id,
+                },
+                node: algoLayer.styleLayer.node,
+                edge: algoLayer.styleLayer.edge,
+            };
+            graph.getStyleManager().addLayer(styleLayer);
+        }
+        // Note: UI will update via onStylesChange callback when style-changed event fires
+    }, []);
 
     const selectedLayer = layers.find((layer) => layer.id === selectedLayerId) ?? null;
 
@@ -602,6 +684,20 @@ export function AppLayout({ className }: AppLayoutProps): React.JSX.Element {
         setFeedbackModalOpen(true);
     }, []);
 
+    // Handle graph node selection changes
+    const handleSelectionChange = useCallback((detail: SelectionChangedDetail) => {
+        if (detail.currentNodeData) {
+            // Include the node ID in the displayed data
+            setSelectedElementData({
+                id: detail.currentNodeId,
+                ...detail.currentNodeData,
+            });
+        } else {
+            // Node was deselected
+            setSelectedElementData(null);
+        }
+    }, []);
+
     // Handle global keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent): void => {
@@ -666,6 +762,9 @@ export function AppLayout({ className }: AppLayoutProps): React.JSX.Element {
                 onRunLayouts={() => {
                     setRunLayoutsModalOpen(true);
                 }}
+                onRunAlgorithm={() => {
+                    setRunAlgorithmModalOpen(true);
+                }}
                 onSendFeedback={handleSendFeedback}
                 onOpenAiSettings={() => {
                     setAiSettingsModalOpen(true);
@@ -702,6 +801,16 @@ export function AppLayout({ className }: AppLayoutProps): React.JSX.Element {
                 is2DMode={viewMode === "2d"}
                 currentLayout={currentLayout}
                 currentLayoutConfig={currentLayoutConfig}
+            />
+
+            {/* Run Algorithm Modal */}
+            <RunAlgorithmModal
+                opened={runAlgorithmModalOpen}
+                onClose={() => {
+                    setRunAlgorithmModalOpen(false);
+                }}
+                graphtyRef={graphtyRef}
+                onAddLayers={handleAddAlgorithmLayers}
             />
 
             {/* Feedback Modal */}
@@ -766,6 +875,8 @@ export function AppLayout({ className }: AppLayoutProps): React.JSX.Element {
                     viewMode={viewMode}
                     layout={currentLayout}
                     layoutConfig={currentLayoutConfig}
+                    onSelectionChange={handleSelectionChange}
+                    onStylesChange={handleStylesChange}
                 />
 
                 {/* Left Sidebar - Overlaid */}

@@ -60,7 +60,8 @@ export class Edge {
     private _labelOffset = 0;
     private _labelAttachPosition: AttachPosition = "center";
     changeManager: ChangeManager;
-    private _loggedLineDirection = false; // Debug flag for logging lineDirection
+    // Debug flag for logging lineDirection (reserved for future use)
+    private _loggedLineDirection: boolean = false;
 
     // Dirty tracking: Cache last node positions to skip unnecessary updates
     private _lastSrcPos: Vector3 | null = null;
@@ -238,6 +239,15 @@ export class Edge {
      */
     addCalculatedStyle(cv: CalculatedValue): void {
         this.changeManager.addCalculatedValue(cv);
+    }
+
+    /**
+     * Invalidates the position cache, forcing the edge to be recalculated on the next update.
+     * Call this when a connected node's size changes (e.g., due to selection).
+     */
+    invalidatePositionCache(): void {
+        this._lastSrcPos = null;
+        this._lastDstPos = null;
     }
 
     /**

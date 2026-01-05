@@ -264,12 +264,12 @@ export class CameraPathAnimator {
     /**
      * Calculate cumulative timestamp for a waypoint.
      * Waypoints have duration (time to reach from previous), so we need to sum them.
-     * @param timestamp - The timestamp value (unused, kept for interface consistency)
+     * @param _timestamp - The timestamp value (unused, kept for interface consistency)
      * @param waypoints - All waypoints in the path
      * @param currentWaypoint - The waypoint to calculate frame for
      * @returns Frame number for the waypoint
      */
-    private timestampToFrame(timestamp: number, waypoints: CameraWaypoint[], currentWaypoint: CameraWaypoint): number {
+    private timestampToFrame(_timestamp: number, waypoints: CameraWaypoint[], currentWaypoint: CameraWaypoint): number {
         let cumulativeTime = 0;
 
         for (const wp of waypoints) {

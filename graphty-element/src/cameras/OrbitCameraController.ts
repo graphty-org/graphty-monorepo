@@ -25,7 +25,6 @@ export class OrbitCameraController {
     public config: OrbitConfig;
 
     private pivotController: PivotController;
-    private canvasElement: Element;
 
     /**
      * Expose pivot TransformNode for compatibility with existing code.
@@ -43,7 +42,6 @@ export class OrbitCameraController {
      * @param config - Configuration options for the orbit camera
      */
     constructor(canvas: Element, scene: Scene, config: OrbitConfig) {
-        this.canvasElement = canvas;
         this.config = config;
 
         this.scene = scene;
@@ -72,8 +70,8 @@ export class OrbitCameraController {
     public rotate(dx: number, dy: number): void {
         // Delegate to PivotController
         // Match XR rotation convention: drag right = rotate right (positive yaw)
-        // Pitch (dy) remains inverted for natural "drag up = look up" behavior
-        this.pivotController.rotate(dx * this.config.trackballRotationSpeed, -dy * this.config.trackballRotationSpeed);
+        // Pitch follows "drag up = graph moves up" convention (not inverted)
+        this.pivotController.rotate(dx * this.config.trackballRotationSpeed, dy * this.config.trackballRotationSpeed);
         this.updateCameraPosition();
     }
 

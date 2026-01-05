@@ -220,7 +220,11 @@ describe("LeftSidebar", () => {
     });
 
     describe("multiple layers", () => {
-        it("renders all layers in order", () => {
+        it("renders all layers in reverse order (top = highest precedence)", () => {
+            // Note: The LeftSidebar displays layers in REVERSE order
+            // so that the TOP layer in the UI has HIGHEST precedence.
+            // graphty-element stores layers as [low priority, ..., high priority]
+            // but in the UI, users expect the top layer to override lower layers.
             const layers = [
                 createLayer("1", "First"),
                 createLayer("2", "Second"),
@@ -229,9 +233,10 @@ describe("LeftSidebar", () => {
             render(<LeftSidebar {...defaultProps} layers={layers} />);
 
             const layerElements = screen.getAllByText(/First|Second|Third/);
-            expect(layerElements[0]).toHaveTextContent("First");
+            // Layers are displayed in reverse order
+            expect(layerElements[0]).toHaveTextContent("Third");
             expect(layerElements[1]).toHaveTextContent("Second");
-            expect(layerElements[2]).toHaveTextContent("Third");
+            expect(layerElements[2]).toHaveTextContent("First");
         });
 
         it("updates correct layer when editing", async () => {

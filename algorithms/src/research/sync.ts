@@ -255,14 +255,14 @@ function initializeClusterCenters(embeddings: Map<NodeId, number[]>, numClusters
  * Update node embeddings using gradient descent
  * @param graph - The input graph
  * @param embeddings - Map of node IDs to embedding vectors
- * @param clusters - Map of node IDs to cluster assignments
+ * @param _clusters - Map of node IDs to cluster assignments (reserved for future use)
  * @param learningRate - Learning rate for gradient descent
  * @param lambda - Regularization parameter
  */
 function updateEmbeddings(
     graph: Graph,
     embeddings: Map<NodeId, number[]>,
-    clusters: Map<NodeId, number>,
+    _clusters: Map<NodeId, number>,
     learningRate: number,
     lambda: number,
 ): void {

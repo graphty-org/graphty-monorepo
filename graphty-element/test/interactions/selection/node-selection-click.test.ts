@@ -95,23 +95,23 @@ describe("Node Selection - Click Interactions", () => {
             assert.equal(event.currentNode?.id, "node1");
         });
 
-        it("selected node has _selected property set to true", async () => {
+        it("selected node has algorithmResults.graphty.selected set to true", async () => {
             // Click to select
             await clickOnNode(graph, "node1");
 
             const node = graph.getNode("node1");
             assert.isNotNull(node);
-            assert.isTrue(node?.data._selected);
+            assert.isTrue(node?.algorithmResults.graphty?.selected);
         });
 
-        it("deselected node has _selected property set to false", async () => {
+        it("deselected node has algorithmResults.graphty.selected set to false", async () => {
             // Select then deselect
             await clickOnNode(graph, "node1");
             await clickOnBackground(graph);
 
             const node = graph.getNode("node1");
             assert.isNotNull(node);
-            assert.isFalse(node?.data._selected);
+            assert.isFalse(node?.algorithmResults.graphty?.selected);
         });
     });
 

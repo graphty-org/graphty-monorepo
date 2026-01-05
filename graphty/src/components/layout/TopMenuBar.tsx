@@ -1,5 +1,5 @@
 import { ActionIcon, Box, Group, Menu as MantineMenu, Title } from "@mantine/core";
-import { Database, Download, Menu, MessageSquare, Settings, Share, Sparkles, Upload } from "lucide-react";
+import { Database, Download, Menu, MessageSquare, Settings, Share, Sparkles, Upload, Zap } from "lucide-react";
 import React from "react";
 
 interface TopMenuBarProps {
@@ -12,6 +12,7 @@ interface TopMenuBarProps {
     onViewData?: () => void;
     hasData?: boolean;
     onRunLayouts?: () => void;
+    onRunAlgorithm?: () => void;
     onSendFeedback?: () => void;
     // AI Settings menu item
     onOpenAiSettings?: () => void;
@@ -29,6 +30,7 @@ interface TopMenuBarProps {
  * @param root0.onViewData - Open view data modal
  * @param root0.hasData - Whether data is loaded (enables View Data)
  * @param root0.onRunLayouts - Open run layouts modal
+ * @param root0.onRunAlgorithm - Open run algorithm modal
  * @param root0.onSendFeedback - Open feedback modal
  * @param root0.onOpenAiSettings - Open AI settings modal
  * @returns The top menu bar component
@@ -43,6 +45,7 @@ export function TopMenuBar({
     onViewData,
     hasData,
     onRunLayouts,
+    onRunAlgorithm,
     onSendFeedback,
     onOpenAiSettings,
 }: TopMenuBarProps): React.JSX.Element {
@@ -84,6 +87,9 @@ export function TopMenuBar({
                         </MantineMenu.Item>
                         <MantineMenu.Item leftSection={<Sparkles size={14} />} onClick={onRunLayouts}>
                             Run Layouts...
+                        </MantineMenu.Item>
+                        <MantineMenu.Item leftSection={<Zap size={14} />} onClick={onRunAlgorithm}>
+                            Run Algorithm...
                         </MantineMenu.Item>
                         <MantineMenu.Item leftSection={<Download size={14} />}>Export</MantineMenu.Item>
 

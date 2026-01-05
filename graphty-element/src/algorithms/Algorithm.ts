@@ -288,12 +288,13 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * @param g - The graph to run the algorithm on
      * @param namespace - The algorithm namespace
      * @param type - The algorithm type
+     * @param options - Optional algorithm-specific options to pass to constructor
      * @returns A new instance of the algorithm, or null if not found
      */
-    static get(g: Graph, namespace: string, type: string): Algorithm | null {
+    static get(g: Graph, namespace: string, type: string, options?: Record<string, unknown>): Algorithm | null {
         const SourceClass = algorithmRegistry.get(`${namespace}:${type}`);
         if (SourceClass) {
-            return new SourceClass(g);
+            return new SourceClass(g, options);
         }
 
         return null;

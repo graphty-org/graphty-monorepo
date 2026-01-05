@@ -67,7 +67,7 @@ export class EdgeMesh {
      */
     private static readonly USE_CUSTOM_RENDERER = true;
 
-    private static registerShaders(): void {
+    private static _registerShaders(): void {
         if (this.shadersRegistered) {
             return;
         }
@@ -411,7 +411,7 @@ void main() {
      * lineDirection is set per-instance when creating thin instances.
      * @param type - Arrow type (normal, inverted, diamond, etc.)
      * @param length - Arrow length in world units
-     * @param width - Arrow width in world units
+     * @param _width - Arrow width in world units (reserved for future use)
      * @param color - Arrow color as hex string
      * @param opacity - Arrow opacity (0-1)
      * @param scene - Babylon.js scene
@@ -420,7 +420,7 @@ void main() {
     private static createFilledArrow(
         type: string,
         length: number,
-        width: number,
+        _width: number,
         color: string,
         opacity: number,
         scene: Scene,
@@ -642,7 +642,7 @@ void main() {
     }
 
     // Helper to create a circular texture with anti-aliasing (white circle on transparent background)
-    private static createCircleTextureData(size: number): Uint8Array {
+    private static _createCircleTextureData(size: number): Uint8Array {
         const data = new Uint8Array(size * size * 4);
         const center = size / 2;
         const radius = size / 2 - 1; // Leave 1 pixel margin for anti-aliasing

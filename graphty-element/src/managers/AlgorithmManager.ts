@@ -84,12 +84,14 @@ export class AlgorithmManager implements Manager {
      */
     async runAlgorithm(namespace: string, type: string, algorithmOptions?: AlgorithmSpecificOptions): Promise<void> {
         try {
-            const alg = Algorithm.get(this.graph, namespace, type);
+            // Pass options to constructor for new-style algorithms with zodOptionsSchema
+            const alg = Algorithm.get(this.graph, namespace, type, algorithmOptions);
             if (!alg) {
                 throw new Error(`algorithm not found: ${namespace}:${type}`);
             }
 
-            // Configure the algorithm if options are provided and configure method exists
+            // Also call configure for backward compatibility with legacy algorithms
+            // that use the deprecated configure() method instead of constructor options
             if (algorithmOptions && "configure" in alg && typeof alg.configure === "function") {
                 alg.configure(algorithmOptions);
             }

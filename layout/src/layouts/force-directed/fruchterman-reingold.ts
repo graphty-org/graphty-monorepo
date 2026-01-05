@@ -2,7 +2,7 @@
  * Fruchterman-Reingold force-directed layout algorithm
  */
 
-import { Graph, Node, PositionMap } from "../../types";
+import type { Graph, Node, PositionMap } from "../../types";
 import { getEdgesFromGraph,getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
 import { RandomNumberGenerator } from "../../utils/random";

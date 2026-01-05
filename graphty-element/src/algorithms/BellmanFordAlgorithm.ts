@@ -1,13 +1,38 @@
 import { bellmanFord } from "@graphty/algorithms";
+import { z } from "zod/v4";
 
-import type { SuggestedStylesConfig } from "../config";
+import { defineOptions, type OptionsSchema as ZodOptionsSchema, type SuggestedStylesConfig } from "../config";
 import type { Graph } from "../Graph";
 import { Algorithm } from "./Algorithm";
+import type { OptionsSchema } from "./types/OptionSchema";
 import { toAlgorithmGraph } from "./utils/graphConverter";
 
-interface BellmanFordOptions {
-    source: number | string;
-    target?: number | string;
+/**
+ * Zod-based options schema for Bellman-Ford algorithm
+ */
+export const bellmanFordOptionsSchema = defineOptions({
+    source: {
+        schema: z.union([z.string(), z.number()]).nullable().default(null),
+        meta: {
+            label: "Source Node",
+            description: "Starting node for shortest path (uses first node if not set)",
+        },
+    },
+    target: {
+        schema: z.union([z.string(), z.number()]).nullable().default(null),
+        meta: {
+            label: "Target Node",
+            description: "Destination node for shortest path (uses last node if not set)",
+        },
+    },
+});
+
+/**
+ * Options for Bellman-Ford algorithm
+ */
+interface BellmanFordOptions extends Record<string, unknown> {
+    source: number | string | null;
+    target: number | string | null;
 }
 
 /**
@@ -16,10 +41,33 @@ interface BellmanFordOptions {
  * Computes shortest paths from a source node to all other nodes, supporting
  * negative edge weights and detecting negative cycles.
  */
-export class BellmanFordAlgorithm extends Algorithm {
+export class BellmanFordAlgorithm extends Algorithm<BellmanFordOptions> {
     static namespace = "graphty";
     static type = "bellman-ford";
-    private options: BellmanFordOptions | null = null;
+
+    static zodOptionsSchema: ZodOptionsSchema = bellmanFordOptionsSchema;
+
+    static optionsSchema: OptionsSchema = {
+        source: {
+            type: "nodeId",
+            default: null,
+            label: "Source Node",
+            description: "Starting node for shortest path (uses first node if not set)",
+            required: false,
+        },
+        target: {
+            type: "nodeId",
+            default: null,
+            label: "Target Node",
+            description: "Destination node for shortest path (uses last node if not set)",
+            required: false,
+        },
+    };
+
+    /**
+     * Legacy options set via configure() for backward compatibility
+     */
+    private legacyOptions: { source: number | string; target?: number | string } | null = null;
 
     static suggestedStyles = (): SuggestedStylesConfig => ({
         layers: [
@@ -76,10 +124,13 @@ export class BellmanFordAlgorithm extends Algorithm {
     /**
      * Configure the algorithm with source and optional target nodes
      * @param options - Configuration options
+     * @param options.source - The source node ID
+     * @param options.target - The optional target node ID
      * @returns This algorithm instance for chaining
+     * @deprecated Use constructor options instead. This method is kept for backward compatibility.
      */
-    configure(options: BellmanFordOptions): this {
-        this.options = options;
+    configure(options: { source: number | string; target?: number | string }): this {
+        this.legacyOptions = options;
         return this;
     }
 
@@ -98,9 +149,10 @@ export class BellmanFordAlgorithm extends Algorithm {
             return;
         }
 
-        // Get source and target from options or use defaults (first and last nodes)
-        const source = this.options?.source ?? nodes[0];
-        const target = this.options?.target ?? nodes[nodes.length - 1];
+        // Get source and target from legacy options, schema options, or use defaults
+        // Legacy configure() takes precedence for backward compatibility
+        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodes[0];
+        const target = this.legacyOptions?.target ?? this._schemaOptions.target ?? nodes[nodes.length - 1];
 
         // Convert to @graphty/algorithms format
         // Note: Using directed=false (default) so converter adds reverse edges for undirected path finding

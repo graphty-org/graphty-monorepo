@@ -23,6 +23,7 @@ describe("StyleManager", () => {
             getCalculatedStylesForNode: vi.fn().mockReturnValue([]),
             addLayer: vi.fn(),
             insertLayer: vi.fn(),
+            layers: [],
         } as unknown as Styles;
 
         styleManager = new StyleManager(mockEventManager, mockStyles);
@@ -207,7 +208,7 @@ describe("StyleManager", () => {
         });
 
         it("should clear cache when updating styles", () => {
-            const newStyles = {} as unknown as Styles;
+            const newStyles = { layers: [] } as unknown as Styles;
             const nodeData = { type: "test" } as unknown as AdHocData;
 
             // Fill cache

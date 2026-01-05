@@ -79,11 +79,12 @@ export class StyleManager implements Manager {
     /**
      * Get calculated styles for a node
      * @param data - Node data
+     * @param algorithmResults - Optional algorithm results for selector matching
      * @returns Array of calculated values for this node
      */
-    getCalculatedStylesForNode(data: AdHocData): CalculatedValue[] {
+    getCalculatedStylesForNode(data: AdHocData, algorithmResults?: AdHocData): CalculatedValue[] {
         // No caching for calculated styles as they may change frequently
-        return this.styles.getCalculatedStylesForNode(data);
+        return this.styles.getCalculatedStylesForNode(data, algorithmResults);
     }
 
     /**
@@ -133,7 +134,7 @@ export class StyleManager implements Manager {
     addLayer(layer: StyleLayerType): void {
         this.styles.addLayer(layer);
         this.clearCache();
-        this.eventManager.emitGraphEvent("style-changed", {});
+        this.emitStyleChanged();
     }
 
     /**
@@ -144,7 +145,7 @@ export class StyleManager implements Manager {
     insertLayer(position: number, layer: StyleLayerType): void {
         this.styles.insertLayer(position, layer);
         this.clearCache();
-        this.eventManager.emitGraphEvent("style-changed", {});
+        this.emitStyleChanged();
     }
 
     /**
@@ -155,8 +156,60 @@ export class StyleManager implements Manager {
         const removed = this.styles.removeLayersByMetadata(predicate);
         if (removed) {
             this.clearCache();
-            this.eventManager.emitGraphEvent("style-changed", {});
+            this.emitStyleChanged();
         }
+    }
+
+    /**
+     * Remove a layer at a specific index
+     * @param index - Index of the layer to remove
+     * @returns True if the layer was removed
+     */
+    removeLayerByIndex(index: number): boolean {
+        const removed = this.styles.removeLayerByIndex(index);
+        if (removed) {
+            this.clearCache();
+            this.emitStyleChanged();
+        }
+        return removed;
+    }
+
+    /**
+     * Update a layer at a specific index
+     * @param index - Index of the layer to update
+     * @param layer - New layer configuration
+     * @returns True if the layer was updated
+     */
+    updateLayerByIndex(index: number, layer: StyleLayerType): boolean {
+        const updated = this.styles.updateLayerByIndex(index, layer);
+        if (updated) {
+            this.clearCache();
+            this.emitStyleChanged();
+        }
+        return updated;
+    }
+
+    /**
+     * Reorder layers by moving a layer from one index to another
+     * @param fromIndex - Current index of the layer
+     * @param toIndex - Target index for the layer
+     * @returns True if the layer was moved
+     */
+    reorderLayers(fromIndex: number, toIndex: number): boolean {
+        const reordered = this.styles.reorderLayers(fromIndex, toIndex);
+        if (reordered) {
+            this.clearCache();
+            this.emitStyleChanged();
+        }
+        return reordered;
+    }
+
+    /**
+     * Get a copy of all style layers
+     * @returns Array of style layers
+     */
+    getLayers(): StyleLayerType[] {
+        return [...this.styles.layers];
     }
 
     /**
@@ -166,7 +219,7 @@ export class StyleManager implements Manager {
     loadStylesFromObject(obj: object): void {
         this.styles = Styles.fromObject(obj);
         this.clearCache();
-        this.eventManager.emitGraphEvent("style-changed", {});
+        this.emitStyleChanged();
     }
 
     /**
@@ -176,7 +229,7 @@ export class StyleManager implements Manager {
     async loadStylesFromUrl(url: string): Promise<void> {
         this.styles = await Styles.fromUrl(url);
         this.clearCache();
-        this.eventManager.emitGraphEvent("style-changed", {});
+        this.emitStyleChanged();
     }
 
     /**
@@ -186,6 +239,13 @@ export class StyleManager implements Manager {
     updateStyles(newStyles: Styles): void {
         this.styles = newStyles;
         this.clearCache();
+        this.emitStyleChanged();
+    }
+
+    /**
+     * Emit style-changed event as notification (consumers should query getLayers() for current state)
+     */
+    private emitStyleChanged(): void {
         this.eventManager.emitGraphEvent("style-changed", {});
     }
 

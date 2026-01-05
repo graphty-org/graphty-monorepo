@@ -373,7 +373,7 @@ void main(void) {
      * @param scene Babylon.js scene
      * @returns Parent mesh containing all dot disc meshes
      */
-    private static createPointsForDots(options: CustomLineOptions, scene: Scene): Mesh {
+    private static _createPointsForDots(options: CustomLineOptions, scene: Scene): Mesh {
         // Calculate dot radius in world units
         const dotRadius = 0.1; // Fixed radius in world units for consistent appearance
 

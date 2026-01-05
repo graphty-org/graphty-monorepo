@@ -91,7 +91,10 @@ export class DataManager implements Manager {
 
             // Then run calculated values immediately since node data (including algorithmResults) is already populated
             // This sets values in n.styleUpdates (same as changeManager.dataObjects.style)
-            n.changeManager.loadCalculatedValues(this.styles.getCalculatedStylesForNode(n.data), true);
+            n.changeManager.loadCalculatedValues(
+                this.styles.getCalculatedStylesForNode(n.data, n.algorithmResults),
+                true,
+            );
             // Call update() to merge calculated style updates with the base style
             // update() checks styleUpdates and creates a new styleId that includes calculated values
             n.update();

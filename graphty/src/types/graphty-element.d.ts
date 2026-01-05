@@ -1,7 +1,6 @@
 declare module "@graphty/graphty-element" {
-    // Graphty is the LitElement-based web component class
     /**
-     *
+     * Graphty is the LitElement-based web component class for graph visualization.
      */
     export class Graphty extends HTMLElement {}
 
@@ -36,6 +35,35 @@ declare module "@graphty/graphty-element" {
         width: number;
         height: number;
     }
+
+    // Algorithm types
+    export interface OptionsSchema {
+        [key: string]: OptionDefinition;
+    }
+
+    export interface OptionDefinition {
+        schema: unknown;
+        meta: {
+            label: string;
+            description: string;
+            advanced?: boolean;
+            group?: string;
+            step?: number;
+        };
+    }
+
+    export interface AlgorithmClass {
+        namespace: string;
+        type: string;
+        getZodOptionsSchema(): OptionsSchema;
+        hasZodOptions(): boolean;
+        hasSuggestedStyles(): boolean;
+    }
+
+    export const Algorithm: {
+        getClass(namespace: string, type: string): AlgorithmClass | null;
+        register(algoClass: AlgorithmClass): void;
+    };
 
     global {
         interface HTMLElementTagNameMap {

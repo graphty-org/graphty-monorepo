@@ -1,28 +1,35 @@
-import * as Sentry from "@sentry/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { captureUserFeedback, initSentry, isSentryEnabled, resetSentryState, testCaptureError } from "./sentry";
 
-// Create mock functions for scope
-const mockAddAttachment = vi.fn();
-const mockClearAttachments = vi.fn();
+// Use vi.hoisted to define mock functions that can be used in vi.mock factory
+// This is required because vi.mock is hoisted to the top of the file
+const { mockInit, mockCaptureException, mockCaptureFeedback, mockAddAttachment, mockClearAttachments, mockGetCurrentScope } = vi.hoisted(() => {
+    const mockAddAttachment = vi.fn();
+    const mockClearAttachments = vi.fn();
+    const mockInit = vi.fn();
+    const mockCaptureException = vi.fn();
+    const mockCaptureFeedback = vi.fn();
+    const mockGetCurrentScope = vi.fn(() => ({
+        addAttachment: mockAddAttachment,
+        clearAttachments: mockClearAttachments,
+    }));
+    return { mockInit, mockCaptureException, mockCaptureFeedback, mockAddAttachment, mockClearAttachments, mockGetCurrentScope };
+});
 
 // Mock Sentry module
 vi.mock("@sentry/react", () => ({
-    init: vi.fn(),
-    captureException: vi.fn(),
-    captureFeedback: vi.fn(),
-    getCurrentScope: vi.fn(() => ({
-        addAttachment: mockAddAttachment,
-        clearAttachments: mockClearAttachments,
-    })),
+    init: mockInit,
+    captureException: mockCaptureException,
+    captureFeedback: mockCaptureFeedback,
+    getCurrentScope: mockGetCurrentScope,
 }));
 
 describe("Sentry initialization", () => {
     beforeEach(() => {
         resetSentryState();
-        vi.mocked(Sentry.init).mockClear();
-        vi.mocked(Sentry.captureException).mockClear();
+        mockInit.mockClear();
+        mockCaptureException.mockClear();
     });
 
     afterEach(() => {
@@ -35,7 +42,7 @@ describe("Sentry initialization", () => {
         initSentry({ dsn: "" });
 
         expect(isSentryEnabled()).toBe(false);
-        expect(Sentry.init).not.toHaveBeenCalled();
+        expect(mockInit).not.toHaveBeenCalled();
         expect(consoleWarnSpy).toHaveBeenCalledWith("Sentry DSN not configured, error tracking disabled");
 
         consoleWarnSpy.mockRestore();
@@ -47,7 +54,7 @@ describe("Sentry initialization", () => {
         initSentry({ dsn: undefined });
 
         expect(isSentryEnabled()).toBe(false);
-        expect(Sentry.init).not.toHaveBeenCalled();
+        expect(mockInit).not.toHaveBeenCalled();
         expect(consoleWarnSpy).toHaveBeenCalledWith("Sentry DSN not configured, error tracking disabled");
 
         consoleWarnSpy.mockRestore();
@@ -61,7 +68,7 @@ describe("Sentry initialization", () => {
         });
 
         expect(isSentryEnabled()).toBe(true);
-        expect(Sentry.init).toHaveBeenCalledWith(
+        expect(mockInit).toHaveBeenCalledWith(
             expect.objectContaining({
                 dsn: "https://test@test.ingest.sentry.io/123",
                 environment: "test",
@@ -78,7 +85,7 @@ describe("Sentry initialization", () => {
             isProd: true,
         });
 
-        expect(Sentry.init).toHaveBeenCalledWith(
+        expect(mockInit).toHaveBeenCalledWith(
             expect.objectContaining({
                 tracesSampleRate: 0.1,
             }),
@@ -92,7 +99,7 @@ describe("Sentry initialization", () => {
             isProd: false,
         });
 
-        expect(Sentry.init).toHaveBeenCalledWith(
+        expect(mockInit).toHaveBeenCalledWith(
             expect.objectContaining({
                 tracesSampleRate: 1.0,
             }),
@@ -102,7 +109,7 @@ describe("Sentry initialization", () => {
     it("should capture test error via testCaptureError", () => {
         testCaptureError();
 
-        expect(Sentry.captureException).toHaveBeenCalledWith(
+        expect(mockCaptureException).toHaveBeenCalledWith(
             expect.objectContaining({
                 message: "Test error from Graphty",
             }),
@@ -113,7 +120,7 @@ describe("Sentry initialization", () => {
 describe("captureUserFeedback", () => {
     beforeEach(() => {
         resetSentryState();
-        vi.mocked(Sentry.captureFeedback).mockClear();
+        mockCaptureFeedback.mockClear();
         mockAddAttachment.mockClear();
         mockClearAttachments.mockClear();
         // Initialize Sentry so captureUserFeedback works
@@ -131,7 +138,7 @@ describe("captureUserFeedback", () => {
 
         expect(result.success).toBe(false);
         expect(result.message).toContain("not configured");
-        expect(Sentry.captureFeedback).not.toHaveBeenCalled();
+        expect(mockCaptureFeedback).not.toHaveBeenCalled();
     });
 
     it("should return success when Sentry is initialized", () => {
@@ -144,7 +151,7 @@ describe("captureUserFeedback", () => {
     it("should capture feedback with message only", () => {
         captureUserFeedback({ message: "Test feedback" });
 
-        expect(Sentry.captureFeedback).toHaveBeenCalledWith({
+        expect(mockCaptureFeedback).toHaveBeenCalledWith({
             message: "Test feedback",
             name: undefined,
             email: undefined,
@@ -158,7 +165,7 @@ describe("captureUserFeedback", () => {
             email: "john@example.com",
         });
 
-        expect(Sentry.captureFeedback).toHaveBeenCalledWith({
+        expect(mockCaptureFeedback).toHaveBeenCalledWith({
             message: "Test feedback",
             name: "John Doe",
             email: "john@example.com",
@@ -236,7 +243,7 @@ describe("captureUserFeedback", () => {
 
         expect(mockClearAttachments).toHaveBeenCalled();
         // Verify clearAttachments is called after captureFeedback
-        const captureFeedbackCallOrder = vi.mocked(Sentry.captureFeedback).mock.invocationCallOrder[0];
+        const captureFeedbackCallOrder = mockCaptureFeedback.mock.invocationCallOrder[0];
         const clearAttachmentsCallOrder = mockClearAttachments.mock.invocationCallOrder[0];
         expect(clearAttachmentsCallOrder).toBeGreaterThan(captureFeedbackCallOrder);
     });

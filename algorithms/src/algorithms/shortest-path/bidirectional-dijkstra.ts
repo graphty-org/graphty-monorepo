@@ -186,7 +186,7 @@ export class BidirectionalDijkstra {
         return false;
     }
 
-    private getMinDistance(frontier: PriorityQueue<NodeId>): number {
+    private _getMinDistance(frontier: PriorityQueue<NodeId>): number {
         if (frontier.isEmpty()) {
             return Infinity;
         }

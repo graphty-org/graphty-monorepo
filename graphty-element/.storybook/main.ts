@@ -11,8 +11,34 @@ const config: StorybookConfig = {
         disableTelemetry: true,
     },
     async viteFinal(config, { configType }) {
+        const fs = await import("fs");
         const path = await import("path");
-        const { mergeConfig } = await import("vite");
+        const { mergeConfig, loadEnv } = await import("vite");
+
+        // Load env file from monorepo root (one level up from this package)
+        const monorepoRoot = path.resolve(__dirname, "../..");
+        const env = loadEnv(configType === "DEVELOPMENT" ? "development" : "production", monorepoRoot, "");
+
+        // SSL configuration via environment variables
+        const sslKeyPath = env.HTTPS_KEY_PATH;
+        const sslCertPath = env.HTTPS_CERT_PATH;
+        const useHttps = sslKeyPath && sslCertPath && fs.existsSync(sslKeyPath) && fs.existsSync(sslCertPath);
+
+        const server: Record<string, unknown> = {
+            host: env.HOST ?? true,
+            allowedHosts: true,
+        };
+
+        if (env.PORT) {
+            server.port = parseInt(env.PORT);
+        }
+
+        if (useHttps) {
+            server.https = {
+                key: fs.readFileSync(sslKeyPath),
+                cert: fs.readFileSync(sslCertPath),
+            };
+        }
 
         if (configType === "DEVELOPMENT") {
             // Your development configuration goes here
@@ -23,6 +49,7 @@ const config: StorybookConfig = {
         }
 
         const merged = mergeConfig(config, {
+            server,
             // Exclude @mlc-ai/web-llm from optimization - it's dynamically loaded at runtime
             optimizeDeps: {
                 exclude: ["@mlc-ai/web-llm"],

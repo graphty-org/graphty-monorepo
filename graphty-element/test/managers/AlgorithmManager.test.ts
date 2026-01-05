@@ -73,7 +73,7 @@ describe("AlgorithmManager", () => {
                 mock: { calls: algorithmRunCalls },
             } = mockAlgorithm.run;
             assert.equal(algorithmGetCalls.length, 1);
-            assert.deepEqual(algorithmGetCalls[0], [mockGraph, "test", "algorithm"]);
+            assert.deepEqual(algorithmGetCalls[0], [mockGraph, "test", "algorithm", undefined]);
             assert.equal(algorithmRunCalls.length, 1);
             assert.equal(algorithmRunCalls[0][0], mockGraph);
         });
@@ -251,7 +251,7 @@ describe("AlgorithmManager", () => {
                 mock: { calls: algorithmGetCalls },
             } = vi.mocked(Algorithm.get);
             assert.equal(algorithmGetCalls.length, 2);
-            assert.deepEqual(algorithmGetCalls[0], [mockGraph, "algo1", "type1"]);
+            assert.deepEqual(algorithmGetCalls[0], [mockGraph, "algo1", "type1", undefined]);
         });
     });
 
@@ -348,10 +348,10 @@ describe("AlgorithmManager", () => {
             } = vi.mocked(Algorithm.get);
             assert.equal(algorithmGetCalls.length, 4);
             // Verify all algorithms were called with correct parameters
-            assert.deepEqual(algorithmGetCalls[0], [mockGraph, "preprocessing", "normalize"]);
-            assert.deepEqual(vi.mocked(Algorithm.get).mock.calls[1], [mockGraph, "layout", "force"]);
-            assert.deepEqual(vi.mocked(Algorithm.get).mock.calls[2], [mockGraph, "analysis", "centrality"]);
-            assert.deepEqual(vi.mocked(Algorithm.get).mock.calls[3], [mockGraph, "visualization", "highlight"]);
+            assert.deepEqual(algorithmGetCalls[0], [mockGraph, "preprocessing", "normalize", undefined]);
+            assert.deepEqual(vi.mocked(Algorithm.get).mock.calls[1], [mockGraph, "layout", "force", undefined]);
+            assert.deepEqual(vi.mocked(Algorithm.get).mock.calls[2], [mockGraph, "analysis", "centrality", undefined]);
+            assert.deepEqual(vi.mocked(Algorithm.get).mock.calls[3], [mockGraph, "visualization", "highlight", undefined]);
         });
 
         it("should handle partial failures in complex workflow", async () => {

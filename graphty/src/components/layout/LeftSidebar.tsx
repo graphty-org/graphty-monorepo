@@ -20,14 +20,18 @@ interface LeftSidebarProps {
 export interface LayerItem {
     id: string;
     name: string;
+    /** Full metadata object from graphty-element */
+    metadata?: Record<string, unknown>;
     styleLayer: {
         node?: {
             selector: string;
             style: Record<string, unknown>;
+            calculatedStyle?: Record<string, unknown>;
         };
         edge?: {
             selector: string;
             style: Record<string, unknown>;
+            calculatedStyle?: Record<string, unknown>;
         };
     };
 }
@@ -167,18 +171,26 @@ export function LeftSidebar({
     onLayerSelect,
     onAddLayer,
 }: LeftSidebarProps): React.JSX.Element {
+    // The UI displays layers in reverse order (top = highest precedence),
+    // but graphty-element stores them in order (last = highest precedence).
+    // Create a reversed view for finding positions in the UI order.
+    const reversedLayers = [...layers].reverse();
+
     const handleDragEnd = (event: DragEndEvent): void => {
         const { active, over } = event;
 
         if (over && active.id !== over.id) {
-            const oldIndex = layers.findIndex((item) => item.id === active.id);
-            const newIndex = layers.findIndex((item) => item.id === over.id);
+            // Find positions in the reversed (UI display) order
+            const oldUIIndex = reversedLayers.findIndex((item) => item.id === active.id);
+            const newUIIndex = reversedLayers.findIndex((item) => item.id === over.id);
 
-            const newItems = [...layers];
-            const [movedItem] = newItems.splice(oldIndex, 1);
-            newItems.splice(newIndex, 0, movedItem);
+            // Reorder in the reversed array (UI order)
+            const newReversedItems = [...reversedLayers];
+            const [movedItem] = newReversedItems.splice(oldUIIndex, 1);
+            newReversedItems.splice(newUIIndex, 0, movedItem);
 
-            onLayersChange(newItems);
+            // Reverse back to graphty-element order before calling the handler
+            onLayersChange([...newReversedItems].reverse());
         }
     };
 
@@ -225,12 +237,18 @@ export function LeftSidebar({
             </Box>
 
             {/* Sidebar Content */}
+            {/* Layers are displayed in reverse order so the TOP layer has HIGHEST precedence.
+                graphty-element stores layers in order [low priority, ..., high priority]
+                but in the UI, users expect the top layer to override lower layers. */}
             <Box style={{ flex: 1, padding: "16px", overflowY: "auto" }}>
                 {layers.length > 0 ? (
                     <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                        <SortableContext items={layers.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+                        <SortableContext
+                            items={[...layers].reverse().map((l) => l.id)}
+                            strategy={verticalListSortingStrategy}
+                        >
                             <Box style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                                {layers.map((layer) => (
+                                {[...layers].reverse().map((layer) => (
                                     <SortableLayerItem
                                         key={layer.id}
                                         layer={layer}

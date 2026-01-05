@@ -2,17 +2,32 @@
     "extends": "../tsconfig.base.json",
     "compilerOptions": {
         "target": "ES2022",
-        "module": "ESNext",
+        "useDefineForClassFields": false,
         "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "module": "ESNext",
         "jsx": "react-jsx",
         "noEmit": true,
-        "useDefineForClassFields": true,
         "allowImportingTsExtensions": true,
-        "noUnusedLocals": true,
-        "noUnusedParameters": true,
+
+        /* Linting */
+        "strict": true,
+        /* Disabled to avoid checking sibling packages' source files via path aliases */
+        /* Sibling packages have their own tsconfig with these checks enabled */
+        "noUnusedLocals": false,
+        "noUnusedParameters": false,
+        "noFallthroughCasesInSwitch": true,
+
+        /* Decorators - match graphty-element settings */
+        "experimentalDecorators": true,
+
+        /* Path mapping - extend base paths */
         "baseUrl": ".",
         "paths": {
-            "@/*": ["./src/*"]
+            "@/*": ["./src/*"],
+            "@graphty/algorithms": ["../algorithms/src/index.ts"],
+            "@graphty/layout": ["../layout/src/index.ts"],
+            "@graphty/graphty-element": ["../graphty-element/index.ts"],
+            "@graphty/graphty": ["./src/index.ts"]
         }
     },
     "references": [

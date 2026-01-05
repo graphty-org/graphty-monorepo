@@ -22,7 +22,7 @@ export class MockDeviceInputSystem {
     private pointerStates = new Map<MouseButton, boolean>();
     private activeTouches = new Map<number, TouchPoint>();
     private activeKeys = new Set<string>();
-    private nextPointerId = 1;
+    private _nextPointerId = 1;
     private attached = false;
 
     // Device simulation

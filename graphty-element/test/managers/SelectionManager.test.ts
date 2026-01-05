@@ -236,12 +236,11 @@ describe("SelectionManager", () => {
             assert.equal(layer.node?.selector, "algorithmResults.graphty.selected == `true`");
         });
 
-        it("selection layer has calculatedStyle for color by default", () => {
+        it("selection layer has style for color by default", () => {
             const layer = selectionManager.getSelectionStyleLayer();
-            assert.isDefined(layer.node?.calculatedStyle);
-            assert.equal(layer.node?.calculatedStyle?.output, "style.texture.color");
-            // The expression returns gold color
-            assert.include(layer.node?.calculatedStyle?.expr ?? "", "#FFD700");
+            assert.isDefined(layer.node?.style);
+            // The selection style sets a gold color
+            assert.equal(layer.node?.style?.texture?.color, "#FFD700");
         });
     });
 

@@ -1,3 +1,27 @@
+## 0.3.0 (2026-01-05)
+
+### 🚀 Features
+
+- add improved layer and selection management ([a2cb98c](https://github.com/graphty-org/graphty-monorepo/commit/a2cb98c))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 1.7.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.7.0 (2026-01-05)
+
+### 🚀 Features
+
+- add improved layer and selection management ([a2cb98c](https://github.com/graphty-org/graphty-monorepo/commit/a2cb98c))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.4 (2026-01-03)
 
 ### 🩹 Fixes

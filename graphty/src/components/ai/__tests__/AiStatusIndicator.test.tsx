@@ -88,7 +88,7 @@ describe("AiStatusIndicator", () => {
             render(<AiStatusIndicator status={status} showText={true} />);
 
             // Should be truncated to 50 chars + "..."
-            expect(screen.getByText("A".repeat(50) + "...")).toBeInTheDocument();
+            expect(screen.getByText(`${"A".repeat(50)}...`)).toBeInTheDocument();
         });
 
         it("shows full streamed text when short", () => {

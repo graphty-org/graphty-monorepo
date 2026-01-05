@@ -281,7 +281,7 @@ describe("AiSettingsModal", () => {
     });
 
     describe("saving with persistence", () => {
-        it("calls onEnablePersistence when enabling persistence", async () => {
+        it("calls onEnablePersistence when enabling persistence", () => {
             const onEnablePersistence = vi.fn();
             render(<AiSettingsModal {...defaultProps} onEnablePersistence={onEnablePersistence} />);
 
@@ -296,7 +296,7 @@ describe("AiSettingsModal", () => {
             expect(onEnablePersistence).toHaveBeenCalled();
         });
 
-        it("calls onDisablePersistence when disabling persistence", async () => {
+        it("calls onDisablePersistence when disabling persistence", () => {
             const onDisablePersistence = vi.fn();
             render(
                 <AiSettingsModal {...defaultProps} isPersistenceEnabled={true} onDisablePersistence={onDisablePersistence} />,
@@ -313,7 +313,7 @@ describe("AiSettingsModal", () => {
             expect(onDisablePersistence).toHaveBeenCalledWith(false);
         });
 
-        it("removes key when saving with empty key", async () => {
+        it("removes key when saving with empty key", () => {
             const removeKey = vi.fn();
             const hasKey = vi.fn().mockReturnValue(true);
             const getKey = vi.fn().mockReturnValue("sk-existing-key");

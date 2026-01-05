@@ -206,11 +206,6 @@ describe("graphLoader", () => {
 
     describe("downloadGraphData", () => {
         let mockLink: HTMLAnchorElement;
-        let createElementSpy: ReturnType<typeof vi.spyOn>;
-        let createObjectURLSpy: ReturnType<typeof vi.spyOn>;
-        let revokeObjectURLSpy: ReturnType<typeof vi.spyOn>;
-        let appendChildSpy: ReturnType<typeof vi.spyOn>;
-        let removeChildSpy: ReturnType<typeof vi.spyOn>;
 
         beforeEach(() => {
             mockLink = {
@@ -219,19 +214,15 @@ describe("graphLoader", () => {
                 click: vi.fn(),
             } as unknown as HTMLAnchorElement;
 
-            createElementSpy = vi.spyOn(document, "createElement").mockReturnValue(mockLink);
-            createObjectURLSpy = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-url");
-            revokeObjectURLSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
-            appendChildSpy = vi.spyOn(document.body, "appendChild").mockImplementation(() => mockLink);
-            removeChildSpy = vi.spyOn(document.body, "removeChild").mockImplementation(() => mockLink);
+            vi.spyOn(document, "createElement").mockReturnValue(mockLink);
+            vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-url");
+            vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+            vi.spyOn(document.body, "appendChild").mockImplementation(() => mockLink);
+            vi.spyOn(document.body, "removeChild").mockImplementation(() => mockLink);
         });
 
         afterEach(() => {
-            createElementSpy.mockRestore();
-            createObjectURLSpy.mockRestore();
-            revokeObjectURLSpy.mockRestore();
-            appendChildSpy.mockRestore();
-            removeChildSpy.mockRestore();
+            vi.restoreAllMocks();
         });
 
         it("downloads graph data with default filename", () => {
@@ -242,14 +233,14 @@ describe("graphLoader", () => {
 
             downloadGraphData(data);
 
-            expect(createElementSpy).toHaveBeenCalledWith("a");
-            expect(createObjectURLSpy).toHaveBeenCalled();
+            expect(document.createElement).toHaveBeenCalledWith("a");
+            expect(URL.createObjectURL).toHaveBeenCalled();
             expect(mockLink.href).toBe("blob:test-url");
             expect(mockLink.download).toBe("graph.json");
             expect(mockLink.click).toHaveBeenCalled();
-            expect(appendChildSpy).toHaveBeenCalledWith(mockLink);
-            expect(removeChildSpy).toHaveBeenCalledWith(mockLink);
-            expect(revokeObjectURLSpy).toHaveBeenCalledWith("blob:test-url");
+            expect(document.body.appendChild).toHaveBeenCalledWith(mockLink);
+            expect(document.body.removeChild).toHaveBeenCalledWith(mockLink);
+            expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:test-url");
         });
 
         it("downloads graph data with custom filename", () => {
@@ -272,7 +263,8 @@ describe("graphLoader", () => {
             downloadGraphData(data);
 
             // Verify Blob was created with JSON content
-            const blobCall = createObjectURLSpy.mock.calls[0][0] as Blob;
+            const createObjectURLMock = URL.createObjectURL as ReturnType<typeof vi.fn>;
+            const blobCall = createObjectURLMock.mock.calls[0][0] as Blob;
             expect(blobCall).toBeInstanceOf(Blob);
             expect(blobCall.type).toBe("application/json");
         });

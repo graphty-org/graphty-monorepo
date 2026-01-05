@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { fireEvent, render, screen, waitFor } from "../../test/test-utils";
+import { render, waitFor } from "../../test/test-utils";
 import { GraphtyEnhanced } from "../GraphtyEnhanced";
 
 // Mock graphty-element
@@ -89,7 +89,7 @@ describe("GraphtyEnhanced", () => {
     });
 
     describe("event handling", () => {
-        it("calls onNodeClick when nodeClick event is dispatched", async () => {
+        it("calls onNodeClick when nodeClick event is dispatched", () => {
             const onNodeClick = vi.fn();
             render(<GraphtyEnhanced onNodeClick={onNodeClick} />);
 
@@ -106,7 +106,7 @@ describe("GraphtyEnhanced", () => {
             expect(onNodeClick).toHaveBeenCalledWith("node-1");
         });
 
-        it("calls onEdgeClick when edgeClick event is dispatched", async () => {
+        it("calls onEdgeClick when edgeClick event is dispatched", () => {
             const onEdgeClick = vi.fn();
             render(<GraphtyEnhanced onEdgeClick={onEdgeClick} />);
 

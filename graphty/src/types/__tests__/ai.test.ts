@@ -42,8 +42,9 @@ describe("types/ai", () => {
             const mod = await getGraphtyElement();
 
             expect(mod).toBeDefined();
-            expect(mod.ApiKeyManager).toBeDefined();
-            expect(mod.createAiManager).toBeDefined();
+            // The module uses type assertions to access these, so check via the correct accessor
+            expect((mod as unknown as { ApiKeyManager: unknown }).ApiKeyManager).toBeDefined();
+            expect((mod as unknown as { createAiManager: unknown }).createAiManager).toBeDefined();
         });
 
         it("caches the loaded module", async () => {

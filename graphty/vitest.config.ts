@@ -36,6 +36,20 @@ export default defineConfig({
                 "dist/",
                 "**/*.test.ts",
                 "**/*.test.tsx",
+                "**/*.stories.ts",
+                "**/*.stories.tsx",
+                "**/demo/**",
+                // Entry points and barrel files (not unit-testable)
+                "src/main.tsx",
+                "**/index.ts",
+                // Stubs for external libraries
+                "**/stubs/**",
+                // Pure type definition files (no runtime code)
+                "src/types/error-boundary.ts",
+                "src/types/selection.ts",
+                "src/types/style-layer.ts",
+                // Pure constants (like colors.ts, layout.ts)
+                "src/constants/spacing.ts",
             ],
         },
     },

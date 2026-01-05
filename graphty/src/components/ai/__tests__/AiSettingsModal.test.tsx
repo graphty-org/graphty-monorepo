@@ -209,4 +209,176 @@ describe("AiSettingsModal", () => {
             expect(screen.queryByText("Default Provider")).not.toBeInTheDocument();
         });
     });
+
+    describe("WebLLM provider", () => {
+        it("shows WebLLM info when WebLLM is selected", async () => {
+            render(<AiSettingsModal {...defaultProps} />);
+
+            // Select WebLLM
+            const providerSelect = screen.getByRole("textbox", { name: /ai provider/i });
+            fireEvent.click(providerSelect);
+
+            await waitFor(() => {
+                const webllmOption = screen.getByRole("option", { name: /webllm/i });
+                fireEvent.click(webllmOption);
+            });
+
+            await waitFor(() => {
+                expect(screen.getByText(/runs locally in your browser/i)).toBeInTheDocument();
+            });
+        });
+
+        it("shows model selection for WebLLM", async () => {
+            render(<AiSettingsModal {...defaultProps} />);
+
+            // Select WebLLM
+            const providerSelect = screen.getByRole("textbox", { name: /ai provider/i });
+            fireEvent.click(providerSelect);
+
+            await waitFor(() => {
+                const webllmOption = screen.getByRole("option", { name: /webllm/i });
+                fireEvent.click(webllmOption);
+            });
+
+            await waitFor(() => {
+                expect(screen.getByText("Model")).toBeInTheDocument();
+            });
+        });
+
+        it("does not show API key input for WebLLM", async () => {
+            render(<AiSettingsModal {...defaultProps} />);
+
+            // Select WebLLM
+            const providerSelect = screen.getByRole("textbox", { name: /ai provider/i });
+            fireEvent.click(providerSelect);
+
+            await waitFor(() => {
+                const webllmOption = screen.getByRole("option", { name: /webllm/i });
+                fireEvent.click(webllmOption);
+            });
+
+            await waitFor(() => {
+                expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();
+            });
+        });
+
+        it("does not show persistence options for WebLLM", async () => {
+            render(<AiSettingsModal {...defaultProps} />);
+
+            // Select WebLLM
+            const providerSelect = screen.getByRole("textbox", { name: /ai provider/i });
+            fireEvent.click(providerSelect);
+
+            await waitFor(() => {
+                const webllmOption = screen.getByRole("option", { name: /webllm/i });
+                fireEvent.click(webllmOption);
+            });
+
+            await waitFor(() => {
+                expect(screen.queryByLabelText(/remember api keys/i)).not.toBeInTheDocument();
+            });
+        });
+    });
+
+    describe("saving with persistence", () => {
+        it("calls onEnablePersistence when enabling persistence", async () => {
+            const onEnablePersistence = vi.fn();
+            render(<AiSettingsModal {...defaultProps} onEnablePersistence={onEnablePersistence} />);
+
+            // Enable persistence
+            const checkbox = screen.getByLabelText(/remember api keys/i);
+            fireEvent.click(checkbox);
+
+            // Click save
+            const saveButton = screen.getByRole("button", { name: /save/i });
+            fireEvent.click(saveButton);
+
+            expect(onEnablePersistence).toHaveBeenCalled();
+        });
+
+        it("calls onDisablePersistence when disabling persistence", async () => {
+            const onDisablePersistence = vi.fn();
+            render(
+                <AiSettingsModal {...defaultProps} isPersistenceEnabled={true} onDisablePersistence={onDisablePersistence} />,
+            );
+
+            // Disable persistence
+            const checkbox = screen.getByLabelText(/remember api keys/i);
+            fireEvent.click(checkbox);
+
+            // Click save
+            const saveButton = screen.getByRole("button", { name: /save/i });
+            fireEvent.click(saveButton);
+
+            expect(onDisablePersistence).toHaveBeenCalledWith(false);
+        });
+
+        it("removes key when saving with empty key", async () => {
+            const removeKey = vi.fn();
+            const hasKey = vi.fn().mockReturnValue(true);
+            const getKey = vi.fn().mockReturnValue("sk-existing-key");
+
+            render(<AiSettingsModal {...defaultProps} removeKey={removeKey} hasKey={hasKey} getKey={getKey} />);
+
+            // Clear the key
+            const keyInput = screen.getByLabelText("API Key");
+            fireEvent.change(keyInput, { target: { value: "" } });
+
+            // Click save
+            const saveButton = screen.getByRole("button", { name: /save/i });
+            fireEvent.click(saveButton);
+
+            expect(removeKey).toHaveBeenCalledWith("openai");
+        });
+    });
+
+    describe("clear key button", () => {
+        it("shows clear button when key is entered", async () => {
+            render(<AiSettingsModal {...defaultProps} />);
+
+            const keyInput = screen.getByLabelText("API Key");
+            fireEvent.change(keyInput, { target: { value: "sk-test-key-12345678901234567890" } });
+
+            await waitFor(() => {
+                expect(screen.getByRole("button", { name: /clear/i })).toBeInTheDocument();
+            });
+        });
+
+        it("clears key when clear button is clicked", async () => {
+            render(<AiSettingsModal {...defaultProps} />);
+
+            const keyInput = screen.getByLabelText("API Key");
+            fireEvent.change(keyInput, { target: { value: "sk-test-key-12345678901234567890" } });
+
+            await waitFor(() => {
+                const clearButton = screen.getByRole("button", { name: /clear/i });
+                fireEvent.click(clearButton);
+            });
+
+            expect(keyInput).toHaveValue("");
+        });
+    });
+
+    describe("provider check icon", () => {
+        it("shows check icon when provider has key configured", () => {
+            const hasKey = vi.fn().mockReturnValue(true);
+            render(<AiSettingsModal {...defaultProps} hasKey={hasKey} />);
+
+            // The check icon should appear next to the provider dropdown
+            // This is hard to test directly, but we can verify hasKey was called
+            expect(hasKey).toHaveBeenCalledWith("openai");
+        });
+    });
+
+    describe("persistence already enabled", () => {
+        it("shows encrypted message when persistence is already enabled", () => {
+            render(<AiSettingsModal {...defaultProps} isPersistenceEnabled={true} />);
+
+            // Enable the checkbox (it should already be checked)
+            expect(screen.getByLabelText(/remember api keys/i)).toBeChecked();
+
+            // Should show the "encrypted and stored" message
+            expect(screen.getByText(/encrypted and stored in your browser/i)).toBeInTheDocument();
+        });
+    });
 });

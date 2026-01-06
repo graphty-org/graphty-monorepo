@@ -142,6 +142,13 @@ jobs:
                   path: graphty-element/dist/
                   retention-days: 1
 
+            - name: Upload compact-mantine build
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-compact-mantine
+                  path: compact-mantine/dist/
+                  retention-days: 1
+
             - name: Upload Storybook build (graphty-element)
               uses: actions/upload-artifact@v4
               with:
@@ -194,6 +201,7 @@ jobs:
                     - algorithms-browser
                     - layout
                     - graphty
+                    - compact-mantine
                     - graphty-element-default
                     - graphty-element-browser-1
                     - graphty-element-browser-2
@@ -228,6 +236,12 @@ jobs:
                       package: graphty
                       test-command: pnpm exec nx run graphty:coverage
                       needs-browser: true
+                      needs-storybook: false
+                    # compact-mantine - single shard
+                    - shard: compact-mantine
+                      package: compact-mantine
+                      test-command: pnpm exec nx run compact-mantine:coverage
+                      needs-browser: false
                       needs-storybook: false
                     # graphty-element default tests (Node.js, no browser)
                     - shard: graphty-element-default
@@ -327,6 +341,12 @@ jobs:
                   name: build-graphty-element
                   path: graphty-element/dist/
 
+            - name: Download compact-mantine build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-compact-mantine
+                  path: compact-mantine/dist/
+
             - name: Download Storybook build (graphty-element)
               if: matrix.needs-storybook
               uses: actions/download-artifact@v4
@@ -378,8 +398,8 @@ jobs:
                   retention-days: 1
                   if-no-files-found: ignore
 
-            - name: Upload coverage (algorithms/layout/graphty)
-              if: ${{ !cancelled() && (startsWith(matrix.shard, 'algorithms-') || matrix.shard == 'layout' || matrix.shard == 'graphty') }}
+            - name: Upload coverage (algorithms/layout/graphty/compact-mantine)
+              if: ${{ !cancelled() && (startsWith(matrix.shard, 'algorithms-') || matrix.shard == 'layout' || matrix.shard == 'graphty' || matrix.shard == 'compact-mantine') }}
               uses: actions/upload-artifact@v4
               with:
                   name: coverage-${{ matrix.shard }}

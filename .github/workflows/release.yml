@@ -81,6 +81,14 @@ jobs:
                   run-id: ${{ github.event.workflow_run.id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
+            - name: Download compact-mantine build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-compact-mantine
+                  path: compact-mantine/dist/
+                  run-id: ${{ github.event.workflow_run.id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
             - name: Configure Git
               run: |
                   git config user.name "github-actions[bot]"

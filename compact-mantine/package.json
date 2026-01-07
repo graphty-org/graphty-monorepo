@@ -73,7 +73,16 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/graphty-org/graphty-monorepo.git",
+        "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
         "directory": "compact-mantine"
-    }
+    },
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
+    "bugs": {
+        "url": "https://github.com/graphty-org/graphty-monorepo/issues"
+    },
+    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/compact-mantine#readme",
+    "author": "Adam Powers <apowers@ato.ms>"
 }

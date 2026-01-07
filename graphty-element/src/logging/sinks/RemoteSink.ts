@@ -1,7 +1,20 @@
 /**
  * Remote logging sink for sending logs to a remote server.
- * This runs in the browser and sends logs to the graphty-log-server.
+ * This wraps RemoteLogClient from @graphty/remote-logger to integrate
+ * with graphty-element's logging system.
+ *
+ * To start a log server, use the @graphty/remote-logger CLI:
+ * ```bash
+ * npx @graphty/remote-logger --port 9080
+ * ```
+ *
+ * Then enable remote logging in graphty-element via URL parameter:
+ * ```
+ * ?graphty-element-logging=true&graphty-element-remote-log=https://localhost:9080
+ * ```
  */
+
+import { RemoteLogClient, type ThrottlePattern } from "@graphty/remote-logger";
 
 import { LOG_LEVEL_TO_NAME, type LogRecord, type Sink } from "../types.js";
 
@@ -25,10 +38,38 @@ export interface RemoteSinkOptions {
     throttleMs?: number;
 }
 
-interface LogEntry {
-    time: string;
-    level: string;
-    message: string;
+/**
+ * Format a LogRecord into a message string for the remote server.
+ * @param record - The log record to format
+ * @returns A formatted message string
+ */
+function formatRecord(record: LogRecord): string {
+    const parts: string[] = [];
+
+    // Add category
+    parts.push(`[${record.category.join(".")}]`);
+
+    // Add message
+    parts.push(record.message);
+
+    // Add structured data if present
+    if (record.data && Object.keys(record.data).length > 0) {
+        try {
+            parts.push(JSON.stringify(record.data));
+        } catch {
+            parts.push("[non-serializable data]");
+        }
+    }
+
+    // Add error stack if present
+    if (record.error) {
+        parts.push(`\nError: ${record.error.message}`);
+        if (record.error.stack) {
+            parts.push(`\n${record.error.stack}`);
+        }
+    }
+
+    return parts.join(" ");
 }
 
 /**
@@ -42,167 +83,37 @@ export function createRemoteSink(options: RemoteSinkOptions): Sink {
     const batchIntervalMs = options.batchIntervalMs ?? 100;
     const maxRetries = options.maxRetries ?? 3;
     const retryDelayMs = options.retryDelayMs ?? 1000;
-    const throttlePatterns = options.throttlePatterns ?? [];
     const throttleMs = options.throttleMs ?? 5000;
 
-    // Generate unique session ID
-    const sessionId = `${sessionPrefix}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`;
+    // Convert graphty-element's throttle format to remote-logger's format
+    // graphty-element uses RegExp[] with a shared throttleMs
+    // remote-logger uses ThrottlePattern[] where each pattern has its own intervalMs
+    const throttlePatterns: ThrottlePattern[] | undefined = options.throttlePatterns?.map((pattern) => ({
+        pattern,
+        intervalMs: throttleMs,
+    }));
 
-    // Buffer for batching logs
-    const logBuffer: LogEntry[] = [];
-    let flushTimer: ReturnType<typeof setTimeout> | null = null;
-    let isFlushing = false;
-
-    // Throttle tracking
-    const lastMessageTimes = new Map<string, number>();
-
-    /**
-     * Check if a message should be throttled.
-     * @param message - The message to check
-     * @returns true if the message should be throttled
-     */
-    function shouldThrottle(message: string): boolean {
-        for (const pattern of throttlePatterns) {
-            if (pattern.test(message)) {
-                const key = pattern.source;
-                const lastTime = lastMessageTimes.get(key) ?? 0;
-                const now = Date.now();
-                if (now - lastTime < throttleMs) {
-                    return true;
-                }
-
-                lastMessageTimes.set(key, now);
-                return false;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Format a LogRecord into a LogEntry for the server.
-     * @param record - The log record to format
-     * @returns A formatted log entry for transmission
-     */
-    function formatRecord(record: LogRecord): LogEntry {
-        const parts: string[] = [];
-
-        // Add category
-        parts.push(`[${record.category.join(".")}]`);
-
-        // Add message
-        parts.push(record.message);
-
-        // Add structured data if present
-        if (record.data && Object.keys(record.data).length > 0) {
-            try {
-                parts.push(JSON.stringify(record.data));
-            } catch {
-                parts.push("[non-serializable data]");
-            }
-        }
-
-        // Add error stack if present
-        if (record.error) {
-            parts.push(`\nError: ${record.error.message}`);
-            if (record.error.stack) {
-                parts.push(`\n${record.error.stack}`);
-            }
-        }
-
-        return {
-            time: record.timestamp.toISOString(),
-            level: LOG_LEVEL_TO_NAME[record.level],
-            message: parts.join(" "),
-        };
-    }
-
-    /**
-     * Send logs to the server with retry logic.
-     * @param logs - Array of log entries to send
-     * @param retriesLeft - Number of retry attempts remaining
-     */
-    async function sendLogs(logs: LogEntry[], retriesLeft: number): Promise<void> {
-        try {
-            const response = await fetch(`${serverUrl}/log`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ sessionId, logs }),
-            });
-
-            if (!response.ok) {
-                throw new Error(`Server returned ${response.status}`);
-            }
-        } catch (error) {
-            if (retriesLeft > 0) {
-                // Wait and retry
-                await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
-                await sendLogs(logs, retriesLeft - 1);
-            } else {
-                // Give up - log to console as fallback
-
-                console.warn("[RemoteSink] Failed to send logs after retries:", error);
-            }
-        }
-    }
-
-    /**
-     * Flush buffered logs to the server.
-     */
-    async function flushLogs(): Promise<void> {
-        if (isFlushing || logBuffer.length === 0) {
-            return;
-        }
-
-        isFlushing = true;
-        const logsToSend = logBuffer.splice(0, logBuffer.length);
-
-        try {
-            await sendLogs(logsToSend, maxRetries);
-        } finally {
-            isFlushing = false;
-        }
-    }
-
-    /**
-     * Schedule a flush after the batch interval.
-     */
-    function scheduleFlush(): void {
-        if (flushTimer) {
-            clearTimeout(flushTimer);
-        }
-
-        flushTimer = setTimeout(() => {
-            void flushLogs();
-        }, batchIntervalMs);
-    }
+    // Create the underlying RemoteLogClient
+    const client = new RemoteLogClient({
+        serverUrl,
+        sessionPrefix,
+        batchIntervalMs,
+        maxRetries,
+        retryDelayMs,
+        throttlePatterns,
+    });
 
     return {
         name: "remote",
 
         write(record: LogRecord): void {
-            const entry = formatRecord(record);
-
-            // Check throttling
-            if (shouldThrottle(entry.message)) {
-                return;
-            }
-
-            // Add to buffer
-            logBuffer.push(entry);
-
-            // Schedule flush
-            scheduleFlush();
+            const message = formatRecord(record);
+            const level = LOG_LEVEL_TO_NAME[record.level];
+            client.log(level, message, record.data);
         },
 
         async flush(): Promise<void> {
-            // Clear any pending timer
-            if (flushTimer) {
-                clearTimeout(flushTimer);
-                flushTimer = null;
-            }
-
-            // Flush immediately
-            await flushLogs();
+            await client.flush();
         },
     };
 }

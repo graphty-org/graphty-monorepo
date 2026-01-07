@@ -20,12 +20,8 @@
         "./src/data/index.ts",
         "./src/algorithms/index.ts"
     ],
-    "bin": {
-        "graphty-log-server": "./bin/graphty-log-server.js"
-    },
     "files": [
         "dist/",
-        "bin/",
         "README.md",
         "LICENSE"
     ],
@@ -159,6 +155,7 @@
         "@ai-sdk/openai": "^2.0.74",
         "@graphty/algorithms": "workspace:*",
         "@graphty/layout": "workspace:*",
+        "@graphty/remote-logger": "workspace:*",
         "@jsonhero/schema-infer": "^0.1.5",
         "@logtape/logtape": "^1.2.2",
         "@types/papaparse": "^5.5.0",
@@ -176,7 +173,6 @@
         "p-queue": "^8.1.1",
         "papaparse": "^5.5.3",
         "pupt": "^1.2.1",
-        "selfsigned": "^2.4.1",
         "toposort": "^2.0.2",
         "zod": "^3.25.28"
     },

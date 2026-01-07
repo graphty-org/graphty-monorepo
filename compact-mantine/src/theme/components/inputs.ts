@@ -1,6 +1,5 @@
 import {
     Autocomplete,
-    Checkbox,
     FileInput,
     InputClearButton,
     JsonInput,
@@ -163,31 +162,6 @@ export const inputComponentExtensions = {
         styles: (_theme, props) => {
             if (props.size === "compact") {
                 return compactInputStyles;
-            }
-            return {};
-        },
-    }),
-
-    Checkbox: Checkbox.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {
-                        "--checkbox-size": "14px",
-                        "--checkbox-icon-size": "9px",
-                    },
-                };
-            }
-            return { root: {} };
-        },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    label: {
-                        fontSize: 11,
-                        paddingLeft: 4,
-                    },
-                };
             }
             return {};
         },

@@ -1,5 +1,6 @@
 import { createTheme } from "@mantine/core";
 
+import { mergeExtensions4 } from "../utils";
 import { compactColors } from "./colors";
 import {
     buttonComponentExtensions,
@@ -32,12 +33,15 @@ import {
  */
 export const compactTheme = createTheme({
     colors: compactColors,
-    components: {
-        ...inputComponentExtensions,
-        ...buttonComponentExtensions,
-        ...controlComponentExtensions,
-        ...displayComponentExtensions,
-    },
+    // mergeExtensions4 provides compile-time detection of duplicate component keys
+    // If any extension object has a component that already exists in a previous one,
+    // TypeScript will produce a compile error
+    components: mergeExtensions4(
+        inputComponentExtensions,
+        buttonComponentExtensions,
+        controlComponentExtensions,
+        displayComponentExtensions,
+    ),
 });
 
 export { compactColors, compactDarkColors } from "./colors";

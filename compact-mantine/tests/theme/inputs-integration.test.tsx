@@ -1,11 +1,17 @@
 import {
     Autocomplete,
     ColorInput,
+    FileInput,
+    InputClearButton,
+    JsonInput,
     MantineProvider,
+    MultiSelect,
     NativeSelect,
     NumberInput,
     PasswordInput,
+    PillsInput,
     Select,
+    TagsInput,
     Textarea,
     TextInput,
 } from "@mantine/core";
@@ -188,6 +194,145 @@ describe("Input Components Integration", () => {
                 </MantineProvider>,
             );
             expect(screen.getByLabelText("Color Small")).toBeInTheDocument();
+        });
+    });
+
+    describe("MultiSelect", () => {
+        it("renders with compact size", () => {
+            const { container } = render(
+                <MantineProvider theme={compactTheme}>
+                    <MultiSelect size="compact" label="Multi Compact" data={["A", "B", "C"]} />
+                </MantineProvider>,
+            );
+            expect(container.querySelector(".mantine-MultiSelect-input")).toBeInTheDocument();
+            expect(container.querySelector("[data-size='compact']")).toBeInTheDocument();
+        });
+
+        it("renders with regular size (non-compact)", () => {
+            const { container } = render(
+                <MantineProvider theme={compactTheme}>
+                    <MultiSelect size="sm" label="Multi Small" data={["X", "Y", "Z"]} />
+                </MantineProvider>,
+            );
+            expect(container.querySelector(".mantine-MultiSelect-input")).toBeInTheDocument();
+            expect(container.querySelector("[data-size='sm']")).toBeInTheDocument();
+        });
+    });
+
+    describe("TagsInput", () => {
+        it("renders with compact size", () => {
+            const { container } = render(
+                <MantineProvider theme={compactTheme}>
+                    <TagsInput size="compact" label="Tags Compact" />
+                </MantineProvider>,
+            );
+            expect(container.querySelector(".mantine-TagsInput-input")).toBeInTheDocument();
+            expect(container.querySelector("[data-size='compact']")).toBeInTheDocument();
+        });
+
+        it("renders with regular size (non-compact)", () => {
+            const { container } = render(
+                <MantineProvider theme={compactTheme}>
+                    <TagsInput size="sm" label="Tags Small" />
+                </MantineProvider>,
+            );
+            expect(container.querySelector(".mantine-TagsInput-input")).toBeInTheDocument();
+            expect(container.querySelector("[data-size='sm']")).toBeInTheDocument();
+        });
+    });
+
+    describe("PillsInput", () => {
+        it("renders with compact size", () => {
+            const { container } = render(
+                <MantineProvider theme={compactTheme}>
+                    <PillsInput size="compact" label="Pills Compact">
+                        <PillsInput.Field />
+                    </PillsInput>
+                </MantineProvider>,
+            );
+            expect(container.querySelector(".mantine-PillsInput-input")).toBeInTheDocument();
+            expect(container.querySelector("[data-size='compact']")).toBeInTheDocument();
+        });
+
+        it("renders with regular size (non-compact)", () => {
+            const { container } = render(
+                <MantineProvider theme={compactTheme}>
+                    <PillsInput size="sm" label="Pills Small">
+                        <PillsInput.Field />
+                    </PillsInput>
+                </MantineProvider>,
+            );
+            expect(container.querySelector(".mantine-PillsInput-input")).toBeInTheDocument();
+            expect(container.querySelector("[data-size='sm']")).toBeInTheDocument();
+        });
+    });
+
+    describe("FileInput", () => {
+        it("renders with compact size", () => {
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <FileInput size="compact" label="File Compact" />
+                </MantineProvider>,
+            );
+            expect(screen.getByLabelText("File Compact")).toBeInTheDocument();
+        });
+
+        it("renders with regular size (non-compact)", () => {
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <FileInput size="sm" label="File Small" />
+                </MantineProvider>,
+            );
+            expect(screen.getByLabelText("File Small")).toBeInTheDocument();
+        });
+    });
+
+    describe("JsonInput", () => {
+        it("renders with compact size", () => {
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <JsonInput size="compact" label="Json Compact" />
+                </MantineProvider>,
+            );
+            expect(screen.getByLabelText("Json Compact")).toBeInTheDocument();
+        });
+
+        it("renders with regular size (non-compact)", () => {
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <JsonInput size="sm" label="Json Small" />
+                </MantineProvider>,
+            );
+            expect(screen.getByLabelText("Json Small")).toBeInTheDocument();
+        });
+    });
+
+    describe("InputClearButton", () => {
+        it("renders with compact size (default)", () => {
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <InputClearButton aria-label="clear compact" />
+                </MantineProvider>,
+            );
+            expect(screen.getByRole("button", { name: "clear compact" })).toBeInTheDocument();
+        });
+
+        it("renders with compact size explicitly", () => {
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <InputClearButton size="compact" aria-label="clear explicit" />
+                </MantineProvider>,
+            );
+            expect(screen.getByRole("button", { name: "clear explicit" })).toBeInTheDocument();
+        });
+
+        it("renders with regular size (non-compact)", () => {
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <InputClearButton size="sm" aria-label="clear small" />
+                </MantineProvider>,
+            );
+            expect(screen.getByRole("button", { name: "clear small" })).toBeInTheDocument();
         });
     });
 });

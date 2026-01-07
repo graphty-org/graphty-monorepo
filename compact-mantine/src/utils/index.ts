@@ -8,3 +8,4 @@ export {
     parseHexaColor,
     toHexaColor,
 } from "./color-utils";
+export { mergeExtensions, mergeExtensions3, mergeExtensions4 } from "./merge-extensions";

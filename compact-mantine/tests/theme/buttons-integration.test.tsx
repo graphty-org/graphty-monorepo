@@ -1,4 +1,4 @@
-import { ActionIcon, Button, MantineProvider } from "@mantine/core";
+import { ActionIcon, Button, CloseButton, MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -51,6 +51,35 @@ describe("Button Components Integration", () => {
                 </MantineProvider>,
             );
             expect(screen.getByRole("button", { name: "action small" })).toBeInTheDocument();
+        });
+    });
+
+    describe("CloseButton", () => {
+        it("renders with compact size (default)", () => {
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <CloseButton aria-label="close compact" />
+                </MantineProvider>,
+            );
+            expect(screen.getByRole("button", { name: "close compact" })).toBeInTheDocument();
+        });
+
+        it("renders with compact size explicitly", () => {
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <CloseButton size="compact" aria-label="close explicit" />
+                </MantineProvider>,
+            );
+            expect(screen.getByRole("button", { name: "close explicit" })).toBeInTheDocument();
+        });
+
+        it("renders with regular size (non-compact)", () => {
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <CloseButton size="sm" aria-label="close small" />
+                </MantineProvider>,
+            );
+            expect(screen.getByRole("button", { name: "close small" })).toBeInTheDocument();
         });
     });
 });

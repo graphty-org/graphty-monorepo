@@ -1,0 +1,79 @@
+{
+    "name": "@graphty/compact-mantine",
+    "version": "0.1.0",
+    "description": "Compact size variants for Mantine UI components - optimized for dense UIs",
+    "type": "module",
+    "main": "dist/index.cjs",
+    "module": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": {
+                "types": "./dist/index.d.ts",
+                "default": "./dist/index.js"
+            },
+            "require": {
+                "types": "./dist/index.d.cts",
+                "default": "./dist/index.cjs"
+            }
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "sideEffects": false,
+    "peerDependencies": {
+        "@mantine/core": "^8.0.0",
+        "@mantine/hooks": "^8.0.0",
+        "react": ">=18.0.0",
+        "react-dom": ">=18.0.0"
+    },
+    "devDependencies": {
+        "@chromatic-com/storybook": "^3.2.6",
+        "@mantine/core": "^8.3.10",
+        "@mantine/hooks": "^8.3.10",
+        "@storybook/addon-essentials": "^8.6.12",
+        "@storybook/react": "^8.6.12",
+        "@storybook/react-vite": "^8.6.12",
+        "@storybook/test": "^8.6.12",
+        "@testing-library/dom": "^10.4.0",
+        "@testing-library/jest-dom": "^6.6.3",
+        "@testing-library/react": "^16.1.0",
+        "@testing-library/user-event": "^14.6.1",
+        "@vitejs/plugin-react": "^4.5.2",
+        "jsdom": "^26.1.0",
+        "lucide-react": "^0.525.0",
+        "react": "^19.1.0",
+        "react-dom": "^19.1.0",
+        "storybook": "^8.6.12",
+        "typescript": "~5.8.3",
+        "vite": "^6.3.5",
+        "vite-plugin-dts": "^4.5.4",
+        "vitest": "^3.2.3"
+    },
+    "scripts": {
+        "build": "vite build",
+        "test": "vitest",
+        "test:run": "vitest run",
+        "coverage": "vitest run --coverage",
+        "storybook": ". ../.env 2>/dev/null; storybook dev -p 9060 --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",
+        "build-storybook": "storybook build",
+        "lint": "eslint src/",
+        "lint:fix": "eslint src/ --fix"
+    },
+    "keywords": [
+        "mantine",
+        "react",
+        "ui",
+        "theme",
+        "compact",
+        "sidebar",
+        "property-panel"
+    ],
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/graphty-org/graphty-monorepo.git",
+        "directory": "compact-mantine"
+    }
+}

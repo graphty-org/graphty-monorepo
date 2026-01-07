@@ -4,3 +4,4 @@ packages:
     - "graphty-element"
     - "graphty"
     - "remote-logger"
+    - "compact-mantine"

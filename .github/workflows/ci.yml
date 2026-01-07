@@ -149,6 +149,13 @@ jobs:
                   path: remote-logger/dist/
                   retention-days: 1
 
+            - name: Upload compact-mantine build
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-compact-mantine
+                  path: compact-mantine/dist/
+                  retention-days: 1
+
             - name: Upload Storybook build (graphty-element)
               uses: actions/upload-artifact@v4
               with:
@@ -202,6 +209,7 @@ jobs:
                     - layout
                     - graphty
                     - remote-logger
+                    - compact-mantine
                     - graphty-element-default
                     - graphty-element-browser-1
                     - graphty-element-browser-2
@@ -241,6 +249,12 @@ jobs:
                     - shard: remote-logger
                       package: remote-logger
                       test-command: pnpm exec nx run remote-logger:coverage
+                      needs-browser: false
+                      needs-storybook: false
+                    # compact-mantine - single shard
+                    - shard: compact-mantine
+                      package: compact-mantine
+                      test-command: pnpm exec nx run compact-mantine:coverage
                       needs-browser: false
                       needs-storybook: false
                     # graphty-element default tests (Node.js, no browser)
@@ -347,6 +361,12 @@ jobs:
                   name: build-remote-logger
                   path: remote-logger/dist/
 
+            - name: Download compact-mantine build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-compact-mantine
+                  path: compact-mantine/dist/
+
             - name: Download Storybook build (graphty-element)
               if: matrix.needs-storybook
               uses: actions/download-artifact@v4
@@ -398,8 +418,8 @@ jobs:
                   retention-days: 1
                   if-no-files-found: ignore
 
-            - name: Upload coverage (algorithms/layout/graphty/remote-logger)
-              if: ${{ !cancelled() && (startsWith(matrix.shard, 'algorithms-') || matrix.shard == 'layout' || matrix.shard == 'graphty' || matrix.shard == 'remote-logger') }}
+            - name: Upload coverage (algorithms/layout/graphty/remote-logger/compact-mantine)
+              if: ${{ !cancelled() && (startsWith(matrix.shard, 'algorithms-') || matrix.shard == 'layout' || matrix.shard == 'graphty' || matrix.shard == 'remote-logger' || matrix.shard == 'compact-mantine') }}
               uses: actions/upload-artifact@v4
               with:
                   name: coverage-${{ matrix.shard }}

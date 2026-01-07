@@ -1,0 +1,52 @@
+{
+    "name": "compact-mantine",
+    "$schema": "../node_modules/nx/schemas/project-schema.json",
+    "projectType": "library",
+    "sourceRoot": "compact-mantine/src",
+    "tags": [],
+    "targets": {
+        "build": {
+            "executor": "nx:run-commands",
+            "outputs": ["{projectRoot}/dist"],
+            "options": {
+                "command": "npm run build",
+                "cwd": "compact-mantine"
+            }
+        },
+        "test": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "npm run test:run",
+                "cwd": "compact-mantine"
+            }
+        },
+        "coverage": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "npm run coverage",
+                "cwd": "compact-mantine"
+            }
+        },
+        "lint": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "npm run lint",
+                "cwd": "compact-mantine"
+            }
+        },
+        "storybook": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "npm run storybook",
+                "cwd": "compact-mantine"
+            }
+        },
+        "build-storybook": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "npm run build-storybook",
+                "cwd": "compact-mantine"
+            }
+        }
+    }
+}

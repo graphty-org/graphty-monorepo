@@ -245,11 +245,11 @@ jobs:
                       test-command: pnpm exec nx run graphty:coverage
                       needs-browser: true
                       needs-storybook: false
-                    # remote-logger - single shard (Node.js)
+                    # remote-logger - single shard (has browser tests)
                     - shard: remote-logger
                       package: remote-logger
                       test-command: pnpm exec nx run remote-logger:coverage
-                      needs-browser: false
+                      needs-browser: true
                       needs-storybook: false
                     # compact-mantine - single shard
                     - shard: compact-mantine

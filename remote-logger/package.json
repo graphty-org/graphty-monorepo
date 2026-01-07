@@ -1,0 +1,83 @@
+{
+    "name": "@graphty/remote-logger",
+    "version": "1.0.0",
+    "description": "Remote logging client and server for browser debugging",
+    "author": "Adam Powers <apowers@ato.ms>",
+    "main": "dist/index.js",
+    "type": "module",
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        },
+        "./server": {
+            "import": "./dist/server/index.js",
+            "types": "./dist/server/index.d.ts"
+        },
+        "./client": {
+            "import": "./dist/client/index.js",
+            "types": "./dist/client/index.d.ts"
+        },
+        "./ui": {
+            "import": "./dist/ui/index.js",
+            "types": "./dist/ui/index.d.ts"
+        }
+    },
+    "types": "dist/index.d.ts",
+    "bin": {
+        "remote-log-server": "./bin/remote-log-server.js"
+    },
+    "files": [
+        "dist/",
+        "bin/",
+        "src/",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "test": "vitest",
+        "test:run": "vitest run",
+        "coverage": "vitest run --coverage",
+        "coverage:preview": "npx serve coverage -p 9055",
+        "lint": "eslint && tsc --noEmit -p tsconfig.eslint.json",
+        "lint:fix": "eslint --fix",
+        "typecheck": "tsc --noEmit",
+        "build": "tsc",
+        "build:watch": "tsc --watch",
+        "dev": "tsc --watch"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
+        "directory": "remote-logger"
+    },
+    "keywords": [
+        "logging",
+        "remote-logging",
+        "debug",
+        "browser",
+        "server",
+        "typescript"
+    ],
+    "license": "MIT",
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
+    "bugs": {
+        "url": "https://github.com/graphty-org/graphty-monorepo/issues"
+    },
+    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/remote-logger#readme",
+    "engines": {
+        "node": ">=18.19.0"
+    },
+    "dependencies": {
+        "selfsigned": "^2.4.1"
+    },
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "@vitest/coverage-v8": "^3.2.3",
+        "typescript": "^5.8.3",
+        "vitest": "^3.2.3"
+    }
+}

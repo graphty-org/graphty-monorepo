@@ -3,3 +3,4 @@ packages:
     - "layout"
     - "graphty-element"
     - "graphty"
+    - "remote-logger"

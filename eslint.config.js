@@ -49,6 +49,8 @@ export default tseslint.config(
             "algorithms/test/**",
             // Layout tests are not in tsconfig and have parsing issues
             "layout/test/**",
+            // Remote-logger tests are not in main tsconfig (see tsconfig.eslint.json)
+            "remote-logger/test/**",
         ],
     },
 

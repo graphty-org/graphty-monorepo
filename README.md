@@ -49,6 +49,16 @@ Comprehensive TypeScript graph algorithms library with 98 algorithms optimized f
 
 [View package](./algorithms)
 
+---
+
+### @graphty/remote-logger
+
+[![npm version](https://img.shields.io/npm/v/@graphty/remote-logger.svg)](https://www.npmjs.com/package/@graphty/remote-logger)
+
+Remote logging client and server for browser debugging. Provides a lightweight browser client for sending logs to a terminal-based server, with batching, retry logic, and session tracking. Includes a floating UI widget for capturing and exporting console output.
+
+[View package](./remote-logger)
+
 ## License
 
 MIT

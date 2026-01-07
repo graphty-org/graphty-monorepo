@@ -172,3 +172,15 @@ export interface StatRowProps {
     /** Value to display */
     value: string | number;
 }
+
+// Re-export popout types
+export type {
+    PopoutContentProps,
+    PopoutContextValue,
+    PopoutHeaderConfig,
+    PopoutHeaderProps,
+    PopoutManagerContextValue,
+    PopoutPanelProps,
+    PopoutPosition,
+    PopoutTriggerProps,
+} from "./popout";

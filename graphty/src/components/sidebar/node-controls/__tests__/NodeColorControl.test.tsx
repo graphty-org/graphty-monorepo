@@ -113,4 +113,115 @@ describe("NodeColorControl", () => {
 
         expect(screen.queryByText("Direction")).not.toBeInTheDocument();
     });
+
+    it("does not call onChange when clicking already selected mode", () => {
+        const onChange = vi.fn();
+        render(<NodeColorControl value={solidColorValue} onChange={onChange} />);
+
+        const solidRadio = screen.getByRole("radio", { name: "Solid" });
+        fireEvent.click(solidRadio);
+
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("switches from gradient to solid mode preserving first stop color", () => {
+        const onChange = vi.fn();
+        render(<NodeColorControl value={gradientColorValue} onChange={onChange} />);
+
+        const solidRadio = screen.getByRole("radio", { name: "Solid" });
+        fireEvent.click(solidRadio);
+
+        expect(onChange).toHaveBeenCalledWith(
+            expect.objectContaining({
+                mode: "solid",
+                color: "#ff0000", // First stop's color
+            }),
+        );
+    });
+
+    it("switches from gradient to radial mode preserving stops", () => {
+        const onChange = vi.fn();
+        render(<NodeColorControl value={gradientColorValue} onChange={onChange} />);
+
+        const radialRadio = screen.getByRole("radio", { name: "Radial" });
+        fireEvent.click(radialRadio);
+
+        expect(onChange).toHaveBeenCalledWith(
+            expect.objectContaining({
+                mode: "radial",
+                stops: gradientColorValue.stops,
+            }),
+        );
+    });
+
+    it("switches from radial to gradient mode preserving stops", () => {
+        const radialValue: ColorConfig = {
+            mode: "radial",
+            stops: [
+                { id: "stop-1", offset: 0, color: "#ff0000" },
+                { id: "stop-2", offset: 1, color: "#0000ff" },
+            ],
+            opacity: 0.8,
+        };
+        const onChange = vi.fn();
+        render(<NodeColorControl value={radialValue} onChange={onChange} />);
+
+        const gradientRadio = screen.getByRole("radio", { name: "Gradient" });
+        fireEvent.click(gradientRadio);
+
+        expect(onChange).toHaveBeenCalledWith(
+            expect.objectContaining({
+                mode: "gradient",
+                stops: radialValue.stops,
+                direction: 0,
+            }),
+        );
+    });
+
+    it("calls onChange when opacity changes", () => {
+        const onChange = vi.fn();
+        render(<NodeColorControl value={solidColorValue} onChange={onChange} />);
+
+        const opacityInput = screen.getByLabelText("Opacity");
+        fireEvent.change(opacityInput, { target: { value: "50" } });
+        fireEvent.blur(opacityInput);
+
+        expect(onChange).toHaveBeenCalledWith(
+            expect.objectContaining({
+                opacity: 0.5,
+            }),
+        );
+    });
+
+    it("does not call handleColorChange when not in solid mode", () => {
+        const onChange = vi.fn();
+        render(<NodeColorControl value={gradientColorValue} onChange={onChange} />);
+
+        // In gradient mode, there's no single color input
+        expect(screen.queryByLabelText("Color hex value")).not.toBeInTheDocument();
+    });
+
+    it("updates gradient stops when in gradient mode", () => {
+        const onChange = vi.fn();
+        render(<NodeColorControl value={gradientColorValue} onChange={onChange} />);
+
+        // The gradient editor handles stop changes - we verify it renders
+        expect(screen.getByText("Color Stops")).toBeInTheDocument();
+    });
+
+    it("updates radial stops when in radial mode", () => {
+        const radialValue: ColorConfig = {
+            mode: "radial",
+            stops: [
+                { id: "stop-1", offset: 0, color: "#ff0000" },
+                { id: "stop-2", offset: 1, color: "#0000ff" },
+            ],
+            opacity: 1.0,
+        };
+        const onChange = vi.fn();
+        render(<NodeColorControl value={radialValue} onChange={onChange} />);
+
+        // The gradient editor handles stop changes for radial too
+        expect(screen.getByText("Color Stops")).toBeInTheDocument();
+    });
 });

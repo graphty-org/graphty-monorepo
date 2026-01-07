@@ -5,9 +5,13 @@
 
 A modular graph visualization ecosystem consisting of multiple TypeScript packages. This monorepo contains libraries for graph algorithms, layout computation, and interactive 2D/3D visualization.
 
+<h3 align="center"><a href="https://graphty.app">Try the live demo at graphty.app</a></h3>
+
 ## Packages
 
 ### @graphty/graphty
+
+[![Demo](https://img.shields.io/badge/demo-graphty.app-blue)](https://graphty.app)
 
 React application providing a user-friendly interface for graph visualization and exploration. Built on top of the `graphty-element` web component, it offers interactive graph visualization with multiple layout algorithms, rich styling options, and 2D/3D visualization modes. This package is private and not published to npm.
 
@@ -18,8 +22,8 @@ React application providing a user-friendly interface for graph visualization an
 ### @graphty/graphty-element
 
 [![npm version](https://img.shields.io/npm/v/@graphty/graphty-element.svg)](https://www.npmjs.com/package/@graphty/graphty-element)
-[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty-org.github.io/docs/graphty/)
-[![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty-org.github.io/storybook/element/)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/graphty/)
+[![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty.app/storybook/element/)
 
 A Web Component for 3D/2D graph visualization built with Lit and Babylon.js. Provides interactive graph visualizations with multiple layout algorithms, rich styling options, and support for large datasets through mesh instancing and GPU acceleration.
 
@@ -30,8 +34,8 @@ A Web Component for 3D/2D graph visualization built with Lit and Babylon.js. Pro
 ### @graphty/layout
 
 [![npm version](https://img.shields.io/npm/v/@graphty/layout.svg)](https://www.npmjs.com/package/@graphty/layout)
-[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty-org.github.io/docs/layout/)
-[![Examples](https://img.shields.io/badge/demo-github%20pages-blue)](https://graphty-org.github.io/layout/examples/index.html)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/layout/)
+[![Storybook](https://img.shields.io/badge/storybook-demos-ff4785)](https://graphty.app/storybook/layout/)
 
 TypeScript library for positioning nodes in graphs. A port of layout algorithms from Python's NetworkX library, supporting force-directed layouts (Spring, ForceAtlas2, Kamada-Kawai), geometric layouts (Circular, Shell, Spiral), and specialized layouts (Bipartite, Multipartite, Planar).
 
@@ -42,8 +46,8 @@ TypeScript library for positioning nodes in graphs. A port of layout algorithms 
 ### @graphty/algorithms
 
 [![npm version](https://img.shields.io/npm/v/@graphty/algorithms.svg)](https://www.npmjs.com/package/@graphty/algorithms)
-[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty-org.github.io/docs/algorithms/)
-[![Examples](https://img.shields.io/badge/demo-github%20pages-blue)](https://graphty-org.github.io/algorithms/)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/algorithms/)
+[![Storybook](https://img.shields.io/badge/storybook-demos-ff4785)](https://graphty.app/storybook/algorithms/)
 
 Comprehensive TypeScript graph algorithms library with 98 algorithms optimized for browser environments. Includes traversal, shortest paths, centrality measures, community detection, clustering, network flow, matching, and link prediction algorithms.
 

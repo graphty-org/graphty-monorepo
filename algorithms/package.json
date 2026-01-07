@@ -7,8 +7,9 @@
     "type": "module",
     "exports": {
         ".": {
+            "types": "./dist/algorithms.d.ts",
             "import": "./dist/algorithms.js",
-            "types": "./dist/algorithms.d.ts"
+            "default": "./dist/algorithms.js"
         }
     },
     "types": "dist/algorithms.d.ts",
@@ -68,7 +69,9 @@
         "docs:dev": "vitepress dev docs",
         "docs:watch": "npm run docs:api && (npm run docs:api:watch & npm run docs:dev & wait)",
         "docs:build": "npm run docs:api && vitepress build docs",
-        "docs:preview": "vitepress preview docs"
+        "docs:preview": "vitepress preview docs",
+        "storybook": ". ../.env 2>/dev/null; storybook dev -p ${PORT:-6006} --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",
+        "build-storybook": "storybook build"
     },
     "repository": {
         "type": "git",
@@ -105,19 +108,20 @@
         }
     },
     "devDependencies": {
+        "@chromatic-com/storybook": "^4.0.0",
         "@eslint/js": "^9.29.0",
-        "typedoc": "^0.28.15",
-        "typedoc-plugin-markdown": "^4.9.0",
-        "typedoc-vitepress-theme": "^1.1.2",
-        "vitepress": "^1.6.3",
         "@semantic-release/changelog": "^6.0.3",
         "@semantic-release/git": "^10.0.1",
+        "@storybook/addon-docs": "^9.0.11",
+        "@storybook/html-vite": "^9.0.11",
+        "@storybook/test": "^8.6.14",
         "@types/benchmark": "^2.1.5",
         "@types/node": "^20.19.9",
         "@vitest/browser": "^3.2.4",
         "@vitest/coverage-v8": "^3.2.4",
         "@vitest/ui": "^3.2.4",
         "benchmark": "^2.1.4",
+        "chromatic": "^11.0.0",
         "eslint": "^9.29.0",
         "eslint-plugin-simple-import-sort": "^12.1.1",
         "gh-pages": "^6.3.0",
@@ -126,11 +130,16 @@
         "knip": "^5.61.3",
         "playwright": "^1.53.0",
         "semantic-release": "^25.0.2",
+        "storybook": "^9.0.11",
         "ts-node": "^10.9.2",
         "tsx": "^4.20.3",
+        "typedoc": "^0.28.15",
+        "typedoc-plugin-markdown": "^4.9.0",
+        "typedoc-vitepress-theme": "^1.1.2",
         "typescript": "^5.8.3",
         "typescript-eslint": "^8.34.1",
         "vite": "^7.0.5",
+        "vitepress": "^1.6.3",
         "vitest": "^3.2.4"
     },
     "dependencies": {

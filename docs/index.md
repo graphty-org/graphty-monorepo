@@ -28,6 +28,6 @@ features:
     linkText: Documentation
   - title: Live Examples
     details: Try interactive demos - Storybook components, algorithm visualizations, and layout examples.
-    link: https://graphty-org.github.io/storybook/element/
+    link: https://graphty.app/storybook/element/
     linkText: Open Storybook
 ---

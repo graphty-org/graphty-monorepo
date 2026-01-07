@@ -13,8 +13,8 @@ hero:
       text: API Reference
       link: /algorithms/api/
     - theme: alt
-      text: Interactive Examples
-      link: https://graphty-org.github.io/algorithms/
+      text: Interactive Storybook
+      link: https://graphty.app/storybook/algorithms/
 
 features:
   - title: Getting Started

@@ -1,0 +1,199 @@
+/**
+ * BFS Layout Algorithm Story
+ *
+ * Demonstrates BFS (Breadth-First Search) layout where nodes are positioned
+ * in layers based on their distance from a starting node.
+ * Shows animation from random initial positions to final BFS positions.
+ *
+ * IMPORTANT: This story uses the actual bfsLayout implementation
+ * from @graphty/layout to demonstrate real package behavior.
+ */
+
+import { bfsLayout } from "@graphty/layout";
+import type { Meta, StoryObj } from "@storybook/html-vite";
+import { expect, userEvent, waitFor, within } from "@storybook/test";
+
+import {
+    generateGraph,
+    generateRandomPositions,
+    type GraphType,
+    toLayoutGraph,
+} from "../utils/graph-generators.js";
+import {
+    createAnimationControls,
+    createInfoPanel,
+    createStatusPanel,
+    createStoryContainer,
+    renderGraph,
+    updateInfoPanel,
+    updatePositions,
+    updateStatus,
+} from "../utils/visualization.js";
+
+/**
+ * Story arguments interface.
+ */
+interface BFSArgs {
+    nodeCount: number;
+    graphType: GraphType;
+    startNode: number;
+    align: "vertical" | "horizontal";
+    scale: number;
+    seed: number;
+}
+
+/**
+ * Create the BFS layout visualization story.
+ */
+function createBFSStory(args: BFSArgs): HTMLElement {
+    const { nodeCount, graphType, startNode, align, scale, seed } = args;
+
+    // Generate graph
+    const generatedGraph = generateGraph(graphType, nodeCount, seed);
+    const layoutGraph = toLayoutGraph(generatedGraph);
+
+    // Generate initial random positions
+    const randomPositions = generateRandomPositions(generatedGraph, 500, 500, seed);
+
+    // Ensure start node is valid
+    const validStartNode = Math.min(startNode, nodeCount - 1);
+
+    // Compute final BFS layout using actual algorithm
+    const finalPositions = bfsLayout(
+        layoutGraph,
+        validStartNode,
+        align,
+        scale,
+        [0, 0],
+    );
+
+    // Create container
+    const { container, svg } = createStoryContainer();
+
+    // Render graph with random initial positions
+    renderGraph(svg, generatedGraph, randomPositions, 20, 1, 0, 0);
+
+    // Create info panel
+    const infoPanel = createInfoPanel("BFS Layout");
+    container.appendChild(infoPanel);
+    updateInfoPanel(
+        infoPanel,
+        `Positions nodes by BFS distance from node ${validStartNode} in ${align} layers.`,
+    );
+
+    // Create status panel
+    const statusPanel = createStatusPanel();
+    container.appendChild(statusPanel);
+    updateStatus(statusPanel, "Showing random initial positions. Click 'Apply Layout' to see BFS arrangement.");
+
+    let isApplied = false;
+
+    /**
+     * Apply BFS layout with animation.
+     */
+    function apply(): void {
+        if (isApplied) {
+            return;
+        }
+        isApplied = true;
+
+        // Animate to final positions
+        updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250);
+        updateStatus(statusPanel, "BFS layout applied! Nodes arranged by distance from start node.");
+    }
+
+    /**
+     * Reset to random positions.
+     */
+    function reset(): void {
+        isApplied = false;
+
+        // Reset to random positions
+        renderGraph(svg, generatedGraph, randomPositions, 20, 1, 0, 0);
+        updateStatus(statusPanel, "Reset to random positions. Click 'Apply Layout' to see BFS arrangement.");
+    }
+
+    // Add controls
+    const controls = createAnimationControls(apply, reset);
+    container.appendChild(controls);
+
+    return container;
+}
+
+const meta: Meta<BFSArgs> = {
+    title: "Layout2D",
+    argTypes: {
+        nodeCount: {
+            control: { type: "range", min: 4, max: 20, step: 1 },
+            description: "Number of nodes in the graph",
+        },
+        graphType: {
+            control: { type: "select" },
+            options: [
+                "tree",
+                "random",
+                "grid",
+                "cycle",
+                "complete",
+                "star",
+                "path",
+            ] as GraphType[],
+            description: "Type of graph to generate",
+        },
+        startNode: {
+            control: { type: "number", min: 0 },
+            description: "Starting node for BFS traversal",
+        },
+        align: {
+            control: { type: "select" },
+            options: ["vertical", "horizontal"],
+            description: "Alignment of the BFS layers",
+        },
+        scale: {
+            control: { type: "range", min: 0.5, max: 2, step: 0.1 },
+            description: "Scale factor for the layout",
+        },
+        seed: {
+            control: { type: "number" },
+            description: "Random seed for reproducible graphs",
+        },
+    },
+    args: {
+        nodeCount: 10,
+        graphType: "tree",
+        startNode: 0,
+        align: "vertical",
+        scale: 1,
+        seed: 42,
+    },
+};
+
+export default meta;
+
+type Story = StoryObj<BFSArgs>;
+
+/**
+ * BFS layout story - positions nodes by BFS distance from a start node.
+ *
+ * This story uses the actual `bfsLayout()` function from @graphty/layout.
+ * The play function animates from random positions to the BFS arrangement.
+ */
+export const BFS: Story = {
+    render: (args) => createBFSStory(args),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Click apply button to trigger animation
+        const applyButton = canvas.getByRole("button", { name: /apply layout/i });
+        await userEvent.click(applyButton);
+
+        // Wait for animation and status update
+        await waitFor(
+            async () => {
+                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+                await expect(statusText).toContain("applied");
+            },
+            { timeout: 5000 },
+        );
+    },
+};

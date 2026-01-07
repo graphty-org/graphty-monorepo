@@ -21,6 +21,6 @@
         "noFallthroughCasesInSwitch": true,
         "noUncheckedSideEffectImports": true
     },
-    "include": ["src/**/*.ts", "algorithms.ts"],
-    "exclude": ["node_modules", "vitest.config.ts"]
+    "include": ["src/**/*.ts", "algorithms.ts", "stories/**/*.ts", ".storybook/**/*.ts"],
+    "exclude": ["node_modules", "vitest.config.ts", "dist"]
 }

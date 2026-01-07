@@ -84,7 +84,7 @@ async function copyDirectory(src, dest, addWarnings = false) {
 
 async function buildGitHubPages() {
     const rootDir = path.resolve(__dirname, "..");
-    const examplesDir = path.join(rootDir, "examples", "html");
+    const examplesDir = path.join(rootDir, "examples", "html-legacy");
     const benchmarkDir = path.join(rootDir, "benchmark-results");
     const distDir = path.join(rootDir, "dist");
     const ghPagesDir = path.join(rootDir, "gh-pages");

@@ -51,6 +51,22 @@ jobs:
                   run-id: ${{ github.event.workflow_run.id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
+            - name: Download algorithms Storybook
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-algorithms
+                  path: ./algorithms/storybook-static/
+                  run-id: ${{ github.event.workflow_run.id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Download layout Storybook
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-layout
+                  path: ./layout/storybook-static/
+                  run-id: ${{ github.event.workflow_run.id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
             - name: Download unified docs
               uses: actions/download-artifact@v4
               with:
@@ -82,8 +98,11 @@ jobs:
             #   /docs/graphty/ = graphty-element docs
             #   /docs/algorithms/ = algorithms docs
             #   /docs/layout/ = layout docs
+            #   /storybook/ = Storybook index page
             #   /storybook/element/ = graphty-element Storybook
             #   /storybook/app/ = graphty Storybook
+            #   /storybook/algorithms/ = algorithms Storybook
+            #   /storybook/layout/ = layout Storybook
             #   /algorithms/ = algorithms gh-pages (examples + benchmarks)
             #   /layout/ = layout gh-pages (examples)
             - name: Assemble GitHub Pages site
@@ -125,6 +144,24 @@ jobs:
                     echo "⚠️ graphty Storybook not found"
                   fi
 
+                  # algorithms Storybook (/storybook/algorithms/)
+                  if [ -d "./algorithms/storybook-static" ]; then
+                    mkdir -p ./public/storybook/algorithms
+                    cp -r ./algorithms/storybook-static/* ./public/storybook/algorithms/
+                    echo "✅ Copied algorithms Storybook to /storybook/algorithms/"
+                  else
+                    echo "⚠️ algorithms Storybook not found"
+                  fi
+
+                  # layout Storybook (/storybook/layout/)
+                  if [ -d "./layout/storybook-static" ]; then
+                    mkdir -p ./public/storybook/layout
+                    cp -r ./layout/storybook-static/* ./public/storybook/layout/
+                    echo "✅ Copied layout Storybook to /storybook/layout/"
+                  else
+                    echo "⚠️ layout Storybook not found"
+                  fi
+
                   # Create storybook index page
                   cat > ./public/storybook/index.html << 'SBINDEXEOF'
                   <!DOCTYPE html>
@@ -151,6 +188,14 @@ jobs:
                       <li>
                         <a href="/storybook/app/">graphty app</a>
                         <div class="desc">React application components</div>
+                      </li>
+                      <li>
+                        <a href="/storybook/algorithms/">algorithms</a>
+                        <div class="desc">Interactive graph algorithm visualizations</div>
+                      </li>
+                      <li>
+                        <a href="/storybook/layout/">layout</a>
+                        <div class="desc">Graph layout algorithm demonstrations</div>
                       </li>
                     </ul>
                     <p><a href="/">← Back to graphty.app</a></p>

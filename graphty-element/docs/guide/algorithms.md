@@ -240,10 +240,10 @@ Create your own algorithms. See [Custom Algorithms](./extending/custom-algorithm
 
 ## Interactive Examples
 
-- [Centrality Algorithms](https://graphty-org.github.io/storybook/element/?path=/story/algorithms-centrality--degree)
-- [Community Detection](https://graphty-org.github.io/storybook/element/?path=/story/algorithms-community--louvain)
-- [Components](https://graphty-org.github.io/storybook/element/?path=/story/algorithms-component--connected)
-- [Shortest Path](https://graphty-org.github.io/storybook/element/?path=/story/algorithms-shortestpath--dijkstra)
-- [Traversal](https://graphty-org.github.io/storybook/element/?path=/story/algorithms-traversal--bfs)
-- [Spanning Tree](https://graphty-org.github.io/storybook/element/?path=/story/algorithms-spanningtree--prim)
-- [Combined Algorithms](https://graphty-org.github.io/storybook/element/?path=/story/algorithms-combined--default)
+- [Centrality Algorithms](https://graphty.app/storybook/element/?path=/story/algorithms-centrality--degree)
+- [Community Detection](https://graphty.app/storybook/element/?path=/story/algorithms-community--louvain)
+- [Components](https://graphty.app/storybook/element/?path=/story/algorithms-component--connected)
+- [Shortest Path](https://graphty.app/storybook/element/?path=/story/algorithms-shortestpath--dijkstra)
+- [Traversal](https://graphty.app/storybook/element/?path=/story/algorithms-traversal--bfs)
+- [Spanning Tree](https://graphty.app/storybook/element/?path=/story/algorithms-spanningtree--prim)
+- [Combined Algorithms](https://graphty.app/storybook/element/?path=/story/algorithms-combined--default)

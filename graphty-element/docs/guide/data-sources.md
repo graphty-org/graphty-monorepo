@@ -219,4 +219,4 @@ Create your own data source handlers. See [Custom Data Sources](./extending/cust
 
 ## Interactive Examples
 
-- [Data Loading](https://graphty-org.github.io/storybook/element/?path=/story/data--default)
+- [Data Loading](https://graphty.app/storybook/element/?path=/story/data--default)

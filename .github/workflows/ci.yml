@@ -101,6 +101,12 @@ jobs:
             - name: Build Storybook (graphty)
               run: pnpm exec nx run graphty:build-storybook
 
+            - name: Build Storybook (algorithms)
+              run: pnpm exec nx run algorithms:build-storybook
+
+            - name: Build Storybook (layout)
+              run: pnpm exec nx run layout:build-storybook
+
             # Build unified documentation (only on master, for deploy-pages)
             - name: Build docs
               if: github.ref == 'refs/heads/master' && github.event_name == 'push'
@@ -168,6 +174,20 @@ jobs:
               with:
                   name: build-storybook-app
                   path: graphty/storybook-static/
+                  retention-days: 1
+
+            - name: Upload Storybook build (algorithms)
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-storybook-algorithms
+                  path: algorithms/storybook-static/
+                  retention-days: 1
+
+            - name: Upload Storybook build (layout)
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-storybook-layout
+                  path: layout/storybook-static/
                   retention-days: 1
 
             # Upload documentation artifacts (only on master)
@@ -503,6 +523,82 @@ jobs:
                   # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
                   # See: https://github.com/storybookjs/storybook/issues/27172
 
+    # Chromatic visual regression testing (algorithms)
+    chromatic-algorithms:
+        name: Chromatic (algorithms)
+        needs: build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Download Storybook build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-algorithms
+                  path: algorithms/storybook-static/
+
+            - name: Run Chromatic
+              uses: chromaui/action@latest
+              with:
+                  projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+                  storybookBuildDir: ./algorithms/storybook-static
+                  exitZeroOnChanges: true
+                  # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
+                  # See: https://github.com/storybookjs/storybook/issues/27172
+
+    # Chromatic visual regression testing (layout)
+    chromatic-layout:
+        name: Chromatic (layout)
+        needs: build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Download Storybook build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-layout
+                  path: layout/storybook-static/
+
+            - name: Run Chromatic
+              uses: chromaui/action@latest
+              with:
+                  projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+                  storybookBuildDir: ./layout/storybook-static
+                  exitZeroOnChanges: true
+                  # TurboSnap (onlyChanged) disabled - Vite doesn't generate preview-stats.json
+                  # See: https://github.com/storybookjs/storybook/issues/27172
+
     # Performance regression tests (algorithms only, master branch)
     performance:
         name: Performance Tests
@@ -555,7 +651,7 @@ jobs:
     # Gate job - ensures all required checks pass before release/deploy
     all-checks:
         name: All Checks Pass
-        needs: [test, chromatic-element, chromatic-app]
+        needs: [test, chromatic-element, chromatic-app, chromatic-algorithms, chromatic-layout]
         if: always()
         runs-on: ubuntu-latest
         steps:
@@ -571,6 +667,14 @@ jobs:
                   fi
                   if [[ "${{ needs.chromatic-app.result }}" != "success" ]]; then
                     echo "Chromatic (graphty) job failed"
+                    exit 1
+                  fi
+                  if [[ "${{ needs.chromatic-algorithms.result }}" != "success" ]]; then
+                    echo "Chromatic (algorithms) job failed"
+                    exit 1
+                  fi
+                  if [[ "${{ needs.chromatic-layout.result }}" != "success" ]]; then
+                    echo "Chromatic (layout) job failed"
                     exit 1
                   fi
                   echo "All checks passed!"

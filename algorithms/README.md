@@ -5,6 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/@graphty/algorithms.svg)](https://www.npmjs.com/package/@graphty/algorithms)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/algorithms/)
+[![Storybook](https://img.shields.io/badge/storybook-interactive%20demos-ff4785)](https://graphty.app/storybook/algorithms/)
 [![Examples](https://img.shields.io/badge/demo-github%20pages-blue)](https://graphty.app/algorithms/)
 
 A comprehensive TypeScript graph algorithms library with 98 algorithms optimized for browser environments and visualization applications.
@@ -1027,6 +1028,18 @@ const result = grsbm(graph, {
 - **Research Algorithms**: SynC, TeraHAC, GRSBM
 
 ## Interactive Examples
+
+### Storybook (Recommended)
+
+Explore algorithms with interactive Storybook demos: **[View Storybook →](https://graphty.app/storybook/algorithms/)**
+
+Storybook provides:
+- **Animated visualizations** showing how each algorithm works step-by-step
+- **Interactive controls** to modify parameters and graph types
+- **Deterministic output** with seeded randomness for reproducibility
+- **Visual testing** with Chromatic for regression detection
+
+### Legacy HTML Examples
 
 Try out all algorithms with interactive visualizations: **[Live Demo →](https://graphty.app/algorithms/)**
 

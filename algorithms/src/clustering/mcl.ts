@@ -111,7 +111,7 @@ function buildTransitionMatrix(graph: Graph, nodeIds: NodeId[], selfLoops: boole
     // Fill adjacency values
     for (let i = 0; i < n; i++) {
         const nodeId = nodeIds[i];
-        if (!nodeId) {
+        if (nodeId === undefined) {
             continue;
         }
 
@@ -398,11 +398,16 @@ function extractClusters(
         }
     }
 
-    // Assign nodes to clusters based on columns
-    let clusterIndex = 0;
+    // Assign nodes (columns) to clusters based on which attractor (row) they flow to
+    // After MCL convergence, matrix[i][j] > 0 means node j belongs to attractor i's cluster
+    const attractorToCommunity = new Map<number, number[]>();
+
     for (let j = 0; j < n; j++) {
-        // Find nodes that belong to this cluster (column)
-        const clusterNodes: number[] = [];
+        // Find the attractor for this column (node j)
+        // Look for the row with the highest non-zero value in column j
+        let maxVal = 0;
+        let attractorRow = -1;
+
         for (let i = 0; i < n; i++) {
             const matrixRow = matrix[i];
             if (!matrixRow) {
@@ -410,34 +415,43 @@ function extractClusters(
             }
 
             const val = matrixRow[j];
-            if (val !== undefined && val > 0 && !nodeToCluster.has(i)) {
-                clusterNodes.push(i);
-                nodeToCluster.set(i, clusterIndex);
+            if (val !== undefined && val > maxVal) {
+                maxVal = val;
+                attractorRow = i;
             }
         }
 
-        if (clusterNodes.length > 0) {
-            communities.push(
-                clusterNodes
-                    .map((idx) => {
-                        const nodeId = nodeIds[idx];
-                        return nodeId;
-                    })
-                    .filter((node): node is NodeId => node !== undefined),
-            );
-            clusterIndex++;
+        if (attractorRow >= 0) {
+            // Node j belongs to the cluster of attractor at row attractorRow
+            let community = attractorToCommunity.get(attractorRow);
+            if (!community) {
+                community = [];
+                attractorToCommunity.set(attractorRow, community);
+            }
+            community.push(j);
+            nodeToCluster.set(j, attractorRow);
         }
     }
 
-    // Handle isolated nodes
-    for (let i = 0; i < n; i++) {
-        if (!nodeToCluster.has(i)) {
-            const nodeId = nodeIds[i];
+    // Convert attractor communities to node ID arrays
+    for (const [, memberIndices] of attractorToCommunity) {
+        communities.push(
+            memberIndices
+                .map((idx) => {
+                    const nodeId = nodeIds[idx];
+                    return nodeId;
+                })
+                .filter((node): node is NodeId => node !== undefined),
+        );
+    }
+
+    // Handle isolated nodes (nodes with all-zero columns)
+    for (let j = 0; j < n; j++) {
+        if (!nodeToCluster.has(j)) {
+            const nodeId = nodeIds[j];
             if (nodeId !== undefined) {
                 communities.push([nodeId]);
             }
-
-            nodeToCluster.set(i, clusterIndex++);
         }
     }
 

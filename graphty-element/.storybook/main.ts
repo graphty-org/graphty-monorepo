@@ -49,7 +49,10 @@ const config: StorybookConfig = {
         }
 
         const merged = mergeConfig(config, {
-            server,
+            // Allow access from any host (needed when accessing via custom hostnames like dev.ato.ms)
+            server: {
+                allowedHosts: true,
+            },
             // Exclude @mlc-ai/web-llm from optimization - it's dynamically loaded at runtime
             optimizeDeps: {
                 exclude: ["@mlc-ai/web-llm"],

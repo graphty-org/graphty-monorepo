@@ -1,39 +1,40 @@
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import { defineConfig, loadEnv } from "vite";
-import path from "path";
 import { algorithmsRedirectPlugin } from "./vite-plugin-algorithms-redirect.js";
 
 export default defineConfig(({ mode }) => {
-    // Load env file based on `mode` in the current working directory.
-    // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
-    const env = loadEnv(mode, process.cwd(), "");
+    // Load env from monorepo root (one level up from package directory)
+    const monorepoRoot = resolve(import.meta.dirname, "..");
+    const env = loadEnv(mode, monorepoRoot, "");
 
-    const config = {
-        plugins: [algorithmsRedirectPlugin()],
-        server: {
-            port: 3000,
-            open: "/examples/html/",
-            host: true,
-            fs: {
-                // Allow serving files from the dist directory
-                allow: [".."],
-            },
+    const server = {
+        host: env.HOST || true,
+        allowedHosts: true,
+        open: "/examples/html-legacy/",
+        fs: {
+            // Allow serving files from the dist directory
+            allow: [".."],
         },
-        build: {
-            // Ensure the examples can find the built files
-            outDir: "dist",
-        },
-        publicDir: false, // Disable default public directory behavior
     };
 
-    // Allow HOST configuration from .env
-    if (env.HOST) {
-        config.server.host = env.HOST;
-    }
-
-    // Allow PORT configuration from .env
     if (env.PORT) {
-        config.server.port = parseInt(env.PORT);
+        server.port = parseInt(env.PORT);
     }
 
-    return config;
+    if (env.HTTPS_KEY_PATH && env.HTTPS_CERT_PATH) {
+        server.https = {
+            key: readFileSync(env.HTTPS_KEY_PATH),
+            cert: readFileSync(env.HTTPS_CERT_PATH),
+        };
+    }
+
+    return {
+        plugins: [algorithmsRedirectPlugin()],
+        server,
+        build: {
+            outDir: "dist",
+        },
+        publicDir: false,
+    };
 });

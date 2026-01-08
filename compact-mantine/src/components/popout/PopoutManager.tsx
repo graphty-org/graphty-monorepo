@@ -12,8 +12,8 @@ interface PopoutManagerProps {
 
 /**
  * Manages coordination between multiple Popout instances.
- * Provides context for z-index management and future features like
- * click-outside handling (Phase 5) and hierarchy tracking (Phase 6).
+ * Provides context for z-index management, click-outside handling,
+ * Escape key behavior, and hierarchy tracking (Phase 6).
  * @param props - Component props
  * @param props.children - Child components that may contain Popout instances
  * @returns The PopoutManager component

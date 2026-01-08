@@ -5,7 +5,10 @@ import {
     buttonComponentExtensions,
     controlComponentExtensions,
     displayComponentExtensions,
+    feedbackComponentExtensions,
     inputComponentExtensions,
+    navigationComponentExtensions,
+    overlayComponentExtensions,
 } from "./components";
 
 /**
@@ -37,6 +40,9 @@ export const compactTheme = createTheme({
         ...buttonComponentExtensions,
         ...controlComponentExtensions,
         ...displayComponentExtensions,
+        ...feedbackComponentExtensions,
+        ...navigationComponentExtensions,
+        ...overlayComponentExtensions,
     },
 });
 

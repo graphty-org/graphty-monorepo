@@ -141,4 +141,137 @@ describe("GradientEditor", () => {
         const [newStops] = onChange.mock.calls[0];
         expect(newStops).toHaveLength(2);
     });
+
+    it("calls onChange when color input value changes", async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        render(
+            <MantineProvider theme={compactTheme}>
+                <GradientEditor stops={defaultStops} onChange={onChange} />
+            </MantineProvider>,
+        );
+
+        const colorInputs = screen.getAllByRole("textbox", { name: /color stop/i });
+        // Type additional characters to trigger onChange (Mantine ColorInput behavior)
+        await user.type(colorInputs[0], "0");
+
+        expect(onChange).toHaveBeenCalled();
+        // Verify that onChange was called with updated stops
+        const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1];
+        const [newStops] = lastCall;
+        // The color should have been modified (original #FF0000 + "0" = #FF00000)
+        expect(newStops[0].color).not.toBe(defaultStops[0].color);
+    });
+
+    it("works in uncontrolled mode with defaultStops", async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        render(
+            <MantineProvider theme={compactTheme}>
+                <GradientEditor defaultStops={defaultStops} onChange={onChange} />
+            </MantineProvider>,
+        );
+
+        // Add a stop - should work even in uncontrolled mode
+        await user.click(screen.getByRole("button", { name: /add/i }));
+
+        expect(onChange).toHaveBeenCalled();
+        const [newStops] = onChange.mock.calls[0];
+        expect(newStops).toHaveLength(3);
+    });
+
+    it("works in fully uncontrolled mode without onChange", () => {
+        // Should not throw when onChange is not provided
+        render(
+            <MantineProvider theme={compactTheme}>
+                <GradientEditor defaultStops={defaultStops} />
+            </MantineProvider>,
+        );
+
+        expect(screen.getByText("Color Stops")).toBeInTheDocument();
+        expect(screen.getAllByRole("textbox", { name: /color stop/i })).toHaveLength(2);
+    });
+
+    it("uses default stops when neither stops nor defaultStops provided", () => {
+        render(
+            <MantineProvider theme={compactTheme}>
+                <GradientEditor onChange={vi.fn()} />
+            </MantineProvider>,
+        );
+
+        // Should render with default gradient stops (createDefaultGradientStops())
+        expect(screen.getByText("Color Stops")).toBeInTheDocument();
+        const colorInputs = screen.getAllByRole("textbox", { name: /color stop/i });
+        expect(colorInputs.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("renders direction slider in controlled mode", () => {
+        const onChange = vi.fn();
+        const { container } = render(
+            <MantineProvider theme={compactTheme}>
+                <GradientEditor stops={defaultStops} direction={90} showDirection={true} onChange={onChange} />
+            </MantineProvider>,
+        );
+
+        // Find the direction slider by aria-label
+        const directionSlider = container.querySelector("[aria-label='Gradient direction']");
+        expect(directionSlider).toBeInTheDocument();
+
+        // Verify the direction text is shown
+        expect(screen.getByText("Direction")).toBeInTheDocument();
+    });
+
+    it("uses defaultDirection when direction prop not provided", () => {
+        const onChange = vi.fn();
+        const { container } = render(
+            <MantineProvider theme={compactTheme}>
+                <GradientEditor stops={defaultStops} defaultDirection={180} showDirection={true} onChange={onChange} />
+            </MantineProvider>,
+        );
+
+        // Find the direction slider by aria-label
+        const directionSlider = container.querySelector("[aria-label='Gradient direction']");
+        expect(directionSlider).toBeInTheDocument();
+    });
+
+    it("does not add stop when already at maximum (5 stops)", async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        const fiveStops = [
+            createColorStop(0, "#FF0000"),
+            createColorStop(0.25, "#FF0000"),
+            createColorStop(0.5, "#FF0000"),
+            createColorStop(0.75, "#FF0000"),
+            createColorStop(1, "#0000FF"),
+        ];
+        render(
+            <MantineProvider theme={compactTheme}>
+                <GradientEditor stops={fiveStops} onChange={onChange} />
+            </MantineProvider>,
+        );
+
+        const addButton = screen.getByRole("button", { name: /add/i });
+        expect(addButton).toBeDisabled();
+
+        // Clicking disabled button should not call onChange
+        await user.click(addButton);
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("does not remove stop when at minimum (2 stops)", async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        render(
+            <MantineProvider theme={compactTheme}>
+                <GradientEditor stops={defaultStops} onChange={onChange} />
+            </MantineProvider>,
+        );
+
+        const removeButtons = screen.getAllByRole("button", { name: /remove/i });
+        expect(removeButtons[0]).toBeDisabled();
+
+        // Clicking disabled button should not call onChange
+        await user.click(removeButtons[0]);
+        expect(onChange).not.toHaveBeenCalled();
+    });
 });

@@ -14,13 +14,13 @@ import { usePopoutContext } from "./PopoutContext";
 
 /**
  * Wrapper component for the popout trigger element.
- * Attaches click handler and ref to the child element.
+ * Attaches click handler, ref, and ARIA attributes to the child element.
  * @param props - Component props
  * @param props.children - The trigger element (typically a button or icon)
  * @returns The PopoutTrigger component
  */
 export function PopoutTrigger({ children }: PopoutTriggerProps): JSX.Element {
-    const { toggle, triggerRef } = usePopoutContext();
+    const { toggle, triggerRef, isOpen, id } = usePopoutContext();
 
     const handleClick = useCallback(
         (event: MouseEvent) => {
@@ -35,9 +35,16 @@ export function PopoutTrigger({ children }: PopoutTriggerProps): JSX.Element {
         throw new Error("PopoutTrigger requires a single valid React element as its child");
     }
 
+    // Generate panel ID for aria-controls (matches the ID used by PopoutPanel)
+    const panelId = `popout-panel-${id}`;
+
     const child = children as ReactElement<{
         onClick?: MouseEventHandler;
         ref?: Ref<HTMLElement>;
+        "data-popout-trigger"?: boolean;
+        "aria-expanded"?: boolean;
+        "aria-controls"?: string;
+        "aria-haspopup"?: string;
     }>;
 
     return cloneElement(child, {
@@ -47,5 +54,11 @@ export function PopoutTrigger({ children }: PopoutTriggerProps): JSX.Element {
             handleClick(event);
         },
         ref: triggerRef as Ref<HTMLElement>,
+        // Mark this element as a popout trigger for click-outside detection
+        "data-popout-trigger": true,
+        // ARIA attributes for accessibility
+        "aria-expanded": isOpen,
+        "aria-controls": panelId,
+        "aria-haspopup": "dialog",
     });
 }

@@ -1,16 +1,15 @@
-import { Avatar, Badge, Indicator, Kbd, Pill, Text, ThemeIcon } from "@mantine/core";
+import { Anchor, Burger, NavLink, Pagination, Stepper, Tabs } from "@mantine/core";
 
 /**
- * Theme extensions for display components with "compact" size support.
+ * Theme extensions for navigation components with "compact" size support.
  */
-export const displayComponentExtensions = {
-    Text: Text.extend({
+export const navigationComponentExtensions = {
+    Anchor: Anchor.extend({
         vars: (_theme, props) => {
             if ((props.size as string) === "compact") {
                 return {
                     root: {
-                        "--text-fz": "11px",
-                        "--text-lh": "1.2",
+                        "--anchor-fz": "11px",
                     },
                 };
             }
@@ -18,14 +17,13 @@ export const displayComponentExtensions = {
         },
     }),
 
-    Badge: Badge.extend({
+    Burger: Burger.extend({
         vars: (_theme, props) => {
             if ((props.size as string) === "compact") {
                 return {
                     root: {
-                        "--badge-height": "14px",
-                        "--badge-fz": "9px",
-                        "--badge-padding-x": "4px",
+                        "--burger-size": "18px",
+                        "--burger-line-size": "2px",
                     },
                 };
             }
@@ -33,13 +31,13 @@ export const displayComponentExtensions = {
         },
     }),
 
-    Pill: Pill.extend({
+    NavLink: NavLink.extend({
         vars: (_theme, props) => {
             if ((props.size as string) === "compact") {
                 return {
                     root: {
-                        "--pill-height": "16px",
-                        "--pill-fz": "10px",
+                        "--nl-fz": "11px",
+                        "--nl-height": "28px",
                     },
                 };
             }
@@ -47,12 +45,13 @@ export const displayComponentExtensions = {
         },
     }),
 
-    Avatar: Avatar.extend({
+    Pagination: Pagination.extend({
         vars: (_theme, props) => {
             if ((props.size as string) === "compact") {
                 return {
                     root: {
-                        "--avatar-size": "24px",
+                        "--pagination-control-size": "24px",
+                        "--pagination-control-fz": "11px",
                     },
                 };
             }
@@ -60,12 +59,14 @@ export const displayComponentExtensions = {
         },
     }),
 
-    ThemeIcon: ThemeIcon.extend({
+    Stepper: Stepper.extend({
         vars: (_theme, props) => {
             if ((props.size as string) === "compact") {
                 return {
                     root: {
-                        "--ti-size": "24px",
+                        "--stepper-icon-size": "24px",
+                        "--stepper-fz": "11px",
+                        "--stepper-spacing": "8px",
                     },
                 };
             }
@@ -73,26 +74,13 @@ export const displayComponentExtensions = {
         },
     }),
 
-    Indicator: Indicator.extend({
+    Tabs: Tabs.extend({
         vars: (_theme, props) => {
             if ((props.size as string) === "compact") {
                 return {
                     root: {
-                        "--indicator-size": "8px",
-                    },
-                };
-            }
-            return { root: {} };
-        },
-    }),
-
-    Kbd: Kbd.extend({
-        vars: (_theme, props) => {
-            if ((props.size as string) === "compact") {
-                return {
-                    root: {
-                        "--kbd-fz": "10px",
-                        "--kbd-padding": "2px 4px",
+                        "--tabs-tab-fz": "11px",
+                        "--tabs-tab-padding": "6px 10px",
                     },
                 };
             }

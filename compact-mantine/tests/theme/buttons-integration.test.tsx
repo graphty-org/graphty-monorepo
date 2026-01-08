@@ -1,4 +1,4 @@
-import { ActionIcon, Button, MantineProvider } from "@mantine/core";
+import { ActionIcon, Button, CloseButton, MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -51,6 +51,39 @@ describe("Button Components Integration", () => {
                 </MantineProvider>,
             );
             expect(screen.getByRole("button", { name: "action small" })).toBeInTheDocument();
+        });
+    });
+
+    describe("CloseButton", () => {
+        it("renders with compact size (default)", () => {
+            const { container } = render(
+                <MantineProvider theme={compactTheme}>
+                    <CloseButton aria-label="close default" />
+                </MantineProvider>,
+            );
+            expect(screen.getByRole("button", { name: "close default" })).toBeInTheDocument();
+            // CloseButton has defaultProps size="compact" in our theme
+            expect(container.querySelector("[data-size='compact']")).toBeInTheDocument();
+        });
+
+        it("renders with explicit compact size", () => {
+            const { container } = render(
+                <MantineProvider theme={compactTheme}>
+                    <CloseButton size="compact" aria-label="close compact" />
+                </MantineProvider>,
+            );
+            expect(screen.getByRole("button", { name: "close compact" })).toBeInTheDocument();
+            expect(container.querySelector("[data-size='compact']")).toBeInTheDocument();
+        });
+
+        it("renders with regular size (non-compact)", () => {
+            const { container } = render(
+                <MantineProvider theme={compactTheme}>
+                    <CloseButton size="sm" aria-label="close small" />
+                </MantineProvider>,
+            );
+            expect(screen.getByRole("button", { name: "close small" })).toBeInTheDocument();
+            expect(container.querySelector("[data-size='sm']")).toBeInTheDocument();
         });
     });
 });

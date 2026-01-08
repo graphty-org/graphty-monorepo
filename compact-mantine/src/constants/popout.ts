@@ -5,6 +5,13 @@
 export const POPOUT_Z_INDEX_BASE = 1000;
 
 /**
+ * Z-index for floating UI elements (dropdowns, menus, tooltips) that appear
+ * inside popout panels. Must be higher than POPOUT_Z_INDEX_BASE to ensure
+ * dropdowns appear above the popout panel.
+ */
+export const FLOATING_UI_Z_INDEX = 1100;
+
+/**
  * Gap in pixels between trigger and panel for root-level popouts.
  */
 export const POPOUT_GAP = 8;

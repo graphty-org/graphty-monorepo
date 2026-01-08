@@ -35,6 +35,8 @@ import {
  */
 export const compactTheme = createTheme({
     colors: compactColors,
+    // Spread all component extensions into the theme
+    // Each extension object provides compact size support for a category of components
     components: {
         ...inputComponentExtensions,
         ...buttonComponentExtensions,

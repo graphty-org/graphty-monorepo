@@ -19,8 +19,8 @@ export function algorithmsRedirectPlugin() {
         enforce: "pre",
 
         resolveId(source, importer) {
-            // Intercept './algorithms.js' imports from files anywhere in the examples/html directory
-            if (source === "./algorithms.js" && importer && importer.includes("/examples/html/")) {
+            // Intercept './algorithms.js' imports from files anywhere in the examples/html-legacy directory
+            if (source === "./algorithms.js" && importer && importer.includes("/examples/html-legacy/")) {
                 // Return a virtual module ID
                 return "\0virtual:algorithms.js";
             }

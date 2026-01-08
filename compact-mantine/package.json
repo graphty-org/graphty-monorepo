@@ -1,6 +1,6 @@
 {
     "name": "@graphty/compact-mantine",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Compact size variants for Mantine UI components - optimized for dense UIs",
     "type": "module",
     "main": "dist/index.cjs",
@@ -51,7 +51,7 @@
         "typescript": "~5.8.3",
         "vite": "^6.3.5",
         "vite-plugin-dts": "^4.5.4",
-        "vitest": "^3.2.3"
+        "vitest": "^3.2.4"
     },
     "scripts": {
         "build": "vite build",
@@ -75,7 +75,16 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/graphty-org/graphty-monorepo.git",
+        "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
         "directory": "compact-mantine"
-    }
+    },
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
+    "bugs": {
+        "url": "https://github.com/graphty-org/graphty-monorepo/issues"
+    },
+    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/compact-mantine#readme",
+    "author": "Adam Powers <apowers@ato.ms>"
 }

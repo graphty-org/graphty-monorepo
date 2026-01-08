@@ -31,10 +31,6 @@ describe("inputComponentExtensions", () => {
         expect(inputComponentExtensions.ColorInput).toBeDefined();
     });
 
-    it("exports Checkbox extension", () => {
-        expect(inputComponentExtensions.Checkbox).toBeDefined();
-    });
-
     it("exports MultiSelect extension", () => {
         expect(inputComponentExtensions.MultiSelect).toBeDefined();
     });
@@ -55,9 +51,9 @@ describe("inputComponentExtensions", () => {
         expect(inputComponentExtensions.JsonInput).toBeDefined();
     });
 
-    it("exports all 14 input components", () => {
+    it("exports all 13 input components", () => {
         const components = Object.keys(inputComponentExtensions);
-        expect(components).toHaveLength(14);
+        expect(components).toHaveLength(13);
         expect(components).toContain("TextInput");
         expect(components).toContain("NumberInput");
         expect(components).toContain("Select");
@@ -65,7 +61,6 @@ describe("inputComponentExtensions", () => {
         expect(components).toContain("PasswordInput");
         expect(components).toContain("Autocomplete");
         expect(components).toContain("ColorInput");
-        expect(components).toContain("Checkbox");
         expect(components).toContain("MultiSelect");
         expect(components).toContain("TagsInput");
         expect(components).toContain("PillsInput");

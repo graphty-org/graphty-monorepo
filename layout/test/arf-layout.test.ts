@@ -244,7 +244,7 @@ describe("ARF Layout", () => {
 
         it("should handle star graphs well", () => {
             const graph = starGraph(7);
-            const positions = arfLayout(graph, null, 1, 1.3, 500);
+            const positions = arfLayout(graph, null, 1, 1.3, 500, 42);
 
             // Leaves should be roughly equidistant from center
             const centerPos = positions[0];

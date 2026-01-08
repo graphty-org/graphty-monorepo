@@ -1,6 +1,5 @@
 import {
     Autocomplete,
-    Checkbox,
     ColorInput,
     FileInput,
     InputClearButton,
@@ -210,42 +209,21 @@ export const inputComponentExtensions = {
         },
     }),
 
+    // ColorInput uses styles instead of vars due to complex type requirements
+    // (ColorInput requires eyeDropperIcon, eyeDropperButton, colorPreview CSS vars)
     ColorInput: ColorInput.extend({
         defaultProps: {
             popoverProps: { zIndex: FLOATING_UI_Z_INDEX },
         },
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return compactInputVars;
-            }
-            return { root: {}, wrapper: {} };
-        },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return compactInputStyles;
-            }
-            return {};
-        },
-    }),
-
-    Checkbox: Checkbox.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {
-                        "--checkbox-size": "14px",
-                        "--checkbox-icon-size": "9px",
-                    },
-                };
-            }
-            return { root: {} };
-        },
         styles: (_theme, props) => {
             if (props.size === "compact") {
                 return {
-                    label: {
-                        fontSize: 11,
-                        paddingLeft: 4,
+                    ...compactInputStyles,
+                    wrapper: {
+                        "--input-size": "24px",
+                        "--input-fz": "11px",
+                        "--input-bg": "var(--mantine-color-default)",
+                        "--input-bd": "none",
                     },
                 };
             }

@@ -20,7 +20,7 @@ export interface GeneratedCert {
 export function generateSelfSignedCert(hostname = "localhost"): GeneratedCert {
     const attrs = [
         { name: "commonName", value: hostname },
-        { name: "organizationName", value: "Graphty Log Server" },
+        { name: "organizationName", value: "Remote Log Server" },
         { name: "countryName", value: "US" },
     ];
 

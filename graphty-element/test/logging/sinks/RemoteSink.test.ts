@@ -214,11 +214,14 @@ describe("RemoteSink", () => {
 
     describe("message formatting", () => {
         test("should format messages correctly for server", () => {
+            // Set system time so we get predictable timestamps
+            const testTime = new Date("2024-01-15T10:30:00.000Z");
+            vi.setSystemTime(testTime);
+
             const sink = createRemoteSink({ serverUrl: "https://example.com/log" });
 
-            const timestamp = new Date("2024-01-15T10:30:00.000Z");
             sink.write({
-                timestamp,
+                timestamp: testTime,
                 level: LogLevel.ERROR,
                 category: ["graphty", "layout", "ngraph"],
                 message: "Layout failed",
@@ -236,6 +239,7 @@ describe("RemoteSink", () => {
 
             const { logs } = body;
             const log = logs[0];
+            // RemoteLogClient uses the current time when log() is called
             assert.strictEqual(log.time, "2024-01-15T10:30:00.000Z");
             assert.strictEqual(log.level, "ERROR");
             assert.isTrue(log.message.includes("Layout failed"));

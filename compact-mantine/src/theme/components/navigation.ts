@@ -2,18 +2,23 @@ import { Anchor, Burger, NavLink, Pagination, Stepper, Tabs } from "@mantine/cor
 
 /**
  * Theme extensions for navigation components with "compact" size support.
+ *
+ * Note: NavLink and Tabs do not have a `size` prop, so we use styles with
+ * custom data attributes instead of vars. Components should use data-compact
+ * attribute to trigger compact styles: <NavLink data-compact />
  */
 export const navigationComponentExtensions = {
+    // Anchor uses --text-fz since it inherits from Text component
     Anchor: Anchor.extend({
-        vars: (_theme, props) => {
+        styles: (_theme, props) => {
             if ((props.size as string) === "compact") {
                 return {
                     root: {
-                        "--anchor-fz": "11px",
+                        fontSize: 11,
                     },
                 };
             }
-            return { root: {} };
+            return {};
         },
     }),
 
@@ -31,17 +36,23 @@ export const navigationComponentExtensions = {
         },
     }),
 
+    // NavLink uses styles since it doesn't have a size prop and requires
+    // a 'children' CSS variable. Apply styles based on custom variant prop.
     NavLink: NavLink.extend({
-        vars: (_theme, props) => {
-            if ((props.size as string) === "compact") {
+        styles: (_theme, props) => {
+            // Check for compact variant
+            if ((props.variant as string) === "compact") {
                 return {
                     root: {
-                        "--nl-fz": "11px",
-                        "--nl-height": "28px",
+                        fontSize: 11,
+                        minHeight: 28,
+                    },
+                    label: {
+                        fontSize: 11,
                     },
                 };
             }
-            return { root: {} };
+            return {};
         },
     }),
 
@@ -74,17 +85,21 @@ export const navigationComponentExtensions = {
         },
     }),
 
+    // Tabs uses styles since it doesn't have a size prop and the CSS vars
+    // for tabs are limited to --tabs-color and --tabs-radius.
+    // Apply styles based on custom variant prop.
     Tabs: Tabs.extend({
-        vars: (_theme, props) => {
-            if ((props.size as string) === "compact") {
+        styles: (_theme, props) => {
+            // Check for compact variant
+            if ((props.variant as string) === "compact") {
                 return {
-                    root: {
-                        "--tabs-tab-fz": "11px",
-                        "--tabs-tab-padding": "6px 10px",
+                    tab: {
+                        fontSize: 11,
+                        padding: "6px 10px",
                     },
                 };
             }
-            return { root: {} };
+            return {};
         },
     }),
 };

@@ -1,5 +1,5 @@
 /**
- * Graphty Log Server - A standalone HTTPS log server for remote debugging.
+ * Remote Log Server - A standalone HTTP/HTTPS log server for remote debugging.
  *
  * Features:
  * - HTTPS with auto-generated self-signed certs or custom certs
@@ -8,12 +8,9 @@
  * - REST API for querying logs
  * - Optional file logging for Claude Code to read
  *
- * Usage (from a project with @graphty/graphty-element installed):
- *   npx graphty-log-server --port 9080
- *   npx graphty-log-server --cert /path/to/cert.crt --key /path/to/key.key
- *
- * Or explicitly specifying the package:
- *   npx -p @graphty/graphty-element graphty-log-server --port 9080
+ * Usage:
+ *   npx remote-log-server --port 9080
+ *   npx remote-log-server --cert /path/to/cert.crt --key /path/to/key.key
  */
 
 import * as fs from "fs";
@@ -56,7 +53,7 @@ export interface LogServerOptions {
     quiet?: boolean;
 }
 
-interface LogEntry {
+export interface LogEntry {
     time: string;
     level: string;
     message: string;
@@ -72,6 +69,14 @@ const remoteLogs = new Map<string, LogEntry[]>();
 
 // File stream for log file
 let logFileStream: fs.WriteStream | null = null;
+
+/**
+ * Clear all stored logs.
+ * Useful for testing.
+ */
+export function clearLogs(): void {
+    remoteLogs.clear();
+}
 
 /**
  * Format log level for terminal output with colors.
@@ -101,20 +106,23 @@ function formatLogLevel(level: string): string {
  * Display a log entry in the terminal.
  * @param sessionId - The session ID for this log entry
  * @param log - The log entry to display
+ * @param quiet - If true, suppress terminal output
  */
-function displayLog(sessionId: string, log: LogEntry): void {
-    const time = new Date(log.time).toLocaleTimeString();
-    const level = formatLogLevel(log.level);
-    const session = `${colors.cyan}[${sessionId.substring(0, 12)}]${colors.reset}`;
+function displayLog(sessionId: string, log: LogEntry, quiet: boolean): void {
+    if (!quiet) {
+        const time = new Date(log.time).toLocaleTimeString();
+        const level = formatLogLevel(log.level);
+        const session = `${colors.cyan}[${sessionId.substring(0, 12)}]${colors.reset}`;
 
-    // Truncate very long messages for display
-    let { message } = log;
-    if (message.length > 1000) {
-        message = `${message.substring(0, 1000)}... [truncated]`;
+        // Truncate very long messages for display
+        let { message } = log;
+        if (message.length > 1000) {
+            message = `${message.substring(0, 1000)}... [truncated]`;
+        }
+
+        // eslint-disable-next-line no-console
+        console.log(`${time} ${session} ${level} ${message}`);
     }
-
-    // eslint-disable-next-line no-console
-    console.log(`${time} ${session} ${level} ${message}`);
 
     // Write to log file if configured
     if (logFileStream) {
@@ -135,6 +143,7 @@ function displayLog(sessionId: string, log: LogEntry): void {
  * @param host - The server hostname
  * @param port - The server port number
  * @param useHttps - Whether HTTPS is being used
+ * @param quiet - If true, suppress terminal output
  */
 function handleRequest(
     req: http.IncomingMessage,
@@ -142,6 +151,7 @@ function handleRequest(
     host: string,
     port: number,
     useHttps: boolean,
+    quiet: boolean,
 ): void {
     // CORS headers
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -171,16 +181,18 @@ function handleRequest(
                 // Initialize session if new
                 if (!remoteLogs.has(sessionId)) {
                     remoteLogs.set(sessionId, []);
-                    // eslint-disable-next-line no-console
-                    console.log(
-                        `\n${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}`,
-                    );
-                    // eslint-disable-next-line no-console
-                    console.log(`${colors.bright}${colors.magenta}  NEW SESSION: ${sessionId}${colors.reset}`);
-                    // eslint-disable-next-line no-console
-                    console.log(
-                        `${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}\n`,
-                    );
+                    if (!quiet) {
+                        // eslint-disable-next-line no-console
+                        console.log(
+                            `\n${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}`,
+                        );
+                        // eslint-disable-next-line no-console
+                        console.log(`${colors.bright}${colors.magenta}  NEW SESSION: ${sessionId}${colors.reset}`);
+                        // eslint-disable-next-line no-console
+                        console.log(
+                            `${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}\n`,
+                        );
+                    }
                 }
 
                 const sessionLogs = remoteLogs.get(sessionId);
@@ -194,13 +206,15 @@ function handleRequest(
                 // Display and store each log
                 for (const log of logs) {
                     sessionLogs.push(log);
-                    displayLog(sessionId, log);
+                    displayLog(sessionId, log, quiet);
                 }
 
                 res.writeHead(200, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ success: true }));
             } catch (error) {
-                console.error("Error parsing log data:", error);
+                if (!quiet) {
+                    console.error("Error parsing log data:", error);
+                }
                 res.writeHead(400, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ error: "Invalid JSON" }));
             }
@@ -283,8 +297,10 @@ function handleRequest(
     // Handle clear logs endpoint
     if (url === "/logs/clear" && req.method === "POST") {
         remoteLogs.clear();
-        // eslint-disable-next-line no-console
-        console.log(`\n${colors.yellow}Logs cleared${colors.reset}\n`);
+        if (!quiet) {
+            // eslint-disable-next-line no-console
+            console.log(`\n${colors.yellow}Logs cleared${colors.reset}\n`);
+        }
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: true }));
         return;
@@ -318,7 +334,7 @@ function printBanner(host: string, port: number, useHttps: boolean): void {
         `${colors.bright}${colors.cyan}════════════════════════════════════════════════════════════${colors.reset}`,
     );
     // eslint-disable-next-line no-console
-    console.log(`${colors.bright}${colors.cyan}  Graphty Log Server${colors.reset}`);
+    console.log(`${colors.bright}${colors.cyan}  Remote Log Server${colors.reset}`);
     // eslint-disable-next-line no-console
     console.log(
         `${colors.bright}${colors.cyan}════════════════════════════════════════════════════════════${colors.reset}`,
@@ -348,12 +364,6 @@ function printBanner(host: string, port: number, useHttps: boolean): void {
     // eslint-disable-next-line no-console
     console.log("");
     // eslint-disable-next-line no-console
-    console.log(`${colors.yellow}Browser URL Parameter:${colors.reset}`);
-    // eslint-disable-next-line no-console
-    console.log(`  ${colors.dim}?graphty-element-remote-log=${protocol}://${host}:${port}${colors.reset}`);
-    // eslint-disable-next-line no-console
-    console.log("");
-    // eslint-disable-next-line no-console
     console.log(`${colors.dim}Remote logs will appear below:${colors.reset}`);
     // eslint-disable-next-line no-console
     console.log(`${colors.cyan}────────────────────────────────────────────────────────────${colors.reset}`);
@@ -362,8 +372,9 @@ function printBanner(host: string, port: number, useHttps: boolean): void {
 /**
  * Start the log server.
  * @param options - Server configuration options
+ * @returns The HTTP or HTTPS server instance
  */
-export function startLogServer(options: LogServerOptions = {}): void {
+export function startLogServer(options: LogServerOptions = {}): http.Server | https.Server {
     const port = options.port ?? 9080;
     const host = options.host ?? "localhost";
     const useHttp = options.useHttp ?? false;
@@ -372,8 +383,10 @@ export function startLogServer(options: LogServerOptions = {}): void {
     // Set up log file if specified
     if (options.logFile) {
         logFileStream = fs.createWriteStream(options.logFile, { flags: "a" });
-        // eslint-disable-next-line no-console
-        console.log(`${colors.green}Writing logs to: ${options.logFile}${colors.reset}`);
+        if (!quiet) {
+            // eslint-disable-next-line no-console
+            console.log(`${colors.green}Writing logs to: ${options.logFile}${colors.reset}`);
+        }
     }
 
     // Determine SSL configuration
@@ -382,7 +395,7 @@ export function startLogServer(options: LogServerOptions = {}): void {
     if (useHttp) {
         // Plain HTTP server
         server = http.createServer((req, res) => {
-            handleRequest(req, res, host, port, false);
+            handleRequest(req, res, host, port, false, quiet);
         });
     } else {
         // HTTPS server
@@ -413,7 +426,7 @@ export function startLogServer(options: LogServerOptions = {}): void {
         }
 
         server = https.createServer({ cert, key }, (req, res) => {
-            handleRequest(req, res, host, port, true);
+            handleRequest(req, res, host, port, true, quiet);
         });
     }
 
@@ -436,13 +449,57 @@ export function startLogServer(options: LogServerOptions = {}): void {
             process.exit(0);
         });
     });
+
+    return server;
 }
 
 /**
- * Parse command line arguments and start the server.
+ * Help text displayed when --help is passed.
  */
-export function main(): void {
-    const args = process.argv.slice(2);
+export const HELP_TEXT = `
+Remote Log Server - Remote logging for browser debugging
+
+Usage:
+  npx remote-log-server [options]
+  npx @graphty/remote-logger [options]
+
+Options:
+  --port, -p <port>       Port to listen on (default: 9080)
+  --host, -h <host>       Hostname to bind to (default: localhost)
+  --cert, -c <path>       Path to SSL certificate file
+  --key, -k <path>        Path to SSL private key file
+  --log-file, -l <path>   Write logs to file
+  --http                  Use HTTP instead of HTTPS
+  --quiet, -q             Suppress startup banner
+  --help                  Show this help message
+
+Examples:
+  npx remote-log-server                           # Start with defaults (port 9080, self-signed cert)
+  npx remote-log-server --port 9085               # Custom port
+  npx remote-log-server --http                    # Use HTTP instead of HTTPS
+  npx remote-log-server --cert cert.crt --key key.key  # Custom SSL certs
+  npx remote-log-server --log-file ./tmp/logs.jsonl    # Also write to file
+`;
+
+/**
+ * Result of parsing command line arguments.
+ */
+export interface ParseArgsResult {
+    /** Parsed options for the log server */
+    options: LogServerOptions;
+    /** Whether --help was requested */
+    showHelp: boolean;
+    /** Error message if parsing failed */
+    error?: string;
+}
+
+/**
+ * Parse command line arguments into LogServerOptions.
+ * This is separated from main() to enable testing.
+ * @param args - Array of command line arguments (excluding node and script name)
+ * @returns ParseArgsResult with options, help flag, or error
+ */
+export function parseArgs(args: string[]): ParseArgsResult {
     const options: LogServerOptions = {};
 
     for (let i = 0; i < args.length; i++) {
@@ -483,43 +540,32 @@ export function main(): void {
                 options.quiet = true;
                 break;
             case "--help":
-                // eslint-disable-next-line no-console
-                console.log(`
-Graphty Log Server - Remote logging for browser debugging
-
-Usage (from a project with @graphty/graphty-element installed):
-  npx graphty-log-server [options]
-
-Or explicitly specifying the package:
-  npx -p @graphty/graphty-element graphty-log-server [options]
-
-Options:
-  --port, -p <port>       Port to listen on (default: 9080)
-  --host, -h <host>       Hostname to bind to (default: localhost)
-  --cert, -c <path>       Path to SSL certificate file
-  --key, -k <path>        Path to SSL private key file
-  --log-file, -l <path>   Write logs to file (for Claude to read)
-  --http                  Use HTTP instead of HTTPS
-  --quiet, -q             Suppress startup banner
-  --help                  Show this help message
-
-Examples:
-  npx graphty-log-server                           # Start with defaults (port 9080, self-signed cert)
-  npx graphty-log-server --port 9085               # Custom port
-  npx graphty-log-server --cert cert.crt --key key.key  # Custom SSL certs
-  npx graphty-log-server --log-file ./tmp/logs.jsonl    # Also write to file
-
-Browser URL Parameter:
-  Add this to your page URL to enable remote logging:
-  ?graphty-element-remote-log=https://localhost:9080
-`);
-                process.exit(0);
-                break;
+                return { options, showHelp: true };
             default:
-                console.error(`Unknown option: ${arg}`);
-                process.exit(1);
+                return { options, showHelp: false, error: `Unknown option: ${arg}` };
         }
     }
 
-    startLogServer(options);
+    return { options, showHelp: false };
+}
+
+/**
+ * Parse command line arguments and start the server.
+ */
+export function main(): void {
+    const args = process.argv.slice(2);
+    const result = parseArgs(args);
+
+    if (result.showHelp) {
+        // eslint-disable-next-line no-console
+        console.log(HELP_TEXT);
+        process.exit(0);
+    }
+
+    if (result.error) {
+        console.error(result.error);
+        process.exit(1);
+    }
+
+    startLogServer(result.options);
 }

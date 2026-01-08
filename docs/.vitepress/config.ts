@@ -73,9 +73,9 @@ export default defineConfig({
                 {
                     text: "Quick Links",
                     items: [
-                        { text: "Storybook Examples", link: "https://graphty.app/storybook/element/" },
-                        { text: "Algorithm Demos", link: "https://graphty.app/algorithms/" },
-                        { text: "Layout Demos", link: "https://graphty.app/layout/examples/index.html" },
+                        { text: "graphty-element Storybook", link: "https://graphty.app/storybook/element/" },
+                        { text: "algorithms Storybook", link: "https://graphty.app/storybook/algorithms/" },
+                        { text: "layout Storybook", link: "https://graphty.app/storybook/layout/" },
                         { text: "GitHub", link: "https://github.com/graphty-org/graphty-monorepo" },
                     ],
                 },

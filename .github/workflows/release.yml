@@ -81,6 +81,14 @@ jobs:
                   run-id: ${{ github.event.workflow_run.id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
+            - name: Download remote-logger build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-remote-logger
+                  path: remote-logger/dist/
+                  run-id: ${{ github.event.workflow_run.id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
             - name: Download compact-mantine build
               uses: actions/download-artifact@v4
               with:

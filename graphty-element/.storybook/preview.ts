@@ -7,10 +7,11 @@ import { Preview, setCustomElementsManifest } from "@storybook/web-components-vi
 // @ts-expect-error TS doesn't recognize virtual imports?
 import manifest from "virtual:vite-plugin-cem/custom-elements-manifest";
 
+import { initConsoleCaptureUI } from "@graphty/remote-logger/ui";
+
 import { StyleTemplate } from "../src/config";
 // Force import and registration of graphty-element and all its dependencies
 import { Graphty } from "../src/graphty-element";
-import { initConsoleCaptureUI } from "./console-capture-ui";
 // @ts-expect-error MDX files are handled by Storybook's build system
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
 

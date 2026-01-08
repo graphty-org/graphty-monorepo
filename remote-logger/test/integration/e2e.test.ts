@@ -105,7 +105,7 @@ describe("E2E: Browser to Claude Code", () => {
             httpHost: "127.0.0.1",
             httpEnabled: true,
             mcpEnabled: true,
-            quiet: true,
+                        quiet: true,
             jsonlWriter,
         });
 
@@ -146,7 +146,7 @@ describe("E2E: Browser to Claude Code", () => {
             httpHost: "127.0.0.1",
             httpEnabled: true,
             mcpEnabled: true,
-            quiet: true,
+                        quiet: true,
             jsonlWriter,
         });
 
@@ -185,7 +185,7 @@ describe("E2E: Browser to Claude Code", () => {
             httpHost: "127.0.0.1",
             httpEnabled: true,
             mcpEnabled: true,
-            quiet: true,
+                        quiet: true,
             jsonlWriter,
         });
 
@@ -237,7 +237,7 @@ describe("E2E: Browser to Claude Code", () => {
             httpHost: "127.0.0.1",
             httpEnabled: true,
             mcpEnabled: true,
-            quiet: true,
+                        quiet: true,
             jsonlWriter,
         });
 
@@ -289,7 +289,7 @@ describe("E2E: Browser to Claude Code", () => {
             httpHost: "127.0.0.1",
             httpEnabled: true,
             mcpEnabled: true,
-            quiet: true,
+                        quiet: true,
             jsonlWriter,
         });
 
@@ -313,7 +313,7 @@ describe("E2E: Browser to Claude Code", () => {
             httpHost: "127.0.0.1",
             httpEnabled: true,
             mcpEnabled: true,
-            quiet: true,
+                        quiet: true,
             jsonlWriter,
         });
 
@@ -355,7 +355,7 @@ describe("E2E: Browser to Claude Code", () => {
             httpHost: "127.0.0.1",
             httpEnabled: true,
             mcpEnabled: true,
-            quiet: true,
+                        quiet: true,
             jsonlWriter,
         });
 

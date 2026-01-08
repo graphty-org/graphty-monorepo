@@ -125,6 +125,11 @@ export interface SearchOptions {
 }
 
 /**
+ * Server mode indicating which interfaces are enabled.
+ */
+export type ServerMode = "mcp-only" | "http-only" | "dual";
+
+/**
  * HTTP server configuration.
  */
 export interface ServerConfig {
@@ -136,6 +141,8 @@ export interface ServerConfig {
     protocol: "http" | "https";
     /** Full URL for browser clients to send logs to */
     httpEndpoint: string;
+    /** Server mode (mcp-only, http-only, or dual) */
+    mode: ServerMode;
 }
 
 /**

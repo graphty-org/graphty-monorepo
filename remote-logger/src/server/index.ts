@@ -40,6 +40,7 @@ export {
     type LogStorageOptions,
     type SearchOptions,
     type ServerConfig,
+    type ServerMode,
     type ServerStatus,
     type SessionFilter,
     type SessionMetadata,

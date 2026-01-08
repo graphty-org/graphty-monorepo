@@ -94,7 +94,8 @@ describe("logs_status tool", () => {
             httpPort: 9080,
             httpHost: "localhost",
             protocol: "http",
-            httpEndpoint: "http://localhost:9080/logs",
+            httpEndpoint: "http://localhost:9080/log",
+            mode: "dual",
         });
 
         const result = await logsStatusHandler(storage);
@@ -103,7 +104,8 @@ describe("logs_status tool", () => {
         expect(result.server?.httpPort).toBe(9080);
         expect(result.server?.httpHost).toBe("localhost");
         expect(result.server?.protocol).toBe("http");
-        expect(result.server?.httpEndpoint).toBe("http://localhost:9080/logs");
+        expect(result.server?.httpEndpoint).toBe("http://localhost:9080/log");
+        expect(result.server?.mode).toBe("dual");
     });
 
     test("returns https server config", async () => {
@@ -111,13 +113,29 @@ describe("logs_status tool", () => {
             httpPort: 9443,
             httpHost: "localhost",
             protocol: "https",
-            httpEndpoint: "https://localhost:9443/logs",
+            httpEndpoint: "https://localhost:9443/log",
+            mode: "http-only",
         });
 
         const result = await logsStatusHandler(storage);
 
         expect(result.server?.protocol).toBe("https");
-        expect(result.server?.httpEndpoint).toBe("https://localhost:9443/logs");
+        expect(result.server?.httpEndpoint).toBe("https://localhost:9443/log");
+        expect(result.server?.mode).toBe("http-only");
+    });
+
+    test("returns mcp-only mode", async () => {
+        storage.setServerConfig({
+            httpPort: 9080,
+            httpHost: "localhost",
+            protocol: "http",
+            httpEndpoint: "http://localhost:9080/log",
+            mode: "mcp-only",
+        });
+
+        const result = await logsStatusHandler(storage);
+
+        expect(result.server?.mode).toBe("mcp-only");
     });
 
     test("returns retention days", async () => {

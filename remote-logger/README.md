@@ -42,10 +42,10 @@ pnpm add @graphty/remote-logger
 
 ```bash
 # Using npx
-npx remote-log-server --http --port 9080
+npx remote-log-server --port 9080
 
 # Or via CLI after installation
-remote-log-server --http --port 9080
+remote-log-server --port 9080
 ```
 
 ### 2. Add Client to Your Application
@@ -100,21 +100,23 @@ Usage:
 Options:
   --port, -p <port>       Port to listen on (default: 9080)
   --host, -h <host>       Hostname to bind to (default: localhost)
-  --cert, -c <path>       Path to SSL certificate file
-  --key, -k <path>        Path to SSL private key file
+  --cert, -c <path>       Path to SSL certificate file (enables HTTPS)
+  --key, -k <path>        Path to SSL private key file (enables HTTPS)
   --log-file, -l <path>   Write logs to file (JSONL format)
-  --http                  Use HTTP instead of HTTPS
   --quiet, -q             Suppress startup banner
   --mcp-only              Start only MCP server (no HTTP)
   --http-only             Start only HTTP server (no MCP)
   --help                  Show help message
 
+Protocol:
+  HTTP is used by default. To use HTTPS, provide both --cert and --key.
+
 Examples:
-  npx remote-log-server                           # Dual mode: HTTP + MCP (default)
-  npx remote-log-server --http --port 9080        # HTTP on port 9080 + MCP
-  npx remote-log-server --mcp-only                # MCP only (for Claude Code)
-  npx remote-log-server --http-only               # HTTP only (legacy mode)
-  npx remote-log-server --cert cert.pem --key key.pem  # Custom SSL certs
+  npx remote-log-server                                # Dual mode: HTTP + MCP (default)
+  npx remote-log-server --port 9080                    # HTTP on port 9080 + MCP
+  npx remote-log-server --mcp-only                     # MCP only (for Claude Code)
+  npx remote-log-server --http-only                    # HTTP only (legacy mode)
+  npx remote-log-server --cert cert.pem --key key.pem  # Use HTTPS with custom certs
 ```
 
 ### Environment Variables
@@ -349,7 +351,7 @@ By default, the server runs in dual mode with both HTTP and MCP interfaces shari
 
 ```bash
 # Start dual server (HTTP + MCP)
-npx remote-log-server --http --port 9080
+npx remote-log-server --port 9080
 ```
 
 ### MCP Tools

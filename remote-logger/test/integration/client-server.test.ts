@@ -48,7 +48,7 @@ describe("Client-Server Integration", () => {
 
     beforeAll(async () => {
         port = getNextPort();
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: true }) as http.Server;
+        server = startLogServer({ port, host: "127.0.0.1", quiet: true }) as http.Server;
         await waitForServer(server);
     });
 

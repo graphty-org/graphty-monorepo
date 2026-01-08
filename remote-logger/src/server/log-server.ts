@@ -22,7 +22,7 @@ import { URL } from "url";
 
 import { JsonlWriter } from "./jsonl-writer.js";
 import { type LogEntry, LogStorage } from "./log-storage.js";
-import { certFilesExist, generateSelfSignedCert, readCertFiles } from "./self-signed-cert.js";
+import { certFilesExist, readCertFiles } from "./self-signed-cert.js";
 
 // Shared log storage instance
 let sharedStorage: LogStorage | null = null;
@@ -83,14 +83,12 @@ export interface LogServerOptions {
     port?: number;
     /** Hostname to bind to (default: localhost) */
     host?: string;
-    /** Path to SSL certificate file */
+    /** Path to SSL certificate file (HTTPS only used if both certPath and keyPath provided) */
     certPath?: string;
-    /** Path to SSL private key file */
+    /** Path to SSL private key file (HTTPS only used if both certPath and keyPath provided) */
     keyPath?: string;
     /** Path to file for writing logs (optional) */
     logFile?: string;
-    /** Use HTTP instead of HTTPS (default: false) */
-    useHttp?: boolean;
     /** Start in MCP server mode (default: false) @deprecated Use mcpOnly instead */
     mcp?: boolean;
     /** Start only MCP server (no HTTP) */
@@ -189,6 +187,7 @@ function displayLog(sessionId: string, log: LogEntry, quiet: boolean): void {
  * @param port - The server port number
  * @param useHttps - Whether HTTPS is being used
  * @param quiet - If true, suppress terminal output
+ * @param logReceiveOnly - If true, only serve /log POST and /health GET endpoints
  */
 function handleRequest(
     req: http.IncomingMessage,
@@ -197,6 +196,7 @@ function handleRequest(
     port: number,
     useHttps: boolean,
     quiet: boolean,
+    logReceiveOnly: boolean = false,
 ): void {
     // CORS headers
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -261,6 +261,21 @@ function handleRequest(
         return;
     }
 
+    // Health check endpoint (always available)
+    if (url === "/health" && req.method === "GET") {
+        const health = getLogStorage().getHealth();
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: health.status, sessions: health.sessionCount }));
+        return;
+    }
+
+    // In logReceiveOnly mode, only /log and /health are available
+    if (logReceiveOnly) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Not found (log receive only mode)" }));
+        return;
+    }
+
     // Handle logs viewer endpoint - GET all logs
     if (url === "/logs" && req.method === "GET") {
         const allLogs = getLogStorage().getAllLogsBySession();
@@ -322,14 +337,6 @@ function handleRequest(
         }
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: true }));
-        return;
-    }
-
-    // Health check endpoint
-    if (url === "/health" && req.method === "GET") {
-        const health = getLogStorage().getHealth();
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: health.status, sessions: health.sessionCount }));
         return;
     }
 
@@ -399,36 +406,66 @@ export interface CreateLogServerOptions {
     host: string;
     /** Shared log storage instance */
     storage: LogStorage;
-    /** Use HTTP instead of HTTPS (default: false) */
-    useHttp?: boolean;
     /** Suppress terminal output (default: false) */
     quiet?: boolean;
+    /** Only serve /log POST and /health GET endpoints (default: false) */
+    logReceiveOnly?: boolean;
+    /** Path to SSL certificate file (HTTPS only used if both certPath and keyPath provided) */
+    certPath?: string;
+    /** Path to SSL private key file (HTTPS only used if both certPath and keyPath provided) */
+    keyPath?: string;
 }
 
 /**
  * Result of creating a log server.
  */
 export interface CreateLogServerResult {
-    /** The HTTP server instance (not yet listening) */
-    server: http.Server;
+    /** The HTTP or HTTPS server instance (not yet listening) */
+    server: http.Server | https.Server;
 }
 
 /**
- * Create a log server with shared storage (for integration testing).
+ * Create a log server with shared storage.
  * The server is not started - call server.listen() to start it.
  * @param options - Server configuration options
  * @returns The server instance
  */
 export function createLogServer(options: CreateLogServerOptions): CreateLogServerResult {
-    const { port, host, storage, quiet = true } = options;
+    const {
+        port,
+        host,
+        storage,
+        quiet = true,
+        logReceiveOnly = false,
+        certPath,
+        keyPath,
+    } = options;
 
     // Set the shared storage
     setLogStorage(storage);
 
-    // Create HTTP server (integration tests use HTTP)
-    const server = http.createServer((req, res) => {
-        handleRequest(req, res, host, port, false, quiet);
-    });
+    let server: http.Server | https.Server;
+
+    // Use HTTPS only if valid certificate files are provided
+    const useHttps = certPath && keyPath && certFilesExist(certPath, keyPath);
+
+    if (useHttps) {
+        // HTTPS server with provided certificates
+        const { cert, key } = readCertFiles(certPath, keyPath);
+        if (!quiet) {
+            // eslint-disable-next-line no-console
+            console.log(`${colors.green}Using SSL certificates from: ${certPath}${colors.reset}`);
+        }
+
+        server = https.createServer({ cert, key }, (req, res) => {
+            handleRequest(req, res, host, port, true, quiet, logReceiveOnly);
+        });
+    } else {
+        // HTTP server (default - no self-signed certs as browsers reject them)
+        server = http.createServer((req, res) => {
+            handleRequest(req, res, host, port, false, quiet, logReceiveOnly);
+        });
+    }
 
     return { server };
 }
@@ -441,7 +478,6 @@ export function createLogServer(options: CreateLogServerOptions): CreateLogServe
 export function startLogServer(options: LogServerOptions = {}): http.Server | https.Server {
     const port = options.port ?? 9080;
     const host = options.host ?? "localhost";
-    const useHttp = options.useHttp ?? false;
     const quiet = options.quiet ?? false;
 
     // Set up log file if specified
@@ -454,50 +490,34 @@ export function startLogServer(options: LogServerOptions = {}): http.Server | ht
     }
 
     // Determine SSL configuration
+    // Use HTTPS only if valid certificate files are provided
     let server: https.Server | http.Server;
+    let useHttps = false;
+    const { certPath, keyPath } = options;
 
-    if (useHttp) {
-        // Plain HTTP server
-        server = http.createServer((req, res) => {
-            handleRequest(req, res, host, port, false, quiet);
-        });
-    } else {
-        // HTTPS server
-        let cert: string;
-        let key: string;
-
-        if (options.certPath && options.keyPath && certFilesExist(options.certPath, options.keyPath)) {
-            // Use provided certificates
-            ({ cert, key } = readCertFiles(options.certPath, options.keyPath));
-            if (!quiet) {
-                // eslint-disable-next-line no-console
-                console.log(`${colors.green}Using SSL certificates from: ${options.certPath}${colors.reset}`);
-            }
-        } else {
-            // Generate self-signed certificate
-            if (!quiet) {
-                // eslint-disable-next-line no-console
-                console.log(`${colors.yellow}Generating self-signed certificate for ${host}...${colors.reset}`);
-            }
-
-            ({ cert, key } = generateSelfSignedCert(host));
-            if (!quiet) {
-                // eslint-disable-next-line no-console
-                console.log(
-                    `${colors.yellow}Note: Browser will show certificate warning - this is expected for self-signed certs${colors.reset}`,
-                );
-            }
+    if (certPath && keyPath && certFilesExist(certPath, keyPath)) {
+        // HTTPS server with provided certificates
+        useHttps = true;
+        const { cert, key } = readCertFiles(certPath, keyPath);
+        if (!quiet) {
+            // eslint-disable-next-line no-console
+            console.log(`${colors.green}Using SSL certificates from: ${certPath}${colors.reset}`);
         }
 
         server = https.createServer({ cert, key }, (req, res) => {
             handleRequest(req, res, host, port, true, quiet);
+        });
+    } else {
+        // HTTP server (default - no self-signed certs as browsers reject them)
+        server = http.createServer((req, res) => {
+            handleRequest(req, res, host, port, false, quiet);
         });
     }
 
     // Start listening
     server.listen(port, host, () => {
         if (!quiet) {
-            printBanner(host, port, !useHttp);
+            printBanner(host, port, useHttps);
         }
     });
 
@@ -536,15 +556,17 @@ Usage:
 Options:
   --port, -p <port>       Port to listen on (default: 9080)
   --host, -h <host>       Hostname to bind to (default: localhost)
-  --cert, -c <path>       Path to SSL certificate file
-  --key, -k <path>        Path to SSL private key file
+  --cert, -c <path>       Path to SSL certificate file (enables HTTPS)
+  --key, -k <path>        Path to SSL private key file (enables HTTPS)
   --log-file, -l <path>   Write logs to file
-  --http                  Use HTTP instead of HTTPS
   --mcp-only              Start only MCP server (no HTTP)
   --http-only             Start only HTTP server (legacy mode)
   --mcp                   Alias for --mcp-only (deprecated)
   --quiet, -q             Suppress startup banner
   --help                  Show this help message
+
+Protocol:
+  HTTP is used by default. To use HTTPS, provide both --cert and --key.
 
 Modes:
   Default (no flags)      Dual mode: HTTP + MCP running together
@@ -552,12 +574,11 @@ Modes:
   --http-only             HTTP only: Legacy mode for browser debugging
 
 Examples:
-  npx remote-log-server                           # Start dual mode (HTTP + MCP)
-  npx remote-log-server --port 9085               # Custom port
-  npx remote-log-server --http                    # Use HTTP instead of HTTPS
-  npx remote-log-server --mcp-only                # MCP server only (for Claude Code)
-  npx remote-log-server --http-only               # HTTP server only (legacy)
-  npx remote-log-server --cert cert.crt --key key.key  # Custom SSL certs
+  npx remote-log-server                                # Start dual mode (HTTP + MCP)
+  npx remote-log-server --port 9085                    # Custom port
+  npx remote-log-server --mcp-only                     # MCP server only (for Claude Code)
+  npx remote-log-server --http-only                    # HTTP server only (legacy)
+  npx remote-log-server --cert cert.crt --key key.key  # Use HTTPS with custom certs
   npx remote-log-server --log-file ./tmp/logs.jsonl    # Also write to file
 `;
 
@@ -612,9 +633,6 @@ export function parseArgs(args: string[]): ParseArgsResult {
                 options.logFile = nextArg;
                 i++;
                 break;
-            case "--http":
-                options.useHttp = true;
-                break;
             case "--mcp":
                 // Legacy alias for --mcp-only. Only set mcpOnly now.
                 options.mcpOnly = true;
@@ -660,24 +678,68 @@ export async function main(): Promise<void> {
     const { options } = result;
 
     // Determine mode: mcp-only, http-only, or dual (default)
-    if (options.mcpOnly) {
-        // MCP-only mode
-        const { startMcpServer } = await import("../mcp/index.js");
-        const storage = getLogStorage();
-        await startMcpServer(storage);
-    } else if (options.httpOnly) {
-        // HTTP-only mode (legacy)
-        startLogServer(options);
-    } else {
-        // Dual mode (default): Start both HTTP and MCP
-        const { createDualServer } = await import("./dual-server.js");
+    // All modes now use createDualServer with different options
+    const { createDualServer } = await import("./dual-server.js");
 
+    if (options.mcpOnly) {
+        // MCP-only mode: HTTP only serves /log endpoint, MCP enabled
         const dualServer = await createDualServer({
             httpPort: options.port ?? 9080,
             httpHost: options.host ?? "localhost",
             httpEnabled: true,
             mcpEnabled: true,
-            useHttp: options.useHttp ?? false,
+            quiet: options.quiet ?? false,
+            logReceiveOnly: true, // Only serve /log and /health endpoints
+            certPath: options.certPath,
+            keyPath: options.keyPath,
+        });
+
+        // Handle graceful shutdown
+        process.on("SIGINT", () => {
+            // eslint-disable-next-line no-console
+            console.log("\nShutting down...");
+            void dualServer.shutdown().then(() => {
+                process.exit(0);
+            });
+        });
+
+        if (!options.quiet) {
+            // eslint-disable-next-line no-console
+            console.log("MCP mode: Log receive endpoint and MCP tools running");
+        }
+    } else if (options.httpOnly) {
+        // HTTP-only mode: All HTTP endpoints, no MCP
+        const dualServer = await createDualServer({
+            httpPort: options.port ?? 9080,
+            httpHost: options.host ?? "localhost",
+            httpEnabled: true,
+            mcpEnabled: false,
+            quiet: options.quiet ?? false,
+            certPath: options.certPath,
+            keyPath: options.keyPath,
+            logFile: options.logFile,
+        });
+
+        // Handle graceful shutdown
+        process.on("SIGINT", () => {
+            // eslint-disable-next-line no-console
+            console.log("\nShutting down...");
+            void dualServer.shutdown().then(() => {
+                process.exit(0);
+            });
+        });
+
+        if (!options.quiet) {
+            // eslint-disable-next-line no-console
+            console.log("HTTP-only mode: All HTTP endpoints running");
+        }
+    } else {
+        // Dual mode (default): All HTTP endpoints and MCP
+        const dualServer = await createDualServer({
+            httpPort: options.port ?? 9080,
+            httpHost: options.host ?? "localhost",
+            httpEnabled: true,
+            mcpEnabled: true,
             quiet: options.quiet ?? false,
             certPath: options.certPath,
             keyPath: options.keyPath,

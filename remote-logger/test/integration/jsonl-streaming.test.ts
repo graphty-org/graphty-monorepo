@@ -33,12 +33,13 @@ describe("JSONL streaming integration", () => {
 
         // Create server with shared storage
         port = 8300 + Math.floor(Math.random() * 100);
-        const result = await createLogServer({
+        // HTTP is the default (HTTPS requires certPath and keyPath)
+        const result = createLogServer({
             port,
             host: "127.0.0.1",
             storage,
         });
-        server = result.server;
+        server = result.server as http.Server;
 
         // Wait for server to be ready
         await new Promise<void>((resolve) => {

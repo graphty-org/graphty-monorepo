@@ -5,6 +5,7 @@
 import type { Graph, Node, PositionMap } from "../../types";
 import { getEdgesFromGraph,getNodesFromGraph } from "../../utils/graph";
 import { _processParams } from "../../utils/params";
+import { RandomNumberGenerator } from "../../utils/random";
 import { rescaleLayout } from "../../utils/rescale";
 
 /**
@@ -13,6 +14,7 @@ import { rescaleLayout } from "../../utils/rescale";
  * @param scale - Scale factor for positions
  * @param center - Coordinate pair around which to center the layout
  * @param dim - Dimension of layout
+ * @param seed - Random seed for reproducible layouts
  * @returns Positions dictionary keyed by node
  */
 export function spectralLayout(
@@ -20,6 +22,7 @@ export function spectralLayout(
     scale: number = 1,
     center: number[] | null = null,
     dim: number = 2,
+    seed: number | null = null,
 ): PositionMap {
     const processed = _processParams(G, center, dim);
     const graph = processed.G;
@@ -74,12 +77,13 @@ export function spectralLayout(
     // Compute eigenvectors using power iteration method
     // We need the smallest non-zero eigenvectors of L
     const eigenvectors: number[][] = [];
+    const rng = new RandomNumberGenerator(seed ?? undefined);
 
     // For each dimension, find an eigenvector
     for (let d = 0; d < dim; d++) {
         let vector = Array(N)
             .fill(0)
-            .map(() => Math.random() - 0.5);
+            .map(() => (rng.rand(null) as number) - 0.5);
 
         // Orthogonalize against previous eigenvectors
         for (const ev of eigenvectors) {

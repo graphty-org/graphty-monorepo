@@ -53,7 +53,7 @@ function createSpectralStory(args: SpectralArgs): HTMLElement {
     const randomPositions = generateRandomPositions(generatedGraph, 500, 500, seed);
 
     // Compute final spectral layout using actual algorithm
-    const finalPositions = spectralLayout(layoutGraph, scale, [0, 0], 2);
+    const finalPositions = spectralLayout(layoutGraph, scale, [0, 0], 2, seed);
 
     // Create container
     const { container, svg } = createStoryContainer();

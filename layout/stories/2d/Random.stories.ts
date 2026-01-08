@@ -148,15 +148,15 @@ export const Random: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        // Click randomize button to apply new random layout
-        const randomizeButton = canvas.getByRole("button", { name: /randomize/i });
-        await userEvent.click(randomizeButton);
+        // Click reset button to apply the seeded layout (deterministic for Chromatic tests)
+        const resetButton = canvas.getByRole("button", { name: /reset/i });
+        await userEvent.click(resetButton);
 
         // Wait for status to update
         await waitFor(
             async () => {
                 const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("applied");
+                await expect(statusText).toContain("Reset");
             },
             { timeout: 5000 },
         );

@@ -1,6 +1,6 @@
 import {
     Autocomplete,
-    Checkbox,
+    ColorInput,
     FileInput,
     InputClearButton,
     JsonInput,
@@ -13,6 +13,8 @@ import {
     Textarea,
     TextInput,
 } from "@mantine/core";
+
+import { FLOATING_UI_Z_INDEX } from "../../constants/popout";
 
 /**
  * Shared CSS variables for compact-sized inputs.
@@ -41,6 +43,33 @@ const compactInputStyles = {
         paddingLeft: 8,
         paddingRight: 8,
         border: "none",
+    },
+};
+
+/**
+ * Shared styles for compact-sized dropdown menus (Select, Autocomplete, etc.).
+ */
+const compactDropdownStyles = {
+    dropdown: {
+        padding: 4,
+        border: "none",
+        boxShadow: "var(--mantine-shadow-md)",
+    },
+    option: {
+        fontSize: 11,
+        padding: "4px 8px",
+        borderRadius: 4,
+    },
+    options: {
+        // No gap between options for compact appearance
+    },
+    groupLabel: {
+        fontSize: 10,
+        padding: "4px 8px",
+    },
+    empty: {
+        fontSize: 11,
+        padding: "8px",
     },
 };
 
@@ -96,6 +125,9 @@ export const inputComponentExtensions = {
     }),
 
     Select: Select.extend({
+        defaultProps: {
+            comboboxProps: { zIndex: FLOATING_UI_Z_INDEX },
+        },
         vars: (_theme, props) => {
             if (props.size === "compact") {
                 return compactInputVars;
@@ -104,7 +136,10 @@ export const inputComponentExtensions = {
         },
         styles: (_theme, props) => {
             if (props.size === "compact") {
-                return compactInputStyles;
+                return {
+                    ...compactInputStyles,
+                    ...compactDropdownStyles,
+                };
             }
             return {};
         },
@@ -154,6 +189,9 @@ export const inputComponentExtensions = {
     }),
 
     Autocomplete: Autocomplete.extend({
+        defaultProps: {
+            comboboxProps: { zIndex: FLOATING_UI_Z_INDEX },
+        },
         vars: (_theme, props) => {
             if (props.size === "compact") {
                 return compactInputVars;
@@ -162,30 +200,30 @@ export const inputComponentExtensions = {
         },
         styles: (_theme, props) => {
             if (props.size === "compact") {
-                return compactInputStyles;
+                return {
+                    ...compactInputStyles,
+                    ...compactDropdownStyles,
+                };
             }
             return {};
         },
     }),
 
-    Checkbox: Checkbox.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {
-                        "--checkbox-size": "14px",
-                        "--checkbox-icon-size": "9px",
-                    },
-                };
-            }
-            return { root: {} };
+    // ColorInput uses styles instead of vars due to complex type requirements
+    // (ColorInput requires eyeDropperIcon, eyeDropperButton, colorPreview CSS vars)
+    ColorInput: ColorInput.extend({
+        defaultProps: {
+            popoverProps: { zIndex: FLOATING_UI_Z_INDEX },
         },
         styles: (_theme, props) => {
             if (props.size === "compact") {
                 return {
-                    label: {
-                        fontSize: 11,
-                        paddingLeft: 4,
+                    ...compactInputStyles,
+                    wrapper: {
+                        "--input-size": "24px",
+                        "--input-fz": "11px",
+                        "--input-bg": "var(--mantine-color-default)",
+                        "--input-bd": "none",
                     },
                 };
             }
@@ -194,6 +232,9 @@ export const inputComponentExtensions = {
     }),
 
     MultiSelect: MultiSelect.extend({
+        defaultProps: {
+            comboboxProps: { zIndex: FLOATING_UI_Z_INDEX },
+        },
         vars: (_theme, props) => {
             if (props.size === "compact") {
                 return {
@@ -213,6 +254,7 @@ export const inputComponentExtensions = {
             if (props.size === "compact") {
                 return {
                     ...compactInputStyles,
+                    ...compactDropdownStyles,
                     input: {
                         ...compactInputStyles.input,
                         minHeight: 24,
@@ -242,6 +284,9 @@ export const inputComponentExtensions = {
     }),
 
     TagsInput: TagsInput.extend({
+        defaultProps: {
+            comboboxProps: { zIndex: FLOATING_UI_Z_INDEX },
+        },
         vars: (_theme, props) => {
             if (props.size === "compact") {
                 return {
@@ -259,6 +304,7 @@ export const inputComponentExtensions = {
             if (props.size === "compact") {
                 return {
                     ...compactInputStyles,
+                    ...compactDropdownStyles,
                     input: {
                         ...compactInputStyles.input,
                         minHeight: 24,

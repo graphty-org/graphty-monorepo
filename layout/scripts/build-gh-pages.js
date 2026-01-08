@@ -45,7 +45,7 @@ async function processExampleHtml(htmlPath, outputPath) {
 
 async function buildGitHubPages() {
     const rootDir = path.resolve(__dirname, "..");
-    const examplesDir = path.join(rootDir, "examples");
+    const examplesDir = path.join(rootDir, "examples-legacy");
     const distDir = path.join(rootDir, "dist");
     const ghPagesDir = path.join(rootDir, "gh-pages");
 

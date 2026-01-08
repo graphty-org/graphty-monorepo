@@ -1,7 +1,7 @@
 import type { JSX, ReactNode } from "react";
 
 import { PopoutContent } from "./PopoutContent";
-import { PopoutProvider } from "./PopoutContext";
+import { PopoutProvider, useOptionalPopoutContext } from "./PopoutContext";
 import { PopoutPanel } from "./PopoutPanel";
 import { PopoutTrigger } from "./PopoutTrigger";
 
@@ -16,6 +16,7 @@ interface PopoutProps {
 /**
  * Compound component for creating floating pop-out panels.
  * Follows the Figma-style floating panel pattern.
+ * Automatically detects when nested inside another Popout for hierarchy tracking.
  *
  * Usage:
  * ```tsx
@@ -37,7 +38,11 @@ interface PopoutProps {
  * @returns The Popout compound component
  */
 function PopoutRoot({ children }: PopoutProps): JSX.Element {
-    return <PopoutProvider>{children}</PopoutProvider>;
+    // Check if this Popout is nested inside another Popout
+    const parentContext = useOptionalPopoutContext();
+    const parentId = parentContext?.id ?? null;
+
+    return <PopoutProvider parentId={parentId}>{children}</PopoutProvider>;
 }
 
 // Attach sub-components to the root component

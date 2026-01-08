@@ -18,9 +18,9 @@ describe("compactTheme", () => {
         expect(compactTheme.colors?.dark).toHaveLength(10);
     });
 
-    it("includes all 23 component extensions", () => {
+    it("includes all 42 component extensions", () => {
         const componentNames = Object.keys(compactTheme.components ?? {});
-        expect(componentNames).toHaveLength(23);
+        expect(componentNames).toHaveLength(42);
     });
 
     it("includes all input components", () => {
@@ -31,6 +31,7 @@ describe("compactTheme", () => {
         expect(componentNames).toContain("Textarea");
         expect(componentNames).toContain("PasswordInput");
         expect(componentNames).toContain("Autocomplete");
+        expect(componentNames).toContain("ColorInput");
     });
 
     it("includes all button components", () => {

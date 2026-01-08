@@ -32,6 +32,7 @@ export default tseslint.config(
             "**/.storybook/**",
             // Example files are for demonstration, not production
             "**/examples/**",
+            "**/examples-legacy/**",
             // Build scripts are Node.js tools, not source code
             "**/scripts/**",
             // Stories are linted separately with relaxed rules but excluded from tsconfig

@@ -19,8 +19,8 @@ export function layoutRedirectPlugin() {
         enforce: "pre",
 
         resolveId(source, importer) {
-            // Only intercept './layout.js' imports from files in the examples directory
-            if (source === "./layout.js" && importer && importer.includes("/examples/")) {
+            // Only intercept './layout.js' imports from files in the examples-legacy directory
+            if (source === "./layout.js" && importer && importer.includes("/examples-legacy/")) {
                 // Return a virtual module ID
                 return "\0virtual:layout.js";
             }

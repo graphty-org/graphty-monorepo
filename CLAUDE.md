@@ -83,6 +83,8 @@ pnpm run dev:graphty              # Port 9050
 # Storybook
 pnpm run storybook:graphty-element  # Port 9025
 pnpm run storybook:graphty          # Port 9035
+pnpm run storybook:algorithms       # Port 9001
+pnpm run storybook:layout           # Port 9011
 
 # Interactive examples
 pnpm run examples:algorithms      # Algorithm demos
@@ -136,9 +138,14 @@ The `tools/` directory contains build scripts:
 
 All dev servers use ports 9000-9099:
 - algorithms: 9000
+- algorithms Storybook: 9001
 - layout: 9010
+- layout Storybook: 9011
 - graphty-element: 9020
+- graphty-element Storybook: 9025
 - graphty: 9050
+- graphty Storybook: 9035
+- gpu-3d-force-layout: 9060
 - Coverage previews: 9051-9054
 
 ## Testing Infrastructure
@@ -296,8 +303,17 @@ Each package has its own CLAUDE.md with package-specific guidance:
 
 - Storybook auto-reloads on changes (no manual rebuild needed)
 - Visual regression via Chromatic
+- algorithms: port 9001 (interactive algorithm demos)
+- layout: port 9011 (interactive layout demos)
 - graphty-element: port 9025
 - graphty: port 9035 (requires SSL cert)
+- GitHub Pages: https://graphty.app/storybook/
+
+### GitHub Pages URLs
+
+**IMPORTANT**: Use `graphty.app` for all documentation and Storybook links (NOT `graphty-org.github.io`):
+- Documentation: `https://graphty.app/docs/{package}/`
+- Storybook: `https://graphty.app/storybook/{package}/`
 
 ### Build System
 

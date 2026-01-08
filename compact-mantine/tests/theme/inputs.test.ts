@@ -27,8 +27,8 @@ describe("inputComponentExtensions", () => {
         expect(inputComponentExtensions.Autocomplete).toBeDefined();
     });
 
-    it("exports Checkbox extension", () => {
-        expect(inputComponentExtensions.Checkbox).toBeDefined();
+    it("exports ColorInput extension", () => {
+        expect(inputComponentExtensions.ColorInput).toBeDefined();
     });
 
     it("exports MultiSelect extension", () => {
@@ -60,7 +60,7 @@ describe("inputComponentExtensions", () => {
         expect(components).toContain("Textarea");
         expect(components).toContain("PasswordInput");
         expect(components).toContain("Autocomplete");
-        expect(components).toContain("Checkbox");
+        expect(components).toContain("ColorInput");
         expect(components).toContain("MultiSelect");
         expect(components).toContain("TagsInput");
         expect(components).toContain("PillsInput");

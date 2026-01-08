@@ -22,6 +22,7 @@ build-storybook.log
 # Temporary files
 tmp/
 .tmp/
+.playwright-mcp/
 
 # IDE/Editor files
 .idea/

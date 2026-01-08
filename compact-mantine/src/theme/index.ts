@@ -5,7 +5,10 @@ import {
     buttonComponentExtensions,
     controlComponentExtensions,
     displayComponentExtensions,
+    feedbackComponentExtensions,
     inputComponentExtensions,
+    navigationComponentExtensions,
+    overlayComponentExtensions,
 } from "./components";
 
 /**
@@ -32,11 +35,16 @@ import {
  */
 export const compactTheme = createTheme({
     colors: compactColors,
+    // Spread all component extensions into the theme
+    // Each extension object provides compact size support for a category of components
     components: {
         ...inputComponentExtensions,
         ...buttonComponentExtensions,
         ...controlComponentExtensions,
         ...displayComponentExtensions,
+        ...feedbackComponentExtensions,
+        ...navigationComponentExtensions,
+        ...overlayComponentExtensions,
     },
 });
 

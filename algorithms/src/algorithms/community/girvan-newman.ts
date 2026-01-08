@@ -39,7 +39,7 @@ export function girvanNewman(graph: Graph, options: GirvanNewmanOptions = {}): C
     while (Array.from(workingGraph.edges()).length > 0 && iterations < maxIterations) {
         iterations++;
         // Calculate edge betweenness centrality
-        const edgeBetweenness = calculateEdgeBetweenness(workingGraph);
+        const { betweenness: edgeBetweenness, edgeEndpoints } = calculateEdgeBetweenness(workingGraph);
 
         if (edgeBetweenness.size === 0) {
             break;
@@ -51,9 +51,10 @@ export function girvanNewman(graph: Graph, options: GirvanNewmanOptions = {}): C
 
         for (const [edgeKey, centrality] of edgeBetweenness) {
             if (Math.abs(centrality - maxBetweenness) < 1e-10) {
-                const [source, target] = edgeKey.split("|");
-                if (source && target) {
-                    edgesToRemove.push({ source, target });
+                // Use original edge endpoints to preserve node ID types (number vs string)
+                const endpoints = edgeEndpoints.get(edgeKey);
+                if (endpoints) {
+                    edgesToRemove.push(endpoints);
                 }
             }
         }
@@ -92,20 +93,30 @@ export function girvanNewman(graph: Graph, options: GirvanNewmanOptions = {}): C
 }
 
 /**
+ * Edge betweenness result containing centrality values and original edge endpoints
+ */
+interface EdgeBetweennessResult {
+    betweenness: Map<string, number>;
+    edgeEndpoints: Map<string, { source: NodeId; target: NodeId }>;
+}
+
+/**
  * Calculate edge betweenness centrality for all edges in the graph
  *
  * Edge betweenness is the fraction of shortest paths that pass through the edge.
  * We adapt node betweenness centrality calculation to work with edges.
  * @param graph - The input graph to analyze
- * @returns Map of edge keys to their betweenness centrality values
+ * @returns Object with betweenness map and edge endpoints map (preserving original ID types)
  */
-function calculateEdgeBetweenness(graph: Graph): Map<string, number> {
+function calculateEdgeBetweenness(graph: Graph): EdgeBetweennessResult {
     const edgeBetweenness = new Map<string, number>();
+    const edgeEndpoints = new Map<string, { source: NodeId; target: NodeId }>();
 
-    // Initialize all edges with 0 betweenness
+    // Initialize all edges with 0 betweenness and store original endpoints
     for (const edge of graph.edges()) {
         const edgeKey = getEdgeKey(edge.source, edge.target);
         edgeBetweenness.set(edgeKey, 0);
+        edgeEndpoints.set(edgeKey, { source: edge.source, target: edge.target });
     }
 
     // For each node as source, calculate shortest paths and accumulate edge betweenness
@@ -182,7 +193,7 @@ function calculateEdgeBetweenness(graph: Graph): Map<string, number> {
         }
     }
 
-    return edgeBetweenness;
+    return { betweenness: edgeBetweenness, edgeEndpoints };
 }
 
 /**

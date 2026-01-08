@@ -1,4 +1,4 @@
-import { Checkbox, MantineProvider, Radio, SegmentedControl, Slider, Switch } from "@mantine/core";
+import { Checkbox, MantineProvider, Radio, RangeSlider, SegmentedControl, Slider, Switch } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -111,6 +111,32 @@ describe("Control Components Integration", () => {
                 </MantineProvider>,
             );
             expect(screen.getByRole("radio", { name: "Small Radio" })).toBeInTheDocument();
+        });
+    });
+
+    describe("RangeSlider", () => {
+        it("renders with compact size", () => {
+            const { container } = render(
+                <MantineProvider theme={compactTheme}>
+                    <RangeSlider size="compact" />
+                </MantineProvider>,
+            );
+            // RangeSlider has two sliders (thumbs)
+            const sliders = screen.getAllByRole("slider");
+            expect(sliders).toHaveLength(2);
+            // Verify the compact size data attribute
+            expect(container.querySelector("[data-size='compact']")).toBeInTheDocument();
+        });
+
+        it("renders with regular size (non-compact)", () => {
+            const { container } = render(
+                <MantineProvider theme={compactTheme}>
+                    <RangeSlider size="sm" />
+                </MantineProvider>,
+            );
+            const sliders = screen.getAllByRole("slider");
+            expect(sliders).toHaveLength(2);
+            expect(container.querySelector("[data-size='sm']")).toBeInTheDocument();
         });
     });
 });

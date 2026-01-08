@@ -1,6 +1,6 @@
 {
     "name": "@graphty/remote-logger",
-    "version": "1.0.0",
+    "version": "1.1.1",
     "description": "Remote logging client and server for browser debugging",
     "author": "Adam Powers <apowers@ato.ms>",
     "main": "dist/index.js",

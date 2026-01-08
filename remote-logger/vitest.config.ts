@@ -37,6 +37,8 @@ export default defineConfig({
                         "test/client/**/*.test.ts",
                         "test/cli/**/*.test.ts",
                         "test/integration/**/*.test.ts",
+                        "test/mcp/**/*.test.ts",
+                        "test/vite/**/*.test.ts",
                     ],
                     exclude: ["**/node_modules/**", "**/dist/**"],
                     // Run sequentially to avoid port conflicts in server tests

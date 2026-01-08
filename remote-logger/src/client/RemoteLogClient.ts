@@ -6,6 +6,33 @@
 
 import type { LogEntry, RemoteLogClientOptions, ThrottlePattern } from "./types.js";
 
+/**
+ * Global variables that may be injected by the Vite plugin.
+ * These provide automatic project marker detection.
+ */
+declare const __REMOTE_LOG_PROJECT_MARKER__: string | undefined;
+declare const __REMOTE_LOG_WORKTREE_PATH__: string | undefined;
+
+/**
+ * Safely read a global variable that may or may not be defined.
+ * @param name - Name of the global variable
+ * @returns The value of the global variable, or undefined if not defined
+ */
+function getGlobalValue(name: "__REMOTE_LOG_PROJECT_MARKER__" | "__REMOTE_LOG_WORKTREE_PATH__"): string | undefined {
+    try {
+        if (name === "__REMOTE_LOG_PROJECT_MARKER__") {
+            return typeof __REMOTE_LOG_PROJECT_MARKER__ !== "undefined" ? __REMOTE_LOG_PROJECT_MARKER__ : undefined;
+        }
+        if (name === "__REMOTE_LOG_WORKTREE_PATH__") {
+            return typeof __REMOTE_LOG_WORKTREE_PATH__ !== "undefined" ? __REMOTE_LOG_WORKTREE_PATH__ : undefined;
+        }
+    } catch {
+        // ReferenceError if the global is not defined at all
+        return undefined;
+    }
+    return undefined;
+}
+
 /** Default configuration values */
 const DEFAULT_BATCH_INTERVAL_MS = 1000;
 const DEFAULT_MAX_RETRIES = 3;
@@ -57,6 +84,8 @@ export class RemoteLogClient {
     private readonly maxRetries: number;
     private readonly retryDelayMs: number;
     private readonly throttlePatterns: ThrottlePattern[];
+    private readonly projectMarker: string | undefined;
+    private readonly worktreePath: string | undefined;
 
     private pendingLogs: LogEntry[] = [];
     private batchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -77,6 +106,10 @@ export class RemoteLogClient {
         this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
         this.retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
         this.throttlePatterns = options.throttlePatterns ?? [];
+
+        // Priority: explicit option > global variable
+        this.projectMarker = options.projectMarker ?? getGlobalValue("__REMOTE_LOG_PROJECT_MARKER__");
+        this.worktreePath = options.worktreePath ?? getGlobalValue("__REMOTE_LOG_WORKTREE_PATH__");
     }
 
     /**
@@ -199,15 +232,30 @@ export class RemoteLogClient {
      * @throws Error if the request fails
      */
     private async sendRequest(logs: LogEntry[]): Promise<void> {
+        const requestBody: {
+            sessionId: string;
+            logs: LogEntry[];
+            projectMarker?: string;
+            worktreePath?: string;
+        } = {
+            sessionId: this.sessionId,
+            logs,
+        };
+
+        // Only include these fields if they have values
+        if (this.projectMarker !== undefined) {
+            requestBody.projectMarker = this.projectMarker;
+        }
+        if (this.worktreePath !== undefined) {
+            requestBody.worktreePath = this.worktreePath;
+        }
+
         const response = await fetch(`${this.serverUrl}/log`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({
-                sessionId: this.sessionId,
-                logs,
-            }),
+            body: JSON.stringify(requestBody),
         });
 
         if (!response.ok) {

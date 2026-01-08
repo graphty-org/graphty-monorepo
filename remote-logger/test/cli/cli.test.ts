@@ -133,6 +133,47 @@ describe("CLI", () => {
             // Options parsed before error are included
             expect(result.options.port).toBe(9090);
         });
+
+        test("should parse --mcp-only flag", () => {
+            const result = parseArgs(["--mcp-only"]);
+            expect(result.options.mcpOnly).toBe(true);
+            expect(result.options.httpOnly).toBeUndefined();
+            expect(result.showHelp).toBe(false);
+            expect(result.error).toBeUndefined();
+        });
+
+        test("should parse --http-only flag", () => {
+            const result = parseArgs(["--http-only"]);
+            expect(result.options.httpOnly).toBe(true);
+            expect(result.options.mcpOnly).toBeUndefined();
+            expect(result.showHelp).toBe(false);
+            expect(result.error).toBeUndefined();
+        });
+
+        test("default starts both HTTP and MCP (dual mode)", () => {
+            const result = parseArgs([]);
+            // Default means both undefined - dual mode is default
+            expect(result.options.mcpOnly).toBeUndefined();
+            expect(result.options.httpOnly).toBeUndefined();
+            expect(result.options.mcp).toBeUndefined();
+        });
+
+        test("--port configures HTTP port", () => {
+            const result = parseArgs(["--port", "9085"]);
+            expect(result.options.port).toBe(9085);
+        });
+
+        test("--mcp-only with --port still sets port option", () => {
+            const result = parseArgs(["--mcp-only", "--port", "9090"]);
+            expect(result.options.mcpOnly).toBe(true);
+            expect(result.options.port).toBe(9090);
+        });
+
+        test("--http-only with --port sets port option", () => {
+            const result = parseArgs(["--http-only", "--port", "9095"]);
+            expect(result.options.httpOnly).toBe(true);
+            expect(result.options.port).toBe(9095);
+        });
     });
 
     describe("HELP_TEXT", () => {
@@ -156,6 +197,8 @@ describe("CLI", () => {
             expect(HELP_TEXT).toContain("--quiet");
             expect(HELP_TEXT).toContain("-q");
             expect(HELP_TEXT).toContain("--help");
+            expect(HELP_TEXT).toContain("--mcp-only");
+            expect(HELP_TEXT).toContain("--http-only");
         });
 
         test("should contain examples section", () => {

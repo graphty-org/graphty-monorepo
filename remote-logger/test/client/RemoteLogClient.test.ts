@@ -617,4 +617,168 @@ describe("RemoteLogClient", () => {
             expect(body.logs).toHaveLength(2);
         });
     });
+
+    describe("project marker support", () => {
+        test("should send projectMarker with logs when configured", async () => {
+            const client = new RemoteLogClient({
+                serverUrl: "http://localhost:9080",
+                batchIntervalMs: 100,
+                projectMarker: "my-project",
+            });
+
+            client.log("INFO", "Test message");
+            await vi.advanceTimersByTimeAsync(100);
+
+            expect(fetchSpy).toHaveBeenCalledOnce();
+            const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+            const body = JSON.parse(options.body as string);
+
+            expect(body.projectMarker).toBe("my-project");
+        });
+
+        test("should send worktreePath with logs when configured", async () => {
+            const client = new RemoteLogClient({
+                serverUrl: "http://localhost:9080",
+                batchIntervalMs: 100,
+                worktreePath: "/home/user/.worktrees/remote-logging",
+            });
+
+            client.log("INFO", "Test message");
+            await vi.advanceTimersByTimeAsync(100);
+
+            expect(fetchSpy).toHaveBeenCalledOnce();
+            const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+            const body = JSON.parse(options.body as string);
+
+            expect(body.worktreePath).toBe("/home/user/.worktrees/remote-logging");
+        });
+
+        test("should send both projectMarker and worktreePath when configured", async () => {
+            const client = new RemoteLogClient({
+                serverUrl: "http://localhost:9080",
+                batchIntervalMs: 100,
+                projectMarker: "my-project",
+                worktreePath: "/home/user/.worktrees/remote-logging",
+            });
+
+            client.log("INFO", "Test message");
+            await vi.advanceTimersByTimeAsync(100);
+
+            const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+            const body = JSON.parse(options.body as string);
+
+            expect(body.projectMarker).toBe("my-project");
+            expect(body.worktreePath).toBe("/home/user/.worktrees/remote-logging");
+        });
+
+        test("should not include projectMarker in request when not configured", async () => {
+            const client = new RemoteLogClient({
+                serverUrl: "http://localhost:9080",
+                batchIntervalMs: 100,
+            });
+
+            client.log("INFO", "Test message");
+            await vi.advanceTimersByTimeAsync(100);
+
+            const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+            const body = JSON.parse(options.body as string);
+
+            expect(body).not.toHaveProperty("projectMarker");
+            expect(body).not.toHaveProperty("worktreePath");
+        });
+
+        test("should read __REMOTE_LOG_PROJECT_MARKER__ global if defined", async () => {
+            // Define the global
+            (globalThis as Record<string, unknown>).__REMOTE_LOG_PROJECT_MARKER__ = "global-marker";
+
+            try {
+                const client = new RemoteLogClient({
+                    serverUrl: "http://localhost:9080",
+                    batchIntervalMs: 100,
+                });
+
+                client.log("INFO", "Test message");
+                await vi.advanceTimersByTimeAsync(100);
+
+                const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+                const body = JSON.parse(options.body as string);
+
+                expect(body.projectMarker).toBe("global-marker");
+            } finally {
+                // Clean up
+                delete (globalThis as Record<string, unknown>).__REMOTE_LOG_PROJECT_MARKER__;
+            }
+        });
+
+        test("should read __REMOTE_LOG_WORKTREE_PATH__ global if defined", async () => {
+            // Define the global
+            (globalThis as Record<string, unknown>).__REMOTE_LOG_WORKTREE_PATH__ = "/path/from/global";
+
+            try {
+                const client = new RemoteLogClient({
+                    serverUrl: "http://localhost:9080",
+                    batchIntervalMs: 100,
+                });
+
+                client.log("INFO", "Test message");
+                await vi.advanceTimersByTimeAsync(100);
+
+                const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+                const body = JSON.parse(options.body as string);
+
+                expect(body.worktreePath).toBe("/path/from/global");
+            } finally {
+                // Clean up
+                delete (globalThis as Record<string, unknown>).__REMOTE_LOG_WORKTREE_PATH__;
+            }
+        });
+
+        test("should prefer explicit projectMarker over global", async () => {
+            // Define the global
+            (globalThis as Record<string, unknown>).__REMOTE_LOG_PROJECT_MARKER__ = "global-marker";
+
+            try {
+                const client = new RemoteLogClient({
+                    serverUrl: "http://localhost:9080",
+                    batchIntervalMs: 100,
+                    projectMarker: "explicit-marker",
+                });
+
+                client.log("INFO", "Test message");
+                await vi.advanceTimersByTimeAsync(100);
+
+                const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+                const body = JSON.parse(options.body as string);
+
+                expect(body.projectMarker).toBe("explicit-marker");
+            } finally {
+                // Clean up
+                delete (globalThis as Record<string, unknown>).__REMOTE_LOG_PROJECT_MARKER__;
+            }
+        });
+
+        test("should prefer explicit worktreePath over global", async () => {
+            // Define the global
+            (globalThis as Record<string, unknown>).__REMOTE_LOG_WORKTREE_PATH__ = "/path/from/global";
+
+            try {
+                const client = new RemoteLogClient({
+                    serverUrl: "http://localhost:9080",
+                    batchIntervalMs: 100,
+                    worktreePath: "/path/explicit",
+                });
+
+                client.log("INFO", "Test message");
+                await vi.advanceTimersByTimeAsync(100);
+
+                const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+                const body = JSON.parse(options.body as string);
+
+                expect(body.worktreePath).toBe("/path/explicit");
+            } finally {
+                // Clean up
+                delete (globalThis as Record<string, unknown>).__REMOTE_LOG_WORKTREE_PATH__;
+            }
+        });
+    });
 });

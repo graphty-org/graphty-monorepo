@@ -16,9 +16,51 @@
 import * as fs from "fs";
 import * as http from "http";
 import * as https from "https";
+import * as os from "os";
+import * as path from "path";
 import { URL } from "url";
 
+import { JsonlWriter } from "./jsonl-writer.js";
+import { type LogEntry, LogStorage } from "./log-storage.js";
 import { certFilesExist, generateSelfSignedCert, readCertFiles } from "./self-signed-cert.js";
+
+// Shared log storage instance
+let sharedStorage: LogStorage | null = null;
+// Shared JSONL writer instance
+let sharedJsonlWriter: JsonlWriter | null = null;
+
+/**
+ * Get the shared LogStorage instance, creating it if needed.
+ * Creates a JsonlWriter for JSONL file streaming by default.
+ * @returns The shared LogStorage instance
+ */
+export function getLogStorage(): LogStorage {
+    if (!sharedStorage) {
+        // Create JSONL writer for file streaming
+        const jsonlBaseDir = path.join(os.tmpdir(), "remote-logger");
+        sharedJsonlWriter = new JsonlWriter(jsonlBaseDir);
+
+        // Create storage with JSONL writer
+        sharedStorage = new LogStorage({ jsonlWriter: sharedJsonlWriter });
+    }
+    return sharedStorage;
+}
+
+/**
+ * Get the shared JsonlWriter instance.
+ * @returns The shared JsonlWriter instance or null if not initialized
+ */
+export function getJsonlWriter(): JsonlWriter | null {
+    return sharedJsonlWriter;
+}
+
+/**
+ * Set the shared LogStorage instance (for testing or external injection).
+ * @param storage - The LogStorage instance to use
+ */
+export function setLogStorage(storage: LogStorage): void {
+    sharedStorage = storage;
+}
 
 // ANSI color codes for terminal output
 const colors = {
@@ -49,23 +91,26 @@ export interface LogServerOptions {
     logFile?: string;
     /** Use HTTP instead of HTTPS (default: false) */
     useHttp?: boolean;
+    /** Start in MCP server mode (default: false) @deprecated Use mcpOnly instead */
+    mcp?: boolean;
+    /** Start only MCP server (no HTTP) */
+    mcpOnly?: boolean;
+    /** Start only HTTP server (no MCP) - legacy mode */
+    httpOnly?: boolean;
     /** Suppress startup banner (default: false) */
     quiet?: boolean;
 }
 
-export interface LogEntry {
-    time: string;
-    level: string;
-    message: string;
-}
+// Re-export LogEntry from log-storage for backward compatibility
+export type { LogEntry } from "./log-storage.js";
 
 interface LogBatch {
     sessionId: string;
     logs: LogEntry[];
+    projectMarker?: string;
+    worktreePath?: string;
+    pageUrl?: string;
 }
-
-// Store for remote logs by session
-const remoteLogs = new Map<string, LogEntry[]>();
 
 // File stream for log file
 let logFileStream: fs.WriteStream | null = null;
@@ -75,7 +120,7 @@ let logFileStream: fs.WriteStream | null = null;
  * Useful for testing.
  */
 export function clearLogs(): void {
-    remoteLogs.clear();
+    getLogStorage().clear();
 }
 
 /**
@@ -176,36 +221,30 @@ function handleRequest(
         req.on("end", () => {
             try {
                 const data = JSON.parse(body) as LogBatch;
-                const { sessionId, logs } = data;
+                const { sessionId, logs, projectMarker, worktreePath, pageUrl } = data;
 
-                // Initialize session if new
-                if (!remoteLogs.has(sessionId)) {
-                    remoteLogs.set(sessionId, []);
-                    if (!quiet) {
-                        // eslint-disable-next-line no-console
-                        console.log(
-                            `\n${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}`,
-                        );
-                        // eslint-disable-next-line no-console
-                        console.log(`${colors.bright}${colors.magenta}  NEW SESSION: ${sessionId}${colors.reset}`);
-                        // eslint-disable-next-line no-console
-                        console.log(
-                            `${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}\n`,
-                        );
-                    }
+                const storage = getLogStorage();
+                const isNewSession = !storage.hasSession(sessionId);
+
+                // Show new session banner
+                if (isNewSession && !quiet) {
+                    // eslint-disable-next-line no-console
+                    console.log(
+                        `\n${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}`,
+                    );
+                    // eslint-disable-next-line no-console
+                    console.log(`${colors.bright}${colors.magenta}  NEW SESSION: ${sessionId}${colors.reset}`);
+                    // eslint-disable-next-line no-console
+                    console.log(
+                        `${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}\n`,
+                    );
                 }
 
-                const sessionLogs = remoteLogs.get(sessionId);
-                if (!sessionLogs) {
-                    // Should not happen since we just set it above, but satisfy TypeScript
-                    res.writeHead(500, { "Content-Type": "application/json" });
-                    res.end(JSON.stringify({ error: "Internal error" }));
-                    return;
-                }
+                // Add logs to storage
+                storage.addLogs(sessionId, logs, { projectMarker, worktreePath, pageUrl });
 
-                // Display and store each log
+                // Display each log in terminal
                 for (const log of logs) {
-                    sessionLogs.push(log);
                     displayLog(sessionId, log, quiet);
                 }
 
@@ -224,10 +263,7 @@ function handleRequest(
 
     // Handle logs viewer endpoint - GET all logs
     if (url === "/logs" && req.method === "GET") {
-        const allLogs: Record<string, LogEntry[]> = {};
-        for (const [sessionId, logs] of remoteLogs) {
-            allLogs[sessionId] = logs;
-        }
+        const allLogs = getLogStorage().getAllLogsBySession();
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(allLogs, null, 2));
         return;
@@ -239,25 +275,16 @@ function handleRequest(
         const count = parseInt(urlObj.searchParams.get("n") ?? "50", 10);
         const errorsOnly = urlObj.searchParams.get("errors") === "true";
 
-        // Collect all logs with session info
-        const allLogs: (LogEntry & { sessionId: string })[] = [];
-        for (const [sessionId, logs] of remoteLogs) {
-            for (const log of logs) {
-                if (!errorsOnly || log.level.toUpperCase() === "ERROR") {
-                    allLogs.push({ sessionId, ...log });
-                }
-            }
-        }
-
-        // Sort by time descending and take last N
-        allLogs.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-        const recentLogs = allLogs.slice(0, count).reverse(); // Reverse to show oldest first
+        const storage = getLogStorage();
+        const filter = errorsOnly ? { level: "ERROR" } : {};
+        const recentLogs = storage.getRecentLogs(count, filter);
+        const totalLogs = storage.getLogs(filter).length;
 
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(
             JSON.stringify(
                 {
-                    total: allLogs.length,
+                    total: totalLogs,
                     showing: recentLogs.length,
                     logs: recentLogs,
                 },
@@ -270,15 +297,7 @@ function handleRequest(
 
     // Handle errors-only endpoint
     if (url === "/logs/errors" && req.method === "GET") {
-        const errorLogs: (LogEntry & { sessionId: string })[] = [];
-        for (const [sessionId, logs] of remoteLogs) {
-            for (const log of logs) {
-                if (log.level.toUpperCase() === "ERROR") {
-                    errorLogs.push({ sessionId, ...log });
-                }
-            }
-        }
-        errorLogs.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+        const errorLogs = getLogStorage().getErrors();
 
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(
@@ -296,7 +315,7 @@ function handleRequest(
 
     // Handle clear logs endpoint
     if (url === "/logs/clear" && req.method === "POST") {
-        remoteLogs.clear();
+        getLogStorage().clear();
         if (!quiet) {
             // eslint-disable-next-line no-console
             console.log(`\n${colors.yellow}Logs cleared${colors.reset}\n`);
@@ -308,8 +327,9 @@ function handleRequest(
 
     // Health check endpoint
     if (url === "/health" && req.method === "GET") {
+        const health = getLogStorage().getHealth();
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "ok", sessions: remoteLogs.size }));
+        res.end(JSON.stringify({ status: health.status, sessions: health.sessionCount }));
         return;
     }
 
@@ -367,6 +387,50 @@ function printBanner(host: string, port: number, useHttps: boolean): void {
     console.log(`${colors.dim}Remote logs will appear below:${colors.reset}`);
     // eslint-disable-next-line no-console
     console.log(`${colors.cyan}────────────────────────────────────────────────────────────${colors.reset}`);
+}
+
+/**
+ * Options for creating a log server without starting it.
+ */
+export interface CreateLogServerOptions {
+    /** Port to listen on */
+    port: number;
+    /** Hostname to bind to */
+    host: string;
+    /** Shared log storage instance */
+    storage: LogStorage;
+    /** Use HTTP instead of HTTPS (default: false) */
+    useHttp?: boolean;
+    /** Suppress terminal output (default: false) */
+    quiet?: boolean;
+}
+
+/**
+ * Result of creating a log server.
+ */
+export interface CreateLogServerResult {
+    /** The HTTP server instance (not yet listening) */
+    server: http.Server;
+}
+
+/**
+ * Create a log server with shared storage (for integration testing).
+ * The server is not started - call server.listen() to start it.
+ * @param options - Server configuration options
+ * @returns The server instance
+ */
+export function createLogServer(options: CreateLogServerOptions): CreateLogServerResult {
+    const { port, host, storage, quiet = true } = options;
+
+    // Set the shared storage
+    setLogStorage(storage);
+
+    // Create HTTP server (integration tests use HTTP)
+    const server = http.createServer((req, res) => {
+        handleRequest(req, res, host, port, false, quiet);
+    });
+
+    return { server };
 }
 
 /**
@@ -445,6 +509,12 @@ export function startLogServer(options: LogServerOptions = {}): http.Server | ht
             logFileStream.end();
         }
 
+        // Close JSONL writer to flush pending writes
+        const jsonlWriter = getJsonlWriter();
+        if (jsonlWriter) {
+            void jsonlWriter.close();
+        }
+
         server.close(() => {
             process.exit(0);
         });
@@ -470,13 +540,23 @@ Options:
   --key, -k <path>        Path to SSL private key file
   --log-file, -l <path>   Write logs to file
   --http                  Use HTTP instead of HTTPS
+  --mcp-only              Start only MCP server (no HTTP)
+  --http-only             Start only HTTP server (legacy mode)
+  --mcp                   Alias for --mcp-only (deprecated)
   --quiet, -q             Suppress startup banner
   --help                  Show this help message
 
+Modes:
+  Default (no flags)      Dual mode: HTTP + MCP running together
+  --mcp-only              MCP only: For Claude Code integration
+  --http-only             HTTP only: Legacy mode for browser debugging
+
 Examples:
-  npx remote-log-server                           # Start with defaults (port 9080, self-signed cert)
+  npx remote-log-server                           # Start dual mode (HTTP + MCP)
   npx remote-log-server --port 9085               # Custom port
   npx remote-log-server --http                    # Use HTTP instead of HTTPS
+  npx remote-log-server --mcp-only                # MCP server only (for Claude Code)
+  npx remote-log-server --http-only               # HTTP server only (legacy)
   npx remote-log-server --cert cert.crt --key key.key  # Custom SSL certs
   npx remote-log-server --log-file ./tmp/logs.jsonl    # Also write to file
 `;
@@ -535,6 +615,16 @@ export function parseArgs(args: string[]): ParseArgsResult {
             case "--http":
                 options.useHttp = true;
                 break;
+            case "--mcp":
+                // Legacy alias for --mcp-only. Only set mcpOnly now.
+                options.mcpOnly = true;
+                break;
+            case "--mcp-only":
+                options.mcpOnly = true;
+                break;
+            case "--http-only":
+                options.httpOnly = true;
+                break;
             case "--quiet":
             case "-q":
                 options.quiet = true;
@@ -552,7 +642,7 @@ export function parseArgs(args: string[]): ParseArgsResult {
 /**
  * Parse command line arguments and start the server.
  */
-export function main(): void {
+export async function main(): Promise<void> {
     const args = process.argv.slice(2);
     const result = parseArgs(args);
 
@@ -567,5 +657,45 @@ export function main(): void {
         process.exit(1);
     }
 
-    startLogServer(result.options);
+    const { options } = result;
+
+    // Determine mode: mcp-only, http-only, or dual (default)
+    if (options.mcpOnly) {
+        // MCP-only mode
+        const { startMcpServer } = await import("../mcp/index.js");
+        const storage = getLogStorage();
+        await startMcpServer(storage);
+    } else if (options.httpOnly) {
+        // HTTP-only mode (legacy)
+        startLogServer(options);
+    } else {
+        // Dual mode (default): Start both HTTP and MCP
+        const { createDualServer } = await import("./dual-server.js");
+
+        const dualServer = await createDualServer({
+            httpPort: options.port ?? 9080,
+            httpHost: options.host ?? "localhost",
+            httpEnabled: true,
+            mcpEnabled: true,
+            useHttp: options.useHttp ?? false,
+            quiet: options.quiet ?? false,
+            certPath: options.certPath,
+            keyPath: options.keyPath,
+            logFile: options.logFile,
+        });
+
+        // Handle graceful shutdown
+        process.on("SIGINT", () => {
+            // eslint-disable-next-line no-console
+            console.log("\nShutting down...");
+            void dualServer.shutdown().then(() => {
+                process.exit(0);
+            });
+        });
+
+        if (!options.quiet) {
+            // eslint-disable-next-line no-console
+            console.log("Dual mode: HTTP and MCP servers running");
+        }
+    }
 }

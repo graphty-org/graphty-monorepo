@@ -2,15 +2,31 @@
 
 Remote logging client and server for browser debugging. Send console logs from browsers to a terminal-based log server for easy debugging of web applications.
 
+## Why Remote Logging?
+
+Browser applications run in a sandbox - their `console.log()` output appears in browser DevTools but is not accessible to CLI tools, terminal sessions, or AI assistants. Remote logging bridges this gap by sending browser logs to a server where they can be viewed, searched, and analyzed.
+
+**Use cases where remote logging shines:**
+
+- **Storybook & Component Development** - See console output without switching to browser DevTools
+- **Mobile Web Apps** - Phones and tablets require USB debugging to access DevTools
+- **VR/AR Applications** - You can't see a browser console while wearing a headset
+- **Embedded Devices** - Kiosks, smart displays, and IoT devices without keyboard access
+- **CI/CD & Automated Testing** - Capture browser logs during headless test runs
+- **LLM-Assisted Debugging** - AI assistants can read, interpret, and act on logs without requiring user interaction with browser DevTools
+
 ## Features
 
 - **Browser Client**: Lightweight client for sending logs from browser to server
 - **Log Server**: HTTPS/HTTP server with colored terminal output and REST API
+- **MCP Server**: Model Context Protocol server for Claude Code integration
 - **Console Capture UI**: Floating widget to copy/download/view browser console logs
 - **Batching & Retry**: Efficient log delivery with automatic retry on failure
 - **Session Tracking**: Unique session IDs for correlating logs across page loads
+- **Project Markers**: Filter logs by git worktree or project name
 - **Throttling**: Configurable rate limiting for high-frequency log messages
-- **File Logging**: Optional JSONL file output for persistent log storage
+- **File Logging**: JSONL file streaming organized by project marker
+- **Log Retention**: Automatic cleanup of old logs (configurable, default 7 days)
 
 ## Installation
 
@@ -89,13 +105,23 @@ Options:
   --log-file, -l <path>   Write logs to file (JSONL format)
   --http                  Use HTTP instead of HTTPS
   --quiet, -q             Suppress startup banner
+  --mcp-only              Start only MCP server (no HTTP)
+  --http-only             Start only HTTP server (no MCP)
   --help                  Show help message
 
 Examples:
-  npx remote-log-server                           # HTTPS with auto-generated cert
-  npx remote-log-server --http --port 9080        # HTTP on port 9080
+  npx remote-log-server                           # Dual mode: HTTP + MCP (default)
+  npx remote-log-server --http --port 9080        # HTTP on port 9080 + MCP
+  npx remote-log-server --mcp-only                # MCP only (for Claude Code)
+  npx remote-log-server --http-only               # HTTP only (legacy mode)
   npx remote-log-server --cert cert.pem --key key.pem  # Custom SSL certs
 ```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REMOTE_LOG_RETENTION_DAYS` | `7` | Number of days to retain logs before cleanup |
 
 ## API Reference
 
@@ -123,6 +149,8 @@ const client = createRemoteLogClient(options);
 | `maxRetries` | `number` | `3` | Max retry attempts on failure |
 | `retryDelayMs` | `number` | `1000` | Base delay between retries (uses exponential backoff) |
 | `throttlePatterns` | `ThrottlePattern[]` | `[]` | Patterns to throttle (see below) |
+| `projectMarker` | `string` | auto | Project identifier for filtering (auto-detected from Vite globals) |
+| `worktreePath` | `string` | auto | Full worktree path for debugging (auto-detected from Vite globals) |
 
 #### Throttling High-Frequency Logs
 
@@ -283,7 +311,208 @@ Health check endpoint for monitoring.
 { "status": "ok", "sessions": 3 }
 ```
 
-### ConsoleCaptureUI
+## MCP Server (Claude Code Integration)
+
+The remote-logger includes a Model Context Protocol (MCP) server that allows Claude Code to directly query and manage logs. This enables AI-assisted debugging by letting Claude Code see browser console output in real-time.
+
+### Setup with Claude Code
+
+Add the following to your Claude Code MCP configuration (`~/.config/claude-code/mcp.json` or project settings):
+
+```json
+{
+  "mcpServers": {
+    "remote-logger": {
+      "command": "npx",
+      "args": ["remote-log-server", "--mcp-only"]
+    }
+  }
+}
+```
+
+Or if installed globally:
+
+```json
+{
+  "mcpServers": {
+    "remote-logger": {
+      "command": "remote-log-server",
+      "args": ["--mcp-only"]
+    }
+  }
+}
+```
+
+### Dual Mode (HTTP + MCP)
+
+By default, the server runs in dual mode with both HTTP and MCP interfaces sharing the same log storage. This allows browsers to send logs via HTTP while Claude Code queries them via MCP.
+
+```bash
+# Start dual server (HTTP + MCP)
+npx remote-log-server --http --port 9080
+```
+
+### MCP Tools
+
+The MCP server provides 9 tools for log management:
+
+#### `logs_get_recent`
+
+Get recent logs from the server, sorted by time (oldest first).
+
+**Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `count` | `number` | `50` | Number of logs to return (max 500) |
+| `projectMarker` | `string` | - | Filter by project marker |
+| `workingDirectory` | `string` | - | Derive marker from path (e.g., `/path/.worktrees/my-branch`) |
+| `level` | `string` | - | Filter by log level (ERROR, WARN, INFO, DEBUG) |
+| `since` | `string` | - | Only logs after this ISO timestamp |
+
+**Example usage in Claude Code:**
+> "Show me the last 20 logs from the graphty-element project"
+
+#### `logs_status`
+
+Get the status of the remote log server.
+
+**Returns:**
+- Server status, uptime, session count, log count, error count, memory usage
+- HTTP endpoint configuration (port, host, protocol, full URL for browser clients)
+- Retention settings (how long logs are kept before automatic cleanup)
+
+**Example usage:**
+> "What is the status of the remote logger?"
+> "What URL should I use to configure the browser client?"
+> "How long are logs retained?"
+
+#### `logs_list_sessions`
+
+List all logging sessions with their metadata.
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `projectMarker` | `string` | Filter by project marker |
+| `hasErrors` | `boolean` | Only show sessions with errors |
+
+**Returns:** Array of sessions with:
+- `sessionId`, `projectMarker`, `worktreePath`, `pageUrl`
+- `firstLogTime`, `lastLogTime`, `logCount`, `errorCount`
+
+**Example usage:**
+> "List all logging sessions that have errors"
+
+#### `logs_receive`
+
+Store logs from a browser or application session.
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sessionId` | `string` | Yes | Unique session identifier |
+| `logs` | `array` | Yes | Array of log entries |
+| `projectMarker` | `string` | No | Project identifier |
+| `worktreePath` | `string` | No | Full worktree path |
+| `pageUrl` | `string` | No | Browser page URL |
+
+#### `logs_get_all`
+
+Get all logs grouped by session.
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `projectMarker` | `string` | Filter by project marker |
+
+**Returns:** Object mapping session IDs to log arrays
+
+#### `logs_get_errors`
+
+Get only ERROR level logs.
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `projectMarker` | `string` | Filter by project marker |
+| `since` | `string` | Only errors after this timestamp |
+
+**Example usage:**
+> "Show me all errors from the current project"
+
+#### `logs_clear`
+
+Clear logs from the server.
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `confirm` | `boolean` | Yes | Must be `true` to proceed |
+| `projectMarker` | `string` | No | Only clear this project's logs |
+| `sessionId` | `string` | No | Only clear this session's logs |
+
+**Example usage:**
+> "Clear all logs for the remote-logging project, confirm"
+
+#### `logs_search`
+
+Search logs by text pattern.
+
+**Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `query` | `string` | required | Search text or regex pattern |
+| `regex` | `boolean` | `false` | Treat query as regex |
+| `projectMarker` | `string` | - | Filter by project |
+| `level` | `string` | - | Filter by log level |
+| `limit` | `number` | `100` | Max results (max 1000) |
+
+**Example usage:**
+> "Search the logs for 'connection failed'"
+> "Search logs for any network errors using regex 'network|timeout|connection'"
+
+#### `logs_get_file_path`
+
+Get the file path to the JSONL log file for a project.
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `projectMarker` | `string` | Project marker |
+| `workingDirectory` | `string` | Derive marker from path |
+
+**Returns:** File path, existence status, and size
+
+**Example usage:**
+> "Get the log file path for this project so I can grep it"
+
+This tool is useful for accessing logs via file-based tools like `Grep` or `Read` when you need more advanced searching capabilities.
+
+### Project Markers
+
+Project markers allow you to filter logs by project, which is especially useful in monorepos or when working with multiple projects simultaneously.
+
+Markers are determined in the following priority:
+1. Explicit `projectMarker` parameter
+2. Derived from `workingDirectory` path (extracts from `.worktrees/` or uses basename)
+3. Extracted from `sessionId` prefix (e.g., `graphty-element-123-abc` → `graphty-element`)
+4. Default: `"default"`
+
+### JSONL File Organization
+
+Logs are streamed to JSONL files organized by project marker:
+
+```
+{tmpdir}/remote-logger/
+├── graphty-element/
+│   └── logs.jsonl
+├── remote-logging/
+│   └── logs.jsonl
+└── default/
+    └── logs.jsonl
+```
+
+## ConsoleCaptureUI
 
 A floating UI widget that captures all console output (`log`, `error`, `warn`, `info`, `debug`) and provides a menu to copy, download, view, or clear the captured logs.
 
@@ -401,6 +630,39 @@ window.onunhandledrejection = (event) => {
         reason: String(event.reason),
     });
 };
+```
+
+### Vite Integration (Automatic Project Markers)
+
+Use the Vite plugin to automatically inject project markers into your browser builds:
+
+```typescript
+// vite.config.ts
+import { defineConfig } from "vite";
+import { remoteLoggerPlugin } from "@graphty/remote-logger/vite";
+
+export default defineConfig({
+    plugins: [remoteLoggerPlugin()],
+});
+```
+
+The plugin automatically:
+- Detects if you're in a git worktree (e.g., `.worktrees/my-feature`) and uses the worktree name as the marker
+- Falls back to the project directory basename for regular projects
+- Injects `__REMOTE_LOG_PROJECT_MARKER__` and `__REMOTE_LOG_WORKTREE_PATH__` globals
+
+The `RemoteLogClient` automatically reads these globals when available:
+
+```typescript
+// These are injected by the Vite plugin
+declare const __REMOTE_LOG_PROJECT_MARKER__: string | undefined;
+declare const __REMOTE_LOG_WORKTREE_PATH__: string | undefined;
+
+// Client reads them automatically
+const client = new RemoteLogClient({
+    serverUrl: "http://localhost:9080",
+    // projectMarker and worktreePath are auto-detected!
+});
 ```
 
 ### Usage with graphty-element
@@ -533,6 +795,8 @@ interface RemoteLogClientOptions {
     maxRetries?: number;
     retryDelayMs?: number;
     throttlePatterns?: ThrottlePattern[];
+    projectMarker?: string;    // Project identifier for filtering
+    worktreePath?: string;     // Full path for debugging
 }
 
 interface LogServerOptions {
@@ -646,6 +910,48 @@ Direct client-only imports (same as main entry):
 ```typescript
 import { RemoteLogClient } from "@graphty/remote-logger/client";
 ```
+
+### Vite Entry (`@graphty/remote-logger/vite`)
+
+Vite plugin for automatic project marker injection:
+
+```typescript
+import { remoteLoggerPlugin } from "@graphty/remote-logger/vite";
+```
+
+## Log Retention
+
+Logs are automatically cleaned up after a configurable retention period (default: 7 days). This applies to both in-memory logs and JSONL files.
+
+### Configuration
+
+Set retention via environment variable:
+
+```bash
+export REMOTE_LOG_RETENTION_DAYS=3
+npx remote-log-server
+```
+
+Or programmatically:
+
+```typescript
+import { LogStorage } from "@graphty/remote-logger/server";
+
+const storage = new LogStorage({
+    retentionDays: 3,           // Keep logs for 3 days
+    cleanupIntervalMs: 3600000, // Check every hour (default)
+});
+```
+
+### How It Works
+
+1. **Memory cleanup**: Individual logs older than the retention period are removed. Sessions with no remaining logs are deleted entirely.
+
+2. **JSONL cleanup**: Project directories whose files haven't been modified within the retention period are removed.
+
+3. **Automatic scheduling**: Cleanup runs automatically at the configured interval (default: 1 hour).
+
+4. **Graceful shutdown**: Call `storage.stopCleanupTimer()` when shutting down to prevent memory leaks.
 
 ## License
 

@@ -10,6 +10,6 @@
         "noUnusedLocals": false,
         "noUnusedParameters": false
     },
-    "include": ["src/**/*.ts", "algorithms.ts", "stories/**/*.ts", ".storybook/**/*.ts"],
-    "exclude": ["node_modules", "vitest.config.ts", "dist"]
+    "include": ["src/**/*.ts", "algorithms.ts", ".storybook/**/*.ts"],
+    "exclude": ["node_modules", "vitest.config.ts", "dist", "stories/**/*"]
 }

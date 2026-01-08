@@ -445,6 +445,11 @@ type Story = StoryObj<FloydWarshallArgs>;
  */
 export const FloydWarshall: Story = {
     render: (args) => createFloydWarshallStory(args),
+    parameters: {
+        // Disable Chromatic snapshot for this story - the play function has long animations
+        // that exceed Chromatic's 30-second timeout (15s render + 15s interaction)
+        chromatic: { disableSnapshot: true },
+    },
     play: async ({ canvasElement, args }) => {
         const canvas = within(canvasElement);
 

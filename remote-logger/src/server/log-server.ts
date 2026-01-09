@@ -81,7 +81,7 @@ const colors = {
 export interface LogServerOptions {
     /** Port to listen on (default: 9080) */
     port?: number;
-    /** Hostname to bind to (default: localhost) */
+    /** Hostname to bind to (default: 0.0.0.0) */
     host?: string;
     /** Path to SSL certificate file (HTTPS only used if both certPath and keyPath provided) */
     certPath?: string;
@@ -477,7 +477,7 @@ export function createLogServer(options: CreateLogServerOptions): CreateLogServe
  */
 export function startLogServer(options: LogServerOptions = {}): http.Server | https.Server {
     const port = options.port ?? 9080;
-    const host = options.host ?? "localhost";
+    const host = options.host ?? "0.0.0.0";
     const quiet = options.quiet ?? false;
 
     // Set up log file if specified
@@ -555,7 +555,7 @@ Usage:
 
 Options:
   --port, -p <port>       Port to listen on (default: 9080)
-  --host, -h <host>       Hostname to bind to (default: localhost)
+  --host, -h <host>       Hostname to bind to (default: 0.0.0.0)
   --cert, -c <path>       Path to SSL certificate file (enables HTTPS)
   --key, -k <path>        Path to SSL private key file (enables HTTPS)
   --log-file, -l <path>   Write logs to file
@@ -685,7 +685,7 @@ export async function main(): Promise<void> {
         // MCP-only mode: HTTP only serves /log endpoint, MCP enabled
         const dualServer = await createDualServer({
             httpPort: options.port ?? 9080,
-            httpHost: options.host ?? "localhost",
+            httpHost: options.host ?? "0.0.0.0",
             httpEnabled: true,
             mcpEnabled: true,
             quiet: options.quiet ?? false,
@@ -711,7 +711,7 @@ export async function main(): Promise<void> {
         // HTTP-only mode: All HTTP endpoints, no MCP
         const dualServer = await createDualServer({
             httpPort: options.port ?? 9080,
-            httpHost: options.host ?? "localhost",
+            httpHost: options.host ?? "0.0.0.0",
             httpEnabled: true,
             mcpEnabled: false,
             quiet: options.quiet ?? false,
@@ -737,7 +737,7 @@ export async function main(): Promise<void> {
         // Dual mode (default): All HTTP endpoints and MCP
         const dualServer = await createDualServer({
             httpPort: options.port ?? 9080,
-            httpHost: options.host ?? "localhost",
+            httpHost: options.host ?? "0.0.0.0",
             httpEnabled: true,
             mcpEnabled: true,
             quiet: options.quiet ?? false,

@@ -68,6 +68,19 @@ describe("Log Server", () => {
         }
     });
 
+    test("should default to 0.0.0.0 host for remote accessibility", async () => {
+        // This is a regression test to ensure the server binds to all interfaces by default.
+        // A remote logging server that binds to localhost is useless for remote connections.
+        server = startLogServer({ port, quiet: true });
+        await waitForServer(server);
+
+        const address = server.address();
+        expect(address).toBeTruthy();
+        if (typeof address === "object" && address) {
+            expect(address.address).toBe("0.0.0.0");
+        }
+    });
+
     test("should handle POST /log and store logs", async () => {
         server = startLogServer({ port, host: "127.0.0.1", quiet: true });
         await waitForServer(server);

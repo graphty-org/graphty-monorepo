@@ -10,6 +10,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type * as http from "http";
 import type * as https from "https";
+import { internalIpV4Sync } from "internal-ip";
 import * as net from "net";
 import * as os from "os";
 import * as path from "path";
@@ -125,7 +126,7 @@ export async function findAvailablePort(basePort: number, host: string, quiet: b
 export interface DualServerOptions {
     /** Port for HTTP server (default: 9080) */
     httpPort?: number;
-    /** Host for HTTP server (default: localhost) */
+    /** Host for HTTP server (default: 0.0.0.0) */
     httpHost?: string;
     /** Enable MCP server (default: true) */
     mcpEnabled?: boolean;
@@ -176,7 +177,7 @@ export interface DualServerResult {
 export async function createDualServer(options: DualServerOptions = {}): Promise<DualServerResult> {
     const {
         httpPort: requestedPort = 9080,
-        httpHost = "localhost",
+        httpHost = "0.0.0.0",
         mcpEnabled = true,
         httpEnabled = true,
         quiet = false,
@@ -258,11 +259,18 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
         } else {
             mode = "dual";
         }
+        // When bound to all interfaces (0.0.0.0), detect the machine's IP address
+        // for the endpoint URL since 0.0.0.0 is not a routable address for clients
+        let endpointHost = httpHost;
+        if (httpHost === "0.0.0.0") {
+            // Try to detect the machine's internal IP, fallback to hostname, then localhost
+            endpointHost = internalIpV4Sync() ?? os.hostname() ?? "localhost";
+        }
         storage.setServerConfig({
             httpPort: actualHttpPort,
             httpHost,
             protocol,
-            httpEndpoint: `${protocol}://${httpHost}:${actualHttpPort}/log`,
+            httpEndpoint: `${protocol}://${endpointHost}:${actualHttpPort}/log`,
             mode,
         });
     }

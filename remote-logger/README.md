@@ -99,7 +99,7 @@ Usage:
 
 Options:
   --port, -p <port>       Port to listen on (default: 9080)
-  --host, -h <host>       Hostname to bind to (default: localhost)
+  --host, -h <host>       Hostname to bind to (default: 0.0.0.0)
   --cert, -c <path>       Path to SSL certificate file (enables HTTPS)
   --key, -k <path>        Path to SSL private key file (enables HTTPS)
   --log-file, -l <path>   Write logs to file (JSONL format)

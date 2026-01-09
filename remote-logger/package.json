@@ -81,6 +81,7 @@
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.0.0",
+        "internal-ip": "^8.0.1",
         "selfsigned": "^2.4.1",
         "zod": "^3.25.0"
     },

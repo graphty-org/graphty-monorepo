@@ -1,7 +1,7 @@
 import { Box } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
-import { createColorStop, GradientEditor, type ColorStop } from "../src";
+import { createColorStop, GradientEditor, PopoutManager, type ColorStop } from "../src";
 
 /**
  * An interactive editor for creating and modifying linear gradients.
@@ -31,9 +31,11 @@ const meta: Meta<typeof GradientEditor> = {
     },
     decorators: [
         (Story) => (
-            <Box w={320} p="md" bg="var(--mantine-color-body)">
-                <Story />
-            </Box>
+            <PopoutManager>
+                <Box w={320} p="md" bg="var(--mantine-color-body)">
+                    <Story />
+                </Box>
+            </PopoutManager>
         ),
     ],
 };

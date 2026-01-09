@@ -1,4 +1,4 @@
-import { ActionIcon, Box, ColorInput, Group, Slider, Stack, Text } from "@mantine/core";
+import { ActionIcon, Box, Group, Slider, Stack, Text } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import { Minus, Plus } from "lucide-react";
 import React from "react";
@@ -6,6 +6,7 @@ import React from "react";
 import { DEFAULT_GRADIENT_STOP_COLOR } from "../constants/colors";
 import type { ColorStop, GradientEditorProps } from "../types";
 import { createColorStop, createDefaultGradientStops } from "../utils/color-stops";
+import { CompactColorInput } from "./CompactColorInput";
 
 /**
  * Editor for gradient color stops with optional direction control.
@@ -91,7 +92,6 @@ export function GradientEditor({
                     Color Stops
                 </Text>
                 <ActionIcon
-                    size="compact"
                     variant="subtle"
                     color="gray"
                     onClick={addStop}
@@ -104,19 +104,17 @@ export function GradientEditor({
 
             {_stops.map((stop, index) => (
                 <Group key={stop.id} gap="xs" align="flex-end">
-                    <Box style={{ flex: 1 }}>
-                        <ColorInput
-                            size="compact"
-                            value={stop.color}
-                            onChange={(color) => {
-                                handleStopColorChange(index, color);
-                            }}
-                            aria-label={`Color stop ${index + 1}`}
-                        />
-                    </Box>
+                    <CompactColorInput
+                        color={stop.color}
+                        defaultColor={DEFAULT_GRADIENT_STOP_COLOR}
+                        onColorChange={(color) => {
+                            // When color is undefined (reset clicked), use the default color
+                            handleStopColorChange(index, color ?? DEFAULT_GRADIENT_STOP_COLOR);
+                        }}
+                        showOpacity={false}
+                    />
                     <Box style={{ width: "80px" }}>
                         <Slider
-                            size="compact"
                             min={0}
                             max={100}
                             value={stop.offset * 100}
@@ -128,7 +126,6 @@ export function GradientEditor({
                         />
                     </Box>
                     <ActionIcon
-                        size="compact"
                         variant="subtle"
                         color="gray"
                         onClick={() => {
@@ -143,12 +140,11 @@ export function GradientEditor({
             ))}
 
             {showDirection && (
-                <Box>
+                <Box pb="md">
                     <Text size="xs" c="dimmed" mb={4}>
                         Direction
                     </Text>
                     <Slider
-                        size="compact"
                         min={0}
                         max={360}
                         value={_direction}

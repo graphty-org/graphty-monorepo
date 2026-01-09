@@ -13,14 +13,20 @@ describe("compactTheme", () => {
         expect(typeof compactTheme).toBe("object");
     });
 
+    it("exports fontSizes, spacing, and radius overrides", () => {
+        expect(compactTheme.fontSizes).toBeDefined();
+        expect(compactTheme.spacing).toBeDefined();
+        expect(compactTheme.radius).toBeDefined();
+    });
+
     it("includes dark color palette", () => {
         expect(compactTheme.colors?.dark).toBeDefined();
         expect(compactTheme.colors?.dark).toHaveLength(10);
     });
 
-    it("includes all 42 component extensions", () => {
+    it("includes all 41 component extensions", () => {
         const componentNames = Object.keys(compactTheme.components ?? {});
-        expect(componentNames).toHaveLength(42);
+        expect(componentNames).toHaveLength(41);
     });
 
     it("includes all input components", () => {
@@ -31,7 +37,7 @@ describe("compactTheme", () => {
         expect(componentNames).toContain("Textarea");
         expect(componentNames).toContain("PasswordInput");
         expect(componentNames).toContain("Autocomplete");
-        expect(componentNames).toContain("ColorInput");
+        // Note: ColorInput is NOT included - use CompactColorInput component instead
     });
 
     it("includes all button components", () => {

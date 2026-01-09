@@ -22,6 +22,20 @@ import { StyleNumberInput } from "../src";
  * - Reset button (×) appears only for non-default values
  * - Supports min/max, step, decimal scale, and suffix
  * - Controlled and uncontrolled modes
+ *
+ * **How it differs from Mantine's NumberInput:**
+ *
+ * | Feature | Mantine `NumberInput` | `StyleNumberInput` |
+ * |---------|----------------------|-------------------|
+ * | Value semantics | `undefined` means empty | `undefined` means "using the default value" |
+ * | Default styling | Always normal text | Italic/dimmed when using default |
+ * | Spinner controls | Shown by default | Hidden by default (`hideControls={true}`) |
+ * | Reset mechanism | No built-in reset | Reset button reverts to default value |
+ * | Focus handling | Standard | Local state prevents focus loss during typing |
+ * | Use case | General-purpose number fields | Style property editors with overridable defaults |
+ *
+ * Use Mantine's `NumberInput` for general forms. Use `StyleNumberInput` when you need
+ * users to understand whether they're using a default or have explicitly customized a value.
  */
 const meta: Meta<typeof StyleNumberInput> = {
     title: "Components/StyleNumberInput",

@@ -5,25 +5,25 @@ import { describe, expect, it } from "vitest";
 import { compactTheme } from "../../src";
 
 /**
- * Integration tests for compact control components.
+ * Integration tests for control components with default compact styling.
  * These tests render the actual Mantine components with the compact theme
  * to exercise the vars and styles callback functions.
  */
 describe("Control Components Integration", () => {
     describe("SegmentedControl", () => {
-        it("renders with compact size", () => {
+        it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <SegmentedControl size="compact" data={["A", "B"]} aria-label="segment" />
+                    <SegmentedControl data={["A", "B"]} aria-label="segment" />
                 </MantineProvider>,
             );
             expect(screen.getByRole("radio", { name: "A" })).toBeInTheDocument();
         });
 
-        it("renders with regular size (non-compact)", () => {
+        it("renders with explicit size override", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <SegmentedControl size="sm" data={["X", "Y"]} aria-label="segment small" />
+                    <SegmentedControl size="lg" data={["X", "Y"]} aria-label="segment large" />
                 </MantineProvider>,
             );
             expect(screen.getByRole("radio", { name: "X" })).toBeInTheDocument();
@@ -31,112 +31,112 @@ describe("Control Components Integration", () => {
     });
 
     describe("Checkbox", () => {
-        it("renders with compact size", () => {
+        it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Checkbox size="compact" label="Compact Check" />
+                    <Checkbox label="Default Check" />
                 </MantineProvider>,
             );
-            expect(screen.getByRole("checkbox", { name: "Compact Check" })).toBeInTheDocument();
+            expect(screen.getByRole("checkbox", { name: "Default Check" })).toBeInTheDocument();
         });
 
-        it("renders with regular size (non-compact)", () => {
+        it("renders with explicit size override", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Checkbox size="sm" label="Small Check" />
+                    <Checkbox size="lg" label="Large Check" />
                 </MantineProvider>,
             );
-            expect(screen.getByRole("checkbox", { name: "Small Check" })).toBeInTheDocument();
+            expect(screen.getByRole("checkbox", { name: "Large Check" })).toBeInTheDocument();
         });
     });
 
     describe("Switch", () => {
-        it("renders with compact size", () => {
+        it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Switch size="compact" label="Compact Switch" />
+                    <Switch label="Default Switch" />
                 </MantineProvider>,
             );
-            expect(screen.getByRole("switch", { name: "Compact Switch" })).toBeInTheDocument();
+            expect(screen.getByRole("switch", { name: "Default Switch" })).toBeInTheDocument();
         });
 
-        it("renders with regular size (non-compact)", () => {
+        it("renders with explicit size override", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Switch size="sm" label="Small Switch" />
+                    <Switch size="lg" label="Large Switch" />
                 </MantineProvider>,
             );
-            expect(screen.getByRole("switch", { name: "Small Switch" })).toBeInTheDocument();
+            expect(screen.getByRole("switch", { name: "Large Switch" })).toBeInTheDocument();
         });
     });
 
     describe("Slider", () => {
-        it("renders with compact size", () => {
+        it("renders with default size (sm)", () => {
             const { container } = render(
                 <MantineProvider theme={compactTheme}>
-                    <Slider size="compact" />
+                    <Slider />
                 </MantineProvider>,
             );
             // Slider role is on the thumb element
             expect(screen.getByRole("slider")).toBeInTheDocument();
-            // Verify the compact size data attribute
-            expect(container.querySelector("[data-size='compact']")).toBeInTheDocument();
+            // Verify the default size data attribute
+            expect(container.querySelector("[data-size='sm']")).toBeInTheDocument();
         });
 
-        it("renders with regular size (non-compact)", () => {
+        it("renders with explicit size override", () => {
             const { container } = render(
                 <MantineProvider theme={compactTheme}>
-                    <Slider size="sm" />
+                    <Slider size="lg" />
                 </MantineProvider>,
             );
             expect(screen.getByRole("slider")).toBeInTheDocument();
-            expect(container.querySelector("[data-size='sm']")).toBeInTheDocument();
+            expect(container.querySelector("[data-size='lg']")).toBeInTheDocument();
         });
     });
 
     describe("Radio", () => {
-        it("renders with compact size", () => {
+        it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Radio size="compact" label="Compact Radio" value="a" />
+                    <Radio label="Default Radio" value="a" />
                 </MantineProvider>,
             );
-            expect(screen.getByRole("radio", { name: "Compact Radio" })).toBeInTheDocument();
+            expect(screen.getByRole("radio", { name: "Default Radio" })).toBeInTheDocument();
         });
 
-        it("renders with regular size (non-compact)", () => {
+        it("renders with explicit size override", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Radio size="sm" label="Small Radio" value="b" />
+                    <Radio size="lg" label="Large Radio" value="b" />
                 </MantineProvider>,
             );
-            expect(screen.getByRole("radio", { name: "Small Radio" })).toBeInTheDocument();
+            expect(screen.getByRole("radio", { name: "Large Radio" })).toBeInTheDocument();
         });
     });
 
     describe("RangeSlider", () => {
-        it("renders with compact size", () => {
+        it("renders with default size (sm)", () => {
             const { container } = render(
                 <MantineProvider theme={compactTheme}>
-                    <RangeSlider size="compact" />
+                    <RangeSlider />
                 </MantineProvider>,
             );
             // RangeSlider has two sliders (thumbs)
             const sliders = screen.getAllByRole("slider");
             expect(sliders).toHaveLength(2);
-            // Verify the compact size data attribute
-            expect(container.querySelector("[data-size='compact']")).toBeInTheDocument();
+            // Verify the default size data attribute
+            expect(container.querySelector("[data-size='sm']")).toBeInTheDocument();
         });
 
-        it("renders with regular size (non-compact)", () => {
+        it("renders with explicit size override", () => {
             const { container } = render(
                 <MantineProvider theme={compactTheme}>
-                    <RangeSlider size="sm" />
+                    <RangeSlider size="lg" />
                 </MantineProvider>,
             );
             const sliders = screen.getAllByRole("slider");
             expect(sliders).toHaveLength(2);
-            expect(container.querySelector("[data-size='sm']")).toBeInTheDocument();
+            expect(container.querySelector("[data-size='lg']")).toBeInTheDocument();
         });
     });
 });

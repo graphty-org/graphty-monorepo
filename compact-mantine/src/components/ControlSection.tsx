@@ -29,9 +29,9 @@ export function ControlSection({
     return (
         <Box>
             {/* Separator line above section */}
-            <Divider color="gray.7" mt={8} mb={0} />
+            <Divider color="gray.7" mt={8} mb={0} mx={8} />
             {/* Header row with expand/collapse toggle */}
-            <Group justify="space-between" py={8} style={{ cursor: "pointer" }} onClick={toggle}>
+            <Group justify="space-between" py={8} px={8} style={{ cursor: "pointer" }} onClick={toggle}>
                 <Group gap={4}>
                     <ActionIcon
                         variant="subtle"

@@ -5,11 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { compactTheme } from "../../src";
 
-describe("Checkbox with compact size", () => {
+describe("Checkbox with default size (sm)", () => {
     it("renders label", () => {
         render(
             <MantineProvider theme={compactTheme}>
-                <Checkbox size="compact" label="Test Checkbox" />
+                <Checkbox label="Test Checkbox" />
             </MantineProvider>,
         );
         expect(screen.getByLabelText("Test Checkbox")).toBeInTheDocument();
@@ -18,7 +18,7 @@ describe("Checkbox with compact size", () => {
     it("renders unchecked by default", () => {
         render(
             <MantineProvider theme={compactTheme}>
-                <Checkbox size="compact" label="Test" />
+                <Checkbox label="Test" />
             </MantineProvider>,
         );
         expect(screen.getByRole("checkbox")).not.toBeChecked();
@@ -27,7 +27,7 @@ describe("Checkbox with compact size", () => {
     it("renders checked when checked prop is true", () => {
         render(
             <MantineProvider theme={compactTheme}>
-                <Checkbox size="compact" label="Test" checked onChange={() => {}} />
+                <Checkbox label="Test" checked onChange={() => {}} />
             </MantineProvider>,
         );
         expect(screen.getByRole("checkbox")).toBeChecked();
@@ -38,7 +38,7 @@ describe("Checkbox with compact size", () => {
         const onChange = vi.fn();
         render(
             <MantineProvider theme={compactTheme}>
-                <Checkbox size="compact" label="Test" onChange={onChange} />
+                <Checkbox label="Test" onChange={onChange} />
             </MantineProvider>,
         );
 
@@ -46,13 +46,13 @@ describe("Checkbox with compact size", () => {
         expect(onChange).toHaveBeenCalled();
     });
 
-    it("applies compact size styling", () => {
+    it("applies default sm size styling", () => {
         const { container } = render(
             <MantineProvider theme={compactTheme}>
-                <Checkbox size="compact" label="Test" />
+                <Checkbox label="Test" />
             </MantineProvider>,
         );
-        // The checkbox should have compact size attribute
-        expect(container.querySelector("[data-size='compact']")).toBeInTheDocument();
+        // The checkbox should have sm size attribute by default
+        expect(container.querySelector("[data-size='sm']")).toBeInTheDocument();
     });
 });

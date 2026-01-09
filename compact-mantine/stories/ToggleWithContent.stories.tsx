@@ -1,7 +1,7 @@
 import { Box, Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
-import { CompactColorInput, EffectToggle, StyleNumberInput } from "../src";
+import { CompactColorInput, StyleNumberInput, ToggleWithContent } from "../src";
 
 /**
  * A checkbox toggle that conditionally shows child controls when enabled.
@@ -10,7 +10,7 @@ import { CompactColorInput, EffectToggle, StyleNumberInput } from "../src";
  * their own configuration options. Child controls only appear when the toggle is checked.
  *
  * **When to use:**
- * - For optional effects like glow, shadow, outline, or animation
+ * - For optional features like glow, shadow, outline, or animation
  * - When enabling a feature reveals additional configuration options
  * - To reduce visual clutter by hiding irrelevant controls
  * - For boolean settings that have dependent sub-options
@@ -21,9 +21,9 @@ import { CompactColorInput, EffectToggle, StyleNumberInput } from "../src";
  * - Supports controlled and uncontrolled modes
  * - Clean show/hide animation
  */
-const meta: Meta<typeof EffectToggle> = {
-    title: "Components/EffectToggle",
-    component: EffectToggle,
+const meta: Meta<typeof ToggleWithContent> = {
+    title: "Components/ToggleWithContent",
+    component: ToggleWithContent,
     tags: ["autodocs"],
     parameters: {
         layout: "padded",
@@ -38,7 +38,7 @@ const meta: Meta<typeof EffectToggle> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof EffectToggle>;
+type Story = StoryObj<typeof ToggleWithContent>;
 
 /**
  * Unchecked toggle with hidden child content.

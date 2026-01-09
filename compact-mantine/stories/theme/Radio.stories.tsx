@@ -1,12 +1,9 @@
-import { Group, Radio, Stack, Text } from "@mantine/core";
+import { Group, Radio } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Radio> = {
     title: "Theme/Radio",
     component: Radio,
-    args: {
-        size: "compact",
-    },
 };
 
 export default meta;
@@ -19,27 +16,38 @@ export const Default: Story = {
     },
 };
 
-export const AllStates: Story = {
+export const Unselected: Story = {
+    args: {
+        label: "Unselected",
+        value: "a",
+    },
+};
+
+export const Selected: Story = {
+    args: {
+        label: "Selected",
+        value: "b",
+        checked: true,
+        onChange: () => {},
+    },
+};
+
+export const Disabled: Story = {
+    args: {
+        label: "Disabled",
+        value: "c",
+        disabled: true,
+    },
+};
+
+export const RadioGroup: Story = {
     render: () => (
-        <Stack gap="md">
-            <Text size="sm" fw={500}>
-                Radio States
-            </Text>
-            <Group gap="lg">
-                <Radio size="compact" label="Unselected" value="a" />
-                <Radio size="compact" label="Selected" value="b" checked onChange={() => {}} />
-                <Radio size="compact" label="Disabled" value="c" disabled />
+        <Radio.Group name="mood" defaultValue="sleepy">
+            <Group gap="md">
+                <Radio value="sleepy" label="Sleepy" />
+                <Radio value="hungry" label="Hungry" />
+                <Radio value="playful" label="Playful" />
             </Group>
-            <Text size="sm" fw={500} mt="md">
-                Radio Group
-            </Text>
-            <Radio.Group name="mood" defaultValue="sleepy">
-                <Group gap="md">
-                    <Radio size="compact" value="sleepy" label="Sleepy" />
-                    <Radio size="compact" value="hungry" label="Hungry" />
-                    <Radio size="compact" value="playful" label="Playful" />
-                </Group>
-            </Radio.Group>
-        </Stack>
+        </Radio.Group>
     ),
 };

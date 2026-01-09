@@ -21,12 +21,13 @@ import { useRef, useState } from "react";
 
 import { CompactColorInput } from "../CompactColorInput";
 import { ControlGroup } from "../ControlGroup";
-import { EffectToggle } from "../EffectToggle";
 import { GradientEditor } from "../GradientEditor";
 import { StyleNumberInput } from "../StyleNumberInput";
 import { StyleSelect } from "../StyleSelect";
+import { ToggleWithContent } from "../ToggleWithContent";
 import { LabelSettingsPopout } from "./examples/LabelSettingsPopout";
 import { Popout } from "./Popout";
+import { PopoutButton } from "./PopoutButton";
 import { PopoutManager } from "./PopoutManager";
 
 /**
@@ -107,14 +108,10 @@ export const Basic: Story = {
                             label="Test →"
                             actions={
                                 <Popout.Trigger>
-                                    <ActionIcon
-                                        variant="subtle"
-                                        size="xs"
+                                    <PopoutButton
+                                        icon={<ExternalLink size={12} />}
                                         aria-label="Open settings"
-                                        c="dimmed"
-                                    >
-                                        <ExternalLink size={12} />
-                                    </ActionIcon>
+                                    />
                                 </Popout.Trigger>
                             }
                         >
@@ -239,14 +236,10 @@ export const Tabbed: Story = {
                             label="Label Settings"
                             actions={
                                 <Popout.Trigger>
-                                    <ActionIcon
-                                        variant="subtle"
-                                        size="xs"
+                                    <PopoutButton
+                                        icon={<ExternalLink size={12} />}
                                         aria-label="Open tabbed settings"
-                                        c="dimmed"
-                                    >
-                                        <ExternalLink size={12} />
-                                    </ActionIcon>
+                                    />
                                 </Popout.Trigger>
                             }
                         >
@@ -270,7 +263,7 @@ export const Tabbed: Story = {
                                         label: "General",
                                         content: (
                                             <Popout.Content>
-                                                <EffectToggle label="Show labels" defaultChecked>
+                                                <ToggleWithContent label="Show labels" defaultChecked>
                                                     <StyleNumberInput
                                                         label="Font size"
                                                         defaultValue={12}
@@ -279,8 +272,8 @@ export const Tabbed: Story = {
                                                         step={1}
                                                         suffix="px"
                                                     />
-                                                    <Checkbox size="compact" label="Bold text" />
-                                                </EffectToggle>
+                                                    <Checkbox label="Bold text" />
+                                                </ToggleWithContent>
                                             </Popout.Content>
                                         ),
                                     },
@@ -289,9 +282,8 @@ export const Tabbed: Story = {
                                         label: "Advanced",
                                         content: (
                                             <Popout.Content>
-                                                <Checkbox size="compact" label="Debug mode" />
+                                                <Checkbox label="Debug mode" />
                                                 <NumberInput
-                                                    size="compact"
                                                     label="Max labels"
                                                     defaultValue={100}
                                                     min={0}
@@ -354,17 +346,14 @@ export const Tabbed: Story = {
         await expect(trigger).toHaveAttribute("aria-expanded", "true");
         await expect(trigger).toHaveAttribute("aria-controls", panel.id);
 
-        // Should have three tabs
-        await expect(canvas.getByRole("tab", { name: "General" })).toBeInTheDocument();
-        await expect(canvas.getByRole("tab", { name: "Advanced" })).toBeInTheDocument();
-        await expect(canvas.getByRole("tab", { name: "About" })).toBeInTheDocument();
+        // Should have three options in segmented control
+        await expect(canvas.getByRole("radio", { name: "General" })).toBeInTheDocument();
+        await expect(canvas.getByRole("radio", { name: "Advanced" })).toBeInTheDocument();
+        await expect(canvas.getByRole("radio", { name: "About" })).toBeInTheDocument();
 
-        // First tab should be active by default
-        const generalTab = canvas.getByRole("tab", { name: "General" });
-        await expect(generalTab).toHaveAttribute("aria-selected", "true");
-
-        // Verify tablist has proper ARIA
-        await expect(canvas.getByRole("tablist")).toHaveAttribute("aria-label", "Panel tabs");
+        // First option should be selected by default
+        const generalOption = canvas.getByRole("radio", { name: "General" });
+        await expect(generalOption).toBeChecked();
 
         // Leave panel open for user to interact with
     },
@@ -418,14 +407,10 @@ export const MultiplePopouts: Story = {
                             label="Settings"
                             actions={
                                 <Popout.Trigger>
-                                    <ActionIcon
-                                        variant="subtle"
-                                        size="xs"
+                                    <PopoutButton
+                                        icon={<Settings size={12} />}
                                         aria-label="Open Panel A"
-                                        c="dimmed"
-                                    >
-                                        <Settings size={12} />
-                                    </ActionIcon>
+                                    />
                                 </Popout.Trigger>
                             }
                         >
@@ -449,8 +434,8 @@ export const MultiplePopouts: Story = {
                                     click on this panel to bring it back to front.
                                 </Text>
                                 <Box mt="md">
-                                    <Checkbox size="compact" label="Enable feature X" />
-                                    <Checkbox size="compact" label="Enable feature Y" mt="xs" />
+                                    <Checkbox label="Enable feature X" />
+                                    <Checkbox label="Enable feature Y" mt="xs" />
                                 </Box>
                             </Popout.Content>
                         </Popout.Panel>
@@ -462,14 +447,10 @@ export const MultiplePopouts: Story = {
                             label="Appearance"
                             actions={
                                 <Popout.Trigger>
-                                    <ActionIcon
-                                        variant="subtle"
-                                        size="xs"
+                                    <PopoutButton
+                                        icon={<Palette size={12} />}
                                         aria-label="Open Panel B"
-                                        c="dimmed"
-                                    >
-                                        <Palette size={12} />
-                                    </ActionIcon>
+                                    />
                                 </Popout.Trigger>
                             }
                         >
@@ -512,14 +493,10 @@ export const MultiplePopouts: Story = {
                             label="Advanced"
                             actions={
                                 <Popout.Trigger>
-                                    <ActionIcon
-                                        variant="subtle"
-                                        size="xs"
+                                    <PopoutButton
+                                        icon={<Sliders size={12} />}
                                         aria-label="Open Panel C"
-                                        c="dimmed"
-                                    >
-                                        <Sliders size={12} />
-                                    </ActionIcon>
+                                    />
                                 </Popout.Trigger>
                             }
                         >
@@ -544,7 +521,6 @@ export const MultiplePopouts: Story = {
                                 </Text>
                                 <Box mt="md">
                                     <NumberInput
-                                        size="compact"
                                         label="Cache size"
                                         defaultValue={1024}
                                         min={0}
@@ -561,14 +537,10 @@ export const MultiplePopouts: Story = {
                             label="Nested Demo"
                             actions={
                                 <Popout.Trigger>
-                                    <ActionIcon
-                                        variant="subtle"
-                                        size="xs"
+                                    <PopoutButton
+                                        icon={<Layers size={12} />}
                                         aria-label="Open Nested Demo"
-                                        c="dimmed"
-                                    >
-                                        <Layers size={12} />
-                                    </ActionIcon>
+                                    />
                                 </Popout.Trigger>
                             }
                         >
@@ -596,7 +568,7 @@ export const MultiplePopouts: Story = {
                                     <Popout>
                                         <Popout.Trigger>
                                             <Button
-                                                size="compact"
+                                                size="compact-sm"
                                                 variant="light"
                                                 rightSection={<ChevronRight size={14} />}
                                                 aria-label="Open Child Panel"
@@ -617,9 +589,8 @@ export const MultiplePopouts: Story = {
                                                     also close this panel.
                                                 </Text>
                                                 <Box mt="md">
-                                                    <Checkbox size="compact" label="Child option 1" />
+                                                    <Checkbox label="Child option 1" />
                                                     <Checkbox
-                                                        size="compact"
                                                         label="Child option 2"
                                                         mt="xs"
                                                     />
@@ -809,17 +780,17 @@ export const Demo: Story = {
         await expect(trigger).toHaveAttribute("aria-controls", panel.id);
         await expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
 
-        // Verify tabs are present
-        await expect(canvas.getByRole("tab", { name: "General" })).toBeInTheDocument();
-        await expect(canvas.getByRole("tab", { name: "Advanced" })).toBeInTheDocument();
-        await expect(canvas.getByRole("tab", { name: "About" })).toBeInTheDocument();
+        // Verify segmented control options are present
+        await expect(canvas.getByRole("radio", { name: "General" })).toBeInTheDocument();
+        await expect(canvas.getByRole("radio", { name: "Advanced" })).toBeInTheDocument();
+        await expect(canvas.getByRole("radio", { name: "About" })).toBeInTheDocument();
 
         // Switch to Advanced tab
-        await userEvent.click(canvas.getByRole("tab", { name: "Advanced" }));
+        await userEvent.click(canvas.getByRole("radio", { name: "Advanced" }));
         await expect(canvas.getByText("Label opacity")).toBeVisible();
 
         // Switch to About tab
-        await userEvent.click(canvas.getByRole("tab", { name: "About" }));
+        await userEvent.click(canvas.getByRole("radio", { name: "About" }));
         await expect(canvas.getByText("Part of @graphty/compact-mantine")).toBeVisible();
 
         // Test keyboard navigation - press Escape to close
@@ -906,14 +877,10 @@ export const ComponentCompatibility: Story = {
                             label="Component Test"
                             actions={
                                 <Popout.Trigger>
-                                    <ActionIcon
-                                        variant="subtle"
-                                        size="xs"
+                                    <PopoutButton
+                                        icon={<ExternalLink size={12} />}
                                         aria-label="Open component compatibility test"
-                                        c="dimmed"
-                                    >
-                                        <ExternalLink size={12} />
-                                    </ActionIcon>
+                                    />
                                 </Popout.Trigger>
                             }
                         >
@@ -945,7 +912,6 @@ export const ComponentCompatibility: Story = {
 
                                                     {/* Select */}
                                                     <Select
-                                                        size="compact"
                                                         label="Select"
                                                         data-testid="test-select"
                                                         value={selectValue}
@@ -960,7 +926,6 @@ export const ComponentCompatibility: Story = {
 
                                                     {/* Autocomplete */}
                                                     <Autocomplete
-                                                        size="compact"
                                                         label="Autocomplete"
                                                         data-testid="test-autocomplete"
                                                         data={["React", "Vue", "Angular", "Svelte", "Solid"]}
@@ -969,7 +934,6 @@ export const ComponentCompatibility: Story = {
 
                                                     {/* MultiSelect */}
                                                     <MultiSelect
-                                                        size="compact"
                                                         label="MultiSelect"
                                                         data-testid="test-multiselect"
                                                         value={multiSelectValue}
@@ -983,7 +947,6 @@ export const ComponentCompatibility: Story = {
 
                                                     {/* TagsInput */}
                                                     <TagsInput
-                                                        size="compact"
                                                         label="TagsInput"
                                                         data-testid="test-tagsinput"
                                                         value={tagsValue}
@@ -994,7 +957,6 @@ export const ComponentCompatibility: Story = {
 
                                                     {/* ColorInput */}
                                                     <ColorInput
-                                                        size="compact"
                                                         label="ColorInput"
                                                         data-testid="test-colorinput"
                                                         value={colorValue}

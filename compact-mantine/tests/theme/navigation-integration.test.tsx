@@ -14,69 +14,69 @@ import { describe, expect, it } from "vitest";
 import { compactTheme } from "../../src";
 
 /**
- * Integration tests for compact navigation components.
+ * Integration tests for navigation components with default compact styling.
  * These tests render the actual Mantine components with the compact theme
  * to exercise the vars callback functions.
  */
 describe("Navigation Components Integration", () => {
     describe("Anchor", () => {
-        it("renders with compact size", () => {
+        it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Anchor size="compact" href="#">
-                        Compact Link
+                    <Anchor href="#">
+                        Default Link
                     </Anchor>
                 </MantineProvider>,
             );
-            expect(screen.getByText("Compact Link")).toBeInTheDocument();
+            expect(screen.getByText("Default Link")).toBeInTheDocument();
         });
 
-        it("renders with regular size (non-compact)", () => {
+        it("renders with explicit size override", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Anchor size="sm" href="#">
-                        Small Link
+                    <Anchor size="lg" href="#">
+                        Large Link
                     </Anchor>
                 </MantineProvider>,
             );
-            expect(screen.getByText("Small Link")).toBeInTheDocument();
+            expect(screen.getByText("Large Link")).toBeInTheDocument();
         });
     });
 
     describe("Burger", () => {
-        it("renders with compact size", () => {
+        it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Burger size="compact" opened={false} aria-label="Toggle menu" />
+                    <Burger opened={false} aria-label="Toggle menu" />
                 </MantineProvider>,
             );
             expect(screen.getByLabelText("Toggle menu")).toBeInTheDocument();
         });
 
-        it("renders with regular size (non-compact)", () => {
+        it("renders with explicit size override", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Burger size="sm" opened={false} aria-label="Toggle menu sm" />
+                    <Burger size="lg" opened={false} aria-label="Toggle menu lg" />
                 </MantineProvider>,
             );
-            expect(screen.getByLabelText("Toggle menu sm")).toBeInTheDocument();
+            expect(screen.getByLabelText("Toggle menu lg")).toBeInTheDocument();
         });
     });
 
     describe("NavLink", () => {
-        it("renders with compact size", () => {
+        it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <NavLink size="compact" label="Home" leftSection={<Home size={14} />} />
+                    <NavLink label="Home" leftSection={<Home size={14} />} />
                 </MantineProvider>,
             );
             expect(screen.getByText("Home")).toBeInTheDocument();
         });
 
-        it("renders with regular size (non-compact)", () => {
+        it("renders with explicit size override", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <NavLink size="sm" label="Settings" />
+                    <NavLink size="lg" label="Settings" />
                 </MantineProvider>,
             );
             expect(screen.getByText("Settings")).toBeInTheDocument();
@@ -84,30 +84,30 @@ describe("Navigation Components Integration", () => {
     });
 
     describe("Pagination", () => {
-        it("renders with compact size", () => {
+        it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Pagination size="compact" total={10} data-testid="pagination" />
+                    <Pagination total={10} data-testid="pagination" />
                 </MantineProvider>,
             );
             expect(screen.getByTestId("pagination")).toBeInTheDocument();
         });
 
-        it("renders with regular size (non-compact)", () => {
+        it("renders with explicit size override", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Pagination size="sm" total={10} data-testid="pagination-sm" />
+                    <Pagination size="lg" total={10} data-testid="pagination-lg" />
                 </MantineProvider>,
             );
-            expect(screen.getByTestId("pagination-sm")).toBeInTheDocument();
+            expect(screen.getByTestId("pagination-lg")).toBeInTheDocument();
         });
     });
 
     describe("Stepper", () => {
-        it("renders with compact size", () => {
+        it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Stepper size="compact" active={1} data-testid="stepper">
+                    <Stepper active={1} data-testid="stepper">
                         <Stepper.Step label="Step 1" />
                         <Stepper.Step label="Step 2" />
                     </Stepper>
@@ -116,24 +116,24 @@ describe("Navigation Components Integration", () => {
             expect(screen.getByTestId("stepper")).toBeInTheDocument();
         });
 
-        it("renders with regular size (non-compact)", () => {
+        it("renders with explicit size override", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Stepper size="sm" active={1} data-testid="stepper-sm">
+                    <Stepper size="lg" active={1} data-testid="stepper-lg">
                         <Stepper.Step label="Step 1" />
                         <Stepper.Step label="Step 2" />
                     </Stepper>
                 </MantineProvider>,
             );
-            expect(screen.getByTestId("stepper-sm")).toBeInTheDocument();
+            expect(screen.getByTestId("stepper-lg")).toBeInTheDocument();
         });
     });
 
     describe("Tabs", () => {
-        it("renders with compact size", () => {
+        it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Tabs size="compact" defaultValue="first" data-testid="tabs">
+                    <Tabs defaultValue="first" data-testid="tabs">
                         <Tabs.List>
                             <Tabs.Tab value="first">First</Tabs.Tab>
                             <Tabs.Tab value="second">Second</Tabs.Tab>
@@ -145,10 +145,10 @@ describe("Navigation Components Integration", () => {
             expect(screen.getByText("First")).toBeInTheDocument();
         });
 
-        it("renders with regular size (non-compact)", () => {
+        it("renders with explicit size override", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Tabs size="sm" defaultValue="first" data-testid="tabs-sm">
+                    <Tabs size="lg" defaultValue="first" data-testid="tabs-lg">
                         <Tabs.List>
                             <Tabs.Tab value="first">Tab A</Tabs.Tab>
                             <Tabs.Tab value="second">Tab B</Tabs.Tab>
@@ -156,7 +156,7 @@ describe("Navigation Components Integration", () => {
                     </Tabs>
                 </MantineProvider>,
             );
-            expect(screen.getByTestId("tabs-sm")).toBeInTheDocument();
+            expect(screen.getByTestId("tabs-lg")).toBeInTheDocument();
             expect(screen.getByText("Tab A")).toBeInTheDocument();
         });
     });

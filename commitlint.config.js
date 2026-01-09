@@ -9,6 +9,8 @@ export default {
                 "layout",
                 "graphty-element",
                 "graphty",
+		"compact-mantine",
+		"remote-logger",
                 "gpu-3d-force-layout",
                 "deps",
                 "release",

@@ -1,5 +1,6 @@
 import type { JSX, ReactNode } from "react";
 
+import { PopoutAnchor } from "./PopoutAnchor";
 import { PopoutContent } from "./PopoutContent";
 import { PopoutProvider, useOptionalPopoutContext } from "./PopoutContext";
 import { PopoutPanel } from "./PopoutPanel";
@@ -50,4 +51,5 @@ export const Popout = Object.assign(PopoutRoot, {
     Trigger: PopoutTrigger,
     Panel: PopoutPanel,
     Content: PopoutContent,
+    Anchor: PopoutAnchor,
 });

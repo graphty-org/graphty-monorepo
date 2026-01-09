@@ -1,17 +1,17 @@
 // Theme exports
-export { compactColors, compactDarkColors, compactTheme } from "./theme";
+export { compactColors, compactDarkColors, compactTheme, compactThemeOverride } from "./theme";
 
 // Component exports
 export { CompactColorInput } from "./components/CompactColorInput";
 export { ControlGroup } from "./components/ControlGroup";
 export { ControlSection } from "./components/ControlSection";
 export { ControlSubGroup } from "./components/ControlSubGroup";
-export { EffectToggle } from "./components/EffectToggle";
 export { GradientEditor } from "./components/GradientEditor";
-export { Popout, PopoutManager } from "./components/popout";
+export { Popout, PopoutButton, PopoutManager } from "./components/popout";
 export { StatRow } from "./components/StatRow";
 export { StyleNumberInput } from "./components/StyleNumberInput";
 export { StyleSelect } from "./components/StyleSelect";
+export { ToggleWithContent } from "./components/ToggleWithContent";
 
 // Hook exports
 export { useActualColorScheme } from "./hooks";
@@ -47,7 +47,6 @@ export type {
     ControlGroupProps,
     ControlSectionProps,
     ControlSubGroupProps,
-    EffectToggleProps,
     GradientEditorProps,
     PopoutContentProps,
     PopoutContextValue,
@@ -61,6 +60,7 @@ export type {
     StyleNumberInputProps,
     StyleSelectOption,
     StyleSelectProps,
+    ToggleWithContentProps,
 } from "./types";
 
 // Version

@@ -5,48 +5,48 @@ import { describe, expect, it } from "vitest";
 import { compactTheme } from "../../src";
 
 /**
- * Integration tests for compact feedback components.
+ * Integration tests for feedback components with default compact styling.
  * These tests render the actual Mantine components with the compact theme
  * to exercise the vars callback functions.
  */
 describe("Feedback Components Integration", () => {
     describe("Loader", () => {
-        it("renders with compact size", () => {
+        it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Loader size="compact" data-testid="loader" />
+                    <Loader data-testid="loader" />
                 </MantineProvider>,
             );
             expect(screen.getByTestId("loader")).toBeInTheDocument();
         });
 
-        it("renders with regular size (non-compact)", () => {
+        it("renders with explicit size override", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Loader size="sm" data-testid="loader-sm" />
+                    <Loader size="lg" data-testid="loader-lg" />
                 </MantineProvider>,
             );
-            expect(screen.getByTestId("loader-sm")).toBeInTheDocument();
+            expect(screen.getByTestId("loader-lg")).toBeInTheDocument();
         });
     });
 
     describe("Progress", () => {
-        it("renders with compact size", () => {
+        it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Progress size="compact" value={50} data-testid="progress" />
+                    <Progress value={50} data-testid="progress" />
                 </MantineProvider>,
             );
             expect(screen.getByTestId("progress")).toBeInTheDocument();
         });
 
-        it("renders with regular size (non-compact)", () => {
+        it("renders with explicit size override", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Progress size="sm" value={50} data-testid="progress-sm" />
+                    <Progress size="lg" value={50} data-testid="progress-lg" />
                 </MantineProvider>,
             );
-            expect(screen.getByTestId("progress-sm")).toBeInTheDocument();
+            expect(screen.getByTestId("progress-lg")).toBeInTheDocument();
         });
     });
 
@@ -66,17 +66,17 @@ describe("Feedback Components Integration", () => {
             expect(screen.getByTestId("ring")).toBeInTheDocument();
         });
 
-        it("renders with regular size (non-compact)", () => {
+        it("renders with larger size", () => {
             render(
                 <MantineProvider theme={compactTheme}>
                     <RingProgress
                         size={80}
                         sections={[{ value: 40, color: "blue" }]}
-                        data-testid="ring-sm"
+                        data-testid="ring-lg"
                     />
                 </MantineProvider>,
             );
-            expect(screen.getByTestId("ring-sm")).toBeInTheDocument();
+            expect(screen.getByTestId("ring-lg")).toBeInTheDocument();
         });
     });
 });

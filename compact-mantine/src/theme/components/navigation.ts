@@ -1,105 +1,72 @@
 import { Anchor, Burger, NavLink, Pagination, Stepper, Tabs } from "@mantine/core";
 
+import {
+    compactAnchorStyles,
+    compactBurgerVars,
+    compactNavLinkStyles,
+    compactPaginationVars,
+    compactStepperVars,
+    compactTabsStyles,
+} from "../styles/navigation";
+
 /**
- * Theme extensions for navigation components with "compact" size support.
+ * Theme extensions for navigation components with compact sizing by default.
  *
- * Note: NavLink and Tabs do not have a `size` prop, so we use styles with
- * custom data attributes instead of vars. Components should use data-compact
- * attribute to trigger compact styles: <NavLink data-compact />
+ * Components with size prop default to size="sm":
+ * - Anchor, Burger, Pagination, Stepper
+ *
+ * CSS variables are applied via `vars` functions to override Mantine's defaults:
+ * - Pagination: --pagination-control-size: 24px, --pagination-control-fz: 11px
+ * - Stepper: --stepper-icon-size: 24px, --stepper-fz: 11px
+ * - Burger: --burger-size: 18px
+ *
+ * Static styles are applied for components that don't have a size prop:
+ * - Tabs: tab fontSize 11px, padding "6px 10px"
+ * - NavLink: label fontSize 11px, minHeight 28px
+ * - Anchor: fontSize 11px (in addition to size="sm")
  */
 export const navigationComponentExtensions = {
-    // Anchor uses --text-fz since it inherits from Text component
     Anchor: Anchor.extend({
-        styles: (_theme, props) => {
-            if ((props.size as string) === "compact") {
-                return {
-                    root: {
-                        fontSize: 11,
-                    },
-                };
-            }
-            return {};
+        defaultProps: {
+            size: "sm",
         },
+        styles: compactAnchorStyles,
     }),
 
     Burger: Burger.extend({
-        vars: (_theme, props) => {
-            if ((props.size as string) === "compact") {
-                return {
-                    root: {
-                        "--burger-size": "18px",
-                        "--burger-line-size": "2px",
-                    },
-                };
-            }
-            return { root: {} };
+        defaultProps: {
+            size: "sm",
         },
+        vars: () => ({
+            root: compactBurgerVars,
+        }),
     }),
 
-    // NavLink uses styles since it doesn't have a size prop and requires
-    // a 'children' CSS variable. Apply styles based on custom variant prop.
     NavLink: NavLink.extend({
-        styles: (_theme, props) => {
-            // Check for compact variant
-            if ((props.variant as string) === "compact") {
-                return {
-                    root: {
-                        fontSize: 11,
-                        minHeight: 28,
-                    },
-                    label: {
-                        fontSize: 11,
-                    },
-                };
-            }
-            return {};
-        },
+        // NavLink does not have a size prop, only styles for compact appearance
+        styles: compactNavLinkStyles,
     }),
 
     Pagination: Pagination.extend({
-        vars: (_theme, props) => {
-            if ((props.size as string) === "compact") {
-                return {
-                    root: {
-                        "--pagination-control-size": "24px",
-                        "--pagination-control-fz": "11px",
-                    },
-                };
-            }
-            return { root: {} };
+        defaultProps: {
+            size: "sm",
         },
+        vars: () => ({
+            root: compactPaginationVars,
+        }),
     }),
 
     Stepper: Stepper.extend({
-        vars: (_theme, props) => {
-            if ((props.size as string) === "compact") {
-                return {
-                    root: {
-                        "--stepper-icon-size": "24px",
-                        "--stepper-fz": "11px",
-                        "--stepper-spacing": "8px",
-                    },
-                };
-            }
-            return { root: {} };
+        defaultProps: {
+            size: "sm",
         },
+        vars: () => ({
+            root: compactStepperVars,
+        }),
     }),
 
-    // Tabs uses styles since it doesn't have a size prop and the CSS vars
-    // for tabs are limited to --tabs-color and --tabs-radius.
-    // Apply styles based on custom variant prop.
     Tabs: Tabs.extend({
-        styles: (_theme, props) => {
-            // Check for compact variant
-            if ((props.variant as string) === "compact") {
-                return {
-                    tab: {
-                        fontSize: 11,
-                        padding: "6px 10px",
-                    },
-                };
-            }
-            return {};
-        },
+        // Tabs does not have a size prop, only styles for compact appearance
+        styles: compactTabsStyles,
     }),
 };

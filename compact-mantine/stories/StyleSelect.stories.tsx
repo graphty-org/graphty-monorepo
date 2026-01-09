@@ -21,6 +21,18 @@ import { StyleSelect } from "../src";
  * - Normal styling when value is explicitly set
  * - Reset button (×) appears only for non-default values
  * - Controlled and uncontrolled modes
+ *
+ * **How it differs from Mantine's Select:**
+ *
+ * | Feature | Mantine `Select` | `StyleSelect` |
+ * |---------|------------------|---------------|
+ * | Value semantics | `undefined`/`null` means empty/no selection | `undefined` means "using the default value" |
+ * | Default styling | Always normal text | Italic/dimmed when using default |
+ * | Reset mechanism | `clearable` prop clears to empty | Reset button reverts to default value |
+ * | Use case | General-purpose dropdowns | Style property editors with overridable defaults |
+ *
+ * Use Mantine's `Select` for general forms. Use `StyleSelect` when you need users to
+ * understand whether they're using a default or have explicitly customized a value.
  */
 const meta: Meta<typeof StyleSelect> = {
     title: "Components/StyleSelect",

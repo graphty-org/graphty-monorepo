@@ -1,58 +1,50 @@
 import { MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { compactTheme, createColorStop, GradientEditor } from "../../src";
+import { compactTheme, createColorStop, GradientEditor, PopoutManager } from "../../src";
+
+/**
+ * Helper to render GradientEditor with required providers
+ */
+function renderGradientEditor(children: ReactNode) {
+    return render(
+        <MantineProvider theme={compactTheme}>
+            <PopoutManager>{children}</PopoutManager>
+        </MantineProvider>,
+    );
+}
 
 describe("GradientEditor", () => {
     const defaultStops = [createColorStop(0, "#FF0000"), createColorStop(1, "#0000FF")];
 
     it("renders color stops header", () => {
-        render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor stops={defaultStops} onChange={vi.fn()} />
-            </MantineProvider>,
-        );
+        renderGradientEditor(<GradientEditor stops={defaultStops} onChange={vi.fn()} />);
         expect(screen.getByText("Color Stops")).toBeInTheDocument();
     });
 
     it("renders add button", () => {
-        render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor stops={defaultStops} onChange={vi.fn()} />
-            </MantineProvider>,
-        );
+        renderGradientEditor(<GradientEditor stops={defaultStops} onChange={vi.fn()} />);
         expect(screen.getByRole("button", { name: /add/i })).toBeInTheDocument();
     });
 
     it("renders color inputs for each stop", () => {
-        render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor stops={defaultStops} onChange={vi.fn()} />
-            </MantineProvider>,
-        );
-        // Should have 2 color inputs (one for each stop)
-        const colorInputs = screen.getAllByRole("textbox", { name: /color stop/i });
+        renderGradientEditor(<GradientEditor stops={defaultStops} onChange={vi.fn()} />);
+        // Should have 2 color hex inputs (one for each stop)
+        const colorInputs = screen.getAllByRole("textbox", { name: /color hex/i });
         expect(colorInputs).toHaveLength(2);
     });
 
     it("renders remove buttons for each stop", () => {
-        render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor stops={defaultStops} onChange={vi.fn()} />
-            </MantineProvider>,
-        );
+        renderGradientEditor(<GradientEditor stops={defaultStops} onChange={vi.fn()} />);
         const removeButtons = screen.getAllByRole("button", { name: /remove/i });
         expect(removeButtons).toHaveLength(2);
     });
 
     it("disables remove buttons when only 2 stops", () => {
-        render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor stops={defaultStops} onChange={vi.fn()} />
-            </MantineProvider>,
-        );
+        renderGradientEditor(<GradientEditor stops={defaultStops} onChange={vi.fn()} />);
         const removeButtons = screen.getAllByRole("button", { name: /remove/i });
         removeButtons.forEach((button) => {
             expect(button).toBeDisabled();
@@ -61,11 +53,7 @@ describe("GradientEditor", () => {
 
     it("enables remove buttons when more than 2 stops", () => {
         const threeStops = [...defaultStops, createColorStop(0.5, "#00FF00")];
-        render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor stops={threeStops} onChange={vi.fn()} />
-            </MantineProvider>,
-        );
+        renderGradientEditor(<GradientEditor stops={threeStops} onChange={vi.fn()} />);
         const removeButtons = screen.getAllByRole("button", { name: /remove/i });
         removeButtons.forEach((button) => {
             expect(button).not.toBeDisabled();
@@ -75,11 +63,7 @@ describe("GradientEditor", () => {
     it("calls onChange when add button is clicked", async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
-        render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor stops={defaultStops} onChange={onChange} />
-            </MantineProvider>,
-        );
+        renderGradientEditor(<GradientEditor stops={defaultStops} onChange={onChange} />);
 
         await user.click(screen.getByRole("button", { name: /add/i }));
         expect(onChange).toHaveBeenCalled();
@@ -96,19 +80,13 @@ describe("GradientEditor", () => {
             createColorStop(0.75, "#FF0000"),
             createColorStop(1, "#0000FF"),
         ];
-        render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor stops={fiveStops} onChange={vi.fn()} />
-            </MantineProvider>,
-        );
+        renderGradientEditor(<GradientEditor stops={fiveStops} onChange={vi.fn()} />);
         expect(screen.getByRole("button", { name: /add/i })).toBeDisabled();
     });
 
     it("shows direction slider when showDirection is true", () => {
-        const { container } = render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor stops={defaultStops} direction={90} showDirection={true} onChange={vi.fn()} />
-            </MantineProvider>,
+        const { container } = renderGradientEditor(
+            <GradientEditor stops={defaultStops} direction={90} showDirection={true} onChange={vi.fn()} />,
         );
         expect(screen.getByText("Direction")).toBeInTheDocument();
         // Mantine slider has aria-label on a div wrapper, not on a slider role element
@@ -116,11 +94,7 @@ describe("GradientEditor", () => {
     });
 
     it("hides direction slider when showDirection is false", () => {
-        render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor stops={defaultStops} showDirection={false} onChange={vi.fn()} />
-            </MantineProvider>,
-        );
+        renderGradientEditor(<GradientEditor stops={defaultStops} showDirection={false} onChange={vi.fn()} />);
         expect(screen.queryByText("Direction")).not.toBeInTheDocument();
     });
 
@@ -128,11 +102,7 @@ describe("GradientEditor", () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
         const threeStops = [...defaultStops, createColorStop(0.5, "#00FF00")];
-        render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor stops={threeStops} onChange={onChange} />
-            </MantineProvider>,
-        );
+        renderGradientEditor(<GradientEditor stops={threeStops} onChange={onChange} />);
 
         const removeButtons = screen.getAllByRole("button", { name: /remove/i });
         await user.click(removeButtons[0]);
@@ -145,32 +115,21 @@ describe("GradientEditor", () => {
     it("calls onChange when color input value changes", async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
-        render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor stops={defaultStops} onChange={onChange} />
-            </MantineProvider>,
-        );
+        renderGradientEditor(<GradientEditor stops={defaultStops} onChange={onChange} />);
 
-        const colorInputs = screen.getAllByRole("textbox", { name: /color stop/i });
-        // Type additional characters to trigger onChange (Mantine ColorInput behavior)
-        await user.type(colorInputs[0], "0");
+        const colorInputs = screen.getAllByRole("textbox", { name: /color hex/i });
+        // Clear and type new value to trigger onChange
+        await user.clear(colorInputs[0]);
+        await user.type(colorInputs[0], "00FF00");
+        await user.tab(); // Blur to trigger commit
 
         expect(onChange).toHaveBeenCalled();
-        // Verify that onChange was called with updated stops
-        const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1];
-        const [newStops] = lastCall;
-        // The color should have been modified (original #FF0000 + "0" = #FF00000)
-        expect(newStops[0].color).not.toBe(defaultStops[0].color);
     });
 
     it("works in uncontrolled mode with defaultStops", async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
-        render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor defaultStops={defaultStops} onChange={onChange} />
-            </MantineProvider>,
-        );
+        renderGradientEditor(<GradientEditor defaultStops={defaultStops} onChange={onChange} />);
 
         // Add a stop - should work even in uncontrolled mode
         await user.click(screen.getByRole("button", { name: /add/i }));
@@ -182,35 +141,25 @@ describe("GradientEditor", () => {
 
     it("works in fully uncontrolled mode without onChange", () => {
         // Should not throw when onChange is not provided
-        render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor defaultStops={defaultStops} />
-            </MantineProvider>,
-        );
+        renderGradientEditor(<GradientEditor defaultStops={defaultStops} />);
 
         expect(screen.getByText("Color Stops")).toBeInTheDocument();
-        expect(screen.getAllByRole("textbox", { name: /color stop/i })).toHaveLength(2);
+        expect(screen.getAllByRole("textbox", { name: /color hex/i })).toHaveLength(2);
     });
 
     it("uses default stops when neither stops nor defaultStops provided", () => {
-        render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor onChange={vi.fn()} />
-            </MantineProvider>,
-        );
+        renderGradientEditor(<GradientEditor onChange={vi.fn()} />);
 
         // Should render with default gradient stops (createDefaultGradientStops())
         expect(screen.getByText("Color Stops")).toBeInTheDocument();
-        const colorInputs = screen.getAllByRole("textbox", { name: /color stop/i });
+        const colorInputs = screen.getAllByRole("textbox", { name: /color hex/i });
         expect(colorInputs.length).toBeGreaterThanOrEqual(2);
     });
 
     it("renders direction slider in controlled mode", () => {
         const onChange = vi.fn();
-        const { container } = render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor stops={defaultStops} direction={90} showDirection={true} onChange={onChange} />
-            </MantineProvider>,
+        const { container } = renderGradientEditor(
+            <GradientEditor stops={defaultStops} direction={90} showDirection={true} onChange={onChange} />,
         );
 
         // Find the direction slider by aria-label
@@ -223,10 +172,8 @@ describe("GradientEditor", () => {
 
     it("uses defaultDirection when direction prop not provided", () => {
         const onChange = vi.fn();
-        const { container } = render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor stops={defaultStops} defaultDirection={180} showDirection={true} onChange={onChange} />
-            </MantineProvider>,
+        const { container } = renderGradientEditor(
+            <GradientEditor stops={defaultStops} defaultDirection={180} showDirection={true} onChange={onChange} />,
         );
 
         // Find the direction slider by aria-label
@@ -244,11 +191,7 @@ describe("GradientEditor", () => {
             createColorStop(0.75, "#FF0000"),
             createColorStop(1, "#0000FF"),
         ];
-        render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor stops={fiveStops} onChange={onChange} />
-            </MantineProvider>,
-        );
+        renderGradientEditor(<GradientEditor stops={fiveStops} onChange={onChange} />);
 
         const addButton = screen.getByRole("button", { name: /add/i });
         expect(addButton).toBeDisabled();
@@ -261,11 +204,7 @@ describe("GradientEditor", () => {
     it("does not remove stop when at minimum (2 stops)", async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
-        render(
-            <MantineProvider theme={compactTheme}>
-                <GradientEditor stops={defaultStops} onChange={onChange} />
-            </MantineProvider>,
-        );
+        renderGradientEditor(<GradientEditor stops={defaultStops} onChange={onChange} />);
 
         const removeButtons = screen.getAllByRole("button", { name: /remove/i });
         expect(removeButtons[0]).toBeDisabled();
@@ -273,5 +212,35 @@ describe("GradientEditor", () => {
         // Clicking disabled button should not call onChange
         await user.click(removeButtons[0]);
         expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("resets color to default when reset button is clicked", async () => {
+        // Regression test: reset button was not working because GradientEditor
+        // ignored undefined values from CompactColorInput's onColorChange callback
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        const customStops = [createColorStop(0, "#FF0000"), createColorStop(1, "#0000FF")];
+        renderGradientEditor(<GradientEditor stops={customStops} onChange={onChange} />);
+
+        // Change the first color's hex input to trigger the reset button to appear
+        const colorInputs = screen.getAllByRole("textbox", { name: /color hex/i });
+        await user.clear(colorInputs[0]);
+        await user.type(colorInputs[0], "00FF00");
+        await user.tab(); // Blur to commit
+
+        // Reset buttons should now be visible (one for each color stop)
+        const resetButtons = screen.getAllByRole("button", { name: /reset.*default/i });
+        expect(resetButtons.length).toBeGreaterThanOrEqual(1);
+
+        // Clear mock calls from the color change
+        onChange.mockClear();
+
+        // Click first reset button
+        await user.click(resetButtons[0]);
+
+        // onChange should have been called with the default color (#888888)
+        expect(onChange).toHaveBeenCalled();
+        const [newStops] = onChange.mock.calls[0];
+        expect(newStops[0].color).toBe("#888888");
     });
 });

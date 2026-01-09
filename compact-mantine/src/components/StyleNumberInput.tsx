@@ -103,7 +103,6 @@ export function StyleNumberInput({
                 decimalScale={decimalScale}
                 suffix={suffix}
                 hideControls={hideControls}
-                size="compact"
                 data-is-default={isDefault ? "true" : "false"}
                 styles={{
                     input: isDefault

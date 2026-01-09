@@ -52,7 +52,6 @@ export function StyleSelect({ label, value, defaultValue, options, onChange }: S
                 value={displayValue}
                 onChange={handleSelectChange}
                 data={options}
-                size="compact"
                 rightSection={<ChevronDown size={14} />}
                 rightSectionPointerEvents="none"
                 data-is-default={isDefault ? "true" : "false"}

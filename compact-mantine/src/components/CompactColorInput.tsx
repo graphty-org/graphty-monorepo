@@ -5,7 +5,6 @@ import {
     ColorSwatch,
     Group,
     NumberInput,
-    Popover,
     Stack,
     Text,
     TextInput,
@@ -17,6 +16,7 @@ import React, { useEffect, useState } from "react";
 import { SWATCH_COLORS_HEXA } from "../constants/colors";
 import type { CompactColorInputProps } from "../types";
 import { opacityToAlphaHex, parseAlphaFromHexa } from "../utils/color-utils";
+import { Popout } from "./popout";
 
 /**
  * Compact color input with optional opacity support.
@@ -68,8 +68,6 @@ export function CompactColorInput({
     // Display values (use defaults when undefined)
     const displayColor = _color ?? defaultColor;
     const displayOpacity = _opacity ?? defaultOpacity;
-
-    const [colorPickerOpen, setColorPickerOpen] = useState(false);
 
     // Local state for hex input to prevent focus loss during typing
     const [localHex, setLocalHex] = useState(displayColor.replace("#", "").toUpperCase());
@@ -160,9 +158,9 @@ export function CompactColorInput({
     const colorInput = (
         <Group gap={4} wrap="nowrap">
             <Group gap={0}>
-                {/* Color swatch with popover */}
-                <Popover opened={colorPickerOpen} onChange={setColorPickerOpen} position="bottom-start" shadow="md">
-                    <Popover.Target>
+                {/* Color swatch with popout panel */}
+                <Popout>
+                    <Popout.Trigger>
                         <ActionIcon
                             variant="filled"
                             size={24}
@@ -170,9 +168,6 @@ export function CompactColorInput({
                             style={{
                                 backgroundColor: "var(--mantine-color-default)",
                                 borderRadius: "4px 0 0 4px",
-                            }}
-                            onClick={() => {
-                                setColorPickerOpen((o) => !o);
                             }}
                             aria-label="Color swatch"
                         >
@@ -185,20 +180,27 @@ export function CompactColorInput({
                                 }}
                             />
                         </ActionIcon>
-                    </Popover.Target>
-                    <Popover.Dropdown p="xs">
-                        <ColorPicker
-                            format="hexa"
-                            value={getHexaValue()}
-                            onChange={handleColorPickerChangeInternal}
-                            swatches={[...SWATCH_COLORS_HEXA]}
-                        />
-                    </Popover.Dropdown>
-                </Popover>
+                    </Popout.Trigger>
+                    <Popout.Panel
+                        width={220}
+                        header={{ variant: "title", title: label ?? "Color" }}
+                        placement="bottom"
+                        alignment="start"
+                        gap={4}
+                    >
+                        <Popout.Content>
+                            <ColorPicker
+                                format="hexa"
+                                value={getHexaValue()}
+                                onChange={handleColorPickerChangeInternal}
+                                swatches={[...SWATCH_COLORS_HEXA]}
+                            />
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
 
                 {/* Hex input */}
                 <TextInput
-                    size="compact"
                     value={localHex}
                     onChange={handleHexInputChange}
                     onBlur={handleHexInputBlur}
@@ -233,7 +235,6 @@ export function CompactColorInput({
 
                         {/* Opacity input */}
                         <NumberInput
-                            size="compact"
                             value={localOpacity}
                             onChange={handleLocalOpacityChange}
                             onBlur={handleOpacityBlur}

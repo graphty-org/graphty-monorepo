@@ -281,11 +281,11 @@ jobs:
                       test-command: pnpm exec nx run remote-logger:coverage
                       needs-browser: true
                       needs-storybook: false
-                    # compact-mantine - single shard
+                    # compact-mantine - single shard (uses Playwright for browser-based vitest)
                     - shard: compact-mantine
                       package: compact-mantine
                       test-command: pnpm exec nx run compact-mantine:coverage
-                      needs-browser: false
+                      needs-browser: true
                       needs-storybook: false
                     # graphty-element default tests (Node.js, no browser)
                     - shard: graphty-element-default

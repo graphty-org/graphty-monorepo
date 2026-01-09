@@ -46,4 +46,17 @@ export interface RemoteLogClientOptions {
      * Messages matching a pattern will only be sent once per the configured interval.
      */
     throttlePatterns?: ThrottlePattern[];
+    /**
+     * Project marker to identify logs from this project.
+     * If not provided, the client will attempt to read from the
+     * __REMOTE_LOG_PROJECT_MARKER__ global variable (injected by Vite plugin).
+     */
+    projectMarker?: string;
+    /**
+     * Full path to the worktree or project directory.
+     * Used for debugging and log organization.
+     * If not provided, the client will attempt to read from the
+     * __REMOTE_LOG_WORKTREE_PATH__ global variable (injected by Vite plugin).
+     */
+    worktreePath?: string;
 }

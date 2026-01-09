@@ -58,7 +58,7 @@ describe("Log Server", () => {
     });
 
     test("should start on specified port", async () => {
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: true });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: true });
         await waitForServer(server);
 
         const address = server.address();
@@ -69,7 +69,7 @@ describe("Log Server", () => {
     });
 
     test("should handle POST /log and store logs", async () => {
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: true });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: true });
         await waitForServer(server);
 
         const logData = {
@@ -95,7 +95,7 @@ describe("Log Server", () => {
     });
 
     test("should handle GET /logs and return all logs", async () => {
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: true });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: true });
         await waitForServer(server);
 
         // First, post some logs
@@ -123,7 +123,7 @@ describe("Log Server", () => {
     });
 
     test("should handle GET /logs/recent with limit", async () => {
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: true });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: true });
         await waitForServer(server);
 
         // Post multiple logs
@@ -152,7 +152,7 @@ describe("Log Server", () => {
     });
 
     test("should handle GET /logs/errors", async () => {
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: true });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: true });
         await waitForServer(server);
 
         // Post mixed log levels
@@ -181,7 +181,7 @@ describe("Log Server", () => {
     });
 
     test("should handle POST /logs/clear", async () => {
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: true });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: true });
         await waitForServer(server);
 
         // Post some logs
@@ -209,7 +209,7 @@ describe("Log Server", () => {
     });
 
     test("should handle GET /health", async () => {
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: true });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: true });
         await waitForServer(server);
 
         const response = await fetch(`http://127.0.0.1:${port}/health`);
@@ -221,7 +221,7 @@ describe("Log Server", () => {
     });
 
     test("should handle CORS preflight (OPTIONS)", async () => {
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: true });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: true });
         await waitForServer(server);
 
         const response = await fetch(`http://127.0.0.1:${port}/log`, {
@@ -234,7 +234,7 @@ describe("Log Server", () => {
     });
 
     test("should return 404 for unknown routes", async () => {
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: true });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: true });
         await waitForServer(server);
 
         const response = await fetch(`http://127.0.0.1:${port}/unknown`);
@@ -242,7 +242,7 @@ describe("Log Server", () => {
     });
 
     test("should return 400 for invalid JSON in POST /log", async () => {
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: true });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: true });
         await waitForServer(server);
 
         const response = await fetch(`http://127.0.0.1:${port}/log`, {
@@ -254,15 +254,8 @@ describe("Log Server", () => {
         expect(response.status).toBe(400);
     });
 
-    test("should auto-generate self-signed cert when none provided", async () => {
-        // Start HTTPS server (not HTTP) - it should auto-generate cert
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: false, quiet: true });
-        await waitForServer(server);
-
-        // Server should be listening
-        const address = server.address();
-        expect(address).toBeTruthy();
-    });
+    // Self-signed cert auto-generation has been removed - HTTP is now the default
+    // HTTPS is only used when valid certPath and keyPath are provided
 
     test("should write logs to file when logFile is specified", async () => {
         const fs = await import("fs");
@@ -275,7 +268,7 @@ describe("Log Server", () => {
             fs.mkdirSync(tmpDir, { recursive: true });
         }
 
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: true, logFile: logFilePath });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: true, logFile: logFilePath });
         await waitForServer(server);
 
         // Post a log
@@ -320,17 +313,17 @@ describe("Log Server", () => {
         fs.writeFileSync(certPath, cert);
         fs.writeFileSync(keyPath, key);
 
+        // HTTPS is automatically used when certPath and keyPath are provided
         server = startLogServer({
             port,
             host: "127.0.0.1",
-            useHttp: false,
             quiet: true,
             certPath,
             keyPath,
         });
         await waitForServer(server);
 
-        // Server should be listening
+        // Server should be listening with HTTPS
         const address = server.address();
         expect(address).toBeTruthy();
 
@@ -343,7 +336,7 @@ describe("Log Server", () => {
         // Mock console.log to verify banner is printed
         const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: false });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: false });
         await waitForServer(server);
 
         // Banner should have been printed
@@ -355,7 +348,7 @@ describe("Log Server", () => {
     });
 
     test("should handle multiple log levels for display formatting", async () => {
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: true });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: true });
         await waitForServer(server);
 
         const logData = {
@@ -389,7 +382,7 @@ describe("Log Server", () => {
     test("should truncate very long messages in display", async () => {
         const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: false });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: false });
         await waitForServer(server);
 
         const longMessage = "x".repeat(2000);
@@ -430,10 +423,10 @@ describe("Log Server", () => {
         fs.writeFileSync(certPath, cert);
         fs.writeFileSync(keyPath, key);
 
+        // HTTPS is automatically used when certPath and keyPath are provided
         server = startLogServer({
             port,
             host: "127.0.0.1",
-            useHttp: false,
             quiet: false,
             certPath,
             keyPath,
@@ -451,24 +444,12 @@ describe("Log Server", () => {
         fs.unlinkSync(keyPath);
     });
 
-    test("should print self-signed cert warning when generating cert in non-quiet mode", async () => {
-        const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: false, quiet: false });
-        await waitForServer(server);
-
-        // Check that self-signed warning was shown
-        const calls = consoleSpy.mock.calls.map((c) => c.join(""));
-        expect(calls.some((c) => c.includes("Generating self-signed certificate"))).toBe(true);
-        expect(calls.some((c) => c.includes("Browser will show certificate warning"))).toBe(true);
-
-        consoleSpy.mockRestore();
-    });
+    // Self-signed cert warning test removed - no longer generating self-signed certs
 
     test("should show new session header when quiet=false", async () => {
         const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: false });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: false });
         await waitForServer(server);
 
         const logData = {
@@ -492,7 +473,7 @@ describe("Log Server", () => {
     test("should show cleared message when clearing logs in non-quiet mode", async () => {
         const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: false });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: false });
         await waitForServer(server);
 
         // Clear logs
@@ -508,7 +489,7 @@ describe("Log Server", () => {
     test("should log error parsing invalid JSON in non-quiet mode", async () => {
         const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: false });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: false });
         await waitForServer(server);
 
         await fetch(`http://127.0.0.1:${port}/log`, {
@@ -535,7 +516,7 @@ describe("Log Server", () => {
             fs.mkdirSync(tmpDir, { recursive: true });
         }
 
-        server = startLogServer({ port, host: "127.0.0.1", useHttp: true, quiet: false, logFile: logFilePath });
+        server = startLogServer({ port, host: "127.0.0.1", quiet: false, logFile: logFilePath });
         await waitForServer(server);
 
         // Check that log file message was printed

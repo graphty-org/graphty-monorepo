@@ -42,12 +42,8 @@ describe("CLI", () => {
             expect(result.options.keyPath).toBe("key.pem");
         });
 
-        test("should parse --http flag", () => {
-            const result = parseArgs(["--http"]);
-            expect(result.options.useHttp).toBe(true);
-            expect(result.showHelp).toBe(false);
-            expect(result.error).toBeUndefined();
-        });
+        // --http flag removed - HTTP is now the default protocol
+        // HTTPS is only used when certPath and keyPath are provided
 
         test("should parse --log-file argument", () => {
             const result = parseArgs(["--log-file", "/var/log/app.jsonl"]);
@@ -86,7 +82,6 @@ describe("CLI", () => {
             expect(result.options.certPath).toBeUndefined();
             expect(result.options.keyPath).toBeUndefined();
             expect(result.options.logFile).toBeUndefined();
-            expect(result.options.useHttp).toBeUndefined();
             expect(result.options.quiet).toBeUndefined();
             expect(result.showHelp).toBe(false);
             expect(result.error).toBeUndefined();
@@ -104,14 +99,12 @@ describe("CLI", () => {
                 "9090",
                 "--host",
                 "0.0.0.0",
-                "--http",
                 "--quiet",
                 "--log-file",
                 "./logs.jsonl",
             ]);
             expect(result.options.port).toBe(9090);
             expect(result.options.host).toBe("0.0.0.0");
-            expect(result.options.useHttp).toBe(true);
             expect(result.options.quiet).toBe(true);
             expect(result.options.logFile).toBe("./logs.jsonl");
             expect(result.showHelp).toBe(false);
@@ -119,7 +112,7 @@ describe("CLI", () => {
         });
 
         test("should stop parsing at --help even with other args", () => {
-            const result = parseArgs(["--port", "9090", "--help", "--http"]);
+            const result = parseArgs(["--port", "9090", "--help", "--quiet"]);
             // Should return immediately upon encountering --help
             expect(result.showHelp).toBe(true);
             // Options parsed before --help are included
@@ -127,11 +120,52 @@ describe("CLI", () => {
         });
 
         test("should stop parsing at unknown option", () => {
-            const result = parseArgs(["--port", "9090", "--bad-option", "--http"]);
+            const result = parseArgs(["--port", "9090", "--bad-option", "--quiet"]);
             // Should return immediately upon encountering unknown option
             expect(result.error).toBe("Unknown option: --bad-option");
             // Options parsed before error are included
             expect(result.options.port).toBe(9090);
+        });
+
+        test("should parse --mcp-only flag", () => {
+            const result = parseArgs(["--mcp-only"]);
+            expect(result.options.mcpOnly).toBe(true);
+            expect(result.options.httpOnly).toBeUndefined();
+            expect(result.showHelp).toBe(false);
+            expect(result.error).toBeUndefined();
+        });
+
+        test("should parse --http-only flag", () => {
+            const result = parseArgs(["--http-only"]);
+            expect(result.options.httpOnly).toBe(true);
+            expect(result.options.mcpOnly).toBeUndefined();
+            expect(result.showHelp).toBe(false);
+            expect(result.error).toBeUndefined();
+        });
+
+        test("default starts both HTTP and MCP (dual mode)", () => {
+            const result = parseArgs([]);
+            // Default means both undefined - dual mode is default
+            expect(result.options.mcpOnly).toBeUndefined();
+            expect(result.options.httpOnly).toBeUndefined();
+            expect(result.options.mcp).toBeUndefined();
+        });
+
+        test("--port configures HTTP port", () => {
+            const result = parseArgs(["--port", "9085"]);
+            expect(result.options.port).toBe(9085);
+        });
+
+        test("--mcp-only with --port still sets port option", () => {
+            const result = parseArgs(["--mcp-only", "--port", "9090"]);
+            expect(result.options.mcpOnly).toBe(true);
+            expect(result.options.port).toBe(9090);
+        });
+
+        test("--http-only with --port sets port option", () => {
+            const result = parseArgs(["--http-only", "--port", "9095"]);
+            expect(result.options.httpOnly).toBe(true);
+            expect(result.options.port).toBe(9095);
         });
     });
 
@@ -156,6 +190,8 @@ describe("CLI", () => {
             expect(HELP_TEXT).toContain("--quiet");
             expect(HELP_TEXT).toContain("-q");
             expect(HELP_TEXT).toContain("--help");
+            expect(HELP_TEXT).toContain("--mcp-only");
+            expect(HELP_TEXT).toContain("--http-only");
         });
 
         test("should contain examples section", () => {

@@ -1,3 +1,25 @@
+## 0.4.1 (2026-01-08)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 1.8.1
+
+## 1.1.1 (2026-01-08)
+
+### 🩹 Fixes
+
+- re-trigger initial releases ([f326691](https://github.com/graphty-org/graphty-monorepo/commit/f326691))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.8.1 (2026-01-08)
+
+### 🧱 Updated Dependencies
+
+- Updated @graphty/remote-logger to 1.1.1
+
 ## 0.3.0 (2026-01-05)
 
 ### 🚀 Features

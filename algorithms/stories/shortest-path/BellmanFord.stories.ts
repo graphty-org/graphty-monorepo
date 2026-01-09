@@ -458,6 +458,11 @@ type Story = StoryObj<BellmanFordArgs>;
  */
 export const BellmanFord: Story = {
     render: (args) => createBellmanFordStory(args),
+    parameters: {
+        // Disable Chromatic snapshot for this story - the play function has long animations
+        // that exceed Chromatic's 30-second timeout (15s render + 15s interaction)
+        chromatic: { disableSnapshot: true },
+    },
     play: async ({ canvasElement, args }) => {
         const canvas = within(canvasElement);
 

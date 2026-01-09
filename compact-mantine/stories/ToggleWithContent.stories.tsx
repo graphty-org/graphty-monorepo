@@ -1,7 +1,7 @@
 import { Box, Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
-import { CompactColorInput, StyleNumberInput, ToggleWithContent } from "../src";
+import { CompactColorInput, PopoutManager, StyleNumberInput, ToggleWithContent } from "../src";
 
 /**
  * A checkbox toggle that conditionally shows child controls when enabled.
@@ -30,9 +30,11 @@ const meta: Meta<typeof ToggleWithContent> = {
     },
     decorators: [
         (Story) => (
-            <Box w={280} p="md" bg="var(--mantine-color-body)">
-                <Story />
-            </Box>
+            <PopoutManager>
+                <Box w={280} p="md" bg="var(--mantine-color-body)">
+                    <Story />
+                </Box>
+            </PopoutManager>
         ),
     ],
 };

@@ -27,7 +27,7 @@ export type LogsGetErrorsInput = z.infer<typeof logsGetErrorsInputSchema>;
 /**
  * Output type for the logs_get_errors handler.
  */
-export interface LogsGetErrorsOutput {
+interface LogsGetErrorsOutput {
     /** Array of ERROR level log entries */
     errors: LogEntryWithSession[];
     /** Number of errors returned */

@@ -2,7 +2,7 @@ import { ActionIcon, Tooltip } from "@mantine/core";
 import { Check, Clipboard } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 
-export interface CopyButtonProps {
+interface CopyButtonProps {
     /** The value to copy to clipboard. Objects/arrays will be JSON stringified. */
     value: unknown;
     /** Optional JMESPath string to copy when shift-clicking */

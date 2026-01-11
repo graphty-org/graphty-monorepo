@@ -11,7 +11,7 @@ export interface CameraController {
     onResize?(): void;
 }
 
-export interface InputHandler {
+interface InputHandler {
     enable(): void;
     disable(): void;
     update(): void;

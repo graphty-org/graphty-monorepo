@@ -14,7 +14,7 @@ import {
 /**
  * Context value for PopoutAnchor.
  */
-export interface PopoutAnchorContextValue {
+interface PopoutAnchorContextValue {
     /** Ref to the anchor element */
     anchorRef: RefObject<HTMLElement | null>;
 }
@@ -36,7 +36,7 @@ export function usePopoutAnchorContext(): PopoutAnchorContextValue | null {
 /**
  * Props for PopoutAnchor.
  */
-export interface PopoutAnchorProps {
+interface PopoutAnchorProps {
     /** The container element to use as anchor. Must accept a ref. */
     children: ReactNode;
 }

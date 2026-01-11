@@ -7,7 +7,7 @@ import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 /**
  * Zod-based options schema for Spectral Layout
  */
-export const spectralLayoutOptionsSchema = defineOptions({
+const spectralLayoutOptionsSchema = defineOptions({
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(100),
         meta: {
@@ -32,14 +32,14 @@ export const spectralLayoutOptionsSchema = defineOptions({
     },
 });
 
-export const SpectralLayoutConfig = z.strictObject({
+const SpectralLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
     dim: z.number().default(2),
 });
-export type SpectralLayoutConfigType = z.infer<typeof SpectralLayoutConfig>;
-export type SpectralLayoutOpts = Partial<SpectralLayoutConfigType>;
+type SpectralLayoutConfigType = z.infer<typeof SpectralLayoutConfig>;
+type SpectralLayoutOpts = Partial<SpectralLayoutConfigType>;
 
 /**
  * Spectral layout engine using graph Laplacian eigenvectors

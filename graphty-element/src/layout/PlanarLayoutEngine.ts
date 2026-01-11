@@ -7,7 +7,7 @@ import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 /**
  * Zod-based options schema for Planar Layout
  */
-export const planarLayoutOptionsSchema = defineOptions({
+const planarLayoutOptionsSchema = defineOptions({
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(70),
         meta: {
@@ -40,15 +40,15 @@ export const planarLayoutOptionsSchema = defineOptions({
     },
 });
 
-export const PlanarLayoutConfig = z.strictObject({
+const PlanarLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
     dim: z.number().default(2),
     seed: z.number().or(z.null()).default(null),
 });
-export type PlanarLayoutConfigType = z.infer<typeof PlanarLayoutConfig>;
-export type PlanarLayoutOpts = Partial<PlanarLayoutConfigType>;
+type PlanarLayoutConfigType = z.infer<typeof PlanarLayoutConfig>;
+type PlanarLayoutOpts = Partial<PlanarLayoutConfigType>;
 
 /**
  * Planar layout engine for planar graphs (no edge crossings)

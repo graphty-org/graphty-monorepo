@@ -25,7 +25,7 @@ export type LogsGetAllInput = z.infer<typeof logsGetAllInputSchema>;
 /**
  * Output type for the logs_get_all handler.
  */
-export interface LogsGetAllOutput {
+interface LogsGetAllOutput {
     /** Logs grouped by session ID */
     sessions: Record<string, LogEntry[]>;
     /** Number of sessions */

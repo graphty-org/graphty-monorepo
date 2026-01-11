@@ -237,19 +237,3 @@ export interface RichTextStyle {
         depthFade: boolean;
     };
 }
-
-/**
- * Represents the state of a style layer with node and edge styling configurations.
- */
-export interface StyleLayerState {
-    id: string;
-    name: string;
-    node: {
-        selector: string;
-        style: NodeStyle;
-    };
-    edge: {
-        selector: string;
-        style: EdgeStyle;
-    };
-}

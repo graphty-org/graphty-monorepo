@@ -11,7 +11,7 @@ import {
     VertexData,
 } from "@babylonjs/core";
 
-export interface LineGeometry {
+interface LineGeometry {
     positions: number[]; // Vertex positions (center line)
     directions: number[]; // Tangent directions
     sides: number[]; // -1 or +1 for perpendicular offset
@@ -22,7 +22,7 @@ export interface LineGeometry {
     segmentEnds: number[]; // Segment end positions (for consistent perpendicular calculation)
 }
 
-export interface CustomLineOptions {
+interface CustomLineOptions {
     points: Vector3[]; // Path points
     width: number; // Line width in pixels
     color: string; // Line color (hex)

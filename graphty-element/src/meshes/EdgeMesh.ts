@@ -24,13 +24,13 @@ import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer } from "./PatternedLineRenderer";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
-export interface EdgeMeshOptions {
+interface EdgeMeshOptions {
     styleId: string;
     width: number;
     color: string;
 }
 
-export interface ArrowHeadOptions {
+interface ArrowHeadOptions {
     type?: string;
     width: number;
     color: string;
@@ -38,7 +38,7 @@ export interface ArrowHeadOptions {
     opacity?: number; // Opacity 0-1 (default 1.0)
 }
 
-export interface ArrowGeometry {
+interface ArrowGeometry {
     /** Whether arrow uses center positioning (sphere-like) or tip positioning (triangular) */
     positioningMode: "center" | "tip";
     /** Whether arrow mesh needs rotation to align with edge direction */

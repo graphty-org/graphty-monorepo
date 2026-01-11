@@ -7,7 +7,7 @@ import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 /**
  * Zod-based options schema for ARF Layout
  */
-export const arfLayoutOptionsSchema = defineOptions({
+const arfLayoutOptionsSchema = defineOptions({
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(100),
         meta: {
@@ -49,7 +49,7 @@ export const arfLayoutOptionsSchema = defineOptions({
     },
 });
 
-export const ArfLayoutConfig = z.strictObject({
+const ArfLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     pos: z.record(z.number(), z.array(z.number())).or(z.null()).default(null),
     scaling: z.number().positive().default(1),
@@ -57,8 +57,8 @@ export const ArfLayoutConfig = z.strictObject({
     maxIter: z.number().positive().default(1000),
     seed: z.number().positive().or(z.null()).default(null),
 });
-export type ArfLayoutConfigType = z.infer<typeof ArfLayoutConfig>;
-export type ArfLayoutOpts = Partial<ArfLayoutConfigType>;
+type ArfLayoutConfigType = z.infer<typeof ArfLayoutConfig>;
+type ArfLayoutOpts = Partial<ArfLayoutConfigType>;
 
 /**
  * ARF (Attractive-Repulsive Force) layout engine for 2D graph visualization

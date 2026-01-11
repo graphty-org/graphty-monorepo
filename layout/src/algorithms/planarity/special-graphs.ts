@@ -67,7 +67,7 @@ export function isK33(nodes: Node[], edges: Edge[]): boolean {
  * @param edges - List of edges
  * @returns Array of two partitions, or null if not bipartite
  */
-export function tryFindBipartitePartition(nodes: Node[], edges: Edge[]): [Node[], Node[]] | null {
+function tryFindBipartitePartition(nodes: Node[], edges: Edge[]): [Node[], Node[]] | null {
     const colorMap: Record<Node, number> = {};
     const adjList: Record<Node, Node[]> = {};
 

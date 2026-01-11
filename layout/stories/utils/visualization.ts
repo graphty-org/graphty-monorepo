@@ -49,7 +49,7 @@ function getPositionBounds(positions: PositionMap): {
  * Normalize positions to fit within a target area with padding.
  * Returns screen coordinates centered in the target area.
  */
-export function normalizePositionsToScreen(
+function normalizePositionsToScreen(
     positions: PositionMap,
     graph: { nodes: Array<{ id: number }> },
     targetWidth: number = 500,
@@ -90,7 +90,7 @@ export function normalizePositionsToScreen(
 /**
  * Color palette for consistent styling.
  */
-export const COLORS = {
+const COLORS = {
     node: {
         default: "#6366f1",
         highlighted: "#22c55e",
@@ -113,7 +113,7 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 /**
  * Create an SVG container element with standard styling.
  */
-export function createSvgContainer(width: number = 500, height: number = 500): SVGSVGElement {
+function createSvgContainer(width: number = 500, height: number = 500): SVGSVGElement {
     const svg = document.createElementNS(SVG_NS, "svg");
     svg.setAttribute("width", String(width));
     svg.setAttribute("height", String(height));

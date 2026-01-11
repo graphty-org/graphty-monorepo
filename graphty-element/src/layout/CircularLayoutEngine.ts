@@ -10,7 +10,7 @@ import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
  * This is the new unified schema system that provides both Zod validation
  * and rich UI metadata for configuration interfaces.
  */
-export const circularLayoutOptionsSchema = defineOptions({
+const circularLayoutOptionsSchema = defineOptions({
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(100),
         meta: {
@@ -36,14 +36,14 @@ export const circularLayoutOptionsSchema = defineOptions({
 });
 
 // Legacy Zod config (kept for backward compatibility)
-export const CircularLayoutConfig = z.strictObject({
+const CircularLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     scale: z.number().positive().default(1),
     center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
     dim: z.number().default(2),
 });
-export type CircularLayoutConfigType = z.infer<typeof CircularLayoutConfig>;
-export type CircularLayoutOpts = Partial<CircularLayoutConfigType>;
+type CircularLayoutConfigType = z.infer<typeof CircularLayoutConfig>;
+type CircularLayoutOpts = Partial<CircularLayoutConfigType>;
 
 /**
  * Circular layout engine that arranges nodes in a circle

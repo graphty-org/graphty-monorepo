@@ -9,7 +9,7 @@ import { toAlgorithmGraph } from "./utils/graphConverter";
 /**
  * Zod-based options schema for Louvain algorithm
  */
-export const louvainOptionsSchema = defineOptions({
+const louvainOptionsSchema = defineOptions({
     resolution: {
         schema: z.number().min(0.1).max(5.0).default(1.0),
         meta: {
@@ -47,7 +47,7 @@ export const louvainOptionsSchema = defineOptions({
 /**
  * Options for the Louvain community detection algorithm
  */
-export interface LouvainOptions extends Record<string, unknown> {
+interface LouvainOptions extends Record<string, unknown> {
     /** Higher = more communities, lower = fewer larger communities */
     resolution: number;
     /** Maximum optimization iterations */

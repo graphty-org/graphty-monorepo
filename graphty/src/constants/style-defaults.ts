@@ -95,17 +95,6 @@ export const TEXT_EFFECT_DEFAULTS = {
 } as const;
 
 /**
- * Type helpers for accessing default values.
- */
-export type NodeDefaults = typeof NODE_DEFAULTS;
-export type NodeColorDefaults = typeof NODE_COLOR_DEFAULTS;
-export type NodeEffectDefaults = typeof NODE_EFFECT_DEFAULTS;
-export type EdgeLineDefaults = typeof EDGE_LINE_DEFAULTS;
-export type EdgeArrowDefaults = typeof EDGE_ARROW_DEFAULTS;
-export type TextDefaults = typeof TEXT_DEFAULTS;
-export type TextEffectDefaults = typeof TEXT_EFFECT_DEFAULTS;
-
-/**
  * All defaults combined for convenience.
  */
 export const STYLE_DEFAULTS = {

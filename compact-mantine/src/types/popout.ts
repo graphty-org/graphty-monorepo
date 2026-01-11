@@ -3,7 +3,7 @@ import type { ReactNode, RefObject } from "react";
 /**
  * Individual tab configuration for tabbed header variant.
  */
-export interface PopoutTab {
+interface PopoutTab {
     /** Unique identifier for the tab */
     id: string;
     /** Label displayed on the tab button */
@@ -15,7 +15,7 @@ export interface PopoutTab {
 /**
  * Action button configuration for header actions.
  */
-export interface PopoutHeaderAction {
+interface PopoutHeaderAction {
     /** Unique identifier for the action */
     id: string;
     /** Icon element to display */
@@ -29,7 +29,7 @@ export interface PopoutHeaderAction {
 /**
  * Title header configuration.
  */
-export interface PopoutTitleHeaderConfig {
+interface PopoutTitleHeaderConfig {
     /** Header variant - title shows a simple text header */
     variant: "title";
     /** Title text displayed in the header */
@@ -39,7 +39,7 @@ export interface PopoutTitleHeaderConfig {
 /**
  * Tabbed header configuration.
  */
-export interface PopoutTabbedHeaderConfig {
+interface PopoutTabbedHeaderConfig {
     /** Header variant - tabs shows a tabbed interface */
     variant: "tabs";
     /** Array of tab configurations */

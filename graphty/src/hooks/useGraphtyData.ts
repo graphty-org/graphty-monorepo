@@ -1,12 +1,12 @@
 import { useCallback, useState } from "react";
 
-export interface GraphNode {
+interface GraphNode {
     id: string;
     label?: string;
     [key: string]: unknown;
 }
 
-export interface GraphEdge {
+interface GraphEdge {
     source: string;
     target: string;
     label?: string;

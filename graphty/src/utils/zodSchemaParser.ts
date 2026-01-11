@@ -37,7 +37,7 @@ export interface ParsedField {
     isNullable: boolean;
 }
 
-export type ParsedSchema = Record<string, ParsedField>;
+type ParsedSchema = Record<string, ParsedField>;
 
 /**
  * Get the Zod type name from a schema definition.

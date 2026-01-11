@@ -6,9 +6,6 @@ import { DEFAULT_GRADIENT_STOP_COLOR } from "../../../constants/colors";
 import type { ColorStop } from "../../../types/style-layer";
 import { createColorStop } from "../../../utils/color-stops";
 
-// Re-export ColorStop for backwards compatibility
-export type { ColorStop } from "../../../types/style-layer";
-
 interface GradientEditorProps {
     stops: ColorStop[];
     direction?: number;

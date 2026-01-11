@@ -29,7 +29,7 @@ export type LogsClearInput = z.infer<typeof logsClearInputSchema>;
 /**
  * Output type for the logs_clear handler.
  */
-export interface LogsClearOutput {
+interface LogsClearOutput {
     /** Whether the operation succeeded */
     success: boolean;
     /** Number of sessions cleared */

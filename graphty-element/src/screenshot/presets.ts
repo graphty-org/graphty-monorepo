@@ -1,7 +1,7 @@
 import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
 import type { ScreenshotOptions } from "./types.js";
 
-export const SCREENSHOT_PRESETS: Record<string, Partial<ScreenshotOptions>> = {
+const SCREENSHOT_PRESETS: Record<string, Partial<ScreenshotOptions>> = {
     print: {
         format: "png",
         multiplier: 4,

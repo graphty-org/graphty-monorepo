@@ -4,7 +4,7 @@ import { AdHocData } from "../config";
 import { type CSVVariant, type CSVVariantInfo, detectCSVVariant } from "./csv-variant-detection.js";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 
-export interface CSVDataSourceConfig extends BaseDataSourceConfig {
+interface CSVDataSourceConfig extends BaseDataSourceConfig {
     delimiter?: string;
     variant?: CSVVariant; // Allow explicit variant override
     sourceColumn?: string;

@@ -11,7 +11,7 @@ import type { z } from "zod/v4";
 /**
  * UI metadata for an option (from graphty-element OptionsSchema)
  */
-export interface OptionMeta {
+interface OptionMeta {
     /** Human-readable label for UI display */
     label: string;
     /** Detailed description/help text */
@@ -27,7 +27,7 @@ export interface OptionMeta {
 /**
  * A single option definition: Zod schema + UI metadata
  */
-export interface OptionDefinition<T extends z.ZodType = z.ZodType> {
+interface OptionDefinition<T extends z.ZodType = z.ZodType> {
     /** Zod schema for validation and type inference */
     schema: T;
     /** UI metadata for display and organization */
@@ -201,7 +201,7 @@ function getOptionsFiltered(optionsSchema: OptionsSchema, advanced: boolean): Op
 // Component Props
 // ============================================================================
 
-export interface OptionsFormProps {
+interface OptionsFormProps {
     /** The options schema from graphty-element */
     schema: OptionsSchema;
     /** Current option values */

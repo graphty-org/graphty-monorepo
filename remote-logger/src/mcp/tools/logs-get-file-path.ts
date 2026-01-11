@@ -31,7 +31,7 @@ export type LogsGetFilePathInput = z.infer<typeof logsGetFilePathInputSchema>;
 /**
  * Output type for the logs_get_file_path handler.
  */
-export interface LogsGetFilePathOutput {
+interface LogsGetFilePathOutput {
     /** Full path to the JSONL log file */
     path: string;
     /** Whether the file exists */
@@ -46,7 +46,7 @@ export interface LogsGetFilePathOutput {
  * @param projectMarker - The project marker
  * @returns Full path to the JSONL file
  */
-export function getLogFilePath(projectMarker: string): string {
+function getLogFilePath(projectMarker: string): string {
     return path.join(os.tmpdir(), "remote-logger", projectMarker, "logs.jsonl");
 }
 

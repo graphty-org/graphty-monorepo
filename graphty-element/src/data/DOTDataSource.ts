@@ -2,7 +2,7 @@ import type { AdHocData } from "../config/common.js";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 
 // DOT has no additional config currently, so just use the base config
-export type DOTDataSourceConfig = BaseDataSourceConfig;
+type DOTDataSourceConfig = BaseDataSourceConfig;
 
 interface DOTNode {
     id: string;

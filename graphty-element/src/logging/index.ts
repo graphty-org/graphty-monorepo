@@ -45,7 +45,6 @@
 
 // Core exports
 export { GraphtyLogger, type GraphtyLoggerConfig, type Logger } from "./GraphtyLogger.js";
-export { isLazy, lazy, LAZY_SYMBOL, type LazyValue, resolveDataObject, resolveLazy } from "./LazyEval.js";
 export {
     configureLogging,
     getLoggingConfig,

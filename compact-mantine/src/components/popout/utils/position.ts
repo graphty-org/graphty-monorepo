@@ -4,7 +4,7 @@ import type { PopoutAlignment, PopoutPlacement, PopoutPosition } from "../../../
 /**
  * Options for calculating popout position with placement and alignment.
  */
-export interface CalculatePositionOptions {
+interface CalculatePositionOptions {
     /** Placement of the panel relative to the anchor. @default "left" */
     placement?: PopoutPlacement;
     /** Alignment along the placement axis. @default "start" */

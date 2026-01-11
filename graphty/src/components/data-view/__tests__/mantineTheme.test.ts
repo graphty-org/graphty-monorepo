@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mantineJsonGridDarkTheme, mantineJsonGridLightTheme, mantineJsonGridTheme } from "../mantineTheme";
+import { mantineJsonGridDarkTheme, mantineJsonGridLightTheme } from "../mantineTheme";
 
 const requiredProperties = [
     "bgColor",
@@ -64,9 +64,3 @@ describe("mantineJsonGridLightTheme", () => {
     });
 });
 
-describe("mantineJsonGridTheme (deprecated)", () => {
-    it("is an alias for the dark theme", () => {
-         
-        expect(mantineJsonGridTheme).toBe(mantineJsonGridDarkTheme);
-    });
-});

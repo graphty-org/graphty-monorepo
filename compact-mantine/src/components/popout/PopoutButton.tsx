@@ -6,7 +6,7 @@ import { usePopoutContext } from "./PopoutContext";
 /**
  * Props for the PopoutButton component.
  */
-export interface PopoutButtonProps extends Omit<ActionIconProps, "variant" | "children"> {
+interface PopoutButtonProps extends Omit<ActionIconProps, "variant" | "children"> {
     /** The icon to display inside the button */
     icon: ReactNode;
 }

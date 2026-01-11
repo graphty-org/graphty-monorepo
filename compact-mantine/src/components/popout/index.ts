@@ -1,4 +1,4 @@
 export { Popout } from "./Popout";
-export { PopoutAnchor, type PopoutAnchorProps, usePopoutAnchorContext } from "./PopoutAnchor";
-export { PopoutButton, type PopoutButtonProps } from "./PopoutButton";
+export { usePopoutAnchorContext } from "./PopoutAnchor";
+export { PopoutButton } from "./PopoutButton";
 export { PopoutManager } from "./PopoutManager";

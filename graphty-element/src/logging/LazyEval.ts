@@ -25,13 +25,13 @@
 /**
  * Symbol to identify lazy evaluation wrappers.
  */
-export const LAZY_SYMBOL = Symbol.for("graphty.lazy");
+const LAZY_SYMBOL = Symbol.for("graphty.lazy");
 
 /**
  * A lazy wrapper that defers computation until the value is needed.
  * The computation result is cached after first evaluation.
  */
-export interface LazyValue<T> {
+interface LazyValue<T> {
     (): T;
     [LAZY_SYMBOL]: true;
 }
@@ -94,18 +94,8 @@ export function lazy<T>(fn: () => T): LazyValue<T> {
  * @param value - The value to check
  * @returns true if the value is a lazy wrapper
  */
-export function isLazy(value: unknown): value is LazyValue<unknown> {
+function isLazy(value: unknown): value is LazyValue<unknown> {
     return typeof value === "function" && LAZY_SYMBOL in value;
-}
-
-/**
- * Resolve a potentially lazy value.
- * If the value is lazy, evaluate it. Otherwise, return as-is.
- * @param value - The value to resolve (may be lazy or regular)
- * @returns The resolved value
- */
-export function resolveLazy<T>(value: T | LazyValue<T>): T {
-    return isLazy(value) ? value() : value;
 }
 
 /**

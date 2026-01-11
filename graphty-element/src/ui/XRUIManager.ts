@@ -1,6 +1,6 @@
-export type XRSessionMode = "immersive-vr" | "immersive-ar";
+type XRSessionMode = "immersive-vr" | "immersive-ar";
 
-export interface XRUIConfig {
+interface XRUIConfig {
     enabled: boolean;
     position: "bottom-left" | "bottom-right" | "top-left" | "top-right";
     unavailableMessageDuration: number;

@@ -96,8 +96,7 @@
         "coverage:preview": "npx serve coverage -p 9053",
         "lint": "eslint && tsc --noEmit",
         "lint:fix": "eslint --fix",
-        "lint:pkg": "knip",
-        "lint:all": "npm run lint && npm run lint:pkg",
+        "lint:knip": "cd .. && pnpm run lint:knip -- --workspace graphty-element",
         "dev": "vite --force --mode development",
         "dev:xr": "node examples/xr/xr-demo-server.js",
         "build": "vite build && tsc --project tsconfig.build.json",
@@ -117,6 +116,7 @@
     },
     "devDependencies": {
         "@babylonjs/core": "^8.36.1",
+        "@playwright/test": "^1.54.1",
         "@storybook/addon-console": "^3.0.0",
         "@storybook/addon-docs": "^9.0.11",
         "@storybook/addon-vitest": "^9.0.11",
@@ -172,7 +172,6 @@
         "on-change": "^5.0.1",
         "p-queue": "^8.1.1",
         "papaparse": "^5.5.3",
-        "pupt": "^1.2.1",
         "toposort": "^2.0.2",
         "zod": "^3.25.28"
     },

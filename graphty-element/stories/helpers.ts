@@ -108,7 +108,7 @@ export const eventWaitingDecorator = (story: any): any => {
 };
 
 // Helper to wait for data to load - useful for URL-based data sources
-export async function waitForDataLoaded(canvasElement: HTMLElement): Promise<void> {
+async function waitForDataLoaded(canvasElement: HTMLElement): Promise<void> {
     const graphtyElement = canvasElement.querySelector("graphty-element");
     if (!graphtyElement) {
         return;
@@ -274,7 +274,7 @@ export async function waitForSkyboxLoaded(canvasElement: HTMLElement): Promise<v
 }
 
 // Re-export all the original helpers unchanged
-export interface TemplateOpts {
+interface TemplateOpts {
     nodeStyle?: Record<string, unknown>;
     nodeSelector?: string;
     nodeCalculatedStyle?: CalculatedStyleConfig;

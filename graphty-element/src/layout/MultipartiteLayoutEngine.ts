@@ -7,7 +7,7 @@ import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 /**
  * Zod-based options schema for Multipartite Layout
  */
-export const multipartiteLayoutOptionsSchema = defineOptions({
+const multipartiteLayoutOptionsSchema = defineOptions({
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(40),
         meta: {
@@ -32,7 +32,7 @@ export const multipartiteLayoutOptionsSchema = defineOptions({
     },
 });
 
-export const MultipartiteLayoutConfig = z.strictObject({
+const MultipartiteLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     // subsetKey: z.string().or(z.record(z.number(), z.array(z.string().or(z.number())))),
     subsetKey: z.record(z.string(), z.array(z.string().or(z.number()))),
@@ -40,8 +40,8 @@ export const MultipartiteLayoutConfig = z.strictObject({
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
 });
-export type MultipartiteLayoutConfigType = z.infer<typeof MultipartiteLayoutConfig>;
-export type MultipartiteLayoutOpts = Partial<MultipartiteLayoutConfigType>;
+type MultipartiteLayoutConfigType = z.infer<typeof MultipartiteLayoutConfig>;
+type MultipartiteLayoutOpts = Partial<MultipartiteLayoutConfigType>;
 
 /**
  * Multipartite layout engine for graphs with multiple node partitions

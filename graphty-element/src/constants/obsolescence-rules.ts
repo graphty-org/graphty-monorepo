@@ -1,6 +1,6 @@
 import type { OperationCategory } from "../managers/OperationQueueManager";
 
-export interface ObsolescenceRule {
+interface ObsolescenceRule {
     /**
      * Categories that this operation obsoletes
      */

@@ -98,7 +98,7 @@ function useActualColorScheme(fallback: "light" | "dark" = "dark"): "light" | "d
     return fallback;
 }
 
-export interface DataGridProps {
+interface DataGridProps {
     /** The JSON data to display in the grid */
     data: object;
     /** How many levels deep to expand by default (0 = collapsed, 1 = first level, etc.) */

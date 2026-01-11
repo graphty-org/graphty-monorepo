@@ -47,7 +47,7 @@ export type LogsReceiveInput = z.infer<typeof logsReceiveInputSchema>;
 /**
  * Output type for the logs_receive handler.
  */
-export interface LogsReceiveOutput {
+interface LogsReceiveOutput {
     /** Whether the operation succeeded */
     success: boolean;
     /** Number of logs stored */

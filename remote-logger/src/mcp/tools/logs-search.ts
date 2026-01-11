@@ -33,7 +33,7 @@ export type LogsSearchInput = z.infer<typeof logsSearchInputSchema>;
 /**
  * Output type for the logs_search handler.
  */
-export interface LogsSearchOutput {
+interface LogsSearchOutput {
     /** Matching log entries */
     results: LogEntryWithSession[];
     /** Number of results returned */

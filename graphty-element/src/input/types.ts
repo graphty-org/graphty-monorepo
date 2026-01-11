@@ -1,7 +1,6 @@
 export enum DeviceType {
     Mouse = 0,
     Touch = 1,
-    Keyboard = 2,
 }
 
 export enum MouseButton {

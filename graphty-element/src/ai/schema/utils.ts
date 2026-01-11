@@ -30,7 +30,7 @@ export interface HistogramBin {
  * @param maxLength - Maximum length before truncation (default 100)
  * @returns The truncated string with '...' appended if it was truncated
  */
-export function truncateString(str: string, maxLength = 100): string {
+function truncateString(str: string, maxLength = 100): string {
     if (str.length <= maxLength) {
         return str;
     }
@@ -197,7 +197,7 @@ function formatRange(min: number, max: number): string {
  * @param value - Value to analyze
  * @returns Type string
  */
-export function getValueType(value: unknown): "string" | "number" | "boolean" | "array" | "object" | "null" {
+function getValueType(value: unknown): "string" | "number" | "boolean" | "array" | "object" | "null" {
     if (value === null || value === undefined) {
         return "null";
     }

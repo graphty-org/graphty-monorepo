@@ -49,6 +49,7 @@
         "coverage:preview": "npx serve coverage -p 9055",
         "lint": "eslint && tsc --noEmit -p tsconfig.eslint.json",
         "lint:fix": "eslint --fix",
+        "lint:knip": "cd .. && pnpm run lint:knip -- --workspace remote-logger",
         "typecheck": "tsc --noEmit",
         "build": "tsc",
         "build:watch": "tsc --watch",

@@ -20,7 +20,7 @@ export interface IndexedLayerItem extends LayerItem {
  * @param index - The index in graphty-element's layer array
  * @returns The converted LayerItem with index
  */
-export function styleLayerToLayerItem(layer: StyleLayer, index: number): IndexedLayerItem {
+function styleLayerToLayerItem(layer: StyleLayer, index: number): IndexedLayerItem {
     const { metadata } = layer;
     const name = (metadata?.name as string | undefined) ?? `Layer ${index + 1}`;
 

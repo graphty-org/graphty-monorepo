@@ -319,7 +319,7 @@ function convertRichTextStyle(textStyle: RichTextStyle): Record<string, unknown>
     return result;
 }
 
-export type ViewMode = "2d" | "3d" | "vr" | "ar";
+type ViewMode = "2d" | "3d" | "vr" | "ar";
 
 /** Event detail for selection-changed events */
 export interface SelectionChangedDetail {
@@ -449,7 +449,7 @@ function detectFormatFromContent(content: string): FormatType | null {
  * Graph type representing the underlying graphty-element Graph instance.
  * This is used for advanced integrations like AI control.
  */
-export interface Graph {
+interface Graph {
     dataManager: {
         clear: () => void;
         nodes: Map<string | number, GraphNode>;
@@ -466,7 +466,7 @@ export interface Graph {
 /**
  * StyleManager interface for layer management operations.
  */
-export interface StyleManager {
+interface StyleManager {
     /** Add a layer at the end */
     addLayer: (layer: StyleLayer) => void;
     /** Insert a layer at a specific position */

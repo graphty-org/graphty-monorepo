@@ -6,7 +6,7 @@ const logger: Logger = GraphtyLogger.getLogger(["graphty", "xr", "session"]);
 
 export type XRReferenceSpaceType = "local" | "local-floor" | "bounded-floor" | "unbounded";
 
-export interface XRSessionConfig {
+interface XRSessionConfig {
     vr: {
         enabled: boolean;
         referenceSpaceType: XRReferenceSpaceType;

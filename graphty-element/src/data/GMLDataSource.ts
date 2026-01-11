@@ -2,7 +2,7 @@ import type { AdHocData } from "../config/common.js";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 
 // GML has no additional config currently, so just use the base config
-export type GMLDataSourceConfig = BaseDataSourceConfig;
+type GMLDataSourceConfig = BaseDataSourceConfig;
 
 interface GMLValue {
     [key: string]: string | number | GMLValue | GMLValue[] | (string | number)[];

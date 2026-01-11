@@ -33,6 +33,8 @@
         "coverage": "vitest run --coverage",
         "coverage:preview": "npx serve coverage -p 9052",
         "lint": "eslint && tsc --noEmit",
+        "lint:fix": "eslint --fix",
+        "lint:knip": "cd .. && pnpm run lint:knip -- --workspace layout",
         "typecheck": "tsc --noEmit",
         "build": "tsc",
         "build:bundle": "node scripts/build-bundle.js",

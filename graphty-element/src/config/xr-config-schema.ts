@@ -184,12 +184,6 @@ export const xrConfigSchema = z
     .default({});
 
 /**
- * Inferred TypeScript type from the schema
- * Use this type for XR configuration objects
- */
-export type XRConfig = z.infer<typeof xrConfigSchema>;
-
-/**
  * Type for partial XR configuration (user input)
  * All fields are optional since defaults will be applied
  */

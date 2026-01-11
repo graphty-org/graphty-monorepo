@@ -9,7 +9,7 @@ import { toAlgorithmGraph } from "./utils/graphConverter";
 /**
  * Zod-based options schema for Katz Centrality algorithm
  */
-export const katzCentralityOptionsSchema = defineOptions({
+const katzCentralityOptionsSchema = defineOptions({
     alpha: {
         schema: z.number().min(0.01).max(0.5).default(0.1),
         meta: {
@@ -72,7 +72,7 @@ export const katzCentralityOptionsSchema = defineOptions({
 /**
  * Options for the Katz Centrality algorithm
  */
-export interface KatzCentralityOptions extends Record<string, unknown> {
+interface KatzCentralityOptions extends Record<string, unknown> {
     /** Attenuation factor - must be less than 1/λmax */
     alpha: number;
     /** Base centrality added to each node */

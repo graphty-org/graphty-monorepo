@@ -24,14 +24,6 @@ export const compactBadgeVars = {
 } as const;
 
 /**
- * CSS variables for compact Text component.
- */
-export const compactTextVars = {
-    "--text-fz": "11px",
-    "--text-lh": "1.2",
-} as const;
-
-/**
  * CSS variables for compact Avatar component.
  */
 export const compactAvatarVars = {

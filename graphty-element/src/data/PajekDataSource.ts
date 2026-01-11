@@ -2,7 +2,7 @@ import type { AdHocData } from "../config/common.js";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 
 // Pajek has no additional config currently, so just use the base config
-export type PajekDataSourceConfig = BaseDataSourceConfig;
+type PajekDataSourceConfig = BaseDataSourceConfig;
 
 interface ParsedVertex {
     id: string;

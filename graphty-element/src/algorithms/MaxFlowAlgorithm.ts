@@ -15,7 +15,7 @@ import { type OptionsSchema } from "./types/OptionSchema";
 /**
  * Zod-based options schema for Max Flow algorithm
  */
-export const maxFlowOptionsSchema = defineOptions({
+const maxFlowOptionsSchema = defineOptions({
     source: {
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {
@@ -35,7 +35,7 @@ export const maxFlowOptionsSchema = defineOptions({
 /**
  * Options for Max Flow algorithm
  */
-export interface MaxFlowOptions extends Record<string, unknown> {
+interface MaxFlowOptions extends Record<string, unknown> {
     /** Source node for flow network (defaults to first node if not provided) */
     source: string | number | null;
     /** Sink node for flow network (defaults to last node if not provided) */

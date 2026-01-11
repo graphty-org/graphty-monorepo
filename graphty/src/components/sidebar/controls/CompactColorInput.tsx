@@ -15,7 +15,7 @@ import React, { useEffect, useState } from "react";
 import { SWATCH_COLORS_HEXA } from "../../../constants/colors";
 import { opacityToAlphaHex, parseAlphaFromHexa } from "../../../utils/color-utils";
 
-export interface CompactColorInputProps {
+interface CompactColorInputProps {
     /** Hex color value (e.g., "#5B8FF9") */
     color: string;
     /** Opacity value from 0-100 */

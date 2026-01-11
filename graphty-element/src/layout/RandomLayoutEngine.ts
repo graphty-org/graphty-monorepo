@@ -7,7 +7,7 @@ import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 /**
  * Zod-based options schema for Random Layout
  */
-export const randomLayoutOptionsSchema = defineOptions({
+const randomLayoutOptionsSchema = defineOptions({
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(100),
         meta: {
@@ -32,14 +32,14 @@ export const randomLayoutOptionsSchema = defineOptions({
     },
 });
 
-export const RandomLayoutConfig = z.strictObject({
+const RandomLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
     dim: z.number().default(2),
     seed: z.number().positive().or(z.null()).default(null),
 });
-export type RandomLayoutConfigType = z.infer<typeof RandomLayoutConfig>;
-export type RandomLayoutOpts = Partial<RandomLayoutConfigType>;
+type RandomLayoutConfigType = z.infer<typeof RandomLayoutConfig>;
+type RandomLayoutOpts = Partial<RandomLayoutConfigType>;
 
 /**
  * Random layout engine that places nodes at random positions

@@ -4,13 +4,13 @@ import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import type { MeshCache } from "./MeshCache";
 
-export interface NodeMeshOptions {
+interface NodeMeshOptions {
     styleId: string;
     is2D: boolean;
     size: number;
 }
 
-export interface NodeMeshCreateOptions {
+interface NodeMeshCreateOptions {
     shape?: NodeStyleConfig["shape"];
     texture?: NodeStyleConfig["texture"];
     effect?: NodeStyleConfig["effect"];

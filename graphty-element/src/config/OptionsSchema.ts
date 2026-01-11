@@ -17,7 +17,7 @@ import { z } from "zod/v4";
 /**
  * UI metadata for an option (not validation - that's Zod's job)
  */
-export interface OptionMeta {
+interface OptionMeta {
     /** Human-readable label for UI display */
     label: string;
     /** Detailed description/help text */
@@ -33,7 +33,7 @@ export interface OptionMeta {
 /**
  * A single option definition: Zod schema + UI metadata
  */
-export interface OptionDefinition<T extends z.ZodType = z.ZodType> {
+interface OptionDefinition<T extends z.ZodType = z.ZodType> {
     /** Zod schema for validation and type inference */
     schema: T;
     /** UI metadata for display and organization */
@@ -66,7 +66,7 @@ export type InferOptions<S extends OptionsSchema> = {
 /**
  * Partial options type for constructor parameters
  */
-export type PartialOptions<S extends OptionsSchema> = Partial<InferOptions<S>>;
+type PartialOptions<S extends OptionsSchema> = Partial<InferOptions<S>>;
 
 /**
  * Helper to define options with full type inference
@@ -131,7 +131,7 @@ export function parseOptions<S extends OptionsSchema>(optionsSchema: S, options:
 /**
  * Result type for safe parsing
  */
-export type SafeParseResult<T> = { success: true; data: T } | { success: false; error: z.ZodError };
+type SafeParseResult<T> = { success: true; data: T } | { success: false; error: z.ZodError };
 
 /**
  * Safely parse options, returning a result object instead of throwing
@@ -227,16 +227,3 @@ export function getOptionsGrouped(optionsSchema: OptionsSchema): Map<string, Opt
     return groups;
 }
 
-/**
- * Information about a configurable item (algorithm or layout)
- */
-export interface ConfigurableInfo {
-    /** Unique type identifier */
-    type: string;
-    /** Category: "algorithm" or "layout" */
-    category: "algorithm" | "layout";
-    /** Full options schema with metadata */
-    optionsSchema: OptionsSchema;
-    /** Whether this item has any configurable options */
-    hasOptions: boolean;
-}

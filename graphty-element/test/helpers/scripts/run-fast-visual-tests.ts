@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// @ts-expect-error - Playwright is optional dependency
 import { chromium } from "@playwright/test";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";

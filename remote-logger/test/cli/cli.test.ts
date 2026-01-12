@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { HELP_TEXT, parseArgs } from "../../src/server/log-server.js";
 
@@ -196,6 +196,149 @@ describe("CLI", () => {
 
         test("should contain examples section", () => {
             expect(HELP_TEXT).toContain("Examples:");
+        });
+    });
+
+    describe("SIGINT handling", () => {
+        let sigintHandlers: Array<() => void>;
+        let mockExit: ReturnType<typeof vi.spyOn>;
+
+        beforeEach(() => {
+            // Track SIGINT handlers
+            sigintHandlers = [];
+
+            vi.spyOn(process, "on").mockImplementation(
+                (event: string | symbol, handler: (...args: unknown[]) => void) => {
+                    if (event === "SIGINT") {
+                        sigintHandlers.push(handler as () => void);
+                    }
+                    return process;
+                },
+            );
+
+            // Prevent actual process.exit
+            mockExit = vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
+        });
+
+        afterEach(() => {
+            vi.restoreAllMocks();
+        });
+
+        test("main() should register exactly one SIGINT handler in mcp-only mode", async () => {
+            // Mock createDualServer
+            const mockShutdown = vi.fn().mockResolvedValue(undefined);
+            vi.doMock("../../src/server/dual-server.js", () => ({
+                createDualServer: vi.fn().mockResolvedValue({
+                    shutdown: mockShutdown,
+                    httpPort: 9080,
+                    storage: { getServerConfig: () => ({}) },
+                }),
+            }));
+
+            // Re-import to get fresh module with mock
+            const { main } = await import("../../src/server/log-server.js");
+
+            // Mock argv for mcp-only mode
+            const originalArgv = process.argv;
+            process.argv = ["node", "script.js", "--mcp-only", "--quiet"];
+
+            try {
+                await main();
+                expect(sigintHandlers.length).toBe(1);
+            } finally {
+                process.argv = originalArgv;
+                vi.doUnmock("../../src/server/dual-server.js");
+            }
+        });
+
+        test("main() should register exactly one SIGINT handler in http-only mode", async () => {
+            // Mock createDualServer
+            const mockShutdown = vi.fn().mockResolvedValue(undefined);
+            vi.doMock("../../src/server/dual-server.js", () => ({
+                createDualServer: vi.fn().mockResolvedValue({
+                    shutdown: mockShutdown,
+                    httpPort: 9080,
+                    storage: { getServerConfig: () => ({}) },
+                }),
+            }));
+
+            // Re-import to get fresh module with mock
+            const { main } = await import("../../src/server/log-server.js");
+
+            // Mock argv for http-only mode
+            const originalArgv = process.argv;
+            process.argv = ["node", "script.js", "--http-only", "--quiet"];
+
+            try {
+                await main();
+                expect(sigintHandlers.length).toBe(1);
+            } finally {
+                process.argv = originalArgv;
+                vi.doUnmock("../../src/server/dual-server.js");
+            }
+        });
+
+        test("main() should register exactly one SIGINT handler in dual mode (default)", async () => {
+            // Mock createDualServer
+            const mockShutdown = vi.fn().mockResolvedValue(undefined);
+            vi.doMock("../../src/server/dual-server.js", () => ({
+                createDualServer: vi.fn().mockResolvedValue({
+                    shutdown: mockShutdown,
+                    httpPort: 9080,
+                    storage: { getServerConfig: () => ({}) },
+                }),
+            }));
+
+            // Re-import to get fresh module with mock
+            const { main } = await import("../../src/server/log-server.js");
+
+            // Mock argv for dual mode (no flags)
+            const originalArgv = process.argv;
+            process.argv = ["node", "script.js", "--quiet"];
+
+            try {
+                await main();
+                expect(sigintHandlers.length).toBe(1);
+            } finally {
+                process.argv = originalArgv;
+                vi.doUnmock("../../src/server/dual-server.js");
+            }
+        });
+
+        test("SIGINT handler should call shutdown and exit cleanly", async () => {
+            // Mock createDualServer
+            const mockShutdown = vi.fn().mockResolvedValue(undefined);
+            vi.doMock("../../src/server/dual-server.js", () => ({
+                createDualServer: vi.fn().mockResolvedValue({
+                    shutdown: mockShutdown,
+                    httpPort: 9080,
+                    storage: { getServerConfig: () => ({}) },
+                }),
+            }));
+
+            // Re-import to get fresh module with mock
+            const { main } = await import("../../src/server/log-server.js");
+
+            // Mock argv
+            const originalArgv = process.argv;
+            process.argv = ["node", "script.js", "--quiet"];
+
+            try {
+                await main();
+
+                // Invoke the SIGINT handler
+                expect(sigintHandlers.length).toBe(1);
+                sigintHandlers[0]();
+
+                // Wait for shutdown promise to resolve
+                await new Promise((resolve) => setTimeout(resolve, 10));
+
+                expect(mockShutdown).toHaveBeenCalled();
+                expect(mockExit).toHaveBeenCalledWith(0);
+            } finally {
+                process.argv = originalArgv;
+                vi.doUnmock("../../src/server/dual-server.js");
+            }
         });
     });
 });

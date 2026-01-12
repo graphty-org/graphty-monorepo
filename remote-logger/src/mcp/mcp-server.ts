@@ -61,8 +61,9 @@ export function getToolNames(): string[] {
 
 /**
  * Server instructions for LLMs describing the overall purpose and usage.
+ * Exported for testing purposes.
  */
-const SERVER_INSTRUCTIONS = `Remote Logger MCP Server - View console.log output from browser applications.
+export const SERVER_INSTRUCTIONS = `Remote Logger MCP Server - View console.log output from browser applications.
 
 ## What is Remote Logging?
 
@@ -82,7 +83,7 @@ Remote logging is especially valuable for LLM assistants like this one - it enab
 
 ## Architecture
 
-Browser App → HTTP POST to /logs → Log Server (stores in memory + JSONL files) → MCP Tools (query logs)
+Browser App → HTTP POST to /log → Log Server (stores in memory + JSONL files) → MCP Tools (query logs)
 
 ## Setting Up a Browser App to Send Logs
 
@@ -96,8 +97,8 @@ Install: npm install @graphty/remote-logger
 import { RemoteLogClient } from "@graphty/remote-logger";
 
 const logger = new RemoteLogClient({
-  serverUrl: "http://localhost:9080/logs",  // Get this from logs_status
-  projectMarker: "my-project",               // Optional: for filtering
+  serverUrl: "http://localhost:9080",  // Get this from logs_status (client appends /log)
+  projectMarker: "my-project",          // Optional: for filtering
 });
 
 // Intercept all console.log/warn/error calls
@@ -110,7 +111,7 @@ logger.log("INFO", "Hello from browser!");
 ### Option 2: Raw fetch() calls
 
 \`\`\`typescript
-fetch("http://localhost:9080/logs", {
+fetch("http://localhost:9080/log", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({

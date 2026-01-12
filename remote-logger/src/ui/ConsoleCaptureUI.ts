@@ -313,6 +313,8 @@ export class ConsoleCaptureUI {
      */
     private setupGlobalMethods(): void {
         if (typeof window !== "undefined") {
+            // Create a function that returns current logs to avoid stale reference
+            const getCurrentLogs = (): CapturedLogEntry[] => [...this.logs];
             window.__console__ = {
                 copy: () => this.copyLogs(),
                 download: () => {
@@ -322,7 +324,10 @@ export class ConsoleCaptureUI {
                     this.clearLogs();
                 },
                 get: () => this.getLogs(),
-                logs: this.logs,
+                // Use getter to always return fresh copy of current logs
+                get logs() {
+                    return getCurrentLogs();
+                },
             };
         }
     }

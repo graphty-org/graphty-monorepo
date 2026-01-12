@@ -59,4 +59,10 @@ export interface RemoteLogClientOptions {
      * __REMOTE_LOG_WORKTREE_PATH__ global variable (injected by Vite plugin).
      */
     worktreePath?: string;
+    /**
+     * Request timeout in milliseconds.
+     * Requests that take longer than this will be aborted and retried.
+     * @default 5000
+     */
+    timeoutMs?: number;
 }

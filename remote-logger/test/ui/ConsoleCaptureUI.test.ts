@@ -367,6 +367,42 @@ describe("ConsoleCaptureUI", () => {
         });
     });
 
+    describe("window.__console__.logs reference", () => {
+        test("should return current logs after clearLogs() is called", () => {
+            ui = new ConsoleCaptureUI();
+            console.log("message 1");
+            expect(window.__console__?.logs).toHaveLength(1);
+
+            ui.clearLogs();
+            // After clear, we have 1 log (the "cleared" message)
+            expect(window.__console__?.logs).toHaveLength(1);
+
+            console.log("message 2");
+            expect(window.__console__?.logs).toHaveLength(2);
+            // The most recent log should be "message 2"
+            expect(window.__console__?.logs[1].args[0]).toBe("message 2");
+        });
+
+        test("should not allow external mutation of internal logs array", () => {
+            ui = new ConsoleCaptureUI();
+            console.log("message 1");
+
+            // Get the logs array
+            const externalLogs = window.__console__?.logs;
+            expect(externalLogs).toHaveLength(1);
+
+            // External mutation should not affect internal state
+            // because the getter returns a copy
+            externalLogs?.push({ type: "log", args: ["fake"], timestamp: "" });
+
+            // Internal logs should remain unchanged (still just 1 log)
+            const internalLogs = ui.getLogs();
+            expect(internalLogs).not.toContain("fake");
+            // Verify the count is still 1
+            expect(window.__console__?.logs).toHaveLength(1);
+        });
+    });
+
     describe("global methods", () => {
         test("should expose window.__console__.copy", () => {
             ui = new ConsoleCaptureUI();

@@ -781,4 +781,140 @@ describe("RemoteLogClient", () => {
             }
         });
     });
+
+    describe("request timeout", () => {
+        test("should abort request after timeout expires", async () => {
+            // Create a fetch that never resolves
+            let abortSignal: AbortSignal | undefined;
+            fetchSpy.mockImplementation((_url, options) => {
+                abortSignal = (options as RequestInit).signal;
+                return new Promise(() => {}); // Never resolves
+            });
+
+            const client = new RemoteLogClient({
+                serverUrl: "http://localhost:9080",
+                batchIntervalMs: 100,
+                timeoutMs: 500,
+            });
+
+            client.log("INFO", "Test");
+            await vi.advanceTimersByTimeAsync(100); // Trigger batch
+            await vi.advanceTimersByTimeAsync(500); // Timeout expires
+
+            expect(abortSignal?.aborted).toBe(true);
+        });
+
+        test("should use default timeout of 5000ms when not specified", async () => {
+            // Create a fetch that never resolves
+            let abortSignal: AbortSignal | undefined;
+            fetchSpy.mockImplementation((_url, options) => {
+                abortSignal = (options as RequestInit).signal;
+                return new Promise(() => {}); // Never resolves
+            });
+
+            const client = new RemoteLogClient({
+                serverUrl: "http://localhost:9080",
+                batchIntervalMs: 100,
+                // No timeoutMs specified - should use default of 5000ms
+            });
+
+            client.log("INFO", "Test");
+            await vi.advanceTimersByTimeAsync(100); // Trigger batch
+
+            // At 4900ms total (100 + 4800), should not be aborted yet
+            await vi.advanceTimersByTimeAsync(4800);
+            expect(abortSignal?.aborted).toBe(false);
+
+            // At 5100ms total (100 + 5000), should be aborted
+            await vi.advanceTimersByTimeAsync(200);
+            expect(abortSignal?.aborted).toBe(true);
+        });
+
+        test("should retry after timeout like other failures", async () => {
+            // Mock fetch to simulate abort on first call, succeed on second
+            let callCount = 0;
+            fetchSpy.mockImplementation((_url, options) => {
+                callCount++;
+                if (callCount === 1) {
+                    // Simulate AbortController behavior - return a promise that
+                    // rejects when the signal is aborted
+                    return new Promise((_resolve, reject) => {
+                        const signal = (options as RequestInit).signal;
+                        if (signal) {
+                            signal.addEventListener("abort", () => {
+                                const error = new Error("The operation was aborted");
+                                error.name = "AbortError";
+                                reject(error);
+                            });
+                        }
+                    });
+                }
+                return Promise.resolve(new Response(JSON.stringify({ success: true })));
+            });
+
+            const client = new RemoteLogClient({
+                serverUrl: "http://localhost:9080",
+                batchIntervalMs: 100,
+                timeoutMs: 200,
+                retryDelayMs: 100,
+                maxRetries: 1,
+            });
+
+            client.log("INFO", "Test");
+            await vi.advanceTimersByTimeAsync(100); // Trigger batch send
+
+            // First call is made, wait for timeout
+            expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+            await vi.advanceTimersByTimeAsync(200); // First request times out (abort fires)
+
+            // After timeout/abort, retry delay of 100ms * 2^0 = 100ms
+            await vi.advanceTimersByTimeAsync(100); // Retry delay
+
+            // Allow event loop to settle and retry to occur
+            await vi.advanceTimersByTimeAsync(50);
+
+            expect(fetchSpy).toHaveBeenCalledTimes(2);
+            expect(consoleErrorSpy).not.toHaveBeenCalled();
+        });
+
+        test("should clear timeout on successful response", async () => {
+            fetchSpy.mockResolvedValue(
+                new Response(JSON.stringify({ success: true }), { status: 200 }),
+            );
+
+            const client = new RemoteLogClient({
+                serverUrl: "http://localhost:9080",
+                batchIntervalMs: 100,
+                timeoutMs: 1000,
+            });
+
+            client.log("INFO", "Test");
+            await vi.advanceTimersByTimeAsync(100);
+
+            // Request succeeded, no timeout error
+            expect(consoleErrorSpy).not.toHaveBeenCalled();
+        });
+
+        test("should pass AbortSignal to fetch", async () => {
+            fetchSpy.mockResolvedValue(
+                new Response(JSON.stringify({ success: true }), { status: 200 }),
+            );
+
+            const client = new RemoteLogClient({
+                serverUrl: "http://localhost:9080",
+                batchIntervalMs: 100,
+                timeoutMs: 1000,
+            });
+
+            client.log("INFO", "Test");
+            await vi.advanceTimersByTimeAsync(100);
+
+            expect(fetchSpy).toHaveBeenCalledOnce();
+            const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+
+            // Verify that the signal was passed
+            expect(options.signal).toBeInstanceOf(AbortSignal);
+        });
+    });
 });

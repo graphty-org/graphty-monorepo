@@ -198,6 +198,9 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
     let mcpServer: McpServer | undefined;
     let actualHttpPort: number | undefined;
 
+    // Track active connections for graceful shutdown
+    const activeConnections = new Set<net.Socket>();
+
     // Start HTTP server if enabled
     if (httpEnabled) {
         // Find an available port starting from the requested port
@@ -214,6 +217,18 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
         });
         httpServer = result.server;
 
+        // Track connections for graceful shutdown
+        httpServer.on("connection", (socket: net.Socket) => {
+            activeConnections.add(socket);
+            socket.once("close", () => {
+                activeConnections.delete(socket);
+            });
+        });
+
+        // Set short keep-alive timeout for tests (connections close faster)
+        httpServer.keepAliveTimeout = 1000;
+        httpServer.headersTimeout = 2000;
+
         // Wait for HTTP server to be listening
         const serverToStart = httpServer;
         const portToUse = actualHttpPort;
@@ -225,7 +240,7 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
                         `This shouldn't happen after port scanning - there may be a race condition. ` +
                         `Try again or kill existing processes: pkill -f "remote-log-server"`;
                     if (!quiet) {
-                         
+
                         console.error(`${colors.red}${errorMsg}${colors.reset}`);
                     }
                     reject(new Error(errorMsg));
@@ -281,6 +296,12 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
     const shutdown = async (): Promise<void> => {
         // Close HTTP server
         if (httpServer?.listening) {
+            // Destroy all active connections to ensure clean shutdown
+            for (const socket of activeConnections) {
+                socket.destroy();
+            }
+            activeConnections.clear();
+
             await new Promise<void>((resolve) => {
                 httpServer.close(() => { resolve(); });
             });

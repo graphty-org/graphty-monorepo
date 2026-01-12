@@ -1,3 +1,25 @@
+## 0.5.2 (2026-01-12)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 1.9.2
+
+## 1.2.2 (2026-01-12)
+
+### 🩹 Fixes
+
+- **remote-logger:** fix flaky connections ([47ec08f](https://github.com/graphty-org/graphty-monorepo/commit/47ec08f))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.9.2 (2026-01-12)
+
+### 🧱 Updated Dependencies
+
+- Updated @graphty/remote-logger to 1.2.2
+
 ## 1.6.1 (2026-01-09)
 
 This was a version bump only for layout to align it with other projects, there were no code changes.

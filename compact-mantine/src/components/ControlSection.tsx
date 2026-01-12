@@ -1,7 +1,7 @@
 import { ActionIcon, Box, Collapse, Divider, Group, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import React from "react";
+import React, { type KeyboardEvent } from "react";
 
 import type { ControlSectionProps } from "../types";
 
@@ -26,18 +26,43 @@ export function ControlSection({
 }: ControlSectionProps): React.JSX.Element {
     const [opened, { toggle }] = useDisclosure(defaultOpen);
 
+    /**
+     * Handle keyboard events for accessibility.
+     * Toggles the section when Enter or Space is pressed.
+     * @param e - The keyboard event
+     */
+    const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggle();
+        }
+    };
+
     return (
         <Box>
             {/* Separator line above section */}
-            <Divider color="gray.7" mt={8} mb={0} mx={8} />
-            {/* Header row with expand/collapse toggle */}
-            <Group justify="space-between" py={8} px={8} style={{ cursor: "pointer" }} onClick={toggle}>
+            {/* Uses default-border for theme-aware color that works in both light and dark modes */}
+            <Divider color="var(--mantine-color-default-border)" mt={8} mb={0} mx={8} />
+            {/* Header row with expand/collapse toggle - accessible via keyboard */}
+            <Group
+                justify="space-between"
+                py={8}
+                px={8}
+                style={{ cursor: "pointer" }}
+                onClick={toggle}
+                role="button"
+                tabIndex={0}
+                aria-expanded={opened}
+                aria-label={opened ? `Collapse ${label}` : `Expand ${label}`}
+                onKeyDown={handleKeyDown}
+            >
                 <Group gap={4}>
                     <ActionIcon
                         variant="subtle"
                         size="xs"
                         c="dimmed"
-                        aria-label={opened ? `Collapse ${label}` : `Expand ${label}`}
+                        tabIndex={-1}
+                        aria-hidden="true"
                     >
                         {opened ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                     </ActionIcon>

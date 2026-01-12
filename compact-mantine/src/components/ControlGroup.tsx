@@ -22,7 +22,8 @@ export function ControlGroup({ label, actions, children, bleed }: ControlGroupPr
     return (
         <Box>
             {/* Separator line above section - extends to container edges when bleed is true */}
-            <Divider color="gray.7" mt={8} mb={0} mx={bleedMargin} />
+            {/* Uses default-border for theme-aware color that works in both light and dark modes */}
+            <Divider color="var(--mantine-color-default-border)" mt={8} mb={0} mx={bleedMargin} />
             {/* Header row with label and optional actions */}
             <Group justify="space-between" py={8} px={8}>
                 <Text size="xs" fw={500} lh={1.2}>

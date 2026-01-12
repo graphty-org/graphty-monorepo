@@ -66,10 +66,12 @@ export const compactSegmentedControlRootStyles = {
 
 /**
  * Styles for compact SegmentedControl indicator (selected item highlight).
- * Slightly lighter than page background for visibility.
+ * Uses light-dark() CSS function for theme-aware colors:
+ * - Light mode: gray-2 for subtle contrast on light backgrounds
+ * - Dark mode: dark-6 for visibility on dark backgrounds
  */
 export const compactSegmentedControlIndicatorStyles = {
-    backgroundColor: "var(--mantine-color-dark-6)",
+    backgroundColor: "light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6))",
 };
 
 /**

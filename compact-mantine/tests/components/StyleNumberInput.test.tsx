@@ -294,4 +294,115 @@ describe("StyleNumberInput", () => {
             expect(downButton).toBeDisabled();
         });
     });
+
+    describe("state sync (Issue #7)", () => {
+        it("syncs external value changes correctly", () => {
+            const { rerender } = render(
+                <MantineProvider theme={compactTheme}>
+                    <StyleNumberInput label="Size" value={10} defaultValue={0} onChange={vi.fn()} />
+                </MantineProvider>,
+            );
+            expect(screen.getByRole("textbox")).toHaveValue("10");
+
+            rerender(
+                <MantineProvider theme={compactTheme}>
+                    <StyleNumberInput label="Size" value={20} defaultValue={0} onChange={vi.fn()} />
+                </MantineProvider>,
+            );
+            expect(screen.getByRole("textbox")).toHaveValue("20");
+        });
+
+        it("maintains local value during typing without premature sync", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            render(
+                <MantineProvider theme={compactTheme}>
+                    <StyleNumberInput label="Size" value={100} defaultValue={0} onChange={onChange} />
+                </MantineProvider>,
+            );
+
+            const input = screen.getByRole("textbox");
+
+            // Clear and start typing a new value
+            await user.clear(input);
+            await user.type(input, "5");
+
+            // During typing, the local value should show what user typed (not reset to 100)
+            expect(input).toHaveValue("5");
+
+            // Continue typing
+            await user.type(input, "0");
+            expect(input).toHaveValue("50");
+
+            // Value should be committed on blur
+            await user.tab();
+            expect(onChange).toHaveBeenCalledWith(50);
+        });
+
+        it("handles rapid value changes from external source", async () => {
+            const { rerender } = render(
+                <MantineProvider theme={compactTheme}>
+                    <StyleNumberInput label="Size" value={10} defaultValue={0} onChange={vi.fn()} />
+                </MantineProvider>,
+            );
+
+            // Simulate rapid external value changes
+            for (let i = 20; i <= 50; i += 10) {
+                rerender(
+                    <MantineProvider theme={compactTheme}>
+                        <StyleNumberInput label="Size" value={i} defaultValue={0} onChange={vi.fn()} />
+                    </MantineProvider>,
+                );
+                expect(screen.getByRole("textbox")).toHaveValue(String(i));
+            }
+        });
+
+        it("preserves user input when external value matches what user typed", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            const { rerender } = render(
+                <MantineProvider theme={compactTheme}>
+                    <StyleNumberInput label="Size" value={10} defaultValue={0} onChange={onChange} />
+                </MantineProvider>,
+            );
+
+            const input = screen.getByRole("textbox");
+
+            // User types a new value
+            await user.clear(input);
+            await user.type(input, "25");
+            expect(input).toHaveValue("25");
+
+            // External value changes to the same value the user typed
+            // This shouldn't cause any flickering or reset
+            rerender(
+                <MantineProvider theme={compactTheme}>
+                    <StyleNumberInput label="Size" value={25} defaultValue={0} onChange={onChange} />
+                </MantineProvider>,
+            );
+
+            expect(input).toHaveValue("25");
+        });
+
+        it("updates to undefined correctly (revert to default)", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            const { rerender } = render(
+                <MantineProvider theme={compactTheme}>
+                    <StyleNumberInput label="Size" value={50} defaultValue={10} onChange={onChange} />
+                </MantineProvider>,
+            );
+
+            expect(screen.getByRole("textbox")).toHaveValue("50");
+
+            // External value changes to undefined (using default)
+            rerender(
+                <MantineProvider theme={compactTheme}>
+                    <StyleNumberInput label="Size" value={undefined} defaultValue={10} onChange={onChange} />
+                </MantineProvider>,
+            );
+
+            expect(screen.getByRole("textbox")).toHaveValue("10");
+        });
+    });
 });

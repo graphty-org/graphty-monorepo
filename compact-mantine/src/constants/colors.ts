@@ -1,12 +1,7 @@
 /**
- * Standard color swatches for color pickers throughout the application.
- * Used by CompactColorInput and GradientEditor.
- */
-export const SWATCH_COLORS = ["#5B8FF9", "#FF6B6B", "#61D095", "#F7B731", "#9B59B6"] as const;
-
-/**
  * Swatches with alpha channel for HEXA color pickers.
  * Includes both fully opaque (FF) and semi-transparent (80) variants.
+ * Used by CompactColorInput for color picker swatches.
  */
 export const SWATCH_COLORS_HEXA = [
     "#5B8FF9FF",

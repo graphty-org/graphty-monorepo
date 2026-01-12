@@ -237,7 +237,8 @@ export function LabelSettingsPopout({ anchorRef }: LabelSettingsPopoutProps): JS
                                             mt="md"
                                             p="xs"
                                             style={{
-                                                backgroundColor: "var(--mantine-color-gray-light)",
+                                                // Use default color for theme-aware background in both light and dark modes
+                                                backgroundColor: "var(--mantine-color-default)",
                                                 borderRadius: 4,
                                             }}
                                         >

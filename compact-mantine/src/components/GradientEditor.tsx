@@ -44,23 +44,23 @@ export function GradientEditor({
         onChange: (newDirection) => onChange?.(_stops, newDirection),
     });
 
+    // Note: useUncontrolled's onChange is called automatically via handleStopsChange/handleDirectionChange
+    // so we must NOT call onChange manually to avoid double-invocation (Issue #3)
+
     const handleStopColorChange = (index: number, color: string): void => {
         const newStops = [..._stops];
         newStops[index] = { ...newStops[index], color };
         handleStopsChange(newStops);
-        onChange?.(newStops, _direction);
     };
 
     const handleStopOffsetChange = (index: number, offset: number): void => {
         const newStops = [..._stops];
         newStops[index] = { ...newStops[index], offset: offset / 100 };
         handleStopsChange(newStops);
-        onChange?.(newStops, _direction);
     };
 
     const handleDirectionSliderChange = (newDirection: number): void => {
         handleDirectionChange(newDirection);
-        onChange?.(_stops, newDirection);
     };
 
     const addStop = (): void => {
@@ -72,7 +72,6 @@ export function GradientEditor({
         const newStops = [..._stops, createColorStop(newOffset, DEFAULT_GRADIENT_STOP_COLOR)];
         newStops.sort((a, b) => a.offset - b.offset);
         handleStopsChange(newStops);
-        onChange?.(newStops, _direction);
     };
 
     const removeStop = (index: number): void => {
@@ -82,7 +81,6 @@ export function GradientEditor({
 
         const newStops = _stops.filter((_, i) => i !== index);
         handleStopsChange(newStops);
-        onChange?.(newStops, _direction);
     };
 
     return (

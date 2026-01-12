@@ -1,7 +1,7 @@
-import { ActionIcon, Box, Group, Stack, Text } from "@mantine/core";
+import { ActionIcon, Box, Collapse, Group, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import React from "react";
+import React, { type KeyboardEvent } from "react";
 
 import type { ControlSubGroupProps } from "../types";
 
@@ -18,15 +18,38 @@ import type { ControlSubGroupProps } from "../types";
 export function ControlSubGroup({ label, defaultOpen = false, children }: ControlSubGroupProps): React.JSX.Element {
     const [opened, { toggle }] = useDisclosure(defaultOpen);
 
+    /**
+     * Handle keyboard events for accessibility.
+     * Toggles the sub-group when Enter or Space is pressed.
+     * @param e - The keyboard event
+     */
+    const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggle();
+        }
+    };
+
     return (
         <Box>
-            {/* Header row with expand/collapse toggle */}
-            <Group gap={4} py={4} style={{ cursor: "pointer" }} onClick={toggle}>
+            {/* Header row with expand/collapse toggle - accessible via keyboard */}
+            <Group
+                gap={4}
+                py={4}
+                style={{ cursor: "pointer" }}
+                onClick={toggle}
+                role="button"
+                tabIndex={0}
+                aria-expanded={opened}
+                aria-label={opened ? `Collapse ${label}` : `Expand ${label}`}
+                onKeyDown={handleKeyDown}
+            >
                 <ActionIcon
                     variant="subtle"
                     size="xs"
                     c="dimmed"
-                    aria-label={opened ? `Collapse ${label}` : `Expand ${label}`}
+                    tabIndex={-1}
+                    aria-hidden="true"
                 >
                     {opened ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                 </ActionIcon>
@@ -35,12 +58,12 @@ export function ControlSubGroup({ label, defaultOpen = false, children }: Contro
                 </Text>
             </Group>
 
-            {/* Conditionally rendered content area with indent */}
-            {opened && (
+            {/* Animated content area using Collapse for smooth transitions */}
+            <Collapse in={opened}>
                 <Box pl="md">
                     <Stack gap={4}>{children}</Stack>
                 </Box>
-            )}
+            </Collapse>
         </Box>
     );
 }

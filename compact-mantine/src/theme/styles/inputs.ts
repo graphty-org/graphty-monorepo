@@ -33,22 +33,9 @@ export const compactInputVarsNoHeight = {
     "--input-bd": "none",
 } as const;
 
-/**
- * Vars function that returns compact input CSS variables.
- * This overrides Mantine's default size-based variable calculations.
- * @returns Object with root key containing compact CSS variables
- */
-export const compactInputVarsFn = (): { root: typeof compactInputVars } => ({
-    root: compactInputVars,
-});
-
-/**
- * Vars function for inputs without fixed height (Textarea, JsonInput, etc.).
- * @returns Object with root key containing compact CSS variables without height
- */
-export const compactInputVarsNoHeightFn = (): { root: typeof compactInputVarsNoHeight } => ({
-    root: compactInputVarsNoHeight,
-});
+// NOTE: compactInputVarsFn and compactInputVarsNoHeightFn were removed as unused.
+// The object constants (compactInputVars, compactInputVarsNoHeight) are used directly
+// in theme component extensions rather than through wrapper functions.
 
 /**
  * Label styles shared across all input components.

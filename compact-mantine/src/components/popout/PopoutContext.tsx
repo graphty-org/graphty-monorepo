@@ -135,59 +135,106 @@ export function PopoutManagerProvider({ children }: PopoutManagerProviderProps):
     // Counter that changes when z-index stack changes, for triggering re-renders in consumers
     const [zIndexVersion, setZIndexVersion] = useState(0);
 
-    const register = useCallback((popoutId: string, closeCallback: () => void, parentId?: string | null) => {
-        // Add to stack if not already present
-        if (!zIndexStackRef.current.includes(popoutId)) {
-            // Close sibling popouts before registering (exclusive behavior)
-            // Find all siblings (popouts with the same parent)
-            const stack = zIndexStackRef.current;
-            const siblingsToClose: string[] = [];
-            for (const id of stack) {
-                const otherParent = parentMapRef.current.get(id);
-                // Same parent (or both root-level with null parent)
-                if (otherParent === (parentId ?? null)) {
-                    siblingsToClose.push(id);
-                }
+    /**
+     * Find all sibling popouts (popouts with the same parent)
+     * @param targetParentId - The parent ID to match (null for root-level popouts)
+     * @returns Array of sibling popout IDs
+     */
+    const findSiblings = useCallback((targetParentId: string | null): string[] => {
+        const siblings: string[] = [];
+        for (const id of zIndexStackRef.current) {
+            const idParent = parentMapRef.current.get(id) ?? null;
+            if (idParent === targetParentId) {
+                siblings.push(id);
             }
-            // Close siblings and their descendants (in reverse to close deepest first)
-            for (const siblingId of siblingsToClose.reverse()) {
-                // Get all descendants of this sibling
-                const descendants: string[] = [];
-                for (const id of stack) {
-                    let currentId: string | null = id;
-                    while (currentId) {
-                        const parent = parentMapRef.current.get(currentId);
-                        if (parent === siblingId) {
-                            descendants.push(id);
-                            break;
-                        }
-                        currentId = parent ?? null;
-                    }
-                }
-                // Close descendants first
-                for (const descId of descendants.reverse()) {
-                    closeCallbacksRef.current.get(descId)?.();
-                }
-                // Close sibling
-                closeCallbacksRef.current.get(siblingId)?.();
-            }
-
-            // Now register the new popout
-            zIndexStackRef.current = [...zIndexStackRef.current.filter((id) => !siblingsToClose.includes(id) && !siblingsToClose.some((s) => {
-                // Check if id is a descendant of s
-                let currentId: string | null = id;
-                while (currentId) {
-                    const parent = parentMapRef.current.get(currentId);
-                    if (parent === s) {return true;}
-                    currentId = parent ?? null;
-                }
-                return false;
-            })), popoutId];
-            closeCallbacksRef.current.set(popoutId, closeCallback);
-            parentMapRef.current.set(popoutId, parentId ?? null);
-            setZIndexVersion((v) => v + 1);
         }
+        return siblings;
     }, []);
+
+    /**
+     * Find all descendants of a popout using the parent map
+     * @param popoutId - The popout ID to find descendants for
+     * @returns Array of descendant popout IDs
+     */
+    const findDescendantsInRegister = useCallback((popoutId: string): string[] => {
+        const descendants: string[] = [];
+        for (const id of zIndexStackRef.current) {
+            // Check if this id is a descendant of popoutId
+            let currentId: string | null = id;
+            while (currentId) {
+                const parent: string | null = parentMapRef.current.get(currentId) ?? null;
+                if (parent === popoutId) {
+                    descendants.push(id);
+                    break;
+                }
+                currentId = parent;
+            }
+        }
+        return descendants;
+    }, []);
+
+    /**
+     * Get the depth of a popout in the hierarchy
+     * @param popoutId - The popout ID
+     * @returns The depth (0 for root-level popouts)
+     */
+    const getDepth = useCallback((popoutId: string): number => {
+        let depth = 0;
+        let currentId: string | null = popoutId;
+        while (currentId) {
+            const parent: string | null = parentMapRef.current.get(currentId) ?? null;
+            if (!parent) {
+                break;
+            }
+            depth++;
+            currentId = parent;
+        }
+        return depth;
+    }, []);
+
+    /**
+     * Close multiple popouts in depth-first order (deepest first)
+     * @param ids - Array of popout IDs to close
+     */
+    const closePopoutsDepthFirst = useCallback((ids: string[]): void => {
+        // Sort by depth (deepest first)
+        const sorted = [...ids].sort((a, b) => getDepth(b) - getDepth(a));
+        for (const id of sorted) {
+            closeCallbacksRef.current.get(id)?.();
+        }
+    }, [getDepth]);
+
+    const register = useCallback((popoutId: string, closeCallback: () => void, parentId?: string | null) => {
+        // Skip if already registered
+        if (zIndexStackRef.current.includes(popoutId)) {
+            return;
+        }
+
+        const normalizedParentId = parentId ?? null;
+
+        // Find sibling popouts (exclusive behavior: only one sibling can be open)
+        const siblings = findSiblings(normalizedParentId);
+
+        // Collect all IDs to close (siblings and their descendants)
+        const idsToClose: string[] = [];
+        for (const siblingId of siblings) {
+            idsToClose.push(siblingId);
+            idsToClose.push(...findDescendantsInRegister(siblingId));
+        }
+
+        // Close siblings and descendants in depth-first order
+        closePopoutsDepthFirst(idsToClose);
+
+        // Remove closed popouts from the stack
+        const closedSet = new Set(idsToClose);
+        zIndexStackRef.current = zIndexStackRef.current.filter((id) => !closedSet.has(id));
+
+        // Register the new popout
+        zIndexStackRef.current.push(popoutId);
+        closeCallbacksRef.current.set(popoutId, closeCallback);
+        parentMapRef.current.set(popoutId, normalizedParentId);
+        setZIndexVersion((v) => v + 1);
+    }, [findSiblings, findDescendantsInRegister, closePopoutsDepthFirst]);
 
     const unregister = useCallback((popoutId: string) => {
         zIndexStackRef.current = zIndexStackRef.current.filter((id) => id !== popoutId);

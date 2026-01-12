@@ -1,7 +1,7 @@
 import { ActionIcon, Group, NumberInput } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import { X } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import type { StyleNumberInputProps } from "../types";
 
@@ -50,15 +50,26 @@ export function StyleNumberInput({
     const isDefault = _value === undefined;
     const displayValue = _value ?? defaultValue;
 
+    // Track if the local value change is internal (from user typing)
+    // This prevents the useEffect from overwriting user input while typing
+    const isInternalChangeRef = useRef(false);
+
     // Local state for the input to prevent focus loss during typing
     const [localValue, setLocalValue] = useState<string | number>(displayValue);
 
-    // Sync local state when value changes
+    // Sync local state when external value changes
+    // Only sync if the change came from external prop update (not from user typing)
     useEffect(() => {
-        setLocalValue(_value ?? defaultValue);
+        if (!isInternalChangeRef.current) {
+            setLocalValue(_value ?? defaultValue);
+        }
+        // Reset the flag after the effect runs
+        isInternalChangeRef.current = false;
     }, [_value, defaultValue]);
 
     const handleInputChange = (newValue: string | number): void => {
+        // Mark this as an internal change to prevent sync from overwriting
+        isInternalChangeRef.current = true;
         setLocalValue(newValue);
     };
 

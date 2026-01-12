@@ -23,13 +23,9 @@ export const compactBadgeVars = {
     "--badge-padding-x": "4px",
 } as const;
 
-/**
- * CSS variables for compact Text component.
- */
-export const compactTextVars = {
-    "--text-fz": "11px",
-    "--text-lh": "1.2",
-} as const;
+// NOTE: compactTextVars was removed as it was unused.
+// Text component relies on global fontSizes from the theme (compactFontSizes)
+// rather than component-level vars overrides.
 
 /**
  * CSS variables for compact Avatar component.

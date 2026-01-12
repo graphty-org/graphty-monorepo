@@ -159,7 +159,7 @@ export function PopoutPanel({
             }
         }
         prevOpenRef.current = isOpen;
-    }, [isOpen, width, height, gap, triggerRef, anchorRef, placement, alignment, resetDragOffset, isTabs, defaultTabId, parentId]);
+    }, [isOpen, width, height, gap, triggerRef, anchorRef, placement, alignment, resetDragOffset, isTabs, defaultTabId, parentId, anchorContext]);
 
     // Focus management: move focus to panel on open, return to trigger on close
     useEffect(() => {

@@ -243,4 +243,64 @@ describe("GradientEditor", () => {
         const [newStops] = onChange.mock.calls[0];
         expect(newStops[0].color).toBe("#888888");
     });
+
+    describe("onChange callback count (Issue #3)", () => {
+        it("calls onChange exactly once when add button is clicked", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            renderGradientEditor(<GradientEditor stops={defaultStops} onChange={onChange} />);
+
+            await user.click(screen.getByRole("button", { name: /add/i }));
+
+            expect(onChange).toHaveBeenCalledTimes(1);
+        });
+
+        it("calls onChange exactly once when remove button is clicked", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            const threeStops = [...defaultStops, createColorStop(0.5, "#00FF00")];
+            renderGradientEditor(<GradientEditor stops={threeStops} onChange={onChange} />);
+
+            const removeButtons = screen.getAllByRole("button", { name: /remove/i });
+            await user.click(removeButtons[0]);
+
+            expect(onChange).toHaveBeenCalledTimes(1);
+        });
+
+        it("calls onChange exactly once when direction slider changes", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            // Use uncontrolled mode (defaultDirection) so the slider can change internally
+            // Start at 0 and use keyboard to change value
+            const { container } = renderGradientEditor(
+                <GradientEditor defaultStops={defaultStops} defaultDirection={0} showDirection={true} onChange={onChange} />,
+            );
+
+            // Find the direction slider thumb and focus it
+            const sliderThumb = container.querySelector("[aria-label='Gradient direction'] [role='slider']") as HTMLElement;
+            expect(sliderThumb).toBeInTheDocument();
+
+            // Use keyboard to change the value (more reliable than clicking)
+            sliderThumb.focus();
+            await user.keyboard("{ArrowRight}");
+
+            // onChange should be called exactly once (not twice due to double-call bug)
+            expect(onChange).toHaveBeenCalledTimes(1);
+        });
+
+        it("onChange receives both stops and direction as arguments", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            renderGradientEditor(
+                <GradientEditor stops={defaultStops} direction={90} showDirection={true} onChange={onChange} />,
+            );
+
+            await user.click(screen.getByRole("button", { name: /add/i }));
+
+            expect(onChange).toHaveBeenCalledTimes(1);
+            const [newStops, newDirection] = onChange.mock.calls[0];
+            expect(newStops).toHaveLength(3);
+            expect(newDirection).toBe(90);
+        });
+    });
 });

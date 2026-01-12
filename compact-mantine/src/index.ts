@@ -18,12 +18,12 @@ export { useActualColorScheme } from "./hooks";
 
 // Constant exports
 export {
+    COMPACT_SIZING,
     DEFAULT_GRADIENT_STOP_COLOR,
     MANTINE_SPACING,
     POPOUT_GAP,
     POPOUT_NESTED_GAP,
     POPOUT_Z_INDEX_BASE,
-    SWATCH_COLORS,
     SWATCH_COLORS_HEXA,
 } from "./constants";
 

@@ -9,7 +9,7 @@ import { toAlgorithmGraph } from "./utils/graphConverter";
 /**
  * Zod-based options schema for Girvan-Newman algorithm
  */
-export const girvanNewmanOptionsSchema = defineOptions({
+const girvanNewmanOptionsSchema = defineOptions({
     maxCommunities: {
         schema: z.number().int().min(0).max(100).default(0),
         meta: {
@@ -38,7 +38,7 @@ export const girvanNewmanOptionsSchema = defineOptions({
 /**
  * Options for the Girvan-Newman community detection algorithm
  */
-export interface GirvanNewmanOptions extends Record<string, unknown> {
+interface GirvanNewmanOptions extends Record<string, unknown> {
     /** Stop when this many communities reached (0 = find optimal) */
     maxCommunities: number;
     /** Minimum nodes per community */

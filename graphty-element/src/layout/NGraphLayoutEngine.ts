@@ -11,7 +11,7 @@ import { EdgePosition, LayoutEngine, Position } from "./LayoutEngine";
 /**
  * Zod-based options schema for NGraph Force Layout
  */
-export const ngraphLayoutOptionsSchema = defineOptions({
+const ngraphLayoutOptionsSchema = defineOptions({
     dim: {
         schema: z.number().int().min(2).max(3).default(3),
         meta: {

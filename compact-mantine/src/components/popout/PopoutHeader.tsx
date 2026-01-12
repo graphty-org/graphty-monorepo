@@ -1,45 +1,7 @@
-import { ActionIcon, Group, Text, UnstyledButton } from "@mantine/core";
-import { X } from "lucide-react";
+import { ActionIcon, CloseButton, Group, SegmentedControl, Text } from "@mantine/core";
 import type { JSX } from "react";
 
 import type { PopoutHeaderProps } from "../../types/popout";
-
-/**
- * Renders a tab button for the tabbed header variant.
- */
-interface TabButtonProps {
-    /** Tab ID */
-    id: string;
-    /** Tab label */
-    label: string;
-    /** Whether this tab is currently active */
-    isActive: boolean;
-    /** Callback when tab is clicked */
-    onClick: () => void;
-}
-
-function TabButton({ id, label, isActive, onClick }: TabButtonProps): JSX.Element {
-    return (
-        <UnstyledButton
-            role="tab"
-            id={`tab-${id}`}
-            aria-selected={isActive}
-            aria-controls={`tabpanel-${id}`}
-            onClick={onClick}
-            px="xs"
-            py={3}
-            style={{
-                fontSize: "11px",
-                fontWeight: isActive ? 500 : 400,
-                color: isActive ? "var(--mantine-color-text)" : "var(--mantine-color-dimmed)",
-                borderBottom: isActive ? "2px solid var(--mantine-color-blue-filled)" : "2px solid transparent",
-                cursor: "pointer",
-            }}
-        >
-            {label}
-        </UnstyledButton>
-    );
-}
 
 /**
  * Header component for the popout panel.
@@ -76,11 +38,11 @@ export function PopoutHeader({
     const isTabs = config.variant === "tabs";
     const tabsConfig = isTabs ? config : null;
 
-    const handleTabClick = (tabId: string): void => {
-        if (onTabChange) {
-            onTabChange(tabId);
-        }
-    };
+    // Convert tabs to SegmentedControl data format
+    const segmentedData = tabsConfig?.tabs.map((tab) => ({
+        value: tab.id,
+        label: tab.label,
+    })) ?? [];
 
     return (
         <Group
@@ -92,29 +54,24 @@ export function PopoutHeader({
                 ...dragStyle,
             }}
         >
-            {/* Left side: Title or Tabs */}
+            {/* Left side: Title or Segmented Control */}
             {config.variant === "title" ? (
-                <Text id={titleId} size="compact" fw={500}>
+                <Text id={titleId} size="sm" fw={500}>
                     {config.title}
                 </Text>
             ) : (
-                <Group gap={0} role="tablist" aria-label="Panel tabs">
+                <>
                     {/* Visually hidden title for aria-labelledby when using tabs */}
                     <span id={titleId} style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0, 0, 0, 0)" }}>
                         {tabsConfig?.tabs[0]?.label ?? "Settings"}
                     </span>
-                    {tabsConfig?.tabs.map((tab) => (
-                        <TabButton
-                            key={tab.id}
-                            id={tab.id}
-                            label={tab.label}
-                            isActive={activeTab === tab.id}
-                            onClick={() => {
-                                handleTabClick(tab.id);
-                            }}
-                        />
-                    ))}
-                </Group>
+                    <SegmentedControl
+                        data={segmentedData}
+                        value={activeTab}
+                        onChange={(value) => onTabChange?.(value)}
+                        size="xs"
+                    />
+                </>
             )}
 
             {/* Right side: Actions and Close button */}
@@ -123,16 +80,13 @@ export function PopoutHeader({
                     <ActionIcon
                         key={action.id}
                         variant="subtle"
-                        size="compact"
                         onClick={action.onClick}
                         aria-label={action.label}
                     >
                         {action.icon}
                     </ActionIcon>
                 ))}
-                <ActionIcon variant="subtle" size="compact" onClick={onClose} aria-label="Close panel">
-                    <X size={14} />
-                </ActionIcon>
+                <CloseButton size="sm" onClick={onClose} aria-label="Close panel" />
             </Group>
         </Group>
     );

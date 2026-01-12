@@ -2,15 +2,7 @@ import Color from "colorjs.io";
 import { z } from "zod/v4";
 // import * as z4 from "zod/v4/core";
 
-export type DeepPartial<T> = T extends object
-    ? {
-          [P in keyof T]?: DeepPartial<T[P]>;
-      }
-    : T;
-
-export type PartiallyOptional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
-
-export type Brand<T, B extends string> = T & { readonly __brand: B };
+type Brand<T, B extends string> = T & { readonly __brand: B };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AdHocData<KeyType extends string | number = string> = Brand<Record<KeyType, any>, "AdHocData">;
@@ -52,8 +44,6 @@ export const AdvancedColorStyle = z.discriminatedUnion("colorType", [
 ]);
 // const ColorScheme = z.array(ColorStyle);
 
-export const TextType = z.enum(["plain", "markdown", "html"]);
-
 export const TextLocation = z.enum([
     "top",
     "top-right",
@@ -67,12 +57,12 @@ export const TextLocation = z.enum([
     "automatic",
 ]);
 
-export const HttpUrl = z.url({
+const HttpUrl = z.url({
     protocol: /^https?$/,
     hostname: z.regexes.domain,
 });
 
 // "data:image/png;base64, iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg=="
-export const EmbeddedBase64Image = z.string().startsWith("data:image/png;base64,");
+const EmbeddedBase64Image = z.string().startsWith("data:image/png;base64,");
 
 export const ImageData = HttpUrl.or(EmbeddedBase64Image);

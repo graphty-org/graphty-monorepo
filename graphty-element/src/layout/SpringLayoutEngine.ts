@@ -7,7 +7,7 @@ import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 /**
  * Zod-based options schema for Spring Layout
  */
-export const springLayoutOptionsSchema = defineOptions({
+const springLayoutOptionsSchema = defineOptions({
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(100),
         meta: {
@@ -55,7 +55,7 @@ export const springLayoutOptionsSchema = defineOptions({
     },
 });
 
-export const SpringLayoutConfig = z.strictObject({
+const SpringLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     k: z.number().or(z.null()).default(null),
     pos: z.record(z.number(), z.array(z.number()).min(2).max(3)).or(z.null()).default(null),
@@ -66,8 +66,8 @@ export const SpringLayoutConfig = z.strictObject({
     dim: z.number().default(3),
     seed: z.number().positive().or(z.null()).default(null),
 });
-export type SpringLayoutConfigType = z.infer<typeof SpringLayoutConfig>;
-export type SpringLayoutOpts = Partial<SpringLayoutConfigType>;
+type SpringLayoutConfigType = z.infer<typeof SpringLayoutConfig>;
+type SpringLayoutOpts = Partial<SpringLayoutConfigType>;
 
 /**
  * Spring layout engine using Fruchterman-Reingold force-directed algorithm

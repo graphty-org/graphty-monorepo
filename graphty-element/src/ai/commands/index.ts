@@ -3,9 +3,6 @@
  * @module ai/commands
  */
 
-// Types
-export type { CommandContext, CommandExample, CommandResult, GraphCommand } from "./types";
-
 // Registry
 export { CommandRegistry } from "./CommandRegistry";
 

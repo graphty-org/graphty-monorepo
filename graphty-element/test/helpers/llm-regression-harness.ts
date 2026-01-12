@@ -14,7 +14,6 @@ import {
     captureVideo,
     clearStyles,
     CommandRegistry,
-    type CommandResult,
     describeProperty,
     findAndStyleEdges,
     findAndStyleNodes,
@@ -29,6 +28,7 @@ import {
     setLayout,
     zoomToNodes,
 } from "../../src/ai/commands";
+import type { CommandResult } from "../../src/ai/commands/types";
 import type { ToolCall } from "../../src/ai/providers/types";
 import { VercelAiProvider } from "../../src/ai/providers/VercelAiProvider";
 import type { Graph } from "../../src/Graph";

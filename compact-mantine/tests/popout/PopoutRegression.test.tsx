@@ -615,21 +615,19 @@ describe("Popout Regression Tests", () => {
     });
 
     /**
-     * Regression test for: Nested popout alignment gap
+     * Regression test for: Nested popouts must maintain rounded corners
      *
-     * Issue: Child popouts positioned with placement="left" had a visible 1px gap
-     * between the child's right edge and the parent's left edge, even with gap={0}.
-     * This was because:
-     * 1. The parent panel has a 1px left border
-     * 2. hasAnchor check only looked at anchorRef, not parentId
-     * 3. Child's right border was not being removed for nested popouts
+     * IMPORTANT: We previously had a "flush border" design that flattened corners
+     * on the snapping side of nested popouts. This was REMOVED because:
+     * 1. It created visual inconsistency with root popouts
+     * 2. It caused complexity with no clear user benefit
+     * 3. User explicitly requested: "WE DO NOT WANT FLUSH BORDERS AND FLATTENED CORNERS"
      *
-     * Fix:
-     * 1. Changed hasAnchor to also check for parentId (nested popouts anchor to parent)
-     * 2. Use gap={-1} to overlap the parent's 1px border for pixel-perfect alignment
+     * Current behavior: ALL popouts have 8px rounded corners on all four sides,
+     * regardless of nesting or placement.
      */
-    describe("Issue: Nested popout alignment gap (should have 0px visual gap)", () => {
-        it("nested popout with gap={-1} overlaps parent border for 0px visual gap", async () => {
+    describe("Issue: Nested popouts must maintain rounded corners (no flattened corners)", () => {
+        it("nested popout with placement=left maintains all rounded corners", async () => {
             const user = userEvent.setup();
 
             renderPopout(
@@ -683,18 +681,17 @@ describe("Popout Regression Tests", () => {
             // Verify child panel has data-parent-id attribute (indicates it's a nested popout)
             expect(childPanel!.getAttribute("data-parent-id")).toBeTruthy();
 
-            // Check child panel's border-radius is flattened on the snapping side (right side for placement="left")
-            // Note: We check inline style because jsdom doesn't compute CSS properly
+            // All corners should remain rounded - NO flattened corners
+            // The nested popout uses gap={-1} for visual alignment but corners stay rounded
             const childInlineStyle = childPanel!.getAttribute("style") ?? "";
-            // React renders 0 without px for border-radius when set to 0
-            expect(childInlineStyle).toContain("border-top-right-radius: 0");
-            expect(childInlineStyle).toContain("border-bottom-right-radius: 0");
-            // Left side should have radius (not flattened)
-            expect(childInlineStyle).toContain("border-top-left-radius: 8px");
-            expect(childInlineStyle).toContain("border-bottom-left-radius: 8px");
+            // Should NOT have any flattened corners (all corners stay at 8px via Mantine Paper)
+            expect(childInlineStyle).not.toContain("border-top-right-radius: 0");
+            expect(childInlineStyle).not.toContain("border-bottom-right-radius: 0");
+            expect(childInlineStyle).not.toContain("border-top-left-radius: 0");
+            expect(childInlineStyle).not.toContain("border-bottom-left-radius: 0");
         });
 
-        it("nested popout has correct hasAnchor behavior (border removal)", async () => {
+        it("nested popout with placement=right maintains all rounded corners", async () => {
             const user = userEvent.setup();
 
             renderPopout(
@@ -741,15 +738,13 @@ describe("Popout Regression Tests", () => {
             const childPanel = panels.find((p) => p.querySelector('[data-testid="child-content"]'));
             expect(childPanel).toBeDefined();
 
-            // For placement="right", the LEFT border radius should be flattened
-            // Note: We check inline style because jsdom doesn't compute CSS properly
+            // All corners should remain rounded - NO flattened corners regardless of placement
             const childInlineStyle = childPanel!.getAttribute("style") ?? "";
-            // React renders 0 without px for border-radius when set to 0
-            expect(childInlineStyle).toContain("border-top-left-radius: 0");
-            expect(childInlineStyle).toContain("border-bottom-left-radius: 0");
-            // Right side should have radius (not flattened)
-            expect(childInlineStyle).toContain("border-top-right-radius: 8px");
-            expect(childInlineStyle).toContain("border-bottom-right-radius: 8px");
+            // Should NOT have any flattened corners (all corners stay at 8px via Mantine Paper)
+            expect(childInlineStyle).not.toContain("border-top-left-radius: 0");
+            expect(childInlineStyle).not.toContain("border-bottom-left-radius: 0");
+            expect(childInlineStyle).not.toContain("border-top-right-radius: 0");
+            expect(childInlineStyle).not.toContain("border-bottom-right-radius: 0");
         });
 
         it("root popout without anchorRef or parentId uses Mantine Paper default radius", async () => {
@@ -784,7 +779,52 @@ describe("Popout Regression Tests", () => {
             expect(panel.getAttribute("data-popout-id")).toBeTruthy();
         });
 
-        it("nested popout with placement=top has correct border radius", async () => {
+        /**
+         * Regression test for: parentId !== undefined bug
+         *
+         * Issue: hasAnchor was checking `parentId !== undefined` but parentId defaults to `null`
+         * when not nested. Since `null !== undefined` is true, ALL popouts incorrectly had
+         * hasAnchor=true, causing corners to be flattened even for standalone root popouts.
+         *
+         * Fix: Changed condition from `parentId !== undefined` to `parentId != null`
+         * which correctly handles both null and undefined.
+         */
+        it("standalone root popout has all corners rounded (no flattened corners)", async () => {
+            const user = userEvent.setup();
+
+            renderPopout(
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open Panel</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={300} header={{ variant: "title", title: "Root Panel" }}>
+                        <Popout.Content>
+                            <span data-testid="panel-content">Panel Content</span>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>,
+            );
+
+            // Open panel
+            await user.click(screen.getByRole("button", { name: "Open Panel" }));
+            await waitFor(() => {
+                expect(screen.getByTestId("panel-content")).toBeInTheDocument();
+            });
+
+            // Get panel
+            const panel = screen.getByRole("dialog");
+            const inlineStyle = panel.getAttribute("style") ?? "";
+
+            // Root panel without anchorRef or parentId should NOT have any border-radius overrides
+            // in inline style. The radius should come from Mantine Paper's radius={8} prop.
+            // If the bug regresses, we'd see flattened corners (0) in the inline style.
+            expect(inlineStyle).not.toContain("border-top-left-radius: 0");
+            expect(inlineStyle).not.toContain("border-top-right-radius: 0");
+            expect(inlineStyle).not.toContain("border-bottom-left-radius: 0");
+            expect(inlineStyle).not.toContain("border-bottom-right-radius: 0");
+        });
+
+        it("nested popout with placement=top maintains all rounded corners", async () => {
             const user = userEvent.setup();
 
             renderPopout(
@@ -831,16 +871,16 @@ describe("Popout Regression Tests", () => {
             const childPanel = panels.find((p) => p.querySelector('[data-testid="child-content"]'));
             expect(childPanel).toBeDefined();
 
-            // For placement="top", the BOTTOM border radius should be flattened
+            // All corners should remain rounded - NO flattened corners regardless of placement
             const childInlineStyle = childPanel!.getAttribute("style") ?? "";
-            expect(childInlineStyle).toContain("border-bottom-left-radius: 0");
-            expect(childInlineStyle).toContain("border-bottom-right-radius: 0");
-            // Top side should have radius (not flattened)
-            expect(childInlineStyle).toContain("border-top-left-radius: 8px");
-            expect(childInlineStyle).toContain("border-top-right-radius: 8px");
+            // Should NOT have any flattened corners (all corners stay at 8px via Mantine Paper)
+            expect(childInlineStyle).not.toContain("border-bottom-left-radius: 0");
+            expect(childInlineStyle).not.toContain("border-bottom-right-radius: 0");
+            expect(childInlineStyle).not.toContain("border-top-left-radius: 0");
+            expect(childInlineStyle).not.toContain("border-top-right-radius: 0");
         });
 
-        it("nested popout with placement=bottom has correct border radius", async () => {
+        it("nested popout with placement=bottom maintains all rounded corners", async () => {
             const user = userEvent.setup();
 
             renderPopout(
@@ -887,13 +927,134 @@ describe("Popout Regression Tests", () => {
             const childPanel = panels.find((p) => p.querySelector('[data-testid="child-content"]'));
             expect(childPanel).toBeDefined();
 
-            // For placement="bottom", the TOP border radius should be flattened
+            // All corners should remain rounded - NO flattened corners regardless of placement
             const childInlineStyle = childPanel!.getAttribute("style") ?? "";
-            expect(childInlineStyle).toContain("border-top-left-radius: 0");
-            expect(childInlineStyle).toContain("border-top-right-radius: 0");
-            // Bottom side should have radius (not flattened)
-            expect(childInlineStyle).toContain("border-bottom-left-radius: 8px");
-            expect(childInlineStyle).toContain("border-bottom-right-radius: 8px");
+            // Should NOT have any flattened corners (all corners stay at 8px via Mantine Paper)
+            expect(childInlineStyle).not.toContain("border-top-left-radius: 0");
+            expect(childInlineStyle).not.toContain("border-top-right-radius: 0");
+            expect(childInlineStyle).not.toContain("border-bottom-left-radius: 0");
+            expect(childInlineStyle).not.toContain("border-bottom-right-radius: 0");
+        });
+    });
+
+    /**
+     * Regression test for: Popout uses minWidth for flexible sizing
+     *
+     * Issue: Popouts must use minWidth (not fixed width) so that content
+     * can expand the panel when needed. Fixed width would constrain content
+     * and cause overflow issues in components like CompactColorInput.
+     *
+     * Requirement: Popout panels MUST use minWidth for flexible sizing.
+     */
+    describe("Issue: Popout panel must use minWidth for flexible sizing", () => {
+        it("popout panel uses minWidth style, NOT fixed width", async () => {
+            const user = userEvent.setup();
+
+            renderPopout(
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open Panel</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={280} header={{ variant: "title", title: "Test Panel" }}>
+                        <Popout.Content>
+                            <span data-testid="panel-content">
+                                This content might need more space than the specified width.
+                            </span>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>,
+            );
+
+            // Open panel
+            await user.click(screen.getByRole("button", { name: "Open Panel" }));
+            await waitFor(() => {
+                expect(screen.getByTestId("panel-content")).toBeInTheDocument();
+            });
+
+            // Get panel
+            const panel = screen.getByRole("dialog");
+            const inlineStyle = panel.getAttribute("style") ?? "";
+
+            // MUST use minWidth for flexible sizing - NOT fixed width
+            expect(inlineStyle).toContain("min-width: 280px");
+            // Should NOT have explicit width that would constrain content
+            expect(inlineStyle).not.toMatch(/(?<!min-)width: \d+px/);
+        });
+    });
+
+    /**
+     * Regression test for: All popouts must have rounded corners
+     *
+     * Issue: The hasAnchor logic was incorrectly flattening corners on popouts
+     * when using Popout.Anchor or when nested. This caused square corners to appear.
+     *
+     * Requirement: ALL popouts must have 8px rounded corners on all four corners.
+     * NO flush borders, NO flattened corners - ever.
+     */
+    describe("Issue: All popouts must have rounded corners (no flattened corners)", () => {
+        it("popout panel always has 8px radius on all corners", async () => {
+            const user = userEvent.setup();
+
+            renderPopout(
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open Panel</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={280} header={{ variant: "title", title: "Test Panel" }}>
+                        <Popout.Content>
+                            <span data-testid="panel-content">Content</span>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>,
+            );
+
+            await user.click(screen.getByRole("button", { name: "Open Panel" }));
+            await waitFor(() => {
+                expect(screen.getByTestId("panel-content")).toBeInTheDocument();
+            });
+
+            const panel = screen.getByRole("dialog");
+
+            // Paper component should have radius={8}
+            // This ensures all corners are rounded, not flattened
+            expect(panel.className).toContain("mantine-Paper-root");
+            // The panel should NOT have inline border-radius styles that flatten corners
+            const inlineStyle = panel.getAttribute("style") ?? "";
+            expect(inlineStyle).not.toContain("border-top-right-radius: 0");
+            expect(inlineStyle).not.toContain("border-bottom-right-radius: 0");
+            expect(inlineStyle).not.toContain("border-top-left-radius: 0");
+            expect(inlineStyle).not.toContain("border-bottom-left-radius: 0");
+        });
+
+        it("popout panel always has full borders on all sides", async () => {
+            const user = userEvent.setup();
+
+            renderPopout(
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open Panel</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={280} header={{ variant: "title", title: "Test Panel" }}>
+                        <Popout.Content>
+                            <span data-testid="panel-content">Content</span>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>,
+            );
+
+            await user.click(screen.getByRole("button", { name: "Open Panel" }));
+            await waitFor(() => {
+                expect(screen.getByTestId("panel-content")).toBeInTheDocument();
+            });
+
+            const panel = screen.getByRole("dialog");
+            const inlineStyle = panel.getAttribute("style") ?? "";
+
+            // Should have full border on all sides (not "none" on any side)
+            expect(inlineStyle).not.toContain("border-right: none");
+            expect(inlineStyle).not.toContain("border-left: none");
+            expect(inlineStyle).not.toContain("border-top: none");
+            expect(inlineStyle).not.toContain("border-bottom: none");
         });
     });
 });

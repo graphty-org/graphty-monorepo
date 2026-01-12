@@ -1,0 +1,202 @@
+import { Meta, Source } from "@storybook/blocks";
+
+<Meta title="Docs/Migration Guide" />
+
+# Migration Guide: From size="compact" to Default Compact Sizing
+
+This guide helps you migrate from the previous `size="compact"` pattern to the new Mantine-idiomatic approach.
+
+## Overview
+
+The compact-mantine theme has been refactored to use Mantine's `defaultProps` system. This means:
+
+- **Before**: Components required explicit `size="compact"` prop
+- **After**: Components default to compact sizing (`size="sm"`) automatically
+
+## Quick Migration Steps
+
+### Step 1: Remove size="compact" Props
+
+Find and remove all `size="compact"` props from your components:
+
+<Source
+  language="diff"
+  code={`
+// Before
+- <TextInput size="compact" label="Name" />
+- <Button size="compact">Submit</Button>
+- <Checkbox size="compact" label="Agree" />
+
+// After (no size prop needed)
++ <TextInput label="Name" />
++ <Button>Submit</Button>
++ <Checkbox label="Agree" />
+`}
+/>
+
+### Step 2: Update Size Overrides
+
+If you previously used default Mantine sizing (without specifying size), you now need to explicitly set the size:
+
+<Source
+  language="diff"
+  code={`
+// Before (using Mantine default, which was md)
+- <TextInput label="Large Input" />
+
+// After (explicitly specify md for larger size)
++ <TextInput size="md" label="Large Input" />
+`}
+/>
+
+## Size Mapping Reference
+
+| Previous Usage | New Usage |
+|----------------|-----------|
+| `size="compact"` | No size prop (compact by default) |
+| No size prop (Mantine default) | `size="md"` |
+| `size="xs"` | `size="xs"` (unchanged) |
+| `size="sm"` | No size prop or `size="sm"` |
+| `size="lg"` | `size="lg"` (unchanged) |
+
+## Breaking Changes
+
+### 1. size="compact" Is No Longer a Valid Size
+
+The custom `size="compact"` value is no longer recognized. Components will render with a custom `data-size="compact"` attribute but without the expected compact styling.
+
+**Action Required**: Remove all `size="compact"` props.
+
+### 2. Default Size Changed from "md" to "sm"
+
+All components now default to `size="sm"` instead of Mantine's default `size="md"`.
+
+**Action Required**: If you want larger components, explicitly set `size="md"` or `size="lg"`.
+
+### 3. Global Token Overrides
+
+The theme now overrides Mantine's global tokens:
+
+- **fontSizes**: xs=10px, sm=11px, md=13px, lg=14px, xl=16px
+- **spacing**: xs=4px, sm=6px, md=8px, lg=12px, xl=16px
+- **radius**: xs=2px, sm=4px, md=6px, lg=8px, xl=12px
+
+## Code Examples
+
+### Basic Usage
+
+<Source
+  language="tsx"
+  code={`
+import { MantineProvider, TextInput, Button } from '@mantine/core';
+import { compactTheme } from '@graphty/compact-mantine';
+
+function App() {
+    return (
+        <MantineProvider theme={compactTheme}>
+            {/* These use compact sizing automatically */}
+            <TextInput label="Name" />
+            <Button>Submit</Button>
+        </MantineProvider>
+    );
+}
+`}
+/>
+
+### Overriding to Larger Sizes
+
+<Source
+  language="tsx"
+  code={`
+// When you need larger components
+<TextInput size="md" label="Medium Input" />
+<TextInput size="lg" label="Large Input" />
+<Button size="lg">Large Button</Button>
+`}
+/>
+
+### Theme Customization
+
+<Source
+  language="tsx"
+  code={`
+import { createTheme, MantineProvider } from '@mantine/core';
+import { compactTheme } from '@graphty/compact-mantine';
+
+// Customize while keeping compact defaults
+const customTheme = {
+    ...compactTheme,
+    primaryColor: 'teal',
+    other: {
+        myCustomProperty: true,
+    },
+};
+
+function App() {
+    return (
+        <MantineProvider theme={customTheme}>
+            {/* Still compact by default, but with teal primary color */}
+            <Button>Teal Button</Button>
+        </MantineProvider>
+    );
+}
+`}
+/>
+
+### Compact Region in Larger UI
+
+<Source
+  language="tsx"
+  code={`
+import { MantineProvider, TextInput, Button } from '@mantine/core';
+import { compactTheme } from '@graphty/compact-mantine';
+
+function App() {
+    return (
+        <MantineProvider>
+            {/* Regular Mantine UI */}
+            <TextInput label="Regular Size" />
+
+            {/* Compact region */}
+            <MantineProvider theme={compactTheme}>
+                <div className="compact-panel">
+                    <TextInput label="Compact Input" />
+                    <Button>Compact Button</Button>
+                </div>
+            </MantineProvider>
+        </MantineProvider>
+    );
+}
+`}
+/>
+
+## Affected Components
+
+The following 43 components are affected by this migration:
+
+### Input Components (14)
+TextInput, NumberInput, Select, Textarea, PasswordInput, Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, ColorInput, NativeSelect, InputWrapper
+
+### Button Components (3)
+Button, ActionIcon, CloseButton
+
+### Control Components (6)
+Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl
+
+### Display Components (7)
+Badge, Text, Avatar, ThemeIcon, Indicator, Kbd, Pill
+
+### Navigation Components (6)
+Tabs, NavLink, Pagination, Stepper, Anchor, Burger
+
+### Feedback Components (3)
+Loader, Progress, RingProgress
+
+### Overlay Components (4)
+Menu, Tooltip, Popover, HoverCard
+
+## Need Help?
+
+- View the [Size Comparison stories](?path=/story/theme-size-comparison--default-compact-size) for visual examples
+- Check individual component stories for specific usage patterns
+- File issues at the project repository for bugs or questions

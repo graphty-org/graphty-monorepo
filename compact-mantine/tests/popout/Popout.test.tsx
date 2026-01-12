@@ -107,7 +107,8 @@ describe("Popout", () => {
 
         await waitFor(() => {
             const panel = screen.getByRole("dialog");
-            expect(panel).toHaveStyle({ width: "320px" });
+            // Uses minWidth for flexible sizing - panel can expand for wider content
+            expect(panel).toHaveStyle({ minWidth: "320px" });
         });
     });
 
@@ -485,5 +486,64 @@ describe("Popout drag behavior", () => {
         const reopenedPanel = screen.getByRole("dialog");
         expect(reopenedPanel.style.left).toBe(initialLeft);
         expect(reopenedPanel.style.top).toBe(initialTop);
+    });
+});
+
+describe("Popout panel sizing", () => {
+    it("uses minWidth for flexible sizing - panel can expand for wider content", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Test" }}>
+                    <Popout.Content>
+                        {/* Content wider than specified width */}
+                        <div style={{ width: 300 }}>Wide content</div>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        await user.click(screen.getByRole("button", { name: "Open" }));
+        await waitFor(() => {
+            expect(screen.getByRole("dialog")).toBeInTheDocument();
+        });
+
+        const panel = screen.getByRole("dialog");
+        // Panel uses minWidth, allowing it to expand for wider content
+        expect(panel.style.minWidth).toBe("200px");
+        // Panel should NOT have a fixed width that would constrain content
+        expect(panel.style.width).toBe("");
+    });
+
+    it("panel expands to fit content wider than minWidth without overflow", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open</button>
+                </Popout.Trigger>
+                <Popout.Panel width={100} header={{ variant: "title", title: "Test" }}>
+                    <Popout.Content>
+                        <div style={{ width: 250, height: 50 }} data-testid="wide-content">
+                            Wide content that exceeds minWidth
+                        </div>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        await user.click(screen.getByRole("button", { name: "Open" }));
+        await waitFor(() => {
+            expect(screen.getByRole("dialog")).toBeInTheDocument();
+        });
+
+        const panel = screen.getByRole("dialog");
+        // Panel should not have horizontal overflow
+        expect(panel.scrollWidth).toBeLessThanOrEqual(panel.clientWidth);
     });
 });

@@ -148,7 +148,7 @@ export function _kamadaKawaiSolve(distMatrix: number[][], positions: number[][],
  * @param dim - Dimension of layout
  * @returns Array with [cost, gradient]
  */
-export function _kamadaKawaiCostfn(
+function _kamadaKawaiCostfn(
     posVec: number[],
     invDist: number[][],
     meanWeight: number,

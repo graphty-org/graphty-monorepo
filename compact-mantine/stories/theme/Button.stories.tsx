@@ -1,13 +1,10 @@
-import { Button, Group, Stack, Text } from "@mantine/core";
+import { Button, Group } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { Heart } from "lucide-react";
 
 const meta: Meta<typeof Button> = {
     title: "Theme/Button",
     component: Button,
-    args: {
-        size: "compact",
-    },
 };
 
 export default meta;
@@ -19,62 +16,70 @@ export const Default: Story = {
     },
 };
 
-export const AllStates: Story = {
+export const Filled: Story = {
+    args: {
+        children: "Filled",
+        variant: "filled",
+    },
+};
+
+export const Light: Story = {
+    args: {
+        children: "Light",
+        variant: "light",
+    },
+};
+
+export const Outline: Story = {
+    args: {
+        children: "Outline",
+        variant: "outline",
+    },
+};
+
+export const Subtle: Story = {
+    args: {
+        children: "Subtle",
+        variant: "subtle",
+    },
+};
+
+export const Transparent: Story = {
+    args: {
+        children: "Transparent",
+        variant: "transparent",
+    },
+};
+
+export const Disabled: Story = {
+    args: {
+        children: "Disabled",
+        disabled: true,
+    },
+};
+
+export const Loading: Story = {
+    args: {
+        children: "Loading",
+        loading: true,
+    },
+};
+
+export const WithIcon: Story = {
+    args: {
+        children: "With Icon",
+        leftSection: <Heart size={12} />,
+    },
+};
+
+export const Colors: Story = {
     render: () => (
-        <Stack gap="md">
-            <Text size="sm" fw={500}>
-                Button Variants
-            </Text>
-            <Group gap="xs">
-                <Button size="compact">Filled</Button>
-                <Button size="compact" variant="light">
-                    Light
-                </Button>
-                <Button size="compact" variant="outline">
-                    Outline
-                </Button>
-                <Button size="compact" variant="subtle">
-                    Subtle
-                </Button>
-                <Button size="compact" variant="transparent">
-                    Transparent
-                </Button>
-            </Group>
-            <Text size="sm" fw={500} mt="md">
-                Button States
-            </Text>
-            <Group gap="xs">
-                <Button size="compact">Normal</Button>
-                <Button size="compact" disabled>
-                    Disabled
-                </Button>
-                <Button size="compact" loading>
-                    Loading
-                </Button>
-                <Button size="compact" leftSection={<Heart size={12} />}>
-                    With Icon
-                </Button>
-            </Group>
-            <Text size="sm" fw={500} mt="md">
-                Button Colors
-            </Text>
-            <Group gap="xs">
-                <Button size="compact" color="blue">
-                    Blue
-                </Button>
-                <Button size="compact" color="green">
-                    Green
-                </Button>
-                <Button size="compact" color="red">
-                    Red
-                </Button>
-                <Button size="compact" color="orange">
-                    Orange
-                </Button>
-                <Button size="compact" color="grape">
-                    Grape
-                </Button>
-            </Group>
-        </Stack>
+        <Group gap="xs">
+            <Button color="blue">Blue</Button>
+            <Button color="green">Green</Button>
+            <Button color="red">Red</Button>
+            <Button color="orange">Orange</Button>
+            <Button color="grape">Grape</Button>
+        </Group>
     ),
 };

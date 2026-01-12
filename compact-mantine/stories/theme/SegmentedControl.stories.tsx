@@ -1,12 +1,9 @@
-import { SegmentedControl, Stack, Text } from "@mantine/core";
+import { SegmentedControl } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof SegmentedControl> = {
     title: "Theme/SegmentedControl",
     component: SegmentedControl,
-    args: {
-        size: "compact",
-    },
 };
 
 export default meta;
@@ -18,18 +15,32 @@ export const Default: Story = {
     },
 };
 
-export const AllStates: Story = {
-    render: () => (
-        <Stack gap="md">
-            <Text size="sm" fw={500}>
-                SegmentedControl States
-            </Text>
-            <Stack gap="xs">
-                <SegmentedControl size="compact" data={["Nap", "Eat", "Zoom"]} w={200} />
-                <SegmentedControl size="compact" data={["Mon", "Tue", "Wed", "Thu", "Fri"]} w={300} />
-                <SegmentedControl size="compact" data={["Yes", "No", "Maybe"]} fullWidth w={200} />
-                <SegmentedControl size="compact" data={["A", "B"]} disabled w={100} />
-            </Stack>
-        </Stack>
-    ),
+export const ThreeOptions: Story = {
+    args: {
+        data: ["Nap", "Eat", "Zoom"],
+        w: 200,
+    },
+};
+
+export const FiveOptions: Story = {
+    args: {
+        data: ["Mon", "Tue", "Wed", "Thu", "Fri"],
+        w: 300,
+    },
+};
+
+export const FullWidth: Story = {
+    args: {
+        data: ["Yes", "No", "Maybe"],
+        fullWidth: true,
+        w: 200,
+    },
+};
+
+export const Disabled: Story = {
+    args: {
+        data: ["A", "B"],
+        disabled: true,
+        w: 100,
+    },
 };

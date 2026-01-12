@@ -7,7 +7,7 @@ import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 /**
  * Zod-based options schema for Bipartite Layout
  */
-export const bipartiteLayoutOptionsSchema = defineOptions({
+const bipartiteLayoutOptionsSchema = defineOptions({
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(40),
         meta: {
@@ -43,7 +43,7 @@ export const bipartiteLayoutOptionsSchema = defineOptions({
     },
 });
 
-export const BipartiteLayoutConfig = z.strictObject({
+const BipartiteLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     nodes: z.array(z.number().or(z.string())),
     align: z.enum(["vertical", "horizontal"]).default("vertical"),
@@ -54,8 +54,8 @@ export const BipartiteLayoutConfig = z.strictObject({
         .positive()
         .default(4 / 3),
 });
-export type BipartiteLayoutConfigType = z.infer<typeof BipartiteLayoutConfig>;
-export type BipartiteLayoutOpts = Partial<BipartiteLayoutConfigType>;
+type BipartiteLayoutConfigType = z.infer<typeof BipartiteLayoutConfig>;
+type BipartiteLayoutOpts = Partial<BipartiteLayoutConfigType>;
 
 /**
  * Bipartite layout engine for graphs with two distinct node sets

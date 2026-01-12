@@ -13,7 +13,7 @@ import { toAlgorithmGraph } from "./utils/graphConverter";
  * This is the new Zod-based schema that provides both validation and UI metadata.
  * It will eventually replace the legacy optionsSchema.
  */
-export const pageRankOptionsSchema = defineOptions({
+const pageRankOptionsSchema = defineOptions({
     dampingFactor: {
         schema: z.number().min(0).max(1).default(0.85),
         meta: {
@@ -59,7 +59,7 @@ export const pageRankOptionsSchema = defineOptions({
 /**
  * Inferred options type from the Zod schema
  */
-export type PageRankSchemaOptions = InferOptions<typeof pageRankOptionsSchema>;
+type PageRankSchemaOptions = InferOptions<typeof pageRankOptionsSchema>;
 
 /**
  * Options for the PageRank algorithm
@@ -67,7 +67,7 @@ export type PageRankSchemaOptions = InferOptions<typeof pageRankOptionsSchema>;
  * Extends the schema options with programmatic-only options that can't be
  * represented in the schema (Map types).
  */
-export interface PageRankOptions extends PageRankSchemaOptions, Record<string, unknown> {
+interface PageRankOptions extends PageRankSchemaOptions, Record<string, unknown> {
     /** Initial PageRank values for nodes (programmatic only, not in schema) */
     initialRanks?: Map<NodeId, number> | null;
     /** Personalization vector for Personalized PageRank (programmatic only, not in schema) */

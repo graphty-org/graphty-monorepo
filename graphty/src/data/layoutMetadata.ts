@@ -157,15 +157,6 @@ export function getLayoutMetadata(type: string): LayoutMetadata | undefined {
 }
 
 /**
- * Get all layouts in a specific category.
- * @param category - The category to filter by
- * @returns The layouts in the specified category
- */
-export function getLayoutsByCategory(category: LayoutMetadata["category"]): LayoutMetadata[] {
-    return LAYOUT_METADATA.filter((layout) => layout.category === category);
-}
-
-/**
  * Category labels for display
  */
 export const CATEGORY_LABELS: Record<LayoutMetadata["category"], string> = {

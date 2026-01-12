@@ -1,12 +1,9 @@
-import { Group, PasswordInput, Stack, Text } from "@mantine/core";
+import { PasswordInput } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof PasswordInput> = {
     title: "Theme/PasswordInput",
     component: PasswordInput,
-    args: {
-        size: "compact",
-    },
 };
 
 export default meta;
@@ -18,18 +15,25 @@ export const Default: Story = {
     },
 };
 
-export const AllStates: Story = {
-    render: () => (
-        <Stack gap="md">
-            <Text size="sm" fw={500}>
-                PasswordInput States
-            </Text>
-            <Group gap="xs" align="flex-end">
-                <PasswordInput size="compact" placeholder="Default" w={120} />
-                <PasswordInput size="compact" label="With Label" placeholder="••••" w={120} />
-                <PasswordInput size="compact" defaultValue="secret" w={120} />
-                <PasswordInput size="compact" placeholder="Disabled" disabled w={120} />
-            </Group>
-        </Stack>
-    ),
+export const WithLabel: Story = {
+    args: {
+        label: "With Label",
+        placeholder: "••••",
+        w: 200,
+    },
+};
+
+export const WithValue: Story = {
+    args: {
+        defaultValue: "secret",
+        w: 200,
+    },
+};
+
+export const Disabled: Story = {
+    args: {
+        placeholder: "Disabled",
+        disabled: true,
+        w: 200,
+    },
 };

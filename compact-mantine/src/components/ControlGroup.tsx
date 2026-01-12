@@ -10,15 +10,21 @@ import type { ControlGroupProps } from "../types";
  * @param root0.label - The label text for the group header
  * @param root0.actions - Optional action buttons to display in the header
  * @param root0.children - Child controls to render in the group
+ * @param root0.bleed - When true, separator line extends to parent container edges
  * @returns The control group component
  */
-export function ControlGroup({ label, actions, children }: ControlGroupProps): React.JSX.Element {
+export function ControlGroup({ label, actions, children, bleed }: ControlGroupProps): React.JSX.Element {
+    // When bleed is true, use negative margin to extend separator line beyond parent padding
+    // Uses CSS calc with Mantine spacing variable for theme-aware sizing
+    // Adds 1px to account for typical 1px border on containers (sidebar, popout panels)
+    const bleedMargin = bleed ? "calc(-1 * var(--mantine-spacing-sm) - 1px)" : undefined;
+
     return (
         <Box>
-            {/* Separator line above section */}
-            <Divider color="gray.7" mt={8} mb={0} />
+            {/* Separator line above section - extends to container edges when bleed is true */}
+            <Divider color="gray.7" mt={8} mb={0} mx={bleedMargin} />
             {/* Header row with label and optional actions */}
-            <Group justify="space-between" py={8}>
+            <Group justify="space-between" py={8} px={8}>
                 <Text size="xs" fw={500} lh={1.2}>
                     {label}
                 </Text>
@@ -26,7 +32,9 @@ export function ControlGroup({ label, actions, children }: ControlGroupProps): R
             </Group>
 
             {/* Content area - tight spacing between controls */}
-            <Stack gap={0}>{children}</Stack>
+            <Stack gap={0} px={8}>
+                {children}
+            </Stack>
         </Box>
     );
 }

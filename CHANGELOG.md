@@ -1,3 +1,71 @@
+## 1.6.1 (2026-01-09)
+
+This was a version bump only for layout to align it with other projects, there were no code changes.
+
+## 0.5.1 (2026-01-09)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 1.9.1
+
+## 1.7.1 (2026-01-09)
+
+### 🩹 Fixes
+
+- **algorithms:** add prng for spectral clustering ([a1eb0b3](https://github.com/graphty-org/graphty-monorepo/commit/a1eb0b3))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.2.1 (2026-01-09)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 1.9.1 (2026-01-09)
+
+### 🧱 Updated Dependencies
+
+- Updated @graphty/remote-logger to 1.2.1
+- Updated algorithms to 1.7.1
+- Updated layout to 1.6.1
+
+## 1.6.0 (2026-01-08)
+
+This was a version bump only for layout to align it with other projects, there were no code changes.
+
+## 0.5.0 (2026-01-08)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 1.9.0
+
+## 1.2.0 (2026-01-08)
+
+### 🚀 Features
+
+- add remote logger mcp ([b3905f3](https://github.com/graphty-org/graphty-monorepo/commit/b3905f3))
+
+### 🩹 Fixes
+
+- mcp-only and https fixes ([dc78c7b](https://github.com/graphty-org/graphty-monorepo/commit/dc78c7b))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.9.0 (2026-01-08)
+
+### 🧱 Updated Dependencies
+
+- Updated @graphty/remote-logger to 1.2.0
+- Updated algorithms to 1.7.0
+- Updated layout to 1.6.0
+
+## 0.4.0 (2026-01-08)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
 ## 0.4.1 (2026-01-08)
 
 ### 🧱 Updated Dependencies

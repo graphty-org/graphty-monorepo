@@ -76,8 +76,8 @@ function createSpectralStory(args: SpectralArgs): HTMLElement {
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
     const graph = toAlgorithmGraph(generatedGraph);
 
-    // Run Spectral Clustering using actual algorithm
-    const result = spectralClustering(graph, { k: numClusters });
+    // Run Spectral Clustering using actual algorithm (with seed for reproducibility)
+    const result = spectralClustering(graph, { k: numClusters, seed });
 
     // Create container
     const { container, svg } = createStoryContainer();

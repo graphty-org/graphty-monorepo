@@ -1,12 +1,9 @@
-import { Group, Stack, Text, Textarea } from "@mantine/core";
+import { Textarea } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Textarea> = {
     title: "Theme/Textarea",
     component: Textarea,
-    args: {
-        size: "compact",
-    },
 };
 
 export default meta;
@@ -19,18 +16,28 @@ export const Default: Story = {
     },
 };
 
-export const AllStates: Story = {
-    render: () => (
-        <Stack gap="md">
-            <Text size="sm" fw={500}>
-                Textarea States
-            </Text>
-            <Group gap="xs" align="flex-end">
-                <Textarea size="compact" placeholder="Default" w={150} rows={2} />
-                <Textarea size="compact" label="With Label" placeholder="Write here" w={150} rows={2} />
-                <Textarea size="compact" defaultValue="With value" w={150} rows={2} />
-                <Textarea size="compact" placeholder="Disabled" disabled w={150} rows={2} />
-            </Group>
-        </Stack>
-    ),
+export const WithLabel: Story = {
+    args: {
+        label: "With Label",
+        placeholder: "Write here",
+        w: 250,
+        rows: 2,
+    },
+};
+
+export const WithValue: Story = {
+    args: {
+        defaultValue: "With value",
+        w: 250,
+        rows: 2,
+    },
+};
+
+export const Disabled: Story = {
+    args: {
+        placeholder: "Disabled",
+        disabled: true,
+        w: 250,
+        rows: 2,
+    },
 };

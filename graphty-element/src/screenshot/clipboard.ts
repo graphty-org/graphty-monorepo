@@ -1,7 +1,7 @@
 import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
 import type { ClipboardStatus } from "./types.js";
 
-export interface ClipboardResult {
+interface ClipboardResult {
     status: ClipboardStatus;
     error?: Error;
 }

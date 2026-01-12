@@ -13,7 +13,7 @@ import type { CommunityResult, NodeId } from "../../types/index.js";
  * Expected speedup: 2-5x on large graphs with many leaf nodes
  */
 
-export interface OptimizedLouvainOptions {
+interface OptimizedLouvainOptions {
     /**
      * Resolution parameter (default: 1.0)
      */

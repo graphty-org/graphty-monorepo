@@ -17,13 +17,13 @@ export const CalculatedStyle = z.strictObject({
 
 export type CalculatedStyleConfig = z.infer<typeof CalculatedStyle>;
 
-export const AppliedNodeStyle = z.strictObject({
+const AppliedNodeStyle = z.strictObject({
     selector: z.string(),
     style: NodeStyle,
     calculatedStyle: CalculatedStyle.optional(),
 });
 
-export const AppliedEdgeStyle = z.strictObject({
+const AppliedEdgeStyle = z.strictObject({
     selector: z.string(),
     style: EdgeStyle,
     calculatedStyle: CalculatedStyle.optional(),
@@ -38,7 +38,7 @@ const StyleLayerMetadata = z
     })
     .loose();
 
-export const StyleLayer = z
+const StyleLayer = z
     .strictObject({
         node: AppliedNodeStyle,
         edge: AppliedEdgeStyle,
@@ -54,7 +54,7 @@ const TemplateMetadata = z.strictObject({
     templateModificationTimestamp: z.iso.datetime().optional(),
 });
 
-export const StyleTemplateV1 = z.strictObject({
+const StyleTemplateV1 = z.strictObject({
     graphtyTemplate: z.literal(true),
     majorVersion: z.literal("1"),
     metadata: TemplateMetadata.optional(),

@@ -1,13 +1,10 @@
-import { ActionIcon, Group, Stack, Text } from "@mantine/core";
+import { ActionIcon, Group } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { Heart, Settings, Star, Trash, Zap } from "lucide-react";
 
 const meta: Meta<typeof ActionIcon> = {
     title: "Theme/ActionIcon",
     component: ActionIcon,
-    args: {
-        size: "compact",
-    },
 };
 
 export default meta;
@@ -16,63 +13,65 @@ type Story = StoryObj<typeof ActionIcon>;
 export const Default: Story = {
     args: {
         children: <Settings size={14} />,
+        "aria-label": "Settings",
     },
 };
 
-export const AllStates: Story = {
+export const Variants: Story = {
     render: () => (
-        <Stack gap="md">
-            <Text size="sm" fw={500}>
-                ActionIcon Variants
-            </Text>
-            <Group gap="xs">
-                <ActionIcon size="compact" variant="filled">
-                    <Star size={14} />
-                </ActionIcon>
-                <ActionIcon size="compact" variant="light">
-                    <Star size={14} />
-                </ActionIcon>
-                <ActionIcon size="compact" variant="outline">
-                    <Star size={14} />
-                </ActionIcon>
-                <ActionIcon size="compact" variant="subtle">
-                    <Star size={14} />
-                </ActionIcon>
-                <ActionIcon size="compact" variant="transparent">
-                    <Star size={14} />
-                </ActionIcon>
-            </Group>
-            <Text size="sm" fw={500} mt="md">
-                ActionIcon States
-            </Text>
-            <Group gap="xs">
-                <ActionIcon size="compact" variant="light">
-                    <Settings size={14} />
-                </ActionIcon>
-                <ActionIcon size="compact" variant="light" disabled>
-                    <Settings size={14} />
-                </ActionIcon>
-                <ActionIcon size="compact" variant="light" loading>
-                    <Settings size={14} />
-                </ActionIcon>
-            </Group>
-            <Text size="sm" fw={500} mt="md">
-                ActionIcon Colors
-            </Text>
-            <Group gap="xs">
-                <ActionIcon size="compact" variant="light" color="blue">
-                    <Star size={14} />
-                </ActionIcon>
-                <ActionIcon size="compact" variant="light" color="green">
-                    <Zap size={14} />
-                </ActionIcon>
-                <ActionIcon size="compact" variant="light" color="red">
-                    <Trash size={14} />
-                </ActionIcon>
-                <ActionIcon size="compact" variant="light" color="grape">
-                    <Heart size={14} />
-                </ActionIcon>
-            </Group>
-        </Stack>
+        <Group gap="xs">
+            <ActionIcon variant="filled" aria-label="Filled">
+                <Star size={14} />
+            </ActionIcon>
+            <ActionIcon variant="light" aria-label="Light">
+                <Star size={14} />
+            </ActionIcon>
+            <ActionIcon variant="outline" aria-label="Outline">
+                <Star size={14} />
+            </ActionIcon>
+            <ActionIcon variant="subtle" aria-label="Subtle">
+                <Star size={14} />
+            </ActionIcon>
+            <ActionIcon variant="transparent" aria-label="Transparent">
+                <Star size={14} />
+            </ActionIcon>
+        </Group>
+    ),
+};
+
+export const Disabled: Story = {
+    args: {
+        children: <Settings size={14} />,
+        disabled: true,
+        variant: "light",
+        "aria-label": "Disabled",
+    },
+};
+
+export const Loading: Story = {
+    args: {
+        children: <Settings size={14} />,
+        loading: true,
+        variant: "light",
+        "aria-label": "Loading",
+    },
+};
+
+export const Colors: Story = {
+    render: () => (
+        <Group gap="xs">
+            <ActionIcon variant="light" color="blue" aria-label="Blue">
+                <Star size={14} />
+            </ActionIcon>
+            <ActionIcon variant="light" color="green" aria-label="Green">
+                <Zap size={14} />
+            </ActionIcon>
+            <ActionIcon variant="light" color="red" aria-label="Red">
+                <Trash size={14} />
+            </ActionIcon>
+            <ActionIcon variant="light" color="grape" aria-label="Grape">
+                <Heart size={14} />
+            </ActionIcon>
+        </Group>
     ),
 };

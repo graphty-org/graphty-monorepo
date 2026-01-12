@@ -1,12 +1,9 @@
-import { Group, Pill, Stack, Text } from "@mantine/core";
+import { Group, Pill } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Pill> = {
     title: "Theme/Pill",
     component: Pill,
-    args: {
-        size: "compact",
-    },
 };
 
 export default meta;
@@ -18,34 +15,28 @@ export const Default: Story = {
     },
 };
 
-export const AllStates: Story = {
+export const Removable: Story = {
+    args: {
+        children: "Removable",
+        withRemoveButton: true,
+    },
+};
+
+export const Disabled: Story = {
+    args: {
+        children: "Disabled",
+        withRemoveButton: true,
+        disabled: true,
+    },
+};
+
+export const TagsExample: Story = {
     render: () => (
-        <Stack gap="md">
-            <Text size="sm" fw={500}>
-                Pill States
-            </Text>
-            <Group gap="xs">
-                <Pill size="compact">Default</Pill>
-                <Pill size="compact" withRemoveButton>
-                    Removable
-                </Pill>
-                <Pill size="compact" withRemoveButton disabled>
-                    Disabled
-                </Pill>
-            </Group>
-            <Text size="sm" fw={500} mt="md">
-                Real-world Example (Tags)
-            </Text>
-            <Group gap="xs">
-                <Pill size="compact">sleepy</Pill>
-                <Pill size="compact">fluffy</Pill>
-                <Pill size="compact" withRemoveButton>
-                    mischievous
-                </Pill>
-                <Pill size="compact" withRemoveButton>
-                    adorable
-                </Pill>
-            </Group>
-        </Stack>
+        <Group gap="xs">
+            <Pill>sleepy</Pill>
+            <Pill>fluffy</Pill>
+            <Pill withRemoveButton>mischievous</Pill>
+            <Pill withRemoveButton>adorable</Pill>
+        </Group>
     ),
 };

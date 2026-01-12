@@ -1,51 +1,46 @@
 import { ActionIcon, Button, CloseButton } from "@mantine/core";
 
+import {
+    compactActionIconVars,
+    compactButtonVars,
+    compactCloseButtonVars,
+} from "../styles/buttons";
+
 /**
- * Theme extensions for button components with "compact" size support.
+ * Theme extensions for button components with compact sizing by default.
+ *
+ * All button components default to size="sm" for a compact appearance.
+ * CSS variables are applied via `vars` functions to override Mantine's defaults:
+ * - Button: --button-height: 24px, --button-fz: 11px
+ * - ActionIcon: --ai-size: 24px
+ * - CloseButton: --cb-size: 16px, --cb-icon-size: 12px
  */
 export const buttonComponentExtensions = {
     Button: Button.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {
-                        "--button-height": "24px",
-                        "--button-fz": "11px",
-                        "--button-padding-x": "8px",
-                    },
-                };
-            }
-            return { root: {} };
+        defaultProps: {
+            size: "sm",
         },
+        vars: () => ({
+            root: compactButtonVars,
+        }),
     }),
 
     ActionIcon: ActionIcon.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {
-                        "--ai-size": "24px",
-                    },
-                };
-            }
-            return { root: {} };
+        defaultProps: {
+            size: "sm",
+            variant: "subtle",
         },
+        vars: () => ({
+            root: compactActionIconVars,
+        }),
     }),
 
     CloseButton: CloseButton.extend({
         defaultProps: {
-            size: "compact",
+            size: "xs",
         },
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {
-                        "--cb-size": "16px",
-                        "--cb-icon-size": "12px",
-                    },
-                };
-            }
-            return { root: {} };
-        },
+        vars: () => ({
+            root: compactCloseButtonVars,
+        }),
     }),
 };

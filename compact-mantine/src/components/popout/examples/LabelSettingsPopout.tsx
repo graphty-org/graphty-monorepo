@@ -1,15 +1,16 @@
-import { ActionIcon, Box, Button, Checkbox, Select, Slider, Stack, Text } from "@mantine/core";
+import { Box, Button, Checkbox, Select, Slider, Stack, Text } from "@mantine/core";
 import { ChevronRight, ExternalLink } from "lucide-react";
 import { type JSX, type RefObject, useState } from "react";
 
-import { EffectToggle } from "../../EffectToggle";
 import { StyleNumberInput } from "../../StyleNumberInput";
+import { ToggleWithContent } from "../../ToggleWithContent";
 import { Popout } from "../Popout";
+import { PopoutButton } from "../PopoutButton";
 
 /**
  * Props for the LabelSettingsPopout component.
  */
-export interface LabelSettingsPopoutProps {
+interface LabelSettingsPopoutProps {
     /**
      * Optional ref to anchor the popout to a specific element (e.g., sidebar).
      * If not provided, the popout will anchor to the trigger button.
@@ -55,14 +56,10 @@ export function LabelSettingsPopout({ anchorRef }: LabelSettingsPopoutProps): JS
     return (
         <Popout>
             <Popout.Trigger>
-                <ActionIcon
-                    variant="subtle"
-                    size="xs"
+                <PopoutButton
+                    icon={<ExternalLink size={12} />}
                     aria-label="Open label settings"
-                    c="dimmed"
-                >
-                    <ExternalLink size={12} />
-                </ActionIcon>
+                />
             </Popout.Trigger>
             <Popout.Panel
                 width={300}
@@ -79,7 +76,7 @@ export function LabelSettingsPopout({ anchorRef }: LabelSettingsPopoutProps): JS
                             content: (
                                 <Popout.Content>
                                     <Stack gap="sm">
-                                        <EffectToggle
+                                        <ToggleWithContent
                                             label="Show labels"
                                             checked={showLabels}
                                             onChange={setShowLabels}
@@ -95,7 +92,6 @@ export function LabelSettingsPopout({ anchorRef }: LabelSettingsPopoutProps): JS
                                                 suffix="px"
                                             />
                                             <Select
-                                                size="compact"
                                                 label="Font family"
                                                 value={fontFamily}
                                                 onChange={(val) => setFontFamily(val ?? "Inter")}
@@ -103,20 +99,18 @@ export function LabelSettingsPopout({ anchorRef }: LabelSettingsPopoutProps): JS
                                             />
                                             <Box>
                                                 <Checkbox
-                                                    size="compact"
                                                     label="Bold"
                                                     checked={bold}
                                                     onChange={(e) => setBold(e.currentTarget.checked)}
                                                 />
                                                 <Checkbox
-                                                    size="compact"
                                                     label="Italic"
                                                     checked={italic}
                                                     onChange={(e) => setItalic(e.currentTarget.checked)}
                                                     mt={4}
                                                 />
                                             </Box>
-                                        </EffectToggle>
+                                        </ToggleWithContent>
 
                                         {/* Nested child popout for additional settings */}
                                         <Box
@@ -154,17 +148,14 @@ export function LabelSettingsPopout({ anchorRef }: LabelSettingsPopoutProps): JS
                                                                 Fine-tune label rendering performance.
                                                             </Text>
                                                             <Checkbox
-                                                                size="compact"
                                                                 label="Use GPU acceleration"
                                                                 defaultChecked
                                                             />
                                                             <Checkbox
-                                                                size="compact"
                                                                 label="Cache label textures"
                                                                 defaultChecked
                                                             />
                                                             <Checkbox
-                                                                size="compact"
                                                                 label="Batch render updates"
                                                             />
                                                             <StyleNumberInput
@@ -191,11 +182,10 @@ export function LabelSettingsPopout({ anchorRef }: LabelSettingsPopoutProps): JS
                                 <Popout.Content>
                                     <Stack gap="sm">
                                         <Box>
-                                            <Text size="compact" fw={500} mb={4}>
+                                            <Text size="sm" fw={500} mb={4}>
                                                 Label opacity
                                             </Text>
                                             <Slider
-                                                size="compact"
                                                 value={opacity}
                                                 onChange={setOpacity}
                                                 min={0}
@@ -217,16 +207,14 @@ export function LabelSettingsPopout({ anchorRef }: LabelSettingsPopoutProps): JS
                                             step={10}
                                         />
                                         <Checkbox
-                                            size="compact"
                                             label="Hide overlapping labels"
                                             defaultChecked
                                         />
                                         <Checkbox
-                                            size="compact"
                                             label="Prioritize selected nodes"
                                             defaultChecked
                                         />
-                                        <Text size="compact" c="dimmed" mt="xs">
+                                        <Text size="sm" c="dimmed" mt="xs">
                                             Advanced settings affect rendering performance.
                                         </Text>
                                     </Stack>
@@ -242,7 +230,7 @@ export function LabelSettingsPopout({ anchorRef }: LabelSettingsPopoutProps): JS
                                         <Text size="sm" fw={500}>
                                             Label Settings
                                         </Text>
-                                        <Text size="compact" c="dimmed">
+                                        <Text size="sm" c="dimmed">
                                             Configure how labels appear on graph nodes and edges.
                                         </Text>
                                         <Box
@@ -253,10 +241,10 @@ export function LabelSettingsPopout({ anchorRef }: LabelSettingsPopoutProps): JS
                                                 borderRadius: 4,
                                             }}
                                         >
-                                            <Text size="compact" c="dimmed">
+                                            <Text size="sm" c="dimmed">
                                                 Version 1.0.0
                                             </Text>
-                                            <Text size="compact" c="dimmed">
+                                            <Text size="sm" c="dimmed">
                                                 Part of @graphty/compact-mantine
                                             </Text>
                                         </Box>

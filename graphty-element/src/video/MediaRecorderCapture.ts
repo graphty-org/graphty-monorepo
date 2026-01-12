@@ -21,7 +21,7 @@ export class AnimationCancelledError extends Error {
 /**
  * Configuration options for MediaRecorderCapture
  */
-export interface MediaRecorderCaptureConfig {
+interface MediaRecorderCaptureConfig {
     /**
      * Enable debug logging for codec detection and capture process.
      * @default false

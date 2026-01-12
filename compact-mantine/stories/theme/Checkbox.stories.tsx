@@ -1,12 +1,9 @@
-import { Checkbox, Group, Stack, Text } from "@mantine/core";
+import { Checkbox } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Checkbox> = {
     title: "Theme/Checkbox",
     component: Checkbox,
-    args: {
-        size: "compact",
-    },
 };
 
 export default meta;
@@ -18,19 +15,37 @@ export const Default: Story = {
     },
 };
 
-export const AllStates: Story = {
-    render: () => (
-        <Stack gap="md">
-            <Text size="sm" fw={500}>
-                Checkbox States
-            </Text>
-            <Group gap="lg">
-                <Checkbox size="compact" label="Unchecked" />
-                <Checkbox size="compact" label="Checked" defaultChecked />
-                <Checkbox size="compact" label="Disabled" disabled />
-                <Checkbox size="compact" label="Disabled Checked" defaultChecked disabled />
-                <Checkbox size="compact" label="Indeterminate" indeterminate />
-            </Group>
-        </Stack>
-    ),
+export const Unchecked: Story = {
+    args: {
+        label: "Unchecked",
+    },
+};
+
+export const Checked: Story = {
+    args: {
+        label: "Checked",
+        defaultChecked: true,
+    },
+};
+
+export const Disabled: Story = {
+    args: {
+        label: "Disabled",
+        disabled: true,
+    },
+};
+
+export const DisabledChecked: Story = {
+    args: {
+        label: "Disabled Checked",
+        defaultChecked: true,
+        disabled: true,
+    },
+};
+
+export const Indeterminate: Story = {
+    args: {
+        label: "Indeterminate",
+        indeterminate: true,
+    },
 };

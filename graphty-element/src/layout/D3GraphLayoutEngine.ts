@@ -17,7 +17,7 @@ import { EdgePosition, LayoutEngine, Position } from "./LayoutEngine";
 /**
  * Zod-based options schema for D3 Force Layout
  */
-export const d3LayoutOptionsSchema = defineOptions({
+const d3LayoutOptionsSchema = defineOptions({
     alphaMin: {
         schema: z.number().positive().default(0.1),
         meta: {
@@ -84,14 +84,14 @@ function isD3Node(n: unknown): n is D3Node {
     return false;
 }
 
-export const D3LayoutConfig = z.strictObject({
+const D3LayoutConfig = z.strictObject({
     alphaMin: z.number().positive().default(0.1),
     alphaTarget: z.number().min(0).default(0),
     alphaDecay: z.number().positive().default(0.0228),
     velocityDecay: z.number().positive().default(0.4),
 });
 
-export type D3LayoutOptions = Partial<z.infer<typeof D3LayoutConfig>>;
+type D3LayoutOptions = Partial<z.infer<typeof D3LayoutConfig>>;
 
 function isD3Edge(e: unknown): e is D3Edge {
     if (

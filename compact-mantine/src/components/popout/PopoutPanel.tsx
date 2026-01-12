@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 
 import type { PopoutPanelProps, PopoutPosition } from "../../types/popout";
 import { useFloatingPanel } from "./hooks/useFloatingPanel";
+import { usePopoutAnchorContext } from "./PopoutAnchor";
 import { usePopoutContext, usePopoutManagerContext } from "./PopoutContext";
 import { PopoutHeader } from "./PopoutHeader";
 import { calculatePopoutPosition } from "./utils/position";
@@ -40,6 +41,8 @@ export function PopoutPanel({
     const { getZIndex, portalContainer, register, unregister, bringToFront, zIndexVersion, closeWithDescendants, closeDescendants } = usePopoutManagerContext();
     // Reference zIndexVersion to prevent "unused variable" warning while still subscribing to changes
     void zIndexVersion;
+    // Get anchor context if available (from PopoutAnchor wrapper)
+    const anchorContext = usePopoutAnchorContext();
 
     // Generate unique IDs for ARIA attributes
     const uniqueId = useId();
@@ -115,11 +118,17 @@ export function PopoutPanel({
     // Calculate initial position when panel opens and reset drag offset on reopen
     useEffect(() => {
         if (isOpen) {
-            // Determine anchor element:
+            // Determine anchor element (in priority order):
             // 1. Use explicit anchorRef if provided
-            // 2. For nested popouts (parentId set), use parent panel element
-            // 3. Fall back to triggerRef
+            // 2. Use PopoutAnchor context if available (for sidebar/container alignment)
+            // 3. For nested popouts (parentId set), use parent panel element
+            // 4. Fall back to triggerRef
             let anchorElement: HTMLElement | null = anchorRef?.current ?? null;
+
+            if (!anchorElement && anchorContext?.anchorRef.current) {
+                // Use anchor from PopoutAnchor context
+                anchorElement = anchorContext.anchorRef.current;
+            }
 
             if (!anchorElement && parentId) {
                 // For nested popouts, anchor to the parent panel's edge
@@ -182,75 +191,16 @@ export function PopoutPanel({
         top: initialPosition.top + dragOffset.top,
     };
 
-    // Determine which border to remove based on placement for pixel-perfect alignment
-    // When snapping to an anchor, the border on the snapping side should be removed
-    // so the panel visually merges with the anchor's border
+    // Border styling - all popouts have full borders on all sides and rounded corners
     const borderColor = "light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.12))";
     const borderStyle = `1px solid ${borderColor}`;
-    const noBorder = "none";
-
-    // Only remove the snapping-side border when using anchorRef or when nested (has parentId)
-    // Nested popouts anchor to their parent panel even without explicit anchorRef
-    const hasAnchor = anchorRef !== undefined || parentId !== undefined;
-    const getBorderStyle = (): React.CSSProperties => {
-        if (!hasAnchor) {
-            // No anchor ref - use border all around
-            return { border: borderStyle };
-        }
-        // Remove border on the side that touches the anchor
-        return {
-            borderTop: placement === "bottom" ? noBorder : borderStyle,
-            borderRight: placement === "left" ? noBorder : borderStyle,
-            borderBottom: placement === "top" ? noBorder : borderStyle,
-            borderLeft: placement === "right" ? noBorder : borderStyle,
-        };
-    };
-
-    // Get border radius style - flatten corners on the snapping side for pixel-perfect alignment
-    const getBorderRadiusStyle = (): React.CSSProperties => {
-        if (!hasAnchor) {
-            return {}; // Use default radius from Paper component
-        }
-        // Flatten corners on the side that touches the anchor
-        const defaultRadius = 8;
-        switch (placement) {
-            case "left":
-                return {
-                    borderTopLeftRadius: defaultRadius,
-                    borderBottomLeftRadius: defaultRadius,
-                    borderTopRightRadius: 0,
-                    borderBottomRightRadius: 0,
-                };
-            case "right":
-                return {
-                    borderTopLeftRadius: 0,
-                    borderBottomLeftRadius: 0,
-                    borderTopRightRadius: defaultRadius,
-                    borderBottomRightRadius: defaultRadius,
-                };
-            case "top":
-                return {
-                    borderTopLeftRadius: defaultRadius,
-                    borderTopRightRadius: defaultRadius,
-                    borderBottomLeftRadius: 0,
-                    borderBottomRightRadius: 0,
-                };
-            case "bottom":
-                return {
-                    borderTopLeftRadius: 0,
-                    borderTopRightRadius: 0,
-                    borderBottomLeftRadius: defaultRadius,
-                    borderBottomRightRadius: defaultRadius,
-                };
-            default:
-                return {};
-        }
-    };
 
     // Figma + Radix-inspired panel styling:
     // - Adaptive shadows: lighter in light mode, darker in dark mode (like Radix)
     // - Uses light-dark() CSS function for automatic color scheme adaptation
-    // - 8px corner radius
+    // - 8px corner radius on all corners
+    // - Full borders on all sides
+    // - minWidth for flexible sizing (content can expand the panel)
     const panel = (
         <Paper
             ref={panelRef}
@@ -259,7 +209,7 @@ export function PopoutPanel({
             aria-modal="false"
             aria-labelledby={titleId}
             tabIndex={-1}
-            radius={hasAnchor ? 0 : 8}
+            radius={8}
             onClick={handlePanelClick}
             data-popout-id={id}
             {...(parentId && { "data-parent-id": parentId })}
@@ -267,14 +217,11 @@ export function PopoutPanel({
                 position: "fixed",
                 left: finalPosition.left,
                 top: finalPosition.top,
-                width,
-                ...(height !== undefined && { height }),
+                minWidth: width,
+                ...(height !== undefined && { minHeight: height }),
                 zIndex,
                 backgroundColor: "var(--mantine-color-body)",
-                // Conditional borders for pixel-perfect edge alignment with anchor
-                ...getBorderStyle(),
-                // Conditional border radius - flatten corners on snapping side
-                ...getBorderRadiusStyle(),
+                border: borderStyle,
                 // Figma-style shadows: tight, hard near edges, softer further out
                 boxShadow: [
                     "0 1px 2px light-dark(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.4))", // Hard close shadow

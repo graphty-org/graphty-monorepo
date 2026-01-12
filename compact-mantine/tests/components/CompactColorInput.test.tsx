@@ -1,16 +1,28 @@
 import { MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import React, { type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { compactTheme, CompactColorInput } from "../../src";
+import { compactTheme, CompactColorInput, PopoutManager } from "../../src";
+
+/**
+ * Test wrapper that includes all required providers.
+ */
+function TestWrapper({ children }: { children: ReactNode }): React.JSX.Element {
+    return (
+        <MantineProvider theme={compactTheme}>
+            <PopoutManager>{children}</PopoutManager>
+        </MantineProvider>
+    );
+}
 
 describe("CompactColorInput", () => {
     it("renders hex input with default color value", () => {
         render(
-            <MantineProvider theme={compactTheme}>
+            <TestWrapper>
                 <CompactColorInput defaultColor="#FF0000" />
-            </MantineProvider>,
+            </TestWrapper>,
         );
         const input = screen.getByRole("textbox", { name: /hex/i });
         expect(input).toHaveValue("FF0000");
@@ -18,9 +30,9 @@ describe("CompactColorInput", () => {
 
     it("renders hex input with explicit color value", () => {
         render(
-            <MantineProvider theme={compactTheme}>
+            <TestWrapper>
                 <CompactColorInput color="#00FF00" defaultColor="#FF0000" />
-            </MantineProvider>,
+            </TestWrapper>,
         );
         const input = screen.getByRole("textbox", { name: /hex/i });
         expect(input).toHaveValue("00FF00");
@@ -28,18 +40,18 @@ describe("CompactColorInput", () => {
 
     it("renders label when provided", () => {
         render(
-            <MantineProvider theme={compactTheme}>
+            <TestWrapper>
                 <CompactColorInput defaultColor="#FF0000" label="Fill Color" />
-            </MantineProvider>,
+            </TestWrapper>,
         );
         expect(screen.getByText("Fill Color")).toBeInTheDocument();
     });
 
     it("shows opacity input by default", () => {
         render(
-            <MantineProvider theme={compactTheme}>
+            <TestWrapper>
                 <CompactColorInput defaultColor="#FF0000" defaultOpacity={75} />
-            </MantineProvider>,
+            </TestWrapper>,
         );
         const opacityInput = screen.getByRole("textbox", { name: /opacity/i });
         expect(opacityInput).toHaveValue("75%");
@@ -47,45 +59,45 @@ describe("CompactColorInput", () => {
 
     it("hides opacity input when showOpacity is false", () => {
         render(
-            <MantineProvider theme={compactTheme}>
+            <TestWrapper>
                 <CompactColorInput defaultColor="#FF0000" showOpacity={false} />
-            </MantineProvider>,
+            </TestWrapper>,
         );
         expect(screen.queryByRole("textbox", { name: /opacity/i })).not.toBeInTheDocument();
     });
 
     it("has color swatch button", () => {
         render(
-            <MantineProvider theme={compactTheme}>
+            <TestWrapper>
                 <CompactColorInput defaultColor="#FF0000" />
-            </MantineProvider>,
+            </TestWrapper>,
         );
         expect(screen.getByRole("button", { name: /swatch/i })).toBeInTheDocument();
     });
 
     it("shows reset button when explicit color is set", () => {
         render(
-            <MantineProvider theme={compactTheme}>
+            <TestWrapper>
                 <CompactColorInput color="#00FF00" defaultColor="#FF0000" label="Test" />
-            </MantineProvider>,
+            </TestWrapper>,
         );
         expect(screen.getByRole("button", { name: /reset/i })).toBeInTheDocument();
     });
 
     it("hides reset button when using default value", () => {
         render(
-            <MantineProvider theme={compactTheme}>
+            <TestWrapper>
                 <CompactColorInput defaultColor="#FF0000" label="Test" />
-            </MantineProvider>,
+            </TestWrapper>,
         );
         expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
     });
 
     it("marks hex input as default when using default color", () => {
         render(
-            <MantineProvider theme={compactTheme}>
+            <TestWrapper>
                 <CompactColorInput defaultColor="#FF0000" />
-            </MantineProvider>,
+            </TestWrapper>,
         );
         const input = screen.getByRole("textbox", { name: /hex/i });
         expect(input).toHaveAttribute("data-is-default", "true");
@@ -93,9 +105,9 @@ describe("CompactColorInput", () => {
 
     it("marks hex input as non-default when explicit color is set", () => {
         render(
-            <MantineProvider theme={compactTheme}>
+            <TestWrapper>
                 <CompactColorInput color="#00FF00" defaultColor="#FF0000" />
-            </MantineProvider>,
+            </TestWrapper>,
         );
         const input = screen.getByRole("textbox", { name: /hex/i });
         expect(input).toHaveAttribute("data-is-default", "false");
@@ -105,9 +117,9 @@ describe("CompactColorInput", () => {
         const user = userEvent.setup();
         const onColorChange = vi.fn();
         render(
-            <MantineProvider theme={compactTheme}>
+            <TestWrapper>
                 <CompactColorInput defaultColor="#FF0000" onColorChange={onColorChange} />
-            </MantineProvider>,
+            </TestWrapper>,
         );
 
         const input = screen.getByRole("textbox", { name: /hex/i });
@@ -122,9 +134,9 @@ describe("CompactColorInput", () => {
         const user = userEvent.setup();
         const onOpacityChange = vi.fn();
         render(
-            <MantineProvider theme={compactTheme}>
+            <TestWrapper>
                 <CompactColorInput defaultColor="#FF0000" defaultOpacity={100} onOpacityChange={onOpacityChange} />
-            </MantineProvider>,
+            </TestWrapper>,
         );
 
         const input = screen.getByRole("textbox", { name: /opacity/i });
@@ -139,9 +151,9 @@ describe("CompactColorInput", () => {
         const user = userEvent.setup();
         const onOpacityChange = vi.fn();
         render(
-            <MantineProvider theme={compactTheme}>
+            <TestWrapper>
                 <CompactColorInput defaultColor="#FF0000" defaultOpacity={50} onOpacityChange={onOpacityChange} />
-            </MantineProvider>,
+            </TestWrapper>,
         );
 
         const input = screen.getByRole("textbox", { name: /opacity/i });
@@ -156,14 +168,14 @@ describe("CompactColorInput", () => {
         const user = userEvent.setup();
         const onColorChange = vi.fn();
         render(
-            <MantineProvider theme={compactTheme}>
+            <TestWrapper>
                 <CompactColorInput
                     color="#00FF00"
                     defaultColor="#FF0000"
                     label="Test"
                     onColorChange={onColorChange}
                 />
-            </MantineProvider>,
+            </TestWrapper>,
         );
 
         const resetButton = screen.getByRole("button", { name: /reset/i });

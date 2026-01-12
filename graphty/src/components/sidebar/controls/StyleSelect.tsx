@@ -2,12 +2,12 @@ import { ActionIcon, Group, NativeSelect } from "@mantine/core";
 import { ChevronDown, X } from "lucide-react";
 import React from "react";
 
-export interface StyleSelectOption {
+interface StyleSelectOption {
     value: string;
     label: string;
 }
 
-export interface StyleSelectProps {
+interface StyleSelectProps {
     /** Label for the select (also used for aria-label) */
     label: string;
     /** Current value - undefined means using default */

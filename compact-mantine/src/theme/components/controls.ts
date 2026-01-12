@@ -1,144 +1,100 @@
 import { Checkbox, Radio, RangeSlider, SegmentedControl, Slider, Switch } from "@mantine/core";
 
+import {
+    compactCheckboxVars,
+    compactControlLabelStyles,
+    compactRadioVars,
+    compactSegmentedControlIndicatorStyles,
+    compactSegmentedControlRootStyles,
+    compactSegmentedControlVars,
+    compactSliderMarkLabelStyles,
+    compactSliderVars,
+    compactSwitchVars,
+} from "../styles/controls";
+
 /**
- * Theme extensions for control components with "compact" size support.
+ * Theme extensions for control components with compact sizing by default.
+ *
+ * All control components default to size="sm" for a compact appearance.
+ * CSS variables are applied via `vars` functions to override Mantine's defaults:
+ * - Switch: --switch-height: 16px, --switch-width: 28px
+ * - Checkbox: --checkbox-size: 16px
+ * - Radio: --radio-size: 16px
+ * - Slider: --slider-size: 4px, --slider-thumb-size: 12px
+ * - SegmentedControl: --sc-font-size: 10px
  */
 export const controlComponentExtensions = {
     SegmentedControl: SegmentedControl.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {
-                        "--sc-font-size": "10px",
-                        "--sc-padding": "4px 8px",
-                    },
-                };
-            }
-            return { root: {} };
+        defaultProps: {
+            size: "sm",
+            withItemsBorders: false,
+        },
+        vars: () => ({
+            root: compactSegmentedControlVars,
+        }),
+        styles: {
+            root: compactSegmentedControlRootStyles,
+            indicator: compactSegmentedControlIndicatorStyles,
         },
     }),
 
     Checkbox: Checkbox.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {
-                        "--checkbox-size": "16px",
-                    },
-                };
-            }
-            return { root: {} };
+        defaultProps: {
+            size: "sm",
         },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    label: {
-                        fontSize: 11,
-                    },
-                };
-            }
-            return {};
+        vars: () => ({
+            root: compactCheckboxVars,
+        }),
+        styles: {
+            label: compactControlLabelStyles,
         },
     }),
 
     Switch: Switch.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {
-                        "--switch-height": "16px",
-                        "--switch-width": "28px",
-                        "--switch-thumb-size": "12px",
-                        "--switch-track-label-padding": "2px",
-                        "--switch-label-font-size": "5px",
-                    },
-                };
-            }
-            return { root: {} };
+        defaultProps: {
+            size: "sm",
         },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    label: {
-                        fontSize: 11,
-                    },
-                };
-            }
-            return {};
+        vars: () => ({
+            root: compactSwitchVars,
+        }),
+        styles: {
+            label: compactControlLabelStyles,
         },
     }),
 
     Slider: Slider.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {
-                        "--slider-size": "4px",
-                        "--slider-thumb-size": "12px",
-                    },
-                };
-            }
-            return { root: {} };
+        defaultProps: {
+            size: "sm",
         },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    markLabel: {
-                        fontSize: 10,
-                        marginTop: 2,
-                    },
-                };
-            }
-            return {};
+        vars: () => ({
+            root: compactSliderVars,
+        }),
+        styles: {
+            markLabel: compactSliderMarkLabelStyles,
         },
     }),
 
     Radio: Radio.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {
-                        "--radio-size": "16px",
-                        "--radio-icon-size": "6px",
-                    },
-                };
-            }
-            return { root: {} };
+        defaultProps: {
+            size: "sm",
         },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    label: {
-                        fontSize: 11,
-                    },
-                };
-            }
-            return {};
+        vars: () => ({
+            root: compactRadioVars,
+        }),
+        styles: {
+            label: compactControlLabelStyles,
         },
     }),
 
     RangeSlider: RangeSlider.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {
-                        "--slider-size": "4px",
-                        "--slider-thumb-size": "12px",
-                    },
-                };
-            }
-            return { root: {} };
+        defaultProps: {
+            size: "sm",
         },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    markLabel: {
-                        fontSize: 10,
-                        marginTop: 2,
-                    },
-                };
-            }
-            return {};
+        vars: () => ({
+            root: compactSliderVars,
+        }),
+        styles: {
+            markLabel: compactSliderMarkLabelStyles,
         },
     }),
 };

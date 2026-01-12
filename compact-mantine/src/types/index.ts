@@ -36,6 +36,12 @@ export interface ControlGroupProps {
     actions?: ReactNode;
     /** Group content */
     children: ReactNode;
+    /**
+     * When true, the separator line extends beyond the component boundaries
+     * to reach the edges of the parent container (useful inside Popouts with padding).
+     * Uses negative margins to counteract the parent's padding.
+     */
+    bleed?: boolean;
 }
 
 /**
@@ -116,13 +122,13 @@ export interface CompactColorInputProps {
 }
 
 /**
- * Props for EffectToggle component.
+ * Props for ToggleWithContent component.
  * Supports both controlled and uncontrolled modes via useUncontrolled pattern.
  */
-export interface EffectToggleProps {
+export interface ToggleWithContentProps {
     /** Checkbox label */
     label: string;
-    /** Whether effect is enabled (controlled mode) */
+    /** Whether toggle is enabled (controlled mode) */
     checked?: boolean;
     /** Default checked state for uncontrolled mode */
     defaultChecked?: boolean;

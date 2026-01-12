@@ -11,6 +11,8 @@ export default {
 		"compact-mantine",
 		"remote-logger",
                 "graphty",
+		"compact-mantine",
+		"remote-logger",
                 "gpu-3d-force-layout",
                 "deps",
                 "release",

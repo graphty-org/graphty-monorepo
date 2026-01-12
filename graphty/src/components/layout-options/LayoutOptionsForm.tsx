@@ -8,7 +8,7 @@ import type { z } from "zod";
 
 import { camelToTitle, getDefaultValues, type ParsedField, parseZodSchema } from "../../utils/zodSchemaParser";
 
-export interface LayoutOptionsFormProps {
+interface LayoutOptionsFormProps {
     /** The Zod schema defining the form structure */
     schema: z.ZodObject<z.ZodRawShape>;
     /** Current form values */

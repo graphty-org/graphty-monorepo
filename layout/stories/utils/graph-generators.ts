@@ -9,7 +9,7 @@ import type { Graph, Node, PositionMap } from "@graphty/layout";
  * Mulberry32 seeded random number generator.
  * Produces deterministic pseudo-random numbers from a given seed.
  */
-export class SeededRandom {
+class SeededRandom {
     private state: number;
 
     constructor(seed: number = 42) {

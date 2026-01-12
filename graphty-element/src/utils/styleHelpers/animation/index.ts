@@ -8,7 +8,7 @@
 /**
  * Easing function type
  */
-export type EasingFunction = (t: number) => number;
+type EasingFunction = (t: number) => number;
 
 /**
  * Linear easing (no acceleration)

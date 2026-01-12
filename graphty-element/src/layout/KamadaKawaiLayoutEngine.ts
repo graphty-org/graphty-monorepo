@@ -7,7 +7,7 @@ import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 /**
  * Zod-based options schema for Kamada-Kawai Layout
  */
-export const kamadaKawaiLayoutOptionsSchema = defineOptions({
+const kamadaKawaiLayoutOptionsSchema = defineOptions({
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(50),
         meta: {
@@ -40,7 +40,7 @@ export const kamadaKawaiLayoutOptionsSchema = defineOptions({
     },
 });
 
-export const KamadaKawaiLayoutConfig = z.strictObject({
+const KamadaKawaiLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     dist: z.record(z.number(), z.record(z.number(), z.number())).or(z.null()).default(null),
     pos: z.record(z.number(), z.array(z.number()).min(1).max(3)).or(z.null()).default(null),
@@ -49,8 +49,8 @@ export const KamadaKawaiLayoutConfig = z.strictObject({
     center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
     dim: z.number().default(3),
 });
-export type KamadaKawaiLayoutConfigType = z.infer<typeof KamadaKawaiLayoutConfig>;
-export type KamadaKawaiLayoutOpts = Partial<KamadaKawaiLayoutConfigType>;
+type KamadaKawaiLayoutConfigType = z.infer<typeof KamadaKawaiLayoutConfig>;
+type KamadaKawaiLayoutOpts = Partial<KamadaKawaiLayoutConfigType>;
 
 /**
  * Kamada-Kawai layout engine using spring-embedder energy minimization

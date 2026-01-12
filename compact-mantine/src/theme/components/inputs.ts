@@ -1,6 +1,5 @@
 import {
     Autocomplete,
-    ColorInput,
     FileInput,
     InputClearButton,
     JsonInput,
@@ -15,421 +14,221 @@ import {
 } from "@mantine/core";
 
 import { FLOATING_UI_Z_INDEX } from "../../constants/popout";
+import {
+    compactDropdownStyles,
+    compactInputElementStyles,
+    compactInputStyles,
+    compactInputStylesNoHeight,
+    compactInputVars,
+    compactInputVarsNoHeight,
+    compactLabelStyles,
+    compactMultiValueStyles,
+} from "../styles/inputs";
 
 /**
- * Shared CSS variables for compact-sized inputs.
- */
-const compactInputVars = {
-    root: {},
-    wrapper: {
-        "--input-size": "24px",
-        "--input-fz": "11px",
-        "--input-bg": "var(--mantine-color-default)",
-        "--input-bd": "none",
-    },
-};
-
-/**
- * Shared styles for compact-sized inputs.
- */
-const compactInputStyles = {
-    label: {
-        fontSize: 11,
-        color: "var(--mantine-color-dimmed)",
-        marginBottom: 1,
-        lineHeight: 1.2,
-    },
-    input: {
-        paddingLeft: 8,
-        paddingRight: 8,
-        border: "none",
-    },
-};
-
-/**
- * Shared styles for compact-sized dropdown menus (Select, Autocomplete, etc.).
- */
-const compactDropdownStyles = {
-    dropdown: {
-        padding: 4,
-        border: "none",
-        boxShadow: "var(--mantine-shadow-md)",
-    },
-    option: {
-        fontSize: 11,
-        padding: "4px 8px",
-        borderRadius: 4,
-    },
-    options: {
-        // No gap between options for compact appearance
-    },
-    groupLabel: {
-        fontSize: 10,
-        padding: "4px 8px",
-    },
-    empty: {
-        fontSize: 11,
-        padding: "8px",
-    },
-};
-
-/**
- * Theme extensions for input components with "compact" size support.
+ * Theme extensions for input components with compact sizing by default.
+ *
+ * All input components default to size="sm" and variant="filled" for a compact,
+ * borderless appearance with semantic background colors.
+ *
+ * CSS variables are applied via `vars` functions to override Mantine's defaults:
+ * - --input-size: 24px (height)
+ * - --input-fz: 11px (font size)
+ * - --input-bg: semantic background
+ * - --input-bd: none (no border)
  */
 export const inputComponentExtensions = {
     TextInput: TextInput.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return compactInputVars;
-            }
-            return { root: {}, wrapper: {} };
+        defaultProps: {
+            size: "sm",
+            variant: "filled",
         },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return compactInputStyles;
-            }
-            return {};
-        },
+        vars: () => ({
+            root: {},
+            wrapper: compactInputVars,
+        }),
+        styles: compactInputStyles,
     }),
 
     NumberInput: NumberInput.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {},
-                    wrapper: {
-                        "--input-size": "24px",
-                        "--input-fz": "11px",
-                        "--input-bg": "var(--mantine-color-default)",
-                        "--input-bd": "none",
-                        "--input-right-section-width": "24px",
-                    },
-                    controls: {
-                        "--ni-chevron-size": "10px",
-                    },
-                };
-            }
-            return { root: {}, wrapper: {}, controls: {} };
+        defaultProps: {
+            size: "sm",
+            variant: "filled",
         },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    ...compactInputStyles,
-                    control: {
-                        borderColor: "transparent",
-                    },
-                };
-            }
-            return {};
+        vars: () => ({
+            root: {},
+            wrapper: {
+                ...compactInputVars,
+                "--input-right-section-width": "24px",
+            },
+            controls: {
+                "--ni-chevron-size": "10px",
+            },
+        }),
+        styles: {
+            label: compactLabelStyles,
+            input: compactInputElementStyles,
+            control: {
+                borderColor: "transparent",
+            },
         },
     }),
 
     Select: Select.extend({
         defaultProps: {
+            size: "sm",
+            variant: "filled",
             comboboxProps: { zIndex: FLOATING_UI_Z_INDEX },
         },
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return compactInputVars;
-            }
-            return { root: {}, wrapper: {} };
-        },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    ...compactInputStyles,
-                    ...compactDropdownStyles,
-                };
-            }
-            return {};
+        vars: () => ({
+            root: {},
+            wrapper: compactInputVars,
+        }),
+        styles: {
+            ...compactInputStyles,
+            ...compactDropdownStyles,
         },
     }),
 
     Textarea: Textarea.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {},
-                    wrapper: {
-                        "--input-fz": "11px",
-                        "--input-bg": "var(--mantine-color-default)",
-                        "--input-bd": "none",
-                    },
-                };
-            }
-            return { root: {}, wrapper: {} };
+        defaultProps: {
+            size: "sm",
+            variant: "filled",
         },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return compactInputStyles;
-            }
-            return {};
-        },
+        vars: () => ({
+            root: {},
+            wrapper: compactInputVarsNoHeight,
+        }),
+        styles: compactInputStylesNoHeight,
     }),
 
     PasswordInput: PasswordInput.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return compactInputVars;
-            }
-            return { root: {}, wrapper: {} };
+        defaultProps: {
+            size: "sm",
+            variant: "filled",
         },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    ...compactInputStyles,
-                    innerInput: {
-                        paddingLeft: 8,
-                        paddingRight: 8,
-                    },
-                };
-            }
-            return {};
+        vars: () => ({
+            root: {},
+            wrapper: compactInputVars,
+        }),
+        styles: {
+            ...compactInputStyles,
+            innerInput: {
+                paddingLeft: 8,
+                paddingRight: 8,
+            },
         },
     }),
 
     Autocomplete: Autocomplete.extend({
         defaultProps: {
+            size: "sm",
+            variant: "filled",
             comboboxProps: { zIndex: FLOATING_UI_Z_INDEX },
         },
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return compactInputVars;
-            }
-            return { root: {}, wrapper: {} };
-        },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    ...compactInputStyles,
-                    ...compactDropdownStyles,
-                };
-            }
-            return {};
-        },
-    }),
-
-    // ColorInput uses styles instead of vars due to complex type requirements
-    // (ColorInput requires eyeDropperIcon, eyeDropperButton, colorPreview CSS vars)
-    ColorInput: ColorInput.extend({
-        defaultProps: {
-            popoverProps: { zIndex: FLOATING_UI_Z_INDEX },
-        },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    ...compactInputStyles,
-                    wrapper: {
-                        "--input-size": "24px",
-                        "--input-fz": "11px",
-                        "--input-bg": "var(--mantine-color-default)",
-                        "--input-bd": "none",
-                    },
-                };
-            }
-            return {};
+        vars: () => ({
+            root: {},
+            wrapper: compactInputVars,
+        }),
+        styles: {
+            ...compactInputStyles,
+            ...compactDropdownStyles,
         },
     }),
 
     MultiSelect: MultiSelect.extend({
         defaultProps: {
+            size: "sm",
+            variant: "filled",
             comboboxProps: { zIndex: FLOATING_UI_Z_INDEX },
         },
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {},
-                    wrapper: {
-                        "--input-fz": "11px",
-                        "--input-bg": "var(--mantine-color-default)",
-                        "--input-bd": "none",
-                        "--input-size": "24px",
-                        "--combobox-chevron-size": "12px",
-                    },
-                };
-            }
-            return { root: {}, wrapper: {} };
-        },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    ...compactInputStyles,
-                    ...compactDropdownStyles,
-                    input: {
-                        ...compactInputStyles.input,
-                        minHeight: 24,
-                        height: "auto",
-                        display: "flex",
-                        alignItems: "center",
-                        paddingTop: 4,
-                        paddingBottom: 4,
-                    },
-                    inputField: {
-                        minWidth: 60,
-                        flexBasis: 60,
-                    },
-                    pillsList: {
-                        columnGap: 4,
-                        rowGap: 2,
-                    },
-                    pill: {
-                        margin: 0,
-                        paddingTop: 2,
-                        paddingBottom: 2,
-                    },
-                };
-            }
-            return {};
+        vars: () => ({
+            root: {},
+            wrapper: {
+                ...compactInputVars,
+                "--combobox-chevron-size": "12px",
+            },
+        }),
+        styles: {
+            label: compactLabelStyles,
+            ...compactDropdownStyles,
+            ...compactMultiValueStyles,
+            inputField: {
+                minWidth: 60,
+                flexBasis: 60,
+            },
         },
     }),
 
     TagsInput: TagsInput.extend({
         defaultProps: {
+            size: "sm",
+            variant: "filled",
             comboboxProps: { zIndex: FLOATING_UI_Z_INDEX },
         },
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {},
-                    wrapper: {
-                        "--input-fz": "11px",
-                        "--input-bg": "var(--mantine-color-default)",
-                        "--input-bd": "none",
-                    },
-                };
-            }
-            return { root: {}, wrapper: {} };
-        },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    ...compactInputStyles,
-                    ...compactDropdownStyles,
-                    input: {
-                        ...compactInputStyles.input,
-                        minHeight: 24,
-                        height: "auto",
-                        display: "flex",
-                        alignItems: "center",
-                        paddingTop: 4,
-                        paddingBottom: 4,
-                    },
-                    inputField: {
-                        minWidth: 30,
-                        flexBasis: 30,
-                    },
-                    pillsList: {
-                        columnGap: 4,
-                        rowGap: 2,
-                    },
-                    pill: {
-                        margin: 0,
-                        paddingTop: 2,
-                        paddingBottom: 2,
-                    },
-                };
-            }
-            return {};
+        vars: () => ({
+            root: {},
+            wrapper: compactInputVarsNoHeight,
+        }),
+        styles: {
+            label: compactLabelStyles,
+            ...compactDropdownStyles,
+            ...compactMultiValueStyles,
+            inputField: {
+                minWidth: 30,
+                flexBasis: 30,
+            },
         },
     }),
 
     PillsInput: PillsInput.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {},
-                    wrapper: {
-                        "--input-fz": "11px",
-                        "--input-bg": "var(--mantine-color-default)",
-                        "--input-bd": "none",
-                    },
-                };
-            }
-            return { root: {}, wrapper: {} };
+        defaultProps: {
+            size: "sm",
+            variant: "filled",
         },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    ...compactInputStyles,
-                    input: {
-                        ...compactInputStyles.input,
-                        minHeight: 24,
-                        height: "auto",
-                        display: "flex",
-                        alignItems: "center",
-                        paddingTop: 4,
-                        paddingBottom: 4,
-                    },
-                    inputField: {
-                        minWidth: 30,
-                        flexBasis: 30,
-                    },
-                    pillsList: {
-                        columnGap: 4,
-                        rowGap: 2,
-                    },
-                    pill: {
-                        margin: 0,
-                        paddingTop: 2,
-                        paddingBottom: 2,
-                    },
-                };
-            }
-            return {};
+        vars: () => ({
+            root: {},
+            wrapper: compactInputVarsNoHeight,
+        }),
+        styles: {
+            label: compactLabelStyles,
+            ...compactMultiValueStyles,
         },
     }),
 
     FileInput: FileInput.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return compactInputVars;
-            }
-            return { root: {}, wrapper: {} };
+        defaultProps: {
+            size: "sm",
+            variant: "filled",
         },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return compactInputStyles;
-            }
-            return {};
-        },
+        vars: () => ({
+            root: {},
+            wrapper: compactInputVars,
+        }),
+        styles: compactInputStyles,
     }),
 
     JsonInput: JsonInput.extend({
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {},
-                    wrapper: {
-                        "--input-fz": "11px",
-                        "--input-bg": "var(--mantine-color-default)",
-                        "--input-bd": "none",
-                    },
-                };
-            }
-            return { root: {}, wrapper: {} };
+        defaultProps: {
+            size: "sm",
+            variant: "filled",
         },
-        styles: (_theme, props) => {
-            if (props.size === "compact") {
-                return compactInputStyles;
-            }
-            return {};
-        },
+        vars: () => ({
+            root: {},
+            wrapper: compactInputVarsNoHeight,
+        }),
+        styles: compactInputStylesNoHeight,
     }),
 
     InputClearButton: InputClearButton.extend({
         defaultProps: {
-            size: "compact",
+            size: "xs",
         },
-        vars: (_theme, props) => {
-            if (props.size === "compact") {
-                return {
-                    root: {
-                        "--cb-size": "16px",
-                        "--cb-icon-size": "12px",
-                    },
-                };
-            }
-            return { root: {} };
-        },
+        vars: () => ({
+            root: {
+                "--cb-size": "16px",
+                "--cb-icon-size": "12px",
+            },
+        }),
     }),
 };

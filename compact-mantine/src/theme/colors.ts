@@ -1,4 +1,4 @@
-import type { MantineColorsTuple } from "@mantine/core";
+import { DEFAULT_THEME, type MantineColorsTuple } from "@mantine/core";
 
 /**
  * Custom dark color palette optimized for dense UIs.
@@ -24,7 +24,9 @@ export const compactDarkColors: MantineColorsTuple = [
 
 /**
  * Color configuration for the compact theme.
+ * Includes all default Mantine colors plus custom dark palette.
  */
 export const compactColors = {
+    ...DEFAULT_THEME.colors,
     dark: compactDarkColors,
 };

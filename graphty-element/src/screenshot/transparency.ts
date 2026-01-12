@@ -1,6 +1,6 @@
 import { type BaseTexture, Color4, type Mesh, type Scene } from "@babylonjs/core";
 
-export interface BackgroundState {
+interface BackgroundState {
     clearColor: Color4;
     skyboxEnabled: boolean;
     environmentTexture: BaseTexture | null;

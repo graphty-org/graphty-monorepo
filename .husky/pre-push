@@ -1,15 +1,11 @@
 #!/bin/sh
-# Pre-push validation is handled by CI (GitHub Actions)
+# Pre-push hook: runs lint (including knip) and fast tests
 #
-# Why we removed local pre-push checks:
-# 1. nx affected has known issues in git hook contexts (GIT_DIR conflicts)
-# 2. NX daemon/plugin workers cause terminal hangs
-# 3. CI already runs comprehensive lint, build, and test on every push
+# This script runs build, lint, knip, and fast tests (no browser/chromatic tests)
+# to catch issues before pushing to remote.
 #
-# For manual pre-push validation, run: pnpm run prepush
-# To skip this hook entirely: git push --no-verify
-#
-# See: https://github.com/nrwl/nx/issues/733
-#      https://github.com/nrwl/nx/issues/29374
+# To skip this hook: git push --no-verify
+# To run manually: pnpm run prepush:fast
 
-exit 0
+# Run the prepush validation script
+pnpm run prepush:fast

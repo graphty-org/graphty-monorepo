@@ -26,7 +26,7 @@ export interface GraphLike {
 /**
  * Options for building adjacency lists
  */
-export interface AdjacencyOptions {
+interface AdjacencyOptions {
     /** Whether to treat the graph as directed (default: false for undirected) */
     directed?: boolean;
     /** Weight attribute name on edges (default: "value") */

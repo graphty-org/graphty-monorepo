@@ -292,6 +292,9 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
     let mcpServer: McpServer | undefined;
     let actualHttpPort: number | undefined;
 
+    // Track active connections for graceful shutdown
+    const activeConnections = new Set<net.Socket>();
+
     // Start HTTP server if enabled
     if (httpEnabled) {
         // Find an available port starting from the requested port
@@ -320,6 +323,18 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
         );
         httpServer = bindResult.server;
         actualHttpPort = bindResult.port;
+
+        // Track connections for graceful shutdown
+        httpServer.on("connection", (socket: net.Socket) => {
+            activeConnections.add(socket);
+            socket.once("close", () => {
+                activeConnections.delete(socket);
+            });
+        });
+
+        // Set short keep-alive timeout for tests (connections close faster)
+        httpServer.keepAliveTimeout = 1000;
+        httpServer.headersTimeout = 2000;
 
         // Set server config in storage so MCP tools can report it
         // Determine protocol based on whether valid cert files were provided
@@ -374,6 +389,12 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
     const shutdown = async (): Promise<void> => {
         // Close HTTP server
         if (httpServer?.listening) {
+            // Destroy all active connections to ensure clean shutdown
+            for (const socket of activeConnections) {
+                socket.destroy();
+            }
+            activeConnections.clear();
+
             await new Promise<void>((resolve) => {
                 httpServer.close(() => { resolve(); });
             });

@@ -7,7 +7,7 @@ import type { GraphLike } from "./graphUtils";
 /**
  * Options for community utilities
  */
-export interface CommunityOptions {
+interface CommunityOptions {
     /** Weight attribute name on edges (default: "value") */
     weightAttribute?: string;
 }
@@ -15,7 +15,7 @@ export interface CommunityOptions {
 /**
  * Options for degree calculation
  */
-export interface DegreeOptions {
+interface DegreeOptions {
     /** Whether to treat the graph as directed (default: false for undirected) */
     directed?: boolean;
     /** For directed graphs, count "in", "out", or "both" edges (default: "both") */

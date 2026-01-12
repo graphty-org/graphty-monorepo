@@ -12,7 +12,7 @@ const PROGRESS_CANCELLATION_THRESHOLD = 90; // Progress threshold for respecting
 const CLEANUP_DELAY_MS = 1000; // Delay before cleaning up operation progress tracking
 const OPERATION_POLL_INTERVAL_MS = 10; // Polling interval for waitForCompletion
 
-export interface ProgressContext {
+interface ProgressContext {
     setProgress(percent: number): void;
     setMessage(message: string): void;
     setPhase(phase: string): void;
@@ -24,7 +24,7 @@ export interface OperationContext {
     id: string;
 }
 
-export interface Operation {
+interface Operation {
     id: string;
     category: OperationCategory;
     execute: (context: OperationContext) => Promise<void> | void;

@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-export const GraphKnownFields = z.object({
+const GraphKnownFields = z.object({
     nodeIdPath: z.string().default("id"),
     nodeWeightPath: z.string().or(z.null()).default(null),
     nodeTimePath: z.string().or(z.null()).default(null),

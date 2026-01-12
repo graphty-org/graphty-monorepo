@@ -5,7 +5,6 @@ const meta: Meta<typeof PillsInput> = {
     title: "Theme/PillsInput",
     component: PillsInput,
     args: {
-        size: "compact",
         w: 200,
     },
 };
@@ -15,7 +14,7 @@ type Story = StoryObj<typeof PillsInput>;
 
 export const Default: Story = {
     render: () => (
-        <PillsInput size="compact" label="Select items" w={200}>
+        <PillsInput label="Select items" w={200}>
             <Pill.Group>
                 <Pill withRemoveButton>Banana</Pill>
                 <PillsInput.Field placeholder="Add more" />
@@ -26,7 +25,7 @@ export const Default: Story = {
 
 export const MultiplePills: Story = {
     render: () => (
-        <PillsInput size="compact" label="Shopping list" w={200}>
+        <PillsInput label="Shopping list" w={200}>
             <Pill.Group>
                 <Pill withRemoveButton>Milk</Pill>
                 <Pill withRemoveButton>Bread</Pill>
@@ -39,7 +38,7 @@ export const MultiplePills: Story = {
 
 export const Disabled: Story = {
     render: () => (
-        <PillsInput size="compact" label="Select items" disabled w={200}>
+        <PillsInput label="Select items" disabled w={200}>
             <Pill.Group>
                 <Pill>Locked</Pill>
             </Pill.Group>
@@ -49,7 +48,7 @@ export const Disabled: Story = {
 
 export const WithError: Story = {
     render: () => (
-        <PillsInput size="compact" label="Select items" error="Invalid selection" w={200}>
+        <PillsInput label="Select items" error="Invalid selection" w={200}>
             <Pill.Group>
                 <Pill withRemoveButton>Oops</Pill>
                 <PillsInput.Field />
@@ -60,7 +59,7 @@ export const WithError: Story = {
 
 export const MultiRow: Story = {
     render: () => (
-        <PillsInput size="compact" label="Shopping list" w={200}>
+        <PillsInput label="Shopping list" w={200}>
             <Pill.Group>
                 <Pill withRemoveButton>Milk</Pill>
                 <Pill withRemoveButton>Bread</Pill>

@@ -7,7 +7,7 @@
  * @param hex - Hex color string (e.g., "#440154")
  * @returns RGB object with r, g, b values (0-255)
  */
-export function hexToRgb(hex: string): { r: number; g: number; b: number } {
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     if (!result) {
         throw new Error(`Invalid hex color: ${hex}`);
@@ -27,7 +27,7 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } {
  * @param b - Blue component (0-255)
  * @returns Hex color string (e.g., "#440154")
  */
-export function rgbToHex(r: number, g: number, b: number): string {
+function rgbToHex(r: number, g: number, b: number): string {
     const toHex = (value: number): string => {
         const hex = Math.round(Math.max(0, Math.min(255, value))).toString(16);
         return hex.length === 1 ? `0${hex}` : hex;
@@ -42,7 +42,7 @@ export function rgbToHex(r: number, g: number, b: number): string {
  * @param t - Interpolation factor (0-1), where 0 = color1, 1 = color2
  * @returns Interpolated color (hex string)
  */
-export function interpolateColor(color1: string, color2: string, t: number): string {
+function interpolateColor(color1: string, color2: string, t: number): string {
     const rgb1 = hexToRgb(color1);
     const rgb2 = hexToRgb(color2);
 

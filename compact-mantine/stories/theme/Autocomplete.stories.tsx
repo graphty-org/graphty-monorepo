@@ -1,11 +1,10 @@
-import { Autocomplete, Group, Stack, Text } from "@mantine/core";
+import { Autocomplete } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Autocomplete> = {
     title: "Theme/Autocomplete",
     component: Autocomplete,
     args: {
-        size: "compact",
         data: ["Pizza", "Tacos", "Sushi", "Burgers", "Pasta"],
     },
 };
@@ -19,40 +18,28 @@ export const Default: Story = {
     },
 };
 
-export const AllStates: Story = {
-    render: () => (
-        <Stack gap="md">
-            <Text size="sm" fw={500}>
-                Autocomplete States
-            </Text>
-            <Group gap="xs" align="flex-end">
-                <Autocomplete
-                    size="compact"
-                    placeholder="Default"
-                    data={["Pizza", "Tacos", "Sushi"]}
-                    w={120}
-                />
-                <Autocomplete
-                    size="compact"
-                    label="With Label"
-                    placeholder="Type..."
-                    data={["Pizza", "Tacos"]}
-                    w={120}
-                />
-                <Autocomplete
-                    size="compact"
-                    defaultValue="Pizza"
-                    data={["Pizza", "Tacos"]}
-                    w={120}
-                />
-                <Autocomplete
-                    size="compact"
-                    placeholder="Disabled"
-                    data={["A", "B"]}
-                    disabled
-                    w={120}
-                />
-            </Group>
-        </Stack>
-    ),
+export const WithLabel: Story = {
+    args: {
+        label: "With Label",
+        placeholder: "Type...",
+        data: ["Pizza", "Tacos"],
+        w: 200,
+    },
+};
+
+export const WithValue: Story = {
+    args: {
+        defaultValue: "Pizza",
+        data: ["Pizza", "Tacos"],
+        w: 200,
+    },
+};
+
+export const Disabled: Story = {
+    args: {
+        placeholder: "Disabled",
+        data: ["A", "B"],
+        disabled: true,
+        w: 200,
+    },
 };

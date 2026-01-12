@@ -25,7 +25,7 @@ describe("PopoutHeader", () => {
         expect(screen.getByText("Settings")).toBeInTheDocument();
     });
 
-    it("renders tabs variant with tab buttons", () => {
+    it("renders tabs variant with segmented control", () => {
         const config: PopoutHeaderConfig = {
             variant: "tabs",
             tabs: [
@@ -39,8 +39,8 @@ describe("PopoutHeader", () => {
             <PopoutHeader config={config} onClose={onClose} activeTab="tab1" onTabChange={vi.fn()} />,
         );
 
-        expect(screen.getByRole("tab", { name: "Tab 1" })).toBeInTheDocument();
-        expect(screen.getByRole("tab", { name: "Tab 2" })).toBeInTheDocument();
+        expect(screen.getByRole("radio", { name: "Tab 1" })).toBeInTheDocument();
+        expect(screen.getByRole("radio", { name: "Tab 2" })).toBeInTheDocument();
     });
 
     it("switches tab content on click", async () => {
@@ -60,15 +60,15 @@ describe("PopoutHeader", () => {
             <PopoutHeader config={config} onClose={onClose} activeTab="tab1" onTabChange={onTabChange} />,
         );
 
-        // First tab should be active (controlled by activeTab prop)
-        const tab1 = screen.getByRole("tab", { name: "Tab 1" });
-        const tab2 = screen.getByRole("tab", { name: "Tab 2" });
+        // First option should be selected (controlled by activeTab prop)
+        const option1 = screen.getByRole("radio", { name: "Tab 1" });
+        const option2 = screen.getByRole("radio", { name: "Tab 2" });
 
-        expect(tab1).toHaveAttribute("aria-selected", "true");
-        expect(tab2).toHaveAttribute("aria-selected", "false");
+        expect(option1).toBeChecked();
+        expect(option2).not.toBeChecked();
 
-        // Click second tab
-        await user.click(tab2);
+        // Click second option
+        await user.click(option2);
 
         // Should call onTabChange with the new tab id
         expect(onTabChange).toHaveBeenCalledWith("tab2");
@@ -136,7 +136,7 @@ describe("PopoutHeader", () => {
         expect(dragArea).toHaveAttribute("data-drag-trigger", "true");
     });
 
-    it("shows first tab as active when activeTab matches first tab", () => {
+    it("shows first option as selected when activeTab matches first tab", () => {
         const config: PopoutHeaderConfig = {
             variant: "tabs",
             tabs: [
@@ -150,7 +150,7 @@ describe("PopoutHeader", () => {
             <PopoutHeader config={config} onClose={onClose} activeTab="first" onTabChange={vi.fn()} />,
         );
 
-        const tab1 = screen.getByRole("tab", { name: "First" });
-        expect(tab1).toHaveAttribute("aria-selected", "true");
+        const option1 = screen.getByRole("radio", { name: "First" });
+        expect(option1).toBeChecked();
     });
 });

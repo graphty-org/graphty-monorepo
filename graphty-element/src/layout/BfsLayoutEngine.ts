@@ -7,7 +7,7 @@ import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 /**
  * Zod-based options schema for BFS Layout
  */
-export const bfsLayoutOptionsSchema = defineOptions({
+const bfsLayoutOptionsSchema = defineOptions({
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(20),
         meta: {
@@ -39,15 +39,15 @@ export const bfsLayoutOptionsSchema = defineOptions({
     },
 });
 
-export const BfsLayoutConfig = z.strictObject({
+const BfsLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     start: z.number().or(z.string()),
     align: z.enum(["vertical", "horizontal"]).default("vertical"),
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
 });
-export type BfsLayoutConfigType = z.infer<typeof BfsLayoutConfig>;
-export type BfsLayoutOpts = Partial<BfsLayoutConfigType>;
+type BfsLayoutConfigType = z.infer<typeof BfsLayoutConfig>;
+type BfsLayoutOpts = Partial<BfsLayoutConfigType>;
 
 /**
  * BFS (Breadth-First Search) layout engine for tree-like graph visualization

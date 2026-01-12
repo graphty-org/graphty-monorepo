@@ -7,7 +7,7 @@ import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 /**
  * Zod-based options schema for Spiral Layout
  */
-export const spiralLayoutOptionsSchema = defineOptions({
+const spiralLayoutOptionsSchema = defineOptions({
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(80),
         meta: {
@@ -49,7 +49,7 @@ export const spiralLayoutOptionsSchema = defineOptions({
     },
 });
 
-export const SpiralLayoutConfig = z.strictObject({
+const SpiralLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
@@ -57,8 +57,8 @@ export const SpiralLayoutConfig = z.strictObject({
     resolution: z.number().positive().default(0.35),
     equidistant: z.boolean().default(false),
 });
-export type SpiralLayoutConfigType = z.infer<typeof SpiralLayoutConfig>;
-export type SpiralLayoutOpts = Partial<SpiralLayoutConfigType>;
+type SpiralLayoutConfigType = z.infer<typeof SpiralLayoutConfig>;
+type SpiralLayoutOpts = Partial<SpiralLayoutConfigType>;
 
 /**
  * Spiral layout engine that arranges nodes along a spiral path

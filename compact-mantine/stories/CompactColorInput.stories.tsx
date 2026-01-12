@@ -1,7 +1,7 @@
 import { Box } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
-import { CompactColorInput } from "../src";
+import { CompactColorInput, PopoutManager } from "../src";
 
 /**
  * A compact color picker with optional opacity control, designed for dense UI layouts.
@@ -30,9 +30,11 @@ const meta: Meta<typeof CompactColorInput> = {
     },
     decorators: [
         (Story) => (
-            <Box w={280} p="md" bg="var(--mantine-color-body)">
-                <Story />
-            </Box>
+            <PopoutManager>
+                <Box w={280} p="md" bg="var(--mantine-color-body)">
+                    <Story />
+                </Box>
+            </PopoutManager>
         ),
     ],
 };

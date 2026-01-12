@@ -20,7 +20,7 @@ import { toAlgorithmGraph } from "./utils/graphConverter";
 /**
  * Zod-based options schema for Prim algorithm
  */
-export const primOptionsSchema = defineOptions({
+const primOptionsSchema = defineOptions({
     startNode: {
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {

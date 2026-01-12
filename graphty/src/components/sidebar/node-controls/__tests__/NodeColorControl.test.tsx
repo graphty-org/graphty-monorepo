@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { fireEvent, render, screen } from "../../../../test/test-utils";
-import { ColorConfig, NodeColorControl } from "../NodeColorControl";
+import type { ColorConfig } from "../../../../types/style-layer";
+import { NodeColorControl } from "../NodeColorControl";
 
 describe("NodeColorControl", () => {
     const solidColorValue: ColorConfig = {

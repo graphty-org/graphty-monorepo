@@ -12,12 +12,12 @@
 /**
  * Supported option types for algorithm configuration
  */
-export type OptionType = "number" | "integer" | "boolean" | "string" | "select" | "nodeId";
+type OptionType = "number" | "integer" | "boolean" | "string" | "select" | "nodeId";
 
 /**
  * Select option value with display label
  */
-export interface SelectOption<T = unknown> {
+interface SelectOption<T = unknown> {
     /** The actual value stored/used */
     value: T;
     /** Human-readable label for UI display */

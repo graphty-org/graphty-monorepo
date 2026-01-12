@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export interface UseLocalValueResult {
+interface UseLocalValueResult {
     localValue: string | number;
     setLocalValue: (value: string | number) => void;
     commitValue: () => number;

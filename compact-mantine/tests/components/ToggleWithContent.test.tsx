@@ -3,15 +3,15 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { compactTheme, EffectToggle } from "../../src";
+import { compactTheme, ToggleWithContent } from "../../src";
 
-describe("EffectToggle", () => {
+describe("ToggleWithContent", () => {
     it("renders label", () => {
         render(
             <MantineProvider theme={compactTheme}>
-                <EffectToggle label="Enable Glow" checked={false} onChange={vi.fn()}>
+                <ToggleWithContent label="Enable Glow" checked={false} onChange={vi.fn()}>
                     <div>Glow settings</div>
-                </EffectToggle>
+                </ToggleWithContent>
             </MantineProvider>,
         );
         expect(screen.getByLabelText("Enable Glow")).toBeInTheDocument();
@@ -20,9 +20,9 @@ describe("EffectToggle", () => {
     it("hides children when unchecked", () => {
         render(
             <MantineProvider theme={compactTheme}>
-                <EffectToggle label="Enable Glow" checked={false} onChange={vi.fn()}>
+                <ToggleWithContent label="Enable Glow" checked={false} onChange={vi.fn()}>
                     <div>Glow settings</div>
-                </EffectToggle>
+                </ToggleWithContent>
             </MantineProvider>,
         );
         expect(screen.queryByText("Glow settings")).not.toBeInTheDocument();
@@ -31,9 +31,9 @@ describe("EffectToggle", () => {
     it("shows children when checked", () => {
         render(
             <MantineProvider theme={compactTheme}>
-                <EffectToggle label="Enable Glow" checked={true} onChange={vi.fn()}>
+                <ToggleWithContent label="Enable Glow" checked={true} onChange={vi.fn()}>
                     <div>Glow settings</div>
-                </EffectToggle>
+                </ToggleWithContent>
             </MantineProvider>,
         );
         expect(screen.getByText("Glow settings")).toBeInTheDocument();
@@ -44,9 +44,9 @@ describe("EffectToggle", () => {
         const onChange = vi.fn();
         render(
             <MantineProvider theme={compactTheme}>
-                <EffectToggle label="Enable Glow" checked={false} onChange={onChange}>
+                <ToggleWithContent label="Enable Glow" checked={false} onChange={onChange}>
                     <div>Glow settings</div>
-                </EffectToggle>
+                </ToggleWithContent>
             </MantineProvider>,
         );
 
@@ -57,20 +57,20 @@ describe("EffectToggle", () => {
     it("has children container with test id when checked", () => {
         render(
             <MantineProvider theme={compactTheme}>
-                <EffectToggle label="Enable Glow" checked={true} onChange={vi.fn()}>
+                <ToggleWithContent label="Enable Glow" checked={true} onChange={vi.fn()}>
                     <div>Glow settings</div>
-                </EffectToggle>
+                </ToggleWithContent>
             </MantineProvider>,
         );
-        expect(screen.getByTestId("effect-toggle-children")).toBeInTheDocument();
+        expect(screen.getByTestId("toggle-with-content-children")).toBeInTheDocument();
     });
 
     it("renders checkbox as checked when checked prop is true", () => {
         render(
             <MantineProvider theme={compactTheme}>
-                <EffectToggle label="Enable Glow" checked={true} onChange={vi.fn()}>
+                <ToggleWithContent label="Enable Glow" checked={true} onChange={vi.fn()}>
                     <div>Glow settings</div>
-                </EffectToggle>
+                </ToggleWithContent>
             </MantineProvider>,
         );
         expect(screen.getByRole("checkbox")).toBeChecked();

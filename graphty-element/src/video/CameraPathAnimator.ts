@@ -10,7 +10,7 @@ import {
 
 import type { CameraWaypoint } from "./VideoCapture.js";
 
-export type EasingType = "linear" | "easeInOut" | "easeIn" | "easeOut";
+type EasingType = "linear" | "easeInOut" | "easeIn" | "easeOut";
 
 export interface CameraPathAnimatorOptions {
     fps: number;

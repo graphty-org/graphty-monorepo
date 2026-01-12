@@ -1,6 +1,6 @@
 import type { Graph } from "../core/graph.js";
 import type { NodeId } from "../types/index.js";
-import { euclideanDistance } from "../utils/math-utilities.js";
+import { euclideanDistance, SeededRandom } from "../utils/math-utilities.js";
 
 /**
  * Spectral Clustering implementation
@@ -17,6 +17,7 @@ export interface SpectralClusteringOptions {
     laplacianType?: "unnormalized" | "normalized" | "randomWalk"; // Type of Laplacian
     maxIterations?: number; // Max iterations for k-means (default: 100)
     tolerance?: number; // Convergence tolerance (default: 1e-4)
+    seed?: number; // Random seed for reproducible results
 }
 
 export interface SpectralClusteringResult {
@@ -41,7 +42,10 @@ export interface SpectralClusteringResult {
  * @returns Spectral clustering result with communities and cluster assignments
  */
 export function spectralClustering(graph: Graph, options: SpectralClusteringOptions): SpectralClusteringResult {
-    const { k, laplacianType = "normalized", maxIterations = 100, tolerance = 1e-4 } = options;
+    const { k, laplacianType = "normalized", maxIterations = 100, tolerance = 1e-4, seed } = options;
+
+    // Create random function - use seeded PRNG if seed provided, otherwise Math.random
+    const random = seed !== undefined ? SeededRandom.createGenerator(seed) : Math.random;
 
     // Input validation
     if (k < 1 || !Number.isInteger(k)) {
@@ -67,7 +71,7 @@ export function spectralClustering(graph: Graph, options: SpectralClusteringOpti
     const laplacianMatrix = buildLaplacianMatrix(adjacencyMatrix, laplacianType);
 
     // Find k smallest eigenvectors
-    const eigenResult = findSmallestEigenvectors(laplacianMatrix, k);
+    const eigenResult = findSmallestEigenvectors(laplacianMatrix, k, random);
 
     // Perform k-means clustering on the eigenvectors
     // For spectral clustering, we need to transpose the eigenvector matrix
@@ -89,7 +93,7 @@ export function spectralClustering(graph: Graph, options: SpectralClusteringOpti
         normalizeRows(dataPoints);
     }
 
-    const kmeans = kMeansClustering(dataPoints, k, maxIterations, tolerance);
+    const kmeans = kMeansClustering(dataPoints, k, maxIterations, tolerance, random);
 
     // Build communities
     const communities: NodeId[][] = Array.from({ length: k }, () => []);
@@ -293,11 +297,13 @@ function buildLaplacianMatrix(adjacency: number[][], type: string): number[][] {
  * This is a simplified implementation - in practice, you'd use LAPACK or similar
  * @param matrix - The Laplacian matrix for eigendecomposition
  * @param k - Number of smallest eigenvectors to find
+ * @param random - Random number generator function
  * @returns Object containing eigenvalues and corresponding eigenvectors
  */
 function findSmallestEigenvectors(
     matrix: number[][],
     k: number,
+    random: () => number,
 ): {
     eigenvalues: number[];
     eigenvectors: number[][];
@@ -318,7 +324,7 @@ function findSmallestEigenvectors(
     // For spectral clustering, we need proper eigenvectors
     // Special handling for small k values which are common in clustering
     if (k <= 3 && n > k) {
-        return computeSmallestEigenvectorsSimple(matrix, k, n);
+        return computeSmallestEigenvectorsSimple(matrix, k, n, random);
     }
 
     // For larger k, use power iteration
@@ -330,7 +336,7 @@ function findSmallestEigenvectors(
         // Initialize random vector
         let vector = Array(n)
             .fill(0)
-            .map(() => Math.random() - 0.5);
+            .map(() => random() - 0.5);
 
         // Normalize initial vector
         const initNorm = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
@@ -447,6 +453,7 @@ function normalizeRows(matrix: number[][]): void {
  * @param k - Number of clusters to form
  * @param maxIterations - Maximum number of iterations
  * @param tolerance - Convergence tolerance for centroid movement
+ * @param random - Random number generator function
  * @returns Object containing cluster assignments and final centroids
  */
 function kMeansClustering(
@@ -454,6 +461,7 @@ function kMeansClustering(
     k: number,
     maxIterations: number,
     tolerance = 1e-4,
+    random: () => number = Math.random,
 ): { assignments: number[]; centroids: number[][] } {
     const n = data.length;
     const d = data[0]?.length ?? 0;
@@ -476,7 +484,7 @@ function kMeansClustering(
     const selectedIndices = new Set<number>();
 
     while (centroids.length < k && selectedIndices.size < n) {
-        const idx = Math.floor(Math.random() * n);
+        const idx = Math.floor(random() * n);
         if (!selectedIndices.has(idx) && data[idx]) {
             selectedIndices.add(idx);
             centroids.push([...data[idx]]);
@@ -487,7 +495,7 @@ function kMeansClustering(
     while (centroids.length < k) {
         const centroid = Array(d).fill(0) as number[];
         for (let j = 0; j < d; j++) {
-            centroid[j] = Math.random() - 0.5;
+            centroid[j] = random() - 0.5;
         }
         centroids.push(centroid);
     }
@@ -611,12 +619,14 @@ function kMeansClustering(
  * @param matrix - The Laplacian matrix
  * @param k - Number of eigenvectors to compute (1-3)
  * @param n - Size of the matrix
+ * @param random - Random number generator function
  * @returns Object containing eigenvalues and eigenvectors
  */
 function computeSmallestEigenvectorsSimple(
     matrix: number[][],
     k: number,
     n: number,
+    random: () => number,
 ): {
     eigenvalues: number[];
     eigenvectors: number[][];
@@ -635,7 +645,7 @@ function computeSmallestEigenvectorsSimple(
         const maxEig = 2; // For normalized Laplacian, max eigenvalue <= 2
         let vector = Array(n)
             .fill(0)
-            .map(() => Math.random() - 0.5);
+            .map(() => random() - 0.5);
 
         // Make orthogonal to first eigenvector
         const dot1 = vector.reduce((sum, val) => sum + val / Math.sqrt(n), 0);
@@ -681,7 +691,7 @@ function computeSmallestEigenvectorsSimple(
     if (k >= 3) {
         let vector = Array(n)
             .fill(0)
-            .map(() => Math.random() - 0.5);
+            .map(() => random() - 0.5);
 
         // Orthogonalize against previous eigenvectors
         for (const prev of eigenvectors) {

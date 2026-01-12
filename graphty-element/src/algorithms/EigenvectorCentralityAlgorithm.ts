@@ -9,7 +9,7 @@ import { toAlgorithmGraph } from "./utils/graphConverter";
 /**
  * Zod-based options schema for Eigenvector Centrality algorithm
  */
-export const eigenvectorCentralityOptionsSchema = defineOptions({
+const eigenvectorCentralityOptionsSchema = defineOptions({
     maxIterations: {
         schema: z.number().int().min(1).max(1000).default(100),
         meta: {
@@ -55,7 +55,7 @@ export const eigenvectorCentralityOptionsSchema = defineOptions({
 /**
  * Options for the Eigenvector Centrality algorithm
  */
-export interface EigenvectorCentralityOptions extends Record<string, unknown> {
+interface EigenvectorCentralityOptions extends Record<string, unknown> {
     /** Maximum power iterations */
     maxIterations: number;
     /** Convergence threshold */

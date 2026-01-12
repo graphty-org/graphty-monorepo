@@ -9,7 +9,7 @@ import { toAlgorithmGraph } from "./utils/graphConverter";
 /**
  * Zod-based options schema for HITS algorithm
  */
-export const hitsOptionsSchema = defineOptions({
+const hitsOptionsSchema = defineOptions({
     maxIterations: {
         schema: z.number().int().min(1).max(1000).default(100),
         meta: {
@@ -55,7 +55,7 @@ export const hitsOptionsSchema = defineOptions({
 /**
  * Options for the HITS algorithm
  */
-export interface HITSOptions extends Record<string, unknown> {
+interface HITSOptions extends Record<string, unknown> {
     /** Maximum iterations for hub/authority computation */
     maxIterations: number;
     /** Convergence threshold */

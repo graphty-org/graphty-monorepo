@@ -6,9 +6,6 @@ import { createColorStop } from "../../../utils/color-stops";
 import { CompactColorInput } from "../controls/CompactColorInput";
 import { GradientEditor } from "../controls/GradientEditor";
 
-// Re-export types for backwards compatibility
-export type { ColorConfig, ColorMode, ColorStop } from "../../../types/style-layer";
-export type { GradientColorConfig, RadialColorConfig, SolidColorConfig } from "../../../types/style-layer";
 
 interface NodeColorControlProps {
     value: ColorConfig;

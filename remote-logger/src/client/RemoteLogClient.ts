@@ -38,6 +38,7 @@ const DEFAULT_BATCH_INTERVAL_MS = 1000;
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_DELAY_MS = 1000;
 const DEFAULT_SESSION_PREFIX = "session";
+const DEFAULT_TIMEOUT_MS = 5000;
 
 /**
  * Generates a unique session ID with the given prefix.
@@ -86,6 +87,7 @@ export class RemoteLogClient {
     private readonly throttlePatterns: ThrottlePattern[];
     private readonly projectMarker: string | undefined;
     private readonly worktreePath: string | undefined;
+    private readonly timeoutMs: number;
 
     private pendingLogs: LogEntry[] = [];
     private batchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -106,6 +108,7 @@ export class RemoteLogClient {
         this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
         this.retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
         this.throttlePatterns = options.throttlePatterns ?? [];
+        this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
         // Priority: explicit option > global variable
         this.projectMarker = options.projectMarker ?? getGlobalValue("__REMOTE_LOG_PROJECT_MARKER__");
@@ -229,7 +232,7 @@ export class RemoteLogClient {
     /**
      * Makes the actual HTTP request to send logs.
      * @param logs - The log entries to send
-     * @throws Error if the request fails
+     * @throws Error if the request fails or times out
      */
     private async sendRequest(logs: LogEntry[]): Promise<void> {
         const requestBody: {
@@ -250,16 +253,24 @@ export class RemoteLogClient {
             requestBody.worktreePath = this.worktreePath;
         }
 
-        const response = await fetch(`${this.serverUrl}/log`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(requestBody),
-        });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => { controller.abort(); }, this.timeoutMs);
 
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        try {
+            const response = await fetch(`${this.serverUrl}/log`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(requestBody),
+                signal: controller.signal,
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } finally {
+            clearTimeout(timeoutId);
         }
     }
 

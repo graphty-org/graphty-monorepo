@@ -41,7 +41,7 @@ interface CounterStats {
 /**
  * Counter snapshot for reporting
  */
-export interface CounterSnapshot {
+interface CounterSnapshot {
     label: string;
     value: number;
     operations: number;
@@ -70,7 +70,7 @@ interface DrawCallsSnapshot extends PerfCounterSnapshot {
  * Layout session performance metrics
  * Tracks the complete layout session from start to settlement
  */
-export interface LayoutSessionMetrics {
+interface LayoutSessionMetrics {
     startTime: number;
     endTime: number;
     totalElapsed: number;

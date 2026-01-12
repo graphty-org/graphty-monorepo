@@ -4,7 +4,7 @@ import type { AdHocData } from "../config/common.js";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 
 // GEXF has no additional config currently, so just use the base config
-export type GEXFDataSourceConfig = BaseDataSourceConfig;
+type GEXFDataSourceConfig = BaseDataSourceConfig;
 
 interface GEXFAttribute {
     id: string;

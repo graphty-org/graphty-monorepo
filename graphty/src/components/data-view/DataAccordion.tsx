@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 
 import { DataGrid } from "./DataGrid";
 
-export interface DataAccordionProps {
+interface DataAccordionProps {
     /** The data to display in the accordion. When null, shows placeholder text. */
     data: Record<string, unknown> | null;
     /** Custom title for the accordion header. Defaults to "Data". */

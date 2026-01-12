@@ -5,7 +5,7 @@ import { CSRGraph } from "./csr-graph.js";
 /**
  * Options for Direction-Optimized BFS
  */
-export interface DirectionOptimizedBFSOptions {
+interface DirectionOptimizedBFSOptions {
     alpha?: number; // Default: 15 - Controls top-down to bottom-up switch
     beta?: number; // Default: 18 - Controls bottom-up to top-down switch
 }
@@ -13,7 +13,7 @@ export interface DirectionOptimizedBFSOptions {
 /**
  * Result of BFS traversal
  */
-export interface BFSResult<TNodeId> {
+interface BFSResult<TNodeId> {
     distances: Map<TNodeId, number>;
     parents: Map<TNodeId, TNodeId | null>;
     visitedCount: number;
@@ -293,18 +293,3 @@ export function directionOptimizedBFS<TNodeId = NodeId>(
     return bfs.search(source);
 }
 
-/**
- * Convenience function for multi-source BFS.
- * @param graph - The CSR graph to perform BFS on
- * @param sources - Array of source node IDs to start the BFS from
- * @param options - Optional configuration for switching thresholds
- * @returns The BFS result containing distances and parent pointers
- */
-export function directionOptimizedBFSMultiple<TNodeId = NodeId>(
-    graph: CSRGraph<TNodeId>,
-    sources: TNodeId[],
-    options?: DirectionOptimizedBFSOptions,
-): BFSResult<TNodeId> {
-    const bfs = new DirectionOptimizedBFS(graph, options);
-    return bfs.searchMultiple(sources);
-}

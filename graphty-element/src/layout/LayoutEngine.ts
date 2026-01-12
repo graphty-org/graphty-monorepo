@@ -20,9 +20,9 @@ const layoutEngineRegistry = new Map<string, LayoutEngineClass>();
 
 /**
  * Interface for LayoutEngine class static members
- * Exported for use in type annotations when referencing layout classes
+ * Used in type annotations when referencing layout classes
  */
-export interface LayoutEngineStatics {
+interface LayoutEngineStatics {
     type: string;
     maxDimensions: number;
     zodOptionsSchema?: OptionsSchema;

@@ -7,7 +7,7 @@ import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 /**
  * Zod-based options schema for Shell Layout
  */
-export const shellLayoutOptionsSchema = defineOptions({
+const shellLayoutOptionsSchema = defineOptions({
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(100),
         meta: {
@@ -32,15 +32,15 @@ export const shellLayoutOptionsSchema = defineOptions({
     },
 });
 
-export const ShellLayoutConfig = z.strictObject({
+const ShellLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     nlist: z.array(z.array(z.number())).or(z.null()).default(null),
     dim: z.number().default(2),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
     scale: z.number().positive().default(1),
 });
-export type ShellLayoutConfigType = z.infer<typeof ShellLayoutConfig>;
-export type ShellLayoutOpts = Partial<ShellLayoutConfigType>;
+type ShellLayoutConfigType = z.infer<typeof ShellLayoutConfig>;
+type ShellLayoutOpts = Partial<ShellLayoutConfigType>;
 
 /**
  * Shell layout engine that arranges nodes in concentric shells

@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 
 import { SWATCH_COLORS } from "../../../constants/colors";
 
-export interface StyleColorInputProps {
+interface StyleColorInputProps {
     /** Label for the input */
     label: string;
     /** Current value - undefined means using default */

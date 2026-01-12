@@ -13,7 +13,7 @@ import type { StyleManager } from "./StyleManager";
 /**
  * Configuration for the UpdateManager
  */
-export interface UpdateManagerConfig {
+interface UpdateManagerConfig {
     /**
      * Number of layout steps to perform per update
      */

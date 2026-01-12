@@ -9,7 +9,7 @@ import { toAlgorithmGraph } from "./utils/graphConverter";
 /**
  * Zod-based options schema for Dijkstra algorithm
  */
-export const dijkstraOptionsSchema = defineOptions({
+const dijkstraOptionsSchema = defineOptions({
     source: {
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {
@@ -37,7 +37,7 @@ export const dijkstraOptionsSchema = defineOptions({
 /**
  * Options for Dijkstra algorithm
  */
-export interface DijkstraOptions extends Record<string, unknown> {
+interface DijkstraOptions extends Record<string, unknown> {
     /** Starting node for shortest path (defaults to first node if not provided) */
     source: number | string | null;
     /** Destination node for shortest path (defaults to last node if not provided) */

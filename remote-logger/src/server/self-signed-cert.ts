@@ -14,8 +14,17 @@ export interface GeneratedCert {
 /**
  * Generate a self-signed certificate for HTTPS.
  * The certificate is valid for localhost and common local development hostnames.
+ *
+ * NOTE: This function is currently unused because modern browsers reject
+ * self-signed certificates by default. It is retained for potential use cases:
+ * - Node.js clients that can disable certificate verification
+ * - Testing environments
+ * - Development setups where users manually trust the certificate
+ *
+ * For browser use, provide valid certificates via --cert and --key flags.
  * @param hostname - Optional hostname to include in the certificate (default: localhost)
  * @returns Object containing PEM-encoded certificate and private key
+ * @internal
  */
 export function generateSelfSignedCert(hostname = "localhost"): GeneratedCert {
     const attrs = [

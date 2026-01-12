@@ -1,6 +1,6 @@
 {
     "name": "@graphty/compact-mantine",
-    "version": "0.3.0",
+    "version": "0.5.0",
     "description": "Compact size variants for Mantine UI components - optimized for dense UIs",
     "type": "module",
     "main": "dist/index.cjs",
@@ -63,7 +63,8 @@
         "storybook": ". ../.env 2>/dev/null; storybook dev -p 9060 --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",
         "build-storybook": "storybook build",
         "lint": "eslint src/",
-        "lint:fix": "eslint src/ --fix"
+        "lint:fix": "eslint src/ --fix",
+        "lint:knip": "cd .. && pnpm run lint:knip -- --workspace compact-mantine"
     },
     "keywords": [
         "mantine",

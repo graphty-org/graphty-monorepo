@@ -45,11 +45,11 @@ async function getGraphtyElement(): Promise<typeof import("@graphty/graphty-elem
 }
 
 /** Supported AI provider types */
-export type VercelProviderType = "openai" | "anthropic" | "google";
+type VercelProviderType = "openai" | "anthropic" | "google";
 export type ProviderType = VercelProviderType | "mock" | "webllm";
 
 /** Configuration for key persistence */
-export interface PersistenceConfig {
+interface PersistenceConfig {
     /** Encryption key for secure storage */
     encryptionKey: string;
     /** Storage backend */
@@ -62,10 +62,10 @@ export interface PersistenceConfig {
 export type AiStage = "idle" | "processing" | "executingTool" | "streaming" | "complete" | "error";
 
 /** Tool call status types */
-export type ToolCallStatusType = "pending" | "executing" | "success" | "error";
+type ToolCallStatusType = "pending" | "executing" | "success" | "error";
 
 /** Status of a tool call */
-export interface ToolCallStatus {
+interface ToolCallStatus {
     name: string;
     status: ToolCallStatusType;
     args?: Record<string, unknown>;
@@ -82,17 +82,11 @@ export interface AiStatus {
     error?: Error;
 }
 
-/** AI state */
-export interface AiState {
-    status: AiStatus;
-    isProcessing: boolean;
-}
-
 /** Status change callback type */
-export type StatusChangeCallback = (status: AiStatus) => void;
+type StatusChangeCallback = (status: AiStatus) => void;
 
 /** Key persistence configuration for AiManager */
-export interface KeyPersistenceConfig {
+interface KeyPersistenceConfig {
     enabled: boolean;
     encryptionKey?: string;
     storage?: "localStorage" | "sessionStorage";
@@ -100,7 +94,7 @@ export interface KeyPersistenceConfig {
 }
 
 /** AI Manager configuration */
-export interface AiManagerConfig {
+interface AiManagerConfig {
     provider: ProviderType;
     apiKey?: string;
     keyPersistence?: KeyPersistenceConfig;
@@ -229,14 +223,14 @@ export async function getCreateAiManager(): Promise<typeof createAiManagerFn> {
 /**
  * Provider interface for validation.
  */
-export interface AiProvider {
+interface AiProvider {
     validateApiKey(): Promise<boolean>;
 }
 
 /**
  * Provider configuration for createProvider.
  */
-export interface ProviderConfig {
+interface ProviderConfig {
     provider: ProviderType;
     apiKey?: string;
 }

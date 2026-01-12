@@ -1,6 +1,6 @@
-export type FormatType = "json" | "graphml" | "gexf" | "csv" | "gml" | "dot" | "pajek";
+type FormatType = "json" | "graphml" | "gexf" | "csv" | "gml" | "dot" | "pajek";
 
-export interface FormatInfo {
+interface FormatInfo {
     name: string;
     extensions: string[];
     mimeTypes: string[];
@@ -123,11 +123,3 @@ function detectXMLFormat(content: string): FormatType | null {
     return null;
 }
 
-/**
- * Gets detailed information about a specific graph data format.
- * @param format - The format type identifier
- * @returns FormatInfo object with format details
- */
-export function getFormatInfo(format: FormatType): FormatInfo {
-    return FORMAT_INFO[format];
-}

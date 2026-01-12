@@ -3,12 +3,12 @@
  * These shapes correspond to the available mesh types in graphty-element.
  */
 
-export interface ShapeOption {
+interface ShapeOption {
     value: string;
     label: string;
 }
 
-export interface ShapeGroup {
+interface ShapeGroup {
     group: string;
     items: ShapeOption[];
 }
@@ -51,35 +51,6 @@ export const NODE_SHAPE_OPTIONS: ShapeGroup[] = [
     },
 ];
 
-/**
- * Color mode options for node and edge colors.
- */
-export const COLOR_MODE_OPTIONS = [
-    { value: "solid", label: "Solid" },
-    { value: "gradient", label: "Gradient" },
-    { value: "radial", label: "Radial" },
-] as const;
-
-// Re-export ColorMode from canonical location for backwards compatibility
-export type { ColorMode } from "../types/style-layer";
-
-/**
- * Flatten shape options for simple select without groups.
- * @returns A flat array of all shape options
- */
-export function getFlatShapeOptions(): ShapeOption[] {
-    return NODE_SHAPE_OPTIONS.flatMap((group) => group.items);
-}
-
-/**
- * Get shape label by value.
- * @param value - The shape value to look up
- * @returns The label for the shape, or the value if not found
- */
-export function getShapeLabel(value: string): string {
-    const option = getFlatShapeOptions().find((opt) => opt.value === value);
-    return option?.label ?? value;
-}
 
 /**
  * Edge line type options.

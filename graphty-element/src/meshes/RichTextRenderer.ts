@@ -1,6 +1,6 @@
 import type { TextSegment } from "./RichTextLabel.ts";
 
-export interface RenderOptions {
+interface RenderOptions {
     textAlignment: "left" | "center" | "right";
     marginLeft: number;
     marginRight: number;

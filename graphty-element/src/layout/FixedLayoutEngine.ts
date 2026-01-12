@@ -6,7 +6,7 @@ import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 /**
  * Zod-based options schema for Fixed Layout
  */
-export const fixedLayoutOptionsSchema = defineOptions({
+const fixedLayoutOptionsSchema = defineOptions({
     dim: {
         schema: z.number().int().min(2).max(3).default(3),
         meta: {
@@ -16,12 +16,12 @@ export const fixedLayoutOptionsSchema = defineOptions({
     },
 });
 
-export const FixedLayoutConfig = z.strictObject({
+const FixedLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     dim: z.number().default(3),
 });
-export type FixedLayoutConfigType = z.infer<typeof FixedLayoutConfig>;
-export type FixedLayoutOpts = Partial<FixedLayoutConfigType>;
+type FixedLayoutConfigType = z.infer<typeof FixedLayoutConfig>;
+type FixedLayoutOpts = Partial<FixedLayoutConfigType>;
 
 /**
  * Fixed layout engine that doesn't move nodes - uses positions from node data

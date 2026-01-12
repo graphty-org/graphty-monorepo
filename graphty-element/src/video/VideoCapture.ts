@@ -1,8 +1,5 @@
 import type { CameraState } from "../screenshot/types.js";
 
-// Re-export AnimationCancelledError for consumers
-export { AnimationCancelledError } from "./MediaRecorderCapture.js";
-
 export interface CameraWaypoint {
     position: { x: number; y: number; z: number };
     target: { x: number; y: number; z: number };

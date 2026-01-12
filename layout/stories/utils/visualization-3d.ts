@@ -12,7 +12,7 @@ import type { GeneratedGraph, GraphEdge, GraphNode } from "./graph-generators.js
 /**
  * Color palette for consistent 3D styling.
  */
-export const COLORS_3D = {
+const COLORS_3D = {
     background: 0x0a0a1a,
     node: 0x6366f1,
     nodeHighlight: 0x22c55e,
@@ -25,7 +25,7 @@ export const COLORS_3D = {
 /**
  * 3D scene context containing all Three.js objects.
  */
-export interface Scene3D {
+interface Scene3D {
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
@@ -155,7 +155,7 @@ function getPositionBounds3D(positions: PositionMap): {
 /**
  * Normalize 3D positions to fit within a target radius.
  */
-export function normalizePositions3D(
+function normalizePositions3D(
     positions: PositionMap,
     targetRadius: number = 200,
 ): PositionMap {

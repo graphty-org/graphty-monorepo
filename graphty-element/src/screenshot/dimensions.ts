@@ -7,7 +7,7 @@ export const BROWSER_LIMITS = {
     WARN_PIXELS: 8_294_400, // 4K
 };
 
-export interface CalculatedDimensions {
+interface CalculatedDimensions {
     width: number;
     height: number;
 }
@@ -89,7 +89,7 @@ export function calculateDimensions(canvas: HTMLCanvasElement, options: Screensh
  * @param width - The width in pixels to validate
  * @param height - The height in pixels to validate
  */
-export function validateDimensions(width: number, height: number): void {
+function validateDimensions(width: number, height: number): void {
     // Check for valid positive dimensions
     if (width <= 0 || height <= 0 || !Number.isFinite(width) || !Number.isFinite(height)) {
         throw new ScreenshotError(

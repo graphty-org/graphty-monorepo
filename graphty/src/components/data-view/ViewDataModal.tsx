@@ -6,7 +6,7 @@ import { useState } from "react";
 import { standardModalStyles } from "../../utils/modal-styles";
 import { DataGrid } from "./DataGrid";
 
-export interface ViewDataModalProps {
+interface ViewDataModalProps {
     /** Whether the modal is open */
     opened: boolean;
     /** Callback when the modal is closed */

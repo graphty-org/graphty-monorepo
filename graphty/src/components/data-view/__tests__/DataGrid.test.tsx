@@ -45,7 +45,7 @@ describe("DataGrid", () => {
         expect(container.querySelector("table")).toBeInTheDocument();
     });
 
-    it("applies custom theme from mantineJsonGridTheme", () => {
+    it("applies custom Mantine theme", () => {
         const { container } = render(<DataGrid data={{ test: "value" }} />);
         // Verify the grid renders with our custom theme applied
         expect(container.querySelector("table")).toBeInTheDocument();

@@ -8,7 +8,7 @@ import { z } from "zod";
 /**
  * Base layout configuration inherited by most layouts
  */
-export const SimpleLayoutConfig = z.object({
+const SimpleLayoutConfig = z.object({
     scalingFactor: z.number().default(100),
 });
 
@@ -16,7 +16,7 @@ export const SimpleLayoutConfig = z.object({
  * D3 Force Layout Configuration
  * Uses D3 force-directed simulation with customizable physics parameters
  */
-export const D3LayoutConfig = z.strictObject({
+const D3LayoutConfig = z.strictObject({
     alphaMin: z.number().positive().default(0.1),
     alphaTarget: z.number().min(0).default(0),
     alphaDecay: z.number().positive().default(0.0228),
@@ -28,7 +28,7 @@ export const D3LayoutConfig = z.strictObject({
  * Fast force-directed layout optimized for large graphs
  * Note: NGraph uses a plain object config, this schema represents common options
  */
-export const NGraphLayoutConfig = z.strictObject({
+const NGraphLayoutConfig = z.strictObject({
     springLength: z.number().positive().default(30),
     springCoefficient: z.number().positive().default(0.0008),
     dragCoefficient: z.number().positive().default(0.02),
@@ -42,7 +42,7 @@ export const NGraphLayoutConfig = z.strictObject({
  * ForceAtlas2 Layout Configuration
  * Gephi-style force-directed layout with gravity and repulsion
  */
-export const ForceAtlas2LayoutConfig = z.strictObject({
+const ForceAtlas2LayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     pos: z.record(z.number(), z.array(z.number()).min(2).max(3)).or(z.null()).default(null),
     maxIter: z.number().positive().default(100),
@@ -64,7 +64,7 @@ export const ForceAtlas2LayoutConfig = z.strictObject({
  * Spring Layout Configuration
  * Spring-embedded layout using Fruchterman-Reingold algorithm
  */
-export const SpringLayoutConfig = z.strictObject({
+const SpringLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     k: z.number().or(z.null()).default(null),
     pos: z.record(z.number(), z.array(z.number()).min(2).max(3)).or(z.null()).default(null),
@@ -80,7 +80,7 @@ export const SpringLayoutConfig = z.strictObject({
  * Kamada-Kawai Layout Configuration
  * Energy-minimizing layout based on graph-theoretic distances
  */
-export const KamadaKawaiLayoutConfig = z.strictObject({
+const KamadaKawaiLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     dist: z.record(z.number(), z.record(z.number(), z.number())).or(z.null()).default(null),
     pos: z.record(z.number(), z.array(z.number()).min(1).max(3)).or(z.null()).default(null),
@@ -93,7 +93,7 @@ export const KamadaKawaiLayoutConfig = z.strictObject({
 /**
  * ARF (Attractive and Repulsive Forces) Layout Configuration
  */
-export const ArfLayoutConfig = z.strictObject({
+const ArfLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     pos: z.record(z.number(), z.array(z.number())).or(z.null()).default(null),
     scaling: z.number().positive().default(1),
@@ -106,7 +106,7 @@ export const ArfLayoutConfig = z.strictObject({
  * Circular Layout Configuration
  * Positions nodes in a circle or sphere
  */
-export const CircularLayoutConfig = z.strictObject({
+const CircularLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     scale: z.number().positive().default(1),
     center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
@@ -117,7 +117,7 @@ export const CircularLayoutConfig = z.strictObject({
  * Spiral Layout Configuration
  * Arranges nodes along a spiral pattern
  */
-export const SpiralLayoutConfig = z.strictObject({
+const SpiralLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
@@ -130,7 +130,7 @@ export const SpiralLayoutConfig = z.strictObject({
  * Shell Layout Configuration
  * Positions nodes in concentric circles
  */
-export const ShellLayoutConfig = z.strictObject({
+const ShellLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     nlist: z.array(z.array(z.number())).or(z.null()).default(null),
     dim: z.number().default(2),
@@ -142,7 +142,7 @@ export const ShellLayoutConfig = z.strictObject({
  * Random Layout Configuration
  * Randomly positions nodes in space
  */
-export const RandomLayoutConfig = z.strictObject({
+const RandomLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
     dim: z.number().default(2),
@@ -153,7 +153,7 @@ export const RandomLayoutConfig = z.strictObject({
  * Planar Layout Configuration
  * Attempts to create a planar graph embedding
  */
-export const PlanarLayoutConfig = z.strictObject({
+const PlanarLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
@@ -165,7 +165,7 @@ export const PlanarLayoutConfig = z.strictObject({
  * Spectral Layout Configuration
  * Uses eigenvectors of the graph Laplacian for positioning
  */
-export const SpectralLayoutConfig = z.strictObject({
+const SpectralLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
@@ -176,7 +176,7 @@ export const SpectralLayoutConfig = z.strictObject({
  * BFS (Breadth-First Search) Layout Configuration
  * Tree layout starting from a specific node
  */
-export const BfsLayoutConfig = z.strictObject({
+const BfsLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     start: z.number().or(z.string()).optional(),
 });
@@ -185,7 +185,7 @@ export const BfsLayoutConfig = z.strictObject({
  * Bipartite Layout Configuration
  * Two-column layout for bipartite graphs
  */
-export const BipartiteLayoutConfig = z.strictObject({
+const BipartiteLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     nodes: z.array(z.number().or(z.string())).optional(),
     align: z.enum(["vertical", "horizontal"]).default("vertical"),
@@ -201,7 +201,7 @@ export const BipartiteLayoutConfig = z.strictObject({
  * Multipartite Layout Configuration
  * Multi-column layout based on node subset keys
  */
-export const MultipartiteLayoutConfig = z.strictObject({
+const MultipartiteLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     subsetKey: z.string().optional(),
     align: z.enum(["vertical", "horizontal"]).default("vertical"),
@@ -213,7 +213,7 @@ export const MultipartiteLayoutConfig = z.strictObject({
  * Fixed Layout Configuration
  * Uses pre-defined node positions from data
  */
-export const FixedLayoutConfig = z.strictObject({
+const FixedLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     dim: z.number().default(3),
 });
@@ -221,7 +221,7 @@ export const FixedLayoutConfig = z.strictObject({
 /**
  * Map of layout type to its Zod schema
  */
-export const LAYOUT_SCHEMAS: Record<string, z.ZodObject<z.ZodRawShape>> = {
+const LAYOUT_SCHEMAS: Record<string, z.ZodObject<z.ZodRawShape>> = {
     d3: D3LayoutConfig,
     ngraph: NGraphLayoutConfig,
     forceatlas2: ForceAtlas2LayoutConfig,
@@ -244,7 +244,7 @@ export const LAYOUT_SCHEMAS: Record<string, z.ZodObject<z.ZodRawShape>> = {
  * Fields that should be hidden from the UI because they require
  * complex data structures or are for internal use only
  */
-export const HIDDEN_FIELDS: Record<string, string[]> = {
+const HIDDEN_FIELDS: Record<string, string[]> = {
     d3: [],
     ngraph: [],
     forceatlas2: ["scalingFactor", "pos", "nodeMass", "nodeSize", "weightPath", "dim"],

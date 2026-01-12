@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { LogStorage } from "../../src/server/log-storage.js";
-import { createMcpServer, getToolNames } from "../../src/mcp/mcp-server.js";
+import {
+    createMcpServer,
+    getToolNames,
+    SERVER_INSTRUCTIONS,
+} from "../../src/mcp/mcp-server.js";
 
 describe("MCP Server", () => {
     let storage: LogStorage;
@@ -42,5 +46,20 @@ describe("MCP Server", () => {
         expect(toolNames).toContain("logs_clear");
         expect(toolNames).toContain("logs_search");
         expect(toolNames).toContain("logs_get_file_path");
+    });
+});
+
+describe("SERVER_INSTRUCTIONS", () => {
+    test("should document the correct /log endpoint path", () => {
+        // Architecture diagram should reference /log not /logs for receiving logs
+        expect(SERVER_INSTRUCTIONS).toContain("HTTP POST to /log →");
+
+        // SDK example should show correct serverUrl (without /log path, since client appends it)
+        expect(SERVER_INSTRUCTIONS).toContain('serverUrl: "http://localhost:9080"');
+        expect(SERVER_INSTRUCTIONS).not.toContain('serverUrl: "http://localhost:9080/logs"');
+
+        // Raw fetch() example should use /log endpoint
+        expect(SERVER_INSTRUCTIONS).toContain('fetch("http://localhost:9080/log"');
+        expect(SERVER_INSTRUCTIONS).not.toContain('fetch("http://localhost:9080/logs"');
     });
 });

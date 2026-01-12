@@ -8,7 +8,7 @@ import { standardModalStyles } from "../utils/modal-styles";
 import { getDefaultValues } from "../utils/zodSchemaParser";
 import { LayoutOptionsForm } from "./layout-options/LayoutOptionsForm";
 
-export interface RunLayoutsModalProps {
+interface RunLayoutsModalProps {
     opened: boolean;
     onClose: () => void;
     onApply: (layoutType: string, config: Record<string, unknown>) => void;

@@ -8,8 +8,9 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import type * as http from "http";
-import type * as https from "https";
+import * as http from "http";
+import * as https from "https";
+import { internalIpV4Sync } from "internal-ip";
 import * as net from "net";
 import * as os from "os";
 import * as path from "path";
@@ -34,6 +35,90 @@ const MAX_PORT_SCAN_ATTEMPTS = 100;
 
 /** Maximum port number allowed (ports 9000-9099 per project guidelines) */
 const MAX_PORT_NUMBER = 9099;
+
+/** Maximum retries for binding after EADDRINUSE during listen */
+const MAX_BIND_RETRIES = 10;
+
+/**
+ * Attempt to bind an HTTP/HTTPS server to a port with retry on EADDRINUSE.
+ * This handles race conditions where a port becomes unavailable between
+ * port scanning and actual binding.
+ * @param serverFactory - Function to create a new server instance
+ * @param startPort - Starting port to try
+ * @param host - Host to bind to
+ * @param quiet - Suppress output messages
+ * @param maxPort - Maximum port number to scan up to (default: 9099)
+ * @returns Promise resolving to bound server and actual port
+ */
+async function tryBindWithRetry(
+    serverFactory: () => http.Server | https.Server,
+    startPort: number,
+    host: string,
+    quiet: boolean,
+    maxPort: number = MAX_PORT_NUMBER,
+): Promise<{ server: http.Server | https.Server; port: number }> {
+    let port = startPort;
+    let attempts = 0;
+
+    while (attempts < MAX_BIND_RETRIES) {
+        if (port > maxPort) {
+            break;
+        }
+
+        const server = serverFactory();
+
+        try {
+            await new Promise<void>((resolve, reject) => {
+                const errorHandler = (err: NodeJS.ErrnoException): void => {
+                    if (err.code === "EADDRINUSE") {
+                        if (!quiet) {
+                            // eslint-disable-next-line no-console
+                            console.log(
+                                `${colors.yellow}Port ${port} claimed during bind, trying ${port + 1}...${colors.reset}`,
+                            );
+                        }
+                        reject(err);
+                    } else {
+                        reject(err);
+                    }
+                };
+
+                server.once("error", errorHandler);
+                server.listen({ port, host, exclusive: false }, () => {
+                    server.removeListener("error", errorHandler);
+                    resolve();
+                });
+            });
+
+            // Success - server is bound
+            if (!quiet) {
+                // eslint-disable-next-line no-console
+                console.log(
+                    `${colors.green}HTTP server listening on ${host}:${port}${colors.reset}`,
+                );
+            }
+            return { server, port };
+        } catch (err) {
+            if ((err as NodeJS.ErrnoException).code === "EADDRINUSE") {
+                port++;
+                attempts++;
+                continue;
+            }
+            // Re-throw non-EADDRINUSE errors
+            throw err;
+        }
+    }
+
+    // Exhausted retries
+    const errorMsg = `Could not bind to any port after ${attempts} attempts. ` +
+        `Ports ${startPort}-${port - 1} are all in use or were claimed during bind.`;
+
+    if (!quiet) {
+        console.error(`${colors.red}${errorMsg}${colors.reset}`);
+    }
+
+    throw new Error(errorMsg);
+}
 
 /**
  * Check if a port is available for binding.
@@ -72,16 +157,22 @@ async function isPortAvailable(port: number, host: string): Promise<boolean> {
  * @param basePort - Starting port number
  * @param host - Host to bind to
  * @param quiet - Suppress output messages
+ * @param maxPort - Maximum port number to scan up to (default: 9099)
  * @returns Promise resolving to available port number
  * @throws Error if no available port found within MAX_PORT_SCAN_ATTEMPTS
  */
-export async function findAvailablePort(basePort: number, host: string, quiet: boolean = false): Promise<number> {
+export async function findAvailablePort(
+    basePort: number,
+    host: string,
+    quiet: boolean = false,
+    maxPort: number = MAX_PORT_NUMBER,
+): Promise<number> {
     let port = basePort;
     let attempts = 0;
 
     while (attempts < MAX_PORT_SCAN_ATTEMPTS) {
-        if (port > MAX_PORT_NUMBER) {
-            // Wrap around if we exceed max port (shouldn't happen normally)
+        if (port > maxPort) {
+            // Stop if we exceed max port
             break;
         }
 
@@ -107,12 +198,12 @@ export async function findAvailablePort(basePort: number, host: string, quiet: b
     }
 
     // No available port found
-    const errorMsg = `Could not find available port after ${MAX_PORT_SCAN_ATTEMPTS} attempts starting from ${basePort}. ` +
-        `Ports ${basePort}-${port - 1} are all in use. ` +
+    const errorMsg = `Could not find available port after ${attempts} attempts starting from ${basePort}. ` +
+        `Ports ${basePort}-${Math.min(port - 1, maxPort)} are all in use. ` +
         `Try killing existing processes: pkill -f "remote-log-server"`;
 
     if (!quiet) {
-         
+
         console.error(`${colors.red}${errorMsg}${colors.reset}`);
     }
 
@@ -125,7 +216,7 @@ export async function findAvailablePort(basePort: number, host: string, quiet: b
 export interface DualServerOptions {
     /** Port for HTTP server (default: 9080) */
     httpPort?: number;
-    /** Host for HTTP server (default: localhost) */
+    /** Host for HTTP server (default: 0.0.0.0) */
     httpHost?: string;
     /** Enable MCP server (default: true) */
     mcpEnabled?: boolean;
@@ -145,6 +236,8 @@ export interface DualServerOptions {
     jsonlWriter?: JsonlWriter;
     /** Only serve /log POST and /health GET endpoints (default: false) */
     logReceiveOnly?: boolean;
+    /** Maximum port number to scan up to (default: 9099) */
+    maxPortNumber?: number;
 }
 
 /**
@@ -176,7 +269,7 @@ export interface DualServerResult {
 export async function createDualServer(options: DualServerOptions = {}): Promise<DualServerResult> {
     const {
         httpPort: requestedPort = 9080,
-        httpHost = "localhost",
+        httpHost = "0.0.0.0",
         mcpEnabled = true,
         httpEnabled = true,
         quiet = false,
@@ -185,6 +278,7 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
         logReceiveOnly = false,
         certPath,
         keyPath,
+        maxPortNumber = MAX_PORT_NUMBER,
     } = options;
 
     // Create or use provided JSONL writer
@@ -198,52 +292,49 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
     let mcpServer: McpServer | undefined;
     let actualHttpPort: number | undefined;
 
+    // Track active connections for graceful shutdown
+    const activeConnections = new Set<net.Socket>();
+
     // Start HTTP server if enabled
     if (httpEnabled) {
         // Find an available port starting from the requested port
-        actualHttpPort = await findAvailablePort(requestedPort, httpHost, quiet);
+        const startPort = await findAvailablePort(requestedPort, httpHost, quiet, maxPortNumber);
 
-        const result = createLogServer({
-            port: actualHttpPort,
-            host: httpHost,
-            storage,
+        // Factory function to create server instances (for retry on bind failure)
+        const createServerInstance = (): http.Server | https.Server => {
+            return createLogServer({
+                port: startPort, // Port is set but not used until bind
+                host: httpHost,
+                storage,
+                quiet: true, // Quiet during factory, messages handled by tryBindWithRetry
+                logReceiveOnly,
+                certPath,
+                keyPath,
+            }).server;
+        };
+
+        // Bind with retry logic to handle race conditions
+        const bindResult = await tryBindWithRetry(
+            createServerInstance,
+            startPort,
+            httpHost,
             quiet,
-            logReceiveOnly,
-            certPath,
-            keyPath,
-        });
-        httpServer = result.server;
+            maxPortNumber,
+        );
+        httpServer = bindResult.server;
+        actualHttpPort = bindResult.port;
 
-        // Wait for HTTP server to be listening
-        const serverToStart = httpServer;
-        const portToUse = actualHttpPort;
-        await new Promise<void>((resolve, reject) => {
-            serverToStart.on("error", (err: NodeJS.ErrnoException) => {
-                // Provide helpful error message for port conflicts
-                if (err.code === "EADDRINUSE") {
-                    const errorMsg = `Port ${portToUse} is already in use. ` +
-                        `This shouldn't happen after port scanning - there may be a race condition. ` +
-                        `Try again or kill existing processes: pkill -f "remote-log-server"`;
-                    if (!quiet) {
-                         
-                        console.error(`${colors.red}${errorMsg}${colors.reset}`);
-                    }
-                    reject(new Error(errorMsg));
-                } else {
-                    reject(err);
-                }
-            });
-            serverToStart.listen({ port: portToUse, host: httpHost, exclusive: false }, () => {
-                serverToStart.removeListener("error", reject);
-                if (!quiet) {
-                    // eslint-disable-next-line no-console
-                    console.log(
-                        `${colors.green}HTTP server listening on ${httpHost}:${portToUse}${colors.reset}`,
-                    );
-                }
-                resolve();
+        // Track connections for graceful shutdown
+        httpServer.on("connection", (socket: net.Socket) => {
+            activeConnections.add(socket);
+            socket.once("close", () => {
+                activeConnections.delete(socket);
             });
         });
+
+        // Set short keep-alive timeout for tests (connections close faster)
+        httpServer.keepAliveTimeout = 1000;
+        httpServer.headersTimeout = 2000;
 
         // Set server config in storage so MCP tools can report it
         // Determine protocol based on whether valid cert files were provided
@@ -258,11 +349,28 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
         } else {
             mode = "dual";
         }
+        // When bound to all interfaces (0.0.0.0), detect the machine's IP address
+        // for the endpoint URL since 0.0.0.0 is not a routable address for clients
+        let endpointHost = httpHost;
+        if (httpHost === "0.0.0.0") {
+            const internalIp = internalIpV4Sync();
+            if (internalIp) {
+                endpointHost = internalIp;
+            } else {
+                // Fallback for local-only use - don't use hostname as it may not resolve
+                endpointHost = "127.0.0.1";
+                if (!quiet) {
+                    console.warn(
+                        `${colors.yellow}Could not detect LAN IP. Endpoint URL will only work locally.${colors.reset}`,
+                    );
+                }
+            }
+        }
         storage.setServerConfig({
             httpPort: actualHttpPort,
             httpHost,
             protocol,
-            httpEndpoint: `${protocol}://${httpHost}:${actualHttpPort}/log`,
+            httpEndpoint: `${protocol}://${endpointHost}:${actualHttpPort}/log`,
             mode,
         });
     }
@@ -281,6 +389,12 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
     const shutdown = async (): Promise<void> => {
         // Close HTTP server
         if (httpServer?.listening) {
+            // Destroy all active connections to ensure clean shutdown
+            for (const socket of activeConnections) {
+                socket.destroy();
+            }
+            activeConnections.clear();
+
             await new Promise<void>((resolve) => {
                 httpServer.close(() => { resolve(); });
             });

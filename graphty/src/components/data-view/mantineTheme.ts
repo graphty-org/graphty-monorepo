@@ -37,5 +37,3 @@ export const mantineJsonGridLightTheme = {
     searchHighlightBgColor: "var(--mantine-color-yellow-3)",
 };
 
-/** @deprecated Use mantineJsonGridDarkTheme or mantineJsonGridLightTheme instead */
-export const mantineJsonGridTheme = mantineJsonGridDarkTheme;

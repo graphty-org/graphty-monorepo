@@ -11,7 +11,7 @@ export type EventCallbackType = (evt: GraphEvent | NodeEvent | EdgeEvent | AiEve
 export type GraphEventType = GraphEvent["type"];
 export type NodeEventType = NodeEvent["type"];
 export type EdgeEventType = EdgeEvent["type"];
-export type AiEventType = AiEvent["type"];
+type AiEventType = AiEvent["type"];
 
 // graph events
 export type GraphEvent =
@@ -281,7 +281,7 @@ export interface AiCommandErrorEvent {
 }
 
 /** Emitted when an AI command is cancelled */
-export interface AiCommandCancelledEvent {
+interface AiCommandCancelledEvent {
     type: "ai-command-cancelled";
     input: string;
     reason: "user" | "timeout";
@@ -295,7 +295,7 @@ export interface AiStreamChunkEvent {
 }
 
 /** Emitted when the LLM makes a tool call */
-export interface AiStreamToolCallEvent {
+interface AiStreamToolCallEvent {
     type: "ai-stream-tool-call";
     name: string;
     params: unknown;
@@ -310,19 +310,19 @@ export interface AiStreamToolResultEvent {
 }
 
 /** Emitted when voice input starts */
-export interface AiVoiceStartEvent {
+interface AiVoiceStartEvent {
     type: "ai-voice-start";
 }
 
 /** Emitted when voice transcript is available */
-export interface AiVoiceTranscriptEvent {
+interface AiVoiceTranscriptEvent {
     type: "ai-voice-transcript";
     transcript: string;
     isFinal: boolean;
 }
 
 /** Emitted when voice input ends */
-export interface AiVoiceEndEvent {
+interface AiVoiceEndEvent {
     type: "ai-voice-end";
     reason: "user" | "timeout" | "error";
 }

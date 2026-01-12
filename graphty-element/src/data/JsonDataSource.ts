@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 import * as z4 from "zod/v4/core";
 
 // import {JSONParser} from "@streamparser/json";
-import type { AdHocData, PartiallyOptional } from "../config/common";
+import type { AdHocData } from "../config/common";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource";
 
 const JsonNodeConfig = z
@@ -33,8 +33,7 @@ export const JsonDataSourceConfig = z.object({
     edge: JsonEdgeConfig,
 });
 
-export type JsonDataSourceConfigType = z.infer<typeof JsonDataSourceConfig>;
-export type JsonDataSourceConfigOpts = PartiallyOptional<JsonDataSourceConfigType, "node" | "edge">;
+type JsonDataSourceConfigType = z.infer<typeof JsonDataSourceConfig>;
 
 /**
  * Data source for loading graph data from JSON files.

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { type ApiKeyManagerType, getApiKeyManager, type ProviderType } from "../types/ai";
 import { DEFAULT_ENCRYPTION_PASSWORD, DEFAULT_KEY_PREFIX, ENCRYPTION_KEY_STORAGE } from "../utils/ai-storage";
 
-export interface UseAiKeyStorageOptions {
+interface UseAiKeyStorageOptions {
     /** Whether to enable persistence (default: false, session-only) */
     persistenceEnabled?: boolean;
     /** Storage backend when persistence is enabled */
@@ -14,7 +14,7 @@ export interface UseAiKeyStorageOptions {
     disabled?: boolean;
 }
 
-export interface UseAiKeyStorageResult {
+interface UseAiKeyStorageResult {
     /** Whether the key manager is ready */
     isReady: boolean;
     /** List of providers that have keys configured */

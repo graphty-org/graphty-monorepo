@@ -10,7 +10,7 @@ import { toAlgorithmGraph } from "./utils/graphConverter";
 /**
  * Zod-based options schema for Leiden algorithm
  */
-export const leidenOptionsSchema = defineOptions({
+const leidenOptionsSchema = defineOptions({
     resolution: {
         schema: z.number().min(0.1).max(5.0).default(1.0),
         meta: {
@@ -48,7 +48,7 @@ export const leidenOptionsSchema = defineOptions({
 /**
  * Options for the Leiden community detection algorithm
  */
-export interface LeidenOptions extends Record<string, unknown> {
+interface LeidenOptions extends Record<string, unknown> {
     /** Controls community granularity */
     resolution: number;
     /** Seed for reproducible results */

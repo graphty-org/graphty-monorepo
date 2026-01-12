@@ -15,7 +15,7 @@ import * as size from "../size";
 /**
  * Combined style result for nodes
  */
-export interface NodeStyle {
+interface NodeStyle {
     color?: string;
     size?: number;
     opacity?: number;
@@ -24,7 +24,7 @@ export interface NodeStyle {
 /**
  * Combined style result for edges
  */
-export interface EdgeStyle {
+interface EdgeStyle {
     color?: string;
     width?: number;
     opacity?: number;

@@ -81,7 +81,7 @@ const colors = {
 export interface LogServerOptions {
     /** Port to listen on (default: 9080) */
     port?: number;
-    /** Hostname to bind to (default: localhost) */
+    /** Hostname to bind to (default: 0.0.0.0) */
     host?: string;
     /** Path to SSL certificate file (HTTPS only used if both certPath and keyPath provided) */
     certPath?: string;
@@ -477,7 +477,7 @@ export function createLogServer(options: CreateLogServerOptions): CreateLogServe
  */
 export function startLogServer(options: LogServerOptions = {}): http.Server | https.Server {
     const port = options.port ?? 9080;
-    const host = options.host ?? "localhost";
+    const host = options.host ?? "0.0.0.0";
     const quiet = options.quiet ?? false;
 
     // Set up log file if specified
@@ -555,7 +555,7 @@ Usage:
 
 Options:
   --port, -p <port>       Port to listen on (default: 9080)
-  --host, -h <host>       Hostname to bind to (default: localhost)
+  --host, -h <host>       Hostname to bind to (default: 0.0.0.0)
   --cert, -c <path>       Path to SSL certificate file (enables HTTPS)
   --key, -k <path>        Path to SSL private key file (enables HTTPS)
   --log-file, -l <path>   Write logs to file
@@ -677,87 +677,62 @@ export async function main(): Promise<void> {
 
     const { options } = result;
 
+    // Common server options shared across all modes
+    const baseOptions = {
+        httpPort: options.port ?? 9080,
+        httpHost: options.host ?? "0.0.0.0",
+        quiet: options.quiet ?? false,
+        certPath: options.certPath,
+        keyPath: options.keyPath,
+    };
+
     // Determine mode: mcp-only, http-only, or dual (default)
     // All modes now use createDualServer with different options
     const { createDualServer } = await import("./dual-server.js");
 
+    let dualServer;
+    let modeMessage: string;
+
     if (options.mcpOnly) {
         // MCP-only mode: HTTP only serves /log endpoint, MCP enabled
-        const dualServer = await createDualServer({
-            httpPort: options.port ?? 9080,
-            httpHost: options.host ?? "localhost",
+        dualServer = await createDualServer({
+            ...baseOptions,
             httpEnabled: true,
             mcpEnabled: true,
-            quiet: options.quiet ?? false,
             logReceiveOnly: true, // Only serve /log and /health endpoints
-            certPath: options.certPath,
-            keyPath: options.keyPath,
         });
-
-        // Handle graceful shutdown
-        process.on("SIGINT", () => {
-            // eslint-disable-next-line no-console
-            console.log("\nShutting down...");
-            void dualServer.shutdown().then(() => {
-                process.exit(0);
-            });
-        });
-
-        if (!options.quiet) {
-            // eslint-disable-next-line no-console
-            console.log("MCP mode: Log receive endpoint and MCP tools running");
-        }
+        modeMessage = "MCP mode: Log receive endpoint and MCP tools running";
     } else if (options.httpOnly) {
         // HTTP-only mode: All HTTP endpoints, no MCP
-        const dualServer = await createDualServer({
-            httpPort: options.port ?? 9080,
-            httpHost: options.host ?? "localhost",
+        dualServer = await createDualServer({
+            ...baseOptions,
             httpEnabled: true,
             mcpEnabled: false,
-            quiet: options.quiet ?? false,
-            certPath: options.certPath,
-            keyPath: options.keyPath,
             logFile: options.logFile,
         });
-
-        // Handle graceful shutdown
-        process.on("SIGINT", () => {
-            // eslint-disable-next-line no-console
-            console.log("\nShutting down...");
-            void dualServer.shutdown().then(() => {
-                process.exit(0);
-            });
-        });
-
-        if (!options.quiet) {
-            // eslint-disable-next-line no-console
-            console.log("HTTP-only mode: All HTTP endpoints running");
-        }
+        modeMessage = "HTTP-only mode: All HTTP endpoints running";
     } else {
         // Dual mode (default): All HTTP endpoints and MCP
-        const dualServer = await createDualServer({
-            httpPort: options.port ?? 9080,
-            httpHost: options.host ?? "localhost",
+        dualServer = await createDualServer({
+            ...baseOptions,
             httpEnabled: true,
             mcpEnabled: true,
-            quiet: options.quiet ?? false,
-            certPath: options.certPath,
-            keyPath: options.keyPath,
             logFile: options.logFile,
         });
+        modeMessage = "Dual mode: HTTP and MCP servers running";
+    }
 
-        // Handle graceful shutdown
-        process.on("SIGINT", () => {
-            // eslint-disable-next-line no-console
-            console.log("\nShutting down...");
-            void dualServer.shutdown().then(() => {
-                process.exit(0);
-            });
+    // Single SIGINT handler for all modes
+    process.on("SIGINT", () => {
+        // eslint-disable-next-line no-console
+        console.log("\nShutting down...");
+        void dualServer.shutdown().then(() => {
+            process.exit(0);
         });
+    });
 
-        if (!options.quiet) {
-            // eslint-disable-next-line no-console
-            console.log("Dual mode: HTTP and MCP servers running");
-        }
+    if (!options.quiet) {
+        // eslint-disable-next-line no-console
+        console.log(modeMessage);
     }
 }

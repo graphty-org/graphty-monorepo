@@ -70,35 +70,3 @@ export function mergeExtensions4<
     return { ...a, ...b, ...c, ...d } as A & B & C & D;
 }
 
-/**
- * Merges seven component extension objects, with TypeScript enforcing no duplicate keys.
- * This is used for combining all extension categories: input, button, control, display,
- * feedback, navigation, and overlay extensions.
- * @param a - First extension object
- * @param b - Second extension object (must not overlap with a)
- * @param c - Third extension object (must not overlap with a or b)
- * @param d - Fourth extension object (must not overlap with a, b, or c)
- * @param e - Fifth extension object (must not overlap with a, b, c, or d)
- * @param f - Sixth extension object (must not overlap with a, b, c, d, or e)
- * @param g - Seventh extension object (must not overlap with a, b, c, d, e, or f)
- * @returns Merged object containing all properties from all inputs
- */
-export function mergeExtensions7<
-    A extends object,
-    B extends object,
-    C extends object,
-    D extends object,
-    E extends object,
-    F extends object,
-    G extends object,
->(
-    a: A,
-    b: NoOverlap<A, B>,
-    c: NoOverlap<A & B, C>,
-    d: NoOverlap<A & B & C, D>,
-    e: NoOverlap<A & B & C & D, E>,
-    f: NoOverlap<A & B & C & D & E, F>,
-    g: NoOverlap<A & B & C & D & E & F, G>,
-): A & B & C & D & E & F & G {
-    return { ...a, ...b, ...c, ...d, ...e, ...f, ...g } as A & B & C & D & E & F & G;
-}

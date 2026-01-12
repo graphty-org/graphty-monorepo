@@ -10,7 +10,7 @@ import { toAlgorithmGraph } from "./utils/graphConverter";
 /**
  * Zod-based options schema for Bellman-Ford algorithm
  */
-export const bellmanFordOptionsSchema = defineOptions({
+const bellmanFordOptionsSchema = defineOptions({
     source: {
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {

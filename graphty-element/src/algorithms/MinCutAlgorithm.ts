@@ -15,7 +15,7 @@ import { type OptionsSchema } from "./types/OptionSchema";
 /**
  * Zod-based options schema for Min Cut algorithm
  */
-export const minCutOptionsSchema = defineOptions({
+const minCutOptionsSchema = defineOptions({
     source: {
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {
@@ -58,7 +58,7 @@ export const minCutOptionsSchema = defineOptions({
 /**
  * Options for Min Cut algorithm
  */
-export interface MinCutOptions extends Record<string, unknown> {
+interface MinCutOptions extends Record<string, unknown> {
     /** Source node for s-t cut (optional - uses global min cut if not provided) */
     source: string | number | null;
     /** Sink node for s-t cut (optional - uses global min cut if not provided) */

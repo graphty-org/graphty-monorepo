@@ -10,7 +10,7 @@ import { toAlgorithmGraph } from "./utils/graphConverter";
 /**
  * Zod-based options schema for Label Propagation algorithm
  */
-export const labelPropagationOptionsSchema = defineOptions({
+const labelPropagationOptionsSchema = defineOptions({
     maxIterations: {
         schema: z.number().int().min(1).max(500).default(100),
         meta: {
@@ -31,7 +31,7 @@ export const labelPropagationOptionsSchema = defineOptions({
 /**
  * Options for the Label Propagation community detection algorithm
  */
-export interface LabelPropagationOptions extends Record<string, unknown> {
+interface LabelPropagationOptions extends Record<string, unknown> {
     /** Maximum label propagation rounds */
     maxIterations: number;
     /** Seed for reproducible tie-breaking */

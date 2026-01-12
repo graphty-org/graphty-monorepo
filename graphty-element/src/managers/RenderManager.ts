@@ -22,7 +22,7 @@ import type { Manager } from "./interfaces";
 /**
  * Configuration options for RenderManager
  */
-export interface RenderManagerConfig {
+interface RenderManagerConfig {
     useWebGPU?: boolean;
     backgroundColor?: string;
 }
@@ -31,7 +31,7 @@ export interface RenderManagerConfig {
  * The name of the graph-root TransformNode used for XR gestures
  * Gestures (zoom, rotate, pan) manipulate this node to transform the entire graph
  */
-export const GRAPH_ROOT_NAME = "graph-root";
+const GRAPH_ROOT_NAME = "graph-root";
 
 /**
  * Manages Babylon.js scene, engine, and render loop

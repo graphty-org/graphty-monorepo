@@ -11,7 +11,7 @@ import {
 // Re-export ExecutionResult from types
 export type { ExecutionResult };
 
-export interface UseAiManagerOptions {
+interface UseAiManagerOptions {
     /** Graph instance to use for AI operations (undefined when graph not yet available) */
     graph?: unknown;
     /** Default AI provider to use */
@@ -20,7 +20,7 @@ export interface UseAiManagerOptions {
     getKey?: (provider: ProviderType) => string | undefined;
 }
 
-export interface UseAiManagerResult {
+interface UseAiManagerResult {
     /** Whether the AI manager is ready */
     isReady: boolean;
     /** Whether AI is currently processing */

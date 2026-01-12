@@ -7,7 +7,7 @@ import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 /**
  * Zod-based options schema for ForceAtlas2 Layout
  */
-export const forceAtlas2LayoutOptionsSchema = defineOptions({
+const forceAtlas2LayoutOptionsSchema = defineOptions({
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(100),
         meta: {
@@ -96,7 +96,7 @@ export const forceAtlas2LayoutOptionsSchema = defineOptions({
     },
 });
 
-export const ForceAtlas2LayoutConfig = z.strictObject({
+const ForceAtlas2LayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     pos: z.record(z.number(), z.array(z.number()).min(2).max(3)).or(z.null()).default(null),
     maxIter: z.number().positive().default(100),
@@ -113,8 +113,8 @@ export const ForceAtlas2LayoutConfig = z.strictObject({
     seed: z.number().or(z.null()).default(null),
     dim: z.number().default(2),
 });
-export type ForceAtlas2LayoutConfigType = z.infer<typeof ForceAtlas2LayoutConfig>;
-export type ForceAtlas2LayoutOpts = Partial<ForceAtlas2LayoutConfigType>;
+type ForceAtlas2LayoutConfigType = z.infer<typeof ForceAtlas2LayoutConfig>;
+type ForceAtlas2LayoutOpts = Partial<ForceAtlas2LayoutConfigType>;
 
 /**
  * ForceAtlas2 layout engine for graph visualization with scaling and gravity options

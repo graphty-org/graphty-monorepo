@@ -74,39 +74,10 @@ Algorithm.register(MinCutAlgorithm);
 // Export base class and types
 export { Algorithm } from "./Algorithm";
 
-// Export option schema types and utilities
-export type {
-    OptionDefinition,
-    OptionsFromSchema,
-    OptionsSchema,
-    OptionType,
-    SelectOption,
-} from "./types/OptionSchema";
-
-// Export algorithm option types for Phase 2: Community Detection
-export type { GirvanNewmanOptions } from "./GirvanNewmanAlgorithm";
-export type { LabelPropagationOptions } from "./LabelPropagationAlgorithm";
-export type { LeidenOptions } from "./LeidenAlgorithm";
-export type { LouvainOptions } from "./LouvainAlgorithm";
-export type { PageRankOptions } from "./PageRankAlgorithm";
-
-// Export algorithm option types for Phase 3: Centrality
-export type { EigenvectorCentralityOptions } from "./EigenvectorCentralityAlgorithm";
-export type { HITSOptions } from "./HITSAlgorithm";
-export type { KatzCentralityOptions } from "./KatzCentralityAlgorithm";
-
-// Export algorithm option types for Phase 4: Traversal & Path
-export type { BFSOptions } from "./BFSAlgorithm";
-export type { DFSOptions } from "./DFSAlgorithm";
-export type { DijkstraOptions } from "./DijkstraAlgorithm";
-export type { MaxFlowOptions } from "./MaxFlowAlgorithm";
-export type { MinCutOptions } from "./MinCutAlgorithm";
-export { defineOptionsSchema, OptionValidationError, resolveOptions, validateOption } from "./types/OptionSchema";
-
 /**
  * Information about a registered algorithm
  */
-export interface AlgorithmInfo {
+interface AlgorithmInfo {
     /** Algorithm namespace (e.g., "graphty") */
     namespace: string;
     /** Algorithm type (e.g., "pagerank") */

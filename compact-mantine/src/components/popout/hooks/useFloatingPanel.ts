@@ -5,7 +5,7 @@ import type { PopoutPosition } from "../../../types/popout";
 /**
  * Configuration options for the useFloatingPanel hook.
  */
-export interface UseFloatingPanelOptions {
+interface UseFloatingPanelOptions {
     /** Whether the panel is currently open */
     isOpen: boolean;
     /** Callback fired when drag starts (e.g., to bring panel to front) */
@@ -15,7 +15,7 @@ export interface UseFloatingPanelOptions {
 /**
  * Return type for the useFloatingPanel hook.
  */
-export interface UseFloatingPanelReturn {
+interface UseFloatingPanelReturn {
     /** Props to spread on the drag trigger element (header) */
     dragTriggerProps: Record<string, unknown>;
     /** Current drag offset from initial position */

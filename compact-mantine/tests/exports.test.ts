@@ -246,7 +246,6 @@ describe("Package exports", () => {
             expect(utilsExports.mergeExtensions).toBeDefined();
             expect(utilsExports.mergeExtensions3).toBeDefined();
             expect(utilsExports.mergeExtensions4).toBeDefined();
-            expect(utilsExports.mergeExtensions7).toBeDefined();
         });
     });
 });

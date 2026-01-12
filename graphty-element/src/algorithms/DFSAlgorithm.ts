@@ -9,7 +9,7 @@ import { toAlgorithmGraph } from "./utils/graphConverter";
 /**
  * Zod-based options schema for DFS algorithm
  */
-export const dfsOptionsSchema = defineOptions({
+const dfsOptionsSchema = defineOptions({
     source: {
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {
@@ -46,7 +46,7 @@ export const dfsOptionsSchema = defineOptions({
 /**
  * Options for DFS algorithm
  */
-export interface DFSOptions extends Record<string, unknown> {
+interface DFSOptions extends Record<string, unknown> {
     /** Starting node for traversal (defaults to first node if not provided) */
     source: number | string | null;
     /** Target node for early termination (optional) */

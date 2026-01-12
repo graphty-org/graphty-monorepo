@@ -126,6 +126,45 @@ describe("Dual mode (HTTP + MCP)", () => {
         expect(dualServer.storage).toBeInstanceOf(LogStorage);
     });
 
+    it("defaults to 0.0.0.0 host for remote accessibility", async () => {
+        // This is a regression test to ensure the server binds to all interfaces by default.
+        // A remote logging server that binds to localhost is useless for remote connections.
+        dualServer = await createDualServer({
+            httpPort: port,
+            // httpHost intentionally omitted to test default
+            httpEnabled: true,
+            mcpEnabled: false,
+            quiet: true,
+        });
+
+        expect(dualServer.httpServer).toBeDefined();
+        const address = dualServer.httpServer?.address();
+        expect(address).toBeTruthy();
+        if (typeof address === "object" && address) {
+            expect(address.address).toBe("0.0.0.0");
+        }
+    });
+
+    it("reports routable address in httpEndpoint when bound to 0.0.0.0", async () => {
+        // When the server binds to 0.0.0.0, the reported httpEndpoint should use
+        // a routable address (IP or hostname) since 0.0.0.0 is not routable for clients.
+        dualServer = await createDualServer({
+            httpPort: port,
+            // httpHost intentionally omitted to use default 0.0.0.0
+            httpEnabled: true,
+            mcpEnabled: false,
+            quiet: true,
+        });
+
+        const status = dualServer.storage.getStatus();
+        // Server should bind to 0.0.0.0
+        expect(status.server?.httpHost).toBe("0.0.0.0");
+        // Endpoint should NOT use 0.0.0.0 - should be a routable address
+        expect(status.server?.httpEndpoint).not.toContain("0.0.0.0");
+        // Should be a valid URL with the correct port
+        expect(status.server?.httpEndpoint).toMatch(new RegExp(`^http://[^:]+:${port}/log$`));
+    });
+
     it("HTTP logs appear in MCP queries", async () => {
         dualServer = await createDualServer({
             httpPort: port,

@@ -14,6 +14,14 @@ import { createLogServer } from "../../src/server/log-server.js";
 import { LogStorage } from "../../src/server/log-storage.js";
 import { JsonlWriter } from "../../src/server/jsonl-writer.js";
 
+// Use a sequential port counter to avoid collisions between tests
+let portCounter = 0;
+
+function getNextPort(): number {
+    // Use 8400-8499 range for JSONL streaming tests (different from browser.test.ts 8300 range)
+    return 8400 + (portCounter++ % 100);
+}
+
 describe("JSONL streaming integration", () => {
     let server: http.Server;
     let storage: LogStorage;
@@ -31,8 +39,8 @@ describe("JSONL streaming integration", () => {
         // Create storage with JSONL writer
         storage = new LogStorage({ jsonlWriter });
 
-        // Create server with shared storage
-        port = 8300 + Math.floor(Math.random() * 100);
+        // Create server with shared storage - use sequential port to avoid collisions
+        port = getNextPort();
         // HTTP is the default (HTTPS requires certPath and keyPath)
         const result = createLogServer({
             port,
@@ -48,9 +56,24 @@ describe("JSONL streaming integration", () => {
     });
 
     afterEach(async () => {
-        // Close server
-        await new Promise<void>((resolve) => {
-            server.close(() => resolve());
+        // Close server and wait for it to fully shut down
+        await new Promise<void>((resolve, reject) => {
+            // Set a timeout for server close
+            const timeout = setTimeout(() => {
+                reject(new Error("Server close timeout"));
+            }, 5000);
+
+            server.close((err) => {
+                clearTimeout(timeout);
+                if (err) {
+                    // Ignore "not running" errors
+                    if ((err as NodeJS.ErrnoException).code !== "ERR_SERVER_NOT_RUNNING") {
+                        reject(err);
+                        return;
+                    }
+                }
+                resolve();
+            });
         });
 
         // Close JSONL writer
@@ -64,14 +87,14 @@ describe("JSONL streaming integration", () => {
         }
     });
 
-    async function sendLog(sessionId: string, logs: Array<{ time: string; level: string; message: string }>, projectMarker?: string): Promise<void> {
+    async function sendLog(sessionId: string, logs: Array<{ time: string; level: string; message: string }>, projectMarker?: string, retries = 3): Promise<void> {
         const body = JSON.stringify({
             sessionId,
             logs,
             projectMarker,
         });
 
-        return new Promise((resolve, reject) => {
+        const attempt = (): Promise<void> => new Promise((resolve, reject) => {
             const req = http.request({
                 hostname: "127.0.0.1",
                 port,
@@ -97,6 +120,21 @@ describe("JSONL streaming integration", () => {
             req.write(body);
             req.end();
         });
+
+        // Retry with exponential backoff for transient connection errors
+        for (let i = 0; i < retries; i++) {
+            try {
+                return await attempt();
+            } catch (err) {
+                const error = err as NodeJS.ErrnoException;
+                // Only retry on connection reset errors
+                if (error.code === "ECONNRESET" && i < retries - 1) {
+                    await new Promise((r) => setTimeout(r, 10 * (i + 1)));
+                    continue;
+                }
+                throw err;
+            }
+        }
     }
 
     it("streams logs to file as they arrive via HTTP", async () => {

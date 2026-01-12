@@ -10,7 +10,7 @@ import { PopoutButton } from "../PopoutButton";
 /**
  * Props for the LabelSettingsPopout component.
  */
-export interface LabelSettingsPopoutProps {
+interface LabelSettingsPopoutProps {
     /**
      * Optional ref to anchor the popout to a specific element (e.g., sidebar).
      * If not provided, the popout will anchor to the trigger button.

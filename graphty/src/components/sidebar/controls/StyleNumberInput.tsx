@@ -2,7 +2,7 @@ import { ActionIcon, Group, NumberInput } from "@mantine/core";
 import { X } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
-export interface StyleNumberInputProps {
+interface StyleNumberInputProps {
     /** Label for the input (also used for aria-label) */
     label: string;
     /** Current value - undefined means using default */

@@ -2,7 +2,7 @@ import * as Sentry from "@sentry/react";
 
 let initialized = false;
 
-export interface SentryConfig {
+interface SentryConfig {
     dsn?: string;
     environment?: string;
     isProd?: boolean;
@@ -13,7 +13,7 @@ export interface SentryConfig {
  * This function is separated to allow for testing.
  * @returns The default Sentry configuration
  */
-export function getDefaultConfig(): SentryConfig {
+function getDefaultConfig(): SentryConfig {
     return {
         dsn: import.meta.env.VITE_SENTRY_DSN as string | undefined,
         environment: import.meta.env.MODE,
@@ -73,7 +73,7 @@ export interface AttachmentData {
     contentType?: string;
 }
 
-export interface FeedbackData {
+interface FeedbackData {
     name?: string;
     email?: string;
     message: string;

@@ -12,7 +12,7 @@ type Story = StoryObj<typeof Indicator>;
 export const Default: Story = {
     render: () => (
         <Indicator color="red" inline>
-            <Avatar src="https://i.pravatar.cc/100" alt="User avatar" />
+            <Avatar src="https://i.pravatar.cc/100?u=stable-seed" alt="User avatar" />
         </Indicator>
     ),
 };

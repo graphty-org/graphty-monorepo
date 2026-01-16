@@ -1,3 +1,26 @@
+## 0.5.3 (2026-01-12)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 1.9.3
+
+## 1.2.3 (2026-01-12)
+
+### 🩹 Fixes
+
+- **remote-logger:** code review and fixes ([1b4fb29](https://github.com/graphty-org/graphty-monorepo/commit/1b4fb29))
+- **remote-logger:** correct advertised server address ([0434fce](https://github.com/graphty-org/graphty-monorepo/commit/0434fce))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.9.3 (2026-01-12)
+
+### 🧱 Updated Dependencies
+
+- Updated @graphty/remote-logger to 1.2.3
+
 ## 0.5.2 (2026-01-12)
 
 ### 🧱 Updated Dependencies

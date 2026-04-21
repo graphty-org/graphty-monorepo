@@ -15,12 +15,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 remote-logger/
 ├── src/
 │   ├── index.ts              # Main exports
+│   ├── bundle/
+│   │   └── browser-entry.ts    # IIFE entry point (auto-init, console intercept)
 │   ├── client/
 │   │   ├── RemoteLogClient.ts  # Browser logging client
 │   │   ├── types.ts            # Type definitions
 │   │   └── index.ts            # Client exports
 │   ├── server/
-│   │   ├── log-server.ts       # HTTP/HTTPS server
+│   │   ├── log-server.ts       # HTTP/HTTPS server (serves /remote-logger.js, /proxy/)
+│   │   ├── proxy.ts            # Reverse proxy (http-proxy + parse5 injection)
 │   │   ├── self-signed-cert.ts # Certificate generation
 │   │   └── index.ts            # Server exports
 │   └── ui/
@@ -28,20 +31,22 @@ remote-logger/
 │       └── index.ts            # UI exports
 ├── bin/
 │   └── remote-log-server.js    # CLI entry point
+├── vite.bundle.config.ts       # Vite config for IIFE browser bundle
 ├── test/
+│   ├── bundle/                 # Browser entry tests (happy-dom)
 │   ├── client/                 # Client unit tests
 │   ├── server/                 # Server unit tests
 │   ├── cli/                    # CLI tests
 │   ├── ui/                     # UI unit tests + browser tests
 │   └── integration/            # Client-server integration tests
-└── dist/                       # Built output
+└── dist/                       # Built output (tsc + Vite IIFE bundle)
 ```
 
 ## Development Commands
 
 ```bash
 # Build
-npm run build              # Compile TypeScript
+npm run build              # Compile TypeScript + build IIFE browser bundle
 
 # Test
 npm test                   # Run tests in watch mode
@@ -157,4 +162,6 @@ When making breaking changes, check these packages for compatibility.
 - This is a standalone package, not dependent on other @graphty packages
 - Browser client has zero runtime dependencies
 - Server depends on `selfsigned` for certificate generation
+- Reverse proxy uses `http-proxy` for request forwarding, `parse5` for safe HTML injection
+- Proxy uses custom TLS `sigalgs` to avoid JA3 fingerprint-based CDN bot detection
 - All exports are ES modules

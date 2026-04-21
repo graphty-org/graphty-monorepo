@@ -61,9 +61,12 @@ export const logsStatusTool = {
     description:
         "Get the status of the remote log server. " +
         "Returns health metrics (uptime, session count, log count, memory usage), " +
-        "HTTP endpoint configuration (port, host, URL for browser clients), " +
+        "HTTP endpoint configuration (port, host, URL for browser clients, script URL for zero-config injection, " +
+        "proxy base URL for debugging third-party sites), " +
         "and retention settings (how long logs are kept before automatic cleanup). " +
         "Use this to verify the server is running, find the endpoint URL for configuring browser clients, " +
+        "get the script URL (server.scriptUrl) for injecting via a script tag, " +
+        "get the proxy URL (server.proxyBaseUrl) for debugging third-party sites, " +
         "or check server configuration.",
     inputSchema: logsStatusInputSchema,
 };

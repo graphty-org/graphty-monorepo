@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { LogStorage } from "../../../src/server/log-storage.js";
-import { logsStatusHandler } from "../../../src/mcp/tools/logs-status.js";
+import { logsStatusHandler, logsStatusTool } from "../../../src/mcp/tools/logs-status.js";
 
 describe("logs_status tool", () => {
     let storage: LogStorage;
@@ -151,5 +151,60 @@ describe("logs_status tool", () => {
         const result = await logsStatusHandler(customStorage);
 
         expect(result.retentionDays).toBe(14);
+    });
+
+    test("returns scriptUrl in server config when set", async () => {
+        storage.setServerConfig({
+            httpPort: 9080,
+            httpHost: "localhost",
+            protocol: "http",
+            httpEndpoint: "http://localhost:9080/log",
+            scriptUrl: "http://localhost:9080/remote-logger.js",
+            mode: "dual",
+        });
+
+        const result = await logsStatusHandler(storage);
+
+        expect(result.server?.scriptUrl).toBe("http://localhost:9080/remote-logger.js");
+    });
+
+    test("scriptUrl is undefined when not set in server config", async () => {
+        storage.setServerConfig({
+            httpPort: 9080,
+            httpHost: "localhost",
+            protocol: "http",
+            httpEndpoint: "http://localhost:9080/log",
+            mode: "dual",
+        });
+
+        const result = await logsStatusHandler(storage);
+
+        expect(result.server?.scriptUrl).toBeUndefined();
+    });
+
+    test("tool description mentions script URL", () => {
+        expect(logsStatusTool.description).toContain("script URL");
+        expect(logsStatusTool.description).toContain("scriptUrl");
+    });
+
+    test("returns proxyBaseUrl in server config when set", async () => {
+        storage.setServerConfig({
+            httpPort: 9080,
+            httpHost: "localhost",
+            protocol: "http",
+            httpEndpoint: "http://localhost:9080/log",
+            scriptUrl: "http://localhost:9080/remote-logger.js",
+            proxyBaseUrl: "http://localhost:9080/proxy/",
+            mode: "dual",
+        });
+
+        const result = await logsStatusHandler(storage);
+
+        expect(result.server?.proxyBaseUrl).toBe("http://localhost:9080/proxy/");
+    });
+
+    test("tool description mentions proxy URL", () => {
+        expect(logsStatusTool.description).toContain("proxy");
+        expect(logsStatusTool.description).toContain("proxyBaseUrl");
     });
 });

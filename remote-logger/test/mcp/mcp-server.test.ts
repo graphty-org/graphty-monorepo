@@ -62,4 +62,25 @@ describe("SERVER_INSTRUCTIONS", () => {
         expect(SERVER_INSTRUCTIONS).toContain('fetch("http://localhost:9080/log"');
         expect(SERVER_INSTRUCTIONS).not.toContain('fetch("http://localhost:9080/logs"');
     });
+
+    test("should document the script tag option", () => {
+        expect(SERVER_INSTRUCTIONS).toContain("Script tag (zero install)");
+        expect(SERVER_INSTRUCTIONS).toContain("remote-logger.js");
+        expect(SERVER_INSTRUCTIONS).toContain("server.scriptUrl");
+        expect(SERVER_INSTRUCTIONS).toContain("window.__remoteLogger__");
+    });
+
+    test("should mention script tag in debugging workflow", () => {
+        expect(SERVER_INSTRUCTIONS).toContain("script tag is simplest");
+    });
+
+    test("should document the reverse proxy feature", () => {
+        expect(SERVER_INSTRUCTIONS).toContain("Debugging Third-Party Websites");
+        expect(SERVER_INSTRUCTIONS).toContain("reverse proxy");
+        expect(SERVER_INSTRUCTIONS).toContain("proxyBaseUrl");
+    });
+
+    test("should mention proxy in debugging workflow", () => {
+        expect(SERVER_INSTRUCTIONS).toContain("proxy");
+    });
 });

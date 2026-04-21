@@ -48,7 +48,32 @@ npx remote-log-server --port 9080
 remote-log-server --port 9080
 ```
 
-### 2. Add Client to Your Application
+### 2. Add Logging to Your Application
+
+#### Option A: Script Tag (Zero Install)
+
+The server serves a browser-ready script at `/remote-logger.js` that auto-configures itself:
+
+```html
+<script src="http://localhost:9080/remote-logger.js"></script>
+```
+
+Or paste in the browser console for quick debugging:
+
+```javascript
+var s=document.createElement('script');s.src='http://localhost:9080/remote-logger.js';document.head.appendChild(s);
+```
+
+The script automatically intercepts all `console.log/warn/error/info/debug` calls and forwards them to the server. It exposes `window.__remoteLogger__` for manual control:
+
+```javascript
+// Stop intercepting console
+window.__remoteLogger__.destroy();
+```
+
+Add `?ui=true` to the script URL to show a floating console capture widget.
+
+#### Option B: NPM Package
 
 ```typescript
 import { RemoteLogClient } from "@graphty/remote-logger";
@@ -90,6 +115,30 @@ Log levels are displayed with the following colors:
 | DEBUG | Cyan |
 | TRACE | Dim/gray |
 | LOG (default) | Green |
+
+## Debugging Third-Party Sites
+
+The server includes a reverse proxy that injects the remote logger into any website -- no install required on the target site.
+
+```
+http://localhost:9080/proxy/https://example.com
+```
+
+Point your browser (including iOS Safari) at the proxy URL. The proxy:
+- Fetches the target page and injects the remote-logger script into HTML responses (using parse5 for safe HTML manipulation)
+- Injects a `<base>` tag so relative URLs resolve through the proxy
+- Strips Content-Security-Policy headers that would block the injected script
+- Strips integrity attributes (SRI) from script/link tags
+- Rewrites Set-Cookie Domain/Secure attributes for HTTP proxy compatibility
+- Uses a custom TLS fingerprint to avoid CDN bot detection (Fastly, Akamai)
+- Passes non-HTML resources (CSS, JS, images) through unmodified
+
+**Limitations:**
+- Resources using absolute paths (e.g., `/fonts/...`, `/media/...`) bypass the `<base>` tag and return 404
+- JavaScript `fetch()` calls using absolute paths may bypass the proxy
+- OAuth redirect flows that check the origin domain will not work
+- WebSocket connections are not proxied
+- Sites with very aggressive bot detection may still block the proxy
 
 ## CLI Reference
 
@@ -216,6 +265,8 @@ const server = startLogServer({
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/log` | POST | Receive logs from client |
+| `/remote-logger.js` | GET | Browser-ready auto-config script |
+| `/proxy/<url>` | * | Reverse proxy with script injection |
 | `/logs` | GET | Get all logs by session |
 | `/logs/recent` | GET | Get recent logs (`?n=50&errors=true`) |
 | `/logs/errors` | GET | Get error-level logs only |

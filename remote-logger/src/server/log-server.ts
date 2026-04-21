@@ -18,10 +18,11 @@ import * as http from "http";
 import * as https from "https";
 import * as os from "os";
 import * as path from "path";
-import { URL } from "url";
+import { fileURLToPath,URL } from "url";
 
 import { JsonlWriter } from "./jsonl-writer.js";
 import { type LogEntry, LogStorage } from "./log-storage.js";
+import type { ProxyInstance } from "./proxy.js";
 import { certFilesExist, readCertFiles } from "./self-signed-cert.js";
 
 // Shared log storage instance
@@ -60,6 +61,62 @@ export function getJsonlWriter(): JsonlWriter | null {
  */
 export function setLogStorage(storage: LogStorage): void {
     sharedStorage = storage;
+}
+
+// Shared proxy instance
+let sharedProxy: ProxyInstance | null = null;
+
+/**
+ * Set the shared proxy instance.
+ * @param proxy - The proxy instance to use
+ */
+export function setProxy(proxy: ProxyInstance): void {
+    sharedProxy = proxy;
+}
+
+/**
+ * Get the shared proxy instance.
+ * @returns The proxy instance or null
+ */
+export function getProxy(): ProxyInstance | null {
+    return sharedProxy;
+}
+
+// Browser bundle cache (loaded on first request)
+let browserBundleCache: string | null | undefined;
+
+function loadBrowserBundle(): string | null {
+    if (browserBundleCache !== undefined) {
+        return browserBundleCache;
+    }
+
+    const thisDir = path.dirname(fileURLToPath(import.meta.url));
+
+    // Try multiple locations: dist/ (when running from built output)
+    // and the package root dist/ (when running from source during tests)
+    const candidates = [
+        path.resolve(thisDir, "..", "remote-logger.browser.js"),
+        path.resolve(thisDir, "..", "..", "dist", "remote-logger.browser.js"),
+    ];
+
+    for (const candidate of candidates) {
+        try {
+            browserBundleCache = fs.readFileSync(candidate, "utf-8");
+            return browserBundleCache;
+        } catch {
+            // Try next candidate
+        }
+    }
+
+    browserBundleCache = null;
+    return browserBundleCache;
+}
+
+/**
+ * Reset the browser bundle cache. Used for testing.
+ */
+export function resetBrowserBundleCache(): void {
+    browserBundleCache = undefined;
 }
 
 // ANSI color codes for terminal output
@@ -269,7 +326,36 @@ function handleRequest(
         return;
     }
 
-    // In logReceiveOnly mode, only /log and /health are available
+    // Serve browser-ready script bundle (available in all modes including logReceiveOnly)
+    if ((url === "/remote-logger.js" || url.startsWith("/remote-logger.js?")) && req.method === "GET") {
+        const bundle = loadBrowserBundle();
+        if (!bundle) {
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Browser bundle not found. Run 'npm run build' first." }));
+            return;
+        }
+
+        const hostHeader = req.headers.host ?? `${host}:${port}`;
+        const serverUrl = `${protocol}://${hostHeader}`;
+        const configPrefix = `window.__REMOTE_LOG_SERVER_URL__="${serverUrl}";\n`;
+
+        res.writeHead(200, {
+            "Content-Type": "application/javascript",
+            "Cache-Control": "no-cache",
+        });
+        res.end(configPrefix + bundle);
+        return;
+    }
+
+    // Reverse proxy with auto-injection (available in all modes including logReceiveOnly)
+    if (url.startsWith("/proxy/") && sharedProxy) {
+        const targetUrl = decodeURIComponent(url.substring("/proxy/".length));
+        const hostHeader = req.headers.host ?? `${host}:${port}`;
+        sharedProxy.handleRequest(req, res, targetUrl, protocol, hostHeader);
+        return;
+    }
+
+    // In logReceiveOnly mode, only /log, /health, /remote-logger.js, and /proxy/ are available
     if (logReceiveOnly) {
         res.writeHead(404, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Not found (log receive only mode)" }));
@@ -377,17 +463,21 @@ function printBanner(host: string, port: number, useHttps: boolean): void {
     // eslint-disable-next-line no-console
     console.log(`${colors.yellow}API Endpoints:${colors.reset}`);
     // eslint-disable-next-line no-console
-    console.log(`  ${colors.cyan}POST /log         ${colors.reset} - Receive logs from browser`);
+    console.log(`  ${colors.cyan}POST /log              ${colors.reset} - Receive logs from browser`);
     // eslint-disable-next-line no-console
-    console.log(`  ${colors.cyan}GET  /logs        ${colors.reset} - Get all logs as JSON`);
+    console.log(`  ${colors.cyan}GET  /remote-logger.js ${colors.reset} - Browser-ready auto-config script`);
     // eslint-disable-next-line no-console
-    console.log(`  ${colors.cyan}GET  /logs/recent ${colors.reset} - Get last 50 logs (?n=100 for more)`);
+    console.log(`  ${colors.cyan}*    /proxy/<url>      ${colors.reset} - Reverse proxy with script injection`);
     // eslint-disable-next-line no-console
-    console.log(`  ${colors.cyan}GET  /logs/errors ${colors.reset} - Get only error logs`);
+    console.log(`  ${colors.cyan}GET  /logs             ${colors.reset} - Get all logs as JSON`);
     // eslint-disable-next-line no-console
-    console.log(`  ${colors.cyan}POST /logs/clear  ${colors.reset} - Clear all logs`);
+    console.log(`  ${colors.cyan}GET  /logs/recent      ${colors.reset} - Get last 50 logs (?n=100 for more)`);
     // eslint-disable-next-line no-console
-    console.log(`  ${colors.cyan}GET  /health      ${colors.reset} - Health check`);
+    console.log(`  ${colors.cyan}GET  /logs/errors      ${colors.reset} - Get only error logs`);
+    // eslint-disable-next-line no-console
+    console.log(`  ${colors.cyan}POST /logs/clear       ${colors.reset} - Clear all logs`);
+    // eslint-disable-next-line no-console
+    console.log(`  ${colors.cyan}GET  /health           ${colors.reset} - Health check`);
     // eslint-disable-next-line no-console
     console.log("");
     // eslint-disable-next-line no-console

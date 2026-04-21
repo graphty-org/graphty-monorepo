@@ -108,7 +108,29 @@ logger.interceptConsole();
 logger.log("INFO", "Hello from browser!");
 \`\`\`
 
-### Option 2: Raw fetch() calls
+### Option 2: Script tag (zero install)
+
+The server serves a browser-ready script that auto-configures itself.
+Get the script URL from logs_status - look for server.scriptUrl in the response.
+
+Add to HTML:
+\`\`\`html
+<script src="http://localhost:9080/remote-logger.js"></script>
+\`\`\`
+
+Or paste in browser console:
+\`\`\`javascript
+var s=document.createElement('script');s.src='http://localhost:9080/remote-logger.js';document.head.appendChild(s);
+\`\`\`
+
+The script automatically:
+- Intercepts all console.log/warn/error/info/debug calls
+- Sends them to the server it was loaded from (zero config)
+- Exposes window.__remoteLogger__ for manual control (e.g., window.__remoteLogger__.destroy())
+
+Add ?ui=true to the script URL to show a floating console capture widget.
+
+### Option 3: Raw fetch() calls
 
 \`\`\`typescript
 fetch("http://localhost:9080/log", {
@@ -122,6 +144,28 @@ fetch("http://localhost:9080/log", {
   })
 });
 \`\`\`
+
+## Debugging Third-Party Websites
+
+The server includes a reverse proxy that injects the remote logger into any website.
+Get the proxy base URL from logs_status - look for server.proxyBaseUrl.
+
+To debug a third-party site, prepend the proxy base URL to the target URL:
+  {proxyBaseUrl}https://example.com/page
+
+Example: http://192.168.1.x:9080/proxy/https://example.com
+
+The proxy automatically:
+- Injects the remote-logger script into HTML responses
+- Strips Content-Security-Policy headers that would block the script
+- Forwards cookies, auth headers, and other request data
+- Passes non-HTML resources (CSS, JS, images) through unmodified
+
+Limitations:
+- Resources using absolute paths (e.g., /fonts/..., /media/...) bypass the base tag and return 404
+- JavaScript fetch() calls using absolute paths may bypass the proxy
+- OAuth redirect flows that check the origin domain will not work
+- WebSocket connections are not proxied (future enhancement)
 
 ## Querying Logs (MCP Tools)
 
@@ -138,8 +182,9 @@ Once browser logs are flowing to the server:
 
 ## Typical Debugging Workflow
 
-1. Call logs_status to verify server is running and get the endpoint URL
-2. Ensure the browser app is configured to send logs to that endpoint
+1. Call logs_status to verify server is running and get the endpoint URL, script URL, and proxy URL
+2. Add logging to the browser app using one of the options above (script tag is simplest)
+   - For third-party sites, use the proxy: navigate to {proxyBaseUrl}https://target-site.com
 3. Trigger the action in the browser you want to debug
 4. Call logs_get_recent to see what happened
 5. Use logs_search if looking for specific errors or messages`;

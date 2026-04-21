@@ -55,7 +55,7 @@ export default defineConfig({
                 test: {
                     name: "ui-unit",
                     environment: "happy-dom",
-                    include: ["test/ui/**/*.test.ts"],
+                    include: ["test/ui/**/*.test.ts", "test/bundle/**/*.test.ts"],
                     exclude: [
                         "**/node_modules/**",
                         "**/dist/**",

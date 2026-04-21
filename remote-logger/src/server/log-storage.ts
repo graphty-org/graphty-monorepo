@@ -141,6 +141,10 @@ export interface ServerConfig {
     protocol: "http" | "https";
     /** Full URL for browser clients to send logs to */
     httpEndpoint: string;
+    /** URL to the browser-ready auto-config script */
+    scriptUrl?: string;
+    /** Base URL for the reverse proxy (e.g., "http://host:port/proxy/") */
+    proxyBaseUrl?: string;
     /** Server mode (mcp-only, http-only, or dual) */
     mode: ServerMode;
 }

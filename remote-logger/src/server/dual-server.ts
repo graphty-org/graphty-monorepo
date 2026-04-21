@@ -17,8 +17,9 @@ import * as path from "path";
 
 import { createMcpServer } from "../mcp/mcp-server.js";
 import { JsonlWriter } from "./jsonl-writer.js";
-import { createLogServer } from "./log-server.js";
+import { createLogServer, setProxy } from "./log-server.js";
 import { LogStorage, type ServerMode } from "./log-storage.js";
+import { createProxy, type ProxyInstance } from "./proxy.js";
 import { certFilesExist } from "./self-signed-cert.js";
 
 // ANSI color codes for terminal output
@@ -291,6 +292,7 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
     let httpServer: http.Server | https.Server | undefined;
     let mcpServer: McpServer | undefined;
     let actualHttpPort: number | undefined;
+    let proxyInstance: ProxyInstance | undefined;
 
     // Track active connections for graceful shutdown
     const activeConnections = new Set<net.Socket>();
@@ -332,9 +334,8 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
             });
         });
 
-        // Set short keep-alive timeout for tests (connections close faster)
-        httpServer.keepAliveTimeout = 1000;
-        httpServer.headersTimeout = 2000;
+        httpServer.keepAliveTimeout = 30000;
+        httpServer.headersTimeout = 35000;
 
         // Set server config in storage so MCP tools can report it
         // Determine protocol based on whether valid cert files were provided
@@ -366,13 +367,22 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
                 }
             }
         }
+        const scriptUrl = `${protocol}://${endpointHost}:${actualHttpPort}/remote-logger.js`;
+        const proxyBaseUrl = `/proxy/`;
+
         storage.setServerConfig({
             httpPort: actualHttpPort,
             httpHost,
             protocol,
             httpEndpoint: `${protocol}://${endpointHost}:${actualHttpPort}/log`,
+            scriptUrl,
+            proxyBaseUrl: `${protocol}://${endpointHost}:${actualHttpPort}${proxyBaseUrl}`,
             mode,
         });
+
+        // Create and register the proxy instance
+        proxyInstance = createProxy(proxyBaseUrl, quiet);
+        setProxy(proxyInstance);
     }
 
     // Create and connect MCP server if enabled
@@ -398,6 +408,11 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
             await new Promise<void>((resolve) => {
                 httpServer.close(() => { resolve(); });
             });
+        }
+
+        // Close proxy
+        if (proxyInstance) {
+            proxyInstance.close();
         }
 
         // Close JSONL writer only if we created it internally

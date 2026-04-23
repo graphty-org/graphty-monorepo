@@ -131,7 +131,7 @@ const config: KnipConfig = {
 
         // remote-logger package
         "remote-logger": {
-            entry: ["test/**/*.test.ts"],
+            entry: ["src/bundle/browser-entry.ts", "test/**/*.test.ts"],
             project: ["src/**/*.ts", "test/**/*.ts", "bin/**/*.js"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
         },

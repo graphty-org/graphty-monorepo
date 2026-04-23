@@ -74,13 +74,6 @@ export function setProxy(proxy: ProxyInstance): void {
     sharedProxy = proxy;
 }
 
-/**
- * Get the shared proxy instance.
- * @returns The proxy instance or null
- */
-export function getProxy(): ProxyInstance | null {
-    return sharedProxy;
-}
 
 // Browser bundle cache (loaded on first request)
 let browserBundleCache: string | null | undefined;

@@ -62,7 +62,7 @@ echo "  Testing layout..."
 
 # graphty-element - run only default project (skip browser/storybook/interactions/llm)
 echo "  Testing graphty-element..."
-(cd graphty-element && vitest run --project=default) || FAILED=1
+(cd graphty-element && npm run test:shard:default:run) || FAILED=1
 
 # graphty - browser-only tests, skip for fast validation
 # (These are UI tests that require playwright)
@@ -70,11 +70,11 @@ echo "  Skipping graphty (browser-only tests)..."
 
 # remote-logger - has multiple projects, run default and ui-unit
 echo "  Testing remote-logger..."
-(cd remote-logger && vitest run --project=default --project=ui-unit) || FAILED=1
+(cd remote-logger && npm run test:run -- --project=default --project=ui-unit) || FAILED=1
 
 # compact-mantine - run only default project
 echo "  Testing compact-mantine..."
-(cd compact-mantine && vitest run --project=default) || FAILED=1
+(cd compact-mantine && npm run test:run -- --project=default) || FAILED=1
 
 if [ $FAILED -eq 0 ]; then
     echo -e "${GREEN}✓ Fast tests passed${NC}"

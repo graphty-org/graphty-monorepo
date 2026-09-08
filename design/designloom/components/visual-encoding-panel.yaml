@@ -1,0 +1,39 @@
+id: visual-encoding-panel
+name: Visual Encoding Panel
+category: display
+description: Panel for configuring visual encodings. Map data attributes to visual properties like color, size, and shape.
+status: planned
+implements_capabilities:
+  - visual-encoding-nodes
+  - visual-encoding-edges
+  - style-presets
+used_in_workflows:
+  - W15
+  - W03
+  - W04
+  - W06
+  - W09
+  - W11
+  - W17
+  - W12
+dependencies:
+  - select
+  - color-picker
+  - slider
+  - toggle-switch
+  - divider
+props:
+  nodeEncodings: EncodingConfig - Current node encodings
+  edgeEncodings: EncodingConfig - Current edge encodings
+  attributes: AttributeSchema[] - Available attributes
+  onEncodingChange: "(type: 'node' | 'edge', encoding: EncodingConfig) => void - Encoding change handler"
+sources:
+  - title: Visual Encoding Principles
+    url: https://www.tableau.com/learn/articles/visual-encoding
+    summary: Mapping data attributes to visual properties (color, size, shape)
+  - title: Preattentive Visual Properties
+    url: https://www.csc2.ncsu.edu/faculty/healey/PP/
+    summary: Research on which visual attributes enable rapid pattern detection
+version: 1.0.1
+created_at: 2026-01-16T04:02:23.215Z
+updated_at: 2026-01-16T16:40:54.230Z

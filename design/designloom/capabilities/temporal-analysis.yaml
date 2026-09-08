@@ -1,0 +1,40 @@
+id: temporal-analysis
+name: Temporal Analysis
+category: analysis
+description: Analyze how the network changes over time. Track metric evolution, detect significant changes, identify
+  trends, and understand network dynamics from timestamped data.
+status: planned
+algorithms:
+  - Time windowing
+  - Change point detection
+  - Trend analysis
+used_by_workflows:
+  - W07
+  - W17
+  - W19
+  - W06
+  - W09
+implemented_by_components:
+  - temporal-controls
+requirements:
+  - Create time-window snapshots from edges with timestamp attribute
+  - "Support configurable time window size: hour, day, week, month, quarter, year, or custom duration"
+  - Support sliding window with configurable step size (e.g., window=week, step=day)
+  - "Track metric evolution over time: node count, edge count, density, average degree"
+  - "Track metric evolution for computed metrics: modularity, average centrality, component count"
+  - Display time series chart for selected metrics with time on x-axis
+  - Detect significant changes between consecutive periods (>20% change in metric)
+  - Highlight significant change points on time series chart
+  - Calculate node arrival rate (new nodes per period)
+  - Calculate node departure rate (nodes not appearing in subsequent periods)
+  - Calculate edge creation rate (new edges per period)
+  - Calculate edge dissolution rate (edges not appearing in subsequent periods)
+  - "Identify trend direction: 'Growing', 'Shrinking', 'Stable' based on linear regression slope"
+  - "Report trend with confidence: 'Strong growth (R²=0.95)' or 'Weak decline (R²=0.3)'"
+  - Support playback animation stepping through time windows
+  - Complete analysis within 10 seconds for graphs with up to 100 time windows
+  - "Export temporal data as CSV with columns: period_start, period_end, metric_name, value"
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 4
+    url: https://graphty.app/docs/
+    summary: Network Evolution Analysis Pipeline

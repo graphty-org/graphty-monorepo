@@ -1,0 +1,137 @@
+id: W25
+name: Reproducible Session and Network Publication
+category: reporting
+validated: false
+personas:
+  - genomics-cytoscape-user
+  - bioinformatics-researcher
+requires_capabilities:
+  - analysis-history
+  - report-generation
+  - data-export
+  - export-image
+  - legend-display
+  - annotation
+  - view-bookmarks
+  - saved-filters
+  - style-presets
+  - details-on-demand
+suggested_components:
+  - session-save-dialog
+  - network-list-panel
+  - analysis-history-panel
+  - report-builder
+  - legend
+  - export-dialog
+  - share-dialog
+starting_state:
+  data_type: analyzed network with styles, clusters, subnetworks, results and annotations
+  node_count: any
+  edge_density: any
+  user_expertise: intermediate
+goal: >-
+  **Intent**: Freeze an analysis so that it can be reopened in six months, reproduced from the methods section, and
+  handed to co-authors and reviewers who may not have the tool. In Cytoscape this is the session file, the exported
+  figure with legend, and the NDEx upload.
+
+
+  **Mental Model**: "Lab notebook plus specimen jar." The notebook is the parameter record and history; the jar is
+  the network with every derived network, style and result inside it, sealed so it does not drift.
+
+
+  **Task Phases**:
+
+  1. **Tidy the session** (5 min) - Rename networks and subnetworks meaningfully, name the styles, delete dead
+  ends, add text annotations and a legend to the canvas
+
+  2. **Record parameters** (5 min) - For every algorithm and import, collect the parameters (species, confidence
+  cutoff, clustering inflation, FDR cutoff, similarity cutoff, weight attribute) into a methods paragraph
+
+  3. **Save the session** (1 min) - One file that holds every network in the collection, their attribute tables,
+  styles, layouts, results, filters and annotations
+
+  4. **Export deliverables** (5 min) - PNG, SVG or PDF of the figure with the legend; node and edge tables with all
+  computed columns; a cluster or hub table; a graph file (GraphML, CX) for collaborators
+
+  5. **Share** (5 min) - Upload the network with title, description, version, authors, license and reference; keep
+  it private with a reviewer link, then make it public and request a DOI on acceptance
+
+
+  **Decision Points**:
+
+  - Which networks in the collection are worth keeping in the session?
+
+  - Which parameters need to be reported and in what units?
+
+  - Image format: raster for the manuscript, vector for the final figure
+
+  - Public now, or private with a sharable link until publication?
+
+  - Does the shared network need a DOI (immutable) or will it be updated?
+
+
+  **Information Needs**:
+
+  - List of everything the session file contains before saving
+
+  - Complete parameter record per analysis, copyable as text
+
+  - Legend content exactly as encoded on the canvas
+
+  - Upload progress for large networks
+
+  - Required metadata checklist for a DOI
+
+
+  **Pain Points**:
+
+  - Tools with no session concept lose subnetworks, styles and results between visits
+
+  - Hunting through dialogs to recover the parameters used weeks ago
+
+  - Legends not exported with the image
+
+  - Uploads with no progress bar
+
+  - Discovering missing metadata only when requesting a DOI
+
+
+  **Data Flow**:
+
+  - Input: Session state, analysis history, canvas encodings, network metadata
+
+  - Transformations: Serialization, parameter extraction, image rendering with legend, metadata validation
+
+  - Output: Session file, figure with legend, data and result tables, shared network with a link or DOI
+
+  **Adoption Note (2026-09-04)**: Phase 3 (one session file holding every network, table, style, result and
+  annotation) is blocked on project files, which are next-phase work. Phases 2 and 4 are covered now by the run
+  record on every result, the analysis recipe export and the report's methods section. Phase 5 (upload with
+  title, authors, license, reviewer link and DOI) is blocked on public database export (NDEx), a future phase;
+  the top-bar share menu covers export as CX2 or GraphML and copy image only.
+success_criteria:
+  - metric: Session round-trip
+    target: Reopening the session restores every network, style, result and annotation
+  - metric: Methods paragraph
+    target: All parameters for every analysis available as copyable text
+  - metric: Figure and share
+    target: Figure exported with legend; network shared with required metadata
+sources:
+  - title: Cytoscape User Manual - Export Your Data
+    url: https://manual.cytoscape.org/en/stable/Export_Your_Data.html
+    summary: Session files, image, web page and NDEx export options
+  - title: NDEx - CyNDEx tutorial
+    url: https://home.ndexbio.org/ndex-cyapp-tutorial-alt/
+    summary: Sign in, search, import, export and update-existing flow; no progress bar on upload noted as a pain point
+  - title: NDEx - Publishing in NDEx
+    url: https://home.ndexbio.org/publishing-in-ndex/
+    summary: Private sharable URLs for review, required metadata, certified and published states, DOI
+  - title: Cytoscape tutorial - EnrichmentMap pipeline (steps 20 to 23)
+    url: https://cytoscape.org/cytoscape-tutorials/protocols/enrichmentmap-pipeline/
+    summary: Export PDF, show creation parameters, show legend, save session
+  - title: Cytoscape Automation - empowering workflow-based network analysis
+    url: https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1758-4
+    summary: Reproducibility of network analyses through recorded, scripted workflows
+version: 1.0.0
+created_at: 2026-09-04T00:00:00.000Z
+updated_at: 2026-09-04T00:00:00.000Z

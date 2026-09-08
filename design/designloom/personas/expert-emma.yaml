@@ -1,0 +1,61 @@
+id: expert-emma
+name: Expert Emma
+role: Power User / Graph Expert
+quote: I need full control - show me the adjacency matrix, let me write custom queries, and don't hide the complexity I
+  need to do my job.
+bio: Dr. Emma is a network science researcher and consultant who has published papers on graph algorithms and advises
+  organizations on complex network analysis problems. She thinks in terms of graph theory and expects tools to expose
+  the full power of the underlying algorithms. She's frustrated by simplified interfaces that hide the parameters and
+  data structures she needs to do rigorous analysis.
+characteristics:
+  expertise: expert
+  time_pressure: high
+  graph_literacy: advanced
+  domain_knowledge: advanced
+motivations:
+  - Perform rigorous, publishable-quality network analysis
+  - Access full algorithm parameterization without artificial constraints
+  - Integrate graph analysis into custom pipelines and workflows
+  - Push the boundaries of what's possible with network analysis techniques
+  - Mentor others in graph analysis best practices
+behaviors:
+  - Immediately looks for API access, scripting capabilities, or export options
+  - Configures algorithm parameters precisely based on theoretical understanding
+  - Validates tool results against reference implementations
+  - Combines multiple analysis techniques in custom workflows
+  - Exports raw data for analysis in specialized tools (R, Python, Mathematica)
+  - Reads source code or documentation to understand implementation details
+  - Reports bugs or limitations with technical precision
+goals:
+  - Maximum efficiency with minimal clicks
+  - Full feature access
+  - Keyboard-driven workflow
+  - Complex multi-step investigations
+  - Customization and extensibility
+frustrations:
+  - Mouse-heavy interfaces
+  - Hidden advanced features
+  - Lack of keyboard shortcuts
+  - No command palette or scripting
+  - Forced wizard workflows
+context:
+  frequency: daily
+  devices:
+    - desktop
+    - laptop
+  voluntary: true
+workflows:
+  - W01
+  - W02
+  - W03
+  - W04
+  - W15
+  - W18
+  - W19
+sources:
+  - title: Progressive Disclosure - Nielsen Norman Group
+    url: https://www.nngroup.com/articles/progressive-disclosure/
+    summary: Expert users need keyboard shortcuts and command palettes to bypass progressive disclosure layers
+  - title: Hick's Law - Laws of UX
+    url: https://lawsofux.com/hicks-law/
+    summary: Time to make decisions increases with number of choices - experts need efficient paths to functionality

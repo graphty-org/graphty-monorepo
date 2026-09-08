@@ -1,0 +1,79 @@
+id: V04
+name: Settings
+description: Application settings and preferences. Users can configure visual encoding defaults, keyboard shortcuts,
+  performance options, and data management settings.
+workflows: []
+layout:
+  type: sidebar-left
+  zones:
+    - id: header
+      position: header
+      components:
+        - toolbar
+      height: 48px
+      visibility:
+        base: visible
+    - id: nav
+      position: sidebar-left
+      components:
+        - main-sidebar
+      width: 240px
+      visibility:
+        base: hidden
+        md: drawer
+        lg: visible
+    - id: content
+      position: main
+      components:
+        - text-input
+        - select
+        - toggle-switch
+        - slider
+        - color-picker
+      max_width: 800px
+      padding:
+        base: 16px
+        md: 24px
+        lg: 32px
+      visibility:
+        base: visible
+  centered: true
+states:
+  - id: default
+    type: default
+    description: Settings form ready for editing
+  - id: empty
+    type: empty
+    description: Settings not yet initialized (rare edge case)
+  - id: loading
+    type: loading
+    description: Settings being saved
+  - id: error
+    type: error
+    description: Settings failed to save
+routes:
+  - path: /settings
+    title: Settings - Graphty
+    requires_auth: false
+  - path: /settings/:section
+    params:
+      - name: section
+        type: string
+        required: false
+    title: Settings - Graphty
+    requires_auth: false
+data_requirements:
+  - id: user-settings
+    source: local-storage
+    required: false
+    loading_state: default
+    error_state: default
+  - id: default-settings
+    source: static
+    required: true
+    loading_state: loading
+    error_state: error
+sources: []
+version: 1.0.1
+created_at: 2026-01-16T16:22:17.580Z
+updated_at: 2026-01-16T16:41:41.903Z

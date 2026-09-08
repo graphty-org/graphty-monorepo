@@ -1,0 +1,121 @@
+id: W05
+name: Path Investigation
+category: exploration
+validated: false
+personas:
+  - fraud-analyst
+  - intelligence-analyst
+  - analyst-alex
+requires_capabilities:
+  - shortest-path
+  - path-highlighting
+  - search
+  - node-selection
+  - details-on-demand
+  - hover-highlight
+  - graph-rendering
+  - all-paths-finding
+  - keyboard-shortcuts
+  - neighborhood-expansion
+  - overview-minimap
+  - tooltip-display
+suggested_components:
+  - graph-canvas
+  - path-finder-dialog
+  - node-details-panel
+  - filter-panel
+  - zoom-controls
+  - minimap
+  - legend-panel
+  - search-panel
+  - search-result-item
+  - context-menu
+  - attribute-row
+starting_state:
+  data_type: connected graph
+  node_count: any
+  edge_density: any
+  user_expertise: any
+goal: >-
+  **Intent**: Understand how two specific entities are connected through the network. User has identified a source and
+  target and wants to know the path(s) between them and what those paths reveal.
+
+
+  **Mental Model**: "Following a trail" or "connecting the dots" - tracing the chain of relationships from A to B. Like
+  following money through accounts or tracing a disease transmission chain.
+
+
+  **Task Phases**:
+
+  1. **Target Selection** - Identify source and target entities
+
+  2. **Path Finding** - Compute shortest path(s) between them
+
+  3. **Path Comparison** - If multiple paths exist, compare lengths and intermediates
+
+  4. **Context Visualization** - Show path in context of surrounding network
+
+  5. **Intermediate Interpretation** - Understand the role of nodes along the path
+
+
+  **Decision Points**:
+
+  - Should I find shortest path only, or all paths up to length N?
+
+  - Should edge weights be considered (weighted vs unweighted)?
+
+  - Which intermediate nodes are significant vs. incidental?
+
+  - Are multiple paths meaningful (redundancy) or noise?
+
+  - Should I expand the view to see what else connects to the path?
+
+
+  **Information Needs**:
+
+  - Path length (number of hops)
+
+  - Each step with edge type/label (how are consecutive nodes related?)
+
+  - Alternative paths count and their lengths
+
+  - Common intermediate nodes across paths (bottlenecks/brokers)
+
+  - Attributes of intermediate nodes (who/what are they?)
+
+
+  **Pain Points**:
+
+  - Source/target may not be connected at all
+
+  - Too many paths can be overwhelming
+
+  - Path visualization can be cluttered without good layout
+
+  - Hard to compare multiple paths visually
+
+
+  **Data Flow**:
+
+  - Input: Graph + source node + target node
+
+  - Transformations: Shortest path algorithm, path enumeration
+
+  - Output: Path(s) with annotations + understanding of how A connects to B
+success_criteria:
+  - metric: Path found
+    target: Connection established or confirmed not connected
+  - metric: Path understood
+    target: User can explain what each step means
+  - metric: Intermediate significance assessed
+    target: Key intermediaries identified
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 3
+    url: https://graphty.app/docs/
+    summary: Path Investigation workflow pattern
+  - title: Cambridge Intelligence Investigation Workflow
+    url: https://cambridge-intelligence.com/investigation-workflow-annotations/
+    summary: Annotations improve investigation workflow and reveal data narrative
+version: 1.0.1
+created_at: 2026-01-16T16:22:52.253Z
+updated_at: 2026-01-16T16:42:28.583Z

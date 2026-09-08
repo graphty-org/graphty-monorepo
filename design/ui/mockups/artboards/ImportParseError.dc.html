@@ -1,0 +1,752 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #5b8ff9; } a:hover { color: #75a5f9; }
+  </style>
+</helmet>
+<!--
+  STATE: Import options, one dialog in seven entry states. This file: parse error, nothing loaded.
+  New board, added by revision 1.7 (DECISIONS-1.7.md, IMP-9). It is the fifth of the five entry
+  states drawn as artboards, and the only one where the primary is disabled.
+
+  INPUTS: no graph loaded; format class delimited; header signature unknown; nothing guessed;
+    any row is unreadable; size below both numbers; "Always show import options" off.
+  CLAUSE: parse error. Evaluated from the end, first match wins -- it beats "delimited file",
+    which also matched. (Table B row 6, spec 5.3 Data.)
+  RENDERS: item 2 recognition banner no; item 3 picker no; item 6 Load defaults to Everything and is
+    not drawn (Rule 7a); item 8 error block YES -- this is the only board that draws it; item 7
+    Parsing drawn OPEN with Separator focused; no departure line for size.
+  PRIMARY: Import, disabled, with "Skip 4 rows and import" beside it.
+
+  IN: a delimited file dropped on the Welcome drop zone; 4 rows have more values than the header.
+  REOPENS AS: this state cannot be reopened -- nothing was imported, so there is no Loaded data line
+    and no "Mapped as before" toast. The routes back are the Data tier 3 list and the palette
+    ("Import options" at the dialog top), both of which re-drop the same file and re-enter here.
+  OUT: "Skip 4 rows and import" -> Loaded, then the NAV-4 completion toast, whose departure clause
+    names the skip: "Loaded 40,908 of 40,912 rows. 4 rows could not be read.  Details". Fixing the
+    separator or the quote character re-parses the preview in place and re-enables Import.
+  CANCEL: Cancel, Escape and the title-row X are one action, and on a parse error Cancel is the only
+    exit and is never disabled (5.3, the Cancel paragraph after item 9). Nothing is loaded, so Cancel
+    abandons the file: the shell returns to Empty, the status bar reading line clears, and the file
+    does not enter Recent -- a file the user declined is not a file they opened. A menu open inside
+    the dialog takes Escape first.
+
+  CANVAS TITLE: Import options -- parse error. canvas.json takes one deliberate coordinated edit in
+  1.7 (eight new entries including this one, the four Import retitles of IMP-8, and the group-2
+  annotation count 7 -> 9). Do not edit canvas.json from this file.
+
+  Desktop 1440 by 900. Spec revision 1.7: 5.3 Data (import flow items 0, 1, 2, 4, 5, 7, 8, 9 and the
+  Cancel paragraph), 6.1 Empty, 6.7 info circles, 6.8 icon tooltips, 6.9 row types, 6.10 the floor,
+  7.1 Welcome underneath, 5.8 Coming tags. Palette: panel #1f2428, canvas #161b22, field #2a3035,
+  text #d5d7da, dimmed #7a828e, disabled #5f6873, accent #4a7ee8, selected #28364e, warning #f7b731.
+
+  IMP-1, floor item 6: the title row carries the entry clause, "malformed-export.csv, 1.2 MB --
+  parse error". The clause is the dialog's NAME for this state, not an explanation of its contents,
+  so Rule 8 may not delete it: "parse error" is why the dialog opened; "Row 1,284 has 7 values where
+  the header has 5" is what the parser found.
+
+  IMP-9, floor item 4, the reason a disabled control is disabled. Three places carry it and each
+  says something the others do not: the error block names the row and the arithmetic; the footer
+  note names the consequence and the two fixes; the disabled primary's title repeats the note so a
+  reader who reaches the button with the keyboard gets it there. Nothing in the block is iconified
+  and the error text is never moved behind an info circle.
+
+  Item 8's override, written into the spec by IMP-9: the parse-error state draws the Parsing group
+  OPEN with Separator focused, overriding that group's remembered open state for this one opening
+  and NOT overwriting it. A user who once collapsed Parsing would otherwise never see the control
+  that fixes their file.
+
+  A1 / TB-1: no canvas toolbar, no minimap, no legend. Nothing is loaded, so there is no canvas to
+  navigate; the toolbar's global placement does not fire on the three Empty-state Import boards. 1.8 C2
+  splits floor item 5 into an export obligation and a screen obligation; with nothing loaded there is no
+  encoded channel, so neither fires.
+
+  POP-3, AS AMENDED BY 1.8 B2: inside the Import options dialog the validation issues stay INLINE --
+  because errors here gate the Import button and because the issue list is a scan surface of the user's
+  own ids (floor 7). NOT because a dialog cannot host a pop-out: B2 gives the dialog its own lane (gap 8,
+  row top to pop-out top, one pop-out at a time, Escape closes the pop-out before the dialog). This board
+  is still the loudest drawn proof of the exception, because the whole error block is resident and the
+  primary is disabled behind it.
+
+  REVISION 1.8, B4 and 14.4: a cost estimate, cap or destructive confirm is a pop-out with two verbs and
+  no close X; a cost or loss GATE is inline on the control that spends it (floor item 4). "Skip 4 rows
+  and import" past a stated loss is a gate, so the footer note stays inline beside it and is never
+  converted to a floating card. The disabled primary keeps its title, which is floor item 4's reason a
+  disabled control is disabled.
+
+  POP-11: the two applied policies stay exactly as the other Import boards draw them -- noun label,
+  behaviour in the field, full sentence on the info circle. A control whose home is a dialog may not
+  acquire a second home as a pop-out.
+
+  Floor kept in full: the entry clause (6); the error statement, the quoted line and every count (4
+  and 7); the file name and size (7); every column name and cell value (7); "First 5 of 40,912 rows"
+  and "4 bad rows" (4); the footer note (4); Cancel and Import in full text (4).
+
+  Rules applied. Rule 7a: the Load control is not drawn -- this file is below both numbers, so Load
+  sits at Everything and only a deviation draws a row; inside the opened Parsing group the same rule
+  keeps the two overrides that cannot fix a ragged row ("Skip lines starting with", "List separator")
+  off the screen and draws the five that can. Rule 7c: the "Edges that mention unknown nodes" policy
+  is not drawn -- there is no nodes file, so every id defines its own node and the policy cannot
+  fire. Rule 8: the summary line is replaced rather than joined by the error block (IMP-9), because a
+  count of nodes and edges taken from a partial parse would be a number the dialog cannot stand
+  behind; the error block is this file's honest first line.
+
+  Three deliberate choices where the decision leaves the detail open, all argued rather than assumed:
+  (1) The preview grid gains a row-number gutter. The error is about a row number, and the gutter is
+      what lets the jump from row 5 to row 1,284 read as a jump rather than as a sixth row. The dim
+      ellipsis row between them is the jump; the rows it stands for parsed cleanly.
+  (2) The offending row is drawn in the warning colour with its two extra values reported in the last
+      cell ("+2 values"), not as the raw line again. The raw line is quoted once, in the error block,
+      in the monospace face; drawing it twice would be Rule 8 exactly.
+  (3) "Skip 4 rows and import" takes the outline-warning button variant that ImportLargeFile gives
+      "Import everything anyway". It is the same shape of act -- proceeding past a stated loss -- and
+      the shared treatment is what makes the loss legible; it keeps its full text, naming both the
+      count and the verb, because floor item 4 covers what a control will do before it does it.
+  One stated departure from a row type: "First row is a header" is a lone RT-5 boolean, which rule
+  (a) forbids. It has no partner to pack with and no owning row to become the trailing slot of -- it
+  changes the whole parse, not any one field -- so it sits inside the Parsing group it belongs to,
+  packed on one line with the Start at row field. The same departure is stated on ImportLargeFile for
+  the bipartite checkbox.
+
+  Under the scrim: rail with Data active and Explore, Analyze, Style, Present disabled; no inspector;
+  the Data panel at tier 1; the Welcome block centered in the 1112 by 836 canvas; status bar
+  "No data loaded" and the reading line for this file.
+
+  REVISION 1.8 AFTER-STATE, 10 -> 9 resident rows outside the preview grid. Removed: the two-cell policy
+  grid (Rule 7a). Kept whole: the error block with the row number, the arithmetic and the quoted line;
+  the RT-2 compound row; the grid footer "First 5 of 40,912 rows, plus row 1,284" with the "-- not set"
+  legend; the Parsing group open with its five controls; the footer note and both verbs in full text;
+  Cancel, never disabled.
+-->
+<div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
+
+  <!-- MAIN ROW: rail + everything right of it. Height 876. -->
+  <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row;">
+
+    <!-- ACTIVITY RAIL, 48 wide. Empty state: Data active; Explore, Analyze, Style, Present disabled. -->
+    <div style="flex: 0 0 48px; width: 48px; display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 4px 0; background: #1f2428; border-right: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+
+      <div title="Data" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #d5d7da; background: #28364e; cursor: pointer; box-sizing: border-box;">
+        <div style="position: absolute; left: 0; top: 0; width: 2px; height: 44px; background: #4a7ee8;"></div>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="8" cy="4" rx="5.5" ry="2"></ellipse><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4"></path><path d="M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Data</span>
+      </div>
+
+      <div title="Explore. Load data first" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #5f6873; cursor: default; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><polygon points="10.5,5.5 9,9 5.5,10.5 7,7"></polygon></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Explore</span>
+      </div>
+
+      <div title="Analyze. Load data first" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #5f6873; cursor: default; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="13.5" x2="3" y2="8"></line><line x1="8" y1="13.5" x2="8" y2="2.5"></line><line x1="13" y1="13.5" x2="13" y2="6"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Analyze</span>
+      </div>
+
+      <div title="Style. Load data first" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #5f6873; cursor: default; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 2.5l-6 6"></path><path d="M7.5 8.5c-1.5 0-2.5 1-2.5 2.5s-1 2-2.5 2c1.5 1 4.5 1 5.5-1 .5-1 .5-2-.5-3.5z"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Style</span>
+      </div>
+
+      <div title="Present. Load data first" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #5f6873; cursor: default; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="8" rx="1"></rect><line x1="8" y1="11" x2="8" y2="14"></line><line x1="5.5" y1="14" x2="10.5" y2="14"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Present</span>
+      </div>
+
+      <div title="AI" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3l1.3 3.7L12 8l-3.7 1.3L7 13l-1.3-3.7L2 8l3.7-1.3z"></path><path d="M13 2v2.5M11.75 3.25h2.5"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">AI</span>
+      </div>
+
+      <div style="flex: 1 1 auto;"></div>
+
+      <div title="Settings" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Settings</span>
+      </div>
+
+      <div title="Help and keyboard shortcuts (?)" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><path d="M6 6.3a2 2 0 0 1 3.9.5c0 1.3-1.9 1.6-1.9 2.7"></path><line x1="8" y1="11.75" x2="8" y2="12.25"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Help</span>
+      </div>
+    </div>
+
+    <!-- RIGHT OF RAIL: top bar over panel + canvas -->
+    <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column;">
+
+      <!-- TOP BAR, 40 tall. Empty state: no file open, undo and redo disabled, Export and Compare disabled (6.1). -->
+      <div style="flex: 0 0 40px; height: 40px; display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 0 12px; background: #1f2428; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+
+        <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 13px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">No file open</span>
+        </div>
+
+        <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 8px;">
+          <div title="Undo (Cmd+Z). Nothing to undo yet" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h6.5a3 3 0 0 1 0 6H7"></path><polyline points="6.5,3.5 4,6 6.5,8.5"></polyline></svg>
+          </div>
+          <div title="Redo (Shift+Cmd+Z). Nothing to redo yet" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6H5.5a3 3 0 0 0 0 6H9"></path><polyline points="9.5,3.5 12,6 9.5,8.5"></polyline></svg>
+          </div>
+          <div style="width: 300px; height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 8px; border-radius: 4px; background: #2a3035; box-sizing: border-box; cursor: pointer;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line></svg>
+            <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Search commands, nodes and edges</span>
+            <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;">Cmd+K</div>
+          </div>
+        </div>
+
+        <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
+          <div title="Export. Load data first" style="display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px; border-radius: 4px; color: #5f6873; font-size: 11px; font-weight: 500; line-height: 1; cursor: default; box-sizing: border-box;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
+            <span>Export</span>
+            <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,6 8,11 13,6"></polyline></svg>
+          </div>
+          <div title="Share this view. Load data first" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="3.5" r="1.75"></circle><circle cx="4" cy="8" r="1.75"></circle><circle cx="12" cy="12.5" r="1.75"></circle><line x1="5.6" y1="7.1" x2="10.4" y2="4.4"></line><line x1="5.6" y1="8.9" x2="10.4" y2="11.6"></line></svg>
+          </div>
+          <div style="width: 1px; height: 16px; background: #48525c;"></div>
+          <div title="Compare two views. Load data first" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="5.5" height="11" rx="1.5"></rect><rect x="8.5" y="2.5" width="5.5" height="11" rx="1.5"></rect></svg>
+          </div>
+          <div title="Toggle inspector (D)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="10" y1="2.5" x2="10" y2="13.5"></line></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- BODY ROW: panel + canvas. Inspector hidden in Empty. Height 836. -->
+      <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row;">
+
+        <!-- ACTIVITY PANEL, 280 wide: Data, tier 1 -->
+        <div style="flex: 0 0 280px; width: 280px; display: flex; flex-direction: column; background: #1f2428; border-right: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+
+          <div style="flex: 0 0 36px; height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="8" cy="4" rx="5.5" ry="2"></ellipse><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4"></path><path d="M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"></path></svg>
+              <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Data</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <div title="Close the panel (Cmd+B)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
+              </div>
+            </div>
+          </div>
+
+          <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 8px 16px 16px; overflow: hidden; box-sizing: border-box;">
+
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px;">
+                <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Open file</span>
+                <div title="Import settings" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 8px; border-radius: 4px; border: 1px dashed #48525c; box-sizing: border-box;">
+                <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Open file</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Open from URL</div>
+                <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Paste data</div>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 1px;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px;">
+                <div style="display: flex; align-items: baseline; gap: 6px; min-width: 0;">
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873;">Data table</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; height: 20px; cursor: default;">
+                  <div style="width: 28px; height: 16px; border-radius: 8px; background: #374047; position: relative; box-sizing: border-box;">
+                    <div style="position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #5f6873;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Sample datasets</span>
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">6</span>
+                </div>
+                <div style="display: flex; gap: 4px;"></div>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Recent</span>
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">2</span>
+                </div>
+                <div style="display: flex; gap: 4px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CANVAS, 1112 wide by 836 tall: Welcome block. No canvas toolbar, minimap or legend
+             (nothing is loaded yet). -->
+        <div style="flex: 1 1 auto; min-width: 0; position: relative; background: #161b22; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+
+          <div style="width: 600px; max-width: 600px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box;">
+
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 20px; font-weight: 600; line-height: 1.25; color: #d5d7da;">Open a graph to get started</span>
+              <span style="font-size: 12px; line-height: 1.5; color: #a3a8b1;">Drop a file, pick a sample, or reopen something recent. Everything here is also in the Data panel on the left.</span>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 24px; border-radius: 8px; border: 1px dashed #4a7ee8; background: #1f2428; box-sizing: border-box;">
+                <div title="Open a graph file (Cmd+O)" style="display: flex; align-items: center; justify-content: center;">
+                <svg width="72" height="48" viewBox="0 0 72 48" fill="none" stroke="#5f6873" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="14" y1="34" x2="29" y2="21"></line>
+                  <line x1="29" y1="21" x2="46" y2="14"></line>
+                  <line x1="29" y1="21" x2="38" y2="37"></line>
+                  <line x1="46" y1="14" x2="58" y2="26"></line>
+                  <line x1="38" y1="37" x2="58" y2="26"></line>
+                  <line x1="46" y1="14" x2="38" y2="37"></line>
+                  <line x1="14" y1="34" x2="38" y2="37"></line>
+                  <circle cx="14" cy="34" r="4" fill="#161b22"></circle>
+                  <circle cx="29" cy="21" r="5" fill="#161b22" stroke="#4a7ee8"></circle>
+                  <circle cx="46" cy="14" r="4" fill="#161b22"></circle>
+                  <circle cx="38" cy="37" r="4" fill="#161b22"></circle>
+                  <circle cx="58" cy="26" r="4" fill="#161b22"></circle>
+                </svg>
+                </div>
+                <span style="font-size: 12px; line-height: 1.4; color: #d5d7da;">Drop a graph file (or a nodes file and an edges file) here</span>
+                <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Open file</div>
+                <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Accepted formats: JSON, CSV or TSV, GraphML, GEXF, GML, DOT, Pajek, SIF, CX2</span>
+              </div>
+              <div style="display: flex; justify-content: center;">
+                <span style="font-size: 11px; line-height: 1.2; color: #5b8ff9; cursor: pointer;">or paste data / open from URL</span>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+                <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Sample datasets</span>
+                <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Click one to load it</span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box; cursor: pointer;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Karate Club</span>
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">34 nodes, 78 edges</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1;">A club that split in two. The classic test for finding groups. <span style="color: #5b8ff9; cursor: pointer;">Zachary 1977</span></span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box; cursor: pointer;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                  <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                    <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Cat social network</span>
+                    <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; line-height: 1; box-sizing: border-box;">Weighted</div>
+                  </div>
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">20 nodes, 29 edges</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1;">20 nodes. Small enough to see every relationship. <span style="color: #5b8ff9; cursor: pointer;">Try finding the groups.</span> <span style="color: #5b8ff9; cursor: pointer;">graphty samples</span></span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box; cursor: pointer;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                  <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                    <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Fraud ring (synthetic)</span>
+                    <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; line-height: 1; box-sizing: border-box;">Directed</div>
+                    <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; line-height: 1; box-sizing: border-box;">Timed</div>
+                    <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; line-height: 1; box-sizing: border-box;">Weighted</div>
+                  </div>
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">200 nodes, 612 edges</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1;">Made-up accounts, devices and phones. A few accounts pass money around in circles. <span style="color: #5b8ff9; cursor: pointer;">Try finding the bridges.</span> <span style="color: #5b8ff9; cursor: pointer;">graphty samples</span></span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box; cursor: pointer;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                  <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                    <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">College football</span>
+                    <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; line-height: 1; box-sizing: border-box;">Types</div>
+                  </div>
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">115 nodes, 613 edges</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1;">Teams that played each other in one season, tagged by conference. <span style="color: #5b8ff9; cursor: pointer;">Try coloring by conference.</span> <span style="color: #5b8ff9; cursor: pointer;">Girvan and Newman 2002</span></span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box; cursor: pointer;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                  <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                    <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Ovarian cancer DE genes</span>
+                    <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; line-height: 1; box-sizing: border-box;">Weighted</div>
+                  </div>
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">318 nodes, 1,104 edges</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1;">318 proteins, STRING edges at 0.4 confidence, logFC and padj columns. <span style="color: #5b8ff9; cursor: pointer;">Try coloring by logFC and finding the groups.</span> <span style="color: #5b8ff9; cursor: pointer;">STRING database</span></span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box; cursor: pointer;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                  <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                    <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Patent citations</span>
+                    <div style="display: inline-flex; align-items: center; height: 14px; padding: 0 4px; border-radius: 7px; background: #374047; color: #d5d7da; font-size: 9px; font-weight: 500; line-height: 1; text-transform: uppercase; box-sizing: border-box;">Large</div>
+                    <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; line-height: 1; box-sizing: border-box;">Directed</div>
+                  </div>
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">65,000 nodes, 210,000 edges, 14 MB</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1;">Opens in Performance mode, about 20 s. <span style="color: #5b8ff9; cursor: pointer;">Try finding connected parts, or search for a node.</span> <span style="color: #5b8ff9; cursor: pointer;">USPTO open data</span></span>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Recent files</span>
+              <div style="display: flex; flex-direction: column; gap: 1px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                  <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5.5L13 5.5V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"></path><polyline points="9.5,2 9.5,5.5 13,5.5"></polyline></svg>
+                    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">cat-social-network.json</span>
+                  </div>
+                  <span style="font-size: 11px; color: #7a828e; white-space: nowrap;">20 nodes, 29 edges, Yesterday</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                  <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5.5L13 5.5V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"></path><polyline points="9.5,2 9.5,5.5 13,5.5"></polyline></svg>
+                    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">org-chart-2026.csv</span>
+                  </div>
+                  <span style="font-size: 11px; color: #7a828e; white-space: nowrap;">148 nodes, 147 edges, Aug 28</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS BAR, 24 tall, full width. Empty state: no counts, no Zoom, no mode chip (6.1). -->
+  <div style="flex: 0 0 24px; height: 24px; display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 0 12px; background: #1f2428; border-top: 1px solid #48525c; box-sizing: border-box; font-size: 11px; line-height: 1.2; color: #7a828e;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span>No data loaded</span>
+    </div>
+    <div style="width: 1px; height: 12px; background: #48525c;"></div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span>Reading malformed-export.csv, 1.2 MB of 1.2 MB</span>
+    </div>
+    <div style="flex: 1 1 auto;"></div>
+  </div>
+
+  <!-- SCRIM + IMPORT OPTIONS DIALOG (5.3 Data, tier 3b). 720 wide, centered over the whole frame. -->
+  <div style="position: absolute; left: 0; top: 0; width: 1440px; height: 900px; display: flex; align-items: center; justify-content: center; background: rgba(13, 17, 23, 0.6); z-index: 20;">
+    <div style="width: 720px; max-height: 800px; display: flex; flex-direction: column; border-radius: 8px; background: #1f2428; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; overflow: hidden;">
+
+      <!-- 0 + 1. Title row, 40. IMP-1: "Import options" at 14px primary, then the dimmed file name,
+           size and entry clause. "parse error" won the from-the-end tie-break over "delimited file",
+           which also matched. The clause is floor item 6, the dialog's name for this state. -->
+      <div style="flex: 0 0 40px; height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+        <div style="display: flex; align-items: baseline; gap: 8px; min-width: 0;">
+          <span style="font-size: 14px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Import options</span>
+          <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">malformed-export.csv, 1.2 MB -- parse error</span>
+        </div>
+        <div title="Close (Esc)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
+        </div>
+      </div>
+
+      <!-- body -->
+      <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; overflow: hidden; box-sizing: border-box;">
+
+        <!-- 8. The error block, in the place item 1's summary would hold. RT-10 departure form: the
+             plain-language statement at value ink with the warning mark, then the offending line
+             quoted in the monospace face with its line number. Every count is here in full, because
+             floor item 4 covers the reason a disabled control is disabled and floor item 7 covers the
+             user's own line of text. Nothing here is iconified and none of it moves into a circle. -->
+        <div title="The header row has 5 columns: src, dst, amount, ts, memo" style="display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-sizing: border-box;">
+          <div style="display: flex; align-items: flex-start; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#f7b731" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto; margin-top: 2px;"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
+            <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.4; color: #d5d7da;">Row 1,284 has 7 values where the header has 5. 3 more rows like this.</span>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: 8px; padding: 4px 8px; border-radius: 4px; background: #1f2428; border: 1px solid #374047; box-sizing: border-box;">
+            <span style="flex: 0 0 auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1.4; color: #7a828e; font-variant-numeric: tabular-nums;">1,284</span>
+            <span style="flex: 1 1 0; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1.4; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">acct-4471,merch-88,12500.00,2026-01-05T11:03:10Z,invoice 2211, split, see ticket 44</span>
+          </div>
+        </div>
+
+        <!-- 2. RT-2 compound row: how this file will be read. Format, shape and direction are three
+             values belonging to one thing, so they sit in one box divided by 1px hairlines of panel
+             background and read as one control, not three (Rule 3 takes the three label lines with
+             them). The confidence is 71%: the ragged rows are what pulled it down, which is the
+             reason the Separator control below is the focused one.
+             No Parsing gear in the trailing slot on this board. Parsing is resident and open below,
+             and one control may not have two homes on one surface (POP-11, 6.4). -->
+        <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+          <div style="display: flex; align-items: center; flex: 1 1 auto; min-width: 0; height: 24px; background: #2a3035; border-radius: 4px; box-sizing: border-box; overflow: hidden;">
+            <div title="Detected format, 71% confident" style="display: flex; align-items: center; gap: 6px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; box-sizing: border-box;">
+              <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">CSV, comma</span>
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">71%</span>
+            </div>
+            <div style="width: 1px; height: 24px; flex: 0 0 auto; background: #1f2428;"></div>
+            <div title="Import as" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; cursor: pointer; box-sizing: border-box;">
+              <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Edge list</span>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+            </div>
+            <div style="width: 1px; height: 24px; flex: 0 0 auto; background: #1f2428;"></div>
+            <div title="Direction" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; cursor: pointer; box-sizing: border-box;">
+              <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Directed <span style="color: #7a828e;">assumed</span></span>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. The preview grid: the mapping surface, rendered as far as it parsed. The caption row is
+             RT-7's split -- "Columns" and the row count report state and are resident, "Show the 4 bad
+             rows" is the action beside them. -->
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px; height: 24px;">
+            <!-- Rule 7a's corollary: nothing was guessed on this file, so the guessed count and its
+                 Review action do not render at all. That is what keeps "2 guessed" loud on
+                 ImportLargeFile, and it leaves the caption row carrying the one action this state
+                 has. -->
+            <div style="display: flex; align-items: baseline; gap: 6px; min-width: 0;">
+              <span style="flex: 0 0 auto; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Columns</span>
+            </div>
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #5b8ff9; cursor: pointer;">Show the 4 bad rows</span>
+          </div>
+
+          <div style="display: flex; flex-direction: column; border: 1px solid #374047; border-radius: 4px; overflow: hidden;">
+
+            <!-- 1.8, D5: a column's role parameters live in a 280 pop-over opened from that column's
+                 Role chip, and the chip prints the setting as a dimmed suffix ("Weight strength", "Time
+                 ISO 8601", "Source account id"). On this file every role parameter is at its default, so
+                 every chip prints the role word alone (Rule 7a). Do not add an empty suffix. -->
+            <!-- header. The leading gutter is the file's own row numbers: the error is about a row
+                 number, and the gutter is what lets the jump to row 1,284 read as a jump. -->
+            <div style="display: grid; grid-template-columns: 52px 96px 96px 116px 168px minmax(0, 1fr); background: #2a3035; border-bottom: 1px solid #48525c;">
+              <div style="display: flex; align-items: flex-start; justify-content: flex-end; padding: 4px 8px; border-right: 1px solid #374047; box-sizing: border-box;">
+                <span style="font-size: 11px; font-weight: 500; line-height: 1.2; color: #7a828e;">row</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 4px 8px; border-right: 1px solid #374047; min-width: 0; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #d5d7da;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10M8 4v9"></path></svg><span>src</span></div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div title="Change this column's role" style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #28364e; border: 1px solid #4a7ee8; color: #d5d7da; font-size: 10px; line-height: 1; box-sizing: border-box;">Source</div>
+                  <span title="Change this column's type" style="font-size: 10px; line-height: 1; color: #7a828e; white-space: nowrap; cursor: pointer;">Text</span>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 4px 8px; border-right: 1px solid #374047; min-width: 0; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #d5d7da;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10M8 4v9"></path></svg><span>dst</span></div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div title="Change this column's role" style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #28364e; border: 1px solid #4a7ee8; color: #d5d7da; font-size: 10px; line-height: 1; box-sizing: border-box;">Target</div>
+                  <span title="Change this column's type" style="font-size: 10px; line-height: 1; color: #7a828e; white-space: nowrap; cursor: pointer;">Text</span>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 4px 8px; border-right: 1px solid #374047; min-width: 0; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #d5d7da;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5l-1.5 11M11.5 2.5l-1.5 11M3 6h10.5M2.5 10h10.5"></path></svg><span>amount</span></div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div title="Change this column's role" style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #28364e; border: 1px solid #4a7ee8; color: #d5d7da; font-size: 10px; line-height: 1; box-sizing: border-box;">Weight</div>
+                  <span title="Change this column's type" style="font-size: 10px; line-height: 1; color: #7a828e; white-space: nowrap; cursor: pointer;">Decimal</span>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 4px 8px; border-right: 1px solid #374047; min-width: 0; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #d5d7da;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5"></rect><line x1="2.5" y1="7" x2="13.5" y2="7"></line><line x1="5.5" y1="2" x2="5.5" y2="5"></line><line x1="10.5" y1="2" x2="10.5" y2="5"></line></svg><span>ts</span></div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div title="Change this column's role" style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #28364e; border: 1px solid #4a7ee8; color: #d5d7da; font-size: 10px; line-height: 1; box-sizing: border-box;">Time</div>
+                  <span title="Change this column's type" style="font-size: 10px; line-height: 1; color: #7a828e; white-space: nowrap; cursor: pointer;">Date-time</span>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 4px 8px; min-width: 0; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #d5d7da;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10M8 4v9"></path></svg><span>memo</span></div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div title="Change this column's role" style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #28364e; border: 1px solid #4a7ee8; color: #d5d7da; font-size: 10px; line-height: 1; box-sizing: border-box; white-space: nowrap;">Edge attribute</div>
+                  <span title="Change this column's type" style="font-size: 10px; line-height: 1; color: #7a828e; white-space: nowrap; cursor: pointer;">Text</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 52px 96px 96px 116px 168px minmax(0, 1fr); align-items: center; height: 24px; border-bottom: 1px solid #374047; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <div style="padding: 0 8px; text-align: right; color: #7a828e; font-variant-numeric: tabular-nums;">1</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">acct-1032</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">acct-4471</div>
+              <div style="padding: 0 8px; text-align: right; font-variant-numeric: tabular-nums;">940.00</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">2026-01-05T09:12:44Z</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">rent share</div>
+            </div>
+            <div style="display: grid; grid-template-columns: 52px 96px 96px 116px 168px minmax(0, 1fr); align-items: center; height: 24px; border-bottom: 1px solid #374047; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <div style="padding: 0 8px; text-align: right; color: #7a828e; font-variant-numeric: tabular-nums;">2</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">acct-4471</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">merch-88</div>
+              <div style="padding: 0 8px; text-align: right; font-variant-numeric: tabular-nums;">12500.00</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">2026-01-05T11:03:10Z</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">inv 2211</div>
+            </div>
+            <div style="display: grid; grid-template-columns: 52px 96px 96px 116px 168px minmax(0, 1fr); align-items: center; height: 24px; border-bottom: 1px solid #374047; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <div style="padding: 0 8px; text-align: right; color: #7a828e; font-variant-numeric: tabular-nums;">3</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">dev-19c2</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">acct-4471</div>
+              <div style="padding: 0 8px; text-align: right; color: #5f6873;">--</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">2025-12-30T18:40:02Z</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #5f6873;">--</div>
+            </div>
+            <div style="display: grid; grid-template-columns: 52px 96px 96px 116px 168px minmax(0, 1fr); align-items: center; height: 24px; border-bottom: 1px solid #374047; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <div style="padding: 0 8px; text-align: right; color: #7a828e; font-variant-numeric: tabular-nums;">4</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">ph-2076</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">acct-0917</div>
+              <div style="padding: 0 8px; text-align: right; color: #5f6873;">--</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">2025-12-30T18:41:27Z</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #5f6873;">--</div>
+            </div>
+            <div style="display: grid; grid-template-columns: 52px 96px 96px 116px 168px minmax(0, 1fr); align-items: center; height: 24px; border-bottom: 1px solid #374047; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <div style="padding: 0 8px; text-align: right; color: #7a828e; font-variant-numeric: tabular-nums;">5</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">acct-0917</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">acct-1032</div>
+              <div style="padding: 0 8px; text-align: right; font-variant-numeric: tabular-nums;">310.50</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">2026-01-06T07:55:19Z</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">repay</div>
+            </div>
+
+            <!-- the jump: rows 6 to 1,283 parsed cleanly and are not drawn -->
+            <div title="Rows 6 to 1,283 were read without a problem" style="display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: center; height: 18px; border-bottom: 1px solid #374047; font-size: 11px; color: #5f6873; box-sizing: border-box;">
+              <div style="padding: 0 8px; text-align: right; letter-spacing: 1px;">...</div>
+              <div></div>
+            </div>
+
+            <!-- the offending row, in the warning colour. The two values past the header are reported
+                 in the last cell rather than by re-quoting the raw line, which the error block above
+                 already carries in full (Rule 8). -->
+            <div style="display: grid; grid-template-columns: 52px 96px 96px 116px 168px minmax(0, 1fr); align-items: center; height: 24px; font-size: 11px; color: #f7b731; box-sizing: border-box;">
+              <div style="padding: 0 8px; text-align: right; font-variant-numeric: tabular-nums;">1,284</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">acct-4471</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">merch-88</div>
+              <div style="padding: 0 8px; text-align: right; font-variant-numeric: tabular-nums;">12500.00</div>
+              <div style="padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">2026-01-05T11:03:10Z</div>
+              <div style="display: flex; align-items: center; gap: 6px; padding: 0 8px; min-width: 0;">
+                <span style="flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">invoice 2211</span>
+                <span style="flex: 0 0 auto; font-size: 10px; line-height: 1;">+2 values</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- grid footer: what is drawn and what is not. The "-- not set" legend rises here once
+               (Rule 9) rather than standing on four cells. -->
+          <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+            <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">First 5 of 40,912 rows, plus row 1,284</span>
+            <div style="width: 1px; height: 10px; flex: 0 0 auto; background: #374047;"></div>
+            <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; line-height: 1.2; color: #5f6873; white-space: nowrap;"><span>--</span>not set</span>
+          </div>
+        </div>
+
+        <!-- 5. Policies. Not drawn in 1.8 (Rule 7a, DECISIONS-1.8 D5): both controls sit at their
+             shipped defaults, and the counts that would make them a report cannot be known until the
+             file parses -- which on a parse-error board is the whole point. The full sentences are not
+             lost; they return with the rows the moment a policy deviates or a count exists. "Edges
+             that mention unknown nodes" was already not drawn here (Rule 7c: no nodes file). -->
+
+        <!-- 6. Load (subset load) is not drawn. This file is below both numbers, so the control sits
+             at its default, Everything, and Rule 7a draws only a deviation. The scope the Import
+             button acts on is stated by the grid footer's row count, so floor item 4 holds without
+             the row.
+
+             7. Parsing, drawn OPEN with Separator focused. This is item 8's override of the group's
+             remembered open state, for this one opening only: the separator and the quote character
+             are what fix a ragged file, and a user who once collapsed Parsing would otherwise never
+             see them. Rule 7a still governs which members render -- "Skip lines starting with" and
+             "List separator" sit at their defaults and cannot make a row ragged, so they stay behind
+             the group's own overflow; the five that can change this parse are drawn.
+             RT-5 departure, stated: "First row is a header" is a lone boolean. It has no partner to
+             pack with and no owning row to become the trailing slot of, because it changes the whole
+             parse rather than any one field, so it is packed on one line with Start at row inside the
+             group it belongs to.
+
+             1.8, A6: a door glyph draws dimmed at defaults and primary at a deviation. This board draws
+             no Parsing door at all -- item 8's override draws the group OPEN with Separator focused,
+             because a user who once collapsed Parsing would otherwise never see the control that fixes
+             their file. An open group has no stub to colour. -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="height: 1px; background: #495057;"></div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px;">
+            <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+              <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+              </div>
+              <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Parsing</span>
+              <div title="How the text is split into rows and columns: separator, quote character, header row, start row and encoding. Every change re-parses the preview." style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
+              </div>
+            </div>
+            <!-- Rule 8: "Every change re-parses the preview" is not drawn here. It is the last
+                 sentence of the info circle 4px to its left, and a resident twin of a circle's
+                 sentence is the one thing 6.7 forbids. RT-8's trailing slot stays empty. -->
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 6px; min-width: 0; height: 24px;">
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e;">Separator</span>
+              <div title="Separator: comma, tab, semicolon, pipe, space, other" style="display: flex; align-items: center; justify-content: space-between; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-shadow: 0 0 0 1px #5b8ff9; font-size: 11px; color: #d5d7da; box-sizing: border-box; cursor: pointer;">
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Comma <span style="color: #7a828e;">detected</span></span>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; min-width: 0; height: 24px;">
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e;">Quote</span>
+              <div title="Quote character: the mark that lets a value hold the separator" style="display: flex; align-items: center; justify-content: space-between; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box; cursor: pointer;">
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">"</span>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; min-width: 0; height: 24px;">
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e;">Encoding</span>
+              <div title="Encoding: UTF-8, UTF-16, Latin-1" style="display: flex; align-items: center; justify-content: space-between; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box; cursor: pointer;">
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">UTF-8 <span style="color: #7a828e;">detected</span></span>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; min-width: 0; height: 24px;">
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e;">Start at row</span>
+              <div title="Start at row: skip everything above this line" style="display: flex; align-items: center; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;">
+                <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; font-variant-numeric: tabular-nums;">1</span>
+              </div>
+            </div>
+            <div style="grid-column: span 2; display: flex; align-items: center; gap: 6px; min-width: 0; height: 24px;">
+              <div title="First row is a header" style="display: flex; align-items: center; gap: 6px; height: 24px; cursor: pointer;">
+                <div style="width: 16px; height: 16px; flex: 0 0 auto; border-radius: 2px; background: #4a7ee8; display: flex; align-items: center; justify-content: center; box-sizing: border-box;">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline></svg>
+                </div>
+                <span style="font-size: 11px; line-height: 1.2; color: #d5d7da; white-space: nowrap;">First row is a header</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 9. Footer, 48 tall. Cancel at the left and never disabled -- on a parse error it is the only
+           exit. Then the note slot, carrying the reason the primary is disabled in full (floor item
+           4): it names the consequence and both fixes. Then the two verbs: "Skip 4 rows and import"
+           in the outline-warning variant, because it proceeds past a stated loss, and "Import"
+           disabled, whose title repeats the note for a reader who arrives by keyboard. -->
+      <div style="flex: 0 0 48px; height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-top: 1px solid #48525c; box-sizing: border-box;">
+        <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Cancel</div>
+        <div style="flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#f7b731" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
+          <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.4; color: #d5d7da;">4 rows cannot be read. Fix the separator or skip them.</span>
+        </div>
+        <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #f7b731; color: #f7b731; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Skip 4 rows and import</div>
+        <div title="Import. 4 rows cannot be read. Fix the separator or skip them." style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #374047; color: #5f6873; font-size: 11px; font-weight: 500; line-height: 1; cursor: default; box-sizing: border-box;">Import</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

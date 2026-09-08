@@ -1,0 +1,38 @@
+id: data-import-dialog
+name: Data Import Dialog
+category: dialog
+description: Modal dialog for importing graph data. Provides file selection, format detection, column mapping, preview,
+  and validation before import.
+status: planned
+implements_capabilities:
+  - data-import
+  - data-preview
+  - data-validation
+used_in_workflows:
+  - W01
+  - W18
+  - W13
+  - W16
+dependencies:
+  - file-drop-zone
+  - column-mapper
+  - data-preview-table
+  - button
+  - progress-bar
+  - select
+  - toggle-switch
+props:
+  open: boolean - Whether dialog is open
+  onClose: () => void - Close handler
+  onImport: "(data: ImportResult) => void - Import complete handler"
+  supportedFormats: string[] - List of supported format extensions
+sources:
+  - title: File Upload UX Best Practices
+    url: https://www.nngroup.com/articles/drag-drop/
+    summary: Drag-and-drop vs file picker research showing user preferences for different contexts
+  - title: Error Prevention in Forms
+    url: https://www.nngroup.com/articles/slips/
+    summary: Validation patterns to prevent user errors during data import
+version: 1.0.1
+created_at: 2026-01-16T04:00:57.901Z
+updated_at: 2026-01-16T16:40:37.934Z

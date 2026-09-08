@@ -1,0 +1,41 @@
+id: report-generation
+name: Report Generation
+category: export
+description: Export analysis findings as formatted reports combining visualizations, statistics, and narrative text for
+  stakeholder communication.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W15
+implemented_by_components:
+  - report-generator-dialog
+requirements:
+  - Generate report in PDF format with embedded fonts and images
+  - Generate report in HTML format viewable in any browser
+  - Generate report in Markdown format for version control and editing
+  - Include visualization as high-resolution embedded image (PNG for PDF/HTML, reference for Markdown)
+  - "Include graph statistics table: node count, edge count, density, diameter, components"
+  - Include degree distribution chart as embedded image
+  - Include top-10 nodes by each computed centrality metric as ranked tables
+  - "Include community summary: count, size distribution, modularity score"
+  - "Provide editable title field (default: graph filename)"
+  - Provide editable description/summary text area (up to 2000 characters)
+  - Provide editable methodology section describing analysis steps performed
+  - Provide editable findings section for analyst conclusions
+  - "Include auto-generated metadata: export date, data source, tool version"
+  - Include legend explaining all visual encodings used in embedded images
+  - "Provide section toggle: include/exclude each major section"
+  - "Provide template selector: 'Standard', 'Executive Summary', 'Technical Detail'"
+  - Support custom CSS styling for HTML output
+  - Support custom logo/header image for branding
+  - Generate PDF with proper heading hierarchy for accessibility
+  - Include alt text for all images in HTML/PDF output
+  - Generate report within 10 seconds for typical analysis
+  - Display 'Generating report...' progress indicator during generation
+sources:
+  - title: Storytelling with Data
+    url: https://www.storytellingwithdata.com/
+    summary: Best practices for communicating data insights to stakeholders
+  - title: Gephi PDF Export
+    url: https://gephi.org/users/
+    summary: Report generation pattern for network analysis findings

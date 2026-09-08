@@ -1,0 +1,60 @@
+id: intelligence-analyst
+name: Intelligence Analyst
+role: Law Enforcement / Criminal Network Analyst
+quote: The answer is always in the connections - who knows who, who talked to whom, and when did that pattern change.
+bio: Marcus spent a decade in military intelligence before moving to a civilian agency focused on counter-terrorism. He
+  works with classified communication metadata, travel records, and financial transactions to map threat networks. His
+  expertise lies in identifying hidden coordinators and detecting when dormant networks suddenly activate. He needs
+  tools that can handle sensitive data while providing the analytical depth to brief decision-makers.
+characteristics:
+  expertise: intermediate
+  time_pressure: high
+  graph_literacy: moderate
+  domain_knowledge: advanced
+motivations:
+  - Identify threats before they materialize into attacks
+  - Uncover hidden network coordinators who deliberately minimize their visible connections
+  - Provide actionable intelligence to decision-makers under time pressure
+  - Connect disparate data sources to reveal patterns invisible in siloed analysis
+  - Maintain operational security while conducting thorough investigations
+behaviors:
+  - Uses betweenness centrality to find brokers who bridge otherwise disconnected groups
+  - Applies temporal analysis to detect activation patterns in dormant networks
+  - Looks for communication bursts that precede known events
+  - Builds network evolution timelines to track how organizations change over time
+  - Uses geographic overlays to correlate digital connections with physical proximity
+  - Works with multi-modal networks (communication + travel + financial)
+  - Prepares visualizations for briefings that non-technical decision-makers can understand
+goals:
+  - Map criminal organization structure
+  - Identify key players for targeted investigations
+  - Trace flows of money, drugs, weapons
+  - Build prosecution cases with network evidence
+  - Predict criminal activity based on network patterns
+frustrations:
+  - Losing context when exploring deep paths
+  - No way to bookmark or annotate findings
+  - Difficulty documenting evidence for links
+  - Inability to save and share investigation state
+context:
+  frequency: daily
+  devices:
+    - desktop
+  voluntary: false
+workflows:
+  - W01
+  - W05
+  - W09
+  - W15
+  - W17
+sources:
+  - title: "Big Graph Data Visualization: 5 Steps To Large-scale Visual Analysis"
+    url: https://cambridge-intelligence.com/big-graph-data-visualization/
+    summary: Guidance on visualizing large networks for intelligence analysis - filtering, aggregation, and exploration patterns
+  - title: Graph-Based Technologies For Intelligence Analysis
+    url: https://cacm.acm.org/research/graph-based-technologies-for-intelligence-analysis/
+    summary: CACM research article on how graph algorithms help security analysts find threatening activity patterns through
+      social network analysis metrics
+    bibliography:
+      date: 2023-08
+      publisher: Communications of the ACM

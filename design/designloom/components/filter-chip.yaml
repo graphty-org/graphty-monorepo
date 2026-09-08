@@ -1,0 +1,24 @@
+id: filter-chip
+name: Filter Chip
+category: control
+description: Compact removable tag representing an active filter. Shows filter attribute, operator, and value.
+status: planned
+implements_capabilities:
+  - filtering
+  - saved-filters
+used_in_workflows:
+  - W02
+  - W03
+dependencies:
+  - badge
+  - icon-button
+props:
+  attribute: string - Filtered attribute name
+  operator: string - Filter operator (=, >, <, contains, etc.)
+  value: string - Filter value
+  onRemove: () => void - Remove filter handler
+  onClick: () => void - Click to edit filter
+sources: []
+version: 1.0.1
+created_at: 2026-01-16T04:00:02.616Z
+updated_at: 2026-01-16T16:39:29.175Z

@@ -1,0 +1,18 @@
+id: checkbox
+name: Checkbox
+category: control
+description: Checkbox input for boolean or tri-state selections. Supports indeterminate state for partial selections.
+status: planned
+implements_capabilities: []
+used_in_workflows: []
+dependencies: []
+props:
+  checked: boolean - Whether checkbox is checked
+  onChange: "(checked: boolean) => void - Check state change handler"
+  label: string - Checkbox label
+  indeterminate: "boolean - Show indeterminate state (default: false)"
+  disabled: "boolean - Disable the checkbox (default: false)"
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T03:58:36.765Z
+updated_at: 2026-01-16T03:58:36.765Z

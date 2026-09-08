@@ -1,0 +1,41 @@
+id: large-graph-rendering
+name: Large Graph Rendering
+category: performance
+description: Handle visualization of large graphs (10,000+ nodes) through optimization techniques including
+  level-of-detail, culling, and efficient GPU rendering. Maintain interactive performance even with complex datasets.
+status: planned
+algorithms:
+  - GPU instancing
+  - Viewport culling
+  - Level-of-detail
+  - Barnes-Hut for layout
+used_by_workflows:
+  - W07
+  - W10
+implemented_by_components:
+  - graph-canvas
+requirements:
+  - Maintain 60fps rendering for graphs up to 10,000 nodes and 50,000 edges
+  - Maintain 30fps minimum rendering for graphs up to 50,000 nodes and 200,000 edges
+  - Maintain 15fps minimum rendering for graphs up to 100,000 nodes and 500,000 edges
+  - Use GPU instanced rendering for all node shapes
+  - Use GPU instanced rendering for edge lines
+  - "Implement viewport culling: skip rendering nodes/edges outside visible area"
+  - "Implement level-of-detail: hide labels when zoom level < 50%"
+  - "Implement level-of-detail: simplify node shapes to circles when zoom level < 25%"
+  - "Implement level-of-detail: render edges as single-pixel lines when zoom level < 25%"
+  - Implement edge bundling or hiding when edge count exceeds 100,000
+  - Aggregate nodes into supernodes when zoom level < 10% (show cluster representatives)
+  - Display supernode with size proportional to aggregated node count
+  - Expand supernode to individual nodes on zoom-in or click
+  - "Show rendering performance indicator: 'FPS: 60' in debug mode"
+  - Display 'Performance mode active' indicator when optimizations are applied
+  - Provide manual 'Enable performance mode' toggle in settings
+  - "Gracefully degrade: reduce visual quality before dropping frames"
+  - Report 'Graph too large' warning when node count exceeds 200,000
+  - Suggest filtering or sampling when graph exceeds rendering capacity
+  - Pre-compute spatial index (quadtree/R-tree) for efficient viewport queries
+sources:
+  - title: Complete Graph Visualization Textbook - Chapter 7
+    url: https://graphty.app/docs/
+    summary: Scalability and Large-Scale Graph Visualization

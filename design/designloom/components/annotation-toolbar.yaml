@@ -1,0 +1,26 @@
+id: annotation-toolbar
+name: Annotation Toolbar
+category: control
+description: Toolbar for adding annotations to the graph visualization. Includes text labels, arrows, highlights, and shapes.
+status: planned
+implements_capabilities:
+  - annotation
+used_in_workflows:
+  - W15
+  - W06
+  - W09
+dependencies:
+  - icon-button
+  - color-picker
+  - select
+  - divider
+props:
+  activeTool: string - Active annotation tool
+  onToolChange: "(tool: string) => void - Tool selection handler"
+  annotations: Annotation[] - Current annotations
+  onAnnotationAdd: "(annotation: Annotation) => void - Add annotation handler"
+  onAnnotationDelete: "(id: string) => void - Delete annotation handler"
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T04:02:53.663Z
+updated_at: 2026-01-16T04:02:53.663Z

@@ -1,0 +1,38 @@
+id: data-validation
+name: Data Validation
+category: data
+description: Validate imported graph data for quality issues before proceeding with analysis. Identify missing values,
+  orphan nodes, duplicate edges, type mismatches, and structural anomalies. Generate a quality report with actionable
+  recommendations.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W01
+  - W13
+  - W18
+implemented_by_components:
+  - data-preview-table
+  - data-import-dialog
+requirements:
+  - Detect and report nodes missing required ID field
+  - Detect and report edges missing source or target field
+  - Identify orphan references where edge endpoints reference non-existent node IDs
+  - Count and list duplicate edges between identical node pairs
+  - Flag attribute type inconsistencies (e.g., numeric field with string values)
+  - Identify isolated nodes with degree 0
+  - Identify self-loops (edges where source equals target)
+  - Calculate attribute completeness as percentage of non-null values per field
+  - Generate overall data quality score from 0-100 based on weighted issue counts
+  - Categorize issues as 'Error' (blocks import), 'Warning' (allows import), or 'Info'
+  - Provide specific fix recommendation for each issue type
+  - Allow user to proceed with warnings after acknowledgment
+  - Block import for error-level issues until resolved
+  - Complete validation within 3 seconds for graphs under 10,000 edges
+  - Display validation progress for graphs over 10,000 edges
+  - Export validation report as JSON or CSV
+  - Provide 'Auto-fix' option for resolvable issues (e.g., remove orphan edges)
+  - Show before/after preview for auto-fix operations
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 2
+    url: https://graphty.app/docs/
+    summary: Data Quality Assessment - completeness, accuracy, consistency checks

@@ -1,0 +1,99 @@
+id: tooltip-interaction
+name: Tooltip Interaction
+description: Interaction pattern for hover-triggered informational overlays. Unlike popout-interaction, tooltips use
+  hover/focus triggers with delay, have no focus trap, and are purely informational (not interactive content).
+interaction:
+  states:
+    - type: default
+      name: hidden
+      description: Tooltip not visible
+      style:
+        opacity: 0
+      combinable: false
+    - type: custom
+      name: delay
+      description: Waiting for delay before showing
+      style: {}
+      combinable: false
+    - type: default
+      name: visible
+      description: Tooltip shown near trigger
+      style:
+        background: "{colors.neutral.800}"
+        opacity: 1
+        shadow: "{shadows.md}"
+      combinable: false
+    - type: custom
+      name: hiding
+      description: Fading out
+      style:
+        opacity: 0
+      combinable: false
+  transitions:
+    - from: default
+      to: custom
+      trigger: mouseenter
+      reversible: true
+    - from: custom
+      to: default
+      trigger: mouseleave_during_delay
+      reversible: true
+    - from: custom
+      to: default
+      trigger: delay_complete
+      reversible: true
+    - from: default
+      to: default
+      trigger: mouseleave
+      reversible: true
+    - from: default
+      to: default
+      trigger: escape
+      reversible: true
+    - from: default
+      to: default
+      trigger: scroll
+      reversible: true
+  microinteractions:
+    - id: fade-in
+      name: Fade In
+      trigger:
+        type: hover
+      rules:
+        - opacity 0 to 1 over {motion.durations.fast} after {motion.durations.slow} delay
+      feedback:
+        - type: visual
+          description: Tooltip fades in after delay
+    - id: fade-out
+      name: Fade Out
+      trigger:
+        type: blur
+      rules:
+        - opacity 1 to 0 over {motion.durations.fast}
+      feedback:
+        - type: visual
+          description: Tooltip fades out immediately
+    - id: position-follow
+      name: Position Follow
+      trigger:
+        type: hover
+      rules:
+        - position near trigger, flip if near edge
+      feedback:
+        - type: visual
+          description: Tooltip stays near trigger
+  accessibility:
+    keyboard:
+      focusable: false
+      shortcuts:
+        - key: Escape
+          action: hide
+    aria:
+      role: tooltip
+applies_to:
+  - utility
+  - display
+sources: []
+version: 1.0.0
+created_at: 2026-01-15T20:07:45.946Z
+updated_at: 2026-01-15T20:07:45.946Z

@@ -1,0 +1,48 @@
+id: graph-canvas
+name: Graph Canvas
+category: display
+description: Main graph visualization canvas using WebGL/Babylon.js for GPU-accelerated rendering. Handles node/edge
+  rendering, camera controls, and interaction events.
+status: planned
+implements_capabilities:
+  - graph-rendering
+  - large-graph-rendering
+  - node-selection
+  - hover-highlight
+  - animated-transitions
+used_in_workflows:
+  - W14
+  - W02
+  - W15
+  - W03
+  - W04
+  - W05
+  - W06
+  - W09
+  - W11
+  - W16
+  - W17
+  - W19
+  - W07
+  - W12
+dependencies: []
+props:
+  graph: Graph - Graph data to render
+  layout: string - Active layout algorithm
+  renderMode: "string - Rendering mode: '2d' | '3d' (default: '3d')"
+  selection: string[] - Selected node/edge IDs
+  onSelectionChange: "(ids: string[]) => void - Selection change handler"
+  onNodeClick: "(nodeId: string, event: MouseEvent) => void - Node click handler"
+  onNodeHover: "(nodeId: string | null) => void - Node hover handler"
+  onCanvasClick: "(event: MouseEvent) => void - Background click handler"
+  onZoomChange: "(level: number) => void - Zoom level change handler"
+sources:
+  - title: WebGL Best Practices for Graph Visualization
+    url: https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices
+    summary: Performance optimization techniques for GPU-accelerated rendering of large datasets
+  - title: Force-Directed Graph Drawing
+    url: https://en.wikipedia.org/wiki/Force-directed_graph_drawing
+    summary: Foundational algorithms for automatic graph layout including spring-electrical models
+version: 1.0.1
+created_at: 2026-01-16T04:00:57.693Z
+updated_at: 2026-01-16T16:40:37.119Z

@@ -1,0 +1,46 @@
+id: community-detection
+name: Community Detection
+category: analysis
+description: Identify densely connected groups (communities) within the network. Assign each node to a community and
+  calculate modularity to measure the quality of the partition. Communities often correspond to functional groups,
+  teams, or topical clusters.
+status: planned
+algorithms:
+  - Louvain algorithm
+  - Modularity optimization
+  - Label propagation
+used_by_workflows:
+  - W03
+  - W04
+  - W06
+  - W08
+  - W09
+  - W10
+  - W12
+  - W14
+  - W19
+implemented_by_components:
+  - algorithm-card
+  - algorithm-panel
+  - community-panel
+requirements:
+  - Implement Louvain algorithm as primary community detection method
+  - Implement Label Propagation as alternative fast method for very large graphs
+  - Calculate modularity score with 4 decimal places (range -0.5 to 1.0)
+  - Provide resolution parameter adjustable from 0.1 to 5.0 (default 1.0)
+  - Lower resolution values produce fewer, larger communities; higher values produce more, smaller communities
+  - Return community assignment as integer ID for each node (starting from 0)
+  - Report total number of communities detected
+  - Report size of each community (node count) sorted by size descending
+  - Report size of largest and smallest communities
+  - Support hierarchical community detection returning dendrogram structure
+  - Store community assignment as node attribute named 'community'
+  - Complete Louvain calculation within 10 seconds for graphs under 100,000 nodes
+  - Complete Label Propagation within 5 seconds for graphs under 100,000 nodes
+  - Display progress indicator for calculations exceeding 3 seconds
+  - Report 'Single community' when all nodes belong to one community (modularity near 0)
+  - Handle disconnected components by detecting communities within each separately
+sources:
+  - title: Graph Analysis Textbook - Chapter 5
+    url: https://graphty.app/docs/
+    summary: Community Detection and Clustering including Louvain algorithm

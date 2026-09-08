@@ -1,0 +1,26 @@
+id: search-panel
+name: Search Panel
+category: display
+description: Collapsible search panel with input, options, and scrollable results list. Supports filtering by attribute
+  and search mode toggles.
+status: planned
+implements_capabilities:
+  - search
+used_in_workflows:
+  - W06
+  - W05
+  - W07
+dependencies:
+  - search-input
+  - search-result-item
+  - select
+  - checkbox
+  - divider
+props:
+  onNodeSelect: "(nodeId: string) => void - Node selection handler"
+  onNodeNavigate: "(nodeId: string) => void - Navigate to node handler"
+  searchHistory: string[] - Recent search queries
+sources: []
+version: 1.0.1
+created_at: 2026-01-16T04:01:27.253Z
+updated_at: 2026-01-16T16:39:44.687Z

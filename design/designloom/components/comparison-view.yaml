@@ -1,0 +1,27 @@
+id: comparison-view
+name: Comparison View
+category: display
+description: Split view for comparing two graphs or graph states side-by-side. Synchronizes navigation and highlights differences.
+status: planned
+implements_capabilities:
+  - comparison-view
+used_in_workflows:
+  - W03
+  - W11
+  - W19
+  - W04
+dependencies:
+  - graph-canvas
+  - toggle-switch
+  - divider
+props:
+  leftGraph: Graph - Left graph data
+  rightGraph: Graph - Right graph data
+  syncNavigation: boolean - Synchronize camera between views
+  highlightDifferences: boolean - Highlight added/removed elements
+  onLeftSelect: "(ids: string[]) => void - Left selection handler"
+  onRightSelect: "(ids: string[]) => void - Right selection handler"
+sources: []
+version: 1.0.1
+created_at: 2026-01-16T04:02:54.239Z
+updated_at: 2026-01-16T16:39:28.753Z

@@ -1,0 +1,21 @@
+id: keyboard-shortcuts-dialog
+name: Keyboard Shortcuts Dialog
+category: dialog
+description: Reference dialog listing all available keyboard shortcuts organized by category.
+status: planned
+implements_capabilities:
+  - keyboard-shortcuts
+used_in_workflows:
+  - W02
+  - W03
+dependencies:
+  - keyboard-shortcut
+  - divider
+props:
+  open: boolean - Whether dialog is open
+  onClose: () => void - Close handler
+  shortcuts: "Array<{category: string, items: Shortcut[]}> - Organized shortcuts"
+sources: []
+version: 1.0.1
+created_at: 2026-01-16T04:02:23.513Z
+updated_at: 2026-01-16T16:39:36.397Z

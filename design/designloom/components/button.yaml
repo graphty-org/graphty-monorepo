@@ -1,0 +1,48 @@
+id: button
+name: Button
+category: control
+description: Interactive button for triggering actions. Supports multiple variants (primary, secondary, ghost), sizes,
+  icon placement, and loading states.
+status: planned
+implements_capabilities: []
+used_in_workflows: []
+dependencies:
+  - icon
+props:
+  label:
+    type: string
+    required: false
+    description: Button text label
+  variant:
+    type: string
+    required: false
+    description: "Visual variant: 'primary' | 'secondary' | 'ghost' | 'danger'"
+  size:
+    type: string
+    required: false
+    description: "Button size: 'sm' | 'md' | 'lg'"
+  icon:
+    type: string
+    required: false
+    description: Icon name to display in button
+  iconPosition:
+    type: string
+    required: false
+    description: "Icon position: 'left' | 'right' | 'only'"
+  disabled:
+    type: boolean
+    required: false
+    description: Whether button is disabled
+  loading:
+    type: boolean
+    required: false
+    description: Show loading spinner and disable interaction
+  onClick:
+    type: function
+    type_definition: () => void
+    required: true
+    description: Click handler
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T03:58:11.633Z
+updated_at: 2026-01-16T03:58:11.633Z

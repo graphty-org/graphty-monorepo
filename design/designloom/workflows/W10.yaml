@@ -1,0 +1,105 @@
+id: W10
+name: Influencer Identification
+category: analysis
+validated: false
+personas:
+  - marketing-analyst
+requires_capabilities:
+  - centrality-degree
+  - centrality-betweenness
+  - centrality-pagerank
+  - centrality-eigenvector
+  - community-detection
+  - filtering
+  - visual-encoding-nodes
+  - statistics-panel
+  - data-export
+  - large-graph-rendering
+  - computed-attributes
+  - algorithm-progress
+  - metric-histograms
+suggested_components: []
+starting_state:
+  data_type: social network graph
+  node_count: 10000-1000000
+  edge_density: sparse
+  user_expertise: intermediate
+goal: >-
+  **Intent**: Identify influential individuals in a social network for marketing, organizational change, or information
+  dissemination. User needs to find people who can amplify messages and understand different types of influence.
+
+
+  **Mental Model**: "Finding the megaphones" - people whose voice reaches many others. Different types of influencers:
+  Broadcasters (high reach), Bridges (connect groups), Experts (domain authority), Viral starters (spark cascades).
+
+
+  **Task Phases**:
+
+  1. **Define Influence** - What type of influence matters? Reach? Engagement? Brokerage? Expertise?
+
+  2. **Compute Metrics** - Calculate relevant centrality measures (degree, betweenness, PageRank)
+
+  3. **Segment** - Categorize influencers by type (broadcaster, bridge, expert, viral)
+
+  4. **Validate** - Check content quality, audience alignment, historical performance
+
+  5. **Rank and Select** - Create prioritized list considering cost-effectiveness
+
+
+  **Decision Points**:
+
+  - What type of influence is most relevant to my goal?
+
+  - How to weight different centrality measures?
+
+  - What's the minimum audience size threshold?
+
+  - Does influencer's audience align with target demographic?
+
+  - Cost/benefit of different influencer tiers?
+
+
+  **Information Needs**:
+
+  - Multiple centrality scores per person (degree, betweenness, PageRank, eigenvector)
+
+  - Community membership (which audiences do they reach?)
+
+  - Content analysis (what topics do they cover?)
+
+  - Engagement metrics (do people respond to them?)
+
+  - Historical campaign performance (if available)
+
+
+  **Pain Points**:
+
+  - Fake followers inflate metrics
+
+  - High-centrality doesn't mean high engagement
+
+  - Influencer rates may exceed budget
+
+  - Audience overlap between influencers (diminishing returns)
+
+  - Content mismatch with brand
+
+
+  **Data Flow**:
+
+  - Input: Social graph (followers, interactions)
+
+  - Transformations: Centrality calculation, segmentation, scoring
+
+  - Output: Ranked influencer list with type classification and audience profiles
+success_criteria:
+  - metric: Influencers identified
+    target: Ranked list by type
+  - metric: Audience alignment
+    target: Target demographic match validated
+  - metric: Campaign ROI
+    target: Higher engagement vs. non-graph-based selection
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 6
+    url: https://graphty.app/docs/
+    summary: Social Network Analysis and Influencer Marketing Workflow

@@ -1,0 +1,18 @@
+id: toggle-switch
+name: Toggle Switch
+category: control
+description: Toggle switch for binary on/off settings. Provides clear visual feedback of current state.
+status: planned
+implements_capabilities: []
+used_in_workflows: []
+dependencies: []
+props:
+  checked: boolean - Whether toggle is on
+  onChange: "(checked: boolean) => void - Toggle change handler"
+  label: string - Toggle label
+  size: "string - Toggle size: 'sm' | 'md' | 'lg' (default: 'md')"
+  disabled: "boolean - Disable the toggle (default: false)"
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T03:58:36.915Z
+updated_at: 2026-01-16T03:58:36.915Z

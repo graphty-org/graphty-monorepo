@@ -1,0 +1,33 @@
+id: hover-highlight
+name: Hover Highlighting
+category: interaction
+description: Highlight nodes and their connections when the cursor hovers over them. Show related elements (neighbors,
+  edges) prominently while dimming unrelated elements. Enable exploration without commitment.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W02
+  - W05
+implemented_by_components:
+  - graph-canvas
+  - node-tooltip
+requirements:
+  - Highlight hovered node with increased border width (3px) and glow effect
+  - Highlight edges connected to hovered node with increased width (2x normal)
+  - Highlight neighbor nodes with increased opacity and subtle border
+  - Dim non-related nodes to 30% opacity while hover is active
+  - Dim non-related edges to 20% opacity while hover is active
+  - Display node label on hover even when global labels are hidden
+  - Respond to hover within 50ms (no perceptible delay)
+  - Clear highlight within 50ms when cursor leaves node
+  - "Provide option to extend highlight to 2-hop neighbors (default: 1-hop)"
+  - Show edge label on edge hover even when edge labels are hidden
+  - Display 'N neighbors' count badge near hovered node
+  - Support touch-and-hold as hover equivalent for touch devices (300ms hold)
+  - Do not trigger highlight when actively panning or zooming
+  - Maintain highlight during slow cursor movement across node
+  - Provide setting to disable hover highlighting for performance
+sources:
+  - title: Complete Graph Visualization Textbook - Chapter 6
+    url: https://graphty.app/docs/
+    summary: Hover Highlighting - transient exploration without commitment

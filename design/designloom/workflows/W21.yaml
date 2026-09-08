@@ -1,0 +1,141 @@
+id: W21
+name: Cluster and Functionally Annotate a Molecular Network
+category: analysis
+validated: false
+personas:
+  - genomics-cytoscape-user
+  - bioinformatics-researcher
+requires_capabilities:
+  - community-detection
+  - community-profiling
+  - filtering
+  - node-selection
+  - selection-statistics
+  - visual-encoding-nodes
+  - legend-display
+  - annotation
+  - layout-force-directed
+  - data-export
+  - export-image
+  - algorithm-progress
+  - analysis-history
+suggested_components:
+  - algorithm-card
+  - community-panel
+  - cluster-table
+  - enrichment-results-table
+  - node-chart-overlay
+  - annotation-toolbar
+  - graph-canvas
+  - export-dialog
+starting_state:
+  data_type: protein-protein interaction network with joined attributes
+  node_count: 100-2000
+  edge_density: sparse
+  user_expertise: intermediate
+goal: >-
+  **Intent**: Break an interaction network into tightly connected modules and say what each module does
+  biologically. The cluster is the unit of interpretation: "cluster 2 is ribosome biogenesis, cluster 5 is immune
+  response".
+
+
+  **Mental Model**: "Sort the parts bin, then label the bins." Clustering sorts proteins into complexes or pathways;
+  enrichment puts a name on each bin by asking which known gene sets are over-represented in it.
+
+
+  **Task Phases**:
+
+  1. **Cluster** (2 min) - Run MCL (inflation 2 to 4) or a dense-subgraph method (MCODE style); Louvain is acceptable
+  but biologists expect MCL because that is what the tutorials use
+
+  2. **Inspect clusters** (5 min) - Table of clusters by size; click a row to select and center its members; drop
+  clusters below 3 or 4 nodes; optionally lay out each cluster as its own subnetwork
+
+  3. **Annotate each cluster** (10 min) - For the selected cluster, obtain enriched GO Biological Process, KEGG or
+  Reactome terms with FDR, filter redundant terms, keep the top 3 to 5; when no enrichment service is available,
+  profile the cluster by the categorical and numeric columns already on the nodes (mean logFC, dominant annotation)
+
+  4. **Show terms on the map** (5 min) - Color clusters, write the top term as a cluster label or annotation, and
+  optionally draw small pie or donut charts on nodes for term membership
+
+  5. **Export** (3 min) - Cluster membership CSV, enrichment table CSV, figure with legend
+
+
+  **Decision Points**:
+
+  - Which clustering method and granularity (inflation, resolution) gives clusters that match known complexes?
+
+  - Minimum cluster size worth annotating?
+
+  - Which ontology (GO BP, KEGG, Reactome, domains) and which FDR cutoff (0.05 common)?
+
+  - Remove redundant terms or keep the full list?
+
+  - Label clusters by term, by top hub gene, or by manual name?
+
+
+  **Information Needs**:
+
+  - Cluster count, sizes, internal density, and modularity
+
+  - Per-cluster membership list that can be copied or exported
+
+  - Enrichment table per cluster: term, category, gene count, FDR, genes in term
+
+  - Which nodes have no cluster (singletons)
+
+  - Running state and cancel for clustering on 1000+ nodes
+
+
+  **Pain Points**:
+
+  - Enrichment requires an external service (STRING, g:Profiler, Enrichr) or a locally loaded gene-set file; nothing
+  works offline without one
+
+  - Redundant GO terms (dozens of near-identical "regulation of..." terms) drown the signal
+
+  - Cluster colors run out or collide past 8 to 12 clusters
+
+  - Copying members out of a cluster one node at a time
+
+  - Re-running enrichment per cluster by hand for 15 clusters
+
+  - Dense clusters render as hairballs; layout per cluster is manual
+
+
+  **Data Flow**:
+
+  - Input: Interaction network with node attributes; optional gene-set file (GMT) or enrichment service
+
+  - Transformations: Clustering, per-cluster profiling and enrichment, redundancy filtering, label generation
+
+  - Output: Cluster assignment attribute, per-cluster enrichment tables, annotated figure
+success_criteria:
+  - metric: Clusters annotated
+    target: Every cluster of size >= 4 has a top term or a profile
+  - metric: Reproducibility
+    target: Clustering method and parameters recorded in analysis history and exportable
+  - metric: Figure readiness
+    target: Cluster colors and labels exported with a legend
+sources:
+  - title: Cytoscape tutorial - Functional Enrichment Analysis
+    url: https://cytoscape.org/cytoscape-tutorials/protocols/functional-enrichment/
+    summary: Column filters on log2FC, STRING query at confidence 0.8, MCL clustering into a new network, per-component enrichment
+  - title: JensenLab stringApp exercises
+    url: https://jensenlab.org/training/stringapp/
+    summary: MCL with inflation 4, subnetwork extraction, GO and KEGG enrichment with split charts, enriched publications
+  - title: Cytoscape tutorial - Differentially Expressed Genes Network Analysis
+    url: https://cytoscape.org/cytoscape-tutorials/protocols/differentially-expressed-genes/
+    summary: Enrichment filter to GO Biological Process with redundant terms removed, split donut and pie charts
+  - title: Cytoscape App Store - ClueGO
+    url: https://apps.cytoscape.org/apps/cluego
+    summary: Functionally grouped term networks for one or several gene clusters
+  - title: BiNGO - overrepresentation of GO categories in biological networks
+    url: https://academic.oup.com/bioinformatics/article/21/16/3448/216306
+    summary: Enrichment on a selected node set, commonly the output of MCODE
+  - title: Biostars - finding high-scoring and functionally enriched subnetworks
+    url: https://www.biostars.org/p/7716/
+    summary: Common MCODE then GO/KEGG per cluster practice
+version: 1.0.0
+created_at: 2026-09-04T00:00:00.000Z
+updated_at: 2026-09-04T00:00:00.000Z

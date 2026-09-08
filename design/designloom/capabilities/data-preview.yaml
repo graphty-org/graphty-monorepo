@@ -1,0 +1,36 @@
+id: data-preview
+name: Data Preview
+category: data
+description: Preview a sample of graph data before committing to full import. Show detected format, field mapping,
+  sample nodes and edges, and estimated total counts to let users verify the import will work as expected.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W01
+  - W14
+  - W18
+implemented_by_components:
+  - data-preview-table
+  - data-import-dialog
+requirements:
+  - Display first 10 rows of raw source data in tabular format
+  - "Show detected file format with confidence percentage (e.g., 'CSV detected: 98% confidence')"
+  - Display inferred data type for each column (string, integer, float, boolean, date)
+  - Show source-to-attribute mapping with editable field assignments
+  - Display estimated total node count based on sampling
+  - Display estimated total edge count based on sampling
+  - Show 3 sample nodes with all detected attributes
+  - Show 3 sample edges with source, target, and all attributes
+  - Allow user to reassign column mappings before proceeding
+  - Allow user to change inferred data types before proceeding
+  - Allow user to skip/exclude specific columns from import
+  - Render preview within 2 seconds for files up to 10MB
+  - Show loading indicator for preview generation taking longer than 500ms
+  - Display warning banner for any detected data quality issues
+  - Provide 'Cancel' button to abort import process
+  - Provide 'Import' button to proceed with current settings
+  - Disable 'Import' button with explanation when critical mapping is missing
+sources:
+  - title: W18 Data Import and Validation
+    url: https://graphty.app/docs/
+    summary: Preview phase - see sample of data before committing to full load

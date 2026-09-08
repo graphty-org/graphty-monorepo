@@ -1,0 +1,56 @@
+id: marketing-analyst
+name: Marketing Network Analyst
+role: Social Network Analyst / Growth Marketing Strategist
+quote: Show me who influences whom, and I'll show you where to spend the marketing budget.
+bio: Jordan has worked in growth marketing for 6 years, starting with traditional analytics before discovering the power
+  of network effects. She now specializes in influencer identification, community segmentation, and viral marketing
+  campaigns. She's learned that understanding the social graph is often more valuable than demographic data alone - the
+  right micro-influencer can outperform a celebrity if they're positioned at a key network bridge.
+characteristics:
+  expertise: intermediate
+  time_pressure: medium
+  graph_literacy: moderate
+  domain_knowledge: advanced
+motivations:
+  - Maximize ROI on marketing campaigns by targeting the right influencers
+  - Understand community structure to create more relevant messaging
+  - Predict which customers are at risk of churning based on network position
+  - Identify viral potential before competitors discover emerging influencers
+  - Build data-driven cases for marketing spend allocation
+behaviors:
+  - Computes multiple centrality metrics to identify different types of influence (reach vs engagement vs brokerage)
+  - Uses community detection to segment audiences for targeted campaigns
+  - Analyzes ego networks around key customers to understand their social context
+  - Tracks network evolution to spot rising influencers early
+  - Exports ranked lists of influencers with engagement metrics for campaign planning
+  - Correlates network position with churn risk to prioritize retention efforts
+  - Creates visualizations showing information flow paths for campaign presentations
+goals:
+  - Identify high-impact influencers for marketing campaigns
+  - Segment customers into communities for targeted messaging
+  - Predict and prevent customer churn using network signals
+  - Understand how information spreads through customer networks
+  - Measure the network effect of marketing interventions
+frustrations:
+  - Difficulty explaining network metrics to non-technical stakeholders
+  - Tools that can't handle social graphs with millions of users
+  - No easy way to combine network position with traditional customer attributes
+  - Lack of temporal analysis to track how influence changes over time
+  - Hard to measure attribution when effects spread through networks
+context:
+  frequency: weekly
+  devices:
+    - desktop
+    - laptop
+  voluntary: true
+workflows:
+  - W04
+  - W10
+sources:
+  - title: How Network Analysis Helps in Finding the Right Influencers
+    url: https://grin.co/blog/influencers-network-analysis/
+    summary: Explains how network analysis uses centrality metrics and graph position to identify influential users beyond
+      simple follower counts
+  - title: Social Media Influencer Identification Using Graphs
+    url: https://www.analyticsvidhya.com/blog/2020/03/using-graphs-to-identify-social-media-influencers/
+    summary: Practical guide to building influencer graphs and computing network metrics for marketing

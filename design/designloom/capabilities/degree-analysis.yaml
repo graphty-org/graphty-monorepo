@@ -1,0 +1,36 @@
+id: degree-analysis
+name: Degree Analysis
+category: analysis
+description: Analyze the degree distribution of a graph to understand connectivity patterns. Calculate degree for each
+  node, visualize the distribution, and identify if it follows expected patterns (normal, power-law, bimodal). Essential
+  for identifying hubs and assessing data quality.
+status: planned
+algorithms:
+  - Degree calculation
+  - Power-law fitting
+used_by_workflows:
+  - W01
+  - W12
+implemented_by_components:
+  - histogram
+  - statistics-panel
+requirements:
+  - Calculate degree for each node (total edge count)
+  - Calculate in-degree and out-degree separately for directed graphs
+  - Generate degree distribution histogram with automatic bin count (Sturges' formula)
+  - Support log-log scale toggle for power-law visualization
+  - "Calculate degree statistics: mean, median, mode, standard deviation, skewness"
+  - Identify degree outliers as nodes with degree > mean + 3*stddev
+  - Display count and list of outlier nodes (potential hubs)
+  - Fit power-law distribution using maximum likelihood estimation
+  - Report power-law exponent (alpha) with 2 decimal places when distribution fits
+  - Report p-value for power-law fit goodness-of-fit test
+  - Display 'Power-law detected (α=X.XX)' or 'Not power-law' based on p-value > 0.1 threshold
+  - Support filtering nodes by degree range (min-max slider)
+  - Highlight nodes matching current degree filter in graph view
+  - Complete analysis within 2 seconds for graphs under 100,000 nodes
+  - Export degree distribution data as CSV (degree value, count, cumulative)
+sources:
+  - title: Graph Analysis Textbook - Chapter 3
+    url: https://graphty.app/docs/
+    summary: Degree distribution analysis and scale-free network detection

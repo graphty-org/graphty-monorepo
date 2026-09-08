@@ -1,0 +1,35 @@
+id: node-merging
+name: Node Merging
+category: data
+description: Combine multiple selected nodes into a single node, consolidating their edges and attributes, for data
+  cleaning or abstraction purposes.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W09
+  - W13
+implemented_by_components:
+  - node-merge-dialog
+requirements:
+  - Allow selection of 2 or more nodes for merge operation
+  - "Specify attribute conflict resolution: keep-first, keep-last, concatenate, or sum (numeric)"
+  - Transfer all edges from merged nodes to the resulting node
+  - Preserve original edge attributes during transfer
+  - "Handle duplicate edges with options: keep-all, keep-first, sum-weights, or remove-duplicates"
+  - Remove self-loops created when merged nodes were connected to each other
+  - Support undo operation to restore original nodes and edges within session
+  - Display merge preview showing resulting node attributes and edge count
+  - Require explicit confirmation before executing merge
+  - Log merge operations with timestamp, source nodes, and result node ID
+  - Support batch merge based on attribute matching (e.g., nodes with identical 'name' attribute)
+  - Display batch merge preview with count of merge groups before execution
+  - Complete single merge operation within 500ms for graphs under 10,000 nodes
+  - Report 'Cannot merge' error when fewer than 2 nodes are selected
+  - Disable merge option when graph is in read-only mode
+sources:
+  - title: Entity Resolution in Knowledge Graphs
+    url: https://arxiv.org/abs/2003.08791
+    summary: Merging duplicate entities representing the same real-world thing
+  - title: Neo4j APOC Merge Nodes
+    url: https://neo4j.com/labs/apoc/
+    summary: Node merging pattern in graph databases

@@ -1,0 +1,27 @@
+id: computed-attributes-panel
+name: Computed Attributes Panel
+category: display
+description: Panel for viewing and managing computed node/edge attributes. Create formulas based on existing attributes
+  and graph metrics.
+status: planned
+implements_capabilities:
+  - computed-attributes
+used_in_workflows:
+  - W03
+  - W06
+  - W12
+dependencies:
+  - text-input
+  - select
+  - button
+  - icon-button
+  - divider
+props:
+  computedAttributes: ComputedAttribute[] - Defined computed attributes
+  onAdd: "(attr: ComputedAttribute) => void - Add attribute handler"
+  onEdit: "(id: string, attr: ComputedAttribute) => void - Edit handler"
+  onDelete: "(id: string) => void - Delete handler"
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T04:03:21.184Z
+updated_at: 2026-01-16T04:03:21.184Z

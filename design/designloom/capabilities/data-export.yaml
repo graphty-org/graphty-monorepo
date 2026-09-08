@@ -1,0 +1,38 @@
+id: data-export
+name: Data Export
+category: data
+description: Export graph data to various formats for use in other tools or for sharing. Support common formats and
+  include computed attributes (centrality scores, community assignments) in the export.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W08
+  - W10
+  - W13
+  - W16
+  - W15
+implemented_by_components:
+  - data-export-dialog
+requirements:
+  - Export to CSV edge list format with configurable delimiter
+  - Export to CSV node list format with all attributes as columns
+  - Export to JSON node-link format per D3.js specification
+  - Export to GraphML 1.1 format with full attribute preservation
+  - Include all original node and edge attributes in export
+  - Optionally include computed metrics (centrality scores, community IDs) as attributes
+  - Export only filtered/selected subset when selection is active
+  - Export full graph when no selection is active
+  - Use UTF-8 encoding for all text exports
+  - Include byte-order mark (BOM) option for Excel compatibility
+  - Complete export of 10,000-node graph within 5 seconds
+  - Complete export of 100,000-node graph within 30 seconds
+  - Display progress indicator for exports taking longer than 2 seconds
+  - Report 'Export failed' error with specific reason on I/O failure
+  - Generate valid, parseable output that can be re-imported without data loss
+  - Preserve numeric precision to 6 decimal places for floating-point attributes
+  - Escape special characters appropriately per format specification
+  - Provide download prompt with suggested filename based on graph name and format
+sources:
+  - title: Graph Data Formats - Textbook Chapter 2
+    url: https://graphty.app/docs/
+    summary: Standard file formats for graph data interchange

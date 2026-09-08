@@ -1,0 +1,25 @@
+id: toolbar
+name: Toolbar
+category: navigation
+description: Main application toolbar with action buttons, tool selection, and quick access to common operations.
+status: planned
+implements_capabilities: []
+used_in_workflows:
+  - W14
+  - W02
+dependencies:
+  - icon-button
+  - button
+  - divider
+  - tooltip
+  - select
+props:
+  activeTool: string - Currently active tool
+  onToolChange: "(tool: string) => void - Tool selection handler"
+  onAction: "(action: string) => void - Action button handler"
+  undoAvailable: boolean - Whether undo is available
+  redoAvailable: boolean - Whether redo is available
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T04:01:55.795Z
+updated_at: 2026-01-16T04:01:55.795Z

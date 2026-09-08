@@ -1,0 +1,42 @@
+id: statistics-panel
+name: Statistics Panel
+category: export
+description: Display a comprehensive panel showing all computed graph statistics and analysis results. Provide
+  exportable summary for reports and quick reference during analysis.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W01
+  - W03
+  - W04
+  - W08
+  - W10
+  - W11
+  - W16
+  - W19
+implemented_by_components:
+  - statistics-panel
+requirements:
+  - "Display basic statistics section: node count, edge count, density (4 decimals), average degree (2 decimals)"
+  - "Display graph type indicators: directed/undirected, weighted/unweighted, connected/disconnected"
+  - "Display component summary: component count, giant component size and percentage"
+  - "Display degree distribution summary: min, max, mean, median, std dev"
+  - Display degree distribution mini-histogram (50px height inline chart)
+  - Display centrality leaders section with top-5 nodes by each computed metric
+  - Show centrality metric name, node label, and score for each leader
+  - "Display community summary when detected: community count, modularity score"
+  - "Display community size distribution: largest, smallest, average sizes"
+  - Update all statistics within 500ms when filters change visible graph
+  - Display 'Filtered view' indicator when statistics reflect filtered subset
+  - Display both 'Visible' and 'Total' counts when filter is active
+  - Organize sections as collapsible accordions (click header to expand/collapse)
+  - Remember collapsed/expanded state across session
+  - Provide 'Export Statistics' button generating CSV with all displayed metrics
+  - Provide 'Copy to Clipboard' button copying statistics as formatted text
+  - Display '-' or 'Not computed' for metrics that haven't been calculated yet
+  - "Display computation timestamp: 'Computed at [time]' for each metric section"
+  - Highlight metrics that have changed since last computation with subtle indicator
+sources:
+  - title: W01 First Exploration
+    url: https://graphty.app/docs/
+    summary: Quick Data Assessment - basic statistics output

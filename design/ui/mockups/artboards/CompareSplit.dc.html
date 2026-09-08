@@ -1,0 +1,1616 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #5b8ff9; } a:hover { color: #75a5f9; }
+  </style>
+</helmet>
+<!--
+  Explorer, compare split (Result). Spec revision 1.5: app-shell-progressive-disclosure-design.md
+  sections 5.1 (Compare toggle, status bar layout slot "Comparing: A | B"), 5.3 Analyze (Compare as a
+  canvas mode: two halves, label chip and source picker per half, Link views, Swap, diff legend,
+  outlined differing nodes; result cards with run record lines), 5.4 (inspector with A, B and delta
+  columns), 5.6 (canvas toolbar, mode chip).
+  Dataset: fraud-ring-synthetic.json, 200 nodes, 612 edges, directed, weighted by amount. The canvas
+  shows the same 66-node window in both halves, colored by two Groups results: A = Louvain at
+  resolution 0.5 (4 groups), B = Louvain at resolution 1.5 (11 groups). Nodes whose membership
+  differs between A and B carry the danger outline. acct-4471 is selected in both halves.
+  Compaction 1.6: the activity panel and the inspector are rebuilt on the ten row types; the canvas,
+  its two legends, the compare toolbar and the status bar are untouched. Panel and inspector words
+  242 -> 147, of which 31 are card A's Details disclosure, which is now closed like card B's.
+  Revision 1.7: the navigation cluster became the bottom-centre canvas toolbar, 246 x 36 at bottom offset 12 --
+  the plain case of A1's four offsets, because this board draws neither the time slider nor the Data table drawer
+  (TB-1, TB-2, TB-4). The freed 56 x 160 column at the left edge is canvas now (TB-3). This is the one board in the
+  set with three boxes on the 12 px baseline -- minimap, legend A, legend B -- and a centred 246 bar spans canvas
+  x 293..539, straight through legend A at 244..404, so TB-3's two-line rule fires here on the box count, not on
+  canvas width: 172 + 16 + 160 + 16 + 246 + 16 + 184 = 810 against 832 of canvas, and legend A cannot move left
+  without hitting the minimap. All three rise to bottom: 60 and share one raised baseline, and the bottom band
+  belongs to the toolbar alone; nothing is shrunk or hidden, because the legend is floor item 5 and a hidden
+  minimap would make its own M toggle lie. Both cards' run-record Details now open a 360 pop-out anchored at
+  x = 336 rather than expanding inline, and neither is drawn open (POP-7); both chevrons stay in the closed
+  right-pointing form permanently (POP-13b). The one-line run record itself is untouched on both cards (floor 3).
+  No word on the canvas, in the compare toolbar, in the diff legend or in the status bar changed.
+  Review fixes F-03 and F-12, both on the canvas. F-03: legend B prints the Size block in full; its header no
+  longer reads "(size as A)". F-12: the two colour keys are broken apart -- groups are A1..A4 in view A and
+  B1..B11 in view B, on the legends, on both result cards and in the inspector Group row -- both legends gain an
+  outline block keying the red ring as Moved, and the Difference chip gains the info circle that defines Moved.
+  Net cost, measured off the rendered DOM: 288 visible words to 293. The relabel gives one word back on each of
+  the nineteen group rows -- Rule 9 sends a word standing on every row of a list up to its header, and
+  "Color: Groups" is already that header -- and that is what pays for legend B's size line and the two outline
+  blocks.
+  Round 2, findings R2-M07 and R2-M19, both of them regressions from round 1.
+  R2-M07, the legend width. The set drew the one overlay every board shares at ten widths; this board drew two of
+  them, 160 and 172, and at both the mandated plain-then-technical pair broke. Six lines wrapped, three per card:
+  "(communities, Louvain)", "(degree)" and the outline line each dropped a second line, which is the shape 6.3
+  forbids by name. Both legends are now 240, the one set width, legend B right-aligned at 1148 and legend A
+  12 px clear of the split at canvas x 404.
+  1.8, C5 and C3. Each half now draws only the channels whose encoding DIFFERS between the halves --
+  Color, and nothing else. Size is identical in both and is drawn once, in the shared strip 12px above
+  the toolbar; the diff key is the Difference chip's and is not repeated. Legend A falls 218 -> 112,
+  legend B 330 -> 144, and the two plus the 63px strip are 319 against 548. The raised baseline goes
+  112 -> 135, which is the strip's top edge plus the 12px overlay inset; the minimap and the toolbar
+  keep bottom 12 and nothing is shrunk or hidden. Two clarifications a reader of the paragraph above needs:
+  the one set width settled at 256 after R2's 240, which is what both boxes draw and what the strip draws, so
+  the 240 this revision introduces is the max-height (C6) and not a width; and with the outline block gone from
+  both legends, R2-M19b's two copies of the Moved rule are retired -- the Difference chip is now the only place
+  on the board that states it, so the two cannot disagree. Measured off the rendered DOM after the change:
+  legend A 111, legend B 143, strip 63, so the three are 317 against 548. The 112 / 144 / 319 above is the
+  arithmetic from the block heights; the drawn boxes each round one pixel under it at an 11px header on a 1.2
+  line height, and the measured figure is the one to trust.
+  R2-M19a, the truncated group lists. Card A said four groups were found and drew two rows; card B said eleven and
+  drew two. Each list header's leading cell now carries "2 of 4" and "2 of 11" (6.2: a count on the header exactly
+  when the section is truncated, and never with the unit word the section name already supplies -- both cards are
+  titled Groups; CategoryTable's "6 of 41 rows" is the same shape). The route to the rest is the table glyph
+  already in each action row, so no "Show all" row is added.
+  R2-M19b, two definitions of Moved on one screen. The Difference chip's circle and the two legends disagreed:
+  the legends read "Outline: group changed between A and B", a rule that would mark all 200, since the run went
+  from 4 groups to 11 and every id changed. Both legend headers now carry the chip's rule, "Outline: matched to a
+  different group", with the full sentence in the header's title. "group changed between A and B" is gone from
+  the board.
+  Net, measured off the rendered DOM: 293 visible words to 297. Six on the two card headers, two back off the two
+  legend headers. No word, glyph, title or row was removed, and no row changed type.
+  Palette index (E4 measure 1): Run record. The only door on this board.
+-->
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
+
+  <!-- MAIN ROW: rail + everything right of it. Height 876. -->
+  <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row;">
+
+    <!-- ACTIVITY RAIL, 48 wide -->
+    <div style="flex: 0 0 48px; width: 48px; display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 4px 0; background: #1f2428; border-right: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+
+      <!-- Data: MIN-1 -- the rail carries an unnumbered warning dot; the count lives on the status bar chip only (5.1) -->
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="8" cy="4" rx="5.5" ry="2"></ellipse><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4"></path><path d="M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Data</span>
+        <div style="position: absolute; top: 2px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: #f7b731;"></div>
+      </div>
+
+      <!-- Explore -->
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><polygon points="10.5,5.5 9,9 5.5,10.5 7,7"></polygon></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Explore</span>
+      </div>
+
+      <!-- Analyze, ACTIVE -->
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #d5d7da; background: #28364e; cursor: pointer; box-sizing: border-box;">
+        <div style="position: absolute; left: 0; top: 0; width: 2px; height: 44px; background: #4a7ee8;"></div>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="13.5" x2="3" y2="8"></line><line x1="8" y1="13.5" x2="8" y2="2.5"></line><line x1="13" y1="13.5" x2="13" y2="6"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Analyze</span>
+      </div>
+
+      <!-- Style -->
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 2.5l-6 6"></path><path d="M7.5 8.5c-1.5 0-2.5 1-2.5 2.5s-1 2-2.5 2c1.5 1 4.5 1 5.5-1 .5-1 .5-2-.5-3.5z"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Style</span>
+      </div>
+
+      <!-- Present -->
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="8" rx="1"></rect><line x1="8" y1="11" x2="8" y2="14"></line><line x1="5.5" y1="14" x2="10.5" y2="14"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Present</span>
+      </div>
+
+      <!-- AI -->
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3l1.3 3.7L12 8l-3.7 1.3L7 13l-1.3-3.7L2 8l3.7-1.3z"></path><path d="M13 2v2.5M11.75 3.25h2.5"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">AI</span>
+      </div>
+
+      <div style="flex: 1 1 auto;"></div>
+
+      <!-- Settings -->
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Settings</span>
+      </div>
+
+      <!-- Help -->
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><path d="M6 6.3a2 2 0 0 1 3.9.5c0 1.3-1.9 1.6-1.9 2.7"></path><line x1="8" y1="11.75" x2="8" y2="12.25"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Help</span>
+      </div>
+    </div>
+
+    <!-- RIGHT OF RAIL -->
+    <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column;">
+
+      <!-- TOP BAR, 40 tall -->
+      <div style="flex: 0 0 40px; height: 40px; display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 0 12px; background: #1f2428; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+
+        <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 13px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">fraud-ring-synthetic.json</span>
+        </div>
+
+        <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 8px;">
+          <div title="Undo (Cmd+Z)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h6.5a3 3 0 0 1 0 6H7"></path><polyline points="6.5,3.5 4,6 6.5,8.5"></polyline></svg>
+          </div>
+          <div title="Redo (Shift+Cmd+Z). Nothing to redo yet" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6H5.5a3 3 0 0 0 0 6H9"></path><polyline points="9.5,3.5 12,6 9.5,8.5"></polyline></svg>
+          </div>
+          <div style="width: 300px; height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 8px; border-radius: 4px; background: #2a3035; box-sizing: border-box; cursor: pointer;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line></svg>
+            <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Search commands, nodes and edges</span>
+            <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;">Cmd+K</div>
+          </div>
+        </div>
+
+        <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
+          <div style="display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px 0 6px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
+            <span>Export</span>
+            <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,6 8,11 13,6"></polyline></svg>
+          </div>
+          <div title="Share this view" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="3.5" r="1.75"></circle><circle cx="4" cy="8" r="1.75"></circle><circle cx="12" cy="12.5" r="1.75"></circle><line x1="5.6" y1="7.1" x2="10.4" y2="4.4"></line><line x1="5.6" y1="8.9" x2="10.4" y2="11.6"></line></svg>
+          </div>
+          <div style="width: 1px; height: 16px; background: #48525c;"></div>
+          <!-- Compare toggle, ACTIVE (Compare mode is on) -->
+          <div title="Compare two views" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #28364e; color: #4a7ee8; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="5.5" height="11" rx="1.5"></rect><rect x="8.5" y="2.5" width="5.5" height="11" rx="1.5"></rect></svg>
+          </div>
+          <!-- inspector toggle, ACTIVE -->
+          <div title="Toggle inspector (D)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #28364e; color: #4a7ee8; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="10" y1="2.5" x2="10" y2="13.5"></line></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- BODY ROW: panel + canvas + inspector. Height 836. -->
+      <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row;">
+
+        <!-- ACTIVITY PANEL: Analyze, Results tab. REBUILT UNDER COMPACTION 1.6.
+             Grid: 16 | 224 body | 8 | 24 trailing | 8 = 280, so panel padding is 0 8px 8px 16px.
+             Row types used here: RT-10 (the reading and the one-line run record on each card), RT-6 (the group
+             list, with its unit caption on the column header), RT-7 (one action row per card: state resident on
+             the left, actions on the right), RT-1 + RT-3 (the pinned weight and direction row, the one place the
+             graph-level facts are stated).
+             Floor kept: both readings in full; the one-line run record on both cards; the A and B names; every
+             group name and count; "Run again with changes" spelled out in each card's More menu (floor 4).
+             Deleted by rule: the run-family sentence "Communities (Louvain). Weight: amount (strength).
+             Direction: ignored. Seed 42. algorithms 1.4.0" -> the pinned RT-1 row plus each card's run record
+             (Rule 3, Rule 9); both "Exact." lines (Rule 7 corollary -- an exact, complete, unfiltered run draws
+             no departure line at all, which is what makes a real departure loud); "Communities (Louvain)" as a
+             line of its own under each title (Decision B: the technical name never occupies a line of its own,
+             and card B is a repeat mention in this surface, so it renders the primary name alone); "14:12, 14 ms"
+             (floor 3 puts the timestamp and the duration behind the chevron); the word "Details" beside its own
+             chevron; "members" on every row -> one column caption (Rule 9); "See all 4 groups" and
+             "See all 11 groups" -> the table glyph, since both meant "open this list" (the same verb twice);
+             "Encoded as node color / Change encoding" -> the resident colour chip in the RT-7 state slot, with
+             the canvas legend carrying the channel in words (floor 5, Rule 8).
+             STATE CHANGED, and reported as such: card A's Details disclosure was drawn open and is now closed,
+             like card B's. Its 32 words are counted as a state change, not as compaction.
+             1.8, Rule 7a on the cards: checked, and it does not fire. D3 finds AnalyzePanel and AnalyzeSweep
+             drawing a Method select under a card already titled with the method; these two cards are on the
+             Results tab and draw no Method or Scope select at all, so there is nothing to delete here. -->
+        <div style="flex: 0 0 280px; width: 280px; display: flex; flex-direction: column; background: #1f2428; border-right: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+
+          <!-- panel title row, 36 tall: Cards / List view toggle (5.3 Analyze tier 1) -->
+          <div style="flex: 0 0 36px; height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="13.5" x2="3" y2="8"></line><line x1="8" y1="13.5" x2="8" y2="2.5"></line><line x1="13" y1="13.5" x2="13" y2="6"></line></svg>
+              <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Analyze</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <div style="display: flex; gap: 1px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
+                <div title="Cards" style="width: 24px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 3px; background: #374047; color: #d5d7da; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="4.5" rx="1"></rect><rect x="2.5" y="9" width="11" height="4.5" rx="1"></rect></svg>
+                </div>
+                <div title="List" style="width: 24px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 3px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5.5" y1="4" x2="13.5" y2="4"></line><line x1="5.5" y1="8" x2="13.5" y2="8"></line><line x1="5.5" y1="12" x2="13.5" y2="12"></line><circle cx="3" cy="4" r="0.5"></circle><circle cx="3" cy="8" r="0.5"></circle><circle cx="3" cy="12" r="0.5"></circle></svg>
+                </div>
+              </div>
+              <div title="Close the panel (Cmd+B)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Run | Results sub-tabs, Results selected. Both words pass Rule 1a: they name a place you go to.
+               MIN-3: no count on Results; the two cards below are the whole list. -->
+          <div style="flex: 0 0 auto; padding: 8px 8px 0 16px; box-sizing: border-box;">
+            <div style="display: flex; gap: 2px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
+              <div style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Run</div>
+              <div style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; background: #374047; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Results</div>
+            </div>
+          </div>
+
+          <!-- card region -->
+          <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px 8px 8px 16px; overflow: hidden; box-sizing: border-box;">
+
+            <!-- Result card A: the left half. First mention of this concept in this surface, so both names
+                 render on the title row (Decision B). -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box;">
+              <div style="display: flex; align-items: center; gap: 6px; height: 20px; min-width: 0;">
+                <div style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 16px; height: 16px; border-radius: 8px; background: #4a7ee8; color: #ffffff; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">A</div>
+                <span style="flex: 0 0 auto; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Groups</span>
+                <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Communities (Louvain)</span>
+              </div>
+              <!-- floor 1: the reading, on screen, in full. The info circle carries the modularity bands. -->
+              <div style="font-size: 12px; line-height: 1.5; color: #a3a8b1;">4 groups found (modularity 0.58)<div title="Modularity runs from 0 to about 1: below 0.3 the groups overlap heavily, 0.3 to 0.7 is a clear split, above 0.7 they are nearly disconnected." style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg></div>. The largest has 61 members.</div>
+              <!-- floor 3: the one-line run record -- the parameters that differ from the pinned panel row and the
+                   scope both runs covered, "200 nodes". The determiner is gone: FLOOR-1.9 2.1 retired "all" from
+                   the scope clause of a fraud-graph run record, on HistoryPopover's own argument that "the scope
+                   clause is '200 nodes', not 'all 200 nodes', on every run record this board draws", and
+                   AnalyzeSweep, ExplorerExpert and HistoryPopover already write it that way. These two cards were
+                   the last two on the 200-node set that did not, and a scope clause that reads differently on the
+                   one board built for comparing two runs is the worst place in the set to leave it. Scope is
+                   the third of floor item 3's three facts and it may not travel into the pop-out: 6.11 forbids a
+                   door between a floor item and the thing it qualifies, and a compare board is exactly where a
+                   reader asks whether the two halves were run on the same set. The method is the card's own
+                   title row. The line is resident; only the full record goes behind the door (POP-7).
+                   Details opens a 360 pop-out holding: Louvain, resolution 0.5, seed 42. Weight: amount (strength).
+                   Direction: ignored. Scope: visible, 200 of 200 nodes. 2026-09-04 14:12, 14 ms, algorithms 1.4.0.
+                   Copy as JSON / Copy as command / Copy methods text.
+                   The pop-out is the VOCAB section 12 "Pop-out container, anchored form" shell: an activity-panel
+                   pop-out, so it opens right at left: 336px, 8 px clear of the panel's 328 edge, top aligned to this
+                   run record row, headed with the result's own title "Groups" with "Communities (Louvain)" dimmed
+                   beside it. NOT drawn open on this board: the 360 shell is drawn on ValidationPopout and
+                   GroupProfilePopout, and POP-7's own pop-out is drawn nowhere in the set. The chevron stays in the
+                   closed right-pointing form permanently and never renders the open form (POP-13b).
+                   1.8, A4: both cards' Details doors are confirmed under A3's depth obligation -- one click from
+                   the row that owns the record, with the run present -- and under A4, because a 360 record buys
+                   width beyond the 256px band. -->
+              <div style="display: flex; align-items: center; gap: 4px; height: 20px;">
+                <span title="Louvain, resolution 0.5, seed 42. Weight: amount (strength). Direction: ignored. Scope: visible, 200 of 200 nodes. 2026-09-04 14:12, 14 ms, algorithms 1.4.0" style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.4; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Resolution 0.5, seed 42, 200 nodes</span>
+                <div title="Details" style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: pointer;">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                </div>
+              </div>
+              <!-- RT-6: two of four groups, the unit caption on the column header (Rule 9). The full list is
+                   in the canvas legend and behind the table glyph.
+                   R2-M19a: the header's leading cell now says how many of how many. The list stopped after two
+                   rows 18 px under a sentence that says four were found, with no count, no ellipsis row and no
+                   scroll edge, so the card contradicted itself; 6.2 puts a count on a header exactly when the
+                   section is truncated, and CategoryTable's "6 of 41 rows" is the same shape. It reads "2 of 4"
+                   and not "2 of 4 groups" because 6.2's last clause forbids a header count the unit word the
+                   section name already supplies, and this card is titled Groups. No "Show all" row is added
+                   beside it because the route to the rest is already drawn: the table glyph in the action row
+                   below, which is what "See all 4 groups" became. -->
+              <div style="display: flex; flex-direction: column; gap: 1px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 16px; padding: 0 6px; box-sizing: border-box;">
+                  <span style="font-size: 10px; line-height: 1; color: #7a828e;">2 of 4</span>
+                  <span style="font-size: 10px; line-height: 1; color: #7a828e;">members</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; padding: 0 6px; border-radius: 4px; cursor: pointer; box-sizing: border-box;">
+                  <div style="display: flex; align-items: center; gap: 6px; min-width: 0;"><div style="width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: #4a7ee8;"></div><span style="font-size: 12px; line-height: 1.2; color: #d5d7da; white-space: nowrap;">A1</span></div>
+                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #a3a8b1; font-variant-numeric: tabular-nums;">61</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; padding: 0 6px; border-radius: 4px; cursor: pointer; box-sizing: border-box;">
+                  <div style="display: flex; align-items: center; gap: 6px; min-width: 0;"><div style="width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: #33bfd7;"></div><span style="font-size: 12px; line-height: 1.2; color: #d5d7da; white-space: nowrap;">A2</span></div>
+                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #a3a8b1; font-variant-numeric: tabular-nums;">58</span>
+                </div>
+              </div>
+              <!-- RT-7. Left of the group: the resident state chip -- this result drives node colour in half A,
+                   which the canvas legend also states in words (floor 5). Right: the actions.
+                   Menu, full text (6.8 twin, mandatory): Run again with changes / Run and compare /
+                   Change encoding / Select members (Coming) / Filter to this group (Coming) /
+                   Copy member ids / Copy as TSV / Copy reading / Export groups (CSV) -->
+              <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; height: 32px;">
+                <div title="Node color in view A: Groups, 4 groups" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #28364e; cursor: pointer;">
+                  <div style="display: flex; width: 14px; height: 14px; border-radius: 2px; overflow: hidden; border: 1px solid #48525c; box-sizing: border-box;"><div style="flex: 1; background: #4a7ee8;"></div><div style="flex: 1; background: #33bfd7;"></div><div style="flex: 1; background: #f7b731;"></div><div style="flex: 1; background: #61d095;"></div></div>
+                </div>
+                <div title="Show in table (Shift+T)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"></rect><line x1="2.5" y1="6.5" x2="13.5" y2="6.5"></line><line x1="2.5" y1="10" x2="13.5" y2="10"></line><line x1="7" y1="6.5" x2="7" y2="13.5"></line></svg>
+                </div>
+                <div title="Copy" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>
+                </div>
+                <div title="More" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3.5" r="0.75"></circle><circle cx="8" cy="8" r="0.75"></circle><circle cx="8" cy="12.5" r="0.75"></circle></svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- Result card B: the right half. Repeat occurrence of the concept in this surface, so the primary
+                 name renders alone (Decision B); the technical name stays in the card's own title attribute. -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box;">
+              <div title="Groups (communities, Louvain)" style="display: flex; align-items: center; gap: 6px; height: 20px; min-width: 0;">
+                <div style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 16px; height: 16px; border-radius: 8px; background: #4a7ee8; color: #ffffff; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">B</div>
+                <span style="flex: 0 0 auto; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Groups</span>
+              </div>
+              <div style="font-size: 12px; line-height: 1.5; color: #a3a8b1;">11 groups found (modularity 0.55)<div title="Modularity runs from 0 to about 1: below 0.3 the groups overlap heavily, 0.3 to 0.7 is a clear split, above 0.7 they are nearly disconnected." style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg></div>. The largest has 31 members.</div>
+              <!-- floor 3 again: the one-line run record is resident, and it carries the same scope clause as card
+                   A -- "200 nodes", the determiner dropped on both under FLOOR-1.9 2.1 -- which is what lets the
+                   two readings be compared at all.
+                   Details opens a 360 pop-out holding: Louvain, resolution 1.5, seed 42. Weight: amount (strength).
+                   Direction: ignored. Scope: visible, 200 of 200 nodes. 2026-09-04 14:15, 16 ms, algorithms 1.4.0.
+                   Copy as JSON / Copy as command / Copy methods text.
+                   Same shell as card A: the VOCAB section 12 "Pop-out container, anchored form" at left: 336px, top
+                   aligned to this row, headed "Groups" with "Communities (Louvain)" dimmed beside it. Only one
+                   pop-out may be open in the activity panel at a time, so opening card B's record closes card A's
+                   (POP-0, one per region). NOT drawn open. The chevron stays in the closed right-pointing form
+                   permanently and never renders the open form (POP-13b). -->
+              <div style="display: flex; align-items: center; gap: 4px; height: 20px;">
+                <span title="Louvain, resolution 1.5, seed 42. Weight: amount (strength). Direction: ignored. Scope: visible, 200 of 200 nodes. 2026-09-04 14:15, 16 ms, algorithms 1.4.0" style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.4; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Resolution 1.5, seed 42, 200 nodes</span>
+                <div title="Details" style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: pointer;">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                </div>
+              </div>
+              <!-- R2-M19a again, and the sharper case of the two: eleven groups were found and two rows are
+                   drawn, so the count on the header is what keeps the reading above it true. -->
+              <div style="display: flex; flex-direction: column; gap: 1px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 16px; padding: 0 6px; box-sizing: border-box;">
+                  <span style="font-size: 10px; line-height: 1; color: #7a828e;">2 of 11</span>
+                  <span style="font-size: 10px; line-height: 1; color: #7a828e;">members</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; padding: 0 6px; border-radius: 4px; cursor: pointer; box-sizing: border-box;">
+                  <div style="display: flex; align-items: center; gap: 6px; min-width: 0;"><div style="width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: #4a7ee8;"></div><span style="font-size: 12px; line-height: 1.2; color: #d5d7da; white-space: nowrap;">B1</span></div>
+                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #a3a8b1; font-variant-numeric: tabular-nums;">31</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; padding: 0 6px; border-radius: 4px; cursor: pointer; box-sizing: border-box;">
+                  <div style="display: flex; align-items: center; gap: 6px; min-width: 0;"><div style="width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: #33bfd7;"></div><span style="font-size: 12px; line-height: 1.2; color: #d5d7da; white-space: nowrap;">B2</span></div>
+                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #a3a8b1; font-variant-numeric: tabular-nums;">27</span>
+                </div>
+              </div>
+              <!-- Menu, full text (6.8 twin, mandatory): Run again with changes / Run and compare /
+                   Change encoding / Select members (Coming) / Filter to this group (Coming) /
+                   Copy member ids / Copy as TSV / Copy reading / Export groups (CSV) -->
+              <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; height: 32px;">
+                <div title="Node color in view B: Groups, 11 groups" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #28364e; cursor: pointer;">
+                  <div style="display: flex; width: 14px; height: 14px; border-radius: 2px; overflow: hidden; border: 1px solid #48525c; box-sizing: border-box;"><div style="flex: 1; background: #4a7ee8;"></div><div style="flex: 1; background: #33bfd7;"></div><div style="flex: 1; background: #f7b731;"></div><div style="flex: 1; background: #61d095;"></div><div style="flex: 1; background: #c084fc;"></div><div style="flex: 1; background: #f28c4b;"></div><div style="flex: 1; background: #e879a8;"></div></div>
+                </div>
+                <div title="Show in table (Shift+T)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"></rect><line x1="2.5" y1="6.5" x2="13.5" y2="6.5"></line><line x1="2.5" y1="10" x2="13.5" y2="10"></line><line x1="7" y1="6.5" x2="7" y2="13.5"></line></svg>
+                </div>
+                <div title="Copy" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>
+                </div>
+                <div title="More" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3.5" r="0.75"></circle><circle cx="8" cy="8" r="0.75"></circle><circle cx="8" cy="12.5" r="0.75"></circle></svg>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pinned panel-level facts, one RT-1 row: 16 | 148 field | 8 | 68 group | 8 | 24 | 8.
+               The W letter is the weight label (the closed letter set), "strength" is the mode word inside the
+               field (Rule 6), and direction is an RT-3 icon group with Ignore active. This is the one place the
+               graph-level facts are stated, so neither result card repeats them (Rule 9). -->
+          <div style="flex: 0 0 auto; display: flex; flex-direction: column; padding: 0 8px 8px 16px; background: #1f2428; box-sizing: border-box;">
+            <div style="height: 1px; background: #495057;"></div>
+            <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+              <div title="Weight: amount, treated as strength" style="display: flex; align-items: center; width: 148px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
+                <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 11px; line-height: 1; color: #7a828e; cursor: ew-resize;">W</div>
+                <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">amount</span>
+                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">strength</span>
+              </div>
+              <div style="display: flex; gap: 2px; width: 68px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
+                <div title="Follow edge direction" style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="3" cy="8" r="1.25"></circle><line x1="4.75" y1="8" x2="10" y2="8"></line><polyline points="8.5,5.75 11.5,8 8.5,10.25"></polyline></svg>
+                </div>
+                <div title="Ignore direction" style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; background: #374047; color: #d5d7da; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="3" cy="8" r="1.25"></circle><circle cx="13" cy="8" r="1.25"></circle><line x1="4.75" y1="8" x2="11.25" y2="8"></line></svg>
+                </div>
+              </div>
+              <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CANVAS, 832 wide by 836 tall, split 50/50 into A and B -->
+        <div style="flex: 1 1 auto; min-width: 0; position: relative; background: #161b22; overflow: hidden;">
+
+          <!-- HALF A, 416 wide -->
+          <div style="position: absolute; left: 0; top: 0; width: 416px; height: 836px; overflow: hidden;">
+            <svg width="416" height="836" viewBox="0 0 416 836" style="position: absolute; left: 0; top: 0; display: block;">
+              <g stroke="#48525c" stroke-width="1" stroke-opacity="0.3">
+                <line x1="250.6" y1="240.2" x2="201.2" y2="156.8"></line>
+                <line x1="250.6" y1="240.2" x2="267.6" y2="213"></line>
+                <line x1="250.6" y1="240.2" x2="255.3" y2="359.8"></line>
+                <line x1="195.6" y1="282.5" x2="186.5" y2="199.1"></line>
+                <line x1="195.6" y1="282.5" x2="193.8" y2="361.6"></line>
+                <line x1="195.6" y1="282.5" x2="108.2" y2="271.6"></line>
+                <line x1="195.6" y1="282.5" x2="141.9" y2="229.3"></line>
+                <line x1="195.6" y1="282.5" x2="192.5" y2="229.6"></line>
+                <line x1="100.5" y1="228.6" x2="186.5" y2="199.1"></line>
+                <line x1="100.5" y1="228.6" x2="126.6" y2="256.2"></line>
+                <line x1="100.5" y1="228.6" x2="108.2" y2="271.6"></line>
+                <line x1="100.5" y1="228.6" x2="68.4" y2="190.9"></line>
+                <line x1="100.5" y1="228.6" x2="108.3" y2="302.8"></line>
+                <line x1="100.5" y1="228.6" x2="23" y2="272.2"></line>
+                <line x1="283.2" y1="413.5" x2="221" y2="366.9"></line>
+                <line x1="283.2" y1="413.5" x2="224.3" y2="460.3"></line>
+                <line x1="283.2" y1="413.5" x2="353.1" y2="430"></line>
+                <line x1="283.2" y1="413.5" x2="255.3" y2="359.8"></line>
+                <line x1="283.2" y1="413.5" x2="267" y2="388.5"></line>
+                <line x1="283.2" y1="413.5" x2="283.8" y2="497.6"></line>
+                <line x1="296.6" y1="226" x2="243" y2="267"></line>
+                <line x1="296.6" y1="226" x2="267.6" y2="213"></line>
+                <line x1="296.6" y1="226" x2="192.5" y2="229.6"></line>
+                <line x1="296.6" y1="226" x2="280.6" y2="250.8"></line>
+                <line x1="169.7" y1="282.3" x2="243" y2="267"></line>
+                <line x1="169.7" y1="282.3" x2="186.5" y2="199.1"></line>
+                <line x1="169.7" y1="282.3" x2="136.8" y2="397.3"></line>
+                <line x1="169.7" y1="282.3" x2="192.5" y2="229.6"></line>
+                <line x1="169.7" y1="282.3" x2="141.9" y2="229.3"></line>
+                <line x1="169.7" y1="282.3" x2="166.1" y2="379"></line>
+                <line x1="143.7" y1="295.8" x2="126.6" y2="256.2"></line>
+                <line x1="143.7" y1="295.8" x2="108.2" y2="271.6"></line>
+                <line x1="143.7" y1="295.8" x2="108.3" y2="302.8"></line>
+                <line x1="143.7" y1="295.8" x2="204.4" y2="317.6"></line>
+                <line x1="198.9" y1="404.2" x2="221" y2="366.9"></line>
+                <line x1="198.9" y1="404.2" x2="224.3" y2="460.3"></line>
+                <line x1="198.9" y1="404.2" x2="136.8" y2="397.3"></line>
+                <line x1="198.9" y1="404.2" x2="255.3" y2="359.8"></line>
+                <line x1="198.9" y1="404.2" x2="166.1" y2="379"></line>
+                <line x1="286.7" y1="329.4" x2="243" y2="267"></line>
+                <line x1="286.7" y1="329.4" x2="318.5" y2="342.2"></line>
+                <line x1="286.7" y1="329.4" x2="356.2" y2="352.6"></line>
+                <line x1="286.7" y1="329.4" x2="267" y2="388.5"></line>
+                <line x1="235.4" y1="186.8" x2="186.5" y2="199.1"></line>
+                <line x1="235.4" y1="186.8" x2="126.6" y2="256.2"></line>
+                <line x1="235.4" y1="186.8" x2="223.1" y2="110"></line>
+                <line x1="235.4" y1="186.8" x2="261.5" y2="148"></line>
+                <line x1="235.4" y1="186.8" x2="272.7" y2="290.6"></line>
+                <line x1="94.7" y1="182.1" x2="126.6" y2="256.2"></line>
+                <line x1="94.7" y1="182.1" x2="108.2" y2="271.6"></line>
+                <line x1="94.7" y1="182.1" x2="68.4" y2="190.9"></line>
+                <line x1="94.7" y1="182.1" x2="16.5" y2="145.3"></line>
+                <line x1="260.4" y1="445.7" x2="221" y2="366.9"></line>
+                <line x1="260.4" y1="445.7" x2="224.3" y2="460.3"></line>
+                <line x1="260.4" y1="445.7" x2="267" y2="388.5"></line>
+                <line x1="260.4" y1="445.7" x2="316.9" y2="462.3"></line>
+                <line x1="212.1" y1="258.3" x2="243" y2="267"></line>
+                <line x1="212.1" y1="258.3" x2="267.6" y2="213"></line>
+                <line x1="212.1" y1="258.3" x2="220" y2="222.5"></line>
+                <line x1="212.1" y1="258.3" x2="280.6" y2="250.8"></line>
+                <line x1="172.2" y1="151.6" x2="186.5" y2="199.1"></line>
+                <line x1="172.2" y1="151.6" x2="223.1" y2="110"></line>
+                <line x1="172.2" y1="151.6" x2="201.2" y2="156.8"></line>
+                <line x1="172.2" y1="151.6" x2="192.5" y2="229.6"></line>
+                <line x1="36" y1="232.2" x2="126.6" y2="256.2"></line>
+                <line x1="36" y1="232.2" x2="61.1" y2="273"></line>
+                <line x1="36" y1="232.2" x2="68.4" y2="190.9"></line>
+                <line x1="36" y1="232.2" x2="23" y2="272.2"></line>
+                <line x1="162.8" y1="324.4" x2="126.6" y2="256.2"></line>
+                <line x1="162.8" y1="324.4" x2="221" y2="366.9"></line>
+                <line x1="162.8" y1="324.4" x2="108.2" y2="271.6"></line>
+                <line x1="162.8" y1="324.4" x2="267" y2="388.5"></line>
+                <line x1="285.7" y1="188.7" x2="243" y2="267"></line>
+                <line x1="285.7" y1="188.7" x2="267.6" y2="213"></line>
+                <line x1="285.7" y1="188.7" x2="220" y2="222.5"></line>
+                <line x1="285.7" y1="188.7" x2="261.5" y2="148"></line>
+                <line x1="285.7" y1="188.7" x2="280.6" y2="250.8"></line>
+                <line x1="158.3" y1="207.1" x2="186.5" y2="199.1"></line>
+                <line x1="158.3" y1="207.1" x2="126.6" y2="256.2"></line>
+                <line x1="158.3" y1="207.1" x2="201.2" y2="156.8"></line>
+                <line x1="158.3" y1="207.1" x2="141.9" y2="229.3"></line>
+                <line x1="158.3" y1="207.1" x2="167.1" y2="251.2"></line>
+                <line x1="79.2" y1="303.6" x2="126.6" y2="256.2"></line>
+                <line x1="79.2" y1="303.6" x2="15.6" y2="346.3"></line>
+                <line x1="79.2" y1="303.6" x2="108.2" y2="271.6"></line>
+                <line x1="79.2" y1="303.6" x2="108.3" y2="302.8"></line>
+                <line x1="79.2" y1="303.6" x2="23" y2="272.2"></line>
+                <line x1="126.5" y1="332.5" x2="126.6" y2="256.2"></line>
+                <line x1="126.5" y1="332.5" x2="221" y2="366.9"></line>
+                <line x1="126.5" y1="332.5" x2="61.1" y2="273"></line>
+                <line x1="126.5" y1="332.5" x2="220" y2="222.5"></line>
+                <line x1="334.4" y1="300.1" x2="243" y2="267"></line>
+                <line x1="334.4" y1="300.1" x2="356.2" y2="352.6"></line>
+                <line x1="334.4" y1="300.1" x2="308.1" y2="266.4"></line>
+                <line x1="334.4" y1="300.1" x2="401" y2="282.5"></line>
+                <line x1="133.8" y1="177.9" x2="186.5" y2="199.1"></line>
+                <line x1="133.8" y1="177.9" x2="154.2" y2="114.6"></line>
+                <line x1="133.8" y1="177.9" x2="141.9" y2="229.3"></line>
+                <line x1="133.8" y1="177.9" x2="68.4" y2="190.9"></line>
+                <line x1="133.8" y1="177.9" x2="167.1" y2="251.2"></line>
+                <line x1="82.3" y1="244.3" x2="186.5" y2="199.1"></line>
+                <line x1="82.3" y1="244.3" x2="126.6" y2="256.2"></line>
+                <line x1="82.3" y1="244.3" x2="61.1" y2="273"></line>
+                <line x1="82.3" y1="244.3" x2="108.2" y2="271.6"></line>
+                <line x1="82.3" y1="244.3" x2="108.3" y2="302.8"></line>
+                <line x1="82.3" y1="244.3" x2="68.4" y2="190.9"></line>
+                <line x1="319.5" y1="402.7" x2="221" y2="366.9"></line>
+                <line x1="319.5" y1="402.7" x2="353.1" y2="430"></line>
+                <line x1="319.5" y1="402.7" x2="356.2" y2="352.6"></line>
+                <line x1="319.5" y1="402.7" x2="267" y2="388.5"></line>
+                <line x1="319.5" y1="402.7" x2="316.9" y2="462.3"></line>
+                <line x1="245" y1="314.8" x2="243" y2="267"></line>
+                <line x1="245" y1="314.8" x2="318.5" y2="342.2"></line>
+                <line x1="245" y1="314.8" x2="308.1" y2="266.4"></line>
+                <line x1="245" y1="314.8" x2="108.3" y2="302.8"></line>
+                <line x1="245" y1="314.8" x2="280.6" y2="250.8"></line>
+                <line x1="130.7" y1="138.9" x2="186.5" y2="199.1"></line>
+                <line x1="130.7" y1="138.9" x2="201.2" y2="156.8"></line>
+                <line x1="130.7" y1="138.9" x2="154.2" y2="114.6"></line>
+                <line x1="130.7" y1="138.9" x2="68.4" y2="190.9"></line>
+                <line x1="43.3" y1="314.1" x2="126.6" y2="256.2"></line>
+                <line x1="43.3" y1="314.1" x2="15.6" y2="346.3"></line>
+                <line x1="43.3" y1="314.1" x2="108.3" y2="302.8"></line>
+                <line x1="43.3" y1="314.1" x2="23" y2="272.2"></line>
+                <line x1="236.9" y1="404.6" x2="221" y2="366.9"></line>
+                <line x1="236.9" y1="404.6" x2="193.8" y2="361.6"></line>
+                <line x1="236.9" y1="404.6" x2="255.3" y2="359.8"></line>
+                <line x1="236.9" y1="404.6" x2="267" y2="388.5"></line>
+                <line x1="61.1" y1="273" x2="126.6" y2="256.2"></line>
+                <line x1="108.2" y1="271.6" x2="126.6" y2="256.2"></line>
+                <line x1="193.8" y1="361.6" x2="221" y2="366.9"></line>
+                <line x1="267.6" y1="213" x2="243" y2="267"></line>
+                <line x1="154.2" y1="114.6" x2="186.5" y2="199.1"></line>
+                <line x1="166.1" y1="379" x2="221" y2="366.9"></line>
+                <line x1="204.4" y1="317.6" x2="243" y2="267"></line>
+                <line x1="167.1" y1="251.2" x2="221" y2="366.9"></line>
+                <line x1="272.7" y1="290.6" x2="221" y2="366.9"></line>
+                <line x1="220" y1="222.5" x2="186.5" y2="199.1"></line>
+                <line x1="192.5" y1="229.6" x2="126.6" y2="256.2"></line>
+                <line x1="261.5" y1="148" x2="186.5" y2="199.1"></line>
+                <line x1="141.9" y1="229.3" x2="126.6" y2="256.2"></line>
+                <line x1="308.1" y1="266.4" x2="186.5" y2="199.1"></line>
+                <line x1="172.2" y1="151.6" x2="94.7" y2="182.1"></line>
+                <line x1="195.6" y1="282.5" x2="286.7" y2="329.4"></line>
+                <line x1="169.7" y1="282.3" x2="158.3" y2="207.1"></line>
+                <line x1="296.6" y1="226" x2="235.4" y2="186.8"></line>
+                <line x1="212.1" y1="258.3" x2="143.7" y2="295.8"></line>
+                <line x1="162.8" y1="324.4" x2="100.5" y2="228.6"></line>
+                <line x1="79.2" y1="303.6" x2="212.1" y2="258.3"></line>
+                <line x1="283.2" y1="413.5" x2="236.9" y2="404.6"></line>
+                <line x1="334.4" y1="300.1" x2="296.6" y2="226"></line>
+                <line x1="198.9" y1="404.2" x2="245" y2="314.8"></line>
+                <line x1="334.4" y1="300.1" x2="283.2" y2="413.5"></line>
+                <line x1="250.6" y1="240.2" x2="212.1" y2="258.3"></line>
+                <line x1="74" y1="399.9" x2="126.5" y2="332.5"></line>
+                <line x1="60" y1="140.7" x2="100.5" y2="228.6"></line>
+                <line x1="243" y1="267" x2="186.5" y2="199.1"></line>
+                <line x1="280.6" y1="250.8" x2="250.6" y2="240.2"></line>
+                <line x1="250.6" y1="240.2" x2="243" y2="267"></line>
+                <line x1="243" y1="267" x2="126.6" y2="256.2"></line>
+              </g>
+              <g stroke="#161b22" stroke-width="1">
+                <circle cx="186.5" cy="199.1" r="9.4" fill="#33bfd7"></circle>
+                <circle cx="221" cy="366.9" r="8.1" fill="#f7b731"></circle>
+                <circle cx="100.5" cy="228.6" r="6.7" fill="#4a7ee8"></circle>
+                <circle cx="283.2" cy="413.5" r="6.7" fill="#f7b731"></circle>
+                <circle cx="169.7" cy="282.3" r="6.3" fill="#4a7ee8"></circle>
+                <circle cx="143.7" cy="295.8" r="5.4" fill="#4a7ee8"></circle>
+                <circle cx="198.9" cy="404.2" r="5.8" fill="#f7b731"></circle>
+                <circle cx="286.7" cy="329.4" r="5.4" fill="#61d095"></circle>
+                <circle cx="235.4" cy="186.8" r="5.8" fill="#33bfd7"></circle>
+                <circle cx="260.4" cy="445.7" r="5" fill="#f7b731"></circle>
+                <circle cx="212.1" cy="258.3" r="6.3" fill="#33bfd7"></circle>
+                <circle cx="172.2" cy="151.6" r="5.4" fill="#33bfd7"></circle>
+                <circle cx="36" cy="232.2" r="5" fill="#4a7ee8"></circle>
+                <circle cx="162.8" cy="324.4" r="5.4" fill="#f7b731"></circle>
+                <circle cx="285.7" cy="188.7" r="5.4" fill="#33bfd7"></circle>
+                <circle cx="158.3" cy="207.1" r="5.8" fill="#33bfd7"></circle>
+                <circle cx="79.2" cy="303.6" r="5.8" fill="#4a7ee8"></circle>
+                <circle cx="126.5" cy="332.5" r="5.4" fill="#4a7ee8"></circle>
+                <circle cx="334.4" cy="300.1" r="5.8" fill="#61d095"></circle>
+                <circle cx="133.8" cy="177.9" r="5.4" fill="#33bfd7"></circle>
+                <circle cx="82.3" cy="244.3" r="5.8" fill="#4a7ee8"></circle>
+                <circle cx="130.7" cy="138.9" r="5" fill="#33bfd7"></circle>
+                <circle cx="43.3" cy="314.1" r="5" fill="#4a7ee8"></circle>
+                <circle cx="236.9" cy="404.6" r="5.4" fill="#f7b731"></circle>
+                <circle cx="356.2" cy="352.6" r="4.6" fill="#61d095"></circle>
+                <circle cx="136.8" cy="397.3" r="4.1" fill="#f7b731"></circle>
+                <circle cx="61.1" cy="273" r="5" fill="#4a7ee8"></circle>
+                <circle cx="318.5" cy="342.2" r="4.1" fill="#61d095"></circle>
+                <circle cx="201.2" cy="156.8" r="5" fill="#33bfd7"></circle>
+                <circle cx="15.6" cy="346.3" r="4.1" fill="#4a7ee8"></circle>
+                <circle cx="224.3" cy="460.3" r="4.6" fill="#f7b731"></circle>
+                <circle cx="223.1" cy="110" r="4.1" fill="#33bfd7"></circle>
+                <circle cx="108.2" cy="271.6" r="6.7" fill="#4a7ee8"></circle>
+                <circle cx="193.8" cy="361.6" r="4.6" fill="#f7b731"></circle>
+                <circle cx="267.6" cy="213" r="5.4" fill="#33bfd7"></circle>
+                <circle cx="154.2" cy="114.6" r="4.6" fill="#33bfd7"></circle>
+                <circle cx="220" cy="222.5" r="5" fill="#33bfd7"></circle>
+                <circle cx="192.5" cy="229.6" r="5.4" fill="#33bfd7"></circle>
+                <circle cx="68.4" cy="190.9" r="5.8" fill="#4a7ee8"></circle>
+                <circle cx="267" cy="388.5" r="5.8" fill="#f7b731"></circle>
+                <circle cx="261.5" cy="148" r="4.6" fill="#33bfd7"></circle>
+                <circle cx="141.9" cy="229.3" r="5.4" fill="#4a7ee8"></circle>
+                <circle cx="108.3" cy="302.8" r="5.8" fill="#4a7ee8"></circle>
+                <circle cx="255.3" cy="359.8" r="5" fill="#f7b731"></circle>
+                <circle cx="308.1" cy="266.4" r="4.6" fill="#61d095"></circle>
+                <circle cx="166.1" cy="379" r="4.6" fill="#f7b731"></circle>
+                <circle cx="204.4" cy="317.6" r="4.1" fill="#f7b731"></circle>
+                <circle cx="283.8" cy="497.6" r="3.7" fill="#f7b731"></circle>
+                <circle cx="167.1" cy="251.2" r="4.6" fill="#4a7ee8"></circle>
+                <circle cx="23" cy="272.2" r="5" fill="#4a7ee8"></circle>
+                <circle cx="316.9" cy="462.3" r="4.1" fill="#f7b731"></circle>
+                <circle cx="401" cy="282.5" r="3.7" fill="#61d095"></circle>
+                <circle cx="16.5" cy="145.3" r="3.7" fill="#4a7ee8"></circle>
+                <circle cx="126.6" cy="256.2" r="10.2" fill="#4a7ee8"></circle>
+                <circle cx="250.6" cy="240.2" r="5.8" fill="#33bfd7"></circle>
+              </g>
+              <!-- nodes whose group membership differs between A and B: danger outline -->
+              <g stroke="#eb4949" stroke-width="2">
+                <circle cx="195.6" cy="282.5" r="5.8" fill="#4a7ee8"></circle>
+                <circle cx="296.6" cy="226" r="5.8" fill="#61d095"></circle>
+                <circle cx="94.7" cy="182.1" r="5.4" fill="#4a7ee8"></circle>
+                <circle cx="319.5" cy="402.7" r="5.4" fill="#61d095"></circle>
+                <circle cx="245" cy="314.8" r="5.8" fill="#f7b731"></circle>
+                <circle cx="353.1" cy="430" r="4.1" fill="#61d095"></circle>
+                <circle cx="74" cy="399.9" r="3.7" fill="#f7b731"></circle>
+                <circle cx="60" cy="140.7" r="3.7" fill="#4a7ee8"></circle>
+                <circle cx="272.7" cy="290.6" r="4.1" fill="#61d095"></circle>
+                <circle cx="243" cy="267" r="8.5" fill="#4a7ee8"></circle>
+                <circle cx="280.6" cy="250.8" r="5.4" fill="#61d095"></circle>
+              </g>
+              <!-- selection ring on acct-4471, mirrored in both views -->
+              <circle cx="243" cy="267" r="12.5" fill="none" stroke="#ffffff" stroke-width="2"></circle>
+              <circle cx="243" cy="267" r="15.5" fill="none" stroke="#4a7ee8" stroke-width="1" stroke-opacity="0.8"></circle>
+              <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10" fill="#d5d7da">
+                <text x="257.0" y="270.0" text-anchor="start" fill="#d5d7da">acct-4471</text>
+                <text x="198.5" y="202.1" text-anchor="start" fill="#7a828e">dev-19c2</text>
+                <text x="113.6" y="259.2" text-anchor="end" fill="#7a828e">merch-88</text>
+                <text x="221.0" y="354.9" text-anchor="middle" fill="#7a828e">ph-2076</text>
+                <text x="289.6" y="253.8" text-anchor="start" fill="#7a828e">ph-1140</text>
+              </g>
+            </svg>
+          </div>
+
+          <!-- HALF B, 416 wide, split divider on its left edge -->
+          <div style="position: absolute; left: 416px; top: 0; width: 416px; height: 836px; border-left: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+            <svg width="415" height="836" viewBox="0 0 415 836" style="position: absolute; left: 0; top: 0; display: block;">
+              <g stroke="#48525c" stroke-width="1" stroke-opacity="0.3">
+                <line x1="250.6" y1="240.2" x2="201.2" y2="156.8"></line>
+                <line x1="250.6" y1="240.2" x2="267.6" y2="213"></line>
+                <line x1="250.6" y1="240.2" x2="255.3" y2="359.8"></line>
+                <line x1="195.6" y1="282.5" x2="186.5" y2="199.1"></line>
+                <line x1="195.6" y1="282.5" x2="193.8" y2="361.6"></line>
+                <line x1="195.6" y1="282.5" x2="108.2" y2="271.6"></line>
+                <line x1="195.6" y1="282.5" x2="141.9" y2="229.3"></line>
+                <line x1="195.6" y1="282.5" x2="192.5" y2="229.6"></line>
+                <line x1="100.5" y1="228.6" x2="186.5" y2="199.1"></line>
+                <line x1="100.5" y1="228.6" x2="126.6" y2="256.2"></line>
+                <line x1="100.5" y1="228.6" x2="108.2" y2="271.6"></line>
+                <line x1="100.5" y1="228.6" x2="68.4" y2="190.9"></line>
+                <line x1="100.5" y1="228.6" x2="108.3" y2="302.8"></line>
+                <line x1="100.5" y1="228.6" x2="23" y2="272.2"></line>
+                <line x1="283.2" y1="413.5" x2="221" y2="366.9"></line>
+                <line x1="283.2" y1="413.5" x2="224.3" y2="460.3"></line>
+                <line x1="283.2" y1="413.5" x2="353.1" y2="430"></line>
+                <line x1="283.2" y1="413.5" x2="255.3" y2="359.8"></line>
+                <line x1="283.2" y1="413.5" x2="267" y2="388.5"></line>
+                <line x1="283.2" y1="413.5" x2="283.8" y2="497.6"></line>
+                <line x1="296.6" y1="226" x2="243" y2="267"></line>
+                <line x1="296.6" y1="226" x2="267.6" y2="213"></line>
+                <line x1="296.6" y1="226" x2="192.5" y2="229.6"></line>
+                <line x1="296.6" y1="226" x2="280.6" y2="250.8"></line>
+                <line x1="169.7" y1="282.3" x2="243" y2="267"></line>
+                <line x1="169.7" y1="282.3" x2="186.5" y2="199.1"></line>
+                <line x1="169.7" y1="282.3" x2="136.8" y2="397.3"></line>
+                <line x1="169.7" y1="282.3" x2="192.5" y2="229.6"></line>
+                <line x1="169.7" y1="282.3" x2="141.9" y2="229.3"></line>
+                <line x1="169.7" y1="282.3" x2="166.1" y2="379"></line>
+                <line x1="143.7" y1="295.8" x2="126.6" y2="256.2"></line>
+                <line x1="143.7" y1="295.8" x2="108.2" y2="271.6"></line>
+                <line x1="143.7" y1="295.8" x2="108.3" y2="302.8"></line>
+                <line x1="143.7" y1="295.8" x2="204.4" y2="317.6"></line>
+                <line x1="198.9" y1="404.2" x2="221" y2="366.9"></line>
+                <line x1="198.9" y1="404.2" x2="224.3" y2="460.3"></line>
+                <line x1="198.9" y1="404.2" x2="136.8" y2="397.3"></line>
+                <line x1="198.9" y1="404.2" x2="255.3" y2="359.8"></line>
+                <line x1="198.9" y1="404.2" x2="166.1" y2="379"></line>
+                <line x1="286.7" y1="329.4" x2="243" y2="267"></line>
+                <line x1="286.7" y1="329.4" x2="318.5" y2="342.2"></line>
+                <line x1="286.7" y1="329.4" x2="356.2" y2="352.6"></line>
+                <line x1="286.7" y1="329.4" x2="267" y2="388.5"></line>
+                <line x1="235.4" y1="186.8" x2="186.5" y2="199.1"></line>
+                <line x1="235.4" y1="186.8" x2="126.6" y2="256.2"></line>
+                <line x1="235.4" y1="186.8" x2="223.1" y2="110"></line>
+                <line x1="235.4" y1="186.8" x2="261.5" y2="148"></line>
+                <line x1="235.4" y1="186.8" x2="272.7" y2="290.6"></line>
+                <line x1="94.7" y1="182.1" x2="126.6" y2="256.2"></line>
+                <line x1="94.7" y1="182.1" x2="108.2" y2="271.6"></line>
+                <line x1="94.7" y1="182.1" x2="68.4" y2="190.9"></line>
+                <line x1="94.7" y1="182.1" x2="16.5" y2="145.3"></line>
+                <line x1="260.4" y1="445.7" x2="221" y2="366.9"></line>
+                <line x1="260.4" y1="445.7" x2="224.3" y2="460.3"></line>
+                <line x1="260.4" y1="445.7" x2="267" y2="388.5"></line>
+                <line x1="260.4" y1="445.7" x2="316.9" y2="462.3"></line>
+                <line x1="212.1" y1="258.3" x2="243" y2="267"></line>
+                <line x1="212.1" y1="258.3" x2="267.6" y2="213"></line>
+                <line x1="212.1" y1="258.3" x2="220" y2="222.5"></line>
+                <line x1="212.1" y1="258.3" x2="280.6" y2="250.8"></line>
+                <line x1="172.2" y1="151.6" x2="186.5" y2="199.1"></line>
+                <line x1="172.2" y1="151.6" x2="223.1" y2="110"></line>
+                <line x1="172.2" y1="151.6" x2="201.2" y2="156.8"></line>
+                <line x1="172.2" y1="151.6" x2="192.5" y2="229.6"></line>
+                <line x1="36" y1="232.2" x2="126.6" y2="256.2"></line>
+                <line x1="36" y1="232.2" x2="61.1" y2="273"></line>
+                <line x1="36" y1="232.2" x2="68.4" y2="190.9"></line>
+                <line x1="36" y1="232.2" x2="23" y2="272.2"></line>
+                <line x1="162.8" y1="324.4" x2="126.6" y2="256.2"></line>
+                <line x1="162.8" y1="324.4" x2="221" y2="366.9"></line>
+                <line x1="162.8" y1="324.4" x2="108.2" y2="271.6"></line>
+                <line x1="162.8" y1="324.4" x2="267" y2="388.5"></line>
+                <line x1="285.7" y1="188.7" x2="243" y2="267"></line>
+                <line x1="285.7" y1="188.7" x2="267.6" y2="213"></line>
+                <line x1="285.7" y1="188.7" x2="220" y2="222.5"></line>
+                <line x1="285.7" y1="188.7" x2="261.5" y2="148"></line>
+                <line x1="285.7" y1="188.7" x2="280.6" y2="250.8"></line>
+                <line x1="158.3" y1="207.1" x2="186.5" y2="199.1"></line>
+                <line x1="158.3" y1="207.1" x2="126.6" y2="256.2"></line>
+                <line x1="158.3" y1="207.1" x2="201.2" y2="156.8"></line>
+                <line x1="158.3" y1="207.1" x2="141.9" y2="229.3"></line>
+                <line x1="158.3" y1="207.1" x2="167.1" y2="251.2"></line>
+                <line x1="79.2" y1="303.6" x2="126.6" y2="256.2"></line>
+                <line x1="79.2" y1="303.6" x2="15.6" y2="346.3"></line>
+                <line x1="79.2" y1="303.6" x2="108.2" y2="271.6"></line>
+                <line x1="79.2" y1="303.6" x2="108.3" y2="302.8"></line>
+                <line x1="79.2" y1="303.6" x2="23" y2="272.2"></line>
+                <line x1="126.5" y1="332.5" x2="126.6" y2="256.2"></line>
+                <line x1="126.5" y1="332.5" x2="221" y2="366.9"></line>
+                <line x1="126.5" y1="332.5" x2="61.1" y2="273"></line>
+                <line x1="126.5" y1="332.5" x2="220" y2="222.5"></line>
+                <line x1="334.4" y1="300.1" x2="243" y2="267"></line>
+                <line x1="334.4" y1="300.1" x2="356.2" y2="352.6"></line>
+                <line x1="334.4" y1="300.1" x2="308.1" y2="266.4"></line>
+                <line x1="334.4" y1="300.1" x2="401" y2="282.5"></line>
+                <line x1="133.8" y1="177.9" x2="186.5" y2="199.1"></line>
+                <line x1="133.8" y1="177.9" x2="154.2" y2="114.6"></line>
+                <line x1="133.8" y1="177.9" x2="141.9" y2="229.3"></line>
+                <line x1="133.8" y1="177.9" x2="68.4" y2="190.9"></line>
+                <line x1="133.8" y1="177.9" x2="167.1" y2="251.2"></line>
+                <line x1="82.3" y1="244.3" x2="186.5" y2="199.1"></line>
+                <line x1="82.3" y1="244.3" x2="126.6" y2="256.2"></line>
+                <line x1="82.3" y1="244.3" x2="61.1" y2="273"></line>
+                <line x1="82.3" y1="244.3" x2="108.2" y2="271.6"></line>
+                <line x1="82.3" y1="244.3" x2="108.3" y2="302.8"></line>
+                <line x1="82.3" y1="244.3" x2="68.4" y2="190.9"></line>
+                <line x1="319.5" y1="402.7" x2="221" y2="366.9"></line>
+                <line x1="319.5" y1="402.7" x2="353.1" y2="430"></line>
+                <line x1="319.5" y1="402.7" x2="356.2" y2="352.6"></line>
+                <line x1="319.5" y1="402.7" x2="267" y2="388.5"></line>
+                <line x1="319.5" y1="402.7" x2="316.9" y2="462.3"></line>
+                <line x1="245" y1="314.8" x2="243" y2="267"></line>
+                <line x1="245" y1="314.8" x2="318.5" y2="342.2"></line>
+                <line x1="245" y1="314.8" x2="308.1" y2="266.4"></line>
+                <line x1="245" y1="314.8" x2="108.3" y2="302.8"></line>
+                <line x1="245" y1="314.8" x2="280.6" y2="250.8"></line>
+                <line x1="130.7" y1="138.9" x2="186.5" y2="199.1"></line>
+                <line x1="130.7" y1="138.9" x2="201.2" y2="156.8"></line>
+                <line x1="130.7" y1="138.9" x2="154.2" y2="114.6"></line>
+                <line x1="130.7" y1="138.9" x2="68.4" y2="190.9"></line>
+                <line x1="43.3" y1="314.1" x2="126.6" y2="256.2"></line>
+                <line x1="43.3" y1="314.1" x2="15.6" y2="346.3"></line>
+                <line x1="43.3" y1="314.1" x2="108.3" y2="302.8"></line>
+                <line x1="43.3" y1="314.1" x2="23" y2="272.2"></line>
+                <line x1="236.9" y1="404.6" x2="221" y2="366.9"></line>
+                <line x1="236.9" y1="404.6" x2="193.8" y2="361.6"></line>
+                <line x1="236.9" y1="404.6" x2="255.3" y2="359.8"></line>
+                <line x1="236.9" y1="404.6" x2="267" y2="388.5"></line>
+                <line x1="61.1" y1="273" x2="126.6" y2="256.2"></line>
+                <line x1="108.2" y1="271.6" x2="126.6" y2="256.2"></line>
+                <line x1="193.8" y1="361.6" x2="221" y2="366.9"></line>
+                <line x1="267.6" y1="213" x2="243" y2="267"></line>
+                <line x1="154.2" y1="114.6" x2="186.5" y2="199.1"></line>
+                <line x1="166.1" y1="379" x2="221" y2="366.9"></line>
+                <line x1="204.4" y1="317.6" x2="243" y2="267"></line>
+                <line x1="167.1" y1="251.2" x2="221" y2="366.9"></line>
+                <line x1="272.7" y1="290.6" x2="221" y2="366.9"></line>
+                <line x1="220" y1="222.5" x2="186.5" y2="199.1"></line>
+                <line x1="192.5" y1="229.6" x2="126.6" y2="256.2"></line>
+                <line x1="261.5" y1="148" x2="186.5" y2="199.1"></line>
+                <line x1="141.9" y1="229.3" x2="126.6" y2="256.2"></line>
+                <line x1="308.1" y1="266.4" x2="186.5" y2="199.1"></line>
+                <line x1="172.2" y1="151.6" x2="94.7" y2="182.1"></line>
+                <line x1="195.6" y1="282.5" x2="286.7" y2="329.4"></line>
+                <line x1="169.7" y1="282.3" x2="158.3" y2="207.1"></line>
+                <line x1="296.6" y1="226" x2="235.4" y2="186.8"></line>
+                <line x1="212.1" y1="258.3" x2="143.7" y2="295.8"></line>
+                <line x1="162.8" y1="324.4" x2="100.5" y2="228.6"></line>
+                <line x1="79.2" y1="303.6" x2="212.1" y2="258.3"></line>
+                <line x1="283.2" y1="413.5" x2="236.9" y2="404.6"></line>
+                <line x1="334.4" y1="300.1" x2="296.6" y2="226"></line>
+                <line x1="198.9" y1="404.2" x2="245" y2="314.8"></line>
+                <line x1="334.4" y1="300.1" x2="283.2" y2="413.5"></line>
+                <line x1="250.6" y1="240.2" x2="212.1" y2="258.3"></line>
+                <line x1="74" y1="399.9" x2="126.5" y2="332.5"></line>
+                <line x1="60" y1="140.7" x2="100.5" y2="228.6"></line>
+                <line x1="243" y1="267" x2="186.5" y2="199.1"></line>
+                <line x1="280.6" y1="250.8" x2="250.6" y2="240.2"></line>
+                <line x1="250.6" y1="240.2" x2="243" y2="267"></line>
+                <line x1="243" y1="267" x2="126.6" y2="256.2"></line>
+              </g>
+              <g stroke="#161b22" stroke-width="1">
+                <circle cx="186.5" cy="199.1" r="9.4" fill="#33bfd7"></circle>
+                <circle cx="221" cy="366.9" r="8.1" fill="#f7b731"></circle>
+                <circle cx="100.5" cy="228.6" r="6.7" fill="#4a7ee8"></circle>
+                <circle cx="283.2" cy="413.5" r="6.7" fill="#d9b26f"></circle>
+                <circle cx="169.7" cy="282.3" r="6.3" fill="#4a7ee8"></circle>
+                <circle cx="143.7" cy="295.8" r="5.4" fill="#4a7ee8"></circle>
+                <circle cx="198.9" cy="404.2" r="5.8" fill="#f7b731"></circle>
+                <circle cx="286.7" cy="329.4" r="5.4" fill="#f28c4b"></circle>
+                <circle cx="235.4" cy="186.8" r="5.8" fill="#a3e635"></circle>
+                <circle cx="260.4" cy="445.7" r="5" fill="#d9b26f"></circle>
+                <circle cx="212.1" cy="258.3" r="6.3" fill="#61d095"></circle>
+                <circle cx="172.2" cy="151.6" r="5.4" fill="#e879a8"></circle>
+                <circle cx="36" cy="232.2" r="5" fill="#c084fc"></circle>
+                <circle cx="162.8" cy="324.4" r="5.4" fill="#f7b731"></circle>
+                <circle cx="285.7" cy="188.7" r="5.4" fill="#a3e635"></circle>
+                <circle cx="158.3" cy="207.1" r="5.8" fill="#33bfd7"></circle>
+                <circle cx="79.2" cy="303.6" r="5.8" fill="#7dd3fc"></circle>
+                <circle cx="126.5" cy="332.5" r="5.4" fill="#7dd3fc"></circle>
+                <circle cx="334.4" cy="300.1" r="5.8" fill="#f28c4b"></circle>
+                <circle cx="133.8" cy="177.9" r="5.4" fill="#e879a8"></circle>
+                <circle cx="82.3" cy="244.3" r="5.8" fill="#c084fc"></circle>
+                <circle cx="130.7" cy="138.9" r="5" fill="#e879a8"></circle>
+                <circle cx="43.3" cy="314.1" r="5" fill="#7dd3fc"></circle>
+                <circle cx="236.9" cy="404.6" r="5.4" fill="#f7b731"></circle>
+                <circle cx="356.2" cy="352.6" r="4.6" fill="#f28c4b"></circle>
+                <circle cx="136.8" cy="397.3" r="4.1" fill="#f7b731"></circle>
+                <circle cx="61.1" cy="273" r="5" fill="#c084fc"></circle>
+                <circle cx="318.5" cy="342.2" r="4.1" fill="#f28c4b"></circle>
+                <circle cx="201.2" cy="156.8" r="5" fill="#33bfd7"></circle>
+                <circle cx="15.6" cy="346.3" r="4.1" fill="#7dd3fc"></circle>
+                <circle cx="224.3" cy="460.3" r="4.6" fill="#d9b26f"></circle>
+                <circle cx="223.1" cy="110" r="4.1" fill="#e879a8"></circle>
+                <circle cx="108.2" cy="271.6" r="6.7" fill="#4a7ee8"></circle>
+                <circle cx="193.8" cy="361.6" r="4.6" fill="#f7b731"></circle>
+                <circle cx="267.6" cy="213" r="5.4" fill="#a3e635"></circle>
+                <circle cx="154.2" cy="114.6" r="4.6" fill="#e879a8"></circle>
+                <circle cx="220" cy="222.5" r="5" fill="#33bfd7"></circle>
+                <circle cx="192.5" cy="229.6" r="5.4" fill="#33bfd7"></circle>
+                <circle cx="68.4" cy="190.9" r="5.8" fill="#c084fc"></circle>
+                <circle cx="267" cy="388.5" r="5.8" fill="#f7b731"></circle>
+                <circle cx="261.5" cy="148" r="4.6" fill="#a3e635"></circle>
+                <circle cx="141.9" cy="229.3" r="5.4" fill="#4a7ee8"></circle>
+                <circle cx="108.3" cy="302.8" r="5.8" fill="#7dd3fc"></circle>
+                <circle cx="255.3" cy="359.8" r="5" fill="#f7b731"></circle>
+                <circle cx="308.1" cy="266.4" r="4.6" fill="#f28c4b"></circle>
+                <circle cx="166.1" cy="379" r="4.6" fill="#f7b731"></circle>
+                <circle cx="204.4" cy="317.6" r="4.1" fill="#f7b731"></circle>
+                <circle cx="283.8" cy="497.6" r="3.7" fill="#d9b26f"></circle>
+                <circle cx="167.1" cy="251.2" r="4.6" fill="#4a7ee8"></circle>
+                <circle cx="23" cy="272.2" r="5" fill="#c084fc"></circle>
+                <circle cx="316.9" cy="462.3" r="4.1" fill="#d9b26f"></circle>
+                <circle cx="401" cy="282.5" r="3.7" fill="#b8a1ff"></circle>
+                <circle cx="16.5" cy="145.3" r="3.7" fill="#c084fc"></circle>
+                <circle cx="126.6" cy="256.2" r="10.2" fill="#4a7ee8"></circle>
+                <circle cx="250.6" cy="240.2" r="5.8" fill="#61d095"></circle>
+              </g>
+              <!-- nodes whose group membership differs between A and B: danger outline -->
+              <g stroke="#eb4949" stroke-width="2">
+                <circle cx="195.6" cy="282.5" r="5.8" fill="#61d095"></circle>
+                <circle cx="296.6" cy="226" r="5.8" fill="#a3e635"></circle>
+                <circle cx="94.7" cy="182.1" r="5.4" fill="#e879a8"></circle>
+                <circle cx="319.5" cy="402.7" r="5.4" fill="#d9b26f"></circle>
+                <circle cx="245" cy="314.8" r="5.8" fill="#61d095"></circle>
+                <circle cx="353.1" cy="430" r="4.1" fill="#d9b26f"></circle>
+                <circle cx="74" cy="399.9" r="3.7" fill="#7dd3fc"></circle>
+                <circle cx="60" cy="140.7" r="3.7" fill="#e879a8"></circle>
+                <circle cx="272.7" cy="290.6" r="4.1" fill="#61d095"></circle>
+                <circle cx="243" cy="267" r="8.5" fill="#61d095"></circle>
+                <circle cx="280.6" cy="250.8" r="5.4" fill="#61d095"></circle>
+              </g>
+              <!-- selection ring on acct-4471, mirrored in both views -->
+              <circle cx="243" cy="267" r="12.5" fill="none" stroke="#ffffff" stroke-width="2"></circle>
+              <circle cx="243" cy="267" r="15.5" fill="none" stroke="#4a7ee8" stroke-width="1" stroke-opacity="0.8"></circle>
+              <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10" fill="#d5d7da">
+                <text x="257.0" y="270.0" text-anchor="start" fill="#d5d7da">acct-4471</text>
+                <text x="198.5" y="202.1" text-anchor="start" fill="#7a828e">dev-19c2</text>
+                <text x="113.6" y="259.2" text-anchor="end" fill="#7a828e">merch-88</text>
+                <text x="221.0" y="354.9" text-anchor="middle" fill="#7a828e">ph-2076</text>
+                <text x="289.6" y="253.8" text-anchor="start" fill="#7a828e">ph-1140</text>
+              </g>
+            </svg>
+          </div>
+
+          <!-- half A label chip and source picker -->
+          <div style="position: absolute; left: 12px; top: 12px; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 6px 0 4px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; cursor: pointer; z-index: 6;">
+            <div style="display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 8px; background: #4a7ee8; color: #ffffff; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">A</div>
+            <span style="font-size: 11px; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Groups (resolution 0.5)</span>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+          </div>
+
+          <!-- half B label chip and source picker -->
+          <div style="position: absolute; right: 12px; top: 12px; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 6px 0 4px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; cursor: pointer; z-index: 6;">
+            <div style="display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 8px; background: #4a7ee8; color: #ffffff; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">B</div>
+            <span style="font-size: 11px; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Groups (resolution 1.5)</span>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+          </div>
+
+          <!-- compare toolbar, top center over the split: Link views (on), Swap, Single view.
+               DEF-1: no key chip inside a control, so the Esc binding sits in the tooltip. -->
+          <div style="position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; z-index: 6;">
+            <div style="display: flex; align-items: center; gap: 6px; height: 20px; cursor: pointer;">
+              <div style="width: 28px; height: 16px; border-radius: 8px; background: #4a7ee8; position: relative; box-sizing: border-box;">
+                <div style="position: absolute; top: 2px; left: 14px; width: 12px; height: 12px; border-radius: 50%; background: #ffffff;"></div>
+              </div>
+              <span style="font-size: 11px; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Link views</span>
+            </div>
+            <div style="width: 1px; height: 16px; background: #48525c;"></div>
+            <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 6px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h11"></path><polyline points="10.5,2.5 13.5,5.5 10.5,8.5"></polyline><path d="M13.5 10.5h-11"></path><polyline points="5.5,7.5 2.5,10.5 5.5,13.5"></polyline></svg>
+              <span>Swap</span>
+            </div>
+            <div style="width: 1px; height: 16px; background: #48525c;"></div>
+            <div title="Single view (Esc)" style="display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 24px; padding: 0 6px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">
+              <span>Single view</span>
+            </div>
+          </div>
+
+          <!-- diff legend, under the toolbar: Same group, Moved. MIN-2: "Only in A 0" and "Only in B 0" are
+               not drawn, because a zero row reports nothing; the strip shrinks to what is left.
+               F-12: the chip carries the headline statistic of this screen and had no definition anywhere on the
+               board. The run went from 4 groups to 11, so every group id necessarily changed, and a changed id is
+               not by itself a move; without the rule that decides which of the two the reader is looking at, "22"
+               means nothing. The whole rule, split groups and all, is an explanation and stays circled here
+               (Rule 8, 6.7).
+               R2-M19b: what it may NOT do is contradict the legends. Both legends key the red ring as Moved in
+               their own outline block (floor 5), and that block's header now states the same rule this circle
+               states -- "matched to a different group" -- instead of the "group changed between A and B" it had
+               carried, which is a different and wrong rule. Floor 5's reason for putting the legend in words is
+               the export, so the copy that travels and the copy that hovers may not differ. -->
+          <div style="position: absolute; top: 48px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; height: 24px; padding: 0 10px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; font-size: 11px; line-height: 1.2; color: #d5d7da; z-index: 6;">
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <span style="color: #7a828e;">Difference</span>
+              <div title="Moved: a node whose group in B is matched to a different group in A. Groups are matched by their largest shared membership, so a group that only split is not a move." style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg></div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 5px; white-space: nowrap;">
+              <div style="width: 10px; height: 10px; border-radius: 50%; background: #7a828e; box-sizing: border-box;"></div>
+              <span>Same group</span>
+              <span style="color: #7a828e;">178</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 5px; white-space: nowrap;">
+              <div style="width: 10px; height: 10px; border-radius: 50%; background: #7a828e; border: 2px solid #eb4949; box-sizing: border-box;"></div>
+              <span>Moved</span>
+              <span style="color: #7a828e;">22</span>
+            </div>
+          </div>
+
+          <!-- CANVAS TOOLBAR (5.6, TB-1). One bar, centred on the full two-view canvas, because the views are linked (TB-1 names this board).
+               Bottom offset 12: this board draws no time slider and no Data table drawer, so it is the plain case of A1's four
+               offsets (12 / 82 / 272 / 342). Width 246 at height 36, the derived desktop figure of TB-2:
+               3 + 60 + 12 + (28*4 + 2*3) + 12 + 36 + 3 + 2 borders. The item set is fixed and nothing appears or disappears with
+               selection, so Zoom to selection is drawn ENABLED here rather than added: acct-4471 is selected in both halves.
+               The Views caret points up; its menu opens upward, bottom edge 4 px above the bar, clamped 12 px inside the canvas
+               edges (TB-8). This board prints no Views menu list. The zoom percentage stays on the status bar, never in the bar. -->
+          <div style="position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: inline-flex; align-items: center; height: 36px; padding: 3px; border-radius: 7px; background: #1f2428; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; z-index: 6;">
+            <div style="display: flex; align-items: center; width: 60px; height: 28px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
+              <div style="flex: 1; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-size: 11px; font-weight: 500; line-height: 1; color: #7a828e; cursor: pointer;">2D</div>
+              <div style="flex: 1; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 3px; background: #374047; font-size: 11px; font-weight: 500; line-height: 1; color: #d5d7da; cursor: pointer;">3D</div>
+            </div>
+            <div style="width: 12px; height: 28px; display: flex; align-items: center; justify-content: center;"><div style="width: 1px; height: 16px; background: #48525c;"></div></div>
+            <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom out (-)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line><line x1="5" y1="7" x2="9" y2="7"></line></svg>
+            </div>
+            <div style="width: 2px;"></div>
+            <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom in (=)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line><line x1="7" y1="5" x2="7" y2="9"></line><line x1="5" y1="7" x2="9" y2="7"></line></svg>
+            </div>
+            <div style="width: 2px;"></div>
+            <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom to fit (0)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path></svg>
+            </div>
+            <div style="width: 2px;"></div>
+            <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom to selection (F)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path><circle cx="8" cy="8" r="2"></circle></svg>
+            </div>
+            <div style="width: 12px; height: 28px; display: flex; align-items: center; justify-content: center;"><div style="width: 1px; height: 16px; background: #48525c;"></div></div>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 2px; width: 36px; height: 28px; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Views">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2l5.5 3v6L8 14l-5.5-3V5z"></path><path d="M8 8l5.5-3M8 8v6M8 8L2.5 5"></path></svg>
+              <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 8,5 13,10"></polyline></svg>
+            </div>
+          </div>
+
+          <!-- C5: the shared-channel strip. Size is encoded identically in both halves, so it is drawn once.
+               Bottom 60 = 12 (toolbar offset) + 36 (toolbar height) + 12 (gap). Centred on the canvas rect, the
+               same centre the toolbar takes, 256 wide so the strip and the legends are one component at one width.
+               Measured: 63 tall (block 49 + 12 padding + 2 border), spanning canvas x 288..544, bottom 60..123.
+               It clears the minimap (canvas x 12..172, bottom 12..96) by 116 px horizontally and sits directly
+               over the toolbar's 293..539, which is what makes it read as the toolbar's own line rather than a
+               third floating box. The legends' bottom edge is this strip's top edge plus the 12 px overlay
+               inset: 123 + 12 = 135. -->
+          <div style="position: absolute; left: 50%; bottom: 60px; transform: translateX(-50%); width: 256px; display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; z-index: 5;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Size: Most connected <span style="color: #7a828e;">(Degree centrality)</span></span>
+              <div style="display: flex; align-items: center; gap: 8px; height: 16px;">
+                <div style="display: flex; align-items: center; gap: 4px;"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="#a3a8b1"></circle></svg><span style="font-size: 10px; line-height: 1.2; color: #7a828e;">1</span></div>
+                <div style="display: flex; align-items: center; gap: 4px;"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="4" fill="#a3a8b1"></circle></svg><span style="font-size: 10px; line-height: 1.2; color: #7a828e;">median 6</span></div>
+                <div style="display: flex; align-items: center; gap: 4px;"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#a3a8b1"></circle></svg><span style="font-size: 10px; line-height: 1.2; color: #7a828e;">44</span></div>
+              </div>
+              <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">sqrt scale</span>
+            </div>
+          </div>
+          <!-- MINIMAP, bottom left: the 66-node window inside the whole graph. MIN-7: no "Minimap" caption --
+               a thumbnail with a viewport rectangle names itself; the caption returns only in the heatmap form.
+               R2-M07 puts it back on the 12 px baseline, which is its 5.1 position. It had been raised 48 px so
+               that all three boxes shared one line, but down here it collides with nothing: 12..172 against the
+               centred bar's 293..539 is 121 px of clearance, and it rose for tidiness rather than for a fit.
+               With both legends now fixed at the one set width of 240, half A cannot hold the minimap and a
+               legend side by side -- 12 + 160 + 16 + 240 + 12 = 440 against the 416 px of half A -- so TB-3's
+               two lines are now drawn by the fit rather than by the box count: the bottom band holds the toolbar
+               and the minimap, and the two legends share the raised baseline at bottom: 112, which is
+               12 + 84 + 16, this minimap's own top edge plus the 16 px clearance. Nothing is shrunk or hidden:
+               the legend is floor item 5, and a hidden minimap would leave its M toggle describing a state you
+               cannot see. -->
+          <div style="position: absolute; left: 12px; bottom: 12px; width: 160px; height: 84px; display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; overflow: hidden; z-index: 5;">
+            <svg width="142" height="70" viewBox="0 0 142 70" style="display: block;">
+              <g fill="#a3a8b1" opacity="0.4">
+                <circle cx="11.5" cy="36.7" r="1"></circle>
+                <circle cx="111.1" cy="52.3" r="1"></circle>
+                <circle cx="16.1" cy="44.9" r="1"></circle>
+                <circle cx="128.9" cy="50.1" r="1"></circle>
+                <circle cx="22.9" cy="20.3" r="1"></circle>
+                <circle cx="57.3" cy="65.3" r="1"></circle>
+                <circle cx="43.3" cy="14.6" r="1"></circle>
+                <circle cx="17.6" cy="35.2" r="1"></circle>
+                <circle cx="46.5" cy="12.8" r="1"></circle>
+                <circle cx="16.9" cy="24.5" r="1"></circle>
+                <circle cx="93.3" cy="56.7" r="1"></circle>
+                <circle cx="133.6" cy="22.8" r="1"></circle>
+                <circle cx="112.7" cy="54.2" r="1"></circle>
+                <circle cx="121.5" cy="28.0" r="1"></circle>
+                <circle cx="19.1" cy="49.0" r="1"></circle>
+                <circle cx="45.4" cy="11.8" r="1"></circle>
+                <circle cx="103.5" cy="63.8" r="1"></circle>
+                <circle cx="20.7" cy="43.7" r="1"></circle>
+                <circle cx="18.1" cy="27.2" r="1"></circle>
+                <circle cx="107.3" cy="60.4" r="1"></circle>
+                <circle cx="37.8" cy="56.7" r="1"></circle>
+                <circle cx="129.4" cy="50.5" r="1"></circle>
+                <circle cx="75.7" cy="66.8" r="1"></circle>
+                <circle cx="18.4" cy="39.7" r="1"></circle>
+                <circle cx="25.8" cy="18.4" r="1"></circle>
+                <circle cx="74.4" cy="5.3" r="1"></circle>
+                <circle cx="105.9" cy="54.5" r="1"></circle>
+                <circle cx="22.8" cy="42.5" r="1"></circle>
+                <circle cx="125.3" cy="43.1" r="1"></circle>
+                <circle cx="45.2" cy="8.0" r="1"></circle>
+                <circle cx="124.0" cy="27.6" r="1"></circle>
+                <circle cx="16.9" cy="45.7" r="1"></circle>
+                <circle cx="10.8" cy="46.8" r="1"></circle>
+                <circle cx="16.4" cy="43.5" r="1"></circle>
+                <circle cx="66.3" cy="60.8" r="1"></circle>
+                <circle cx="68.7" cy="10.0" r="1"></circle>
+                <circle cx="62.9" cy="65.6" r="1"></circle>
+                <circle cx="113.4" cy="9.6" r="1"></circle>
+                <circle cx="129.6" cy="20.9" r="1"></circle>
+                <circle cx="70.0" cy="5.3" r="1"></circle>
+                <circle cx="24.5" cy="26.9" r="1"></circle>
+                <circle cx="46.1" cy="59.2" r="1"></circle>
+                <circle cx="83.3" cy="61.7" r="1"></circle>
+                <circle cx="46.3" cy="6.9" r="1"></circle>
+                <circle cx="64.0" cy="67.4" r="1"></circle>
+                <circle cx="126.8" cy="36.2" r="1"></circle>
+                <circle cx="21.8" cy="20.7" r="1"></circle>
+                <circle cx="128.4" cy="52.5" r="1"></circle>
+                <circle cx="7.9" cy="43.6" r="1"></circle>
+                <circle cx="21.6" cy="20.3" r="1"></circle>
+                <circle cx="116.3" cy="57.0" r="1"></circle>
+                <circle cx="113.9" cy="19.1" r="1"></circle>
+                <circle cx="122.3" cy="38.8" r="1"></circle>
+                <circle cx="54.4" cy="5.9" r="1"></circle>
+                <circle cx="36.0" cy="8.1" r="1"></circle>
+                <circle cx="79.2" cy="66.2" r="1"></circle>
+                <circle cx="95.3" cy="56.0" r="1"></circle>
+                <circle cx="114.0" cy="46.8" r="1"></circle>
+                <circle cx="8.0" cy="27.7" r="1"></circle>
+                <circle cx="99.6" cy="14.1" r="1"></circle>
+                <circle cx="21.1" cy="35.9" r="1"></circle>
+                <circle cx="60.2" cy="62.8" r="1"></circle>
+                <circle cx="122.3" cy="45.6" r="1"></circle>
+                <circle cx="77.7" cy="61.3" r="1"></circle>
+                <circle cx="84.0" cy="10.8" r="1"></circle>
+                <circle cx="96.0" cy="55.4" r="1"></circle>
+                <circle cx="35.0" cy="17.7" r="1"></circle>
+                <circle cx="29.1" cy="49.1" r="1"></circle>
+                <circle cx="14.7" cy="38.8" r="1"></circle>
+                <circle cx="134.3" cy="36.6" r="1"></circle>
+              </g>
+              <g>
+                <circle cx="67.1" cy="22.6" r="1.8" fill="#33bfd7"></circle>
+                <circle cx="73.4" cy="42.5" r="1.8" fill="#f7b731"></circle>
+                <circle cx="68.8" cy="32.5" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="51.5" cy="26.1" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="84.6" cy="48.0" r="1.2" fill="#f7b731"></circle>
+                <circle cx="87.1" cy="25.8" r="1.2" fill="#61d095"></circle>
+                <circle cx="64.1" cy="32.5" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="59.3" cy="34.0" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="69.4" cy="46.9" r="1.2" fill="#f7b731"></circle>
+                <circle cx="85.3" cy="38.0" r="1.2" fill="#61d095"></circle>
+                <circle cx="76.0" cy="21.1" r="1.2" fill="#33bfd7"></circle>
+                <circle cx="50.4" cy="20.6" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="80.5" cy="51.8" r="1.2" fill="#f7b731"></circle>
+                <circle cx="71.8" cy="29.6" r="1.2" fill="#33bfd7"></circle>
+                <circle cx="64.5" cy="16.9" r="1.2" fill="#33bfd7"></circle>
+                <circle cx="39.8" cy="26.5" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="62.8" cy="37.4" r="1.2" fill="#f7b731"></circle>
+                <circle cx="85.1" cy="21.3" r="1.2" fill="#33bfd7"></circle>
+                <circle cx="62.0" cy="23.5" r="1.2" fill="#33bfd7"></circle>
+                <circle cx="47.6" cy="35.0" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="56.2" cy="38.4" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="93.9" cy="34.6" r="1.2" fill="#61d095"></circle>
+                <circle cx="57.5" cy="20.1" r="1.2" fill="#33bfd7"></circle>
+                <circle cx="48.2" cy="27.9" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="91.2" cy="46.7" r="1.2" fill="#61d095"></circle>
+                <circle cx="77.7" cy="36.3" r="1.2" fill="#f7b731"></circle>
+                <circle cx="57.0" cy="15.4" r="1.2" fill="#33bfd7"></circle>
+                <circle cx="41.1" cy="36.2" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="76.2" cy="47.0" r="1.2" fill="#f7b731"></circle>
+                <circle cx="97.9" cy="40.8" r="1.2" fill="#61d095"></circle>
+                <circle cx="58.1" cy="46.1" r="1.2" fill="#f7b731"></circle>
+                <circle cx="44.3" cy="31.3" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="97.3" cy="50.0" r="1.2" fill="#61d095"></circle>
+                <circle cx="91.0" cy="39.6" r="1.2" fill="#61d095"></circle>
+                <circle cx="69.8" cy="17.6" r="1.2" fill="#33bfd7"></circle>
+                <circle cx="36.1" cy="40.0" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="74.0" cy="53.6" r="1.2" fill="#f7b731"></circle>
+                <circle cx="46.7" cy="46.4" r="1.2" fill="#f7b731"></circle>
+                <circle cx="73.7" cy="12.0" r="1.2" fill="#33bfd7"></circle>
+                <circle cx="52.9" cy="31.2" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="68.4" cy="41.9" r="1.2" fill="#f7b731"></circle>
+                <circle cx="81.8" cy="24.2" r="1.2" fill="#33bfd7"></circle>
+                <circle cx="61.2" cy="12.5" r="1.2" fill="#33bfd7"></circle>
+                <circle cx="73.2" cy="25.4" r="1.2" fill="#33bfd7"></circle>
+                <circle cx="68.2" cy="26.2" r="1.2" fill="#33bfd7"></circle>
+                <circle cx="45.7" cy="21.6" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="81.7" cy="45.0" r="1.2" fill="#f7b731"></circle>
+                <circle cx="80.7" cy="16.5" r="1.2" fill="#33bfd7"></circle>
+                <circle cx="59.0" cy="26.2" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="52.9" cy="34.9" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="79.6" cy="41.6" r="1.2" fill="#f7b731"></circle>
+                <circle cx="89.2" cy="30.6" r="1.2" fill="#61d095"></circle>
+                <circle cx="63.4" cy="43.9" r="1.2" fill="#f7b731"></circle>
+                <circle cx="70.3" cy="36.6" r="1.2" fill="#f7b731"></circle>
+                <circle cx="84.7" cy="58.0" r="1.2" fill="#f7b731"></circle>
+                <circle cx="44.2" cy="15.6" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="63.6" cy="28.8" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="37.4" cy="31.3" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="90.8" cy="53.8" r="1.2" fill="#f7b731"></circle>
+                <circle cx="106.0" cy="32.5" r="1.2" fill="#61d095"></circle>
+                <circle cx="82.7" cy="33.4" r="1.2" fill="#61d095"></circle>
+                <circle cx="36.3" cy="16.2" r="1.2" fill="#4a7ee8"></circle>
+                <circle cx="77.3" cy="30.6" r="1.8" fill="#4a7ee8"></circle>
+                <circle cx="56.2" cy="29.3" r="1.8" fill="#4a7ee8"></circle>
+                <circle cx="78.7" cy="27.5" r="1.2" fill="#33bfd7"></circle>
+                <circle cx="84.2" cy="28.7" r="1.2" fill="#61d095"></circle>
+              </g>
+              <rect x="33.5" y="9.5" width="75" height="51" rx="1" fill="none" stroke="#4a7ee8" stroke-width="1"></rect>
+            </svg>
+          </div>
+
+          <!-- LEGEND (5.1, floor item 5), the one component, settled once in LEGEND-1.8 and drawn
+               identically on every board that has one: 256 wide, one block per ENCODED channel in the
+               order Color, Size, Outline, Edge width, Arrow, then the state rows, a 1px #374047 rule
+               between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
+               content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
+               the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
+               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               minimum 5.6 sets.
+               A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
+               one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
+               string. The middle stop carries the word "median", the swatch radius is the encoding's own
+               transform, and the scale is spelled out even when it is the default, because the legend
+               travels inside an exported image where no one can hover a glyph.
+               No "Legend" caption, no palette name in the body, no counts on state rows, no block for a
+               channel that is not encoded.
+               THIS BOARD, AS 1.8 LEAVES IT: view A, the resolution 0.5 run, 4 groups of 61 / 58 / 47 / 34, and one
+               block -- Color -- because Color is the only channel whose encoding differs between the halves. Both
+               legends measure 256 like every other legend in the set, and view A's is right-aligned 12 px clear of
+               the split (left 148, right edge 404 against the split at 416).
+               C5, THE SHARED CHANNEL AND THE DIFF KEY. Each half draws only the channels whose encoding DIFFERS
+               between the halves. Size is encoded identically in both, so it is drawn once, in the shared strip
+               that rides 12 px above the canvas toolbar, and it is no longer printed here. The diff key is gone
+               from this legend too: the Difference chip at canvas top 48 already draws the grey "Same group 178"
+               and the red-ringed "Moved 22" and carries the full rule on its info circle, and 5.1's One fact, one
+               region assigns it to that chip. Floor item 5 is not breached -- C5 states the exception in its own
+               words, and the exported image of a Compare view carries one composed legend that names both halves
+               and carries the diff key (C4).
+               C3 cut 2, the counts leave the row: card A draws "2 of 4" with its members column, the table glyph in
+               that card's action row opens the rest, and the exported legend carries all four with counts. C3 cut 3
+               does not fire on this half -- four rows against a cap of five, so no Other row is drawn here. C3 cut 1,
+               checked and empty: this legend draws no state-row block, and the selection state on this board is
+               named by the inspector header and the status bar, which is why the legend never had one.
+               TWO OBLIGATIONS (6.10 item 5, as split by DECISIONS-1.8 C2). EXPORT, ABSOLUTE: every exported image
+               carries a legend composed from the encoding model -- every channel with its word, attribute, endpoints,
+               median or midpoint and scale; twelve categories with counts and the coverage footer; every departure
+               line; one row per state drawn in the frame. It is drawn into the image, never captured from this DOM
+               overlay, because ScreenshotCapture.ts calls CreateScreenshotAsync on the Babylon scene and cannot see
+               an overlay. SCREEN: this box, one block per encoded channel, no counts, no state rows, five categories
+               plus Other.
+               The exported image of a Compare view carries ONE composed legend that names both halves, draws each
+               half's Color block in full with twelve categories and counts, draws the shared Size block once, and
+               carries the diff key -- because a static figure has no Difference chip (C5, C4). -->
+          <div style="position: absolute; left: 148px; bottom: 135px; width: 256px; min-height: 80px; max-height: 240px; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 6px 8px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; overflow: hidden; z-index: 5;">
+            <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">View A</span>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Color: Groups <span style="color: #7a828e;">(Communities, Louvain)</span></span>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <div style="display: flex; align-items: center; gap: 6px; height: 14px;">
+                  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#4a7ee8"></circle></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">A1</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; height: 14px;">
+                  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#33bfd7"></circle></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">A2</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; height: 14px;">
+                  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#f7b731"></circle></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">A3</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; height: 14px;">
+                  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#61d095"></circle></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">A4</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- LEGEND (5.1, floor item 5), the one component, settled once in LEGEND-1.8 and drawn
+               identically on every board that has one: 256 wide, one block per ENCODED channel in the
+               order Color, Size, Outline, Edge width, Arrow, then the state rows, a 1px #374047 rule
+               between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
+               content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
+               the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
+               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               minimum 5.6 sets.
+               A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
+               one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
+               string. The middle stop carries the word "median", the swatch radius is the encoding's own
+               transform, and the scale is spelled out even when it is the default, because the legend
+               travels inside an exported image where no one can hover a glyph.
+               No "Legend" caption, no palette name in the body, no counts on state rows, no block for a
+               channel that is not encoded.
+               THIS BOARD, AS 1.8 LEAVES IT: view B, the resolution 1.5 run, 11 groups, and one block -- Color --
+               because Color is the only channel whose encoding differs between the halves. The Size block that used
+               to be printed here in full is now the shared strip's, drawn once for both halves.
+               C5, THE SHARED CHANNEL AND THE DIFF KEY. Each half draws only the channels whose encoding DIFFERS
+               between the halves. Size is encoded identically in both, so it is drawn once, in the shared strip
+               that rides 12 px above the canvas toolbar, and it is no longer printed here. The diff key is gone
+               from this legend too: the Difference chip at canvas top 48 already draws the grey "Same group 178"
+               and the red-ringed "Moved 22" and carries the full rule on its info circle, and 5.1's One fact, one
+               region assigns it to that chip. Floor item 5 is not breached -- C5 states the exception in its own
+               words, and the exported image of a Compare view carries one composed legend that names both halves
+               and carries the diff key (C4).
+               C3 cut 2, the counts leave the rows: card B draws "2 of 11" with its members column, the table glyph
+               in that card's action row opens the rest, and the exported legend carries all eleven with counts.
+               C3 cut 3 fires here and nowhere else on the board: the five largest groups keep their own rows
+               (31 / 27 / 24 / 23 / 21 = 126) and the remaining six roll up into one Other row in the neutral
+               #6b7480 -- 74 nodes of 200, 37% -- which carries the coverage footer and opens the groups table.
+               B6..B11 keep their canvas colours: the Other row is a roll-up, not a colour key. C3 cut 1, checked
+               and empty: this legend draws no state-row block, and the selection state on this board is named by
+               the inspector header and the status bar, which is why the legend never had one.
+               TWO OBLIGATIONS (6.10 item 5, as split by DECISIONS-1.8 C2). EXPORT, ABSOLUTE: every exported image
+               carries a legend composed from the encoding model -- every channel with its word, attribute, endpoints,
+               median or midpoint and scale; twelve categories with counts and the coverage footer; every departure
+               line; one row per state drawn in the frame. It is drawn into the image, never captured from this DOM
+               overlay, because ScreenshotCapture.ts calls CreateScreenshotAsync on the Babylon scene and cannot see
+               an overlay. SCREEN: this box, one block per encoded channel, no counts, no state rows, five categories
+               plus Other.
+               The exported image of a Compare view carries ONE composed legend that names both halves, draws each
+               half's Color block in full with twelve categories and counts, draws the shared Size block once, and
+               carries the diff key -- because a static figure has no Difference chip (C5, C4). -->
+          <div style="position: absolute; right: 12px; bottom: 135px; width: 256px; min-height: 80px; max-height: 240px; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 6px 8px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; overflow: hidden; z-index: 5;">
+            <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">View B</span>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Color: Groups <span style="color: #7a828e;">(Communities, Louvain)</span></span>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <div style="display: flex; align-items: center; gap: 6px; height: 14px;">
+                  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#4a7ee8"></circle></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">B1</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; height: 14px;">
+                  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#33bfd7"></circle></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">B2</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; height: 14px;">
+                  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#f7b731"></circle></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">B3</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; height: 14px;">
+                  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#61d095"></circle></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">B4</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; height: 14px;">
+                  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#c084fc"></circle></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">B5</span>
+                </div>
+                <div title="Open the groups table" style="display: flex; align-items: center; gap: 6px; height: 14px; cursor: pointer;">
+                  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#6b7480"></circle></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Other <span style="color: #7a828e;">(6 groups, 37% of nodes)</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- INSPECTOR, 280 wide: one node selected, metrics from A and B with a delta column (5.4).
+             REBUILT UNDER COMPACTION 1.6.
+             Row types used here: RT-10 (the reading), RT-8 (section headers, 32px, the header carries the
+             section's verbs), RT-6 (the metric grid, the attribute rows and the neighbour chips -- the user's
+             own strings and values, the one place a left-hand text label column is correct), RT-3 (the
+             In / Out / All neighbour filter), RT-7 (the pinned action block).
+             Floor kept: the reading in full; every id, label, attribute name and value; both names on every
+             metric row (Decision B, first mention in this surface); "Expand 37 neighbors" keeps its words and
+             its count, because expand neighbors has no glyph (register 1.6) and floor 4 wants the scope a
+             control acts on stated before it acts; the Coming tag and its "not built yet" circle (floor 4, the
+             reason a disabled control is disabled).
+             Deleted by rule: "in A and B" on the title row (Rule 8 -- the A and B column heads two rows below
+             say it); "members" as the unit of Group size (Rule 5 -- it is a unit, and the row is a size);
+             "(65%)" and "(49%)" -> the row's own title, which un-wraps the row from 30px to 24px (RT-9's rule
+             that a share is drawn or reachable, not printed twice); "21 transfer, 9 paid, 7 registered to" and
+             "Incoming 14 / Outgoing 23" -> RT-6 chips and an RT-3 triple, so the same facts are controls
+             instead of prose; the "Actions" header word (a pinned bar is not a place you navigate to, Rule 1a);
+             "Select neighbors" and "Frame this node" -> the register glyphs in the RT-7 row and the full-text
+             twin in More (6.8); the word "More" beside the More glyph. -->
+        <div style="flex: 0 0 280px; width: 280px; display: flex; flex-direction: column; background: #1f2428; border-left: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+
+          <!-- INSPECTOR TITLE ROW. One inventory, one order, all 40 boards that draw one (INSPECTOR-TITLE-1.9.md).
+               Right, in this order and nothing else, ever: Copy reading, Pin as A, Toggle inspector (D).
+               Pin drawn: a node is shown (5.4).
+               Left: the surface kind at 12px, then its identity at 11px muted. The kind never truncates and the
+               identity ellipsizes into its own title, which is 6.3's ladder installed as a mechanism.
+               No leading glyph. It had five spellings across the set -- three of them the register's PIN verb drawn
+               as decoration beside the real Pin control -- and its 22px is exactly what makes every name pair in the
+               set fit at 280. FilterBuilderExpert had already dropped it alone, for this reason.
+               Cluster 3 x 24 + gap 4 = 80; name band 167; this row's name is 31.3. -->
+          <div style="flex: 0 0 36px; height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+            <div style="flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px;">
+              <span style="flex: 0 0 auto; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Node</span>
+            </div>
+            <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 4px;">
+              <div title="Copy reading" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>
+              </div>
+              <div title="Pin as A" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line></svg>
+              </div>
+              <div title="Toggle inspector (D)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- INSPECTOR CONTENT: scrolling body, actions pinned at the bottom (5.4) -->
+          <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 2px; padding: 4px 8px 0 16px; overflow: hidden; box-sizing: border-box;">
+
+            <!-- label row: the node's own id, copy and locate, type badge (5.4, floor 6). NAV-5, IK-5: the
+                 reading has no header row of its own, so its Copy joins this icon; the menu holds Copy id,
+                 Copy reading. No second copy glyph. -->
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px;">
+              <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                <div style="width: 14px; height: 14px; flex: 0 0 auto; border-radius: 50%; background: #4a7ee8; border: 2px solid #ffffff; box-sizing: border-box;"></div>
+                <span style="font-size: 14px; font-weight: 500; line-height: 1.2; color: #d5d7da; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">acct-4471</span>
+                <div title="Copy" style="width: 20px; height: 20px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>
+                </div>
+                <div title="Locate" style="width: 20px; height: 20px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="4.5"></circle><circle cx="8" cy="8" r="1.5"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2"></path></svg>
+                </div>
+              </div>
+              <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 14px; padding: 0 4px; border-radius: 7px; background: #374047; color: #d5d7da; font-size: 9px; font-weight: 500; line-height: 1; text-transform: uppercase; box-sizing: border-box;">Account</div>
+            </div>
+
+            <!-- floor 1: the reading, on screen, in full -->
+            <span style="font-size: 12px; line-height: 1.5; color: #a3a8b1;">In A this account sits in the 61-member group around merch-88. In B it leads a 23-member group of its shared devices; 6 neighbors move with it.</span>
+
+            <!-- Computed metrics, A and B side by side with a delta column. Both names stay on every row
+                 (Decision B, first mention of each concept in this surface); the shares ride in the row title,
+                 which is what lets every row sit on one 24px pitch. -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Computed metrics</span>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column;">
+                <div style="display: grid; grid-template-columns: minmax(0, 1fr) 32px 34px 40px; align-items: center; gap: 3px; height: 18px; padding: 0 4px; font-size: 11px; line-height: 1.2; color: #7a828e; box-sizing: border-box;">
+                  <span></span>
+                  <div style="display: flex; align-items: center; justify-content: flex-end;"><div style="display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 8px; background: #4a7ee8; color: #ffffff; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">A</div></div>
+                  <div style="display: flex; align-items: center; justify-content: flex-end;"><div style="display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 8px; background: #4a7ee8; color: #ffffff; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">B</div></div>
+                  <span style="text-align: right;">Delta</span>
+                </div>
+                <div title="Group (community): A1 in A, B4 in B -- this node moved" style="display: grid; grid-template-columns: minmax(0, 1fr) 32px 34px 40px; align-items: center; gap: 3px; height: 24px; padding: 0 4px; border-radius: 4px; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                  <div style="display: flex; align-items: baseline; gap: 4px; min-width: 0; white-space: nowrap; overflow: hidden;"><span style="color: #d5d7da;">Group</span><span style="color: #7a828e;">community</span></div>
+                  <span style="text-align: right; color: #d5d7da; font-weight: 500;">A1</span>
+                  <span style="text-align: right; color: #d5d7da; font-weight: 500;">B4</span>
+                  <span style="text-align: right; color: #eb4949; font-weight: 500;">Moved</span>
+                </div>
+                <div title="Group size: 61 members in A, 23 in B" style="display: grid; grid-template-columns: minmax(0, 1fr) 32px 34px 40px; align-items: center; gap: 3px; height: 24px; padding: 0 4px; border-radius: 4px; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                  <div style="display: flex; align-items: baseline; gap: 4px; min-width: 0; white-space: nowrap; overflow: hidden;"><span style="color: #d5d7da;">Group size</span></div>
+                  <span style="text-align: right; color: #d5d7da; font-weight: 500; font-variant-numeric: tabular-nums;">61</span>
+                  <span style="text-align: right; color: #d5d7da; font-weight: 500; font-variant-numeric: tabular-nums;">23</span>
+                  <span style="text-align: right; color: #a3a8b1; font-variant-numeric: tabular-nums;">-38</span>
+                </div>
+                <div title="Neighbors in the same group: 24 of 37 (65%) in A, 18 of 37 (49%) in B" style="display: grid; grid-template-columns: minmax(0, 1fr) 32px 34px 40px; align-items: center; gap: 3px; height: 24px; padding: 0 4px; border-radius: 4px; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                  <div style="display: flex; align-items: baseline; gap: 4px; min-width: 0; white-space: nowrap; overflow: hidden;"><span style="color: #d5d7da;">Neighbors in group</span></div>
+                  <span style="text-align: right; color: #d5d7da; font-weight: 500; font-variant-numeric: tabular-nums;">24</span>
+                  <span style="text-align: right; color: #d5d7da; font-weight: 500; font-variant-numeric: tabular-nums;">18</span>
+                  <span style="text-align: right; color: #a3a8b1; font-variant-numeric: tabular-nums;">-6</span>
+                </div>
+                <div title="Bridges (betweenness centrality): 0.41 in both views" style="display: grid; grid-template-columns: minmax(0, 1fr) 32px 34px 40px; align-items: center; gap: 3px; height: 24px; padding: 0 4px; border-radius: 4px; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                  <div style="display: flex; align-items: baseline; gap: 4px; min-width: 0; white-space: nowrap; overflow: hidden;"><span style="color: #d5d7da;">Bridges</span><span style="color: #7a828e;">betweenness</span></div>
+                  <span style="text-align: right; color: #d5d7da; font-weight: 500; font-variant-numeric: tabular-nums;">0.41</span>
+                  <span style="text-align: right; color: #d5d7da; font-weight: 500; font-variant-numeric: tabular-nums;">0.41</span>
+                  <span style="text-align: right; color: #7a828e; font-variant-numeric: tabular-nums;">0</span>
+                </div>
+                <div title="Most connected (degree): 37 links in both views" style="display: grid; grid-template-columns: minmax(0, 1fr) 32px 34px 40px; align-items: center; gap: 3px; height: 24px; padding: 0 4px; border-radius: 4px; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                  <div style="display: flex; align-items: baseline; gap: 4px; min-width: 0; white-space: nowrap; overflow: hidden;"><span style="color: #d5d7da;">Most connected</span><span style="color: #7a828e;">degree</span></div>
+                  <span style="text-align: right; color: #d5d7da; font-weight: 500; font-variant-numeric: tabular-nums;">37</span>
+                  <span style="text-align: right; color: #d5d7da; font-weight: 500; font-variant-numeric: tabular-nums;">37</span>
+                  <span style="text-align: right; color: #7a828e; font-variant-numeric: tabular-nums;">0</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Attributes: RT-6, the user's own strings. Name at value ink, value trailing. -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Attributes</span>
+                </div>
+              </div>
+              <!-- MIN-10: no "type account" row; the label row's Account badge already carries it -->
+              <div style="display: flex; flex-direction: column;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; padding: 0 6px; border-radius: 4px; box-sizing: border-box;">
+                  <span style="min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">opened</span>
+                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #a3a8b1; font-variant-numeric: tabular-nums;">2026-03-18</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; padding: 0 6px; border-radius: 4px; box-sizing: border-box;">
+                  <span style="min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">country</span>
+                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #a3a8b1;">RO</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; padding: 0 6px; border-radius: 4px; box-sizing: border-box;">
+                  <span style="min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">risk score</span>
+                  <div style="display: flex; align-items: center; gap: 6px; flex: 0 0 auto;">
+                    <span style="font-size: 11px; line-height: 1.2; color: #a3a8b1; font-variant-numeric: tabular-nums;">0.87</span>
+                    <div style="display: inline-flex; align-items: center; height: 14px; padding: 0 4px; border-radius: 7px; background: #eb4949; color: #ffffff; font-size: 9px; font-weight: 500; line-height: 1; text-transform: uppercase; box-sizing: border-box;">High</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Neighbors. RT-8: the header carries the section's verbs. The per-type counts are RT-6 chips
+                 (edge type names are the user's data) and the direction split is the RT-3 In / Out / All triple,
+                 which keeps its words because the register has no glyph for them (Rule 4). -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Neighbors</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                  <div title="Show in table (Shift+T)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"></rect><line x1="2.5" y1="6.5" x2="13.5" y2="6.5"></line><line x1="2.5" y1="10" x2="13.5" y2="10"></line><line x1="7" y1="6.5" x2="7" y2="13.5"></line></svg>
+                  </div>
+                  <!-- Menu, full text: Select these (Coming) / Select neighbors (Shift+E, Coming) /
+                       Sort by amount / Sort by last / Copy neighbor ids -->
+                  <div title="More" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3.5" r="0.75"></circle><circle cx="8" cy="8" r="0.75"></circle><circle cx="8" cy="12.5" r="0.75"></circle></svg>
+                  </div>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px;">
+                  <div style="display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 10px; background: #2a3035; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">transfer <span style="color: #7a828e;">21</span></div>
+                  <div style="display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 10px; background: #2a3035; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">paid <span style="color: #7a828e;">9</span></div>
+                  <div style="display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 10px; background: #2a3035; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">registered to <span style="color: #7a828e;">7</span></div>
+                </div>
+                <div style="display: flex; gap: 2px; width: 224px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
+                  <div style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; height: 22px; border-radius: 3px; color: #7a828e; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">In <span style="font-weight: 400;">14</span></div>
+                  <div style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; height: 22px; border-radius: 3px; color: #7a828e; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Out <span style="font-weight: 400;">23</span></div>
+                  <div style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; height: 22px; border-radius: 3px; background: #374047; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">All <span style="font-weight: 400; color: #a3a8b1;">37</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Notes (5.7, 5.4) -->
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Notes</span>
+                </div>
+              </div>
+              <div title="Add a note (N)" style="display: flex; align-items: center; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; line-height: 1; color: #5f6873; box-sizing: border-box;">Add a note...</div>
+            </div>
+          </div>
+
+          <!-- ACTIONS, pinned (5.4). RT-7: one row of state plus one row of glyphs, which is what RT-7
+               prescribes for a stack of full-width text buttons. "Expand 37 neighbors" keeps its words and its
+               count (register 1.6 has no expand-neighbors glyph; floor 4 wants the scope stated before the act)
+               and keeps its Coming tag: an isolated unshipped control keeps the per-row Coming tag and is drawn enabled (5.8), so the dimming and the
+               group info circle come off -- 5.8 gives those to a run of three or more.
+               Menu, full text (6.8 twin, mandatory): Select neighbors (Shift+E, Coming) / Find path from here /
+               Ego network (Coming) / Radial layout around this node (Coming) / Simulate removing (Coming) /
+               Merge with... (Coming) / Tag... (Coming) / Bookmark this node (Coming) / Copy as JSON -->
+          <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 4px; padding: 6px 8px 8px 16px; border-top: 1px solid #495057; background: #1f2428; box-sizing: border-box;">
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <div style="flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">
+                <span style="white-space: nowrap;">Expand 37 neighbors</span>
+              </div>
+              <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; height: 24px;">
+              <div title="Zoom to selection (F)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path><circle cx="8" cy="8" r="2"></circle></svg>
+              </div>
+              <div title="Show in table (Shift+T)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"></rect><line x1="2.5" y1="6.5" x2="13.5" y2="6.5"></line><line x1="2.5" y1="10" x2="13.5" y2="10"></line><line x1="7" y1="6.5" x2="7" y2="13.5"></line></svg>
+              </div>
+              <div title="Note" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h10v8H7l-3 3v-3H3z"></path></svg>
+              </div>
+              <div title="More" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3.5" r="0.75"></circle><circle cx="8" cy="8" r="0.75"></circle><circle cx="8" cy="12.5" r="0.75"></circle></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS BAR, 24 tall, full width. Layout slot reads "Comparing: A | B" in Compare mode (5.1). -->
+  <div style="flex: 0 0 24px; height: 24px; display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 0 12px; background: #1f2428; border-top: 1px solid #48525c; box-sizing: border-box; font-size: 11px; line-height: 1.2; color: #7a828e;">
+    <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+      <span>200 nodes</span>
+      <span>612 edges</span>
+    </div>
+    <div style="width: 1px; height: 12px; background: #48525c;"></div>
+    <span style="cursor: pointer;">Zoom 100%</span>
+    <div style="width: 1px; height: 12px; background: #48525c;"></div>
+    <!-- MODE SLOT, EMPTY: MIN-8 -- no 3D chip, because the canvas 2D/3D control is always visible; this slot
+         renders only for VR and AR. -->
+    <!-- LAYOUT SLOT: in Compare mode this slot reads the compare pair, not the layout chip, so it takes no
+         caret -- NAV-12's quick-picks caret belongs to the layout chip. -->
+    <div style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+      <span>Comparing: A | B</span>
+    </div>
+    <!-- RUNNING SLOT, EMPTY: nothing is computing -->
+    <div style="display: none; align-items: center; gap: 8px;"></div>
+    <!-- VIEWING SLOT, EMPTY: no time window is active -->
+    <div style="display: none; align-items: center; gap: 8px;"></div>
+    <div style="width: 1px; height: 12px; background: #48525c;"></div>
+    <!-- ISSUES SLOT: the validation issues chip for the fraud ring (repeated pairs 5, self-loops 2, missing amount 14, non-date values 6); no notes chip because this node has no notes -->
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div title="4 issue types, 27 issues" style="display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"><div style="width: 6px; height: 6px; border-radius: 50%; background: #f7b731;"></div>4 data issues</div>
+    </div>
+    <div style="flex: 1 1 auto;"></div>
+    <!-- AI SLOT, EMPTY: MIN-1 -- the AI status renders only when a provider is configured or a call is in
+         flight, so "AI: not configured" is not drawn. Its divider goes with it: it would separate nothing. -->
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="color: #d5d7da;">1 selected</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

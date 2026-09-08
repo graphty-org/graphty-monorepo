@@ -1,0 +1,547 @@
+{
+ "artboards": [
+  {
+   "file": "Welcome.dc.html",
+   "title": "Welcome (Empty)",
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "Main.dc.html",
+   "title": "Explorer, first load",
+   "x": 1540,
+   "y": 0,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ExplorerAfterCard.dc.html",
+   "title": "Explorer, after Find groups",
+   "x": 3080,
+   "y": 0,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ExplorerExpert.dc.html",
+   "title": "Explorer, expert",
+   "x": 0,
+   "y": 1060,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "StylePanel.dc.html",
+   "title": "Style panel",
+   "x": 1540,
+   "y": 1060,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ExplorePanel.dc.html",
+   "title": "Explore panel",
+   "x": 3080,
+   "y": 1060,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "AnalyzePanel.dc.html",
+   "title": "Analyze panel, resting",
+   "x": 0,
+   "y": 2120,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "AnalyzePicker.dc.html",
+   "title": "Analyze picker",
+   "x": 1540,
+   "y": 2120,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "AiPanel.dc.html",
+   "title": "AI panel",
+   "x": 3080,
+   "y": 2120,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "PresentPanel.dc.html",
+   "title": "Present panel",
+   "x": 0,
+   "y": 3180,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "Settings.dc.html",
+   "title": "Settings overlay",
+   "x": 1540,
+   "y": 3180,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "CommandPalette.dc.html",
+   "title": "Command palette",
+   "x": 3080,
+   "y": 3180,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "InsightsWide.dc.html",
+   "title": "Insights strip, widest",
+   "x": 0,
+   "y": 4240,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "TimeSlider.dc.html",
+   "title": "Time slider overlay",
+   "x": 1540,
+   "y": 4240,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "IpadPanel.dc.html",
+   "title": "iPad, panel overlay",
+   "x": 3080,
+   "y": 4240,
+   "w": 1180,
+   "h": 820
+  },
+  {
+   "file": "IpadInspector.dc.html",
+   "title": "iPad, inspector",
+   "x": 0,
+   "y": 5300,
+   "w": 1180,
+   "h": 820
+  },
+  {
+   "file": "ImportFlow.dc.html",
+   "title": "Import flow, the state machine",
+   "x": 0,
+   "y": 6620,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ImportOptions.dc.html",
+   "title": "Import options, guessed column",
+   "x": 1540,
+   "y": 6620,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ImportRecognised.dc.html",
+   "title": "Import options, recognised export",
+   "x": 3080,
+   "y": 6620,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ImportLargeFile.dc.html",
+   "title": "Import options, large file",
+   "x": 0,
+   "y": 7680,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ImportParseError.dc.html",
+   "title": "Import options, parse error",
+   "x": 1540,
+   "y": 7680,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ImportAddToGraph.dc.html",
+   "title": "Import, add to current graph",
+   "x": 3080,
+   "y": 7680,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ColumnRolePopout.dc.html",
+   "title": "Column role pop-over",
+   "x": 0,
+   "y": 8740,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "TableJoin.dc.html",
+   "title": "Table join dialog",
+   "x": 1540,
+   "y": 8740,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "DataPanelLoaded.dc.html",
+   "title": "Data panel, loaded",
+   "x": 3080,
+   "y": 8740,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "DataTableDrawer.dc.html",
+   "title": "Data table drawer",
+   "x": 0,
+   "y": 9800,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "StyleFromAnalysis.dc.html",
+   "title": "Style from an analysis",
+   "x": 0,
+   "y": 11120,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "StyleLibrary.dc.html",
+   "title": "Style library",
+   "x": 1540,
+   "y": 11120,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "StyleDiverging.dc.html",
+   "title": "Style, diverging encoding",
+   "x": 3080,
+   "y": 11120,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "RampPopout.dc.html",
+   "title": "Ramp pop-over",
+   "x": 0,
+   "y": 12180,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "AnalyzeParameters.dc.html",
+   "title": "Analyze parameters pop-over",
+   "x": 1540,
+   "y": 12180,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "AllStatistics.dc.html",
+   "title": "All statistics pop-over",
+   "x": 3080,
+   "y": 12180,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "RunRecordPopout.dc.html",
+   "title": "Run record pop-over",
+   "x": 0,
+   "y": 13240,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "AnalyzeSweep.dc.html",
+   "title": "Analyze sweep",
+   "x": 1540,
+   "y": 13240,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "CategoryTable.dc.html",
+   "title": "Category table result",
+   "x": 3080,
+   "y": 13240,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "CompareSplit.dc.html",
+   "title": "Explorer, compare split",
+   "x": 0,
+   "y": 14300,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "GroupProfilePopout.dc.html",
+   "title": "Group profile pop-over",
+   "x": 1540,
+   "y": 14300,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "InspectorGenomics.dc.html",
+   "title": "Inspector, genomics node",
+   "x": 3080,
+   "y": 14300,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "MultiSelection.dc.html",
+   "title": "Explorer, multi-selection",
+   "x": 0,
+   "y": 15620,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "HistoryPopover.dc.html",
+   "title": "Explorer, history popover",
+   "x": 1540,
+   "y": 15620,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "FilterBuilderExpert.dc.html",
+   "title": "Filter builder, expert",
+   "x": 3080,
+   "y": 15620,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "FilterExpression.dc.html",
+   "title": "Filter expression pop-over",
+   "x": 0,
+   "y": 16680,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ExplorerNotes.dc.html",
+   "title": "Explorer, notes",
+   "x": 1540,
+   "y": 16680,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ExploreNotesList.dc.html",
+   "title": "Explore panel, notes list",
+   "x": 3080,
+   "y": 16680,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "NoteEditorPopout.dc.html",
+   "title": "Note editor pop-over",
+   "x": 0,
+   "y": 17740,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ValidationPopout.dc.html",
+   "title": "Validation report pop-over",
+   "x": 1540,
+   "y": 17740,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ContextMenu.dc.html",
+   "title": "Explorer, context menu",
+   "x": 3080,
+   "y": 17740,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "PresentCompact.dc.html",
+   "title": "Present panel, compact",
+   "x": 0,
+   "y": 19060,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ImageOptionsPopout.dc.html",
+   "title": "Image options pop-over",
+   "x": 1540,
+   "y": 19060,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ExportLegend.dc.html",
+   "title": "Export legend",
+   "x": 3080,
+   "y": 19060,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ReportEditorDrawer.dc.html",
+   "title": "Report editor drawer",
+   "x": 0,
+   "y": 20120,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "AiPanelCompact.dc.html",
+   "title": "AI panel, compact",
+   "x": 1540,
+   "y": 20120,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "CanvasToolbar.dc.html",
+   "title": "Canvas toolbar and bottom stack",
+   "x": 0,
+   "y": 21440,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ViewsMenu.dc.html",
+   "title": "Explorer, Views menu",
+   "x": 1540,
+   "y": 21440,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ShortcutsDialog.dc.html",
+   "title": "Keyboard shortcuts dialog",
+   "x": 3080,
+   "y": 21440,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ShortcutsOverlay.dc.html",
+   "title": "Keyboard shortcuts overlay",
+   "x": 0,
+   "y": 22500,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "SettingsShortcuts.dc.html",
+   "title": "Settings, keyboard shortcuts",
+   "x": 1540,
+   "y": 22500,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "SavedItems.dc.html",
+   "title": "Settings, saved items",
+   "x": 3080,
+   "y": 22500,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "KeepAdvancedOpen.dc.html",
+   "title": "Settings, keep advanced open",
+   "x": 0,
+   "y": 23560,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ExplorerLoading.dc.html",
+   "title": "Explorer, loading",
+   "x": 1540,
+   "y": 23560,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "ExplorerLargeGraph.dc.html",
+   "title": "Explorer, Performance mode",
+   "x": 3080,
+   "y": 23560,
+   "w": 1440,
+   "h": 900
+  },
+  {
+   "file": "SettingsPerformance.dc.html",
+   "title": "Settings, Performance",
+   "x": 0,
+   "y": 24620,
+   "w": 1440,
+   "h": 900
+  }
+ ],
+ "annotations": [
+  {
+   "id": "group-1",
+   "x": 0,
+   "y": -150,
+   "w": 900,
+   "text": "Core screens (16)"
+  },
+  {
+   "id": "group-2",
+   "x": 0,
+   "y": 6470,
+   "w": 900,
+   "text": "Data (10)"
+  },
+  {
+   "id": "group-3",
+   "x": 0,
+   "y": 10970,
+   "w": 900,
+   "text": "Analysis and style (13)"
+  },
+  {
+   "id": "group-4",
+   "x": 0,
+   "y": 15470,
+   "w": 900,
+   "text": "Explore, notes, selection (9)"
+  },
+  {
+   "id": "group-5",
+   "x": 0,
+   "y": 18910,
+   "w": 900,
+   "text": "Present and export (5)"
+  },
+  {
+   "id": "group-6",
+   "x": 0,
+   "y": 21290,
+   "w": 900,
+   "text": "Navigation, settings, scale (9)"
+  }
+ ],
+ "launch": {
+  "view": "canvas"
+ }
+}

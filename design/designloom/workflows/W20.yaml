@@ -1,0 +1,149 @@
+id: W20
+name: Gene List to Interaction Network with Expression Overlay
+category: analysis
+validated: false
+personas:
+  - genomics-cytoscape-user
+  - bioinformatics-researcher
+requires_capabilities:
+  - data-import
+  - data-validation
+  - data-preview
+  - component-analysis
+  - filtering
+  - node-selection
+  - visual-encoding-nodes
+  - visual-encoding-edges
+  - legend-display
+  - layout-force-directed
+  - search
+  - details-on-demand
+  - style-presets
+  - statistics-panel
+  - export-image
+  - data-export
+suggested_components:
+  - file-drop-zone
+  - column-mapper
+  - data-import-dialog
+  - attribute-table-join-dialog
+  - data-table-panel
+  - visual-encoding-panel
+  - gradient-editor
+  - legend
+  - graph-canvas
+  - export-dialog
+starting_state:
+  data_type: gene list (50-600 symbols) plus a wide per-gene data table
+  node_count: 100-600
+  edge_density: sparse
+  user_expertise: intermediate
+goal: >-
+  **Intent**: Turn a list of differentially expressed genes or proteins into an interaction network, paint the
+  experimental measurements onto it, and see which connected groups of genes moved together. This is the first thing
+  a genomics lab does with a result and the backbone of most Cytoscape tutorials.
+
+
+  **Mental Model**: "Put my data on the map." The interaction network is a fixed map of known biology; the experiment
+  is a weather overlay on top of it. Red is up, blue is down, gray is not measured.
+
+
+  **Task Phases**:
+
+  1. **Get the network** (3 min) - Paste the gene list, choose species and a confidence cutoff (0.4 default, 0.7 or
+  0.9 for high confidence), retrieve interactions; or load an edge list exported from STRING or BioGRID
+
+  2. **Trim to the connected part** (1 min) - Select the largest connected component and make it the working network;
+  unconnected genes are noted but dropped
+
+  3. **Join the data table** (4 min) - Import a CSV or TSV with 10 to 40 columns (logFC, p-value, per-sample
+  expression, mutation count, annotations), pick the key column that matches node names, check how many rows matched
+
+  4. **Encode measurements** (5 min) - Fill color by logFC on a diverging red-blue gradient centered on zero, gray for
+  nodes with no value; size by a second column; label by display name; optionally thicker borders for a few genes of
+  interest (driver genes)
+
+  5. **Lay out and read** (3 min) - Force-directed layout, look for red and blue neighborhoods, click nodes to read the
+  full attribute row
+
+  6. **Save the figure** (2 min) - Export PNG or SVG with the legend, and export the node table with the joined
+  columns
+
+
+  **Decision Points**:
+
+  - What confidence cutoff keeps enough edges without noise?
+
+  - Keep unconnected genes as isolates or drop them?
+
+  - Which column is the identifier, and were the mismatched rows worth chasing (symbol vs Entrez vs UniProt)?
+
+  - Where does the gradient center and clip, given a skewed fold-change distribution?
+
+  - Which genes deserve a bypass highlight for the figure?
+
+
+  **Information Needs**:
+
+  - Count of query genes found vs not found by the interaction source
+
+  - Component sizes so the largest can be selected in one click
+
+  - Match count from the table join (matched, unmatched, duplicates) with the unmatched identifiers listed
+
+  - Histogram of the encoded column so gradient endpoints can be set sensibly
+
+  - Full attribute row for a clicked node, all columns, not a five-row preview
+
+  - Legend that states the column name, the color scale endpoints and the size mapping
+
+
+  **Pain Points**:
+
+  - Tools that only open graph files; the biologist has a gene list and a spreadsheet
+
+  - Identifier case sensitivity and namespace mismatches silently drop attributes
+
+  - Continuous mappings default to black-to-white or clip to min and max, hiding the zero midpoint
+
+  - Nodes without data disappear into the gradient instead of standing out as gray
+
+  - Rebuilding the same style for the down-regulated list after finishing the up-regulated one
+
+  - Legend is not part of the export and has to be redrawn
+
+
+  **Data Flow**:
+
+  - Input: Gene symbol list, species, confidence cutoff; or STRING/BioGRID edge list (TSV) plus a per-gene data table
+
+  - Transformations: Interaction retrieval or edge-list import, largest-component subgraph, key-column attribute join,
+  continuous color and size mappings
+
+  - Output: Annotated interaction network, exported figure with legend, node table with joined columns
+success_criteria:
+  - metric: Time from gene list to colored network
+    target: Under 15 minutes
+  - metric: Attribute join transparency
+    target: User can state how many genes matched and which did not
+  - metric: Figure readiness
+    target: Exported image includes legend with column names and scale endpoints
+sources:
+  - title: Cytoscape tutorial - Differentially Expressed Genes Network Analysis
+    url: https://cytoscape.org/cytoscape-tutorials/protocols/differentially-expressed-genes/
+    summary: STRING protein query at confidence 0.4, largest subnetwork, table import keyed on query term, logFC continuous mapping, driver-gene bypass, export
+  - title: Cytoscape tutorial - RNA-Seq Data Network Analysis
+    url: https://cytoscape.org/cytoscape-tutorials/protocols/rna-seq-data-analysis/
+    summary: About 150 nodes, fold change red-blue gradient, style saved as "de genes"
+  - title: Cytoscape tutorial - Visualizing Expression Data
+    url: https://cytoscape.org/cytoscape-tutorials/protocols/mapping-data/
+    summary: Continuous mapping with a default color outside the gradient for nodes with no value
+  - title: Cytoscape User Manual - Node and Edge Column Data
+    url: https://manual.cytoscape.org/en/stable/Node_and_Edge_Column_Data.html
+    summary: Table import requires a key column matching node identifiers exactly, case sensitive
+  - title: JensenLab stringApp exercises
+    url: https://jensenlab.org/training/stringapp/
+    summary: Disambiguation dialogs and gradient optimization for skewed data listed as pain points
+version: 1.0.0
+created_at: 2026-09-04T00:00:00.000Z
+updated_at: 2026-09-04T00:00:00.000Z

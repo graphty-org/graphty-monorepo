@@ -1,0 +1,844 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #5b8ff9; } a:hover { color: #75a5f9; }
+  </style>
+</helmet>
+<!--
+  STATE: Import options, one dialog in four states. This file: delimited file, nothing loaded
+  (a recognised export, so roles were pre-assigned).
+  INPUTS: no graph loaded; format class delimited; header signature matches a known export (STRING);
+    nothing guessed -- roles were pre-assigned; size below both numbers; "Always show import
+    options" off.
+  CLAUSE: delimited file. Evaluated from the end, first match wins; nothing later in the list matched,
+    because a recognised export leaves no guessed column.
+  RENDERS: item 2 recognition banner YES; item 3 picker no; item 6 Load defaults to Everything;
+    no departure line.
+  PRIMARY: Import.
+  IN: a delimited file dropped while nothing was loaded, whose column signature matched a known export.
+  REOPENS AS: a mapping field on a Loaded data line -> that role's column header, its Role chip
+    focused; the "Mapped as before" toast -> the grid, top; the palette -> "Import options".
+  OUT: Import -> Loaded, with the recognition's mapping and its one saved filter applied.
+  CANCEL: Cancel, Escape and the title-row X are one action. Nothing is loaded, so Cancel abandons the
+    file: the shell returns to Empty, the status bar reading line clears, the file does not enter
+    Recent, and the pre-assigned roles and the saved filter are discarded with it.
+  CANVAS TITLE: Import options -- delimited file (recognised export).
+
+  IMPORT OPTIONS, RECOGNISED EXPORT. Desktop 1440 by 900. Spec revision 1.5. State: Empty (spec 6.1, 7.1) with the
+  Import options dialog (spec 5.3 Data, items 1 to 9) open over the dimmed Welcome screen.
+  File: ovarian_de_string.tsv (318 nodes, 1,104 edges, the same dataset TableJoin, InspectorGenomics
+  and CategoryTable load), a tab-separated export whose column signature (node1, node2,
+  combined_score) matched a known export, so the dialog silently pre-assigned roles, set the weight,
+  marked the channel columns as edge attributes and installed a saved filter. The banner is the only
+  visible trace of the recognition. Nodes are keyed by the node1 / node2 symbols, so the Identifier
+  system reads Gene symbol and the STRING ids stay node attributes (TableJoin: "ids: gene symbol").
+  Welcome underlay follows SHELL-DELTAS-1.3 W1 to W8.
+  Dialog width is 1088 (VOCAB frame is 720) because the export has 12 columns and the grid is the
+  mapping surface; every column stays visible with its Role and Type chips.
+  1.5: info circles (6.7) are drawn at rest with their sentence in the native title attribute; the one
+  open popover was the Identifier system bubble until 1.8 POP-ROLE-2 deleted it -- the one surface drawn
+  open now is the combined_score column's role pop-over. Icon-only controls carry their tooltip as a native
+  title with the binding in parentheses at the end (6.8, IK-3). The Role and Type chips are themselves
+  the controls (NAV-3); they carry no chevron in this file, so none was kept: the Edge attribute chip
+  is 78 px inside a 79 px cell, so a chevron plus its gap (14 px) would clip. The Data panel underlay
+  collapses Sample datasets and Recent because the Welcome block redraws both on this screen (G3, MIN-1).
+
+  REVISION 1.6 (COMPACTION-1.6.md, VOCAB section 11), Group E moves applied to the Data panel and the
+  Import options dialog. The canvas (the Welcome underlay), the rail, the top bar and the status bar are
+  untouched. What changed, and why:
+    Rule 3, five label-above-field stacks became inline RT-1 rows -- Detected format, Import as,
+      Direction, Treat as, Identifier system, Load. The labels keep their words: none of these concepts
+      has a glyph in REGISTER-1.5.md and Rule 4 keeps the word when the glyph test fails, so the row is
+      the VOCAB 11 labels-on shape (word beside the field, never above it). 38px stack -> 24px row, x6.
+    Rule 9, the preview header stopped repeating itself: seven identical "Edge attribute" chips became
+      one chip over the seven columns, and twelve type words became a three-segment band over 4 / 7 / 1
+      columns. 23 role words -> 11, 13 type words -> 4, and the five columns whose role differs are now
+      the only chips on the row.
+    Rule 9 again, on the strings that said the same thing twice: "-- delimited file" (the Format field
+      says it), "Separator: tab (detected) ... UTF-8" (the Format field, plus Rule 7a on the default
+      encoding), "(subset load)" (the footer button), "12 columns, header row detected." (moved to the
+      preview caption and the Parsing state word), "Node and edge table" in the panel.
+    Rule 8, three explanations deleted or moved to a title: "Click a header to change a column."
+      (every chip's title says it), "from node1 and node2. STRING ids kept as node attributes." (the
+      Source / Target and node-attribute chips say both halves), "Looks like a score scaled by 1000."
+      and "Find it in Explore after import." (now the two rows' titles).
+    Group E's own move, the sentence-length Policies labels became nouns and their sentence-length
+      values became verbs: Repeats / Combine + sum, Unknown nodes / Create, Self-loops / Keep, each
+      with the full policy in the field's title, and each carrying the count it acts on in the
+      trailing slot -- which is where "This file has no repeated pairs and no self-loops" went.
+    Rule 7c, the Validation report section does not render: nothing is loaded, so there is nothing to
+      validate. It is not collapsed and not dimmed.
+    Floor kept in full: the reading (318 nodes, 1,104 edges, undirected, weighted by combined_score);
+      the recognition run record with its column count, weight column and saved-filter count; the
+      filter's own name in the Details record; "999 becomes 0.999" and the three policy counts (what a
+      control will do, and the count it acts on); every column name, every preview value, the
+      filename; Cancel and Import.
+
+  REVISION 1.7 (DECISIONS-1.7.md, VOCAB section 12). Five decisions reach this board; three of them
+  change nothing on screen. What changed, and why:
+    IMP-1 then IMP-8, the entry clause returns to the title row: "ovarian_de_string.tsv, 212 KB --
+      delimited file", at the VOCAB 12 snippet's 11px rather than this board's old 12px, so the five
+      Import boards agree. The clause is the dialog's name for its state (floor item 6), not an
+      explanation of a control, so Rule 8 may not take it again. The CANVAS TITLE line above drops its
+      "canvas.json is not edited" hedge: 1.7 makes that edit once, coordinated, and not from this file.
+    IMP-4, the recognition banner left the interpretation row and became a full-width RT-7 run record
+      directly beneath it. The rationale sits on the row itself.
+    IMP-4 crossed with the floor, resolved: the "Installed saved filter: High confidence (score >=
+      0.7)" line is deleted where it stood, and the fact rises to the row that caused it (Rule 9),
+      where it now reads "1 saved filter installed". The 1.6 floor list above called the filter's own
+      name floor kept in full; the name moves behind Details, which is legal -- precedence rule 2 of
+      DECISIONS-1.7 says a door is not a deletion and a circle is, and IMP-4 puts the full per-column
+      record behind exactly this chevron. The run record itself stays resident, in full.
+    IMP-5, the footer's "Load a subset (Coming)" button is deleted: it duplicated the Load control four
+      rows above it, which reads Everything, and item 9's button list drops it. The footer is now
+      Cancel at the left and Import as the primary.
+    REVISION 1.7, TB-1: the navigation cluster is retired app-wide for the bottom-centre canvas
+      toolbar; neither is drawn on this board, because nothing is loaded.
+    REVISION 1.7, POP-3: validation issues inside the Import options dialog stay INLINE. 6.11 forbids
+      a pop-out opening from inside a 3b dialog and errors here gate Import. On this board Rule 7c
+      already keeps the Validation report section from rendering at all (nothing is loaded), and that
+      stays true.
+    REVISION 1.7, SAV-10: the header signature this recognition matched becomes a named row in
+      Data > Mappings ("ovarian_de_string.tsv columns"), renameable, deletable and exportable --
+      see DataPanelLoaded and TableJoin. Nothing on this board changes for it.
+
+  REVISION 1.7 POP-3, AS AMENDED BY 1.8 B2: the validation issues stay inline inside this dialog because
+  errors gate the Import button and because the issue list is a scan surface of floor-7 ids -- not because
+  a dialog cannot host a pop-out. B2 gives the dialog its own lane: gap 8, shared edge line row top to
+  pop-out top, one pop-out at a time, Escape closes the pop-out before the dialog. This board opens one
+  such pop-over, from a column Role chip.
+
+  1.8: the bipartite row is drawn where nothing else reports the parser's structural finding
+  (ImportOptions, ImportLargeFile) and is not drawn where a recognition banner reports it (here).
+
+  REVISION 1.8 AFTER-STATE, 15 -> 7 resident rows outside the preview grid, in render order: (1) the
+  reading "318 nodes, 1,104 edges, undirected, weighted by combined_score"; (2) Format; (3) Import as;
+  (4) Direction; (5) the recognition banner with its Details chevron and Map it myself; (6) the preview
+  caption "First 5 of 1,104 rows, 12 columns"; (7) the collapsed Parsing row reading "Header row".
+  Removed: the four-row Weight block and the Identifier system group (to two column Role chips, which now
+  carry "Weight strength" and "Source gene symbol" as dimmed suffixes); the Policies header, its caption
+  row and its three zero rows (Rule 7a plus 6.2's null statement); Load at Everything (Rule 7a); the
+  bipartite checkbox (the banner reports it). Kept by the floor: the reading, the run record in full,
+  every column name and cell value, the preview caption, Cancel and Import in full text.
+
+  REVISION 1.8 GRID WIDTHS, a drafting consequence of the two door stubs and nothing else. "Source gene
+  symbol" needs a 122px cell and "Weight strength" a 101px one, against the 56 and 101 the template gave
+  them, so the twelve columns are now sized to their own widest content instead of running the four
+  fixed widths plus repeat(7, 87px):
+    124  node1              (the Source gene symbol chip, 122)
+     56  node2              (the Target chip, 51; the value CDKN1A, 55)
+    130  node1_string_id    (9606.ENSP00000269305 at 9.5px mono, 123; the Source node attribute chip, 130)
+    128  node2_string_id    (the Target node attribute chip, 126)
+     88  neighborhood       (the longest of the seven names, 86)
+     62  fusion             81  cooccurence     84  coexpression
+     84  experimental       66  database        74  textmining
+    109  combined_score     (the Weight strength chip, 101)
+  Sum 1086, unchanged, inside the same 1088 box. Nothing is ellipsized anywhere in the grid: every one
+  of the twelve column names and every one of the sixty cell values still renders in full, which is what
+  the floor asks of this surface. The Edge attribute group chip still spans the same seven columns and
+  the type band still spans 4 / 7 / 1.
+
+  REVISION 1.8 ANCHOR, measured on the rendered board at 1440x900 in a 1600x1000 viewport, not estimated.
+  Opener: the combined_score column's Role chip, "Weight strength", left edge x 1159, top y 403.4.
+  Pop-over: x 871 to 1151, y 403.4 to 527.8, 280 by 124.4.
+  Gap axis (horizontal, it opens left): 1159 - 1151 = 8, the B2 dialog-lane constant exactly.
+  Shared edge line (vertical): role row top 403.4 = pop-out top 403.4, a 0px difference, so the surface
+  is anchored and takes the anchored form rather than B1's centred fallback -- the 32px limit is not
+  approached on either axis. Both numbers are structural rather than typed: the pop-over is positioned
+  inside the Role cell itself, so top: 0 IS the grid row's top and right: 113 against a 109px cell whose
+  chip starts 4px in IS an 8px gap. It opens left because opening right would put its far edge at 1447,
+  outside both the dialog rect (1280) and the frame.
+-->
+
+<div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
+
+  <!-- MAIN ROW: rail + everything right of it. Height 876. -->
+  <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row;">
+
+    <!-- ACTIVITY RAIL, 48 wide. Empty state: Data active; Explore, Analyze, Style, Present disabled (tooltip "Load data first"). -->
+    <div style="flex: 0 0 48px; width: 48px; display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 4px 0; background: #1f2428; border-right: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+
+      <!-- Data, ACTIVE, no badge -->
+      <div title="Data" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #d5d7da; background: #28364e; cursor: pointer; box-sizing: border-box;">
+        <div style="position: absolute; left: 0; top: 0; width: 2px; height: 44px; background: #4a7ee8;"></div>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="8" cy="4" rx="5.5" ry="2"></ellipse><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4"></path><path d="M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Data</span>
+      </div>
+
+      <!-- Explore, DISABLED -->
+      <div title="Explore. Load data first" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #5f6873; cursor: default; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><polygon points="10.5,5.5 9,9 5.5,10.5 7,7"></polygon></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Explore</span>
+      </div>
+
+      <!-- Analyze, DISABLED -->
+      <div title="Analyze. Load data first" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #5f6873; cursor: default; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="13.5" x2="3" y2="8"></line><line x1="8" y1="13.5" x2="8" y2="2.5"></line><line x1="13" y1="13.5" x2="13" y2="6"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Analyze</span>
+      </div>
+
+      <!-- Style, DISABLED -->
+      <div title="Style. Load data first" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #5f6873; cursor: default; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 2.5l-6 6"></path><path d="M7.5 8.5c-1.5 0-2.5 1-2.5 2.5s-1 2-2.5 2c1.5 1 4.5 1 5.5-1 .5-1 .5-2-.5-3.5z"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Style</span>
+      </div>
+
+      <!-- Present, DISABLED -->
+      <div title="Present. Load data first" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #5f6873; cursor: default; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="8" rx="1"></rect><line x1="8" y1="11" x2="8" y2="14"></line><line x1="5.5" y1="14" x2="10.5" y2="14"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Present</span>
+      </div>
+
+      <!-- AI -->
+      <div title="AI" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3l1.3 3.7L12 8l-3.7 1.3L7 13l-1.3-3.7L2 8l3.7-1.3z"></path><path d="M13 2v2.5M11.75 3.25h2.5"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">AI</span>
+      </div>
+
+      <div style="flex: 1 1 auto;"></div>
+
+      <!-- Settings -->
+      <div title="Settings" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Settings</span>
+      </div>
+
+      <!-- Help -->
+      <div title="Help and keyboard shortcuts (?)" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><path d="M6 6.3a2 2 0 0 1 3.9.5c0 1.3-1.9 1.6-1.9 2.7"></path><line x1="8" y1="11.75" x2="8" y2="12.25"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Help</span>
+      </div>
+    </div>
+
+    <!-- RIGHT OF RAIL -->
+    <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column;">
+
+      <!-- TOP BAR, 40 tall. Empty: no file open; undo and redo disabled; Export and Compare disabled (W1). -->
+      <div style="flex: 0 0 40px; height: 40px; display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 0 12px; background: #1f2428; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+        <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 13px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">No file open</span>
+        </div>
+        <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 8px;">
+          <div title="Undo (Cmd+Z). Load data first" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h6.5a3 3 0 0 1 0 6H7"></path><polyline points="6.5,3.5 4,6 6.5,8.5"></polyline></svg>
+          </div>
+          <div title="Redo (Shift+Cmd+Z). Load data first" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6H5.5a3 3 0 0 0 0 6H9"></path><polyline points="9.5,3.5 12,6 9.5,8.5"></polyline></svg>
+          </div>
+          <div style="width: 300px; height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 8px; border-radius: 4px; background: #2a3035; box-sizing: border-box; cursor: pointer;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line></svg>
+            <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Search commands, nodes and edges</span>
+            <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;">Cmd+K</div>
+          </div>
+        </div>
+        <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
+          <!-- Export menu trigger, disabled in Empty -->
+          <div style="display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px 0 6px; border-radius: 4px; color: #5f6873; font-size: 11px; font-weight: 500; line-height: 1; cursor: default; box-sizing: border-box;" title="Export. Load data first">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
+            <span>Export</span>
+            <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,6 8,11 13,6"></polyline></svg>
+          </div>
+          <div title="Share this view. Load data first" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="3.5" r="1.75"></circle><circle cx="4" cy="8" r="1.75"></circle><circle cx="12" cy="12.5" r="1.75"></circle><line x1="5.6" y1="7.1" x2="10.4" y2="4.4"></line><line x1="5.6" y1="8.9" x2="10.4" y2="11.6"></line></svg>
+          </div>
+          <div style="width: 1px; height: 16px; background: #48525c;"></div>
+          <!-- Compare toggle, disabled in Empty -->
+          <div title="Compare two views. Load data first" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="5.5" height="11" rx="1.5"></rect><rect x="8.5" y="2.5" width="5.5" height="11" rx="1.5"></rect></svg>
+          </div>
+          <!-- inspector toggle, resting (inspector hidden in Empty) -->
+          <div title="Toggle inspector (D)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="10" y1="2.5" x2="10" y2="13.5"></line></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- BODY ROW: Data panel + canvas (Welcome). Inspector hidden. Height 836. -->
+      <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row;">
+
+        <!-- ACTIVITY PANEL, 280 wide: Data, tier 1 (W6) -->
+        <div style="flex: 0 0 280px; width: 280px; display: flex; flex-direction: column; background: #1f2428; border-right: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+          <div style="flex: 0 0 36px; height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="8" cy="4" rx="5.5" ry="2"></ellipse><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4"></path><path d="M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"></path></svg>
+              <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Data</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <div title="Close the panel (Cmd+B)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
+              </div>
+            </div>
+          </div>
+
+          <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 8px 16px 16px; overflow: hidden; box-sizing: border-box;">
+
+            <!-- Open file -->
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px;">
+                <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Open file</span>
+              </div>
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 8px; border-radius: 4px; border: 1px dashed #48525c; box-sizing: border-box;">
+                <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Open file</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Open from URL</div>
+                <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Paste data</div>
+              </div>
+              <!-- RT-7 action row, disabled. 1.6: the reason it is disabled now rides in the title
+                   (floor 4). Both names stay: this is the first mention of the capability on this
+                   surface (Decision B) and they share one line. -->
+              <div title="Add attributes from a table... (Table join). Load data first" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #5f6873; font-size: 12px; line-height: 1.2; cursor: default; box-sizing: border-box;">
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Add attributes from a table</span>
+                <span style="font-size: 11px; white-space: nowrap;">Table join</span>
+              </div>
+            </div>
+
+            <!-- Sample datasets (W5), collapsed: the Welcome block on this screen redraws all six rows (G3, MIN-1) -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Sample datasets</span>
+                  <span style="font-size: 12px; line-height: 1.2; color: #7a828e;">6</span>
+                </div>
+                <div style="display: flex; gap: 4px;"></div>
+              </div>
+            </div>
+
+            <!-- Recent (W7), collapsed for the same reason; the "cleared from Settings" line lives on the Welcome block -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Recent</span>
+                  <span style="font-size: 12px; line-height: 1.2; color: #7a828e;">2</span>
+                </div>
+                <div style="display: flex; gap: 4px;"></div>
+              </div>
+            </div>
+
+            <!-- Data table row (W6), switch disabled in Empty. 1.6: "Node and edge table" deleted --
+                 it restated the row's own name two words to its left (Rule 8), and it was clipping at
+                 115px in an 86px slot. The state now rides in the switch's title. -->
+            <div style="display: flex; flex-direction: column; gap: 1px;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px;">
+                <div style="display: flex; align-items: baseline; gap: 6px; min-width: 0;">
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap;">Data table</span>
+                  <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
+                </div>
+                <div title="Show the node and edge table. Load data first" style="width: 28px; height: 16px; border-radius: 8px; background: #374047; position: relative; box-sizing: border-box; flex: 0 0 auto; cursor: default;">
+                  <div style="position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #5f6873;"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 1.6, RT-8 conditional rule: the Validation report section is gone, not collapsed and not
+                 dimmed. Nothing is loaded, so there is nothing to validate -- a section the data cannot
+                 support does not render at all (Rule 7c). It returns with the first loaded file. -->
+          </div>
+        </div>
+
+        <!-- CANVAS: 1112 wide by 836 tall, hosts Welcome (Empty). No cluster, minimap or legend. 1.8 C2 splits
+             floor item 5 into an export obligation and a screen obligation; nothing is loaded, so there is
+             no encoded channel and neither obligation fires. -->
+        <div style="flex: 1 1 auto; min-width: 0; position: relative; background: #161b22; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+          <div style="width: 600px; max-width: 600px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box;">
+
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 20px; font-weight: 600; line-height: 1.25; color: #d5d7da;">Open a graph to get started</span>
+              <span style="font-size: 12px; line-height: 1.5; color: #a3a8b1;">Drop a file, pick a sample, or reopen something recent. Everything here is also in the Data panel on the left.</span>
+            </div>
+
+            <!-- drop zone -->
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 24px; border-radius: 8px; border: 1px dashed #48525c; background: #1f2428; box-sizing: border-box;">
+                <svg width="72" height="40" viewBox="0 0 72 48" fill="none" stroke="#5f6873" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="14" y1="34" x2="29" y2="21"></line>
+                  <line x1="29" y1="21" x2="46" y2="14"></line>
+                  <line x1="29" y1="21" x2="38" y2="37"></line>
+                  <line x1="46" y1="14" x2="58" y2="26"></line>
+                  <line x1="38" y1="37" x2="58" y2="26"></line>
+                  <line x1="46" y1="14" x2="38" y2="37"></line>
+                  <line x1="14" y1="34" x2="38" y2="37"></line>
+                  <circle cx="14" cy="34" r="4" fill="#161b22"></circle>
+                  <circle cx="29" cy="21" r="5" fill="#161b22" stroke="#4a7ee8"></circle>
+                  <circle cx="46" cy="14" r="4" fill="#161b22"></circle>
+                  <circle cx="38" cy="37" r="4" fill="#161b22"></circle>
+                  <circle cx="58" cy="26" r="4" fill="#161b22"></circle>
+                </svg>
+                <span style="font-size: 12px; line-height: 1.4; color: #d5d7da;">Drop a graph file (or a nodes file and an edges file) here</span>
+                <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Open file</div>
+                <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">JSON, CSV or TSV, GraphML, GEXF, GML, DOT, Pajek, SIF, CX2</span>
+              </div>
+              <div style="display: flex; justify-content: center;">
+                <span style="font-size: 11px; line-height: 1.2; color: #5b8ff9; cursor: pointer;">or paste data / open from URL</span>
+              </div>
+            </div>
+
+            <!-- sample datasets -->
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+                <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Sample datasets</span>
+                <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Click one to load it</span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 6px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box; cursor: pointer;">
+                <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Karate Club</span>
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">34 nodes, 78 edges</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1;">Members of a karate club just before it split in two. <span style="color: #5b8ff9; cursor: pointer;">Try finding the groups.</span> <span style="color: #5b8ff9;">Zachary 1977</span></span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 6px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box; cursor: pointer;">
+                <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Cat social network</span>
+                    <div style="display: inline-flex; align-items: center; height: 14px; padding: 0 4px; border-radius: 7px; background: #374047; color: #d5d7da; font-size: 9px; font-weight: 500; line-height: 1; text-transform: uppercase; box-sizing: border-box;">Weighted</div>
+                  </div>
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">20 nodes, 29 edges</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1;">20 nodes. Small enough to see every relationship. <span style="color: #5b8ff9; cursor: pointer;">Try finding the groups.</span> <span style="color: #5b8ff9;">graphty sample</span></span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 6px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box; cursor: pointer;">
+                <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Fraud ring</span>
+                    <div style="display: inline-flex; align-items: center; height: 14px; padding: 0 4px; border-radius: 7px; background: #374047; color: #d5d7da; font-size: 9px; font-weight: 500; line-height: 1; text-transform: uppercase; box-sizing: border-box;">Directed</div>
+                    <div style="display: inline-flex; align-items: center; height: 14px; padding: 0 4px; border-radius: 7px; background: #374047; color: #d5d7da; font-size: 9px; font-weight: 500; line-height: 1; text-transform: uppercase; box-sizing: border-box;">Timed</div>
+                    <div style="display: inline-flex; align-items: center; height: 14px; padding: 0 4px; border-radius: 7px; background: #374047; color: #d5d7da; font-size: 9px; font-weight: 500; line-height: 1; text-transform: uppercase; box-sizing: border-box;">Weighted</div>
+                  </div>
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">200 nodes, 612 edges</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1;">Made-up accounts and transfers. A few accounts pass money around in circles. <span style="color: #5b8ff9; cursor: pointer;">Try finding the bridges.</span> <span style="color: #5b8ff9;">Synthetic, graphty</span></span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 6px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box; cursor: pointer;">
+                <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Airline routes</span>
+                    <div style="display: inline-flex; align-items: center; height: 14px; padding: 0 4px; border-radius: 7px; background: #374047; color: #d5d7da; font-size: 9px; font-weight: 500; line-height: 1; text-transform: uppercase; box-sizing: border-box;">Directed</div>
+                    <div style="display: inline-flex; align-items: center; height: 14px; padding: 0 4px; border-radius: 7px; background: #374047; color: #d5d7da; font-size: 9px; font-weight: 500; line-height: 1; text-transform: uppercase; box-sizing: border-box;">Types</div>
+                  </div>
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">235 nodes, 1,297 edges</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1;">Airports and airlines as two node types. <span style="color: #5b8ff9; cursor: pointer;">Try layers by attribute, or two sides.</span> <span style="color: #5b8ff9;">Gephi sample, airlines-sample.gexf</span></span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 6px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box; cursor: pointer;">
+                <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Ovarian cancer DE genes</span>
+                    <div style="display: inline-flex; align-items: center; height: 14px; padding: 0 4px; border-radius: 7px; background: #374047; color: #d5d7da; font-size: 9px; font-weight: 500; line-height: 1; text-transform: uppercase; box-sizing: border-box;">Weighted</div>
+                  </div>
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">318 nodes, 1,104 edges</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1;">318 proteins, STRING edges at 0.4 confidence, logFC and padj columns. <span style="color: #5b8ff9; cursor: pointer;">Try coloring by logFC and finding the groups.</span> <span style="color: #5b8ff9;">STRING db, GEO</span></span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 6px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box; cursor: pointer;">
+                <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Road network, Oahu</span>
+                    <div style="display: inline-flex; align-items: center; height: 14px; padding: 0 4px; border-radius: 7px; background: #f7b731; color: #0d1117; font-size: 9px; font-weight: 500; line-height: 1; text-transform: uppercase; box-sizing: border-box;">Large</div>
+                  </div>
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">62,000 nodes, 81,000 edges, 9.8 MB</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1;">Opens in Performance mode, about 20 s. Positions from the file. <span style="color: #5b8ff9; cursor: pointer;">Try finding connected parts, or search for a node.</span> <span style="color: #5b8ff9;">OpenStreetMap contributors</span></span>
+              </div>
+            </div>
+
+            <!-- recent files -->
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Recent files</span>
+              <div style="display: flex; flex-direction: column; gap: 1px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                  <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5.5L13 5.5V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"></path><polyline points="9.5,2 9.5,5.5 13,5.5"></polyline></svg>
+                    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">cat-social-network.json</span>
+                  </div>
+                  <span style="font-size: 11px; color: #7a828e; white-space: nowrap;">20 nodes, 29 edges, Yesterday</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                  <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5.5L13 5.5V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"></path><polyline points="9.5,2 9.5,5.5 13,5.5"></polyline></svg>
+                    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">org-chart-2026.csv</span>
+                  </div>
+                  <span style="font-size: 11px; color: #7a828e; white-space: nowrap;">148 nodes, 147 edges, Aug 28</span>
+                </div>
+              </div>
+              <span style="font-size: 11px; line-height: 1.2; color: #5f6873;">Recent files are cleared from Settings > Data management.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS BAR, 24 tall (Empty: "No data loaded"; no Zoom, no mode chip. The AI slot is retired, MIN-8) -->
+  <div style="flex: 0 0 24px; height: 24px; display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 0 12px; background: #1f2428; border-top: 1px solid #48525c; box-sizing: border-box; font-size: 11px; line-height: 1.2; color: #7a828e;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span>No data loaded</span>
+    </div>
+  </div>
+
+  <!-- SCRIM + IMPORT OPTIONS DIALOG (spec 5.3 Data, tier 3). Modal, so no other control is live. -->
+  <div style="position: absolute; left: 0; top: 0; width: 1440px; height: 900px; display: flex; align-items: center; justify-content: center; background: rgba(13, 17, 23, 0.6); z-index: 20;">
+    <div style="width: 1120px; max-height: 760px; display: flex; flex-direction: column; border-radius: 8px; background: #1f2428; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; overflow: hidden;">
+
+      <!-- title row, 40 -->
+      <div style="flex: 0 0 40px; height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+        <div style="display: flex; align-items: baseline; gap: 8px; min-width: 0;">
+          <span style="font-size: 14px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Import options</span>
+          <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">ovarian_de_string.tsv, 212 KB -- delimited file</span>
+        </div>
+        <div title="Close (Esc)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
+        </div>
+      </div>
+
+      <!-- body -->
+      <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px; overflow: hidden; box-sizing: border-box;">
+
+        <!-- 1. RT-10 reading, floor item 1: on screen, in full, never behind a circle.
+             The second line, "12 columns, header row detected.", is gone: the column count moved onto
+             the preview caption where the columns are, and the header-row decision is the Parsing
+             section's one state word (Rule 8, Rule 9). -->
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <span style="font-size: 12px; line-height: 1.4; color: #d5d7da;">318 nodes, 1,104 edges, undirected, weighted by combined_score</span>
+        </div>
+
+        <!-- 2. RT-1 field rows, inline. Rule 3 took the three label lines off their own line; the
+             labels themselves stay words, because "format", "import as" and "direction" have no glyph
+             in REGISTER-1.5.md and Rule 4 keeps the word when the glyph test fails -- so they sit
+             beside the field in the VOCAB 11 escape-hatch shape, not above it. Three 38px stacks
+             became three 24px rows. The dimmed qualifier is "(detected)": it says the parser found
+             the format rather than the user choosing it, and it is the same shape as "(assumed)" on
+             the Direction field 8px to its right. It read "(high confidence)" until the review: on a
+             STRING export "high confidence" is a term of art for combined_score >= 0.7, and this
+             board carries that score three ways -- the "1 saved filter installed" whose name is
+             "High confidence", the "0.4 confidence" in the sample blurb, and the combined_score
+             column in the grid -- so a domain reader took a statement about the parser as a
+             statement that low-scoring interactions had been dropped. "Confidence" is now reserved
+             for the score attribute; format detection never spends the word, in any of the five
+             import states.
+             1.7 (IMP-4) took the recognition banner out of this row; it is the full-width
+             run record directly below, and Format, Import as and Direction simply stop being
+             stretched. -->
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+            <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Format</span>
+            <div title="Detected format" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 252px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <span style="white-space: nowrap;">Tab-separated values <span style="color: #7a828e;">(detected)</span></span>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+            <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Import as</span>
+            <div title="Import as" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 108px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <span style="white-space: nowrap;">Edge list</span>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+            <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Direction</span>
+            <div title="Direction" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 156px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <span style="white-space: nowrap;">Undirected <span style="color: #7a828e;">(assumed)</span></span>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2b. IMP-4: the recognition banner, now a full-width RT-7 action row carrying a floor item 3
+             run record, VOCAB section 12 "Import state banner" verbatim minus the snippet's
+             "padding: 0 12px 0 20px" (this dialog's body already pads 16). A recognition is an
+             automatic edit to the user's mapping -- twelve column roles, the weight, the identifier
+             system, a named saved filter -- and a run record is a floor item, which no compaction may
+             shrink to nine words. The old "Recognized a STRING export; columns mapped" said none of
+             what was done, and its bare "Change" named no object.
+             Pressing "Map it myself" clears every pre-assignment, leaves detection-only guesses, and
+             flips this row to "STRING mapping cleared -- 4 columns guessed. Review" with "Use the
+             STRING mapping" in place of "Map it myself". Reversible in both directions, no confirm,
+             without leaving the dialog. Details holds the full per-column record. -->
+        <div style="display: flex; align-items: center; gap: 8px; height: 28px; box-sizing: border-box;">
+          <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #61d095;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline></svg>
+          </div>
+          <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Recognized a STRING export -- 12 columns mapped, combined_score as weight divided by 1000, 1 saved filter installed</span>
+          <div style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Details. The full per-column record: every role, every type, the weight treatment, the identifier system and the installed filter">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+          </div>
+          <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 24px; padding: 0 8px; border-radius: 4px; font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Map it myself</div>
+        </div>
+
+        <!-- 4. preview grid: the mapping surface. 12 columns, every header carries a Role chip and a Type row. -->
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div style="width: 1088px; border: 1px solid #48525c; border-radius: 4px; overflow: hidden; box-sizing: border-box;">
+            <!-- HEADER, rebuilt under COMPACTION-1.6 Rule 9 and the RT-6 repetition rule. Three grid
+                 rows instead of twelve three-line cells:
+                   row 1  the column names -- the user's own strings, floor item 6, every one kept;
+                   row 2  the role chips -- the seven identical "Edge attribute" chips became ONE chip
+                          spanning the seven columns it covers, so the five columns whose role actually
+                          differs are the only chips left on the row;
+                   row 3  the type band -- three segments over 4 / 7 / 1 columns instead of twelve
+                          repeats of Text, Decimal and Whole number.
+                 23 role words -> 11, 13 type words -> 4. The chips are still the controls (NAV-3); a
+                 group chip's title says how many columns it changes. -->
+            <div style="display: grid; grid-template-columns: 124px 56px 130px 128px 88px 62px 81px 84px 84px 66px 74px 109px; background: #2a3035; border-bottom: 1px solid #48525c;">
+
+              <!-- row 1: names -->
+              <div style="padding: 6px 4px 3px; border-right: 1px solid #374047; box-sizing: border-box; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">node1</div>
+              <div style="padding: 6px 4px 3px; border-right: 1px solid #374047; box-sizing: border-box; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">node2</div>
+              <div style="padding: 6px 4px 3px; border-right: 1px solid #374047; box-sizing: border-box; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">node1_string_id</div>
+              <div style="padding: 6px 4px 3px; border-right: 1px solid #374047; box-sizing: border-box; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">node2_string_id</div>
+              <div style="padding: 6px 4px 3px; border-right: 1px solid #374047; box-sizing: border-box; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">neighborhood</div>
+              <div style="padding: 6px 4px 3px; border-right: 1px solid #374047; box-sizing: border-box; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">fusion</div>
+              <div style="padding: 6px 4px 3px; border-right: 1px solid #374047; box-sizing: border-box; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">cooccurence</div>
+              <div style="padding: 6px 4px 3px; border-right: 1px solid #374047; box-sizing: border-box; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">coexpression</div>
+              <div style="padding: 6px 4px 3px; border-right: 1px solid #374047; box-sizing: border-box; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">experimental</div>
+              <div style="padding: 6px 4px 3px; border-right: 1px solid #374047; box-sizing: border-box; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">database</div>
+              <div style="padding: 6px 4px 3px; border-right: 1px solid #374047; box-sizing: border-box; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">textmining</div>
+              <div style="padding: 6px 4px 3px; box-sizing: border-box; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">combined_score</div>
+
+              <!-- row 2: roles. Four singles, one chip over the seven edge-attribute columns, one single. -->
+              <div style="display: flex; align-items: center; padding: 0 4px 4px; box-sizing: border-box; min-width: 0;">
+                <div title="Source. Identifier system: gene symbol. Map identifiers reads it later. Click for this column's role parameters" style="display: inline-flex; align-items: center; max-width: 100%; height: 16px; padding: 0 5px; border-radius: 8px; background: #28364e; border: 1px solid #4a7ee8; color: #d5d7da; font-size: 10px; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;"><span>Source <span style="color: #7a828e;">gene symbol</span></span></div>
+              </div>
+              <div style="display: flex; align-items: center; padding: 0 4px 4px; box-sizing: border-box; min-width: 0;">
+                <div title="Change this column's role" style="display: inline-flex; align-items: center; max-width: 100%; height: 16px; padding: 0 5px; border-radius: 8px; background: #28364e; border: 1px solid #4a7ee8; color: #d5d7da; font-size: 10px; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Target</div>
+              </div>
+              <div style="display: flex; align-items: center; padding: 0 4px 4px; box-sizing: border-box; min-width: 0;">
+                <div title="Change this column's role" style="display: inline-flex; align-items: center; max-width: 100%; height: 16px; padding: 0 5px; border-radius: 8px; background: #28364e; border: 1px solid #4a7ee8; color: #d5d7da; font-size: 10px; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Source node attribute</div>
+              </div>
+              <div style="display: flex; align-items: center; padding: 0 4px 4px; box-sizing: border-box; min-width: 0;">
+                <div title="Change this column's role" style="display: inline-flex; align-items: center; max-width: 100%; height: 16px; padding: 0 5px; border-radius: 8px; background: #28364e; border: 1px solid #4a7ee8; color: #d5d7da; font-size: 10px; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Target node attribute</div>
+              </div>
+              <!-- The group chip is flanked by a rule to its two ends, so the chip reads as covering the
+                   seven columns rather than as labelling the one it happens to sit over. -->
+              <div style="grid-column: span 7; display: flex; align-items: center; gap: 6px; padding: 0 6px 4px; background: #262c33; box-sizing: border-box; min-width: 0;">
+                <div style="flex: 1 1 0; height: 1px; background: #48525c;"></div>
+                <div title="Change the role of these seven columns" style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 5px; border-radius: 8px; background: #28364e; border: 1px solid #4a7ee8; color: #d5d7da; font-size: 10px; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Edge attribute</div>
+                <div style="flex: 1 1 0; height: 1px; background: #48525c;"></div>
+              </div>
+              <div style="position: relative; display: flex; align-items: center; padding: 0 4px 4px; box-sizing: border-box; min-width: 0;">
+                <div title="Weight: combined_score. Treat as strength (higher is closer). Divided by 1000. Click for this column's role parameters" style="display: inline-flex; align-items: center; max-width: 100%; height: 16px; padding: 0 5px; border-radius: 8px; background: #28364e; border: 1px solid #4a7ee8; color: #d5d7da; font-size: 10px; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;"><span>Weight <span style="color: #7a828e;">strength</span></span></div>
+
+                <!-- POP-ROLE-1, the one pop-over this board draws open (1.8 B2, the dialog lane). Its opener
+                     is the Weight chip immediately above; the cell is the positioning parent, so the two
+                     numbers are exact rather than typed in. GAP: the pop-out is 280 wide with right: 105
+                     against a 109px cell whose chip starts 4px in, which lands its right edge 8px clear of
+                     the chip's left edge. SHARED EDGE LINE: top: 0 on a grid item is the role row's own
+                     top, so row top = pop-out top. It opens LEFT because opening right would leave the
+                     dialog rect (1280) with 90px to spare and land on the scrim. At 280 it carries the
+                     edge line, not B1's 8px caret; the 6px caret that ships with the shell sits on the
+                     leading (right) edge, clamped 12px inside the pop-out's top corner. No pin and no
+                     close X: Escape closes the pop-out before the dialog. It holds the four-row Weight
+                     block that left the dialog body, and the chip it hangs from reports its state --
+                     "strength" in the chip, "divided by 1000" in the recognition banner.
+                     Accepted consequence, recorded so a later pass does not read it as drift: an anchored
+                     surface over a table covers what is under it. The pop-out hides the second half of
+                     the Edge attribute group chip, the word "Decimal" on the type band (its # glyph
+                     stays visible to the left of the pop-out's edge), and four values on rows 1 to 4.
+                     None of it can be bought back without spending the 8px gap or the shared edge line,
+                     which B1 makes the last two things to surrender; every one of them is on screen the
+                     moment Escape closes the pop-out. -->
+                <div style="position: absolute; top: 0; right: 113px; width: 280px; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 6px; background: #1f2428; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; z-index: 15;">
+                  <div style="position: absolute; right: -6px; top: 6px; width: 6px; height: 12px; overflow: hidden;">
+                    <div style="position: absolute; left: -7px; top: 1px; width: 10px; height: 10px; transform: rotate(45deg); background: #1f2428; border-top: 1px solid #48525c; border-right: 1px solid #48525c; box-sizing: border-box;"></div>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Weight: combined_score</span>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 11px; line-height: 1.2; color: #7a828e; flex: 0 0 auto;">Treat as</span>
+                    <div title="Treat the weight as" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 1 1 auto; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+                      <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Strength <span style="color: #7a828e;">(higher is closer)</span></span>
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                    </div>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 4px; height: 20px; cursor: pointer;">
+                    <div style="width: 16px; height: 16px; border-radius: 2px; background: #2a3035; border: 1px solid #48525c; box-sizing: border-box; flex: 0 0 auto;"></div>
+                    <span style="font-size: 11px; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Normalize to 0-1</span>
+                  </div>
+                  <div title="The weight column looks like a score scaled by 1000." style="display: flex; align-items: center; gap: 6px; height: 20px; cursor: pointer;">
+                    <div style="width: 28px; height: 16px; border-radius: 8px; background: #4a7ee8; position: relative; box-sizing: border-box; flex: 0 0 auto;">
+                      <div style="position: absolute; top: 2px; left: 14px; width: 12px; height: 12px; border-radius: 50%; background: #ffffff;"></div>
+                    </div>
+                    <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Divide by 1000 <span style="color: #7a828e;">-- 999 becomes 0.999</span></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- row 3: the type band, three segments. The type word is written once per run of columns
+                   that share it, not once per column. -->
+              <div title="Change the type of these four columns" style="grid-column: span 4; display: flex; align-items: center; justify-content: center; gap: 4px; height: 18px; border-right: 1px solid #374047; border-top: 1px solid #374047; background: #262c33; color: #7a828e; font-size: 10px; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><path d="M3 4h10M8 4v9"></path></svg><span>Text</span>
+              </div>
+              <div title="Change the type of these seven columns" style="grid-column: span 7; display: flex; align-items: center; justify-content: center; gap: 4px; height: 18px; border-right: 1px solid #374047; border-top: 1px solid #374047; background: #262c33; color: #7a828e; font-size: 10px; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><path d="M6 2.5l-1.5 11M11.5 2.5l-1.5 11M3 6h10.5M2.5 10h10.5"></path></svg><span>Decimal</span>
+              </div>
+              <div title="Change this column's type" style="display: flex; align-items: center; justify-content: center; gap: 4px; height: 18px; border-top: 1px solid #374047; background: #262c33; color: #7a828e; font-size: 10px; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><path d="M6 2.5l-1.5 11M11.5 2.5l-1.5 11M3 6h10.5M2.5 10h10.5"></path></svg><span>Whole number</span>
+              </div>
+            </div>
+            <!-- rows -->
+            <div style="display: grid; grid-template-columns: 124px 56px 130px 128px 88px 62px 81px 84px 84px 66px 74px 109px; align-items: center; height: 24px; border-bottom: 1px solid #374047; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">TP53</div>
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">MDM2</div>
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #a3a8b1; font-size: 9.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">9606.ENSP00000269305</div>
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #a3a8b1; font-size: 9.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">9606.ENSP00000258149</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.062</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.999</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.900</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.999</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">999</div>
+            </div>
+            <div style="display: grid; grid-template-columns: 124px 56px 130px 128px 88px 62px 81px 84px 84px 66px 74px 109px; align-items: center; height: 24px; border-bottom: 1px solid #374047; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">TP53</div>
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CDKN1A</div>
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #a3a8b1; font-size: 9.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">9606.ENSP00000269305</div>
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #a3a8b1; font-size: 9.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">9606.ENSP00000244741</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.109</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.985</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.900</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.998</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">999</div>
+            </div>
+            <div style="display: grid; grid-template-columns: 124px 56px 130px 128px 88px 62px 81px 84px 84px 66px 74px 109px; align-items: center; height: 24px; border-bottom: 1px solid #374047; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">TP53</div>
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">BAX</div>
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #a3a8b1; font-size: 9.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">9606.ENSP00000269305</div>
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #a3a8b1; font-size: 9.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">9606.ENSP00000293288</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.081</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.957</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.900</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.994</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">998</div>
+            </div>
+            <div style="display: grid; grid-template-columns: 124px 56px 130px 128px 88px 62px 81px 84px 84px 66px 74px 109px; align-items: center; height: 24px; border-bottom: 1px solid #374047; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">EGFR</div>
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">STAT3</div>
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #a3a8b1; font-size: 9.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">9606.ENSP00000275493</div>
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #a3a8b1; font-size: 9.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">9606.ENSP00000264657</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.173</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.905</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.800</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.987</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">995</div>
+            </div>
+            <div style="display: grid; grid-template-columns: 124px 56px 130px 128px 88px 62px 81px 84px 84px 66px 74px 109px; align-items: center; height: 24px; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">MDM2</div>
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CDKN1A</div>
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #a3a8b1; font-size: 9.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">9606.ENSP00000258149</div>
+              <div style="padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #a3a8b1; font-size: 9.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">9606.ENSP00000244741</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.054</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.611</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.500</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">0.914</div>
+              <div style="padding: 0 4px; text-align: right; font-variant-numeric: tabular-nums;">969</div>
+            </div>
+          </div>
+          <!-- The caption keeps the shape of the file and drops the affordance sentence: every chip
+               above already carries "Change this column's role" in its title (Rule 8). "12 columns"
+               moved here from the deleted summary line, next to the columns it counts. -->
+          <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">First 5 of 1,104 rows, 12 columns</span>
+        </div>
+
+        <!-- 1.8. The two-column "Weight and id details beside Policies" grid is gone entirely, and with
+             it four of the fifteen resident rows.
+             POP-ROLE-1: the four-row "Weight: combined_score" block (Treat as, Normalize to 0-1, the
+               Divide by 1000 offer) went behind the combined_score column's Role chip, which now reads
+               "Weight strength". It is the same door ImportOptions gets on its amount column.
+             FLOOR2-1: the departure the hidden switch creates is not lost with it -- A6 puts it under the
+               section that owns the door, and the recognition banner IS that section here, so the run
+               record reads "combined_score as weight divided by 1000". The switch is on because the
+               recognition turned it on, not because the user did.
+             POP-ROLE-2: the Identifier system label, its info circle, the open bubble and the 104px of
+               padding that reserved room under the bubble went behind the node1 column's Role chip, which
+               now reads "Source gene symbol" and carries the bubble's sentence in its title.
+             RULE7A-1: the whole Policies group -- header, Coming tag, info circle, the "in this file"
+               caption and the three rows Repeats / Unknown nodes / Self-loops -- is deleted. Every control
+               sat at its shipped default and every count was zero, so Rule 7a deletes the control and
+               6.2's null-statement rule deletes the report. Nothing survives as a collapsed section: a
+               section whose trailing slot would read "0, 0, 0" is the null statement 6.2 forbids.
+             RULE7A-3: the "Two node types (bipartite)" checkbox is deleted on this board only. It was
+               unchecked at its default and the recognition banner reports the parser's structural finding
+               ("Recognized a STRING export -- 12 columns mapped"), with the full per-column record behind
+               the banner's Details chevron. ImportOptions and ImportLargeFile KEEP the row, because
+               nothing else on those boards reports that finding. -->
+
+        <!-- 7. Parsing, collapsed, alone on its row. 1.8 RULE7A-2: "Load: Everything" stood to its left
+             until this revision. Everything is the shipped default and D5 names the row by hand, so
+             Rule 7a deletes it, and the row's 24px gap goes with it. Floor item 4 is held without it:
+             the reading at the top says 318 nodes and 1,104 edges and the preview caption says
+             1,104 rows, so the scope Import acts on is stated twice already. The subset choice returns
+             from the Load field the moment a file is large enough to need it (ImportLargeFile). -->
+        <div style="display: flex; align-items: center;">
+          <!-- Parsing group, collapsed, with the detected separator in the header -->
+          <div style="flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; cursor: pointer;">
+            <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+              <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+              </div>
+              <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Parsing</span>
+              <div title="How the text is split into rows and columns: separator, quote character, header row, start row and encoding. Every change re-parses the preview." style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
+              </div>
+              <!-- One state word, not three. The separator is the Format field 700px to the left
+                   (Rule 9) and UTF-8 is the default encoding (Rule 7a); what is left is the one parse
+                   decision nothing else on the screen states. -->
+              <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Header row</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 1.7, IMP-4: the "Installed saved filter: High confidence (score >= 0.7)" line stood here.
+             Deleted where it stands; the fact rose to the row that caused it (Rule 9) and now reads
+             "1 saved filter installed" in the run record, with the filter's own name in the Details
+             record behind the chevron. -->
+      </div>
+
+      <!-- 9. footer: Cancel left, Import right. 1.7, IMP-5: the "Load a subset (Coming)" button that
+           stood between them is deleted -- it duplicated the Load control four rows above, which reads
+           Everything, and item 9's button list drops it. -->
+      <div style="flex: 0 0 48px; height: 48px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 16px; border-top: 1px solid #48525c; box-sizing: border-box;">
+        <div style="margin-right: auto; display: flex;">
+          <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Cancel</div>
+        </div>
+        <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Import</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,30 @@
+id: onboarding-wizard
+name: Onboarding Wizard
+category: dialog
+description: Step-by-step guided tour for first-time users. Highlights key features and walks through basic workflows.
+status: planned
+implements_capabilities:
+  - guided-onboarding
+used_in_workflows:
+  - W14
+dependencies:
+  - button
+  - progress-bar
+  - icon
+props:
+  step: number - Current step index
+  totalSteps: number - Total number of steps
+  onNext: () => void - Next step handler
+  onPrevious: () => void - Previous step handler
+  onSkip: () => void - Skip tour handler
+  onComplete: () => void - Tour complete handler
+sources:
+  - title: User Onboarding Best Practices
+    url: https://www.nngroup.com/articles/onboarding/
+    summary: Progressive onboarding patterns that don't overwhelm new users
+  - title: First-Run Experience Design
+    url: https://www.appcues.com/blog/user-onboarding-ux
+    summary: Getting users to value quickly through guided setup
+version: 1.0.1
+created_at: 2026-01-16T04:02:22.376Z
+updated_at: 2026-01-16T16:40:54.588Z

@@ -1,0 +1,135 @@
+id: V02
+name: Graph Explorer
+description: Primary workspace for graph visualization and analysis. Serves most workflows including exploration,
+  analysis, and investigation. Features a central graph canvas with collapsible sidebars for tools (left) and details
+  (right).
+workflows:
+  - W01
+  - W02
+  - W03
+  - W04
+  - W05
+  - W06
+  - W07
+  - W08
+  - W09
+  - W10
+  - W11
+  - W12
+  - W13
+  - W16
+  - W17
+  - W18
+  - W19
+layout:
+  type: holy-grail
+  zones:
+    - id: header
+      position: header
+      components:
+        - toolbar
+        - search-input
+      height: 48px
+      visibility:
+        base: visible
+    - id: tools-sidebar
+      position: sidebar-left
+      components:
+        - main-sidebar
+        - algorithm-panel
+        - layout-panel
+        - filter-panel
+        - visual-encoding-panel
+      width: 280px
+      visibility:
+        base: hidden
+        md: drawer
+        lg: visible
+    - id: canvas
+      position: main
+      components:
+        - graph-canvas
+        - minimap
+        - zoom-controls
+        - legend-panel
+      padding:
+        base: 8px
+        md: 16px
+      visibility:
+        base: visible
+    - id: details-sidebar
+      position: sidebar-right
+      components:
+        - node-details-panel
+        - statistics-panel
+        - computed-attributes-panel
+        - analysis-history-panel
+      width: 320px
+      visibility:
+        base: hidden
+        md: hidden
+        lg: visible
+    - id: footer
+      position: footer
+      components:
+        - status-bar
+      height: 24px
+      visibility:
+        base: hidden
+        md: visible
+  centered: true
+states:
+  - id: default
+    type: default
+    description: Graph loaded and ready for interaction
+  - id: empty
+    type: empty
+    description: No graph loaded - redirect to Welcome or show inline import
+  - id: loading
+    type: loading
+    description: Graph data being loaded or layout being computed
+  - id: error
+    type: error
+    description: Graph rendering or analysis failed
+  - id: selection-active
+    type: default
+    description: One or more nodes/edges selected - details sidebar auto-opens
+  - id: algorithm-running
+    type: loading
+    description: Analysis algorithm in progress
+routes:
+  - path: /explore
+    title: Graph Explorer - Graphty
+    requires_auth: false
+  - path: /explore/:graphId
+    params:
+      - name: graphId
+        type: string
+        required: true
+    title: Graph Explorer - Graphty
+    requires_auth: false
+data_requirements:
+  - id: graph-data
+    source: state
+    required: true
+    loading_state: loading
+    error_state: error
+  - id: layout-positions
+    source: computed
+    required: true
+    loading_state: loading
+    error_state: error
+  - id: selection
+    source: state
+    required: false
+    loading_state: default
+    error_state: default
+  - id: analysis-results
+    source: state
+    required: false
+    loading_state: default
+    error_state: default
+sources: []
+version: 1.0.1
+created_at: 2026-01-16T16:21:46.179Z
+updated_at: 2026-01-16T16:41:29.674Z

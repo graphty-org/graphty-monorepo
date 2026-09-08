@@ -1,0 +1,128 @@
+id: W15
+name: Findings Communication
+category: reporting
+validated: false
+personas:
+  - analyst-alex
+  - expert-emma
+  - fraud-analyst
+  - intelligence-analyst
+requires_capabilities:
+  - export-image
+  - annotation
+  - style-presets
+  - filtering
+  - visual-encoding-nodes
+  - visual-encoding-edges
+  - legend-display
+  - layout-force-directed
+  - report-generation
+  - data-export
+  - keyboard-shortcuts
+suggested_components:
+  - graph-canvas
+  - annotation-toolbar
+  - image-export-dialog
+  - data-export-dialog
+  - visual-encoding-panel
+  - filter-panel
+  - legend-panel
+  - layout-panel
+  - layout-option
+  - report-generator-dialog
+  - color-picker
+starting_state:
+  data_type: analyzed graph with findings
+  node_count: any
+  edge_density: any
+  user_expertise: intermediate+
+goal: >-
+  **Intent**: Communicate graph analysis findings to stakeholders who may not be graph experts. User has completed
+  analysis and needs to create compelling visualizations and narratives that drive action.
+
+
+  **Mental Model**: "Data storytelling" - combining data, visuals, and narrative to persuade. Like a documentary
+  filmmaker - you've done the research, now you need to tell the story.
+
+
+  **Task Phases**:
+
+  1. **Audience Assessment** - Who needs to see this? What do they care about? What's their expertise?
+
+  2. **Message Crystallization** - What's the single key takeaway?
+
+  3. **Visualization Design** - Filter to relevant subset, highlight key findings, add annotations
+
+  4. **Narrative Construction** - Build story arc: context → findings → implications → recommendations
+
+  5. **Production** - Create deliverable (image, presentation, dashboard, report)
+
+  6. **Validation** - Test with representative audience, iterate
+
+
+  **Decision Points**:
+
+  - What level of detail is appropriate for this audience?
+
+  - Static image or interactive dashboard?
+
+  - What to emphasize vs. what to leave out?
+
+  - How much context to provide?
+
+  - What action do I want the audience to take?
+
+
+  **Information Needs**:
+
+  - Audience background and expertise level
+
+  - Key findings to communicate
+
+  - Supporting evidence for each finding
+
+  - Appropriate visualization formats
+
+  - Accessibility requirements
+
+
+  **Pain Points**:
+
+  - Graph visualizations are unfamiliar to many audiences
+
+  - "Hairball" visualizations overwhelm rather than inform
+
+  - Technical jargon alienates business stakeholders
+
+  - Hard to simplify without losing accuracy
+
+  - Stakeholders want certainty but findings have caveats
+
+
+  **Data Flow**:
+
+  - Input: Analysis results + audience profile
+
+  - Transformations: Filtering, highlighting, annotation, narrative framing
+
+  - Output: Deliverable (image, slides, report, dashboard) that drives action
+success_criteria:
+  - metric: Audience comprehension
+    target: Key message understood
+  - metric: Actionability
+    target: Stakeholders know what to do next
+  - metric: Accessibility
+    target: Colorblind-safe, labeled, clear hierarchy
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 15
+    url: https://graphty.app/docs/
+    summary: Visualization best practices and styling workflow
+  - title: Storytelling with Data
+    url: https://www.storytellingwithdata.com/blog/2014/04/exploratory-vs-explanatory-analysis
+    summary: Distinction between exploratory and explanatory visualization
+  - title: Cambridge Intelligence Human-AI Decision Workflows
+    url: https://cambridge-intelligence.com/how-graph-visualization-builds-trust-in-human-ai-decision-workflows/
+    summary: How visualization makes findings defensible
+version: 1.0.1
+created_at: 2026-01-16T16:22:44.702Z
+updated_at: 2026-01-16T16:42:48.264Z

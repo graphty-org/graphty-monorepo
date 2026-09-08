@@ -1,0 +1,56 @@
+id: ml-engineer-recsys
+name: ML Engineer - Recommendation Systems
+role: Machine Learning Engineer / Recommendation Systems Specialist
+quote: The user-item graph is the foundation - everything else is feature engineering on top of network structure.
+bio: Chris is an ML engineer who specializes in recommendation systems at a mid-sized e-commerce company. After years of
+  building collaborative filtering models, he discovered that treating recommendations as a graph problem - finding
+  paths between users and items - dramatically improved prediction quality. He now builds graph neural networks and uses
+  link prediction algorithms to recommend products, combining traditional ML features with graph embeddings derived from
+  the user-item interaction network.
+characteristics:
+  expertise: expert
+  time_pressure: medium
+  graph_literacy: advanced
+  domain_knowledge: advanced
+motivations:
+  - Improve recommendation quality metrics (precision, recall, NDCG)
+  - Leverage network structure that traditional ML models miss
+  - Build explainable recommendations by showing connection paths
+  - Scale graph-based recommendations to millions of users and items
+  - Combine graph features with content and behavioral features
+behaviors:
+  - Constructs bipartite user-item graphs from interaction logs
+  - Computes graph embeddings (Node2Vec, GraphSAGE) as ML features
+  - Uses link prediction algorithms to score user-item pairs
+  - Projects bipartite graphs to user-user or item-item similarity networks
+  - Evaluates recommendation quality using offline metrics and A/B tests
+  - Analyzes cold-start users by examining their local graph neighborhood
+  - Exports graph features for use in downstream ML pipelines
+goals:
+  - Build graph-based recommendation models that outperform baselines
+  - Generate user and item embeddings from interaction graphs
+  - Explain recommendations through network paths
+  - Handle cold-start problems using graph neighborhood information
+  - Scale to production-level user-item graphs
+frustrations:
+  - Graph neural network libraries have steep learning curves
+  - Difficulty integrating graph features with existing ML pipelines
+  - Visualization tools can't handle graphs with millions of edges
+  - Hard to debug why specific recommendations are made
+  - Real-time inference on large graphs is computationally expensive
+context:
+  frequency: daily
+  devices:
+    - desktop
+    - laptop
+  voluntary: true
+workflows:
+  - W16
+sources:
+  - title: "Graph Learning based Recommender Systems: A Review"
+    url: https://arxiv.org/abs/2105.06339
+    summary: Comprehensive review of graph learning approaches for recommendation systems including GCNs and knowledge graph
+      methods
+  - title: What is Collaborative Filtering? - GraphAware
+    url: https://graphaware.com/glossary/collaborative-filtering/
+    summary: Explains how collaborative filtering works in graph-based recommendation systems

@@ -1,0 +1,85 @@
+id: V03
+name: Report Builder
+description: Focused view for creating publication-ready visualizations and reports. Users can annotate findings, apply
+  presentation styles, and export in various formats. Optimized for the Findings Communication workflow.
+workflows:
+  - W15
+layout:
+  type: sidebar-right
+  zones:
+    - id: header
+      position: header
+      components:
+        - toolbar
+      height: 48px
+      visibility:
+        base: visible
+    - id: canvas
+      position: main
+      components:
+        - graph-canvas
+        - annotation-toolbar
+        - legend-panel
+      padding:
+        base: 8px
+        md: 16px
+      visibility:
+        base: visible
+    - id: report-tools
+      position: sidebar-right
+      components:
+        - visual-encoding-panel
+        - filter-panel
+        - report-generator-dialog
+        - image-export-dialog
+        - data-export-dialog
+      width: 360px
+      visibility:
+        base: hidden
+        md: drawer
+        lg: visible
+  centered: true
+states:
+  - id: default
+    type: default
+    description: Graph ready for annotation and styling
+  - id: empty
+    type: empty
+    description: No analysis results to report on
+  - id: loading
+    type: loading
+    description: Report or image being generated
+  - id: error
+    type: error
+    description: Export failed
+routes:
+  - path: /report
+    title: Report Builder - Graphty
+    requires_auth: false
+  - path: /report/:graphId
+    params:
+      - name: graphId
+        type: string
+        required: true
+    title: Report Builder - Graphty
+    requires_auth: false
+data_requirements:
+  - id: graph-data
+    source: state
+    required: true
+    loading_state: loading
+    error_state: error
+  - id: analysis-results
+    source: state
+    required: false
+    loading_state: default
+    error_state: default
+  - id: annotations
+    source: state
+    required: false
+    loading_state: default
+    error_state: default
+sources: []
+version: 1.0.1
+created_at: 2026-01-16T16:22:03.029Z
+updated_at: 2026-01-16T16:41:41.681Z

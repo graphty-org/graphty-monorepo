@@ -1,0 +1,38 @@
+id: search
+name: Node Search
+category: interaction
+description: Find specific nodes by searching labels or attribute values. Navigate directly to search results in the
+  visualization. Essential for locating known entities in large graphs.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W05
+  - W06
+  - W07
+  - W13
+implemented_by_components:
+  - search-input
+  - search-result-item
+  - search-panel
+requirements:
+  - Open search input with Ctrl+F or '/' keyboard shortcut
+  - Search node labels for substring match (case-insensitive by default)
+  - Search node attribute values across all string attributes
+  - Display search results as scrollable list showing node label and matching attribute
+  - Limit displayed results to 100 with 'N more results' indicator
+  - Highlight matching text in search results with bold or background color
+  - Update results incrementally while typing (debounced 200ms)
+  - Highlight all matching nodes in graph visualization with distinct color
+  - Click search result to select node and center view on it
+  - Double-click search result to select and zoom to node
+  - Support exact match mode via checkbox or 'exact:' prefix
+  - Support regex search via checkbox or 'regex:' prefix
+  - "Support attribute-specific search: 'attribute:value' syntax (e.g., 'type:person')"
+  - Display 'No results found' message when search yields no matches
+  - Clear search with Escape key or 'X' button
+  - Remember last 10 search queries in dropdown history
+  - "Provide search scope option: 'All nodes' vs 'Visible nodes only'"
+sources:
+  - title: Complete Graph Visualization Textbook - Chapter 6
+    url: https://graphty.app/docs/
+    summary: Search - text search and pattern search

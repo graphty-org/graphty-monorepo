@@ -1,0 +1,31 @@
+id: community-profiling
+name: Community Profiling
+category: analysis
+description: "Generate detailed profiles for each detected community: size, internal density, attribute composition,
+  internal hubs, and bridge nodes. Essential for understanding what communities represent and how they relate."
+status: planned
+algorithms: []
+used_by_workflows:
+  - W04
+implemented_by_components:
+  - community-panel
+requirements:
+  - Calculate community size (node count) for each community
+  - Calculate internal density as internal_edges / (size * (size-1) / 2) with 4 decimal places
+  - Calculate internal clustering coefficient as average of member nodes' clustering coefficients
+  - Calculate external connectivity ratio as external_edges / total_edges with 4 decimal places
+  - Identify top-3 nodes by internal degree within each community (internal hubs)
+  - Identify bridge nodes as those with >30% of edges connecting to other communities
+  - Profile categorical attribute distributions per community (e.g., 60% type A, 30% type B)
+  - Profile numeric attribute statistics per community (mean, median, std dev)
+  - Calculate inter-community edge counts as matrix showing connections between each pair
+  - "Generate community summary card with: size, density, top attributes, internal hubs"
+  - Display community profiles sortable by size, density, or external connectivity
+  - Export community profiles as CSV or JSON
+  - Complete profiling within 3 seconds for graphs with up to 50 communities
+  - Handle communities with fewer than 3 nodes by displaying 'Small community' indicator
+  - Calculate cohesion score as ratio of internal to external edges (higher = more cohesive)
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 4
+    url: https://graphty.app/docs/
+    summary: Community Structure Analysis - characterization phase

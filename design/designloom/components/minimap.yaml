@@ -1,0 +1,29 @@
+id: minimap
+name: Minimap
+category: display
+description: Overview minimap showing entire graph with viewport indicator. Supports click-to-navigate and drag-to-pan.
+status: planned
+implements_capabilities:
+  - overview-minimap
+used_in_workflows:
+  - W02
+  - W05
+  - W06
+  - W09
+  - W07
+dependencies: []
+props:
+  graph: Graph - Graph data to display
+  viewport: "{x: number, y: number, width: number, height: number} - Current viewport bounds"
+  onViewportChange: (viewport) => void - Viewport change handler
+  size: "number - Minimap size in pixels (default: 150)"
+sources:
+  - title: Overview+Detail Interface Pattern
+    url: https://www.cs.umd.edu/~ben/papers/Shneiderman1996eyes.pdf
+    summary: Shneiderman's research on maintaining context during zoomed exploration
+  - title: Minimap Design in Complex Applications
+    url: https://www.nngroup.com/articles/mini-map/
+    summary: When and how to use minimaps for spatial orientation
+version: 1.0.1
+created_at: 2026-01-16T04:01:55.497Z
+updated_at: 2026-01-16T16:40:53.345Z

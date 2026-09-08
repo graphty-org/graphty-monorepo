@@ -1,0 +1,22 @@
+id: sample-data-dialog
+name: Sample Data Dialog
+category: dialog
+description: Dialog for loading sample datasets. Shows available samples with descriptions, size info, and preview.
+status: planned
+implements_capabilities:
+  - sample-datasets
+used_in_workflows:
+  - W14
+dependencies:
+  - button
+  - badge
+  - icon
+props:
+  open: boolean - Whether dialog is open
+  samples: SampleDataset[] - Available sample datasets
+  onSelect: "(sampleId: string) => void - Sample selection handler"
+  onClose: () => void - Close handler
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T04:02:22.655Z
+updated_at: 2026-01-16T04:02:22.655Z

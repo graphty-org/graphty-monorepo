@@ -1,0 +1,1139 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #5b8ff9; } a:hover { color: #75a5f9; }
+  </style>
+</helmet>
+<!--
+  TABLE JOIN DIALOG, desktop 1440 by 900. Spec revision 1.3, section 5.3 Data (Attach mode / Table join),
+  section 9 row "Table join dialog". State: Loaded. Dataset: ovarian_de_string.tsv, a STRING-style protein
+  interaction network (318 nodes, 1,104 edges, undirected, weighted by combined_score) around a 40-gene
+  differential expression list. The Data panel is open (Data rail item active); the dialog was opened from
+  the "Add attributes from a table" row and sits over the whole frame on the modal scrim (VOCAB 9).
+
+  REVISION 1.6 (COMPACTION-1.6.md, VOCAB section 11). The Data panel, the Graph summary inspector and the
+  Table join dialog were re-cut on the ten row types. The canvas -- graph drawing, Insights strip, minimap,
+  canvas toolbar, legend -- the rail, the top bar and the status bar are untouched (the cluster was replaced
+  by the bottom-centre toolbar in 1.7 (TB-1)); the Insights strip
+  is exempt from the icon rule and keeps its sentences, and the legend keeps "sqrt scale" in words because
+  it travels inside an exported image (floor item 5).
+  Group E moves applied: the repeated role chip rose out of the grid ("Attribute" x4 deleted, the deviating
+  "Key" chip left standing, and the footer already says "Adds 4 attributes"); the repeated cell word rose to
+  a column caption ("row" x6 -> one dim "row" per grid column, Rule 9); the sentence-length control labels
+  became noun labels with the behaviour in the field ("When an attribute already exists" -> "Conflicts",
+  "Prefix column names with" -> "Prefix"); the five "Change" links on the Loaded data lines rose to one
+  pencil in the section header, with the per-row pencil on the hovered row (Rule 9 + Rule 7b).
+  Anatomy changed, not just copy: five wrapped provenance sentences -> five one-line rows (re-cut again in
+  1.8, see F-42 below); two
+  select cells plus a confidence line -> one RT-2 compound (file | graph); two label-above-field stacks in
+  the inspector -> one RT-1 pair on the N and E letter slots plus one RT-1 W field; a two-line Data table
+  section -> one RT-8 header with the switch in its trailing slot; two lone checkboxes -> one packed RT-5
+  pair; "See all 318 ranked" and "Hide the 28 rows" -> register glyphs with their titles.
+  Deleted by rule: "Drop a file here to add it" and the 9-format list (Rule 8 -- the dashed rule is the
+  affordance and the header circle carries the formats); "Table join" on the panel chip (Rule 8 -- the
+  dialog title says it); "Node and edge table" (Rule 8); "Show" (RT-5 (a)); "Policies: defaults." (Rule 7a);
+  "Attributes: 4 imported." (Rule 8 -- Columns says "4 node, 5 edge"); "New session" (Rule 8 -> title);
+  "Connected parts (components) 1" (Rule 8 -- the reading says it in words); "Average links per node (mean
+  degree) 6.9" (Rule 2 q4 -> the RT-9 histogram, whose title carries the mean); "340 rows, 5 columns" on the
+  file row (Rule 8); "Click a chip to change a column's role or type" (Rule 8); "lists split on |" (Rule 8
+  -> the chip it describes); "Best match: preferredName, 92%." (Rule 8 -- the live match line reports the
+  same 92%); "28 rows have no node." (Rule 8 -- the arithmetic of the clause before it).
+  Floor kept in full: the reading; "Types detected from the first 100 rows." (floor 2, a sampling
+  departure); "Matched 312 of 340 rows.", "First 4 of 340 rows, 5 columns" and "and 22 more."; "Most look like
+  non-coding RNAs or symbols in another namespace." (floor 4 -- the reason the join missed and why Map
+  identifiers exists); "Adds 4 attributes to 312 of 318 nodes. Recorded as a Cleaning step." (floor 4);
+  Cancel, Join, Ignore, Add as new nodes, Open from URL, Paste data, Close dataset, Map identifiers...,
+  Export CSV; every column name, cell value, gene id and filename (floor 6); the eight rail labels.
+  Two deliberate departures from the row types: the dialog keeps its label-above-field stacks, because
+  VOCAB 11 retires that stack inside 280px panels only and none of Apply to, Match, Conflicts or Prefix has
+  a glyph in the closed field-glyph list (Rule 4 test (i) fails, so the word stays); and the column type
+  chips keep their words, which REGISTER-1.5 1.6 requires -- "column type" has no glyph.
+
+  REVISION 1.7, POP-0: 6.2's tier 3 splits into 3a (pop-out: no scrim, no focus trap, canvas live) and 3b
+  (dialog: scrim, focus trap, canvas frozen, one commit point). Table join is named in 6.11's question 1 as
+  a true 3b dialog -- it commits a change to the data before anything else can proceed -- so the scrim, the
+  focus trap and the single commit point all stay. 6.11 also forbids a pop-out opening from inside a dialog,
+  so nothing in this dialog pops out; the Role and Type chip menus stay menus (POP-12, "one choice from a
+  closed list is a menu").
+
+  REVISION 1.8, F-42 (adversarial review: figma-craft, figma-system). One control may not carry two
+  drawings. The Loaded data block in the Data panel and the Weight row in the Graph summary inspector both
+  drew a changeable value with an 11px label in a left-hand column, where DataPanelLoaded draws the same
+  section as an RT-2 compound plus RT-1 fields with the role word inside the field. Both surfaces here are
+  280px columns, and 6.9 Rule 3 applies to them without qualification: zero horizontal pixels are spent on
+  a label column, and the label of a changeable value lives inside its field. Both now draw
+  DataPanelLoaded's rows, so the weight binding has one drawing on this board and the same drawing on the
+  board opposite. Nothing was cut to pay for it: five values in, five values out, and the section grows
+  110px to 128px of rows inside a panel that still does not scroll.
+  Untouched, and deliberately: the dialog keeps its label-above-field stacks. VOCAB 11 retires that stack
+  inside 280px panels only, this dialog is 720px, and none of Apply to, Match, Conflicts or Prefix has a
+  glyph in the closed field-glyph list, so Rule 4 test (i) fails and the word stays. The Counts readouts --
+  Nodes, Edges, Direction, density -- keep their label column too: they are not changeable values, so
+  Rule 3 does not reach them, and a count in a box that looks like an input is the riddle R1 warns about.
+
+  ROUND 2 (adversarial review: novice-first-hour, figma-system, expert-emma). Three changes, all recorded
+  again beside the markup they touch.
+  R2-M30, the unnamed direction. The join named the 28 file rows that matched no node and never named the 6
+  graph nodes that matched no row; the footer's "312 of 318 nodes" was the whole of it, and those 6 surfaced
+  only as StyleDiverging's "not measured (6 nodes)" swatch. A second departure line now carries
+  "6 of 318 graph nodes matched nothing.", the six ids under it, and Select them and Export CSV (floor 2 and
+  floor 7). The preview caption gains its column count in ImportRecognised's form: "Showing 4 of 340 rows."
+  becomes "First 4 of 340 rows, 5 columns".
+  R2-N04, two banned counts by name. "Mappings 1" loses its count -- 6.2 bans a header count of 0 or 1, and
+  this section is open with its one row visible. The degree histogram's "median 5" leaves the axis: RT-9 lets
+  a chart row draw its two axis ends and nothing else, so the median is a tick under the bars and the number
+  stays in the title.
+
+  REVISION 1.8, B4 and VOCAB 14.4: a cost estimate, cap or destructive confirm is a pop-out with two verbs --
+  its region's lane, its opener row's shared edge line, 280 for a sentence and two buttons, no pin and no
+  close X, Escape cancels and returns focus to the opener. A cost or overwrite GATE is a different thing and
+  renders INLINE on the control that spends it (floor item 4). The overwrite warning on this board is a gate
+  and stays inline.
+
+  REVISION 1.8 AFTER-STATE. Legend: 1 encoded channel, entirely floor, unchanged in content; cap 334 -> 240.
+  Dialog: the settings grid loses the Prefix cell and the Case-sensitive checkbox to a 280 join options
+  pop-over opened from the Conflicts field's own in-field chevron (dialog lane, B2); Color by log2FoldChange,
+  the match reports, the unmatched list and both its verbs stay resident. Data panel: the Add data gear is
+  deleted and the Loaded data pencil becomes the one registered "Import options" gear.
+-->
+<div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
+
+  <!-- MAIN ROW: rail + everything right of it. Height 876. -->
+  <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row;">
+
+    <!-- ACTIVITY RAIL, 48 wide -->
+    <div style="flex: 0 0 48px; width: 48px; display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 4px 0; background: #1f2428; border-right: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+
+      <!-- Data, ACTIVE. No badge: the validation report has info lines only. -->
+      <div title="Data" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #d5d7da; background: #28364e; cursor: pointer; box-sizing: border-box;">
+        <div style="position: absolute; left: 0; top: 0; width: 2px; height: 44px; background: #4a7ee8;"></div>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="8" cy="4" rx="5.5" ry="2"></ellipse><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4"></path><path d="M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Data</span>
+      </div>
+
+      <!-- Explore -->
+      <div title="Explore" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><polygon points="10.5,5.5 9,9 5.5,10.5 7,7"></polygon></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Explore</span>
+      </div>
+
+      <!-- Analyze -->
+      <div title="Analyze" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="13.5" x2="3" y2="8"></line><line x1="8" y1="13.5" x2="8" y2="2.5"></line><line x1="13" y1="13.5" x2="13" y2="6"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Analyze</span>
+      </div>
+
+      <!-- Style -->
+      <div title="Style" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 2.5l-6 6"></path><path d="M7.5 8.5c-1.5 0-2.5 1-2.5 2.5s-1 2-2.5 2c1.5 1 4.5 1 5.5-1 .5-1 .5-2-.5-3.5z"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Style</span>
+      </div>
+
+      <!-- Present -->
+      <div title="Present" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="8" rx="1"></rect><line x1="8" y1="11" x2="8" y2="14"></line><line x1="5.5" y1="14" x2="10.5" y2="14"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Present</span>
+      </div>
+
+      <!-- AI -->
+      <div title="AI" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3l1.3 3.7L12 8l-3.7 1.3L7 13l-1.3-3.7L2 8l3.7-1.3z"></path><path d="M13 2v2.5M11.75 3.25h2.5"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">AI</span>
+      </div>
+
+      <div style="flex: 1 1 auto;"></div>
+
+      <!-- Settings -->
+      <div title="Settings" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Settings</span>
+      </div>
+
+      <!-- Help -->
+      <div title="Help and keyboard shortcuts (?)" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><path d="M6 6.3a2 2 0 0 1 3.9.5c0 1.3-1.9 1.6-1.9 2.7"></path><line x1="8" y1="11.75" x2="8" y2="12.25"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Help</span>
+      </div>
+    </div>
+
+    <!-- RIGHT OF RAIL -->
+    <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column;">
+
+      <!-- TOP BAR, 40 tall -->
+      <div style="flex: 0 0 40px; height: 40px; display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 0 12px; background: #1f2428; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+        <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 13px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">ovarian_de_string.tsv</span>
+        </div>
+        <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 8px;">
+          <div title="Undo (Cmd+Z)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h6.5a3 3 0 0 1 0 6H7"></path><polyline points="6.5,3.5 4,6 6.5,8.5"></polyline></svg>
+          </div>
+          <div title="Redo (Shift+Cmd+Z). Nothing to redo yet" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6H5.5a3 3 0 0 0 0 6H9"></path><polyline points="9.5,3.5 12,6 9.5,8.5"></polyline></svg>
+          </div>
+          <div style="width: 300px; height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 8px; border-radius: 4px; background: #2a3035; box-sizing: border-box; cursor: pointer;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line></svg>
+            <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Search commands, nodes and edges</span>
+            <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;">Cmd+K</div>
+          </div>
+        </div>
+        <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
+          <div style="display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px 0 6px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
+            <span>Export</span>
+            <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,6 8,11 13,6"></polyline></svg>
+          </div>
+          <div title="Share this view" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="3.5" r="1.75"></circle><circle cx="4" cy="8" r="1.75"></circle><circle cx="12" cy="12.5" r="1.75"></circle><line x1="5.6" y1="7.1" x2="10.4" y2="4.4"></line><line x1="5.6" y1="8.9" x2="10.4" y2="11.6"></line></svg>
+          </div>
+          <div style="width: 1px; height: 16px; background: #48525c;"></div>
+          <div title="Compare two views" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="5.5" height="11" rx="1.5"></rect><rect x="8.5" y="2.5" width="5.5" height="11" rx="1.5"></rect></svg>
+          </div>
+          <div title="Toggle inspector (D)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #28364e; color: #4a7ee8; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="10" y1="2.5" x2="10" y2="13.5"></line></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- BODY ROW -->
+      <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row;">
+
+        <!-- ACTIVITY PANEL: Data, Loaded state -->
+        <div style="flex: 0 0 280px; width: 280px; display: flex; flex-direction: column; background: #1f2428; border-right: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+          <div style="flex: 0 0 36px; height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="8" cy="4" rx="5.5" ry="2"></ellipse><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4"></path><path d="M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"></path></svg>
+              <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Data</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <div title="Close the panel (Cmd+B)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
+              </div>
+            </div>
+          </div>
+
+          <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 8px 16px 16px; overflow: hidden; box-sizing: border-box;">
+
+            <!-- Add data (tier 1; the drop zone relabels in the Loaded state) -->
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <!-- RT-8 header. Rule 8: the 12-word format list that sat under the drop zone is not a resident
+                   helper line any more; it is the header's info circle, which is also its accessible
+                   description. -->
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Add data</span>
+                  <div title="Reads JSON, CSV or TSV, GraphML, GEXF, GML, DOT, Pajek, SIF and CX2. Drop a file anywhere on this panel." style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
+                  </div>
+                </div>
+              </div>
+              <!-- The drop sentence goes with it: the dashed rule is the drop affordance, exactly as on
+                   ImportOptions, and the circle above says it in words for anyone who needs them. -->
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 8px; border-radius: 4px; border: 1px dashed #48525c; box-sizing: border-box;">
+                <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Add data</div>
+              </div>
+              <!-- secondary row; "Add attributes from a table" is the row that opened the dialog, drawn in its
+                   hover state. "Table join" comes off the chip: the dialog title 400px to the right carries
+                   the pair on the surface where it is first met (Decision B, Rule 8). -->
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px;">
+                <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Open from URL</div>
+                <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Paste data</div>
+                <div title="Add attributes from a table... (Table join)" style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: #374047; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Add attributes from a table...</div>
+              </div>
+            </div>
+
+            <!-- Data table. One RT-8 header row instead of two lines. Rule 8 deletes "Node and edge table",
+                 which restates the row's own name on the same 24px (the ImportOptions cut). RT-5 sub-rule (a)
+                 takes the lone Show boolean off its own line and into the header's trailing slot, where the
+                 switch is the word. 56px -> 32px. -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px;">
+                <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Data table</span>
+                  <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
+                </div>
+                <div title="Show the node and edge table" style="width: 28px; height: 16px; flex: 0 0 auto; border-radius: 8px; background: #48525c; position: relative; box-sizing: border-box; cursor: pointer;">
+                  <div style="position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #ffffff;"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Loaded data. This block is the import run record (floor 3) and the user's own column names
+                 (floor 6), so nothing in it is deleted for being long -- it is re-cut into fields.
+                 Rule 7a deletes "Policies: defaults." outright: a control sitting at its default is not drawn.
+                 Rule 8 deletes "Attributes: 4 imported.", which the Columns row 120px below restates as
+                 "4 node, 5 edge".
+                 REVISION 1.8, F-42 (adversarial review, figma-craft + figma-system). This block drew the
+                 five provenance lines as a left-label / right-value list while DataPanelLoaded drew the
+                 identical section as an RT-2 compound plus RT-1 fields with the role word inside the field:
+                 one control, two drawings, both in a 280px activity panel where 6.9 Rule 3 applies without
+                 qualification and names the label column a broken row. VOCAB 11's carve-out reaches dialogs
+                 wider than 280px and the Settings forms only, so it does not reach here. The block now
+                 adopts DataPanelLoaded's rows exactly:
+                   RT-2 compound "TSV, STRING export | undirected" -- what the file is, one control divided
+                   by a 1px hairline of panel background. The third sub-field DataPanelLoaded gives the file
+                   size stays in this section header's trailing slot, where this board already carried it,
+                   and would not fit beside a format string 108.70 wide (257.13 against a 216 field).
+                   "from file" rides in the compound's title, as it does on DataPanelLoaded.
+                   Three RT-1 singles, "weight combined_score strength", "label preferredName" and
+                   "ids gene symbol": the role is the dim word inside the field (Rule 3), the column name is
+                   the value, "strength" is the mode word beside it (Rule 6), and the 14px chevron inside the
+                   box is the per-line reopen door IMP-7 asks for -- Rule 9 raises a repeated word to a
+                   header, not a repeated affordance, so the rows keep their own doors as the field's own
+                   chevron. Each title names the target it reopens.
+                   MEASURED FIT at gap 2 / padding 0 4, the numbers DataPanelLoaded settled on: weight
+                   200.74, label 136.09, ids 112.50, all inside the 216 field. label and ids cannot pair at
+                   108 -- "preferredName" alone is 83.48 and the pair row would clip a column name, which is
+                   floor 7 -- so all three are 224 singles and the section grows 110px to 128px of rows.
+                   Nothing is cut: five values in, five values out.
+                 1.8, D5: the pencil becomes the one registered gear and the Add data gear is deleted, so
+                 the four Data-panel boards draw one door in one place with one title. The gear is the
+                 general door on the whole import, not a fifth copy of a per-row verb, which is the split
+                 Rule 9's second clause draws. It draws in VOCAB 14.1's dimmed ink because nothing behind
+                 it deviates; the ink is the stub's report on what it hides. -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px;">
+                <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Loaded data</span>
+                <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">212 KB</span>
+                  <div title="Import options" style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 24px; height: 24px; border-radius: 4px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"></path></svg>
+                  </div>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; padding-bottom: 8px;">
+                <!-- RT-2 compound: format and direction are one thing -- what the file is. The hairline is
+                     panel background, so the two read as one control. -->
+                <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+                  <div title="TSV, STRING export, undirected. Direction came from the file" style="display: flex; align-items: center; flex: 1 1 0; min-width: 0; height: 24px; background: #2a3035; border-radius: 4px; box-sizing: border-box; overflow: hidden; cursor: pointer;">
+                    <div style="display: flex; align-items: center; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px;">
+                      <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">TSV, STRING export</span>
+                    </div>
+                    <div style="width: 1px; height: 24px; flex: 0 0 auto; background: #1f2428;"></div>
+                    <div style="display: flex; align-items: center; flex: 0 0 auto; height: 24px; padding: 0 8px;">
+                      <span style="font-size: 11px; line-height: 1; color: #d5d7da; white-space: nowrap;">undirected</span>
+                    </div>
+                  </div>
+                  <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
+                </div>
+
+                <!-- RT-1 singles: the column each role was read from. The role is the dim word inside the
+                     field, the column name is the value, and the chevron inside the box reopens that one
+                     control in Import options. -->
+                <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+                  <div title="Weight column: combined_score, treated as strength. Change in Import options" style="display: flex; align-items: center; gap: 2px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 4px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
+                    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">weight</span>
+                    <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex: 1 1 0; min-width: 0;">
+                      <span style="min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">combined_score</span>
+                      <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">strength</span>
+                    </div>
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                  <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+                  <div title="Label column: preferredName. Change in Import options" style="display: flex; align-items: center; gap: 2px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 4px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
+                    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">label</span>
+                    <span style="flex: 1 1 0; min-width: 0; text-align: right; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">preferredName</span>
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                  <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+                  <div title="Identifier system: gene symbol. Change in Import options" style="display: flex; align-items: center; gap: 2px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 4px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
+                    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">ids</span>
+                    <span style="flex: 1 1 0; min-width: 0; text-align: right; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">gene symbol</span>
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                  <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+                <div title="Close dataset. Starts a new session" style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Close dataset</div>
+              </div>
+            </div>
+
+            <!-- Sample datasets (tier 1, collapsed) -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Sample datasets</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">5</span>
+              </div>
+            </div>
+
+            <!-- Recent (tier 1, collapsed) -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Recent</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">3</span>
+              </div>
+            </div>
+
+            <!-- Validation report (tier 2, collapsed) -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Validation report</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">2 info</span>
+              </div>
+            </div>
+
+            <!-- Columns (tier 2, collapsed) -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Columns</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">4 node, 5 edge</span>
+              </div>
+            </div>
+
+            <!-- Cleaning steps (tier 2, collapsed) -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Cleaning steps</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Mappings, technical name Import mappings (tier 2, SAV-10). The library section for the mappings graphty already remembers
+                 per header signature: without it the app saves something on the user's behalf, into the same
+                 storage as everything else, with no list, no name, no delete and no export. The header is the
+                 5.3 "Saved things" pair (VOCAB "Save and load control pair") with two deletions:
+                 SAV-10 is the one kind with NO "+" -- the entry is created by the import, so creation stays
+                 implicit -- and the "More" is hover-revealed under RT-7, which this board does not draw here.
+                 Section overflow (6.8 full-text twin): Import mapping...
+                 Row hover gives rename and delete; the row context menu adds "Apply to current file" and
+                 "Export mapping (JSON)" -- recorded, not drawn, because no row is hovered and no menu is open.
+                 Info circle, SAV-3 x SAV-10 collision resolved with the destination sentence first.
+                 No row for expression.tsv: its mapping does not exist until Join is pressed, and this board is
+                 the state before that. Header measures 33.00px (1px rule + 32px row); the row adds 28.
+                 R2-N04, second round: the header's "1" is gone. 6.2 draws a header count only when the count
+                 says something the reader cannot see, and bans counts of 0 or 1 outright; this section is
+                 open with its one row untruncated below it, which is the literal case the rule names. -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Mappings</span>
+                  <div style="width: 14px; height: 14px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: pointer;" title="Import mappings: saved in this browser on this computer. Export a file to move it. Mappings are remembered when you import a file whose columns graphty has seen before.">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
+                  </div>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px 0 16px; box-sizing: border-box;" title="node1 and node2 as source and target, combined_score as weight, preferredName as label">
+                <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">ovarian_de_string.tsv columns</span>
+                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">12</span>
+              </div>
+            </div>
+
+            <!-- Run a recipe (tier 2 row opening the tier 3 dialog).
+                 REVISION 1.7, SAV-2/A5: "Load" is retired from the saved-thing vocabulary and the three verbs
+                 are "Save as <kind>...", "Import <kind>..." and "Export <kind> (JSON)", with apply being the
+                 row click. "Run a recipe..." is the named exception and keeps its wording; "Import and replay"
+                 is retired in favour of "Import recipe...". -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: baseline; gap: 6px; min-width: 0;">
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Run a recipe...</span>
+                  <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CANVAS, 832 by 836
+             EDGE WIDTH, one value: 1 on every edge. The widths ran 0.98 to 1.68 in lockstep with each edge's stroke-opacity -- one variable driving two channels, neither keyed. VOCAB 13.1 keeps the opacity as this board's own density treatment; the width, which read as an encoded channel with no legend line, is now one value. -->
+        <div style="flex: 1 1 auto; min-width: 0; position: relative; background: #161b22; overflow: hidden;">
+
+          <!-- GRAPH: force-directed drawing of the protein network, two dense modules (p53 / apoptosis on the left,
+               EGFR / STAT3 signalling on the right) with a few bridging edges. Node size by degree, sqrt scale; labels on the top 18 by degree (7.2). -->
+          <svg width="100%" height="100%" viewBox="0 0 832 836" preserveAspectRatio="xMidYMid meet" style="position: absolute; left: 0; top: 0; display: block;">
+<line x1="303.2" y1="438.9" x2="248.0" y2="461.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.81"></line><line x1="303.2" y1="438.9" x2="276.9" y2="346.9" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line><line x1="303.2" y1="438.9" x2="375.5" y2="476.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.76"></line><line x1="303.2" y1="438.9" x2="175.9" y2="289.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.71"></line><line x1="303.2" y1="438.9" x2="375.5" y2="276.3" stroke="#48525c" stroke-width="1" stroke-opacity="0.72"></line><line x1="303.2" y1="438.9" x2="278.5" y2="562.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.72"></line><line x1="303.2" y1="438.9" x2="376.9" y2="359.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.82"></line><line x1="303.2" y1="438.9" x2="230.8" y2="523.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="303.2" y1="438.9" x2="296.2" y2="244.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.70"></line><line x1="303.2" y1="438.9" x2="135.5" y2="505.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.74"></line><line x1="303.2" y1="438.9" x2="197.9" y2="433.9" stroke="#48525c" stroke-width="1" stroke-opacity="0.72"></line><line x1="303.2" y1="438.9" x2="333.1" y2="605.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.68"></line><line x1="303.2" y1="438.9" x2="389.8" y2="511.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.78"></line><line x1="303.2" y1="438.9" x2="387.4" y2="417.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.80"></line><line x1="303.2" y1="438.9" x2="278.4" y2="568.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.67"></line><line x1="303.2" y1="438.9" x2="176.7" y2="422.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="303.2" y1="438.9" x2="185.8" y2="568.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.71"></line><line x1="303.2" y1="438.9" x2="202.3" y2="511.3" stroke="#48525c" stroke-width="1" stroke-opacity="0.74"></line><line x1="303.2" y1="438.9" x2="345.0" y2="466.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.82"></line><line x1="303.2" y1="438.9" x2="216.3" y2="549.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.67"></line><line x1="303.2" y1="438.9" x2="420.7" y2="404.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.72"></line><line x1="303.2" y1="438.9" x2="382.6" y2="482.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="303.2" y1="438.9" x2="353.6" y2="523.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="248.0" y1="461.8" x2="276.9" y2="346.9" stroke="#48525c" stroke-width="1" stroke-opacity="0.66"></line><line x1="248.0" y1="461.8" x2="150.6" y2="380.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.79"></line><line x1="248.0" y1="461.8" x2="195.3" y2="528.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.74"></line><line x1="248.0" y1="461.8" x2="375.5" y2="276.3" stroke="#48525c" stroke-width="1" stroke-opacity="0.76"></line><line x1="248.0" y1="461.8" x2="376.9" y2="359.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="248.0" y1="461.8" x2="339.6" y2="566.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.83"></line><line x1="248.0" y1="461.8" x2="296.2" y2="244.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.68"></line><line x1="248.0" y1="461.8" x2="135.5" y2="505.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.79"></line><line x1="248.0" y1="461.8" x2="376.8" y2="449.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="248.0" y1="461.8" x2="197.9" y2="433.9" stroke="#48525c" stroke-width="1" stroke-opacity="0.71"></line><line x1="248.0" y1="461.8" x2="149.7" y2="396.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.83"></line><line x1="248.0" y1="461.8" x2="333.1" y2="605.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.66"></line><line x1="248.0" y1="461.8" x2="389.8" y2="511.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.84"></line><line x1="248.0" y1="461.8" x2="417.5" y2="490.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.81"></line><line x1="248.0" y1="461.8" x2="176.7" y2="422.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.81"></line><line x1="248.0" y1="461.8" x2="202.3" y2="511.3" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="248.0" y1="461.8" x2="345.0" y2="466.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line><line x1="248.0" y1="461.8" x2="380.6" y2="580.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.71"></line><line x1="248.0" y1="461.8" x2="216.3" y2="549.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.82"></line><line x1="248.0" y1="461.8" x2="208.6" y2="562.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.83"></line><line x1="248.0" y1="461.8" x2="420.7" y2="404.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.72"></line><line x1="248.0" y1="461.8" x2="223.8" y2="321.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.83"></line><line x1="248.0" y1="461.8" x2="351.8" y2="273.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.72"></line><line x1="276.9" y1="346.9" x2="375.5" y2="476.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line><line x1="276.9" y1="346.9" x2="195.3" y2="528.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="276.9" y1="346.9" x2="375.5" y2="276.3" stroke="#48525c" stroke-width="1" stroke-opacity="0.81"></line><line x1="276.9" y1="346.9" x2="278.5" y2="562.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.72"></line><line x1="276.9" y1="346.9" x2="339.6" y2="566.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.72"></line><line x1="276.9" y1="346.9" x2="296.2" y2="244.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.84"></line><line x1="276.9" y1="346.9" x2="233.5" y2="333.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.72"></line><line x1="276.9" y1="346.9" x2="376.8" y2="449.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.66"></line><line x1="276.9" y1="346.9" x2="197.9" y2="433.9" stroke="#48525c" stroke-width="1" stroke-opacity="0.82"></line><line x1="276.9" y1="346.9" x2="149.7" y2="396.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="276.9" y1="346.9" x2="333.1" y2="605.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.73"></line><line x1="276.9" y1="346.9" x2="387.4" y2="417.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="276.9" y1="346.9" x2="278.4" y2="568.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.68"></line><line x1="276.9" y1="346.9" x2="298.4" y2="304.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.73"></line><line x1="276.9" y1="346.9" x2="420.7" y2="404.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.78"></line><line x1="276.9" y1="346.9" x2="361.5" y2="517.9" stroke="#48525c" stroke-width="1" stroke-opacity="0.82"></line><line x1="276.9" y1="346.9" x2="350.5" y2="596.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line><line x1="276.9" y1="346.9" x2="382.6" y2="482.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="375.5" y1="476.2" x2="248.0" y2="461.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.80"></line><line x1="375.5" y1="476.2" x2="278.5" y2="562.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.79"></line><line x1="375.5" y1="476.2" x2="348.9" y2="264.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.79"></line><line x1="375.5" y1="476.2" x2="370.2" y2="389.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.68"></line><line x1="375.5" y1="476.2" x2="387.4" y2="417.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.67"></line><line x1="375.5" y1="476.2" x2="350.5" y2="596.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.71"></line><line x1="375.5" y1="476.2" x2="223.8" y2="321.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.72"></line><line x1="176.7" y1="422.6" x2="208.6" y2="562.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.56"></line><line x1="348.9" y1="264.6" x2="389.8" y2="511.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.67"></line><line x1="230.8" y1="523.5" x2="417.5" y2="490.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="296.2" y1="244.8" x2="230.8" y2="523.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.74"></line><line x1="197.1" y1="270.4" x2="131.9" y2="391.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.67"></line><line x1="175.9" y1="289.8" x2="278.4" y2="568.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.59"></line><line x1="296.2" y1="244.8" x2="376.8" y2="449.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.61"></line><line x1="387.4" y1="417.5" x2="131.9" y2="391.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.71"></line><line x1="376.8" y1="449.2" x2="230.8" y2="523.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.56"></line><line x1="150.6" y1="380.7" x2="351.8" y2="273.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.73"></line><line x1="381.9" y1="368.9" x2="376.9" y2="359.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="197.1" y1="270.4" x2="235.2" y2="592.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.73"></line><line x1="381.9" y1="368.9" x2="248.0" y2="461.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.66"></line><line x1="345.0" y1="466.7" x2="131.9" y2="391.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.67"></line><line x1="420.7" y1="404.5" x2="361.5" y2="517.9" stroke="#48525c" stroke-width="1" stroke-opacity="0.73"></line><line x1="208.6" y1="562.4" x2="350.5" y2="596.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line><line x1="223.8" y1="321.4" x2="380.6" y2="580.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.68"></line><line x1="389.8" y1="511.8" x2="208.6" y2="562.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.67"></line><line x1="135.5" y1="505.0" x2="339.6" y2="566.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.78"></line><line x1="370.2" y1="389.5" x2="345.0" y2="466.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.60"></line><line x1="176.7" y1="422.6" x2="233.5" y2="333.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.76"></line><line x1="278.5" y1="562.5" x2="353.6" y2="523.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.55"></line><line x1="417.5" y1="490.4" x2="348.9" y2="264.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.62"></line><line x1="361.5" y1="517.9" x2="278.5" y2="562.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.73"></line><line x1="278.5" y1="562.5" x2="135.5" y2="505.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.62"></line><line x1="131.9" y1="391.7" x2="223.8" y2="321.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.63"></line><line x1="376.9" y1="359.2" x2="278.5" y2="562.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.68"></line><line x1="202.3" y1="511.3" x2="216.3" y2="549.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.60"></line><line x1="361.5" y1="517.9" x2="208.6" y2="562.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.70"></line><line x1="348.9" y1="264.6" x2="197.9" y2="433.9" stroke="#48525c" stroke-width="1" stroke-opacity="0.64"></line><line x1="248.0" y1="461.8" x2="185.8" y2="568.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.66"></line><line x1="389.8" y1="511.8" x2="376.9" y2="359.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.71"></line><line x1="135.5" y1="505.0" x2="296.2" y2="244.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.58"></line><line x1="298.4" y1="304.6" x2="208.6" y2="562.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.64"></line><line x1="233.5" y1="333.6" x2="150.6" y2="380.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.67"></line><line x1="380.6" y1="580.7" x2="150.6" y2="380.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.67"></line><line x1="345.0" y1="466.7" x2="389.8" y2="511.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.74"></line><line x1="380.6" y1="580.7" x2="135.5" y2="505.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.76"></line><line x1="278.5" y1="562.5" x2="387.4" y2="417.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.70"></line><line x1="353.6" y1="523.0" x2="135.5" y2="505.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.64"></line><line x1="370.2" y1="389.5" x2="223.8" y2="321.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.73"></line><line x1="389.8" y1="511.8" x2="375.5" y2="276.3" stroke="#48525c" stroke-width="1" stroke-opacity="0.62"></line><line x1="339.6" y1="566.2" x2="376.8" y2="449.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.62"></line><line x1="333.1" y1="605.7" x2="351.8" y2="273.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="197.1" y1="270.4" x2="350.5" y2="596.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.56"></line><line x1="298.4" y1="304.6" x2="233.5" y2="333.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.78"></line><line x1="230.8" y1="523.5" x2="351.8" y2="273.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line><line x1="375.5" y1="276.3" x2="339.6" y2="566.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.71"></line><line x1="197.1" y1="270.4" x2="375.5" y2="276.3" stroke="#48525c" stroke-width="1" stroke-opacity="0.74"></line><line x1="350.5" y1="596.6" x2="230.8" y2="523.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.72"></line><line x1="345.0" y1="466.7" x2="278.4" y2="568.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.68"></line><line x1="417.5" y1="490.4" x2="278.5" y2="562.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.66"></line><line x1="175.9" y1="289.8" x2="296.2" y2="244.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.68"></line><line x1="387.4" y1="417.5" x2="376.8" y2="449.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="345.0" y1="466.7" x2="380.6" y2="580.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="348.9" y1="264.6" x2="197.1" y2="270.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.57"></line><line x1="235.2" y1="592.5" x2="375.5" y2="476.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.70"></line><line x1="278.5" y1="562.5" x2="131.9" y2="391.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.66"></line><line x1="348.9" y1="264.6" x2="208.6" y2="562.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.68"></line><line x1="350.5" y1="596.6" x2="185.8" y2="568.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.56"></line><line x1="387.4" y1="417.5" x2="361.5" y2="517.9" stroke="#48525c" stroke-width="1" stroke-opacity="0.62"></line><line x1="601.6" y1="479.3" x2="667.3" y2="518.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.70"></line><line x1="601.6" y1="479.3" x2="698.8" y2="588.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line><line x1="601.6" y1="479.3" x2="536.3" y2="380.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.73"></line><line x1="601.6" y1="479.3" x2="669.0" y2="339.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.79"></line><line x1="601.6" y1="479.3" x2="578.6" y2="329.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.70"></line><line x1="601.6" y1="479.3" x2="523.4" y2="632.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.65"></line><line x1="601.6" y1="479.3" x2="675.3" y2="621.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.82"></line><line x1="601.6" y1="479.3" x2="502.3" y2="377.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.70"></line><line x1="601.6" y1="479.3" x2="446.8" y2="542.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="601.6" y1="479.3" x2="705.3" y2="557.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="601.6" y1="479.3" x2="646.0" y2="327.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="601.6" y1="479.3" x2="558.7" y2="316.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line><line x1="601.6" y1="479.3" x2="586.5" y2="629.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.73"></line><line x1="601.6" y1="479.3" x2="485.1" y2="436.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.83"></line><line x1="601.6" y1="479.3" x2="700.8" y2="577.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.81"></line><line x1="601.6" y1="479.3" x2="456.1" y2="377.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.73"></line><line x1="601.6" y1="479.3" x2="623.2" y2="586.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.84"></line><line x1="601.6" y1="479.3" x2="603.8" y2="356.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="601.6" y1="479.3" x2="471.0" y2="579.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.76"></line><line x1="601.6" y1="479.3" x2="450.0" y2="476.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.70"></line><line x1="601.6" y1="479.3" x2="557.5" y2="623.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.80"></line><line x1="551.4" y1="503.5" x2="601.6" y2="479.3" stroke="#48525c" stroke-width="1" stroke-opacity="0.73"></line><line x1="551.4" y1="503.5" x2="577.6" y2="382.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.81"></line><line x1="551.4" y1="503.5" x2="667.3" y2="518.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line><line x1="551.4" y1="503.5" x2="698.8" y2="588.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="551.4" y1="503.5" x2="603.4" y2="281.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="551.4" y1="503.5" x2="660.9" y2="302.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="551.4" y1="503.5" x2="546.0" y2="285.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.82"></line><line x1="551.4" y1="503.5" x2="578.6" y2="329.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.84"></line><line x1="551.4" y1="503.5" x2="582.5" y2="662.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.83"></line><line x1="551.4" y1="503.5" x2="675.3" y2="621.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.71"></line><line x1="551.4" y1="503.5" x2="521.2" y2="569.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line><line x1="551.4" y1="503.5" x2="502.3" y2="377.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.81"></line><line x1="551.4" y1="503.5" x2="519.0" y2="356.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="551.4" y1="503.5" x2="628.6" y2="357.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.79"></line><line x1="551.4" y1="503.5" x2="670.3" y2="625.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.73"></line><line x1="551.4" y1="503.5" x2="705.3" y2="557.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.70"></line><line x1="551.4" y1="503.5" x2="558.7" y2="316.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.82"></line><line x1="551.4" y1="503.5" x2="717.3" y2="454.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.72"></line><line x1="551.4" y1="503.5" x2="444.8" y2="472.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.73"></line><line x1="551.4" y1="503.5" x2="456.1" y2="377.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.65"></line><line x1="551.4" y1="503.5" x2="603.8" y2="356.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.78"></line><line x1="551.4" y1="503.5" x2="471.0" y2="579.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.84"></line><line x1="551.4" y1="503.5" x2="453.1" y2="526.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.81"></line><line x1="551.4" y1="503.5" x2="684.2" y2="395.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.71"></line><line x1="551.4" y1="503.5" x2="557.5" y2="623.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line><line x1="577.6" y1="382.6" x2="601.6" y2="479.3" stroke="#48525c" stroke-width="1" stroke-opacity="0.82"></line><line x1="577.6" y1="382.6" x2="438.7" y2="460.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="577.6" y1="382.6" x2="717.9" y2="525.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="577.6" y1="382.6" x2="603.4" y2="281.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.76"></line><line x1="577.6" y1="382.6" x2="660.9" y2="302.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.68"></line><line x1="577.6" y1="382.6" x2="546.0" y2="285.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.68"></line><line x1="577.6" y1="382.6" x2="490.1" y2="494.9" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="577.6" y1="382.6" x2="578.6" y2="329.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.80"></line><line x1="577.6" y1="382.6" x2="685.5" y2="606.3" stroke="#48525c" stroke-width="1" stroke-opacity="0.74"></line><line x1="577.6" y1="382.6" x2="521.2" y2="569.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.78"></line><line x1="577.6" y1="382.6" x2="670.3" y2="625.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.82"></line><line x1="577.6" y1="382.6" x2="705.3" y2="557.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.78"></line><line x1="577.6" y1="382.6" x2="646.0" y2="327.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.70"></line><line x1="577.6" y1="382.6" x2="558.7" y2="316.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.76"></line><line x1="577.6" y1="382.6" x2="564.9" y2="332.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.83"></line><line x1="577.6" y1="382.6" x2="485.1" y2="436.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.76"></line><line x1="577.6" y1="382.6" x2="623.2" y2="586.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.80"></line><line x1="577.6" y1="382.6" x2="453.1" y2="526.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.80"></line><line x1="577.6" y1="382.6" x2="450.0" y2="476.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="577.6" y1="382.6" x2="502.1" y2="315.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="667.3" y1="518.6" x2="536.3" y2="380.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line><line x1="667.3" y1="518.6" x2="660.9" y2="302.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.81"></line><line x1="667.3" y1="518.6" x2="546.0" y2="285.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.78"></line><line x1="667.3" y1="518.6" x2="508.8" y2="513.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.76"></line><line x1="667.3" y1="518.6" x2="519.5" y2="557.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.82"></line><line x1="667.3" y1="518.6" x2="685.5" y2="606.3" stroke="#48525c" stroke-width="1" stroke-opacity="0.83"></line><line x1="667.3" y1="518.6" x2="521.2" y2="569.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.82"></line><line x1="667.3" y1="518.6" x2="519.0" y2="356.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.68"></line><line x1="667.3" y1="518.6" x2="628.6" y2="357.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line><line x1="667.3" y1="518.6" x2="558.7" y2="316.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.70"></line><line x1="667.3" y1="518.6" x2="700.8" y2="577.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.70"></line><line x1="667.3" y1="518.6" x2="471.0" y2="579.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.78"></line><line x1="667.3" y1="518.6" x2="502.1" y2="315.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.71"></line><line x1="557.5" y1="623.4" x2="471.0" y2="579.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="717.9" y1="525.7" x2="558.7" y2="316.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.67"></line><line x1="521.2" y1="569.5" x2="557.5" y2="623.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.79"></line><line x1="684.2" y1="395.1" x2="601.6" y2="479.3" stroke="#48525c" stroke-width="1" stroke-opacity="0.79"></line><line x1="536.3" y1="380.8" x2="646.0" y2="327.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="471.0" y1="579.4" x2="646.0" y2="327.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.64"></line><line x1="669.0" y1="339.0" x2="502.1" y2="315.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.71"></line><line x1="717.3" y1="454.2" x2="586.5" y2="629.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.60"></line><line x1="578.6" y1="329.1" x2="717.3" y2="454.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.79"></line><line x1="705.3" y1="557.0" x2="519.5" y2="557.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.66"></line><line x1="471.0" y1="579.4" x2="453.1" y2="526.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.73"></line><line x1="502.3" y1="377.0" x2="438.7" y2="460.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.80"></line><line x1="705.3" y1="557.0" x2="675.3" y2="621.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.67"></line><line x1="672.9" y1="474.4" x2="558.7" y2="316.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.78"></line><line x1="453.1" y1="526.7" x2="546.0" y2="285.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="564.9" y1="332.1" x2="667.3" y2="518.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.62"></line><line x1="628.6" y1="357.8" x2="670.3" y2="625.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.66"></line><line x1="698.8" y1="588.2" x2="502.3" y2="377.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.66"></line><line x1="617.3" y1="546.8" x2="603.4" y2="281.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.68"></line><line x1="684.2" y1="395.1" x2="577.6" y2="382.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.72"></line><line x1="623.2" y1="586.5" x2="536.3" y2="380.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.71"></line><line x1="684.2" y1="395.1" x2="485.1" y2="436.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="490.1" y1="494.9" x2="578.6" y2="329.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.65"></line><line x1="617.3" y1="546.8" x2="582.5" y2="662.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.76"></line><line x1="536.3" y1="380.8" x2="684.2" y2="395.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.61"></line><line x1="471.0" y1="579.4" x2="564.9" y2="332.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line><line x1="444.8" y1="472.5" x2="502.3" y2="377.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.79"></line><line x1="471.0" y1="579.4" x2="617.3" y2="546.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.61"></line><line x1="698.8" y1="588.2" x2="667.3" y2="518.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.58"></line><line x1="444.8" y1="472.5" x2="508.8" y2="513.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.73"></line><line x1="617.3" y1="546.8" x2="646.0" y2="327.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.62"></line><line x1="564.9" y1="332.1" x2="446.8" y2="542.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.79"></line><line x1="603.4" y1="281.2" x2="705.3" y2="557.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.67"></line><line x1="586.5" y1="629.6" x2="700.8" y2="577.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.65"></line><line x1="453.1" y1="526.7" x2="623.2" y2="586.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="586.5" y1="629.6" x2="502.3" y2="377.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="558.7" y1="316.0" x2="485.1" y2="436.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="660.9" y1="302.7" x2="536.3" y2="380.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.75"></line><line x1="669.0" y1="339.0" x2="623.2" y2="586.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.58"></line><line x1="502.3" y1="377.0" x2="519.5" y2="557.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.59"></line><line x1="685.5" y1="606.3" x2="586.5" y2="629.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.56"></line><line x1="603.4" y1="281.2" x2="521.2" y2="569.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.61"></line><line x1="519.0" y1="585.2" x2="558.7" y2="316.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line><line x1="717.9" y1="525.7" x2="546.0" y2="285.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.70"></line><line x1="446.8" y1="542.8" x2="521.2" y2="569.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.63"></line><line x1="669.0" y1="339.0" x2="508.8" y2="513.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.70"></line><line x1="471.0" y1="579.4" x2="438.7" y2="460.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.70"></line><line x1="684.2" y1="395.1" x2="502.3" y2="377.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line><line x1="453.1" y1="526.7" x2="667.3" y2="518.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.62"></line><line x1="577.6" y1="382.6" x2="471.0" y2="579.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.55"></line><line x1="490.1" y1="494.9" x2="558.7" y2="316.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.57"></line><line x1="446.8" y1="542.8" x2="444.8" y2="472.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.59"></line><line x1="717.3" y1="454.2" x2="453.1" y2="526.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.58"></line><line x1="675.3" y1="621.0" x2="446.8" y2="542.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.56"></line><line x1="446.8" y1="542.8" x2="519.0" y2="585.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.76"></line><line x1="586.5" y1="629.6" x2="672.9" y2="474.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.56"></line><line x1="578.6" y1="329.1" x2="623.2" y2="586.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.59"></line><line x1="628.6" y1="357.8" x2="586.5" y2="629.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.72"></line><line x1="646.0" y1="327.8" x2="564.9" y2="332.1" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="519.0" y1="585.2" x2="551.4" y2="503.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.68"></line><line x1="675.3" y1="621.0" x2="603.4" y2="281.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.73"></line><line x1="698.8" y1="588.2" x2="628.6" y2="357.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.66"></line><line x1="564.9" y1="332.1" x2="623.2" y2="586.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.67"></line><line x1="558.7" y1="316.0" x2="660.9" y2="302.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.57"></line><line x1="564.9" y1="332.1" x2="717.9" y2="525.7" stroke="#48525c" stroke-width="1" stroke-opacity="0.63"></line><line x1="536.3" y1="380.8" x2="700.8" y2="577.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.78"></line><line x1="669.0" y1="339.0" x2="667.3" y2="518.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.56"></line><line x1="508.8" y1="513.6" x2="471.0" y2="579.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.67"></line><line x1="689.5" y1="606.6" x2="582.5" y2="662.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.71"></line><line x1="623.2" y1="586.5" x2="685.5" y2="606.3" stroke="#48525c" stroke-width="1" stroke-opacity="0.79"></line><line x1="685.5" y1="606.3" x2="519.0" y2="356.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.62"></line><line x1="672.9" y1="474.4" x2="582.5" y2="662.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.67"></line><line x1="546.0" y1="285.4" x2="519.0" y2="356.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.79"></line><line x1="303.2" y1="438.9" x2="577.6" y2="382.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.81"></line><line x1="248.0" y1="461.8" x2="667.3" y2="518.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.70"></line><line x1="303.2" y1="438.9" x2="667.3" y2="518.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.74"></line><line x1="375.5" y1="476.2" x2="233.5" y2="333.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.82"></line><line x1="276.9" y1="346.9" x2="521.2" y2="569.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.79"></line><line x1="276.9" y1="346.9" x2="519.0" y2="585.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.77"></line><line x1="333.1" y1="605.7" x2="675.3" y2="621.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.63"></line><line x1="387.4" y1="417.5" x2="577.6" y2="382.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.66"></line><line x1="339.6" y1="566.2" x2="557.5" y2="623.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.68"></line><line x1="675.3" y1="621.0" x2="303.2" y2="438.9" stroke="#48525c" stroke-width="1" stroke-opacity="0.76"></line><line x1="551.4" y1="503.5" x2="233.5" y2="333.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.72"></line><line x1="490.1" y1="494.9" x2="303.2" y2="438.9" stroke="#48525c" stroke-width="1" stroke-opacity="0.69"></line>
+<circle cx="303.2" cy="438.9" r="9.9" fill="#a3a8b1"></circle><circle cx="248.0" cy="461.8" r="10.0" fill="#a3a8b1"></circle><circle cx="276.9" cy="346.9" r="9.1" fill="#a3a8b1"></circle><circle cx="375.5" cy="476.2" r="7.2" fill="#a3a8b1"></circle><circle cx="131.9" cy="391.7" r="5.7" fill="#a3a8b1"></circle><circle cx="150.6" cy="380.7" r="5.3" fill="#a3a8b1"></circle><circle cx="381.9" cy="368.9" r="4.5" fill="#a3a8b1"></circle><circle cx="195.3" cy="528.4" r="4.5" fill="#a3a8b1"></circle><circle cx="175.9" cy="289.8" r="5.0" fill="#a3a8b1"></circle><circle cx="375.5" cy="276.3" r="6.0" fill="#a3a8b1"></circle><circle cx="278.5" cy="562.5" r="7.0" fill="#a3a8b1"></circle><circle cx="376.9" cy="359.2" r="5.7" fill="#a3a8b1"></circle><circle cx="339.6" cy="566.2" r="6.0" fill="#a3a8b1"></circle><circle cx="230.8" cy="523.5" r="6.0" fill="#a3a8b1"></circle><circle cx="348.9" cy="264.6" r="6.0" fill="#a3a8b1"></circle><circle cx="296.2" cy="244.8" r="6.3" fill="#a3a8b1"></circle><circle cx="233.5" cy="333.6" r="6.0" fill="#a3a8b1"></circle><circle cx="135.5" cy="505.0" r="6.3" fill="#a3a8b1"></circle><circle cx="370.2" cy="389.5" r="5.0" fill="#a3a8b1"></circle><circle cx="376.8" cy="449.2" r="6.0" fill="#a3a8b1"></circle><circle cx="197.9" cy="433.9" r="5.3" fill="#a3a8b1"></circle><circle cx="149.7" cy="396.2" r="4.5" fill="#a3a8b1"></circle><circle cx="333.1" cy="605.7" r="5.7" fill="#a3a8b1"></circle><circle cx="389.8" cy="511.8" r="6.3" fill="#a3a8b1"></circle><circle cx="387.4" cy="417.5" r="6.5" fill="#a3a8b1"></circle><circle cx="417.5" cy="490.4" r="5.3" fill="#a3a8b1"></circle><circle cx="278.4" cy="568.1" r="5.3" fill="#a3a8b1"></circle><circle cx="176.7" cy="422.6" r="5.3" fill="#a3a8b1"></circle><circle cx="185.8" cy="568.2" r="5.0" fill="#a3a8b1"></circle><circle cx="202.3" cy="511.3" r="5.0" fill="#a3a8b1"></circle><circle cx="345.0" cy="466.7" r="6.3" fill="#a3a8b1"></circle><circle cx="298.4" cy="304.6" r="5.0" fill="#a3a8b1"></circle><circle cx="380.6" cy="580.7" r="5.7" fill="#a3a8b1"></circle><circle cx="216.3" cy="549.0" r="5.0" fill="#a3a8b1"></circle><circle cx="208.6" cy="562.4" r="6.3" fill="#a3a8b1"></circle><circle cx="420.7" cy="404.5" r="5.3" fill="#a3a8b1"></circle><circle cx="361.5" cy="517.9" r="5.7" fill="#a3a8b1"></circle><circle cx="235.2" cy="592.5" r="4.5" fill="#a3a8b1"></circle><circle cx="197.1" cy="270.4" r="5.7" fill="#a3a8b1"></circle><circle cx="350.5" cy="596.6" r="6.0" fill="#a3a8b1"></circle><circle cx="223.8" cy="321.4" r="5.7" fill="#a3a8b1"></circle><circle cx="382.6" cy="482.8" r="4.5" fill="#a3a8b1"></circle><circle cx="353.6" cy="523.0" r="5.0" fill="#a3a8b1"></circle><circle cx="351.8" cy="273.0" r="5.3" fill="#a3a8b1"></circle><circle cx="601.6" cy="479.3" r="9.4" fill="#a3a8b1"></circle><circle cx="551.4" cy="503.5" r="9.9" fill="#a3a8b1"></circle><circle cx="577.6" cy="382.6" r="9.6" fill="#a3a8b1"></circle><circle cx="667.3" cy="518.6" r="9.0" fill="#a3a8b1"></circle><circle cx="698.8" cy="588.2" r="5.7" fill="#a3a8b1"></circle><circle cx="536.3" cy="380.8" r="6.3" fill="#a3a8b1"></circle><circle cx="672.9" cy="474.4" r="5.0" fill="#a3a8b1"></circle><circle cx="438.7" cy="460.7" r="5.0" fill="#a3a8b1"></circle><circle cx="717.9" cy="525.7" r="5.3" fill="#a3a8b1"></circle><circle cx="689.5" cy="606.6" r="3.9" fill="#a3a8b1"></circle><circle cx="603.4" cy="281.2" r="6.0" fill="#a3a8b1"></circle><circle cx="660.9" cy="302.7" r="5.7" fill="#a3a8b1"></circle><circle cx="546.0" cy="285.4" r="6.0" fill="#a3a8b1"></circle><circle cx="669.0" cy="339.0" r="5.7" fill="#a3a8b1"></circle><circle cx="508.8" cy="513.6" r="5.3" fill="#a3a8b1"></circle><circle cx="490.1" cy="494.9" r="5.3" fill="#a3a8b1"></circle><circle cx="578.6" cy="329.1" r="6.0" fill="#a3a8b1"></circle><circle cx="617.3" cy="546.8" r="5.3" fill="#a3a8b1"></circle><circle cx="519.5" cy="557.1" r="5.0" fill="#a3a8b1"></circle><circle cx="685.5" cy="606.3" r="5.7" fill="#a3a8b1"></circle><circle cx="582.5" cy="662.5" r="5.3" fill="#a3a8b1"></circle><circle cx="523.4" cy="632.8" r="3.9" fill="#a3a8b1"></circle><circle cx="675.3" cy="621.0" r="6.3" fill="#a3a8b1"></circle><circle cx="521.2" cy="569.5" r="6.3" fill="#a3a8b1"></circle><circle cx="519.0" cy="585.2" r="5.3" fill="#a3a8b1"></circle><circle cx="502.3" cy="377.0" r="6.5" fill="#a3a8b1"></circle><circle cx="519.0" cy="356.5" r="5.3" fill="#a3a8b1"></circle><circle cx="628.6" cy="357.8" r="5.7" fill="#a3a8b1"></circle><circle cx="446.8" cy="542.8" r="6.0" fill="#a3a8b1"></circle><circle cx="670.3" cy="625.4" r="5.0" fill="#a3a8b1"></circle><circle cx="705.3" cy="557.0" r="6.0" fill="#a3a8b1"></circle><circle cx="646.0" cy="327.8" r="6.0" fill="#a3a8b1"></circle><circle cx="558.7" cy="316.0" r="7.0" fill="#a3a8b1"></circle><circle cx="717.3" cy="454.2" r="5.3" fill="#a3a8b1"></circle><circle cx="586.5" cy="629.6" r="6.3" fill="#a3a8b1"></circle><circle cx="564.9" cy="332.1" r="6.3" fill="#a3a8b1"></circle><circle cx="485.1" cy="436.2" r="5.3" fill="#a3a8b1"></circle><circle cx="444.8" cy="472.5" r="5.3" fill="#a3a8b1"></circle><circle cx="700.8" cy="577.0" r="5.3" fill="#a3a8b1"></circle><circle cx="456.1" cy="377.8" r="4.5" fill="#a3a8b1"></circle><circle cx="623.2" cy="586.5" r="6.5" fill="#a3a8b1"></circle><circle cx="603.8" cy="356.6" r="4.5" fill="#a3a8b1"></circle><circle cx="471.0" cy="579.4" r="7.2" fill="#a3a8b1"></circle><circle cx="453.1" cy="526.7" r="6.3" fill="#a3a8b1"></circle><circle cx="684.2" cy="395.1" r="6.0" fill="#a3a8b1"></circle><circle cx="450.0" cy="476.1" r="4.5" fill="#a3a8b1"></circle><circle cx="502.1" cy="315.6" r="5.0" fill="#a3a8b1"></circle><circle cx="557.5" cy="623.4" r="5.7" fill="#a3a8b1"></circle>
+<text x="261.0" y="465.3" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">MDM2</text><text x="316.1" y="442.4" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">TP53</text><text x="564.2" y="507.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">STAT3</text><text x="590.2" y="386.1" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">MYC</text><text x="614.0" y="482.8" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">EGFR</text><text x="289.0" y="350.4" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">CDKN1A</text><text x="679.3" y="522.1" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">AKT1</text><text x="385.7" y="479.7" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">BAX</text><text x="481.2" y="582.9" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">CDH1</text><text x="288.4" y="566.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">TP53I3</text><text x="568.7" y="319.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">MET</text><text x="396.9" y="421.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">BRCA1</text><text x="511.8" y="380.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">CDK6</text><text x="632.7" y="590.0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">CTNNB1</text><text x="305.4" y="248.3" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">CYCS</text><text x="144.8" y="508.5" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">BCL2L1</text><text x="399.0" y="515.3" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">CHEK2</text><text x="354.2" y="470.2" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#7a828e">CCNG1</text>
+          </svg>
+
+          <!-- INSIGHTS STRIP (7.3): undirected, 318 nodes, no time attribute -->
+          <div style="position: absolute; top: 12px; left: 50%; transform: translateX(-50%); max-width: 720px; display: flex; flex-direction: row; align-items: stretch; gap: 8px;">
+            <div style="width: 160px; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; cursor: pointer;">
+              <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Find groups</span>
+              <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Communities (Louvain)</span>
+              <span style="flex: 1 1 auto; font-size: 11px; line-height: 1.4; color: #a3a8b1;">Cluster nodes that interact more with each other than with the rest.</span>
+              <div style="display: flex; align-items: center; gap: 4px; height: 20px; color: #5b8ff9;">
+                <span style="font-size: 11px; font-weight: 500; line-height: 1.2;">Try it</span>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="13" y2="8"></line><polyline points="9,4 13,8 9,12"></polyline></svg>
+              </div>
+            </div>
+            <div style="width: 160px; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; cursor: pointer;">
+              <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Who is most connected</span>
+              <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Degree centrality</span>
+              <span style="flex: 1 1 auto; font-size: 11px; line-height: 1.4; color: #a3a8b1;">Rank nodes by how many links they have.</span>
+              <div style="display: flex; align-items: center; gap: 4px; height: 20px; color: #5b8ff9;">
+                <span style="font-size: 11px; font-weight: 500; line-height: 1.2;">Try it</span>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="13" y2="8"></line><polyline points="9,4 13,8 9,12"></polyline></svg>
+              </div>
+            </div>
+            <div style="width: 160px; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; cursor: pointer;">
+              <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Search for something you know</span>
+              <span style="flex: 1 1 auto; font-size: 11px; line-height: 1.4; color: #a3a8b1;">Type a name like TP53 to find it on the canvas.</span>
+              <div style="display: flex; align-items: center; gap: 4px; height: 20px; color: #5b8ff9;">
+                <span style="font-size: 11px; font-weight: 500; line-height: 1.2;">Try it</span>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="13" y2="8"></line><polyline points="9,4 13,8 9,12"></polyline></svg>
+              </div>
+            </div>
+            <div title="Hide suggestions" style="width: 24px; height: 24px; flex: 0 0 24px; align-self: flex-start; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
+            </div>
+          </div>
+
+          <!-- MINIMAP -->
+          <div style="position: absolute; left: 12px; bottom: 12px; width: 160px; height: 100px; display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+            <svg width="142" height="70" viewBox="0 0 160 78" style="display: block;">
+              <rect x="2" y="2" width="156" height="74" rx="2" fill="none" stroke="#4a7ee8" stroke-width="1"></rect>
+<circle cx="58.9" cy="40.8" r="1.2" fill="#a3a8b1"></circle><circle cx="48.5" cy="42.9" r="1.2" fill="#a3a8b1"></circle><circle cx="53.9" cy="32.7" r="1.2" fill="#a3a8b1"></circle><circle cx="72.4" cy="44.1" r="1.2" fill="#a3a8b1"></circle><circle cx="26.7" cy="36.7" r="1.2" fill="#a3a8b1"></circle><circle cx="30.2" cy="35.7" r="1.2" fill="#a3a8b1"></circle><circle cx="73.6" cy="34.7" r="1.2" fill="#a3a8b1"></circle><circle cx="38.6" cy="48.8" r="1.2" fill="#a3a8b1"></circle><circle cx="35.0" cy="27.7" r="1.2" fill="#a3a8b1"></circle><circle cx="72.4" cy="26.5" r="1.2" fill="#a3a8b1"></circle><circle cx="54.2" cy="51.8" r="1.2" fill="#a3a8b1"></circle><circle cx="72.7" cy="33.8" r="1.2" fill="#a3a8b1"></circle><circle cx="65.7" cy="52.1" r="1.2" fill="#a3a8b1"></circle><circle cx="45.3" cy="48.3" r="1.2" fill="#a3a8b1"></circle><circle cx="67.4" cy="25.4" r="1.2" fill="#a3a8b1"></circle><circle cx="57.5" cy="23.7" r="1.2" fill="#a3a8b1"></circle><circle cx="45.8" cy="31.5" r="1.2" fill="#a3a8b1"></circle><circle cx="27.4" cy="46.7" r="1.2" fill="#a3a8b1"></circle><circle cx="71.4" cy="36.5" r="1.2" fill="#a3a8b1"></circle><circle cx="72.7" cy="41.8" r="1.2" fill="#a3a8b1"></circle><circle cx="39.1" cy="40.4" r="1.2" fill="#a3a8b1"></circle><circle cx="30.1" cy="37.1" r="1.2" fill="#a3a8b1"></circle><circle cx="64.5" cy="55.6" r="1.2" fill="#a3a8b1"></circle><circle cx="75.1" cy="47.3" r="1.2" fill="#a3a8b1"></circle><circle cx="74.6" cy="39.0" r="1.2" fill="#a3a8b1"></circle><circle cx="80.3" cy="45.4" r="1.2" fill="#a3a8b1"></circle><circle cx="54.2" cy="52.3" r="1.2" fill="#a3a8b1"></circle><circle cx="35.1" cy="39.4" r="1.2" fill="#a3a8b1"></circle><circle cx="36.8" cy="52.3" r="1.2" fill="#a3a8b1"></circle><circle cx="39.9" cy="47.3" r="1.2" fill="#a3a8b1"></circle><circle cx="66.7" cy="43.3" r="1.2" fill="#a3a8b1"></circle><circle cx="58.0" cy="29.0" r="1.2" fill="#a3a8b1"></circle><circle cx="73.4" cy="53.4" r="1.2" fill="#a3a8b1"></circle><circle cx="42.6" cy="50.6" r="1.2" fill="#a3a8b1"></circle><circle cx="41.1" cy="51.8" r="1.2" fill="#a3a8b1"></circle><circle cx="80.9" cy="37.8" r="1.2" fill="#a3a8b1"></circle><circle cx="69.8" cy="47.8" r="1.2" fill="#a3a8b1"></circle><circle cx="46.1" cy="54.4" r="1.2" fill="#a3a8b1"></circle><circle cx="39.0" cy="25.9" r="1.2" fill="#a3a8b1"></circle><circle cx="67.7" cy="54.8" r="1.2" fill="#a3a8b1"></circle><circle cx="44.0" cy="30.5" r="1.2" fill="#a3a8b1"></circle><circle cx="73.7" cy="44.7" r="1.2" fill="#a3a8b1"></circle><circle cx="68.3" cy="48.3" r="1.2" fill="#a3a8b1"></circle><circle cx="68.0" cy="26.2" r="1.2" fill="#a3a8b1"></circle><circle cx="114.8" cy="44.4" r="1.2" fill="#a3a8b1"></circle><circle cx="105.4" cy="46.6" r="1.2" fill="#a3a8b1"></circle><circle cx="110.3" cy="35.9" r="1.2" fill="#a3a8b1"></circle><circle cx="127.1" cy="47.9" r="1.2" fill="#a3a8b1"></circle><circle cx="133.0" cy="54.1" r="1.2" fill="#a3a8b1"></circle><circle cx="102.6" cy="35.7" r="1.2" fill="#a3a8b1"></circle><circle cx="128.2" cy="44.0" r="1.2" fill="#a3a8b1"></circle><circle cx="84.3" cy="42.8" r="1.2" fill="#a3a8b1"></circle><circle cx="136.6" cy="48.5" r="1.2" fill="#a3a8b1"></circle><circle cx="131.3" cy="55.7" r="1.2" fill="#a3a8b1"></circle><circle cx="115.1" cy="26.9" r="1.2" fill="#a3a8b1"></circle><circle cx="125.9" cy="28.8" r="1.2" fill="#a3a8b1"></circle><circle cx="104.4" cy="27.3" r="1.2" fill="#a3a8b1"></circle><circle cx="127.4" cy="32.0" r="1.2" fill="#a3a8b1"></circle><circle cx="97.4" cy="47.5" r="1.2" fill="#a3a8b1"></circle><circle cx="93.9" cy="45.8" r="1.2" fill="#a3a8b1"></circle><circle cx="110.5" cy="31.1" r="1.2" fill="#a3a8b1"></circle><circle cx="117.7" cy="50.4" r="1.2" fill="#a3a8b1"></circle><circle cx="99.4" cy="51.3" r="1.2" fill="#a3a8b1"></circle><circle cx="130.5" cy="55.7" r="1.2" fill="#a3a8b1"></circle><circle cx="111.2" cy="60.6" r="1.2" fill="#a3a8b1"></circle><circle cx="100.1" cy="58.0" r="1.2" fill="#a3a8b1"></circle><circle cx="128.6" cy="57.0" r="1.2" fill="#a3a8b1"></circle><circle cx="99.7" cy="52.4" r="1.2" fill="#a3a8b1"></circle><circle cx="99.3" cy="53.8" r="1.2" fill="#a3a8b1"></circle><circle cx="96.2" cy="35.4" r="1.2" fill="#a3a8b1"></circle><circle cx="99.3" cy="33.6" r="1.2" fill="#a3a8b1"></circle><circle cx="119.9" cy="33.7" r="1.2" fill="#a3a8b1"></circle><circle cx="85.8" cy="50.0" r="1.2" fill="#a3a8b1"></circle><circle cx="127.7" cy="57.4" r="1.2" fill="#a3a8b1"></circle><circle cx="134.2" cy="51.3" r="1.2" fill="#a3a8b1"></circle><circle cx="123.1" cy="31.0" r="1.2" fill="#a3a8b1"></circle><circle cx="106.8" cy="30.0" r="1.2" fill="#a3a8b1"></circle><circle cx="136.5" cy="42.2" r="1.2" fill="#a3a8b1"></circle><circle cx="112.0" cy="57.7" r="1.2" fill="#a3a8b1"></circle><circle cx="107.9" cy="31.4" r="1.2" fill="#a3a8b1"></circle><circle cx="93.0" cy="40.6" r="1.2" fill="#a3a8b1"></circle><circle cx="85.4" cy="43.8" r="1.2" fill="#a3a8b1"></circle><circle cx="133.4" cy="53.1" r="1.2" fill="#a3a8b1"></circle><circle cx="87.5" cy="35.4" r="1.2" fill="#a3a8b1"></circle><circle cx="118.8" cy="53.9" r="1.2" fill="#a3a8b1"></circle><circle cx="115.2" cy="33.6" r="1.2" fill="#a3a8b1"></circle><circle cx="90.3" cy="53.3" r="1.2" fill="#a3a8b1"></circle><circle cx="86.9" cy="48.6" r="1.2" fill="#a3a8b1"></circle><circle cx="130.3" cy="37.0" r="1.2" fill="#a3a8b1"></circle><circle cx="86.4" cy="44.1" r="1.2" fill="#a3a8b1"></circle><circle cx="96.1" cy="29.9" r="1.2" fill="#a3a8b1"></circle><circle cx="106.5" cy="57.2" r="1.2" fill="#a3a8b1"></circle>
+            </svg>
+          </div>
+
+          <!-- LEGEND (5.1, floor item 5), the one component, settled once in LEGEND-1.8 and drawn
+               identically on every board that has one: 256 wide, one block per ENCODED channel in the
+               order Color, Size, Outline, Edge width, Arrow, then the state rows, a 1px #374047 rule
+               between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
+               content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
+               the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
+               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               minimum 5.6 sets.
+               A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
+               one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
+               string. The middle stop carries the word "median", the swatch radius is the encoding's own
+               transform, and the scale is spelled out even when it is the default, because the legend
+               travels inside an exported image where no one can hover a glyph.
+               No "Legend" caption, no palette name in the body, no counts on state rows, no block for a
+               channel that is not encoded.
+               THIS BOARD: the ovarian STRING network, 318 proteins. Degree runs 1 to 41, TP53 holding the top (FIXTURES 3.3); the median 5 is invented once, in LEGEND-1.8, and used on every ovarian board. The join dialog is an overlay; the canvas keeps its default encoding.
+               1.8, C2 and C3: this legend is entirely floor item 5 -- channel, attribute, domain endpoints
+               with the median, and the scale in words -- so the two unconditional cuts (no category counts,
+               no state rows) remove nothing here and the five-row cap never fires. Its height is unchanged.
+               That is the promise C makes: not that the legend is small, but that everything left on it is
+               load-bearing.
+               1.8, C4 and VOCAB 14.6: the exported image carries a legend composed from the encoding model
+               at the export's own scale, drawn into the image -- never captured from this DOM overlay, which
+               a Babylon scene capture cannot see. It ignores this legend's visibility and, in the SVG and
+               PDF paths, is emitted as vector text. Nothing on this board draws it; the board only owes the
+               reader the statement. -->
+          <div style="position: absolute; right: 12px; bottom: 12px; width: 256px; min-height: 80px; max-height: 240px; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 6px 8px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Size: Most connected <span style="color: #7a828e;">(Degree centrality)</span></span>
+              <div style="display: flex; align-items: center; gap: 8px; height: 16px;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="#a3a8b1"></circle></svg>
+                  <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">1</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.9" fill="#a3a8b1"></circle></svg>
+                  <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">median 5</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#a3a8b1"></circle></svg>
+                  <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">41</span>
+                </div>
+              </div>
+              <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">sqrt scale</span>
+            </div>
+          </div>
+
+          <!-- CANVAS TOOLBAR (5.6, TB-1/TB-2/TB-4/A1). The 5.6 navigation cluster, rotated out of the left
+               edge and centred on the live canvas rect: 246 x 36 at left 293 on this 832px canvas, the one
+               surface in the set with a 7px radius and the only canvas overlay with a shadow (lift is the
+               mark of an instrument; the minimap and legend stay flat at radius 4).
+               Bottom 12: the canvas floor here IS the canvas rect -- this dataset has no time attribute, so
+               no time slider, and the Data table drawer is closed. The other stops on TB-4's stack are 82
+               (slider), 272 (drawer) and 342 (both).
+               The item set is FIXED -- Zoom to selection stays drawn and disabled with the register's reason
+               in its title, because a centred bar that changes width moves every item under the pointer.
+               Minimap (left 12) and legend (right 12) keep the toolbar's baseline: 832 - 172 - 172 = 488px of
+               room for a 246px bar, so the below-622 two-line rule does not fire.
+               The Insights strip does not collide: it is top 12, so the two centred overlays sit on opposite
+               edges. The Views caret points UP and its menu opens upward; the zoom percentage stays in the
+               status bar 12px below (TB-7), so no numeric readout changes the bar's width.
+               On this board the toolbar draws DIMMED UNDER THE MODAL SCRIM, exactly as the minimap, the
+               legend and the Insights strip do. It is drawn, not omitted: the canvas is frozen behind a 3b
+               dialog, not gone. -->
+          <div style="position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: inline-flex; align-items: center; height: 36px; padding: 3px; border-radius: 7px; background: #1f2428; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; z-index: 6;">
+            <div style="display: flex; align-items: center; width: 60px; height: 28px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
+              <div style="flex: 1; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-size: 11px; font-weight: 500; line-height: 1; color: #7a828e; cursor: pointer;">2D</div>
+              <div style="flex: 1; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 3px; background: #374047; font-size: 11px; font-weight: 500; line-height: 1; color: #d5d7da; cursor: pointer;">3D</div>
+            </div>
+            <div style="width: 12px; height: 28px; display: flex; align-items: center; justify-content: center;"><div style="width: 1px; height: 16px; background: #48525c;"></div></div>
+            <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom out (-)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line><line x1="5" y1="7" x2="9" y2="7"></line></svg>
+            </div>
+            <div style="width: 2px;"></div>
+            <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom in (=)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line><line x1="7" y1="5" x2="7" y2="9"></line><line x1="5" y1="7" x2="9" y2="7"></line></svg>
+            </div>
+            <div style="width: 2px;"></div>
+            <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom to fit (0)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path></svg>
+            </div>
+            <div style="width: 2px;"></div>
+            <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;" title="Zoom to selection (F). Select something first">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path><circle cx="8" cy="8" r="2"></circle></svg>
+            </div>
+            <div style="width: 12px; height: 28px; display: flex; align-items: center; justify-content: center;"><div style="width: 1px; height: 16px; background: #48525c;"></div></div>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 2px; width: 36px; height: 28px; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Views">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2l5.5 3v6L8 14l-5.5-3V5z"></path><path d="M8 8l5.5-3M8 8v6M8 8L2.5 5"></path></svg>
+              <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 8,5 13,10"></polyline></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- INSPECTOR: Graph summary (nothing selected) -->
+        <div style="flex: 0 0 280px; width: 280px; display: flex; flex-direction: column; background: #1f2428; border-left: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+          <!-- INSPECTOR TITLE ROW. One inventory, one order, all 40 boards that draw one (INSPECTOR-TITLE-1.9.md).
+               Right, in this order and nothing else, ever: Copy reading, Pin as A, Toggle inspector (D).
+               No pin: nothing is selected, and 5.4 draws the pin only for a node, edge, selection or result.
+               Left: the surface kind at 12px, then its identity at 11px muted. The kind never truncates and the
+               identity ellipsizes into its own title, which is 6.3's ladder installed as a mechanism.
+               No leading glyph. It had five spellings across the set -- three of them the register's PIN verb drawn
+               as decoration beside the real Pin control -- and its 22px is exactly what makes every name pair in the
+               set fit at 280. FilterBuilderExpert had already dropped it alone, for this reason.
+               Cluster 2 x 24 + gap 4 = 52; name band 195; this row's name is 97.3. -->
+          <div style="flex: 0 0 36px; height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+            <div style="flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px;">
+              <span style="flex: 0 0 auto; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Graph summary</span>
+            </div>
+            <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 4px;">
+              <div title="Copy reading" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>
+              </div>
+              <div title="Toggle inspector (D)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+              </div>
+            </div>
+          </div>
+
+          <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 8px 16px 16px; overflow: hidden; box-sizing: border-box;">
+
+            <!-- reading (7.5); no diameter sentence, none has been computed. IC-1 pins it inline: a reading is never circled. -->
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 12px; line-height: 1.5; color: #a3a8b1;">318 proteins, connected by 1,104 interactions. One connected part holds all 318 nodes.</span>
+            </div>
+
+            <!-- Counts. MIN-9: a tier 2 section under the reading, drawn open here because this is the one
+                 artboard in the data group that shows the open Counts form. MIN-2 drops the zero and default rows. -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Counts</span>
+                </div>
+              </div>
+              <!-- Six rows, one of them two lines high (182px), become four one-line RT-6 readout rows and
+                   one field, so the two 280px columns read as one system.
+                   RT-6 "replaces nothing -- it is already right": a readout is not a field, so Nodes, Edges,
+                   Direction and density take no box and no in-field glyph. Rule 4 test (ii) fails for a
+                   count you cannot drag or click, and a 318 sitting in a box that looks like an input is
+                   exactly the riddle R1 warns about.
+                   F-42: Weight is the one changeable value in this section, and Rule 3 gives a changeable
+                   value no label column -- the label goes inside the field. It drew the same
+                   "combined_score strength" pair the Loaded data block opposite drew, in the same 280px
+                   column, so it now draws the same field: the dim role word inside the box, the column name
+                   as the value, the mode word beside it (Rule 6) and the register chevron as its door. One
+                   control, one drawing, twice on this board and again on DataPanelLoaded.
+                   Rule 8 deletes "Connected parts (components) 1" -- the reading three rows above says "One
+                   connected part holds all 318 nodes" in words.
+                   Rule 2 question 4 sends "Average links per node (mean degree) 6.9" to RT-9: the degree
+                   histogram at the foot of the next section is that number's distribution, and it carries
+                   1 and 41 on its face, a tick where the median falls, and the median and the mean in its
+                   title.
+                   The two-line "Type: Undirected (from file), weighted (combined_score)" splits into the
+                   Direction and Weight rows; "from file" belongs to the import, and the panel states it. -->
+              <div style="display: flex; flex-direction: column;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 22px; padding: 0 4px; font-size: 11px; line-height: 1.2; box-sizing: border-box;"><span style="color: #7a828e;">Nodes</span><span style="color: #d5d7da;">318</span></div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 22px; padding: 0 4px; font-size: 11px; line-height: 1.2; box-sizing: border-box;"><span style="color: #7a828e;">Edges</span><span style="color: #d5d7da;">1,104</span></div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 22px; padding: 0 4px; font-size: 11px; line-height: 1.2; box-sizing: border-box;"><span style="color: #7a828e;">Direction</span><span style="color: #d5d7da;">Undirected</span></div>
+                <div style="display: flex; align-items: center; height: 32px;">
+                  <div title="Weight: combined_score, treated as strength. Change in Import options" style="display: flex; align-items: center; gap: 2px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 4px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
+                    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">weight</span>
+                    <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex: 1 1 0; min-width: 0;">
+                      <span style="min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">combined_score</span>
+                      <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">strength</span>
+                    </div>
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 22px; padding: 0 4px; font-size: 11px; line-height: 1.2; box-sizing: border-box;"><span style="color: #7a828e;">How tightly linked <span style="color: #5f6873;">(density)</span></span><span title="2.2e-2" style="color: #d5d7da;">0.022</span></div>
+              </div>
+            </div>
+
+            <!-- Most connected (degree) -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Most connected</span>
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Degree</span>
+                </div>
+                <!-- IK-6: the section header in its hovered form. The overflow menu twin holds the two full-text items,
+                     Export top 20 (CSV) and Export ranked list (CSV). -->
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <!-- RT-7 + RT-8: the "See all 318 ranked" text link becomes the register table glyph in the
+                       header, which is where the section's verbs live. Export is the second verb; both are
+                       one click from the exact numbers the histogram below summarises (R6). -->
+                  <div title="Show in table (Shift+T)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"></rect><line x1="2.5" y1="6.5" x2="13.5" y2="6.5"></line><line x1="2.5" y1="10" x2="13.5" y2="10"></line><line x1="7" y1="6.5" x2="7" y2="13.5"></line></svg>
+                  </div>
+                  <div title="Export" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
+                  </div>
+                </div>
+              </div>
+              <!-- MIN-9: the repeated unit word moves onto the column header -->
+              <div style="display: flex; align-items: center; justify-content: flex-end; height: 14px; padding: 0 8px;">
+                <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">links</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 1px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"><span>TP53</span><span style="font-size: 11px; color: #7a828e;">41</span></div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"><span>EGFR</span><span style="font-size: 11px; color: #7a828e;">36</span></div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"><span>STAT3</span><span style="font-size: 11px; color: #7a828e;">33</span></div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"><span>MDM2</span><span style="font-size: 11px; color: #7a828e;">31</span></div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"><span>MYC</span><span style="font-size: 11px; color: #7a828e;">29</span></div>
+              </div>
+              <!-- RT-9, two pitches. It now carries the degree summary as well as the ranked five, so its
+                   title holds the numbers the deleted "Average links per node (mean degree)" row printed.
+                   R2-N04, second round: "median 5" was drawn as a third axis label. RT-9 fixes the two
+                   axis-end values as the only text on a chart row, so the median is now the tick under the
+                   bars at its own position on the 1-to-41 axis, and the number stays in the row's title
+                   beside the mean. The chart keeps both pitches: the bars are squashed 50 -> 42 (the viewBox
+                   is unchanged, so no bar moved) and the 6px tick rail and the 12px axis row take the rest,
+                   42 + 2 + 6 + 2 + 12 = 64. The tick sits at 9.6% of the band, which is where 5 falls on the
+                   1-to-41 axis the two labels draw. -->
+              <div title="Links per node: 1 to 41, median 5, mean 6.9" style="display: flex; flex-direction: column; gap: 2px; padding: 0 8px;">
+                <svg width="100%" height="42" viewBox="0 0 231 50" preserveAspectRatio="none" style="display: block;">
+                  <rect x="0" y="6" width="12" height="44" fill="#374047"></rect>
+                  <rect x="14" y="2" width="12" height="48" fill="#374047"></rect>
+                  <rect x="28" y="10" width="12" height="40" fill="#374047"></rect>
+                  <rect x="42" y="18" width="12" height="32" fill="#374047"></rect>
+                  <rect x="56" y="24" width="12" height="26" fill="#374047"></rect>
+                  <rect x="70" y="30" width="12" height="20" fill="#374047"></rect>
+                  <rect x="84" y="34" width="12" height="16" fill="#374047"></rect>
+                  <rect x="98" y="38" width="12" height="12" fill="#374047"></rect>
+                  <rect x="112" y="41" width="12" height="9" fill="#374047"></rect>
+                  <rect x="126" y="43" width="12" height="7" fill="#374047"></rect>
+                  <rect x="140" y="45" width="12" height="5" fill="#374047"></rect>
+                  <rect x="154" y="46" width="12" height="4" fill="#374047"></rect>
+                  <rect x="168" y="47" width="12" height="3" fill="#374047"></rect>
+                  <rect x="182" y="48" width="12" height="2" fill="#374047"></rect>
+                  <rect x="196" y="48" width="12" height="2" fill="#374047"></rect>
+                  <rect x="210" y="49" width="12" height="1" fill="#374047"></rect>
+                </svg>
+                <div style="position: relative; height: 6px;">
+                  <div style="position: absolute; left: 9.6%; top: 0; width: 1px; height: 6px; background: #a3a8b1;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 10px; line-height: 1.2; color: #7a828e;"><span>1</span><span>41</span></div>
+              </div>
+            </div>
+
+            <!-- Schema (collapsed) -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div title="Schema. 1 node type, 1 edge type" style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Schema</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">1 node type, 1 edge type</span>
+              </div>
+            </div>
+
+            <!-- Attributes (tier 2, collapsed). MIN-9: Node attributes 4 and Edge attributes 5 merge into one section
+                 with a dimmed trailing 9. Inside it a Nodes / Edges tab row splits the two lists (Nodes selected, 4 rows;
+                 Edges 5 rows), and the sampling caveat is stated once inside the section rather than on both headers. -->
+            <div style="display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Attributes</span>
+                </div>
+                <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">9</span>
+              </div>
+            </div>
+
+            <!-- Case notes. The blue text link becomes the ExplorerExpert note field: a 24px control with a
+                 placeholder, which reads as somewhere to type rather than as prose. -->
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; height: 32px;">
+                <div title="Add a case note" style="display: flex; align-items: center; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; line-height: 1; color: #5f6873; box-sizing: border-box; cursor: text;">Add a note...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS BAR, 24 tall -->
+  <div style="flex: 0 0 24px; height: 24px; display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 0 12px; background: #1f2428; border-top: 1px solid #48525c; box-sizing: border-box; font-size: 11px; line-height: 1.2; color: #7a828e;">
+    <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+      <span>318 nodes</span>
+      <span>1,104 edges</span>
+    </div>
+    <div style="width: 1px; height: 12px; background: #48525c;"></div>
+    <span style="cursor: pointer;">Zoom 100%</span>
+    <div style="width: 1px; height: 12px; background: #48525c;"></div>
+    <!-- MIN-8 plus NAV-12: no 3D chip (the canvas 2D / 3D control is always visible), one layout chip with no
+         "Layout:" label, the engine name rendered inline per C7, and a caret opening the layout quick picks. -->
+    <div title="Force directed (ngraph) - settled" style="display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">
+      <span>Force directed - settled</span>
+      <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,6 8,11 13,6"></polyline></svg>
+    </div>
+    <div style="display: none; align-items: center; gap: 8px;"></div>
+    <div style="display: none; align-items: center; gap: 8px;"></div>
+    <div style="display: none; align-items: center; gap: 8px;"></div>
+    <div style="flex: 1 1 auto;"></div>
+    <div style="display: none; align-items: center; gap: 8px;"></div>
+  </div>
+
+  <!-- MODAL SCRIM + TABLE JOIN DIALOG (5.3 Data, Attach mode; VOCAB 9 modal frame) -->
+  <div style="position: absolute; left: 0; top: 0; width: 1440px; height: 900px; display: flex; align-items: center; justify-content: center; background: rgba(13, 17, 23, 0.6); z-index: 20;">
+    <div style="width: 720px; max-height: 760px; display: flex; flex-direction: column; border-radius: 8px; background: #1f2428; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; overflow: hidden;">
+
+      <!-- title row -->
+      <div style="flex: 0 0 40px; height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+        <div style="display: flex; align-items: baseline; gap: 8px; min-width: 0;">
+          <span style="font-size: 14px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Add attributes from a table</span>
+          <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">Table join</span>
+        </div>
+        <div title="Close (Esc)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
+        </div>
+      </div>
+
+      <!-- body -->
+      <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px; overflow: hidden; box-sizing: border-box;">
+
+        <!-- file row -->
+        <div style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.5h5.5L13 5v8.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1z"></path><path d="M9.5 1.5V5H13"></path><line x1="5.5" y1="8" x2="10.5" y2="8"></line><line x1="5.5" y1="11" x2="10.5" y2="11"></line></svg>
+          <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: baseline; gap: 8px;">
+            <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">expression.tsv</span>
+            <!-- Rule 8: "340 rows" is said again by the grid caption and by the match line, and "5 columns"
+                 rides on that caption, beside the columns it counts (R2-M30, the form ImportRecognised
+                 already uses: "First 5 of 1,104 rows, 12 columns"). What only this row can say is how it
+                 was parsed. -->
+            <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">tab-separated, header row</span>
+          </div>
+          <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Choose another file</div>
+          <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Paste data</div>
+        </div>
+
+        <!-- settings grid: Apply to, key mapping, conflict rule, prefix -->
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px;">
+          <!-- Apply to -->
+          <div style="display: flex; flex-direction: column; gap: 1px;">
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Apply to</span>
+              <div title="Which part of the graph the columns are attached to: its nodes, its edges, or the groups from a result." style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg></div>
+            </div>
+            <div style="display: flex; gap: 2px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
+              <div style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; background: #374047; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Nodes</div>
+              <div style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Edges</div>
+              <div style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Groups</div>
+            </div>
+          </div>
+          <!-- Match. RT-2 compound, spanning the two cells the join key used to need. The key column and the
+               attribute it is matched against are one thing -- which value equals which -- so they are one
+               box with a 1px panel-background hairline, and the side rides inside each half where a glyph
+               slot would be (Rule 3; "file" and "graph" have no glyph in the closed list, so they stay words).
+               Deleted: "Key column in file" and the "(attribute in the graph)" gloss (Rule 8, the circle
+               carries it), and "Best match: preferredName, 92%." -- the live match line 240px below reports
+               312 of 340, which is that same 92% (Rule 8). -->
+          <div style="grid-column: span 2; display: flex; flex-direction: column; gap: 1px; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Match</span>
+              <div title="The column in this file whose values are matched against an attribute in the graph. Any attribute can be used, not only the id; the field starts on the candidate with the highest match rate." style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg></div>
+            </div>
+            <div title="Match gene in expression.tsv against preferredName in the graph" style="display: flex; align-items: center; height: 24px; background: #2a3035; border-radius: 4px; box-sizing: border-box; overflow: hidden;">
+              <div style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; cursor: pointer;">
+                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">file</span>
+                <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">gene</span>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+              </div>
+              <div style="width: 1px; height: 24px; flex: 0 0 auto; background: #1f2428;"></div>
+              <div style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; cursor: pointer;">
+                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">graph</span>
+                <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">preferredName</span>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+              </div>
+            </div>
+          </div>
+          <!-- conflict rule. Sentence label -> noun label, with the behaviour in the field: the ImportOptions
+               cut ("Repeated edges between two nodes" -> "Repeats"). The circle keeps the full sentence.
+               REVISION 1.8, POP-JOIN. This field is now the door for the whole join-options group: Prefix
+               and Case-sensitive go behind its own in-field chevron, which is the RT-1 door rule at field
+               scale -- no new glyph, no new lane. Both deviate from nothing (no prefix, unchecked), so
+               Rule 7a would not draw them resident even without a door; the door is what makes them
+               reachable in one click from the row that owns the property (A3), and the chevron stays in
+               VOCAB 14.1's dimmed ink because nothing behind it deviates. The stub is the field itself: it
+               names the conflict rule in words on screen and the other two in its title, so the row this
+               door left behind still reports the state of what it hides. D5 records the result as
+               "Table join settings 4 controls -> 1". This board draws the door closed, so no transient
+               surface is open on it: when the chevron is pressed the join options pop-over takes the
+               DIALOG's lane and this row's shared edge line at 280 (B2), which is the one place 1.8 opens
+               inside a 3b dialog and is why the 1.7 POP-0 note above -- written before any field carried a
+               door -- no longer reads as a blanket ban on this one field. -->
+          <div style="display: flex; flex-direction: column; gap: 1px;">
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Conflicts</span>
+              <div title="What to do when the graph already has an attribute of that name: keep the existing value, overwrite it, or prefix the new one with the table name." style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg></div>
+            </div>
+            <div title="Conflicts: keep the existing value. Click for join options -- conflict rule, prefix, case-sensitive matching" style="display: flex; align-items: center; justify-content: space-between; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box; cursor: pointer;">
+              <span>Keep the existing value</span>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+            </div>
+          </div>
+          <!-- The one resident boolean. "nodes ... after joining" comes off it (Apply to already says
+               nodes, and the dialog is the joining).
+               REVISION 1.8, POP-JOIN: Case-sensitive left this cell for the Conflicts door, so the RT-5
+               pair is a single row and, with the Prefix cell gone, the cell moves from grid column 3 into
+               column 2. Column 3 of this row is left empty on purpose and grid-template-columns is not
+               restretched.
+               1.8, D5: this checkbox is W20 step 4 collapsed into one click, and hiding a one-click
+               accelerator behind a door is the opposite of accelerating. It is not a join setting and it
+               does not go behind the Conflicts chevron. -->
+          <div style="display: flex; flex-direction: column; justify-content: flex-end;">
+            <div title="Color nodes by log2FoldChange after joining" style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer;">
+              <div style="width: 16px; height: 16px; flex: 0 0 auto; border-radius: 2px; background: #2a3035; border: 1px solid #48525c; box-sizing: border-box;"></div>
+              <span style="min-width: 0; font-size: 11px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Color by log2FoldChange</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- columns from the file: preview grid with role and type chips in the headers (grid roles limited to Attribute / Skip) -->
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+            <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Columns in the file</span>
+            <!-- Rule 8 deletes "Click a chip to change a column's role or type." -- every chip carries a
+                 pointer and its own title -- and moves "lists split on |" onto the one chip it describes.
+                 What stays is the sampling departure: the types were detected from 100 of 340 rows, and
+                 floor item 2 says a departure from exact-and-complete is named, never pruned. -->
+            <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Types detected from the first 100 rows.</span>
+          </div>
+          <div style="display: flex; flex-direction: column; border-radius: 4px; border: 1px solid #374047; overflow: hidden; box-sizing: border-box;">
+            <!-- header -->
+            <div style="display: grid; grid-template-columns: 84px 128px 128px 128px minmax(0, 1fr); align-items: start; padding: 6px 8px; background: #2a3035; border-bottom: 1px solid #48525c; font-size: 11px; font-weight: 500; color: #d5d7da; box-sizing: border-box; gap: 8px;">
+              <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+                <span title="Change this column's role or type" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;">gene</span>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div title="Change this column's role" style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #28364e; border: 1px solid #4a7ee8; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Key</div>
+                  <div title="Change this column's type" style="display: inline-flex; align-items: center; gap: 3px; height: 16px; padding: 0 5px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 400; line-height: 1; box-sizing: border-box;"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10M8 4v9"></path></svg>Text</div>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+                <span title="Change this column's role or type" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;">log2FoldChange</span>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div title="Change this column's type" style="display: inline-flex; align-items: center; gap: 3px; height: 16px; padding: 0 5px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 400; line-height: 1; box-sizing: border-box;"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5l-1.5 11M11.5 2.5l-1.5 11M3 6h10.5M2.5 10h10.5"></path></svg>Decimal</div>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+                <span title="Change this column's role or type" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;">padj</span>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div title="Change this column's type" style="display: inline-flex; align-items: center; gap: 3px; height: 16px; padding: 0 5px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 400; line-height: 1; box-sizing: border-box;"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5l-1.5 11M11.5 2.5l-1.5 11M3 6h10.5M2.5 10h10.5"></path></svg>Decimal</div>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+                <span title="Change this column's role or type" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;">baseMean</span>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div title="Change this column's type" style="display: inline-flex; align-items: center; gap: 3px; height: 16px; padding: 0 5px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 400; line-height: 1; box-sizing: border-box;"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5l-1.5 11M11.5 2.5l-1.5 11M3 6h10.5M2.5 10h10.5"></path></svg>Decimal</div>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+                <span title="Change this column's role or type" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;">GO_terms</span>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <div title="Change this column's type. Lists split on |." style="display: inline-flex; align-items: center; height: 16px; padding: 0 5px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 400; line-height: 1; box-sizing: border-box;">List of text</div>
+                </div>
+              </div>
+            </div>
+            <!-- rows -->
+            <div style="display: grid; grid-template-columns: 84px 128px 128px 128px minmax(0, 1fr); align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-bottom: 1px solid #374047; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">TP53</div>
+              <div style="text-align: right; font-variant-numeric: tabular-nums;">-0.42</div>
+              <div style="text-align: right; font-variant-numeric: tabular-nums;">3.2e-7</div>
+              <div style="text-align: right; font-variant-numeric: tabular-nums;">12,480</div>
+              <div style="display: flex; gap: 4px; overflow: hidden;"><div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; font-size: 10px; line-height: 1; white-space: nowrap; box-sizing: border-box;">p53 signaling</div><div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; font-size: 10px; line-height: 1; white-space: nowrap; box-sizing: border-box;">apoptosis</div></div>
+            </div>
+            <div style="display: grid; grid-template-columns: 84px 128px 128px 128px minmax(0, 1fr); align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-bottom: 1px solid #374047; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">MDM2</div>
+              <div style="text-align: right; font-variant-numeric: tabular-nums;">1.87</div>
+              <div style="text-align: right; font-variant-numeric: tabular-nums;">4.4e-6</div>
+              <div style="text-align: right; font-variant-numeric: tabular-nums;">5,206</div>
+              <div style="display: flex; gap: 4px; overflow: hidden;"><div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; font-size: 10px; line-height: 1; white-space: nowrap; box-sizing: border-box;">p53 signaling</div><div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; line-height: 1; white-space: nowrap; box-sizing: border-box;">+2</div></div>
+            </div>
+            <div style="display: grid; grid-template-columns: 84px 128px 128px 128px minmax(0, 1fr); align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-bottom: 1px solid #374047; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">CDKN1A</div>
+              <div style="text-align: right; font-variant-numeric: tabular-nums;">2.31</div>
+              <div style="text-align: right; font-variant-numeric: tabular-nums;">1.2e-8</div>
+              <div style="text-align: right; font-variant-numeric: tabular-nums;">8,912</div>
+              <div style="display: flex; gap: 4px; overflow: hidden;"><div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; font-size: 10px; line-height: 1; white-space: nowrap; box-sizing: border-box;">cell cycle arrest</div><div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; line-height: 1; white-space: nowrap; box-sizing: border-box;">+1</div></div>
+            </div>
+            <div style="display: grid; grid-template-columns: 84px 128px 128px 128px minmax(0, 1fr); align-items: center; gap: 8px; height: 24px; padding: 0 8px; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
+              <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">EGFR</div>
+              <div style="text-align: right; font-variant-numeric: tabular-nums;">-1.63</div>
+              <div style="text-align: right; font-variant-numeric: tabular-nums;">7.8e-5</div>
+              <div style="text-align: right; font-variant-numeric: tabular-nums;">21,304</div>
+              <div style="display: flex; gap: 4px; overflow: hidden;"><div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; font-size: 10px; line-height: 1; white-space: nowrap; box-sizing: border-box;">MAPK cascade</div><div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; line-height: 1; white-space: nowrap; box-sizing: border-box;">+3</div></div>
+            </div>
+          </div>
+          <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">First 4 of 340 rows, 5 columns</span>
+        </div>
+
+        <!-- live match line.
+             1.8, D5, refused for a door and recorded so it is not re-proposed: W20's own success criterion
+             names these reports, and floor item 4 binds what a control will do to the control that does it.
+             The match reports, the unmatched list and the two verbs stay resident at every density. -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#61d095" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><circle cx="8" cy="8" r="6.5"></circle><polyline points="5,8.5 7,10.5 11,6"></polyline></svg>
+            <!-- Rule 8: "28 rows have no node." is the arithmetic of the clause before it, and the 28 it
+                 names is carried by the label on the control that decides their fate. What Join will do is
+                 still stated twice on this screen -- here and in the footer (floor item 4). -->
+            <span style="font-size: 12px; line-height: 1.3; color: #d5d7da;">Matched 312 of 340 rows.</span>
+            <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1.2; color: #7a828e;">
+              <span>28 unmatched</span>
+              <div style="display: flex; gap: 2px; height: 22px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
+                <div style="display: flex; align-items: center; justify-content: center; height: 20px; padding: 0 8px; border-radius: 3px; background: #374047; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Ignore</div>
+                <div style="display: flex; align-items: center; justify-content: center; height: 20px; padding: 0 8px; border-radius: 3px; color: #7a828e; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Add as new nodes</div>
+              </div>
+            </div>
+            <div style="flex: 1 1 auto;"></div>
+            <!-- RT-7: a disclosure that acts, so it is the caret alone with its title. -->
+            <div title="Hide the 28 unmatched rows" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,10 8,6 12,10"></polyline></svg>
+            </div>
+          </div>
+
+          <!-- unmatched list, open -->
+          <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box;">
+            <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px 12px;">
+              <div style="display: flex; align-items: center; justify-content: flex-end; height: 14px;"><span style="font-size: 10px; line-height: 1.2; color: #7a828e;">row</span></div>
+              <div style="display: flex; align-items: center; justify-content: flex-end; height: 14px;"><span style="font-size: 10px; line-height: 1.2; color: #7a828e;">row</span></div>
+              <div style="display: flex; align-items: center; justify-content: flex-end; height: 14px;"><span style="font-size: 10px; line-height: 1.2; color: #7a828e;">row</span></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 22px; font-size: 11px; line-height: 1.2; color: #d5d7da;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">LINC00473</span><span style="color: #7a828e;">12</span></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 22px; font-size: 11px; line-height: 1.2; color: #d5d7da;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">MIR21</span><span style="color: #7a828e;">27</span></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 22px; font-size: 11px; line-height: 1.2; color: #d5d7da;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">SNORD3A</span><span style="color: #7a828e;">41</span></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 22px; font-size: 11px; line-height: 1.2; color: #d5d7da;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">H2AC6</span><span style="color: #7a828e;">58</span></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 22px; font-size: 11px; line-height: 1.2; color: #d5d7da;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">MARCHF1</span><span style="color: #7a828e;">90</span></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 22px; font-size: 11px; line-height: 1.2; color: #d5d7da;"><span style="font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">TP53TG1</span><span style="color: #7a828e;">133</span></div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">and 22 more. Most look like non-coding RNAs or symbols in another namespace.</span>
+              <div style="flex: 1 1 auto;"></div>
+              <span style="font-size: 11px; line-height: 1.2; color: #5b8ff9; cursor: pointer;">Map identifiers...</span>
+              <span style="font-size: 11px; line-height: 1.2; color: #5b8ff9; cursor: pointer;">Export CSV</span>
+              <!-- IK-5: a single copy action standing alone becomes one icon with its tooltip and no menu.
+                   Export CSV keeps its text because the label names a format (IK-6), and Map identifiers... keeps
+                   its text because it is more than one word and opens a dialog. -->
+              <div title="Copy list" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: transparent; color: #7a828e; cursor: pointer; flex: 0 0 auto;">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- R2-M30, second round: the join reported one direction only. 28 file rows that found no node were
+               named, numbered and given Map identifiers... and Export CSV; the 6 graph nodes the file has no
+               row for were nowhere on this board, and their only trace anywhere in the set is
+               StyleDiverging's "not measured (6 nodes)" legend swatch, which is a count and not a list. Floor
+               item 2 asks for what did not bind, named, and floor item 7 is the ids themselves -- these six
+               are what the author has to justify in a figure caption, so they are named here, while the
+               reader can still act on them. RT-10: a departure line carries the 14px warning glyph, whose
+               title is the reason sentence (REGISTER 1.5 section 1.5).
+               Drawn as StylePanel's matched-ids line ("2 nodes: The_Vet, Mrs_Henderson"), not as a second
+               grid card: six ids fit one line, so the 3-column grid, the "and N more" footer and the collapse
+               caret the 28-row list needs would all be chrome over a list with nothing hidden. "Select them"
+               leaves this 3b dialog and selects those six on the canvas -- the same exit Map identifiers...
+               already takes. Both verbs sit on the ids line, not on the sentence above it, because 6.11's
+               second clause keeps a control with the thing it acts on, and because that is what tells the
+               second "Export CSV" on this screen which of the two lists it writes. -->
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <div title="These 6 proteins have no row in expression.tsv" style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; cursor: default;">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#f7b731" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
+              </div>
+              <span style="font-size: 12px; line-height: 1.3; color: #d5d7da;">6 of 318 graph nodes matched nothing.</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; padding: 0 0 0 22px;">
+              <span style="flex: 1 1 auto; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1.4; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">HIPK2, USP7, CREBBP, PIAS1, RCHY1, TAF1</span>
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #5b8ff9; cursor: pointer;">Select them</span>
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #5b8ff9; cursor: pointer;">Export CSV</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- footer -->
+      <div style="flex: 0 0 48px; height: 48px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 16px; border-top: 1px solid #48525c; box-sizing: border-box;">
+        <span style="margin-right: auto; font-size: 11px; line-height: 1.2; color: #7a828e;">Adds 4 attributes to 312 of 318 nodes. Recorded as a Cleaning step.</span>
+        <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Cancel</div>
+        <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Join</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

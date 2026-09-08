@@ -1,0 +1,36 @@
+id: layout-hierarchical
+name: Hierarchical Layout
+category: visualization
+description: Position nodes in layers to show hierarchical or directed flow relationships. Edges flow in a consistent
+  direction (top-to-bottom or left-to-right), revealing dependency structures and directed acyclic graph topology.
+status: planned
+algorithms:
+  - Sugiyama framework
+  - Coffman-Graham layering
+  - Barycenter crossing reduction
+used_by_workflows:
+  - W11
+implemented_by_components:
+  - layout-option
+  - layout-panel
+requirements:
+  - Assign nodes to layers using longest-path layering for DAGs
+  - Assign nodes to layers using Coffman-Graham algorithm when layer width limit specified
+  - Minimize edge crossings using barycenter heuristic with up to 10 iterations
+  - Support top-to-bottom orientation (root at top) as default
+  - Support bottom-to-top orientation (root at bottom)
+  - Support left-to-right orientation (root at left)
+  - Support right-to-left orientation (root at right)
+  - Detect cycles and mark back-edges with distinct visual style (dashed, different color)
+  - Provide layer spacing parameter adjustable from 50 to 300 pixels (default 100)
+  - Provide node spacing parameter adjustable from 20 to 150 pixels (default 50)
+  - Center parent node horizontally over its children within same layer
+  - Align nodes within layer to minimize total edge length
+  - Handle multiple root nodes by creating virtual super-root or separate hierarchies
+  - Complete layout of 500-node DAG within 2 seconds
+  - Display 'Contains cycles' warning when graph is not a DAG
+  - Provide option to temporarily remove back-edges for cleaner hierarchy display
+sources:
+  - title: Complete Graph Visualization Textbook - Chapter 4
+    url: https://graphty.app/docs/
+    summary: Sugiyama framework for hierarchical layout

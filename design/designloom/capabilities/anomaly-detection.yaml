@@ -1,0 +1,39 @@
+id: anomaly-detection
+name: Anomaly Detection
+category: analysis
+description: Identify nodes or edges that deviate significantly from expected patterns. Find statistical outliers
+  (unusual degree, centrality) and structural anomalies (unexpected community membership, unusual neighbors). Essential
+  for fraud detection, error identification, and discovery.
+status: planned
+algorithms:
+  - Z-score outlier detection
+  - Isolation Forest
+  - Local Outlier Factor
+used_by_workflows:
+  - W06
+  - W07
+  - W12
+implemented_by_components:
+  - anomaly-panel
+requirements:
+  - Calculate z-score for each numeric attribute; flag nodes with |z| > 3.0 as outliers
+  - Provide z-score threshold parameter adjustable from 2.0 to 5.0 (default 3.0)
+  - "Detect degree outliers: nodes with degree > mean + threshold * stddev"
+  - "Detect clustering coefficient outliers: unusually high or low local clustering"
+  - "Detect centrality outliers: extreme betweenness or PageRank values"
+  - "Detect community membership anomalies: nodes weakly connected to assigned community"
+  - Calculate composite anomaly score from 0.0 to 1.0 based on multiple factors
+  - Provide anomaly score weighting configuration for each factor
+  - "Categorize anomalies by type: 'degree_outlier', 'structural_anomaly', 'attribute_outlier'"
+  - Rank nodes by anomaly score in descending order
+  - Display top-20 anomalous nodes with anomaly type and score
+  - Support configuring which attributes to include in anomaly detection
+  - Store anomaly score as node attribute named 'anomaly_score'
+  - Store anomaly type as node attribute named 'anomaly_type'
+  - Complete analysis within 10 seconds for graphs under 50,000 nodes
+  - Provide 'Explain anomaly' detail showing which factors contributed to score
+  - Support filtering to show only nodes above anomaly score threshold
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 4
+    url: https://graphty.app/docs/
+    summary: Anomaly Detection Pipeline - establish baseline, detect deviations

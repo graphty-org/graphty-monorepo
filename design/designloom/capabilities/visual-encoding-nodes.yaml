@@ -1,0 +1,44 @@
+id: visual-encoding-nodes
+name: Node Visual Encoding
+category: visualization
+description: Map node attributes to visual properties (color, size, shape, label) to encode information visually.
+  Support categorical encoding with color palettes and quantitative encoding with size or color gradients.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W02
+  - W03
+  - W04
+  - W06
+  - W08
+  - W10
+  - W11
+  - W12
+  - W15
+  - W17
+implemented_by_components:
+  - color-picker
+  - legend-panel
+  - visual-encoding-panel
+requirements:
+  - Map categorical attribute to color palette with maximum 7 distinct colors
+  - Use ColorBrewer qualitative palette as default categorical color scheme
+  - Provide 3 alternative colorblind-safe palettes (deuteranopia, protanopia, tritanopia)
+  - Map quantitative attribute to node size using square-root scaling for perceptual accuracy
+  - "Provide node size range parameter: minimum 10px to maximum 80px (default 10-50px)"
+  - "Map categorical attribute to shape: circle (default), square, triangle-up, triangle-down, diamond, hexagon"
+  - Support maximum 6 distinct shapes for shape encoding
+  - Support combining color and size encodings simultaneously on same nodes
+  - Support combining color and shape encodings simultaneously on same nodes
+  - Display node label inside node when node radius exceeds 25px
+  - Display node label below node when node radius is under 25px
+  - Truncate labels longer than 15 characters with ellipsis in graph view
+  - Show full label on hover regardless of truncation
+  - "Provide label visibility options: all, selected-only, none, or above-threshold-size"
+  - Generate legend automatically when any encoding is applied
+  - Apply encoding changes to all nodes within 300ms
+  - Preserve encoding settings when switching between graphs in same session
+sources:
+  - title: Complete Graph Visualization Textbook - Chapter 3
+    url: https://graphty.app/docs/
+    summary: Visual encoding principles and Cleveland-McGill hierarchy

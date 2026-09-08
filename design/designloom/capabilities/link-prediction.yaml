@@ -1,0 +1,36 @@
+id: link-prediction
+name: Link Prediction
+category: analysis
+description: Predict which connections are likely to form between currently unconnected nodes. Use structural features
+  (common neighbors, path length) to score potential edges. Useful for recommendation systems and fraud detection.
+status: planned
+algorithms:
+  - Common neighbors
+  - Jaccard coefficient
+  - Adamic-Adar index
+  - Preferential attachment
+used_by_workflows:
+  - W16
+implemented_by_components:
+  - link-prediction-panel
+requirements:
+  - Calculate Common Neighbors score as count of shared neighbors between node pairs
+  - Calculate Jaccard Coefficient as common_neighbors / union_neighbors with 4 decimal places
+  - Calculate Adamic-Adar Index as sum of 1/log(degree) for common neighbors
+  - Calculate Preferential Attachment score as degree(u) * degree(v)
+  - Calculate Resource Allocation Index as sum of 1/degree for common neighbors
+  - "Provide algorithm selection: common_neighbors, jaccard, adamic_adar, preferential_attachment, resource_allocation"
+  - Rank unconnected node pairs by selected prediction score descending
+  - Display top-N predicted links with configurable N from 10 to 1000 (default 50)
+  - Filter predictions to specific node type pairs (e.g., only person-person links)
+  - "Filter predictions to nodes within N hops of specified seed node (default: all pairs)"
+  - Exclude node pairs already connected by any edge type
+  - Display predicted link with source, target, score, and common neighbor count
+  - Allow clicking predicted link to visualize the two nodes and their common neighbors
+  - Complete prediction for top-100 within 5 seconds for graphs under 10,000 nodes
+  - Report 'No predictions available' when all node pairs are already connected
+  - "Export predictions as CSV with columns: source, target, score, algorithm"
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 4
+    url: https://graphty.app/docs/
+    summary: Link Prediction Pipeline - feature engineering and scoring

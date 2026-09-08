@@ -1,0 +1,17 @@
+id: label
+name: Label
+category: display
+description: Text label for form fields and UI sections. Supports required indicator and help text.
+status: planned
+implements_capabilities: []
+used_in_workflows: []
+dependencies: []
+props:
+  text: string - Label text (required)
+  htmlFor: string - Associated input ID
+  required: "boolean - Show required indicator (default: false)"
+  helpText: string - Additional help text below label
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T03:59:04.049Z
+updated_at: 2026-01-16T03:59:04.049Z

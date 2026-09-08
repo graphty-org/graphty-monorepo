@@ -1,0 +1,25 @@
+id: bookmark-panel
+name: Bookmark Panel
+category: display
+description: Panel for managing saved view bookmarks. Save and restore camera positions, selections, and filter states.
+status: planned
+implements_capabilities:
+  - view-bookmarks
+used_in_workflows:
+  - W02
+  - W07
+dependencies:
+  - button
+  - text-input
+  - icon-button
+  - divider
+props:
+  bookmarks: Bookmark[] - Saved bookmarks
+  onSelect: "(id: string) => void - Load bookmark handler"
+  onSave: "(name: string) => void - Save current view handler"
+  onDelete: "(id: string) => void - Delete bookmark handler"
+  onRename: "(id: string, name: string) => void - Rename bookmark handler"
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T04:02:53.370Z
+updated_at: 2026-01-16T04:02:53.370Z

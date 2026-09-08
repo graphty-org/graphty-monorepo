@@ -1,0 +1,46 @@
+id: data-import
+name: Data Import
+category: data
+description: Load graph data from various sources including local files, URLs, clipboard paste, and database
+  connections. Supports multiple formats (CSV edge lists, JSON, GraphML, GEXF, GML) with automatic format detection and
+  field mapping.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W01
+  - W09
+  - W13
+  - W14
+  - W16
+  - W18
+implemented_by_components:
+  - file-drop-zone
+  - column-mapper
+  - data-import-dialog
+requirements:
+  - Support CSV edge list format with configurable delimiter (comma, tab, semicolon, pipe)
+  - Support JSON node-link format per D3.js specification
+  - Support GraphML 1.1 XML format with attribute preservation
+  - Support GEXF 1.3 XML format with dynamic attribute support
+  - Support GML format with nested attribute structures
+  - Auto-detect format from file extension (.csv, .json, .graphml, .gexf, .gml)
+  - Fall back to content inspection when extension is ambiguous or missing
+  - Handle files up to 100MB in browser without crashing
+  - Display progress bar updated at minimum every 500ms for files over 1MB
+  - Support streaming import for files over 50MB to avoid memory exhaustion
+  - Allow source/target column selection for CSV edge lists
+  - Allow node ID column selection for CSV node lists
+  - Support UTF-8, UTF-16, and ISO-8859-1 file encodings
+  - Auto-detect file encoding with 95% accuracy for common encodings
+  - Report parse errors with line number and column position
+  - Report 'File too large' error with size limit when file exceeds 100MB
+  - Report 'Unsupported format' error listing supported formats when format unrecognized
+  - Report 'Encoding error' with detected vs expected encoding on character decode failure
+  - Allow partial import to continue after non-fatal parse errors
+  - Support directed and undirected graph import with explicit toggle
+  - Support weighted edges via configurable weight column
+  - Preserve all source attributes as node/edge properties
+sources:
+  - title: Graph Data Formats - Textbook Chapter 2
+    url: https://graphty.app/docs/
+    summary: Standard file formats including edge list, GraphML, GEXF, JSON

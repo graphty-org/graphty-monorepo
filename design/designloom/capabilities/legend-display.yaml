@@ -1,0 +1,34 @@
+id: legend-display
+name: Legend Display
+category: visualization
+description: Display legends explaining the visual encodings currently in use. Show what colors, sizes, and shapes
+  represent so users can interpret the visualization accurately.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W04
+  - W15
+implemented_by_components:
+  - legend-item
+  - legend-panel
+requirements:
+  - Display color legend showing category-to-color mapping for categorical node encoding
+  - Display color gradient legend with min/max values for quantitative node color encoding
+  - Display size legend with representative node sizes for quantitative size encoding
+  - Display shape legend showing shape-to-category mapping when shape encoding is active
+  - Display edge color legend for categorical edge type encoding
+  - Display edge thickness legend with min/max values for edge weight encoding
+  - Position legend in bottom-left corner by default without obscuring graph content
+  - Allow repositioning legend to any corner via drag or settings
+  - Allow collapsing legend to icon-only state to maximize graph viewport
+  - Support clicking legend item to filter graph to that category only
+  - Support shift-clicking legend item to add/remove category from current filter
+  - Update legend automatically within 100ms when encoding settings change
+  - Display numeric range with units for quantitative legends (e.g., '0 - 1.0 centrality')
+  - Limit categorical legend to 12 items maximum; show 'and N more' for overflow
+  - Use same color palette in legend as in graph visualization
+  - Provide legend visibility toggle in view settings
+sources:
+  - title: Complete Graph Visualization Textbook - Chapter 3
+    url: https://graphty.app/docs/
+    summary: Legends and annotations for explaining visual encodings

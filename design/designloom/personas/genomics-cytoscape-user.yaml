@@ -1,0 +1,80 @@
+id: genomics-cytoscape-user
+name: Genomics Cytoscape User
+role: Postdoctoral Researcher / Genomics Lab Bioinformatician
+quote: I have a list of 300 differentially expressed genes and a figure due Friday. Show me how they connect and what they do.
+bio: >-
+  Dr. Priya Raman is a postdoc in a cancer genomics lab. She runs RNA-seq and proteomics experiments, produces
+  ranked gene lists in R, and then turns to Cytoscape two or three times a month to make sense of them. Her typical
+  network is 100 to 600 proteins pulled from STRING for one species, with 10 to 40 columns of expression, mutation and
+  annotation data joined onto the nodes from a spreadsheet. She follows the published cytoscape.org protocols almost
+  step by step: query STRING, keep the largest connected component, import the data table, color nodes by log fold
+  change, cluster with MCL, run functional enrichment on each cluster, and export a figure with a legend for the
+  paper. She is a strong biologist and a competent R user but not a graph theorist; "betweenness" means little to her
+  until it is explained as "sits between groups".
+characteristics:
+  expertise: intermediate
+  time_pressure: medium
+  graph_literacy: intermediate
+  domain_knowledge: advanced
+motivations:
+  - Turn a differential expression or proteomics result into a biological story a reviewer will accept
+  - Find the handful of hub or driver genes worth following up at the bench
+  - Produce a publication figure with a clear legend without hand-drawing anything
+  - Reproduce the exact network months later when a reviewer asks for the parameters
+  - Share the network with collaborators who do not have Cytoscape installed
+behaviors:
+  - Starts from a gene list copied out of a spreadsheet, not from a graph file
+  - Pulls protein-protein interactions from STRING at a confidence cutoff of 0.4 to 0.9 and immediately drops unconnected nodes
+  - Joins a wide attribute table (logFC, p-value, per-sample expression, mutation counts) onto the network by gene symbol, then fights identifier mismatches (symbol vs Entrez vs UniProt, case sensitivity)
+  - Maps a diverging red-blue gradient to log fold change with gray for missing values and sizes nodes by a second column
+  - Clusters the network (MCL, MCODE) and runs GO or KEGG enrichment per cluster, filtering redundant terms
+  - Builds enrichment maps where nodes are pathways and edges are gene overlap, then groups them into themes
+  - Ranks hub genes by several centralities at once and reports the intersection of the top 10 lists
+  - Keeps several related networks (full, largest component, per-cluster subnetworks, tumor vs normal) in one session and switches between them
+  - Exports PNG, SVG or PDF with a legend, and uploads the network to NDEx for reviewers
+frustrations:
+  - Tools that assume the graph arrives as a graph file instead of a gene list plus a data table
+  - Identifier mismatches that silently drop half the attributes with no count of what matched
+  - Attribute tables with 30 columns crammed into a preview of five rows
+  - No way to keep a subnetwork and the parent network open together
+  - Centrality names with no biological explanation of what "high" means
+  - Gradients that clip or center in the wrong place for skewed fold changes
+  - Losing the analysis parameters needed for the methods section
+  - Figures that need to be rebuilt in Illustrator because the legend is not exported
+context:
+  frequency: weekly
+  devices:
+    - laptop
+    - desktop
+  voluntary: true
+workflows:
+  - W01
+  - W18
+  - W20
+  - W21
+  - W22
+  - W23
+  - W24
+  - W25
+sources:
+  - title: Cytoscape tutorial - Differentially Expressed Genes Network Analysis
+    url: https://cytoscape.org/cytoscape-tutorials/protocols/differentially-expressed-genes/
+    summary: The canonical DE-gene to STRING to expression-overlay to enrichment protocol
+  - title: Cytoscape tutorial - RNA-Seq Data Network Analysis
+    url: https://cytoscape.org/cytoscape-tutorials/protocols/rna-seq-data-analysis/
+    summary: Same flow with an autism RNA-seq dataset of about 150 nodes
+  - title: JensenLab stringApp exercises
+    url: https://jensenlab.org/training/stringapp/
+    summary: Protein, disease and PubMed queries, MCL clustering, enrichment, network merge; notes disambiguation and skewed-gradient pain points
+  - title: Pathway enrichment analysis and visualization of omics data using g:Profiler, GSEA, Cytoscape and EnrichmentMap (Nature Protocols)
+    url: https://www.nature.com/articles/s41596-018-0103-9
+    summary: Enrichment map construction, AutoAnnotate themes, publication figure and parameter documentation
+  - title: cytoHubba - identifying hub objects and sub-networks from complex interactome
+    url: https://link.springer.com/article/10.1186/1752-0509-8-S4-S11
+    summary: Eleven hub-ranking methods; top-10 MCC and Degree lists are the common publication pattern
+  - title: Cytoscape User Manual - Node and Edge Column Data
+    url: https://manual.cytoscape.org/en/stable/Node_and_Edge_Column_Data.html
+    summary: Table panel, key-column table import, exact case-sensitive identifier matching
+  - title: NDEx - Publishing in NDEx
+    url: https://home.ndexbio.org/publishing-in-ndex/
+    summary: Private sharable URLs for reviewers, required metadata, DOI and certified network states

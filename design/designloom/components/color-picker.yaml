@@ -1,0 +1,24 @@
+id: color-picker
+name: Color Picker
+category: control
+description: Color selection control with preset swatches and custom color input. Used for node/edge color encoding configuration.
+status: planned
+implements_capabilities:
+  - visual-encoding-nodes
+  - visual-encoding-edges
+used_in_workflows:
+  - W15
+dependencies:
+  - color-swatch
+  - text-input
+  - button
+props:
+  value: string - Selected color
+  onChange: "(color: string) => void - Color change handler"
+  presets: string[] - Preset color options
+  showInput: "boolean - Show hex/rgb input (default: true)"
+  label: string - Picker label
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T03:59:31.591Z
+updated_at: 2026-01-16T03:59:31.591Z

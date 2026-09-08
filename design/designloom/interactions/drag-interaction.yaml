@@ -1,0 +1,102 @@
+id: drag-interaction
+name: Drag Interaction
+description: Interaction pattern for drag-and-drop operations including gradient stops, node dragging, and reorderable lists.
+interaction:
+  states:
+    - type: default
+      name: default
+      description: Element draggable
+      style:
+        cursor: grab
+      combinable: true
+    - type: hover
+      name: hover
+      description: Mouse over draggable
+      style:
+        cursor: grab
+      combinable: true
+    - type: dragging
+      name: dragging
+      description: Being dragged
+      style:
+        opacity: 0.8
+        cursor: grabbing
+      combinable: false
+    - type: drop-target
+      name: drop-target
+      description: Valid drop zone
+      style:
+        background: "{colors.semantic.interactive}"
+        opacity: 0.2
+      combinable: true
+    - type: disabled
+      name: disabled
+      description: Drag disabled
+      style:
+        opacity: 0.38
+        cursor: default
+      combinable: false
+  transitions:
+    - from: default
+      to: hover
+      trigger: mouseenter
+      reversible: true
+    - from: hover
+      to: dragging
+      trigger: mousedown
+      reversible: true
+    - from: dragging
+      to: default
+      trigger: mouseup
+      reversible: true
+    - from: default
+      to: drop-target
+      trigger: dragenter
+      reversible: true
+  microinteractions:
+    - id: lift-up
+      name: Lift Up
+      trigger:
+        type: drag
+      rules:
+        - translateY -4px, shadow increase over {motion.durations.fast}
+      feedback:
+        - type: visual
+          description: Element lifts
+    - id: drop-down
+      name: Drop Down
+      trigger:
+        type: drop
+      rules:
+        - translateY 0 with spring over {motion.durations.normal}
+      feedback:
+        - type: motion
+          description: Element settles
+    - id: reorder-shift
+      name: Reorder Shift
+      trigger:
+        type: drag
+      rules:
+        - shift items over {motion.durations.fast}
+      feedback:
+        - type: motion
+          description: Items shift
+  accessibility:
+    keyboard:
+      focusable: true
+      shortcuts:
+        - key: Space
+          action: grab
+        - key: ArrowKeys
+          action: move
+        - key: Escape
+          action: cancel
+    aria:
+      role: button
+applies_to:
+  - control
+  - display
+sources: []
+version: 1.0.0
+created_at: 2026-01-15T18:34:26.118Z
+updated_at: 2026-01-15T18:34:26.118Z

@@ -1,0 +1,35 @@
+id: visual-encoding-edges
+name: Edge Visual Encoding
+category: visualization
+description: Map edge attributes to visual properties (color, width, style, arrows) to encode relationship information.
+  Support weight encoding through thickness and direction encoding through arrowheads or tapered lines.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W02
+  - W15
+implemented_by_components:
+  - color-picker
+  - legend-panel
+  - visual-encoding-panel
+requirements:
+  - Map numeric edge weight to line thickness from 1px (minimum) to 10px (maximum)
+  - Map categorical edge type to color using same palette as node categorical encoding
+  - "Map categorical edge type to line style: solid, dashed (5px dash), dotted (2px dot), or dash-dot"
+  - Display arrowhead at target end for directed graphs (10px arrow size default)
+  - Support arrowhead size parameter adjustable from 5px to 20px
+  - Support tapered edge rendering as alternative to arrowheads (thick at source, thin at target)
+  - Map numeric attribute to edge opacity from 0.2 (minimum) to 1.0 (maximum)
+  - Apply edge bundling when more than 50 edges cross same region (bundle strength 0.5 default)
+  - Provide edge bundling strength parameter adjustable from 0.0 (none) to 1.0 (maximum)
+  - Display edge label at midpoint when edge label attribute is specified
+  - Truncate edge labels longer than 20 characters with ellipsis
+  - Show full edge label on hover
+  - Curve parallel edges (same source/target pair) with increasing offset
+  - Render self-loops as circular arc from node back to itself
+  - Support hiding edges entirely while maintaining node positions
+  - Update edge encoding within 200ms when encoding settings change
+sources:
+  - title: Complete Graph Visualization Textbook - Chapter 3
+    url: https://graphty.app/docs/
+    summary: Edge encoding including color, width, style, and direction indicators

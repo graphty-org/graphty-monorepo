@@ -1,0 +1,36 @@
+id: view-bookmarks
+name: View Bookmarks
+category: interaction
+description: Save the current view state (zoom, pan, filters, selection) as a named bookmark. Return to saved views
+  during exploration. Essential for iterative analysis and findings communication.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W02
+  - W03
+  - W07
+implemented_by_components:
+  - bookmark-panel
+requirements:
+  - Save current view with user-provided name (1-50 characters)
+  - Store zoom level and camera position (x, y, z for 3D)
+  - Store active filter configuration at time of bookmark
+  - Store current node selection at time of bookmark
+  - Store visual encoding settings (color by, size by) at time of bookmark
+  - Restore all stored state when bookmark is activated
+  - Animate transition to bookmarked view over 500ms
+  - Display bookmark list panel with bookmark names
+  - Sort bookmarks by creation date (newest first) with option for alphabetical
+  - Show bookmark thumbnail preview (small snapshot of view) if feasible
+  - Provide 'Rename' action for existing bookmarks
+  - Provide 'Update' action to overwrite bookmark with current view
+  - Provide 'Delete' action with confirmation
+  - Persist bookmarks in browser localStorage by default
+  - Export bookmarks as JSON for sharing
+  - Import bookmarks from JSON file
+  - Limit bookmarks to 20 per graph; display warning at 18
+  - Display 'Bookmark saved' confirmation toast for 2 seconds after save
+sources:
+  - title: W02 Visual Exploration
+    url: https://graphty.app/docs/
+    summary: Difficulty returning to a previous view state - pain point

@@ -1,0 +1,135 @@
+id: W23
+name: Hub Gene Identification and Ranking
+category: analysis
+validated: false
+personas:
+  - genomics-cytoscape-user
+  - bioinformatics-researcher
+requires_capabilities:
+  - centrality-degree
+  - centrality-betweenness
+  - centrality-closeness
+  - centrality-eigenvector
+  - clustering-coefficient
+  - computed-attributes
+  - metric-histograms
+  - filtering
+  - node-selection
+  - neighborhood-expansion
+  - visual-encoding-nodes
+  - details-on-demand
+  - data-export
+  - export-image
+  - analysis-history
+  - removal-impact-analysis
+suggested_components:
+  - algorithm-card
+  - ranked-node-table
+  - computed-attributes-panel
+  - histogram
+  - visual-encoding-panel
+  - filter-panel
+  - graph-canvas
+starting_state:
+  data_type: protein-protein interaction network or co-expression module network
+  node_count: 50-2000
+  edge_density: sparse to medium
+  user_expertise: intermediate
+goal: >-
+  **Intent**: Find the few genes that matter most in a network -- the hubs -- and defend the choice with more than one
+  measure. The output is a short ranked list (top 10 is the convention) that goes into a figure and a table in the
+  paper and drives which genes get validated at the bench.
+
+
+  **Mental Model**: "Who is the center of this crowd?" Several notions of center exist (most connections, sits
+  between groups, closest to everyone, member of the biggest clique); a real hub scores high on most of them.
+
+
+  **Task Phases**:
+
+  1. **Compute several rankings** (3 min) - Degree, betweenness, closeness, eigenvector, clustering coefficient, and
+  where available MCC or a WGCNA module membership (kME) column already on the nodes
+
+  2. **Read the distributions** (3 min) - Histograms of each metric to see whether a few nodes stand far out (scale
+  free) or the scores are flat
+
+  3. **Combine** (5 min) - Build a custom score, or take the intersection of the top-10 lists across methods; keep
+  the per-method ranks as columns
+
+  4. **Look at the hubs in context** (8 min) - Select the top N, expand one step around them, check whether they fall
+  in the same cluster, read their expression and mutation columns, and optionally simulate removing one
+
+  5. **Report** (3 min) - Encode size or color by the combined score, label the top 10, export the ranked table with
+  every metric as a column and the figure
+
+
+  **Decision Points**:
+
+  - Which methods to trust for this network type (degree for co-expression, MCC or betweenness for PPI)?
+
+  - Top 10, top 5 percent, or a score threshold?
+
+  - Weighted or unweighted (STRING combined score, correlation)?
+
+  - Do the hubs agree across methods, and what to do when they do not?
+
+  - Is a hub interesting because of topology, or because it also changed in the experiment?
+
+
+  **Information Needs**:
+
+  - Ranked table with all metrics side by side, sortable, with the node's data columns alongside
+
+  - Overlap between top-N lists of different methods
+
+  - Per-hub neighbors and cluster membership
+
+  - Metric distribution shape
+
+  - Which edges were used (weight attribute, direction) for each run
+
+
+  **Pain Points**:
+
+  - Running five algorithms one at a time and copying results into a spreadsheet to compare
+
+  - Names like "eigenvector centrality" with no plain-language reading
+
+  - Hubs on a raw STRING network are often just well-studied proteins; need to combine with experimental columns
+
+  - Top-10 lists differ by method and there is no built-in intersection
+
+  - Labeling only the top 10 without hand-editing labels
+
+
+  **Data Flow**:
+
+  - Input: Interaction or co-expression network, optional per-gene experimental columns
+
+  - Transformations: Multiple centrality runs, rank columns, combined score or list intersection, neighborhood
+  selection
+
+  - Output: Ranked hub table with all metrics, hub-highlighted figure
+success_criteria:
+  - metric: Ranked list produced
+    target: Top-10 hubs with at least three metrics each, exported as CSV
+  - metric: Agreement visible
+    target: User can see which hubs appear in the top 10 of more than one method
+  - metric: Reproducibility
+    target: Weight attribute, direction and parameters for each run recorded
+sources:
+  - title: cytoHubba - identifying hub objects and sub-networks from complex interactome
+    url: https://link.springer.com/article/10.1186/1752-0509-8-S4-S11
+    summary: Eleven ranking methods including Degree, MCC, Bottleneck, Closeness, Betweenness; top-10 selection convention
+  - title: Identification of hub genes in head and neck squamous cell carcinoma by integrated bioinformatics analysis
+    url: https://www.frontiersin.org/journals/oncology/articles/10.3389/fonc.2020.00681/full
+    summary: STRING network, cytoHubba Degree and MCC, top 10 hub genes reported
+  - title: A protocol for WGCNA with module preservation and functional enrichment
+    url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12457846/
+    summary: TOM edge list thresholded at correlation > 0.1 exported to Cytoscape, module color as node attribute, degree-based hub identification
+  - title: WGCNA hub genes for coronary artery disease
+    url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7988178/
+    summary: Module genes visualized in Cytoscape, hub genes by MCODE and cytoHubba
+version: 1.0.0
+created_at: 2026-09-04T00:00:00.000Z
+updated_at: 2026-09-04T00:00:00.000Z

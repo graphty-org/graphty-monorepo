@@ -1,0 +1,25 @@
+id: metric-card
+name: Metric Card
+category: display
+description: Displays a single metric value with label, optional trend indicator, and comparison to previous value. Used
+  in statistics panels and dashboards.
+status: planned
+implements_capabilities:
+  - basic-statistics
+  - selection-statistics
+used_in_workflows:
+  - W01
+dependencies:
+  - icon
+  - tooltip
+props:
+  label: string - Metric name
+  value: string | number - Current value
+  previousValue: string | number - Previous value for comparison
+  format: "string - Value format: 'number' | 'percent' | 'currency'"
+  trend: "string - Trend indicator: 'up' | 'down' | 'neutral'"
+  size: "string - Card size: 'sm' | 'md' | 'lg' (default: 'md')"
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T04:00:02.050Z
+updated_at: 2026-01-16T04:00:02.050Z

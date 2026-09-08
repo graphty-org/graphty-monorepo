@@ -1,0 +1,43 @@
+id: centrality-betweenness
+name: Betweenness Centrality
+category: analysis
+description: Calculate betweenness centrality - how often a node lies on shortest paths between other nodes.
+  High-betweenness nodes act as bridges or brokers controlling information flow. Critical for identifying gatekeepers
+  and vulnerabilities.
+status: planned
+algorithms:
+  - Brandes algorithm O(nm)
+  - Approximate betweenness sampling
+used_by_workflows:
+  - W03
+  - W04
+  - W08
+  - W09
+  - W10
+  - W11
+  - W17
+implemented_by_components:
+  - algorithm-card
+  - algorithm-panel
+requirements:
+  - Calculate betweenness centrality using Brandes algorithm with O(nm) complexity
+  - Calculate normalized betweenness as raw / ((n-1)*(n-2)/2) for undirected graphs
+  - Calculate normalized betweenness as raw / ((n-1)*(n-2)) for directed graphs
+  - Store result with 6 decimal places precision
+  - Support weighted shortest paths using edge weight attribute
+  - Handle directed graphs using directed shortest paths
+  - Handle undirected graphs using undirected shortest paths
+  - Display progress bar updated every 1 second for calculations exceeding 5 seconds
+  - Provide 'Cancel' button to abort long-running calculations
+  - Support approximate betweenness using k random source nodes (configurable k, default 100)
+  - Display 'Approximate' label when using sampling method
+  - Complete exact calculation within 10 seconds for graphs under 5,000 nodes
+  - Complete approximate calculation within 5 seconds for graphs under 50,000 nodes
+  - Rank nodes by betweenness in descending order
+  - Display top-10 nodes by betweenness in results panel
+  - Store result as node attribute named 'betweenness'
+  - Report 'Computation too expensive' with graph size when exact calculation would exceed 60 seconds
+sources:
+  - title: Graph Analysis Textbook - Chapter 6
+    url: https://graphty.app/docs/
+    summary: Betweenness centrality measures brokerage and control over information flow

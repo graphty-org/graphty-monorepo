@@ -1,0 +1,46 @@
+id: filter-panel
+name: Filter Panel
+category: display
+description: Panel for building and managing graph filters. Shows active filters and provides interface for adding new
+  filter conditions.
+status: planned
+implements_capabilities:
+  - filtering
+  - saved-filters
+used_in_workflows:
+  - W02
+  - W15
+  - W03
+  - W04
+  - W05
+  - W06
+  - W09
+  - W11
+  - W16
+  - W17
+  - W19
+  - W07
+  - W12
+dependencies:
+  - filter-chip
+  - select
+  - text-input
+  - range-slider
+  - button
+  - divider
+props:
+  filters: Filter[] - Active filters
+  attributes: AttributeSchema[] - Available filterable attributes
+  onFiltersChange: "(filters: Filter[]) => void - Filter change handler"
+  onSave: "(name: string) => void - Save filter preset handler"
+  savedFilters: "Array<{name: string, filters: Filter[]}> - Saved filter presets"
+sources:
+  - title: Faceted Search Best Practices
+    url: https://www.nngroup.com/articles/faceted-search/
+    summary: Nielsen Norman Group research on filter UI patterns for complex data exploration
+  - title: Progressive Disclosure in Filters
+    url: https://www.nngroup.com/articles/progressive-disclosure/
+    summary: Hiding advanced filter options until needed reduces cognitive load
+version: 1.0.1
+created_at: 2026-01-16T04:01:27.472Z
+updated_at: 2026-01-16T16:40:37.591Z

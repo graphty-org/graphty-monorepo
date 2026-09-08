@@ -1,0 +1,121 @@
+id: W12
+name: Anomaly Detection
+category: analysis
+validated: false
+personas:
+  - fraud-analyst
+  - cybersecurity-analyst
+  - analyst-alex
+requires_capabilities:
+  - anomaly-detection
+  - basic-statistics
+  - degree-analysis
+  - clustering-coefficient
+  - community-detection
+  - filtering
+  - visual-encoding-nodes
+  - details-on-demand
+  - computed-attributes
+  - selection-statistics
+  - metric-histograms
+  - saved-filters
+suggested_components:
+  - graph-canvas
+  - anomaly-panel
+  - statistics-panel
+  - histogram
+  - filter-panel
+  - visual-encoding-panel
+  - node-details-panel
+  - computed-attributes-panel
+starting_state:
+  data_type: attributed graph
+  node_count: 1000+
+  edge_density: any
+  user_expertise: intermediate+
+goal: >-
+  **Intent**: Identify unusual patterns or entities that deviate from expected behavior. User wants to find anomalies
+  that could indicate fraud, errors, security threats, or interesting discoveries.
+
+
+  **Mental Model**: "Finding what doesn't fit" - like spotting the one person in a crowd wearing winter clothes in
+  summer. Anomalies are defined relative to a baseline of "normal."
+
+
+  **Task Phases**:
+
+  1. **Establish Baseline** - Define what "normal" looks like (degree distribution, clustering patterns, attribute
+  ranges)
+
+  2. **Statistical Detection** - Find entities with unusual metric values (z-score outliers, distribution tails)
+
+  3. **Structural Detection** - Find entities with unusual network positions (unexpected community membership, unusual
+  neighbors)
+
+  4. **Triage** - Rank anomalies by severity, group similar ones
+
+  5. **Investigation** - Deep dive into top anomalies
+
+  6. **Classification** - Label as error, threat, or genuine discovery
+
+
+  **Decision Points**:
+
+  - What constitutes "normal" for this domain?
+
+  - How many standard deviations makes something anomalous?
+
+  - Is this anomaly an error, a threat, or something interesting?
+
+  - Which anomalies warrant deeper investigation?
+
+  - Should I adjust the baseline definition?
+
+
+  **Information Needs**:
+
+  - Baseline metrics (mean, std dev of key measures)
+
+  - Anomaly scores for each entity
+
+  - Local context (what's unusual about this entity's neighborhood?)
+
+  - Temporal context (did this just change or was it always anomalous?)
+
+  - Similar anomalies (are there others like this?)
+
+
+  **Pain Points**:
+
+  - "Normal" is hard to define in heterogeneous networks
+
+  - Too sensitive = too many false positives
+
+  - Too strict = missing real anomalies
+
+  - Explaining why something is anomalous to non-technical stakeholders
+
+  - New entities always look anomalous (lack of history)
+
+
+  **Data Flow**:
+
+  - Input: Graph with node/edge attributes + baseline definition
+
+  - Transformations: Baseline computation, deviation scoring, ranking
+
+  - Output: Prioritized anomaly list with classification and evidence
+success_criteria:
+  - metric: Anomalies detected
+    target: True anomalies surfaced
+  - metric: False positive rate
+    target: Manageable triage workload
+  - metric: Classification accuracy
+    target: Anomalies correctly labeled as error/threat/discovery
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 4
+    url: https://graphty.app/docs/
+    summary: Anomaly Detection Pipeline
+version: 1.0.0
+created_at: 2026-01-16T16:42:48.018Z
+updated_at: 2026-01-16T16:42:48.018Z

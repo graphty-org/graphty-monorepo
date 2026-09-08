@@ -1,0 +1,130 @@
+id: input-interaction
+name: Text Input Interaction
+description: Interaction pattern for text inputs including TextInput, NumberInput, Textarea, PasswordInput, and search
+  fields. Handles focus, validation states, and content manipulation.
+interaction:
+  states:
+    - type: default
+      name: default
+      description: Empty or filled, not focused
+      style:
+        background: "{colors.neutral.700}"
+        cursor: text
+      combinable: true
+    - type: default
+      name: placeholder
+      description: Shows placeholder text when empty
+      style: {}
+      combinable: true
+    - type: hover
+      name: hover
+      description: Mouse over input with 8% overlay
+      style:
+        background: "{colors.neutral.600}"
+        cursor: text
+      combinable: true
+    - type: focus
+      name: focus
+      description: Input has keyboard focus
+      style:
+        outline: none
+      combinable: true
+    - type: default
+      name: filled
+      description: Input contains user value
+      style: {}
+      combinable: true
+    - type: default
+      name: default-value
+      description: Shows default value in italic
+      style: {}
+      combinable: true
+    - type: invalid
+      name: error
+      description: Validation failed
+      style: {}
+      combinable: false
+    - type: valid
+      name: success
+      description: Validation passed
+      style: {}
+      combinable: true
+    - type: disabled
+      name: disabled
+      description: Input cannot be edited
+      style:
+        opacity: 0.38
+        cursor: not-allowed
+      combinable: false
+    - type: readonly
+      name: readonly
+      description: Value visible but not editable
+      style:
+        background: transparent
+        cursor: default
+      combinable: false
+  transitions:
+    - from: default
+      to: hover
+      trigger: mouseenter
+      reversible: true
+    - from: hover
+      to: default
+      trigger: mouseleave
+      reversible: true
+    - from: default
+      to: focus
+      trigger: focus
+      reversible: true
+    - from: focus
+      to: default
+      trigger: blur
+      reversible: true
+    - from: focus
+      to: invalid
+      trigger: validation_fail
+      reversible: true
+  microinteractions:
+    - id: focus-border
+      name: Focus Border
+      trigger:
+        type: focus
+      rules:
+        - border fade in {motion.durations.fast}
+      feedback:
+        - type: visual
+          description: Border indicates active input
+    - id: error-shake
+      name: Error Shake
+      trigger:
+        type: custom
+      rules:
+        - shake 4px over {motion.durations.normal}
+      feedback:
+        - type: motion
+          description: Shake indicates invalid input
+    - id: clear-button
+      name: Clear Button
+      trigger:
+        type: data-change
+      rules:
+        - show when value not empty
+      feedback:
+        - type: visual
+          description: Clear button appears
+  accessibility:
+    keyboard:
+      focusable: true
+      shortcuts:
+        - key: Escape
+          action: clear_or_blur
+        - key: Enter
+          action: submit_form
+    aria:
+      role: textbox
+applies_to:
+  - control
+sources: []
+version: 1.0.0
+created_at: 2026-01-15T18:32:30.792Z
+updated_at: 2026-01-15T18:32:30.792Z

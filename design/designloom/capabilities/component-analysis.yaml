@@ -1,0 +1,37 @@
+id: component-analysis
+name: Connected Component Analysis
+category: analysis
+description: Identify connected components - maximal subgraphs where every pair of nodes is reachable. Find the giant
+  component (largest) and understand graph fragmentation. Essential for data quality assessment and scoping analysis.
+status: planned
+algorithms:
+  - BFS/DFS for undirected
+  - Tarjan's algorithm for strongly connected
+  - Kosaraju's algorithm
+used_by_workflows:
+  - W01
+  - W11
+  - W13
+implemented_by_components:
+  - algorithm-panel
+requirements:
+  - Find all connected components using BFS/DFS for undirected graphs
+  - Find weakly connected components for directed graphs (ignoring edge direction)
+  - Find strongly connected components for directed graphs using Tarjan's algorithm
+  - Report total number of components
+  - Report size (node count) of each component sorted by size descending
+  - Identify giant component as largest component; report its size and percentage of total nodes
+  - Assign component ID as integer to each node (starting from 0, giant component = 0)
+  - Store component ID as node attribute named 'component'
+  - Calculate fragmentation index as 1 - (giant_component_size / total_nodes) with 4 decimal places
+  - Report 'Graph is connected' when only one component exists
+  - Report count and percentage of isolated nodes (components of size 1)
+  - Provide filter to show only nodes in specified component
+  - Provide filter to show only giant component
+  - Complete analysis within 2 seconds for graphs under 100,000 nodes
+  - Display component size distribution histogram
+  - Support merging small components below threshold size into 'other' category for display
+sources:
+  - title: Graph Analysis Textbook - Chapter 3
+    url: https://graphty.app/docs/
+    summary: Connectivity - connected components and giant component analysis

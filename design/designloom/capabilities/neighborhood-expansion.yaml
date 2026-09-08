@@ -1,0 +1,35 @@
+id: neighborhood-expansion
+name: Neighborhood Expansion
+category: interaction
+description: Expand the view to show neighbors of selected nodes. Start with a focused view and progressively reveal
+  more context by expanding neighborhoods. Essential for investigation workflows.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W06
+  - W05
+  - W09
+  - W17
+implemented_by_components:
+  - context-menu
+  - ego-network-dialog
+requirements:
+  - Expand 1-hop neighbors of selected node(s) with single click/shortcut
+  - Provide N-hop expansion with configurable depth from 1 to 5 (default 1)
+  - "Display expansion preview: 'This will add N nodes and M edges' before executing"
+  - Filter expansion by edge type via checkbox selection
+  - Filter expansion by node type via checkbox selection
+  - Animate expanded nodes appearing with fade-in over 300ms
+  - Position new nodes radially around source node(s) initially
+  - Run incremental layout to integrate new nodes smoothly
+  - Provide 'Collapse' action to hide expanded nodes and return to previous state
+  - Maintain expansion history stack supporting multiple undo levels
+  - "Warn when expansion would add more than 500 nodes: 'Large expansion (N nodes). Continue?'"
+  - "Block expansion exceeding 2000 nodes with error: 'Too many nodes. Try filtering by type.'"
+  - Complete expansion within 1 second for up to 500 new nodes
+  - Highlight newly expanded nodes with temporary glow effect (fades after 2 seconds)
+  - Track expansion source for each node to support selective collapse
+sources:
+  - title: W06 Fraud Ring Investigation
+    url: https://graphty.app/docs/
+    summary: Alert Contextualization - view 1-2 hop neighborhood

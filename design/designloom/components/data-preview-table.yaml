@@ -1,0 +1,27 @@
+id: data-preview-table
+name: Data Preview Table
+category: display
+description: Tabular preview of imported data showing first N rows with column headers. Supports column type indicators
+  and data validation status.
+status: planned
+implements_capabilities:
+  - data-preview
+  - data-validation
+used_in_workflows:
+  - W01
+  - W18
+  - W13
+dependencies:
+  - badge
+  - tooltip
+  - icon
+props:
+  columns: "Array<{name: string, type: string}> - Column definitions"
+  rows: any[][] - Data rows to display
+  maxRows: "number - Maximum rows to show (default: 10)"
+  errors: "Array<{row: number, column: string, message: string}> - Validation errors"
+  onColumnClick: "(column: string) => void - Column header click handler"
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T04:00:32.296Z
+updated_at: 2026-01-16T04:00:32.296Z

@@ -1,0 +1,125 @@
+id: W02
+name: Visual Exploration - Overview to Detail
+category: exploration
+validated: false
+personas:
+  - explorer-elena
+  - analyst-alex
+  - expert-emma
+requires_capabilities:
+  - graph-rendering
+  - layout-force-directed
+  - zoom-pan
+  - filtering
+  - details-on-demand
+  - overview-minimap
+  - hover-highlight
+  - node-selection
+  - visual-encoding-nodes
+  - visual-encoding-edges
+  - animated-transitions
+  - view-bookmarks
+  - keyboard-shortcuts
+  - tooltip-display
+suggested_components:
+  - graph-canvas
+  - minimap
+  - zoom-controls
+  - filter-panel
+  - node-details-panel
+  - legend-panel
+  - toolbar
+  - search-input
+  - node-tooltip
+  - bookmark-panel
+  - context-menu
+  - keyboard-shortcuts-dialog
+  - layout-panel
+  - main-sidebar
+  - status-bar
+  - filter-chip
+  - attribute-row
+  - legend-item
+starting_state:
+  data_type: loaded graph
+  node_count: any
+  edge_density: any
+  user_expertise: any
+goal: >-
+  **Intent**: Navigate through a graph visualization to discover patterns, understand structure, and identify areas of
+  interest. User wants to build a mental map of the data before targeted analysis.
+
+
+  **Mental Model**: "Map exploration" - like using Google Maps, starting from satellite view (overview), zooming to
+  neighborhood level (zoom), hiding irrelevant roads (filter), then clicking on a specific building for details
+  (details-on-demand). Also known as Shneiderman's Visual Information Seeking Mantra.
+
+
+  **Task Phases**:
+
+  1. **Overview** - See entire graph to understand scope, identify obvious clusters/outliers
+
+  2. **Zoom** - Focus on areas of interest, reduce visual complexity
+
+  3. **Filter** - Remove uninteresting elements to reduce cognitive load
+
+  4. **Details-on-Demand** - Inspect specific nodes/edges when needed
+
+
+  **Decision Points**:
+
+  - Which areas look interesting enough to zoom into?
+
+  - What filtering criteria will reveal vs. hide important structure?
+
+  - When to stop exploring and start targeted analysis?
+
+  - Is the current view answering my question or do I need to reconfigure?
+
+
+  **Information Needs**:
+
+  - Overview: Overall network size, density, presence of clusters/outliers
+
+  - Zoom: Local structure, node labels become readable
+
+  - Filter: What percentage of data remains, did important nodes disappear?
+
+  - Details: All attributes of selected element, its connections
+
+
+  **Pain Points**:
+
+  - Large graphs become "hairball" - impossible to see structure
+
+  - Losing context/orientation when zoomed in
+
+  - Not knowing what filter criteria would be useful
+
+  - Difficulty returning to a previous view state
+
+
+  **Data Flow**:
+
+  - Input: Loaded graph with initial layout applied
+
+  - Transformations: Zoom level changes, filter application, selection
+
+  - Output: Understanding of graph structure + specific elements of interest identified
+success_criteria:
+  - metric: Pattern discovery
+    target: User identifies at least one structural pattern
+  - metric: Orientation maintained
+    target: User can describe where they are in relation to whole graph
+  - metric: Navigation fluidity
+    target: Transitions feel smooth, not jarring
+sources:
+  - title: Shneiderman Visual Information Seeking Mantra
+    url: https://www.cs.umd.edu/~ben/papers/Shneiderman1996eyes.pdf
+    summary: Overview first, zoom and filter, then details-on-demand
+  - title: Neo4j Bloom Overview
+    url: https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/bloom-overview/
+    summary: Graph exploration and visualization patterns for code-free interaction
+version: 1.0.1
+created_at: 2026-01-16T16:22:44.523Z
+updated_at: 2026-01-16T16:42:28.086Z

@@ -1,0 +1,36 @@
+id: progressive-loading
+name: Progressive Loading
+category: performance
+description: Load and display large graphs progressively, showing partial results quickly while continuing to load.
+  Prevent the UI from blocking during large data operations.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W01
+  - W18
+implemented_by_components:
+  - progressive-loader
+requirements:
+  - Display first 1,000 nodes within 2 seconds while continuing to load remainder
+  - Render incrementally loaded nodes as they become available (streaming display)
+  - "Display progress bar showing loading progress: 'Loading: X of Y nodes (Z%)'"
+  - Update progress bar at minimum every 500ms during loading
+  - Allow full interaction (pan, zoom, select) with already-loaded portion
+  - Allow running algorithms on partial data with 'Partial results' indicator
+  - Parse large files using streaming parser to minimize memory allocation
+  - Support chunked loading for files delivered via HTTP with Content-Length
+  - Provide 'Cancel' button to abort load operation
+  - Stop loading within 1 second of cancel button click
+  - Release memory for cancelled partial load
+  - Display 'Cancelled at X%' status showing progress at cancellation
+  - "Estimate completion time based on current loading rate: 'Est. X seconds remaining'"
+  - Limit memory usage to 80% of available heap during loading
+  - Report 'Memory limit reached' error when approaching memory exhaustion
+  - Offer 'Load sample' option to load random subset when full load would exceed memory
+  - "Display final load summary: 'Loaded X nodes and Y edges in Z seconds'"
+  - Support resumable loading for interrupted network transfers when server supports range requests
+  - Prioritize loading visible viewport area first when initial positions are available
+sources:
+  - title: W18 Data Import and Validation
+    url: https://graphty.app/docs/
+    summary: Large files take long time to load with no progress indicator - pain point

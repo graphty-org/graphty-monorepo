@@ -1,0 +1,37 @@
+id: ego-network
+name: Ego Network Extraction
+category: analysis
+description: Extract the ego network (local neighborhood) of a selected node - the node plus all nodes within N hops and
+  edges between them. Essential for hub investigation, understanding local context, and reducing complexity.
+status: planned
+algorithms:
+  - BFS neighborhood extraction
+used_by_workflows:
+  - W06
+  - W09
+  - W17
+implemented_by_components:
+  - context-menu
+  - ego-network-dialog
+requirements:
+  - Extract 1-hop neighborhood including ego node and all direct neighbors
+  - Extract N-hop neighborhood with configurable depth from 1 to 5 (default 1)
+  - Include all edges among extracted nodes (alter-alter ties) by default
+  - Provide option to include only edges connecting to ego (star pattern)
+  - Calculate ego network size (node count excluding ego)
+  - Calculate ego network density with 4 decimal places
+  - Calculate ego network constraint (Burt's structural holes measure)
+  - Support filtering extracted network by edge type attribute
+  - Support filtering extracted network by node type attribute
+  - Display ego network in separate view or highlight within main view
+  - Provide 'Expand' button to increase depth by 1 hop
+  - Provide 'Contract' button to decrease depth by 1 hop
+  - Display depth indicator showing current hop distance
+  - Complete extraction within 500ms for ego networks up to 1,000 nodes
+  - Report 'Large ego network (N nodes)' warning when extraction exceeds 5,000 nodes
+  - Allow aborting extraction if it would exceed 10,000 nodes
+  - Store ego network as subgraph that can be analyzed independently
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 3
+    url: https://graphty.app/docs/
+    summary: Hub Investigation pattern - examine ego network of high-degree nodes

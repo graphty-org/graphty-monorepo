@@ -1,0 +1,23 @@
+id: select
+name: Select
+category: control
+description: Dropdown select component for choosing from a list of options. Supports single and multi-select, search
+  filtering, and grouped options.
+status: planned
+implements_capabilities: []
+used_in_workflows: []
+dependencies: []
+props:
+  value: string | string[] - Selected value(s)
+  onChange: "(value: string | string[]) => void - Selection change handler"
+  options: "Array<{value: string, label: string, group?: string}> - Available options"
+  label: string - Select label
+  placeholder: "string - Placeholder when no selection (default: 'Select...')"
+  multiple: "boolean - Allow multiple selections (default: false)"
+  searchable: "boolean - Enable search filtering (default: false)"
+  clearable: "boolean - Show clear button (default: false)"
+  disabled: "boolean - Disable the select (default: false)"
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T03:58:36.615Z
+updated_at: 2026-01-16T03:58:36.615Z

@@ -1,0 +1,121 @@
+id: W04
+name: Community Analysis
+category: analysis
+validated: false
+personas:
+  - analyst-alex
+  - expert-emma
+  - fraud-analyst
+  - marketing-analyst
+requires_capabilities:
+  - community-detection
+  - community-profiling
+  - centrality-betweenness
+  - visual-encoding-nodes
+  - filtering
+  - statistics-panel
+  - legend-display
+  - comparison-view
+  - algorithm-progress
+  - metric-histograms
+suggested_components:
+  - graph-canvas
+  - algorithm-panel
+  - community-panel
+  - filter-panel
+  - visual-encoding-panel
+  - statistics-panel
+  - legend-panel
+  - legend-item
+  - progress-bar
+  - comparison-view
+starting_state:
+  data_type: connected graph
+  node_count: 10-100000
+  edge_density: sparse to moderate
+  user_expertise: intermediate+
+goal: >-
+  **Intent**: Identify and characterize groups of densely connected nodes within a network. User wants to understand
+  what natural groupings exist, what defines each group, and how groups relate to each other.
+
+
+  **Mental Model**: "Finding neighborhoods in a city" - areas where people interact more with each other than with
+  outsiders. Or "clustering" - grouping similar things together.
+
+
+  **Task Phases**:
+
+  1. **Detection** - Run community detection algorithm (Louvain is default choice)
+
+  2. **Validation** - Check if communities are meaningful (modularity > 0.3?)
+
+  3. **Characterization** - For each community: size, density, common attributes, internal hubs
+
+  4. **Boundary Analysis** - Identify bridge nodes connecting communities
+
+  5. **Inter-Community Structure** - Understand how communities relate to each other
+
+
+  **Decision Points**:
+
+  - Which community detection algorithm to use? (Louvain for speed, Girvan-Newman for quality)
+
+  - Is modularity score high enough to trust the communities?
+
+  - Are communities stable across different algorithms/parameters?
+
+  - Which communities warrant deeper investigation?
+
+  - Are there surprising memberships that indicate data issues or insights?
+
+
+  **Information Needs**:
+
+  - Number of communities detected
+
+  - Modularity score (quality metric)
+
+  - Community size distribution (one giant community is suspicious)
+
+  - Top nodes per community (by degree or centrality)
+
+  - Community attribute profiles (what do members have in common?)
+
+  - Bridge nodes (high betweenness, connect communities)
+
+
+  **Pain Points**:
+
+  - Different algorithms give different results - which is "right"?
+
+  - Resolution parameter affects number of communities found
+
+  - Communities may be artifacts of incomplete data
+
+  - Hard to label/name communities meaningfully
+
+
+  **Data Flow**:
+
+  - Input: Connected graph (typically giant component)
+
+  - Transformations: Community detection, modularity calculation, profile generation
+
+  - Output: Community assignments + characterization profiles + inter-community map
+success_criteria:
+  - metric: Modularity score
+    target: "> 0.3 for meaningful communities"
+  - metric: Communities characterized
+    target: Each major community has a profile
+  - metric: Bridge nodes identified
+    target: Inter-community connectors flagged
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 4
+    url: https://graphty.app/docs/
+    summary: Community Structure Analysis Pipeline
+  - title: Gephi Modularity Tutorial
+    url: https://medium.com/data-analytics-at-nesta/how-to-create-network-visualisations-with-gephi-a-step-by-step-tutorial-e0743c49ec72
+    summary: Community detection and coloring workflow in Gephi
+version: 1.0.1
+created_at: 2026-01-16T16:22:52.146Z
+updated_at: 2026-01-16T16:42:47.510Z

@@ -1,0 +1,64 @@
+id: fraud-analyst
+name: Fraud Detection Analyst
+role: Financial Crime Investigator
+quote: I need to see the money trail - where it came from, where it went, and who touched it along the way.
+bio: Sarah has spent 8 years investigating financial crimes, starting with rule-based alert triage before transitioning
+  to graph-based investigation techniques. She handles 50+ alerts daily and has developed an intuitive sense for
+  spotting anomalous transaction patterns. She's frustrated by tools that can't keep pace with her expertise or that
+  hide the underlying data structures she needs to build prosecutable cases.
+characteristics:
+  expertise: intermediate
+  time_pressure: high
+  graph_literacy: moderate
+  domain_knowledge: advanced
+motivations:
+  - Protect institutions and individuals from financial loss through early fraud detection
+  - Build legally defensible cases with clear evidence chains for prosecution
+  - Advance career by developing expertise in emerging graph-based investigation techniques
+  - Reduce false positives to focus time on genuine threats rather than noise
+  - Stay ahead of increasingly sophisticated fraud schemes that evade rule-based detection
+behaviors:
+  - Starts investigation by examining temporal patterns - when transactions occurred relative to account creation
+  - Uses degree centrality to identify hub accounts that touch many others suspiciously
+  - Traces multi-hop paths to follow money through layering schemes (A→B→C→D)
+  - Looks for cycle detection to identify round-tripping patterns
+  - Compares current graph patterns against known fraud typologies (mule networks, bust-out schemes)
+  - Documents evidence trail meticulously for legal proceedings
+  - Works under time pressure - suspicious transactions may need to be frozen quickly
+goals:
+  - Detect fraud rings before they cause significant losses
+  - Reduce false positives from rule-based systems
+  - Identify bad actors across multiple accounts
+  - Trace money flows through complex schemes
+  - Prioritize investigations based on risk
+frustrations:
+  - Alert fatigue from high false positive rates
+  - Difficulty visualizing complex fraud rings
+  - Slow investigation workflows
+  - Disconnected data sources
+context:
+  frequency: daily
+  devices:
+    - desktop
+    - laptop
+  voluntary: false
+workflows:
+  - W01
+  - W04
+  - W05
+  - W06
+  - W12
+  - W15
+  - W17
+sources:
+  - title: "Enterprise Fraud Management: Investigation v Detection"
+    url: https://cambridge-intelligence.com/enterprise-fraud-management-investigation-v-detection/
+    summary: Distinguishes fraud detection (automated alerts) from investigation (analyst-driven exploration) - key workflow
+      distinction
+  - title: Leveraging Graph Databases for Fraud Detection in Financial Systems
+    url: https://cacm.acm.org/blogcacm/leveraging-graph-databases-for-fraud-detection-in-financial-systems/
+    summary: CACM article on using graph databases to map relationships between accounts, customers, and transactions to
+      detect fraud patterns
+    bibliography:
+      date: 2024-10
+      publisher: Communications of the ACM

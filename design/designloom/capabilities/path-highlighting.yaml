@@ -1,0 +1,33 @@
+id: path-highlighting
+name: Path Highlighting
+category: interaction
+description: Visually highlight paths between nodes in the visualization. After computing shortest path, show the path
+  clearly with distinctive styling while dimming surrounding context.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W05
+  - W06
+  - W09
+implemented_by_components:
+  - path-finder-dialog
+requirements:
+  - "Highlight path nodes with distinct fill color (default: orange)"
+  - Highlight path edges with increased width (3x normal) and distinct color
+  - Dim non-path nodes to 30% opacity for focus effect
+  - Dim non-path edges to 20% opacity for focus effect
+  - "Display path length annotation near path: 'Path length: N hops' or 'Weight: X.XX'"
+  - Number path nodes sequentially (1, 2, 3...) from source to target
+  - Support highlighting up to 5 paths simultaneously with distinct colors
+  - Provide path color legend when multiple paths displayed
+  - Offer 'Animate along path' option showing traversal from source to target
+  - Set animation speed configurable from 500ms to 3000ms per step (default 1000ms)
+  - Provide 'Clear path highlight' button to remove all path highlighting
+  - Maintain path highlight when panning/zooming until explicitly cleared
+  - Allow clicking path step number to center view on that node
+  - Highlight intermediate nodes on path with their hop distance from source
+  - Support path highlighting for both directed and undirected paths
+sources:
+  - title: W05 Path Investigation
+    url: https://graphty.app/docs/
+    summary: Path Visualization - show path in context

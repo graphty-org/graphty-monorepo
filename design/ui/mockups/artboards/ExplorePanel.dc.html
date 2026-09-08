@@ -1,0 +1,1017 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #5b8ff9; } a:hover { color: #75a5f9; }
+  </style>
+</helmet>
+<!--
+  SHELL SKELETON, desktop 1440 by 900. Spec revision 1.3: app-shell-progressive-disclosure-design.md
+  sections 5.1 (layout, top bar, status bar), 5.2 (iPad), 5.6 (canvas toolbar, zoom percentage,
+  mode chip). Frozen sizes: rail 48, top bar 40, activity panel 280, inspector 280, status bar 24.
+  Canvas is 832 wide by 836 tall. Do not change any flex-basis, width, or height on the frame.
+  Insert content only at the three marked containers: PANEL CONTENT, CANVAS CONTENT, INSPECTOR CONTENT.
+  What changed from 1.1: no Saved / Unsaved indicator in the top bar (section 3, no project save);
+  Export is a menu trigger (Image, Data) with an 8px chevron; a Compare toggle sits next to the
+  inspector toggle; the cmd-K pill reads "Search commands, nodes and edges" (5.5); the canvas gains
+  the canvas toolbar at bottom centre (5.6); the status bar gains Zoom and the mode chip and
+  the empty running, viewing and issues slots (5.1). Snippets for every new piece are in VOCAB.md
+  section "1.3 additions".
+  Revision 1.7: POP-2 (the builder drops to one rule row per rule with its own match count; the rule's
+  editing controls open in a 360 pop-out drawn on FilterBuilderExpert), POP-9 (statistics stay inline),
+  SAV-1/SAV-2/SAV-3/SAV-7 (the Sets library +, and the filter save verb leaves the builder
+  overflow), TB-1/TB-2/TB-4 (canvas toolbar, bottom 12, Zoom to selection enabled).
+  Revision 1.8: D4 (panel 23 -> 20 resident rows: Selection actions deleted into the Select menu, Around
+  the selection moved to the inspector with a 280 Ego network pop-over, Expand neighbors becomes the
+  Neighborhood expansion door row, the Add rule plus moves onto the Filter builder header; the fixed
+  eight-section order; the inspector action block caps at four rows; the pattern editor moves to the
+  panel lane), A4 (Selection statistics stays a section until the third column forces a door), C3 (the
+  four-row state block leaves the canvas legend -- 141px to the 80px floor), C6 (legend cap 334 -> 240).
+  Palette: canvas #161b22, panels #1f2428, inputs #2a3035, hover #374047, border #48525c,
+  text #d5d7da, dimmed #7a828e, accent #4a7ee8, selected #28364e. See VOCAB.md.
+-->
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
+
+  <!-- MAIN ROW: rail + everything right of it. Height 876. -->
+  <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row;">
+
+    <!-- ACTIVITY RAIL, 48 wide -->
+    <div style="flex: 0 0 48px; width: 48px; display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 4px 0; background: #1f2428; border-right: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+
+      <!-- Data -->
+      <div title="Data" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="8" cy="4" rx="5.5" ry="2"></ellipse><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4"></path><path d="M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Data</span>
+      </div>
+
+      <!-- Explore, ACTIVE -->
+      <div title="Explore" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #d5d7da; background: #28364e; cursor: pointer; box-sizing: border-box;">
+        <div style="position: absolute; left: 0; top: 0; width: 2px; height: 44px; background: #4a7ee8;"></div>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><polygon points="10.5,5.5 9,9 5.5,10.5 7,7"></polygon></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Explore</span>
+      </div>
+
+      <!-- Analyze -->
+      <div title="Analyze" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="13.5" x2="3" y2="8"></line><line x1="8" y1="13.5" x2="8" y2="2.5"></line><line x1="13" y1="13.5" x2="13" y2="6"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Analyze</span>
+      </div>
+
+      <!-- Style -->
+      <div title="Style" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 2.5l-6 6"></path><path d="M7.5 8.5c-1.5 0-2.5 1-2.5 2.5s-1 2-2.5 2c1.5 1 4.5 1 5.5-1 .5-1 .5-2-.5-3.5z"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Style</span>
+      </div>
+
+      <!-- Present -->
+      <div title="Present" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="8" rx="1"></rect><line x1="8" y1="11" x2="8" y2="14"></line><line x1="5.5" y1="14" x2="10.5" y2="14"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Present</span>
+      </div>
+
+      <!-- AI -->
+      <div title="AI" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3l1.3 3.7L12 8l-3.7 1.3L7 13l-1.3-3.7L2 8l3.7-1.3z"></path><path d="M13 2v2.5M11.75 3.25h2.5"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">AI</span>
+      </div>
+
+      <!-- spacer pushes Settings and Help to the bottom -->
+      <div style="flex: 1 1 auto;"></div>
+
+      <!-- Settings -->
+      <div title="Settings" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Settings</span>
+      </div>
+
+      <!-- Help -->
+      <div title="Help and keyboard shortcuts (?)" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><path d="M6 6.3a2 2 0 0 1 3.9.5c0 1.3-1.9 1.6-1.9 2.7"></path><line x1="8" y1="11.75" x2="8" y2="12.25"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Help</span>
+      </div>
+    </div>
+
+    <!-- RIGHT OF RAIL: top bar over panel + canvas + inspector -->
+    <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column;">
+
+      <!-- TOP BAR, 40 tall. Spec 5.1: dataset name | undo, redo, cmd-K | Export menu, share, Compare, inspector toggle.
+           No saved or unsaved indicator (section 3). -->
+      <div style="flex: 0 0 40px; height: 40px; display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 0 12px; background: #1f2428; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+
+        <!-- left: dataset name only -->
+        <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 13px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">cat-social-network.json</span>
+        </div>
+
+        <!-- center: undo split button, redo, command palette pill. NAV-7: the caret is the visible path to the
+             History popover (5.1); the caret carries title="History" and no binding of its own. -->
+        <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 2px;">
+            <div title="Undo (Cmd+Z)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h6.5a3 3 0 0 1 0 6H7"></path><polyline points="6.5,3.5 4,6 6.5,8.5"></polyline></svg>
+            </div>
+            <div title="History" style="width: 14px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+            </div>
+          </div>
+          <div title="Redo (Shift+Cmd+Z). Nothing to redo yet" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6H5.5a3 3 0 0 0 0 6H9"></path><polyline points="9.5,3.5 12,6 9.5,8.5"></polyline></svg>
+          </div>
+          <div style="width: 300px; height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 8px; border-radius: 4px; background: #2a3035; box-sizing: border-box; cursor: pointer;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line></svg>
+            <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Search commands, nodes and edges</span>
+            <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;">Cmd+K</div>
+          </div>
+        </div>
+
+        <!-- right: Export menu trigger (Image, Data), share, divider, Compare toggle, inspector toggle -->
+        <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
+          <!-- Export: menu trigger. Menu rows are the "Dropdown menu" snippet in VOCAB.md (Image, Data). -->
+          <div style="display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px 0 6px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
+            <span>Export</span>
+            <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,6 8,11 13,6"></polyline></svg>
+          </div>
+          <!-- share -->
+          <div title="Share this view" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="3.5" r="1.75"></circle><circle cx="4" cy="8" r="1.75"></circle><circle cx="12" cy="12.5" r="1.75"></circle><line x1="5.6" y1="7.1" x2="10.4" y2="4.4"></line><line x1="5.6" y1="8.9" x2="10.4" y2="11.6"></line></svg>
+          </div>
+          <div style="width: 1px; height: 16px; background: #48525c;"></div>
+          <!-- Compare toggle (enters Compare mode, 5.3 Analyze). Active state: background #28364e; color #4a7ee8. -->
+          <div title="Compare two views" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="5.5" height="11" rx="1.5"></rect><rect x="8.5" y="2.5" width="5.5" height="11" rx="1.5"></rect></svg>
+          </div>
+          <!-- inspector toggle, ACTIVE -->
+          <div title="Toggle inspector (D)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #28364e; color: #4a7ee8; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="10" y1="2.5" x2="10" y2="13.5"></line></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- BODY ROW: panel + canvas + inspector. Height 836. -->
+      <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row;">
+
+        <!-- ACTIVITY PANEL, 280 wide -->
+        <div style="flex: 0 0 280px; width: 280px; display: flex; flex-direction: column; background: #1f2428; border-right: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+
+          <!-- panel title row, 36 tall -->
+          <div style="flex: 0 0 36px; height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><polygon points="10.5,5.5 9,9 5.5,10.5 7,7"></polygon></svg>
+              <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Explore</span>
+              <!-- No panel-level info circle. Register 1.5 section 3 puts that sentence on the group rule above
+                   a run of three or more, and the frozen order (section 12.3) leaves no run longer than two, so
+                   each unbuilt row carries the 5.8 "Coming" tag itself. -->
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <div title="Close the panel (Cmd+B)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL CONTENT, rebuilt under COMPACTION-1.6. 279 wide inside the border, 800 tall.
+               Grid: padding 0 8px 8px 16px, content band x = 16 to x = 272 (256px), pair 108 + 8 + 108,
+               trailing slot 24px at x = 248..272, 24px controls on a 32px pitch.
+               Row types: RT-1 (search field, the two filter selects, the rule row that reads its rule back),
+               RT-3 (the All / Visible scope track), RT-6 (the match list), RT-7 (the two action rows), RT-8
+               (every section header). No RT-2 since 1.7: POP-2 took the operator-and-value comparison box behind
+               the rule pop-out. No RT-10 here: this panel carries no reading, no departure and no run record.
+               Floor kept, and it vetoed four rules: "5 matches" and the rule row's own match count (what a control
+               acts on before it acts, floor 4; "15 of 20 nodes would match" left with its row in 1.8, because at
+               one rule it restated that count); every id, attribute name and value (floor 6); both active filter
+               chips, which are the departure from unfiltered (floor 2); "Clear all"; the per-rule count 15, which
+               stayed on the rule row rather than travelling into its pop-out (floor 4, POP-2's amendment); the
+               plain name "Most connected" on the rule the filter is built from, with "(degree)" riding in the
+               row's title (Decision B); and "Filter to matches", which stays a word because the register's funnel is
+               "Filter to selection" and Rule 4 keeps the word when the verb has no glyph of its own.
+               Deleted by rule: the resident syntax popover -> the field's info circle (Rule 8: explanation is
+               deleted or circled, never resident); "Showing 5 by connections" -> the sort caret on the links
+               column (Rule 9); "links" five times -> the column header (RT-6 repetition rule); "Result: Hide
+               others" and "Also include neighbors (1 step)" -> neither is drawn, both sit at their default
+               (Rule 7a), and both live in the section overflow; "Builder | Expression" -> a trailing door
+               (RT-1 door rule names this switch); "Metric" -> the select's title; "Select all visible" and
+               "Select all matches" -> rows of the Select menu, whose full text is the mandatory twin (6.8);
+               the whole Notes body -> RT-8's empty-section rule, since the section holds nothing;
+               "Subgraph search" and "Ego network" -> the row's title, because a technical name never takes a
+               line of its own (Decision B). -->
+          <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0 8px 8px 16px; overflow: hidden; box-sizing: border-box;">
+
+            <!-- RT-1 single field row. The 16px slot holds the search glyph, the value is the query, and the X
+                 clears it inline (register 8). The trailing 24px slot holds the syntax info circle, whose title is
+                 the sentence its popover used to print over the first two results. -->
+            <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 8px; height: 32px; padding-top: 8px; box-sizing: content-box;">
+              <div title="Search nodes and edges" style="display: flex; align-items: center; gap: 4px; width: 224px; height: 24px; padding: 0 4px 0 8px; background: #2a3035; border-radius: 4px; box-shadow: 0 0 0 1px #5b8ff9; box-sizing: border-box;">
+                <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line></svg>
+                </div>
+                <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">outdoor</span>
+                <div title="Clear" style="width: 20px; height: 20px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
+                </div>
+              </div>
+              <div title="Prefix with id:, type:, exact: or regex:, or start with = for an expression." style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
+              </div>
+            </div>
+
+            <!-- RT-6. The match count is floor 4 and stays; the repeated unit word rides on the column header and
+                 comes off all five rows; the caret on that header is the sort, which is why "Showing 5 by
+                 connections" is gone. Three of the five are selected. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column; padding-top: 4px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 20px; padding: 0 8px; box-sizing: border-box;">
+                <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">5 matches</span>
+                <div title="Sorted by links, most first" style="display: inline-flex; align-items: center; gap: 2px; flex: 0 0 auto; color: #7a828e; cursor: pointer;">
+                  <span style="font-size: 11px; line-height: 1.2;">links</span>
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 20px; padding: 0 8px; border-radius: 4px; background: #28364e; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                  <div style="width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: #4a7ee8; border: 1px solid #d5d7da; box-sizing: border-box;"></div>
+                  <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mr_Whiskers</span>
+                </div>
+                <span style="flex: 0 0 auto; font-size: 11px; color: #7a828e;">4</span>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 20px; padding: 0 8px; border-radius: 4px; background: #28364e; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                  <div style="width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: #4a7ee8; border: 1px solid #d5d7da; box-sizing: border-box;"></div>
+                  <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mittens_The_Destroyer</span>
+                </div>
+                <span style="flex: 0 0 auto; font-size: 11px; color: #7a828e;">3</span>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 20px; padding: 0 8px; border-radius: 4px; background: #28364e; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                  <div style="width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: #4a7ee8; border: 1px solid #d5d7da; box-sizing: border-box;"></div>
+                  <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Zoom_Zoom</span>
+                </div>
+                <span style="flex: 0 0 auto; font-size: 11px; color: #7a828e;">3</span>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 20px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                  <div style="width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: #a3a8b1;"></div>
+                  <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Midnight_Howler</span>
+                </div>
+                <span style="flex: 0 0 auto; font-size: 11px; color: #7a828e;">2</span>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 20px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                  <div style="width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: #a3a8b1;"></div>
+                  <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Neighbor_Dog_Rex</span>
+                </div>
+                <span style="flex: 0 0 auto; font-size: 11px; color: #7a828e;">2</span>
+              </div>
+            </div>
+
+            <!-- RT-7. The scope track is resident state, because it names what the verb on the right will act on
+                 (floor 4, Rule 7b); the noun "nodes" comes off both buttons, which is what the search searches.
+                 "Filter to matches" keeps its words: Rule 4 test (i) fails, the register's funnel is
+                 "Filter to selection" and the register is closed. -->
+            <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 8px; height: 32px;">
+              <div style="display: flex; gap: 2px; flex: 0 0 108px; width: 108px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
+                <div title="All nodes" style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; background: #374047; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">All</div>
+                <div title="Visible nodes" style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Visible</div>
+              </div>
+              <div style="flex: 1 1 auto;"></div>
+              <span style="flex: 0 0 auto; font-size: 11px; font-weight: 500; line-height: 1; color: #5b8ff9; cursor: pointer;">Filter to matches</span>
+            </div>
+
+            <!-- The two active filters. Floor 2: a departure from the complete graph is named, never pruned. Each
+                 chip clears itself; "Clear all" ends the row from two chips up (it is also where the canvas strip's
+                 "Show all" went). -->
+            <div style="flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-top: 4px;">
+              <div style="display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px 0 8px; border-radius: 10px; background: #28364e; border: 1px solid #4a7ee8; color: #d5d7da; font-size: 11px; line-height: 1; box-sizing: border-box; cursor: pointer;">
+                <span>indoorOutdoor = outdoor</span>
+                <span title="Clear" style="display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; color: #7a828e;">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
+                </span>
+              </div>
+              <div style="display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px 0 8px; border-radius: 10px; background: #28364e; border: 1px solid #4a7ee8; color: #d5d7da; font-size: 11px; line-height: 1; box-sizing: border-box; cursor: pointer;">
+                <span>value &gt;= 5</span>
+                <span title="Clear" style="display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; color: #7a828e;">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
+                </span>
+              </div>
+              <span style="font-size: 11px; line-height: 1.2; color: #5b8ff9; cursor: pointer;">Clear all</span>
+            </div>
+
+            <!-- RT-7. One row for selection by rule. The menu carries every rule in full text, which is the
+                 mandatory twin for anything that left the panel (6.8): Select all matches / Select all visible
+                 (Cmd+A) / Invert / Neighbors of selection / Same group as selection / From list / By expression /
+                 Save selection as set... / Select matching filter / Select edges between selected / Select
+                 largest connected part.
+                 D4, 1.8: the last three arrive from the deleted Selection actions section, which was a header
+                 holding nothing and duplicating this split button two rows below itself. 6.11 routes verbs to
+                 menus, so a verb that leaves a section for this menu is not hidden -- it is where it belonged,
+                 and its full text here is the mandatory twin. -->
+            <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 6px; height: 32px;">
+              <div title="Select by rule" style="display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">
+                <span>Select</span>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+              </div>
+              <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
+            </div>
+
+            <!-- SECTION: Filter builder, open. RT-8 header; the section is live, so the name is at value ink. Drawn
+                 in its hover state so the overflow is visible. SAV-1 and SAV-2 cut it to three items: it is the
+                 door to the two controls Rule 7a stopped drawing -- Result (Hide others, the default) and Also
+                 include neighbors (1 step, off) -- plus Clear the builder.
+                 "Save this filter set..." left this overflow. A saved kind's save verb lives on the section that
+                 lists the kind, so it becomes the resident "+" titled "Save as filter..." on the Filters
+                 header, and it lands when that section ships -- which is why nothing on this board draws it now.
+                 Collision resolved: POP-2 lists Hide others / Select matches and the neighbors row as resident
+                 members of the rebuilt builder, but Rule 7a still deletes a control sitting at its default and
+                 POP-2 names no amendment to 7a (precedence rule 4), so both stay in this overflow and become
+                 resident only when they deviate.
+                 D4 / Rule 7a, 6.2: at ZERO rules this section is one 32px row with a plus and nothing else --
+                 "Match all" at zero rules is a default and contradicts 5.3's own condition, and "20 of 20 nodes
+                 would match" is the null statement 6.2 forbids. This board draws one rule, so both rows render.
+                 Main draws the zero-rule form.
+                 D4, 1.8: the Add rule plus is a HEADER control, not a row of its own. It sits in the trailing
+                 slot ahead of the More overflow -- the plus is this section's own verb and More is always last --
+                 which is what makes the zero-rule form one row. Its row went with it, and so did that row's
+                 "15 of 20 nodes would match": at ONE rule the builder's total IS that rule's count, which the
+                 rule row already prints as 15 and reads back in its title as "15 of 20 nodes match this rule",
+                 so the line restated the row directly above it (Rule 9). Floor item 4 is unbroken -- the count
+                 both the plus and the rule act on is still resident, on the control that acts -- and the line
+                 returns as its own row at two rules, where the total stops equalling any single rule's count. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Filter builder</span>
+                  <div style="width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: #4a7ee8;"></div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                  <div title="Add rule" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5b8ff9; cursor: pointer;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg>
+                  </div>
+                  <div title="More" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3.5" r="0.75"></circle><circle cx="8" cy="8" r="0.75"></circle><circle cx="8" cy="12.5" r="0.75"></circle></svg>
+                  </div>
+                </div>
+              </div>
+
+              <!-- RT-1 pair. What the rule runs on, and how the rules combine. The trailing slot is the door the
+                   Builder | Expression switch became: it opens the expression editor on the same rule. -->
+              <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+                <div title="Filter nodes, or edges" style="display: flex; align-items: center; gap: 4px; width: 108px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
+                  <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Nodes</span>
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                </div>
+                <div title="Match all rules, or any rule" style="display: flex; align-items: center; gap: 4px; width: 108px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
+                  <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Match all</span>
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                </div>
+                <div title="Edit as expression" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.2 2.3l2.5 2.5-8 8-3.2.7.7-3.2z"></path><line x1="9.6" y1="3.9" x2="12.1" y2="6.4"></line></svg>
+                </div>
+              </div>
+
+              <!-- POP-2. One 32px row per rule, reading the rule back in plain form. The attribute select, the NOT
+                   checkbox and the operator-and-value comparison box are gone from the panel: the row is the opener
+                   for the 360 rule pop-out, which holds the attribute picker with its search field and groups, NOT,
+                   the operator select, the dual-handle quantile slider over a full-width histogram and the per-rule
+                   detail. That pop-out is drawn on FilterBuilderExpert, not here.
+                   Decision B: the plain name is the row's copy and the technical name rides in the row's title, so
+                   "Most connected (degree)" is still reachable without spending a line on it.
+                   Amendment against the floor, and it is why the 15 did not travel: the per-rule match count stays
+                   on the rule row and does not go behind the door. Floor 4 puts the count a control acts on at that
+                   control, and the rule row is the control (A3).
+                   The removal control is the register's trash titled "Delete this rule", which is the string
+                   REGISTER-1.5 section 1.2 fixes and the one FilterBuilderExpert's rule rows already draw; "remove"
+                   is a glyph-free verb in register 1.6 and the close X's reuse list in register 8 is closed. -->
+              <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+                <div title="Most connected (degree) is at least 3" style="display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Most connected &gt;= 3</span>
+                  <span title="15 of 20 nodes match this rule" style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">15</span>
+                </div>
+                <div title="Delete this rule" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5h10M6.5 4.5v-2h3v2M4 4.5l.8 9h6.4l.8-9"></path></svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- THE FROZEN EXPLORE INVENTORY (Register 1.5 section 12.3, rewritten by D4 in 1.8). EIGHT sections,
+                 one order, on every board that draws this panel, rendered whether or not a member is built,
+                 because 6.9 Rule 7c says "Sections keep a fixed order whether or not their members render":
+                   Filter builder | Filters | Sets | Views | Find a pattern | Neighborhood expansion |
+                   Step through time | Notes
+                 "Step through time" renders on a timed graph only (Rule 7c clause c; the cat graph has no time
+                 attribute, so it does not render here and this board draws the seven). That position is 5.3
+                 Explore's own enumeration and is where TimeSlider draws it; MultiSelection and ExploreNotesList,
+                 which had it in the tier 1 head, are corrected to it.
+                 What left the inventory in 1.8, and why nothing is hidden. "Selection actions" held a header and
+                 no members and duplicated the Select split button two rows above it, so its three verbs -- Select
+                 matching filter, Select edges between selected, Select largest connected part -- joined that
+                 button's menu; 6.11 routes verbs to menus, so a verb that leaves a section for a menu is not
+                 hidden. "Around the selection" stops being an Explore section because 5.3 and 5.4 already assign
+                 selection-scoped actions to the inspector; it is an action row in the pinned inspector block, its
+                 Hops and Max nodes in a 280 pop-over, and it keeps its 6.3 pair "Around the selection | Ego
+                 network" and joins the palette index by both names (E4). "Expand neighbors" is the same
+                 capability renamed and re-typed to the "Neighborhood expansion" door row, which is why it now
+                 sits after Find a pattern rather than between Sets and Views.
+                 Ship state is settled once for the whole set rather than per screen: Filters, Sets, Views and
+                 Notes are live; Find a pattern and Neighborhood expansion are not built and each keeps its own
+                 "Coming" tag, because they are a run of two and the frozen order leaves no run of three
+                 (Register 1.5 section 3).
+                 "Sets and actions" was one row doing two capabilities and is now two. "More" is not a member of
+                 the inventory: the "More..." text row is retired from the panel vocabulary outright (6.11), a
+                 text row that hides two sections being a third disclosure mechanism doing the other two's job. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Filters</span>
+                  <div title="Saved filters: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
+                  </div>
+                </div>
+                <div title="Save as filter..." style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg>
+                </div>
+              </div>
+            </div>
+
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Sets</span>
+                  <div title="Selection sets: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
+                  </div>
+                </div>
+                <div title="Save selection as set..." style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg>
+                </div>
+              </div>
+            </div>
+
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Views</span>
+                  <div title="View bookmarks: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
+                  </div>
+                </div>
+                <div title="Save as view..." style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- Find a pattern (subgraph search). D4: 5.3 tier 3 anchors the pattern editor "over the canvas",
+                 which is the AnalyzePicker preview's one fixed home, and 6.11 warns against two surfaces arriving
+                 in the same place. A 3a pop-out already leaves the canvas live and the highlight running, so the
+                 canvas position buys nothing and costs the anchor -- the exact failure the user named on the
+                 timeline. 360, panel lane at left 336, anchored top-to-top on this row.
+                 MEASURED here so the next board copies numbers and not adjectives: this row is [64,549 255x32]
+                 and the panel's right edge is 328, so the pop-out takes left 336 -- 328 plus B2's 8px
+                 shell-boundary gap, VOCAB 14.8 -- top 549 on the row's own top 549, right edge 696. It stands
+                 17px clear of the opener's right edge, inside the 32px past which 6.11 stops calling a surface
+                 anchored and sends it to the centred form. Its 6px caret sits on the LEFT edge, pointing back at
+                 the panel (VOCAB 14.2, the activity-panel spelling), at the row's vertical centre, y 565. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div title="Find a pattern (subgraph search). Coming" style="display: flex; align-items: center; gap: 6px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; flex: 1 1 auto; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; padding-left: 4px;">Find a pattern</span>
+                </div>
+                <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
+              </div>
+            </div>
+
+            <!-- Neighborhood expansion, the RT-8 DOOR row (D4, VOCAB 14.1). The chevron is permanently in the
+                 closed right-pointing form because this section never opens in place: it opens the 280 pop-over
+                 that 5.3's Explore pop-over inventory gives it, "from its RT-8 door row". The trailing slot is
+                 the stub the door leaves behind, and it reports the state of what the door hides -- the
+                 remembered depth and node and edge type filter, "2 steps, 3 types", which is where 5.4's "uses
+                 the last node and edge type filter" becomes readable BEFORE it acts (floor item 4). Units ride
+                 as dimmed suffixes, never as labels and never as parentheticals (6.9 Rule 5).
+                 It moved from between Sets and Views to here because D4's fixed eight puts Neighborhood expansion
+                 after Find a pattern. Same capability, new name, new row type: "Expand neighbors" was a dimmed
+                 not-built row that said nothing about what it would do if it ran.
+                 MEASURED, and it is why the "Coming" TAG is not drawn on this row. The band is 255px inside the
+                 panel padding. The name at the section-header 12px/500 measures 154, the chevron slot 16, the tag
+                 50 and the stub 88: name plus stub alone is 262 and clips the name to 89px, and the tag cannot be
+                 fitted at any size. The stub wins, because a door that reports nothing is the thing 1.8 forbids,
+                 while the ship state has a second home -- so the name drops to 11px (141) and "Coming" rides in
+                 the row's title, exactly as Main draws the same row: 16 + 4 + 141 + 4 + 88 = 253 of 255.
+                 The ink is the other collision. VOCAB 14.1 A6 draws a door at value ink when something behind it
+                 deviates, and 2 steps with 3 types is a deviation; 5.8 draws an unbuilt row dimmed. Ship state
+                 wins, because a live-looking door on an unbuilt capability promises a pop-over that does not
+                 open, and Main and this board's Find a pattern row above are both dim. The chevron is this
+                 board's own collapsed-section drawing rather than 14.1's snippet path, so the set has one
+                 right-pointing chevron and not two. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div title="Neighborhood expansion. 2 steps, 3 types. Coming" style="display: flex; align-items: center; gap: 4px; height: 32px; cursor: pointer;">
+                <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                </div>
+                <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Neighborhood expansion</span>
+                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">2 steps, 3 types</span>
+              </div>
+            </div>
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; padding-left: 4px;">Notes</span>
+                </div>
+                <div title="Note (N)" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CANVAS, fills the middle: 832 wide by 836 tall -->
+        <div style="flex: 1 1 auto; min-width: 0; position: relative; background: #161b22; overflow: hidden;">
+
+          <!-- CANVAS CONTENT: draw the graph as an inline SVG sized 100% by 100% here, then overlays. Insights strip goes at position: absolute; top: 12px; left: 50%; transform: translateX(-50%); -->
+          <!-- graph drawing: 20 nodes, 29 edges; 5 match the filter, 3 selected, the rest dimmed -->
+          <svg width="832" height="836" viewBox="0 0 832 836" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block;">
+      <line x1="521" y1="497" x2="703" y2="499" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="364" y1="113" x2="524" y2="142" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="373" y1="227" x2="460" y2="72" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="373" y1="227" x2="270" y2="394" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="460" y1="72" x2="364" y2="113" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="524" y1="142" x2="373" y2="227" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="390" y1="401" x2="521" y2="497" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="628" y1="244" x2="607" y2="70" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="244" y1="300" x2="390" y2="401" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="481" y1="218" x2="460" y2="72" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="702" y1="132" x2="607" y2="70" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="127" y1="366" x2="270" y2="394" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="364" y1="113" x2="481" y2="218" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="524" y1="142" x2="702" y2="132" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="703" y1="499" x2="635" y2="579" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="607" y1="70" x2="460" y2="72" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="628" y1="244" x2="481" y2="218" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="390" y1="401" x2="270" y2="394" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="244" y1="300" x2="127" y2="366" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="545" y1="690" x2="635" y2="579" stroke="#48525c" stroke-width="1"></line>
+      <line x1="419" y1="615" x2="285" y2="551" stroke="#4a7ee8" stroke-width="1.5"></line>
+      <line x1="659" y1="398" x2="703" y2="499" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="521" y1="497" x2="419" y2="615" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="285" y1="551" x2="270" y2="394" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="545" y1="690" x2="419" y2="615" stroke="#4a7ee8" stroke-width="1.5"></line>
+      <line x1="297" y1="686" x2="419" y2="615" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line>
+      <line x1="635" y1="579" x2="659" y2="398" stroke="#4a7ee8" stroke-width="1.5"></line>
+      <line x1="659" y1="398" x2="628" y2="244" stroke="#4a7ee8" stroke-width="1.5"></line>
+      <line x1="285" y1="551" x2="297" y2="686" stroke="#4a7ee8" stroke-width="1.5"></line>
+      <circle cx="521" cy="497" r="11" fill="#a3a8b1" opacity="0.4"></circle>
+      <circle cx="364" cy="113" r="11" fill="#a3a8b1" opacity="0.4"></circle>
+      <circle cx="703" cy="499" r="11" fill="#a3a8b1" opacity="0.4"></circle>
+      <circle cx="524" cy="142" r="11" fill="#a3a8b1" opacity="0.4"></circle>
+      <circle cx="373" cy="227" r="11" fill="#a3a8b1" opacity="0.4"></circle>
+      <circle cx="270" cy="394" r="13" fill="#a3a8b1" opacity="0.4"></circle>
+      <text x="270" y="420" text-anchor="middle" font-size="11" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" fill="#5f6873">The_Vet</text>
+      <circle cx="460" cy="72" r="13" fill="#a3a8b1" opacity="0.4"></circle>
+      <text x="460" y="98" text-anchor="middle" font-size="11" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" fill="#5f6873">Mrs_Henderson</text>
+      <circle cx="390" cy="401" r="11" fill="#a3a8b1" opacity="0.4"></circle>
+      <circle cx="628" cy="244" r="11" fill="#a3a8b1" opacity="0.4"></circle>
+      <circle cx="607" cy="70" r="11" fill="#a3a8b1" opacity="0.4"></circle>
+      <circle cx="244" cy="300" r="9" fill="#a3a8b1" opacity="0.4"></circle>
+      <circle cx="481" cy="218" r="11" fill="#a3a8b1" opacity="0.4"></circle>
+      <circle cx="702" cy="132" r="9" fill="#a3a8b1" opacity="0.4"></circle>
+      <circle cx="127" cy="366" r="9" fill="#a3a8b1" opacity="0.4"></circle>
+      <circle cx="635" cy="579" r="11" fill="#a3a8b1" opacity="0.4"></circle>
+      <circle cx="545" cy="690" r="9" fill="#a3a8b1"></circle>
+      <text x="545" y="712" text-anchor="middle" font-size="11" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" fill="#d5d7da">Midnight_Howler</text>
+      <circle cx="297" cy="686" r="9" fill="#a3a8b1"></circle>
+      <text x="297" y="708" text-anchor="middle" font-size="11" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" fill="#d5d7da">Neighbor_Dog_Rex</text>
+      <circle cx="419" cy="615" r="18" fill="none" stroke="#4a7ee8" stroke-width="1.5" opacity="0.6"></circle>
+      <circle cx="419" cy="615" r="13" fill="#4a7ee8" stroke="#d5d7da" stroke-width="1.5"></circle>
+      <text x="419" y="646" text-anchor="middle" font-size="11" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" fill="#d5d7da" font-weight="500">Mr_Whiskers</text>
+      <circle cx="285" cy="551" r="16" fill="none" stroke="#4a7ee8" stroke-width="1.5" opacity="0.6"></circle>
+      <circle cx="285" cy="551" r="11" fill="#4a7ee8" stroke="#d5d7da" stroke-width="1.5"></circle>
+      <text x="285" y="580" text-anchor="middle" font-size="11" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" fill="#d5d7da" font-weight="500">Mittens_The_Destroyer</text>
+      <circle cx="659" cy="398" r="16" fill="none" stroke="#4a7ee8" stroke-width="1.5" opacity="0.6"></circle>
+      <circle cx="659" cy="398" r="11" fill="#4a7ee8" stroke="#d5d7da" stroke-width="1.5"></circle>
+      <text x="659" y="427" text-anchor="middle" font-size="11" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" fill="#d5d7da" font-weight="500">Zoom_Zoom</text>
+          </svg>
+
+          <!-- MIN-1: no filter status strip over the canvas. The status bar owns shown of total, and the Explore
+               panel owns the active chips while Explore is open; "Show all" moved into that chip row as
+               "Clear all". One fact, one region. -->
+
+          <!-- CANVAS TOOLBAR (spec 5.6; TB-1, TB-2, TB-4). The vertical 56-wide cluster that sat on the canvas's
+               left edge above the minimap is gone; its contents are one horizontal floating bar centred on the
+               live canvas rect. Order left to right, by how long the effect lasts: [2D | 3D] segmented (5 toggles
+               it, 3D selected); divider; Zoom out (-), Zoom in (=), Zoom to fit (0), Zoom to selection (F);
+               divider; Views (cube plus an up-caret; the menu opens upward, bottom edge 4 above the bar, and
+               holds Reset view, Top, Front, Side, Isometric, Follow selection, Save view..., Show minimap,
+               Show legend, Enter VR, Enter AR). Zoom out precedes Zoom in because magnitude increases rightward
+               on a horizontal bar.
+               TB-2 geometry: 246 x 36, padding 3, item 28 x 28 with the register's fixed 14px glyph, item radius
+               4, container radius 7 so the padding is concentric, divider a 12px box holding a 1 x 16 rule.
+               3 + 60 + 12 + (28*4 + 2*3) + 12 + 36 + 3 + 2 borders = 246. The bar carries the tooltip shadow
+               token and is the only canvas overlay that does; the minimap and the legend stay flat at radius 4,
+               which sorts them as content boxes and the bar as an instrument.
+               The item set is fixed: nothing appears or disappears with selection, because a centred container
+               that changes width moves every item under the pointer. Zoom to selection is therefore always drawn
+               and merely disables -- here it is ENABLED at #a3a8b1, because three nodes are selected, and it
+               carries the plain title rather than the register's disabled form.
+               TB-4 bottom stack: no time slider and no Data table drawer on this board, so the offset is the
+               plain 12 (82 with the slider, 272 with the drawer, 342 with both).
+               TB-3 collision on this board: the bar spans 293 to 539 on an 832-wide canvas; the minimap ends at
+               172 (121 clear) and the legend begins at 628 (89 clear), both far above the 16 minimum, and 832 is
+               above the 622 two-line threshold, so neither overlay rises.
+               The zoom percentage is not in the bar: the status bar owns it, sits 12 below, and a numeric readout
+               would change the bar's width as the number changed. -->
+          <div style="position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: inline-flex; align-items: center; height: 36px; padding: 3px; border-radius: 7px; background: #1f2428; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; z-index: 6;">
+            <div style="display: flex; align-items: center; width: 60px; height: 28px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
+              <div style="flex: 1; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-size: 11px; font-weight: 500; line-height: 1; color: #7a828e; cursor: pointer;">2D</div>
+              <div style="flex: 1; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 3px; background: #374047; font-size: 11px; font-weight: 500; line-height: 1; color: #d5d7da; cursor: pointer;">3D</div>
+            </div>
+            <div style="width: 12px; height: 28px; display: flex; align-items: center; justify-content: center;"><div style="width: 1px; height: 16px; background: #48525c;"></div></div>
+            <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom out (-)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line><line x1="5" y1="7" x2="9" y2="7"></line></svg>
+            </div>
+            <div style="width: 2px;"></div>
+            <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom in (=)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line><line x1="7" y1="5" x2="7" y2="9"></line><line x1="5" y1="7" x2="9" y2="7"></line></svg>
+            </div>
+            <div style="width: 2px;"></div>
+            <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom to fit (0)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path></svg>
+            </div>
+            <div style="width: 2px;"></div>
+            <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom to selection (F)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path><circle cx="8" cy="8" r="2"></circle></svg>
+            </div>
+            <div style="width: 12px; height: 28px; display: flex; align-items: center; justify-content: center;"><div style="width: 1px; height: 16px; background: #48525c;"></div></div>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 2px; width: 36px; height: 28px; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Views">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2l5.5 3v6L8 14l-5.5-3V5z"></path><path d="M8 8l5.5-3M8 8v6M8 8L2.5 5"></path></svg>
+              <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 8,5 13,10"></polyline></svg>
+            </div>
+          </div>
+
+          <!-- minimap, bottom left. MIN-7: no "Minimap" caption; the drawing names itself. -->
+          <div style="position: absolute; left: 12px; bottom: 12px; width: 160px; height: 100px; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 6px 8px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box;">
+            <svg width="144" height="76" viewBox="0 0 144 76" style="display: block;"><line x1="72.3" y1="55.9" x2="60.1" y2="50.1" stroke="#4a7ee8" stroke-width="1"></line><line x1="81.5" y1="45.2" x2="98.1" y2="45.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="67.3" y1="10.3" x2="81.8" y2="12.9" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="68.1" y1="20.6" x2="76.0" y2="6.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="68.1" y1="20.6" x2="58.7" y2="35.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="76.0" y1="6.5" x2="67.3" y2="10.3" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="94.1" y1="36.2" x2="98.1" y2="45.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="81.5" y1="45.2" x2="72.3" y2="55.9" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="81.8" y1="12.9" x2="68.1" y2="20.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="60.1" y1="50.1" x2="58.7" y2="35.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="69.6" y1="36.5" x2="81.5" y2="45.2" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="91.3" y1="22.2" x2="89.4" y2="6.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="56.4" y1="27.3" x2="69.6" y2="36.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="83.7" y1="62.7" x2="72.3" y2="55.9" stroke="#4a7ee8" stroke-width="1"></line><line x1="77.9" y1="19.8" x2="76.0" y2="6.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="98.0" y1="12.0" x2="89.4" y2="6.4" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="45.7" y1="33.3" x2="58.7" y2="35.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="61.2" y1="62.4" x2="72.3" y2="55.9" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="91.9" y1="52.6" x2="94.1" y2="36.2" stroke="#4a7ee8" stroke-width="1"></line><line x1="94.1" y1="36.2" x2="91.3" y2="22.2" stroke="#4a7ee8" stroke-width="1"></line><line x1="67.3" y1="10.3" x2="77.9" y2="19.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="81.8" y1="12.9" x2="98.0" y2="12.0" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="98.1" y1="45.4" x2="91.9" y2="52.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="60.1" y1="50.1" x2="61.2" y2="62.4" stroke="#4a7ee8" stroke-width="1"></line><line x1="89.4" y1="6.4" x2="76.0" y2="6.5" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="91.3" y1="22.2" x2="77.9" y2="19.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="69.6" y1="36.5" x2="58.7" y2="35.8" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="83.7" y1="62.7" x2="91.9" y2="52.6" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><line x1="56.4" y1="27.3" x2="45.7" y2="33.3" stroke="#48525c" stroke-width="1" stroke-opacity="0.4"></line><circle cx="72.3" cy="55.9" r="1.5" fill="#4a7ee8"></circle><circle cx="81.5" cy="45.2" r="1.5" fill="#a3a8b1" opacity="0.4"></circle><circle cx="67.3" cy="10.3" r="1.5" fill="#a3a8b1" opacity="0.4"></circle><circle cx="60.1" cy="50.1" r="1.5" fill="#4a7ee8"></circle><circle cx="98.1" cy="45.4" r="1.5" fill="#a3a8b1" opacity="0.4"></circle><circle cx="81.8" cy="12.9" r="1.5" fill="#a3a8b1" opacity="0.4"></circle><circle cx="68.1" cy="20.6" r="1.5" fill="#a3a8b1" opacity="0.4"></circle><circle cx="58.7" cy="35.8" r="1.5" fill="#a3a8b1" opacity="0.4"></circle><circle cx="76.0" cy="6.5" r="1.5" fill="#a3a8b1" opacity="0.4"></circle><circle cx="94.1" cy="36.2" r="1.5" fill="#4a7ee8"></circle><circle cx="69.6" cy="36.5" r="1.5" fill="#a3a8b1" opacity="0.4"></circle><circle cx="91.3" cy="22.2" r="1.5" fill="#a3a8b1" opacity="0.4"></circle><circle cx="89.4" cy="6.4" r="1.5" fill="#a3a8b1" opacity="0.4"></circle><circle cx="56.4" cy="27.3" r="1.5" fill="#a3a8b1" opacity="0.4"></circle><circle cx="83.7" cy="62.7" r="1.5" fill="#a3a8b1"></circle><circle cx="77.9" cy="19.8" r="1.5" fill="#a3a8b1" opacity="0.4"></circle><circle cx="98.0" cy="12.0" r="1.5" fill="#a3a8b1" opacity="0.4"></circle><circle cx="45.7" cy="33.3" r="1.5" fill="#a3a8b1" opacity="0.4"></circle><circle cx="61.2" cy="62.4" r="1.5" fill="#a3a8b1"></circle><circle cx="91.9" cy="52.6" r="1.5" fill="#a3a8b1" opacity="0.4"></circle><rect x="0.5" y="0.5" width="143" height="75" fill="none" stroke="#48525c" stroke-width="1"></rect></svg>
+          </div>
+
+          <!-- LEGEND (5.1, floor item 5), the one component, settled once in LEGEND-1.8 and drawn
+               identically on every board that has one: 256 wide, one block per ENCODED channel in the
+               order Color, Size, Outline, Edge width, Arrow, then the state rows, a 1px #374047 rule
+               between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
+               content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
+               the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
+               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               minimum 5.6 sets.
+               A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
+               one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
+               string. The middle stop carries the word "median", the swatch radius is the encoding's own
+               transform, and the scale is spelled out even when it is the default, because the legend
+               travels inside an exported image where no one can hover a glyph.
+               No "Legend" caption, no palette name in the body, no counts on state rows, no block for a
+               channel that is not encoded.
+               THIS BOARD: the cat graph. Size domain is 2 / 3 / 4, not the "1 to 4" this board printed: FIXTURES 1.3 fixes the whole distribution at 5 nodes with 2 links, 12 with 3 and 3 with 4, so no node in the file has one link and the old string stated a domain the data does not have. Color is not encoded on this board, so Size is the only block. The filter states are gone from the canvas legend entirely (C3 item 1): they are app chrome, not encoded channels, and every one of them is already named by the region that owns it -- the panel's filter chips, the status bar's counts and selection slots, the inspector header. They render in the exported legend, which has none of those regions.
+               1.8 (C2, C3, C6): floor item 5 is now two obligations. On screen the legend carries one block per encoded channel -- channel, attribute, domain endpoints with the median or midpoint, the scale in words, and every departure line -- and NO category counts, NO state rows and at most five categorical rows plus Other. In the export it carries all of that plus twelve categories with counts, the coverage footer and one row per state drawn in the frame, composed from the encoding model at the export's own scale and never captured from this DOM overlay. Cap 240 on screen, no cap in the export.
+               Measured on this board: the box was 141px with the four state rows and the rule above them; the single Size block is 63, so the 80px min-height now binds and the box draws 80 -- H's "141 -> about 70", with the floor binding. Where the four rows went: "Selected" is read off the inspector header ("Selection  3 nodes") and the status bar's "3 selected"; "Matches filter" and "Filtered out" off the panel's two filter chips (indoorOutdoor = outdoor, value >= 5) and the status bar's "5 of 20 nodes  6 of 29 edges"; "Edges shown" off the drawing itself and the Counts the status bar prints. All four render in the exported legend, which has no filter strip, no status bar and no panel. -->
+          <div style="position: absolute; right: 12px; bottom: 12px; width: 256px; min-height: 80px; max-height: 240px; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 6px 8px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Size: Most connected <span style="color: #7a828e;">(Degree centrality)</span></span>
+              <div style="display: flex; align-items: center; gap: 8px; height: 16px;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="#a3a8b1"></circle></svg>
+                  <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">2</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.2" fill="#a3a8b1"></circle></svg>
+                  <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">median 3</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#a3a8b1"></circle></svg>
+                  <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">4</span>
+                </div>
+              </div>
+              <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">sqrt scale</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- INSPECTOR, 280 wide -->
+        <div style="flex: 0 0 280px; width: 280px; display: flex; flex-direction: column; background: #1f2428; border-left: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+
+          <!-- INSPECTOR TITLE ROW. One inventory, one order, all 40 boards that draw one (INSPECTOR-TITLE-1.9.md).
+               Right, in this order and nothing else, ever: Copy reading, Pin as A, Toggle inspector (D).
+               Pin drawn: a selection is shown (5.4).
+               Left: the surface kind at 12px, then its identity at 11px muted. The kind never truncates and the
+               identity ellipsizes into its own title, which is 6.3's ladder installed as a mechanism.
+               No leading glyph. It had five spellings across the set -- three of them the register's PIN verb drawn
+               as decoration beside the real Pin control -- and its 22px is exactly what makes every name pair in the
+               set fit at 280. FilterBuilderExpert had already dropped it alone, for this reason.
+               Cluster 3 x 24 + gap 4 = 80; name band 167; this row's name is 103.0. -->
+          <div style="flex: 0 0 36px; height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+            <div style="flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px;">
+              <span style="flex: 0 0 auto; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Selection</span>
+              <span title="3 nodes" style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">3 nodes</span>
+            </div>
+            <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 4px;">
+              <div title="Copy reading" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>
+              </div>
+              <div title="Pin as A" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line></svg>
+              </div>
+              <div title="Toggle inspector (D)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- INSPECTOR CONTENT, rebuilt under COMPACTION-1.6. 279 wide inside the border, 800 tall.
+               Grid padding 0 8px 8px 16px, content band 256px.
+               Row types: RT-10 (the reading), RT-8 (three section headers, one of them empty), RT-6 (the statistics
+               rows and the shared-attribute values), RT-7 (the action block).
+               Floor kept: the reading, on screen and in full; every id, attribute name and value; the two names of
+               the graph-average comparison ("3.3" against "2.9" with its direction arrow); "Around the selection",
+               whose verb has no glyph in the register 1.6 never list.
+               THE COMPARISON MARKER SITS ON THE VALUE BEING COMPARED, NEVER ON THE BASELINE. The up arrow belongs
+               to the Selection column's 3.3, which is the number that is above the graph average; the Graph column
+               is the baseline the arrow is measured against and carries no marker, ever. It had been drawn inside
+               the Graph column, immediately before 2.9, which asserted the opposite of the row's own title
+               ("3.3 across the selection, 2.9 across the graph"). MultiSelection, FilterBuilderExpert and
+               DataTableDrawer already anchor it to the selection value; this board now matches them.
+               REGISTER-1.5 section 12.2 carries the rule, and its second witness -- the section's info circle --
+               is gone with the circle itself; the row title is the witness that remains.
+               Deleted by rule: the reading's third sentence, which restated "Edges to the rest 8" and "Average
+               links per node 3.3 / 2.9" forty pixels below it (Rule 8, and RT-10's two-sentence cap); the
+               24px row that held nothing but Copy reading -> the title bar; the Notes placeholder and its section
+               body -> RT-8's empty-section rule, with the scope and the binding in the "+" title; "Arrows show
+               above or below the graph average. Highlighted rows differ by more than one standard deviation."
+               -> deleted outright, which is what 6.9's own worked example of Rule 8 does with this exact
+               sentence; it spent one pass in an info circle and the section comment below records why it left;
+               "(mean degree)" -> the row title, because the pair does not fit one line beside two number columns
+               (Decision B's hard sub-rule); "2 of 8" -> "2", since the Graph column already prints 8 (Rule 9);
+               and the 21 wrapped text buttons -> RT-7's two rows plus More, which is the shape RT-7 names for
+               exactly this block. Every one of those 21 labels is in the More menu in full text (6.8 twin,
+               mandatory). -->
+          <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0 8px 8px 16px; overflow: hidden; box-sizing: border-box;">
+
+            <!-- floor 1: the reading, in full, never behind a circle. RT-10: two sentences, 151 characters. -->
+            <div style="flex: 0 0 auto; padding: 8px 0 4px; font-size: 12px; line-height: 1.5; color: #a3a8b1;">3 outdoor cats selected. All three are in group 1, Mr_Whiskers and Mittens_The_Destroyer are rivals, and they are better connected than the average cat.</div>
+
+            <!-- SECTION: Notes, holding nothing (RT-8 empty-section rule). The scope the "+" acts on and the
+                 binding both ride in its title. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column; padding-top: 4px;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e;">Notes</span>
+                </div>
+                <div title="Add a note on all 3 selected nodes (N)" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- SECTION: Selection statistics. RT-8 header, its name alone, then RT-6 rows: the name on the
+                 left, the selection's number and the graph's number in two fixed columns whose captions are the
+                 only labels the block spends.
+                 NO INFO CIRCLE ON THIS HEADER (adversarial finding R2-N05). It carried "Arrows show above or
+                 below the graph average. Highlighted rows differ by more than one standard deviation." while
+                 MultiSelection's circle read "Arrows show whether the selection is above or below the whole-graph
+                 value. A is the pinned card, acct-4471." and FilterBuilderExpert's read that sentence without the
+                 card clause -- one explanation drawn as three strings, which 6.7 forbids: "the same string
+                 appears verbatim wherever it appears". The sentence is deleted rather than reworded to match,
+                 because the spec deletes it by name: 6.9's inspector paragraph makes "a sentence explaining an
+                 affordance the rows already demonstrate, such as 'Arrows show above or below the graph average'"
+                 the worked example of Rule 8's outright deletion, and COMPACTION-1.6 Group D ordered exactly that
+                 for this board; the 1.6 pass re-homed it to a circle instead, which is what left three strings
+                 for one sentence. The rows do demonstrate it: the caption row names the two columns, and the
+                 arrow sits on the selection's 3.3 with the graph's 2.9 beside it (12.2), so the direction is read
+                 off the two numbers. DataTableDrawer already draws this section with the arrows and no circle, so
+                 the circle-free header is the set's existing shape rather than a new one, and the highlight is
+                 unexplained emphasis on all three boards that draw it. Nothing reported is lost -- the row keeps
+                 its own title, "3.3 across the selection, 2.9 across the graph" -- and no floor item was circled
+                 here to begin with.
+                 POP-9: selection statistics stays inline in its two-column form. It becomes a stub row opening a
+                 360 pop-out only when a pin is active or above the selection cap, because that is when the third
+                 column (A, B, Graph, Delta) no longer fits the 256px band. MultiSelection draws that state.
+                 A4: the third column is what buys the door. An A / B / Graph / Delta table does not fit the
+                 256px band, which is width beyond the band and therefore a legal door; the two-column form here
+                 buys none of the three and stays a section. MultiSelection draws the pinned state. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Selection statistics</span>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column;">
+                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px; height: 16px; font-size: 11px; line-height: 1.2; color: #7a828e;">
+                  <span style="width: 48px; text-align: right;">Selection</span>
+                  <span style="width: 36px; text-align: right;">Graph</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 22px; font-size: 11px; line-height: 1.2;">
+                  <span style="flex: 1 1 0; min-width: 0; color: #7a828e;">Nodes</span>
+                  <span style="width: 48px; text-align: right; color: #d5d7da; font-weight: 500;">3</span>
+                  <span style="width: 36px; text-align: right; color: #7a828e;">20</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 22px; font-size: 11px; line-height: 1.2;">
+                  <span style="flex: 1 1 0; min-width: 0; color: #7a828e;">Edges within</span>
+                  <span style="width: 48px; text-align: right; color: #d5d7da; font-weight: 500;">1</span>
+                  <span style="width: 36px; text-align: right; color: #7a828e;">29</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 22px; font-size: 11px; line-height: 1.2;">
+                  <span style="flex: 1 1 0; min-width: 0; color: #7a828e;">Edges to the rest</span>
+                  <span style="width: 48px; text-align: right; color: #d5d7da; font-weight: 500;">8</span>
+                  <span style="width: 36px; text-align: right; color: #7a828e;">--</span>
+                </div>
+                <div title="Average links per node (mean degree): 3.3 across the selection, 2.9 across the graph" style="display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 22px; padding: 0 3px; border-radius: 4px; background: #28364e; font-size: 11px; line-height: 1.2; box-sizing: border-box;">
+                  <span style="flex: 1 1 0; min-width: 0; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Average links per node</span>
+                  <span style="width: 48px; display: inline-flex; align-items: center; justify-content: flex-end; gap: 2px; color: #d5d7da; font-weight: 500;">
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#4a7ee8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="13" x2="8" y2="3"></line><polyline points="4,7 8,3 12,7"></polyline></svg>
+                    <span>3.3</span>
+                  </span>
+                  <span style="width: 36px; text-align: right; color: #7a828e;">2.9</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 22px; font-size: 11px; line-height: 1.2;">
+                  <span style="flex: 1 1 0; min-width: 0; color: #7a828e;">Shared attributes</span>
+                  <span style="width: 48px; text-align: right; color: #d5d7da; font-weight: 500;">2</span>
+                  <span style="width: 36px; text-align: right; color: #7a828e;">8</span>
+                </div>
+                <!-- floor 6: the user's own attribute names and values, whole. -->
+                <div style="height: 20px; font-size: 11px; line-height: 1.8; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">indoorOutdoor = outdoor, group = 1</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ACTIONS, pinned to the bottom edge (5.4), FOUR ROWS AND NO MORE (D4, 1.8). 5.3: the inspector's
+               action block "caps at four rows in every selection state with the remainder in the block's More
+               menu, each verb keeping its full text". What may NEVER move into that More menu: the split
+               button's cost estimate and its scope, because floor item 4 binds an estimate to the control that
+               spends it, and every departure line.
+               Row one is "Around the selection", arriving from the Explore section that D4 deleted: 5.3 and 5.4
+               already assign selection-scoped actions to the inspector. Its Hops (1 to 5, default 1) and Max
+               nodes (default 1,000) leave the tier-3 dialog for a 280 pop-over on this action -- 6.11's first
+               question is a no, nothing commits, and the canvas must stay touchable for the size preview and the
+               ring chip to be worth drawing. The 6.3 pair is kept the way Decision B keeps it: the plain name is
+               the label and "(ego network)" rides in the row's title together with the two defaults, which is
+               where floor item 4 wants them. That pop-over is a dialog replacement, not a door, so it leaves no
+               stub -- nothing was ever resident in this block for a stub to report, and both parameters sit at
+               their defaults, where a printed stub would be the null statement 6.2 forbids and the default Rule
+               7a deletes. That is the door test's second half, and it is armed: the row prints the deviation as
+               a dimmed suffix the moment Hops or Max nodes leaves its default ("3 hops", 6.9 Rule 5), which is
+               how a reader learns from the row that this instance left the default.
+               MEASURED, for the pop-over this row opens: the row is [1177,756 200.7x24] and the inspector's left
+               edge is 1160, so the 280 pop-over takes right edge 1152 -- 1160 less B2's 8px shell-boundary gap,
+               VOCAB 14.8 -- left 872, and bottom 780 on the row's own bottom 780, which is the shared edge line
+               for a bottom-pinned opener. It stands 25px clear of the opener's left edge, inside 6.11's 32px.
+               Its 6px caret sits on the RIGHT edge, pointing back at the inspector, at the row's vertical
+               centre, y 768. Register 11.3 fixes the
+               string as "Around the selection", with no ellipsis, because an ellipsis means a dialog. It is
+               drawn as one enabled row with one Coming tag, because an isolated unshipped control keeps the
+               per-row Coming tag and is drawn enabled (5.8).
+               "Expand neighbors of all" left this block for the More menu, in full text, when the cap took
+               effect; the capability's resident home is now the Explore panel's Neighborhood expansion door row,
+               which reports its depth and type filter before it acts. It kept its words wherever it is drawn,
+               because expand neighbors has no glyph (register 1.6 never list).
+               THE SHIPPED VERBS ARE LABELLED ROWS, NOT A ROW OF GLYPHS. This block drew five bare glyphs plus a
+               bare overflow, in an order that differed at every slot after the first from the order MultiSelection,
+               FilterBuilderExpert, ExplorerExpert and InspectorGenomics drew, so position taught nothing and
+               "Style selection" was a text row on one board and a bare brush here. Three clauses decide it and
+               all three point one way: 6.8's five-homes table gives "Footer or action bar" a maximum of 0 icons
+               and names this block -- "The pinned inspector action block and dialog button rows take no icon-only
+               controls, because that is where the destination and destructive actions live"; 6.8's never list
+               covers "every selection and filter verb"; and 6.9 Rule 2 question 8, which governs, routes a verb to
+               "a text button when it is not [in the register], or when 6.8's never list covers it". The register's
+               section 1.3 drawings are not retired -- they keep the canvas toolbar, section headers, row hovers
+               and menu rows, where a text label sits beside them or the home allows icons -- they lose only the
+               icon-only use in this one block. REGISTER-1.5 section 12.1 records the decision and freezes the
+               order, which is the same order this board already drew: Zoom to selection, Show in table, Style
+               selection, Save selection as set..., Copy ids, More. The packing across the 256px band is forced
+               by one label, not chosen: 12.1's own shape gives a long label the row to itself with More
+               right-aligned beside it, "Save selection as set..." is that label, and Copy ids therefore pairs
+               with Style selection on the row above. No survivor is reflowed into a gap. A board draws the members it has, in that
+               order, and never reflows the survivors.
+               Against the compaction: five labels and one overflow word cost 24 words and 56 px in a block whose
+               inspector column is using 297 of its 800 px, and they are not decoration. Floor item 4 wants what a
+               control will do before it does it, and a brush glyph beside a table glyph does not say "restyle the
+               three cats you have selected". The compaction cut 3,100 words by changing row shapes, not by
+               deleting the names of verbs.
+               ONE VERB PER KIND. "Save selection as set..." is the same string the Sets and actions header carries
+               eight sections above it, and the same pair Main, MultiSelection and DataTableDrawer print for the
+               same control. It read "Save as set..." here, so one kind of saved thing had two save verbs on one
+               board. SAV-2 settles the longer form because "selection" names the source of the set; REGISTER-1.5
+               section 10.6 records it. 10.6's plus is the header's drawing; down here the verb is its words.
+               No info circle on row one: register section 3 asks for one only above a run of three or more
+               dimmed rows, and there is no such run here -- row one is a single unshipped row, drawn enabled and
+               carrying its own Coming tag.
+               The More menu carries these fifteen verbs in full text, twelve of them unshipped, which is also the
+               mandatory twin for anything reached only by menu (6.8, and R4's mitigation for keyboard and touch):
+               Clear selection (Esc) / Invert selection (I) /
+               Pin as A / Filter to selection (Coming) / Save as subgraph... (Coming) / Select neighbors (Shift+E,
+               Coming) / Expand neighbors of all (Coming) / Merge selected nodes... (Coming) / Simulate removing (Coming) / Remove selected
+               (Coming) / Tag... (Coming) / Set attribute on selection... (Coming) / Pin selected positions
+               (Coming) / Layout selected nodes only (Coming) / Pin to report (Coming). -->
+          <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 4px; padding: 6px 8px 8px 16px; border-top: 1px solid #495057; background: #1f2428; box-sizing: border-box;">
+              <div style="display: flex; align-items: center; gap: 4px; height: 32px;">
+                <div title="Around the selection (ego network). Hops 1, Max nodes 1,000. Coming" style="flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Around the selection</div>
+                <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px; height: 24px;">
+                <div title="Zoom to selection (F)" style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #28364e; border: 1px solid #4a7ee8; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Zoom to selection</div>
+                <div title="Show in table (Shift+T)" style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Show in table</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px; height: 24px;">
+                <div title="Style selection" style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Style selection</div>
+                <div title="Copy ids" style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Copy ids</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px; height: 24px;">
+                <div title="Save selection as set..." style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Save selection as set...</div>
+                <div title="More" style="flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">More</div>
+              </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS BAR, 24 tall, full width (spec 5.1). Left to right: counts | Zoom | layout chip | running | viewing |
+       issues chips | selection. Counts read visible of total while the filter is active and this bar owns that
+       fact (MIN-1). Empty slots are display: none. -->
+  <div style="flex: 0 0 24px; height: 24px; display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 0 12px; background: #1f2428; border-top: 1px solid #48525c; box-sizing: border-box; font-size: 11px; line-height: 1.2; color: #7a828e;">
+
+    <!-- COUNTS (never drops). Visible of total while the filter is active; clicking opens the Data table drawer. -->
+    <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+      <span>5 of 20 nodes</span>
+      <span>6 of 29 edges</span>
+    </div>
+    <div style="width: 1px; height: 12px; background: #48525c;"></div>
+
+    <!-- ZOOM (drops 2nd). Fit extent over current extent; click opens Fit, Zoom to selection, 50%, 100%, 200% (5.6). -->
+    <span style="cursor: pointer;">Zoom 100%</span>
+
+    <!-- MIN-8: no mode chip here. The canvas toolbar's [2D | 3D] toggle is the one home for that fact. -->
+    <div style="width: 1px; height: 12px; background: #48525c;"></div>
+
+    <!-- LAYOUT SLOT (name drops 3rd). NAV-12: one chip carries the layout and its state, with a caret because the
+         chip opens the layout menu. Settled: convergence, not the step cap, stopped it. -->
+    <div title="Force directed (ngraph) - settled" style="display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">
+      <span>Force directed - settled</span>
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+    </div>
+
+    <!-- RUNNING SLOT (never drops), EMPTY. -->
+    <div style="display: none; align-items: center; gap: 8px;"></div>
+
+    <!-- VIEWING SLOT (drops 4th), EMPTY. -->
+    <div style="display: none; align-items: center; gap: 8px;"></div>
+
+    <!-- ISSUES SLOT (never drops), EMPTY: no validation warnings, no notes, below the large-graph threshold. -->
+    <div style="display: none; align-items: center; gap: 8px;"></div>
+
+    <div style="flex: 1 1 auto;"></div>
+
+    <!-- MIN-8: no "AI: not configured". An unconfigured assistant is not a status worth a permanent slot; the AI
+         rail item is where that is settled. -->
+
+    <!-- SELECTION-COUNT SLOT: three nodes are selected (5.1, 6.1). -->
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="color: #d5d7da;">3 selected</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

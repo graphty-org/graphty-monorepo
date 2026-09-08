@@ -1,0 +1,61 @@
+id: analyst-alex
+name: Analyst Alex
+role: Intermediate Graph Analyst
+quote: I know there's a pattern here - I just need the right algorithm to prove it.
+bio: Alex is a data analyst with 3 years of experience who regularly works with graph data as part of broader analytical
+  projects. He understands basic graph concepts and has used tools like Gephi and NetworkX, but he's not a specialist.
+  He wants to apply established algorithms to answer specific questions without needing to implement them from scratch
+  or understand every mathematical detail.
+characteristics:
+  expertise: intermediate
+  time_pressure: medium
+  graph_literacy: moderate
+  domain_knowledge: moderate
+motivations:
+  - Answer specific analytical questions with quantitative evidence
+  - Apply appropriate algorithms without needing to implement them from scratch
+  - Produce reports and visualizations that support data-driven decisions
+  - Build graph analysis skills as part of broader analytical toolkit
+  - Balance analytical depth with project time constraints
+behaviors:
+  - Starts with a specific question or hypothesis to investigate
+  - Selects algorithms based on the type of insight needed (centrality, clustering, paths)
+  - Compares algorithm results to validate findings
+  - Adjusts algorithm parameters to tune results for the specific dataset
+  - Exports metrics for use in downstream analysis or reports
+  - References documentation to understand what algorithms do before applying them
+  - Iterates between visualization and metrics to build understanding
+goals:
+  - Quick access to common operations
+  - Reproducible analyses
+  - Regular analysis tasks like centrality and communities
+  - Use specific workflows repeatedly
+frustrations:
+  - Inefficient access to frequent operations
+  - Lack of workflow templates
+  - Too many clicks for common tasks
+  - No way to save analysis patterns
+context:
+  frequency: weekly
+  devices:
+    - desktop
+    - laptop
+  voluntary: true
+workflows:
+  - W01
+  - W02
+  - W03
+  - W04
+  - W05
+  - W12
+  - W15
+  - W17
+  - W18
+  - W19
+sources:
+  - title: Progressive Disclosure - Nielsen Norman Group
+    url: https://www.nngroup.com/articles/progressive-disclosure/
+    summary: Intermediate users need quick access to common operations while specialized options remain discoverable
+  - title: Shneiderman's Visual Information Seeking Mantra
+    url: https://www.cs.umd.edu/~ben/papers/Shneiderman1996eyes.pdf
+    summary: Overview first, zoom and filter, then details-on-demand - foundational UX pattern for data analysis

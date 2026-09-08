@@ -1,0 +1,574 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #5b8ff9; } a:hover { color: #75a5f9; }
+  </style>
+</helmet>
+<!--
+  STATE: the import flow as one machine. This is the only board in the set that draws a transition
+  rather than a resting state: the Import options dialog is one dialog in seven entry states, and the
+  relationship between the five Import boards is not visible from inside any of them (DECISIONS-1.7
+  IMP-3, spec section 9 artboard index).
+  CANVAS TITLE: Import flow.
+  Desktop 1440 by 900, no shell chrome. Spec revision 1.7: 5.3 Data (Import flow, Tables A and B, the
+  composition law, the two numbers, items 0 to 9, the reopen-path table and the Cancel paragraph),
+  6.9 Rule 8 as closed by IMP-1, 6.10 floor items 3, 4, 6 and 7, 6.11.
+
+  NO CANVAS, SO NO TOOLBAR. TB-1 and A1 put the canvas toolbar at the bottom centre of a live canvas
+  rect, 12 above the canvas floor, and stack it over the time slider (82), the Data table drawer
+  (272) and both (342), with the minimap and the legend on its baseline. This board draws no canvas
+  rect, no minimap and no legend, so it draws no toolbar and no bottom stack. Do not add one.
+  REVISION 1.8, C2: the legend now has two obligations -- a canvas obligation and an export
+  obligation -- and this board carries neither, because it draws no canvas and exports no image.
+  Nothing in DECISIONS-1.8 section C fires here.
+
+  NO NEW ICONS AND NO NEW WORDS (IMP-3). Every clause, verb, label, destination and scroll target is
+  copied from spec 5.3, VOCAB.md section 12 and REGISTER-1.5.md word for word; this board is where a
+  reviewer checks that claim. Two registered glyphs are drawn and no third: the 12px disclosure caret,
+  open on the five section headers and closed as the "leads to" mark, and the 8px menu-affordance
+  caret in its up form, the one the canvas toolbar's Views button already draws. Every connector is
+  built from 1px rules rather than from a drawing -- the Ways in arrow is a 1px column under that
+  caret, the dialog's leader lines are 1px divs, and the curve back in is a border-left plus a
+  border-bottom with a 14px bottom-left radius -- so the register gains nothing and every SVG on the
+  board is still a 16px-grid stroke icon. There is no icon-only control here: nothing on this board
+  acts, so nothing needs a title, and the caret's register row says "none on a section header, which
+  carries text".
+
+  THE TRAILING COLUMN IN WAYS IN is Table A's own input names -- format class, anything guessed,
+  graph already loaded, estimated size, the setting -- and not a paraphrase of the clause beside it.
+  Naming the value instead ("above the ceiling" against "above the render ceiling") would have been
+  Rule 8 restating a string 8px to its left; naming the input says which of Table A's six rows
+  decided this clause, which is the one fact the clause does not carry.
+
+  THE TWO NUMBERS sit in Ways in, under rows 5 and 6, not in the header band. Precedence rule 3: a
+  fact may not be separated from the thing it qualifies, and the division of labour between the
+  large-graph threshold and the render ceiling is about those two rows and nothing else.
+
+  ROW TYPES (6.9, closed set of ten, nothing invented). RT-8: the five section headers, name plus the
+  count in the trailing slot. RT-6: the seven trigger rows, the eleven Ways out rows, the seven Ways
+  back in rows and the eight table rows -- all of them carry the user's file names, the fixed clause
+  strings and the scroll targets, which is floor item 7 and floor item 6. RT-9, RT-1 to RT-5, RT-7:
+  none, because nothing on this board is a control, a value or a distribution. RT-10: the composition
+  law in the header band and "Reopening never re-reads the file."
+  The three Ways out captions and the table's column header are Rule 9 doing its job: "Primary" and
+  "Cancel" appear once above their runs instead of once per row.
+
+  THE NINE BANDS, and the detail IMP-3 left open, chosen here. Item 0 has no band because it is drawn
+  where it lives -- inside band 1's title row, as "<file>, <size> -- <entry clause>". The nine bands
+  are therefore items 1 to 9, with item 2 read as its recognition banner (the half of it that is
+  conditional) and its interpretation row travelling with band 1, where item 1 already puts the
+  file's identity. That gives the split IMP-3 names, as 1.8 leaves it: three always-present bands
+  solid (1, 4, 9) and six conditional bands tinted with their render conditions on leader lines
+  (2, 3, 5, 6, 7, 8). Bands 5 and 6 moved in 1.8 under Rule 7a -- every policy and the Load control
+  sit at their defaults, so neither is drawn until this file's own counts or its own size make it a
+  report. Every policy in the product sits at its shipped default, so Rule 7a draws the group only
+  where the file's own counts make it a report rather than a control, and ImportRecognised's three
+  zeros are the case that proves it; the dialog column's trailing count stays "9 items", because the
+  item list is the spec's and a band that does not render is still one of the nine. Band 9 names the
+  footer's shape; Ways out names where each of its verbs lands, so the two do not restate each other
+  (Rule 8).
+
+  REVISION 1.8, B2: a dialog is a FOURTH region for as long as it is open, and a 3b dialog may open
+  one pop-out; that pop-out may not open a second, and Escape closes the pop-out before the dialog.
+  The dialog lane's gap is 8 and its shared edge line is row top to pop-out top. DECISIONS-1.7 POP-3
+  read 6.11's silence about dialogs as a prohibition; the amended reason is that the validation
+  ISSUES stay inline inside Import options because errors there gate the Import button and because
+  the issue list is a scan surface of floor-7 ids -- not because a dialog cannot host a pop-out.
+
+  REVISION 1.8, A3: exactly one click from the row that owns the property. A door may not sit behind
+  another door, and no pop-out may be reached only through a second pop-out. Counted on this board:
+  the column role parameters are one click from the Role chip in band 4; the per-column recognition
+  record is one click from Details in band 2; the item-3 picker's per-option settings anchor to the
+  chosen card and are one click from it. Where the owning row does not exist yet the create click is
+  charged to 6.1, not to this obligation.
+
+  THE EIGHT TABLE ROWS. Table B has nine rows; this board draws eight, one example file each, and
+  drops row 3 because its only difference from row 5 is the banner and row 5 draws the banner. The
+  eight include the two rows no board draws, as IMP-3 requires: row 2, "always show import options is
+  on", whose dialog is identical to one already drawn, and row 7, between the two numbers, which is a
+  dialog with nothing special on it. Two example files are new here -- karate-club.gml for the
+  setting-on row and citations-2026.csv for the between-the-numbers row -- because no board in the
+  set carries a file in either state; the other six are the files their own boards already name.
+
+  THE TIE-BREAK, DRAWN. The seven clauses run top to bottom in the spec's list order and the arrow up
+  the left edge says the list is evaluated from the end. That is the correction IMP-1 found:
+  ImportOptions has a guessed type column, "guessed column" sits later than "delimited file", so it
+  takes "guessed column" -- and ImportLargeFile's "above the render ceiling" beats "above the
+  large-graph threshold", "guessed column" and "delimited file", all of which also matched.
+
+  STALE REFERENCE HONOURED (IMP-3). ExplorerSubset.dc.html does not exist in the canvas directory, so
+  the two ceiling paths in Ways out read "not drawn" and cite no file. ImportParseError.dc.html and
+  the boards named in the table's last column are the five drawn entry states.
+
+  Palette: ground #161b22, cards #1f2428, solid bands #2a3035, band border #374047, card and
+  connector border #48525c, section divider #495057, primary chip #4a7ee8 on #ffffff, text #d5d7da,
+  reading #a3a8b1, dimmed #7a828e, disabled #5f6873. See VOCAB.md.
+-->
+<div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; gap: 14px; padding: 16px; background: #161b22; color: #d5d7da; overflow: hidden; box-sizing: border-box; font-size: 12px; line-height: 1.4;">
+
+  <!-- HEADER BAND. The board's name, the tint legend that reads THE DIALOG, and the composition law
+       (RT-10) that the two tables in 5.3 cannot carry. -->
+  <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 4px;">
+    <div style="display: flex; align-items: baseline; gap: 8px;">
+      <span style="flex: 0 0 auto; font-size: 14px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Import flow</span>
+      <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">one dialog, seven entry states -- 5.3 Data, items 0 to 9</span>
+      <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 16px;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <div style="width: 28px; height: 16px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box;"></div>
+          <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">drawn in every state</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <div style="width: 28px; height: 16px; border-radius: 4px; background: transparent; border: 1px solid #374047; box-sizing: border-box;"></div>
+          <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">drawn on its condition</span>
+        </div>
+      </div>
+    </div>
+    <div style="font-size: 12px; line-height: 1.5; color: #a3a8b1;">Conditions combine and do not exclude one another. A recognised export above the ceiling draws the banner, the warning and the pre-selected subset, and takes the ceiling's clause.</div>
+  </div>
+
+  <!-- THE THREE COLUMNS: Ways in -> The dialog -> Ways out. -->
+  <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row; gap: 10px; align-items: stretch;">
+
+    <!-- ===== WAYS IN ===== -->
+    <div style="flex: 0 0 392px; width: 392px; display: flex; flex-direction: column; background: #1f2428; border: 1px solid #48525c; border-radius: 4px; overflow: hidden; box-sizing: border-box;">
+      <div style="flex: 0 0 32px; height: 32px; display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid #495057; box-sizing: border-box;">
+        <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+        </div>
+        <span style="flex: 1 1 auto; min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Ways in</span>
+        <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">7</span>
+      </div>
+      <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 6px 12px 8px; box-sizing: border-box; overflow: hidden;">
+        <div style="display: flex; flex-direction: row; gap: 8px; align-items: flex-start;">
+          <div style="flex: 0 0 16px; width: 16px; height: 220px; display: flex; flex-direction: column; align-items: center;">
+            <div style="flex: 0 0 8px; width: 8px; height: 8px; display: flex; align-items: center; justify-content: center; color: #48525c;"><svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 8,5 13,10"></polyline></svg></div>
+            <div style="flex: 1 1 auto; width: 1px; background: #48525c;"></div>
+          </div>
+          <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+            <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 4px; border-radius: 4px; box-sizing: border-box;">
+              <span style="flex: 1 1 auto; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">delimited file</span>
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">format class</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 4px; border-radius: 4px; box-sizing: border-box;">
+              <span style="flex: 1 1 auto; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">guessed column</span>
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">anything guessed</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 4px; border-radius: 4px; box-sizing: border-box;">
+              <span style="flex: 1 1 auto; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">parse error</span>
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">format class</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 4px; border-radius: 4px; box-sizing: border-box;">
+              <span style="flex: 1 1 auto; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">second file, data already loaded</span>
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">graph already loaded</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 4px; border-radius: 4px; box-sizing: border-box;">
+              <span style="flex: 1 1 auto; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">above the large-graph threshold</span>
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">estimated size</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 4px; border-radius: 4px; box-sizing: border-box;">
+              <span style="flex: 1 1 auto; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">above the render ceiling</span>
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">estimated size</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 4px; border-radius: 4px; box-sizing: border-box;">
+              <span style="flex: 1 1 auto; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">always show import options is on</span>
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">the setting</span>
+            </div>
+          </div>
+        </div>
+        <div style="padding-left: 24px; font-size: 11px; line-height: 1.4; color: #7a828e;">Table A decides; evaluated from the end, first match wins</div>
+        <div style="padding-left: 24px; font-size: 11px; line-height: 1.4; color: #7a828e;">Crossing the large-graph threshold opens the dialog and turns on Performance mode after import. Crossing the render ceiling additionally pre-selects a subset, draws the departure line and relabels the primary when Everything is chosen.</div>
+      </div>
+    </div>
+
+    <!-- ===== THE DIALOG ===== -->
+    <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; background: #1f2428; border: 1px solid #48525c; border-radius: 4px; overflow: hidden; box-sizing: border-box;">
+      <div style="flex: 0 0 32px; height: 32px; display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid #495057; box-sizing: border-box;">
+        <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+        </div>
+        <span style="flex: 1 1 auto; min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">The dialog</span>
+        <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">9 items</span>
+      </div>
+      <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row; gap: 0; padding: 6px 12px 8px; box-sizing: border-box; overflow: hidden;">
+
+        <!-- the reduced dialog outline, 720 frame at rest -->
+        <div style="flex: 0 0 256px; width: 256px; align-self: flex-start; display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid #48525c; border-radius: 8px; box-sizing: border-box;">
+          <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box;">
+            <span style="flex: 0 0 10px; font-size: 11px; line-height: 1; color: #7a828e;">1</span>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Title row, summary, interpretation</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #374047; box-sizing: border-box;">
+            <span style="flex: 0 0 10px; font-size: 11px; line-height: 1; color: #7a828e;">2</span>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Recognition banner</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #374047; box-sizing: border-box;">
+            <span style="flex: 0 0 10px; font-size: 11px; line-height: 1; color: #7a828e;">3</span>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">What to do with this file</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box;">
+            <span style="flex: 0 0 10px; font-size: 11px; line-height: 1; color: #7a828e;">4</span>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Preview grid</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #374047; box-sizing: border-box;">
+            <span style="flex: 0 0 10px; font-size: 11px; line-height: 1; color: #7a828e;">5</span>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Policies</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #374047; box-sizing: border-box;">
+            <span style="flex: 0 0 10px; font-size: 11px; line-height: 1; color: #7a828e;">6</span>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Load</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #374047; box-sizing: border-box;">
+            <span style="flex: 0 0 10px; font-size: 11px; line-height: 1; color: #7a828e;">7</span>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Parsing</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #374047; box-sizing: border-box;">
+            <span style="flex: 0 0 10px; font-size: 11px; line-height: 1; color: #7a828e;">8</span>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Error block</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box;">
+            <span style="flex: 0 0 10px; font-size: 11px; line-height: 1; color: #7a828e;">9</span>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Footer: Cancel, note, primary</span>
+          </div>
+        </div>
+
+        <!-- leader lines out of the six tinted bands and the one door in band 4, each carrying its
+             render condition or its destination. The lane is 194 wide, so these spans wrap rather
+             than ellipsize: two lines clear the 28px row, and band 2's three lines rise into the
+             empty slot opposite band 1. Every stub still sits on its own band's centre line. -->
+        <div style="flex: 1 1 auto; min-width: 0; align-self: flex-start; display: flex; flex-direction: column; gap: 4px; padding: 7px 0 0 0; box-sizing: border-box;">
+          <div style="height: 28px;"></div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 28px;">
+            <div style="flex: 0 0 20px; width: 20px; height: 1px; background: #48525c;"></div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: normal;">a known export signature matched -- Details holds the full per-column record</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 28px;">
+            <div style="flex: 0 0 20px; width: 20px; height: 1px; background: #48525c;"></div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: normal;">a graph is already loaded</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 28px;">
+            <div style="flex: 0 0 20px; width: 20px; height: 1px; background: #48525c;"></div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: normal;">Role chip -- column role parameters, 280, dialog lane</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 28px;">
+            <div style="flex: 0 0 20px; width: 20px; height: 1px; background: #48525c;"></div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: normal;">a policy has a non-zero count in this file</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 28px;">
+            <div style="flex: 0 0 20px; width: 20px; height: 1px; background: #48525c;"></div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: normal;">the size crosses a number, or Load is not Everything</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 28px;">
+            <div style="flex: 0 0 20px; width: 20px; height: 1px; background: #48525c;"></div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: normal;">CSV, TSV or pasted text</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 28px;">
+            <div style="flex: 0 0 20px; width: 20px; height: 1px; background: #48525c;"></div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: normal;">a row cannot be read</span>
+          </div>
+          <div style="height: 28px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== WAYS OUT ===== -->
+    <div style="flex: 0 0 492px; width: 492px; display: flex; flex-direction: column; background: #1f2428; border: 1px solid #48525c; border-radius: 4px; overflow: hidden; box-sizing: border-box;">
+      <div style="flex: 0 0 32px; height: 32px; display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid #495057; box-sizing: border-box;">
+        <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+        </div>
+        <span style="flex: 1 1 auto; min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Ways out</span>
+        <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">7 verbs</span>
+      </div>
+      <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 4px; padding: 6px 12px 6px; box-sizing: border-box; overflow: hidden;">
+
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="height: 16px; display: flex; align-items: center; font-size: 11px; font-weight: 500; line-height: 1; color: #7a828e;">Primary -- nothing loaded</div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
+            <div style="flex: 0 0 auto; display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; box-sizing: border-box;">Import</div>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Loaded; the whole file is drawn</span>
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">Main</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
+            <div style="flex: 0 0 auto; display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; box-sizing: border-box;">Import everything anyway</div>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Loaded above the ceiling</span>
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">not drawn</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
+            <div style="flex: 0 0 auto; display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; box-sizing: border-box;">Skip 4 rows and import</div>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Loaded without the 4 bad rows</span>
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">not drawn</span>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="height: 16px; display: flex; align-items: center; font-size: 11px; font-weight: 500; line-height: 1; color: #7a828e;">Primary -- a graph is loaded, following the item 3 picker</div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
+            <div style="flex: 0 0 auto; display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; box-sizing: border-box;">Add</div>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Matched 143 existing nodes, added 57</span>
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">DataPanelLoaded</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
+            <div style="flex: 0 0 auto; display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; box-sizing: border-box;">Replace current graph</div>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">The current graph is replaced</span>
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">not drawn</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
+            <div style="flex: 0 0 auto; display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; box-sizing: border-box;">Add attributes</div>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Attach mode</span>
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">TableJoin</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
+            <div style="flex: 0 0 auto; display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; box-sizing: border-box;">Open comparison</div>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Compare mode</span>
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">CompareSplit</span>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="height: 16px; display: flex; align-items: center; font-size: 11px; font-weight: 500; line-height: 1; color: #7a828e;">Cancel, Escape and the title-row X -- one action</div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">nothing was loaded</span>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">the file is abandoned; Empty, and not in Recent</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">a graph is loaded</span>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">closes and changes nothing</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">a reopen with edits</span>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Discard the changes to the mapping? Discard / Keep editing</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">a parse error</span>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">the only exit, and never disabled</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== WAYS BACK IN ===== -->
+  <div style="flex: 0 0 auto; display: flex; flex-direction: column; background: #1f2428; border: 1px solid #48525c; border-radius: 4px; overflow: hidden; box-sizing: border-box;">
+    <div style="flex: 0 0 32px; height: 32px; display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid #495057; box-sizing: border-box;">
+      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+      </div>
+      <span style="flex: 1 1 auto; min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Ways back in</span>
+      <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">7 paths, each with its scroll target</span>
+    </div>
+    <div style="flex: 0 0 auto; display: flex; flex-direction: row; gap: 12px; padding: 6px 12px 8px; box-sizing: border-box;">
+      <div style="flex: 0 0 40px; width: 40px; height: 100px; display: flex; flex-direction: column;">
+        <div style="flex: 0 0 8px; height: 8px; display: flex; flex-direction: row; align-items: center;">
+          <div style="flex: 0 0 8px; width: 8px;"></div>
+          <div style="flex: 0 0 8px; width: 8px; height: 8px; display: flex; align-items: center; justify-content: center; color: #48525c;"><svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 8,5 13,10"></polyline></svg></div>
+        </div>
+        <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row;">
+          <div style="flex: 0 0 12px; width: 12px;"></div>
+          <div style="flex: 1 1 auto; min-width: 0; border-left: 1px solid #48525c; border-bottom: 1px solid #48525c; border-bottom-left-radius: 14px; box-sizing: border-box;"></div>
+        </div>
+      </div>
+      <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 20px;">
+          <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #d5d7da;">A mapping field on a Loaded data line</span>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">that role's column header, its Role chip focused</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #d5d7da;">The Insights card "Load the full graph"</span>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">the Load control, Everything focused</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #d5d7da;">The "Mapped as before" toast</span>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">the grid, top</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #d5d7da;">Step 3 "Compare with current graph"</span>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">the picker, Compare selected</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #d5d7da;">The Data tier 3 list</span>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">the dialog top</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #d5d7da;">Import as "Add attributes from a table"</span>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">the picker, Attach selected</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #d5d7da;">The command palette</span>
+            <div style="flex: 0 0 12px; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; color: #5f6873;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+            </div>
+            <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">"Import options" at the top; "Change the column mapping" scrolled to the grid</span>
+          </div>
+          <div style="height: 22px;"></div>
+        </div>
+        <div style="font-size: 11px; line-height: 1.4; color: #7a828e;">Reopening never re-reads the file. That sentence is about parsing, not about the edits the Cancel confirm governs.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== DECISION TABLE (5.3 Table B, eight of its nine rows, one example file each) ===== -->
+  <div style="flex: 0 0 auto; display: flex; flex-direction: column; background: #1f2428; border: 1px solid #48525c; border-radius: 4px; overflow: hidden; box-sizing: border-box;">
+    <div style="flex: 0 0 32px; height: 32px; display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid #495057; box-sizing: border-box;">
+      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+      </div>
+      <span style="flex: 1 1 auto; min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Decision table</span>
+      <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">8 of the 9 rows in 5.3 Table B</span>
+    </div>
+    <div style="flex: 0 0 auto; display: grid; grid-template-columns: 20px 186px 220px 88px 54px 54px 146px 358px 140px; gap: 0 12px; align-items: center; padding: 4px 12px 8px; box-sizing: border-box;">
+
+      <span style="font-size: 11px; line-height: 22px; color: #7a828e;">#</span>
+      <span style="font-size: 11px; line-height: 22px; color: #7a828e;">Example file</span>
+      <span style="font-size: 11px; line-height: 22px; color: #7a828e;">Winning clause</span>
+      <span style="font-size: 11px; line-height: 22px; color: #7a828e;">Dialog</span>
+      <span style="font-size: 11px; line-height: 22px; color: #7a828e;">Banner</span>
+      <span style="font-size: 11px; line-height: 22px; color: #7a828e;">Picker</span>
+      <span style="font-size: 11px; line-height: 22px; color: #7a828e;">Load default</span>
+      <span style="font-size: 11px; line-height: 22px; color: #7a828e;">Primary button</span>
+      <span style="font-size: 11px; line-height: 22px; color: #7a828e;">Board drawn (5 of 7)</span>
+
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">1</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">cat-social-network.json, 12 KB</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">none</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">no</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">no</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">no</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">Everything</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">none</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">none -- it loads</span>
+
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">2</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">karate-club.gml, 4 KB</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">always show import options is on</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">yes</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">no</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">no</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">Everything</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">Import</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">not drawn</span>
+
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">4</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">fraud-ring-synthetic.csv, 38 KB</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">guessed column</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">yes</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">no</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">no</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">Everything</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">Import</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">ImportOptions</span>
+
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">5</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">ovarian_de_string.tsv, 212 KB</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">delimited file</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">yes</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">yes</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">no</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">Everything</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">Import</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">ImportRecognised</span>
+
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">6</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">malformed-export.csv, 1.2 MB</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">parse error</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">yes</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">no</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">no</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">Everything</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">Import, disabled, with Skip 4 rows and import beside it</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">ImportParseError</span>
+
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">7</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">citations-2026.csv, 180 MB</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">above the large-graph threshold</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">yes</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">no</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">no</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">Everything</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">Import</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">not drawn</span>
+
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">8</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">netflow-2026-q2.csv, 3.2 GB</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">above the render ceiling</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">yes</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">no</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">no</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">Busiest nodes 50,000</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">Import, or Import everything anyway when Everything is chosen</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">ImportLargeFile</span>
+
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">9</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">devices-batch2.csv, 8 KB</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">second file, data already loaded</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">yes, at item 3</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">no</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">yes</span>
+      <span style="font-size: 11px; line-height: 23px; color: #7a828e;">Everything</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">Add / Replace current graph / Add attributes / Open comparison</span>
+      <span style="font-size: 11px; line-height: 23px; color: #d5d7da;">ImportAddToGraph</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

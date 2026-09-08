@@ -1,0 +1,131 @@
+id: button-interaction
+name: Button Interaction
+description: Interaction pattern for clickable buttons including primary, secondary, icon-only (ActionIcon), and close
+  buttons. Based on Material Design 3 state layers with compact-mantine adaptations.
+interaction:
+  states:
+    - type: default
+      name: default
+      description: Normal resting state with 0% overlay
+      style:
+        background: "{colors.semantic.surface}"
+        opacity: 1
+        cursor: pointer
+      combinable: true
+    - type: hover
+      name: hover
+      description: Mouse pointer over button with 8% overlay
+      style:
+        background: "{colors.semantic.interactive_hover}"
+        cursor: pointer
+      combinable: true
+    - type: focus
+      name: focus
+      description: Keyboard focus via Tab with 12% overlay and focus ring
+      style:
+        outline: 2px solid {colors.semantic.focus_ring}
+        cursor: pointer
+      combinable: true
+    - type: active
+      name: active
+      description: Button being pressed with 12% overlay and slight scale
+      style:
+        background: "{colors.semantic.interactive_active}"
+        cursor: pointer
+      combinable: false
+    - type: disabled
+      name: disabled
+      description: Button cannot be interacted with, 38% opacity
+      style:
+        background: "{colors.neutral.600}"
+        opacity: 0.38
+        cursor: not-allowed
+      combinable: false
+    - type: loading
+      name: loading
+      description: Action in progress, shows spinner
+      style:
+        cursor: wait
+      combinable: false
+  transitions:
+    - from: default
+      to: hover
+      trigger: mouseenter
+      reversible: true
+    - from: hover
+      to: default
+      trigger: mouseleave
+      reversible: true
+    - from: default
+      to: focus
+      trigger: focus
+      reversible: true
+    - from: focus
+      to: default
+      trigger: blur
+      reversible: true
+    - from: hover
+      to: active
+      trigger: mousedown
+      reversible: true
+    - from: default
+      to: active
+      trigger: mousedown
+      reversible: true
+    - from: active
+      to: hover
+      trigger: mouseup
+      reversible: true
+    - from: default
+      to: loading
+      trigger: programmatic
+      reversible: true
+  microinteractions:
+    - id: press-feedback
+      name: Press Feedback
+      trigger:
+        type: click
+      rules:
+        - "transform: scale(0.98) over {motion.durations.fastest}"
+      feedback:
+        - type: visual
+          description: Visual compression indicating press registered
+    - id: ripple-effect
+      name: Ripple Effect
+      trigger:
+        type: click
+      rules:
+        - Expanding radial gradient from click position over {motion.durations.slow}
+      feedback:
+        - type: motion
+          description: Expanding ripple from click point
+      accessibility: {}
+    - id: loading-spinner
+      name: Loading Spinner
+      trigger:
+        type: custom
+      rules:
+        - "transform: rotate(360deg) infinite over {motion.durations.slowest}"
+      feedback:
+        - type: visual
+          description: Rotating spinner replaces content
+        - type: text
+          description: "Screen reader announces: Loading, please wait"
+  accessibility:
+    keyboard:
+      focusable: true
+      shortcuts:
+        - key: Enter
+          action: activate
+        - key: Space
+          action: activate
+    aria:
+      role: button
+applies_to:
+  - button
+  - control
+  - navigation
+sources: []
+version: 1.0.0
+created_at: 2026-01-15T18:30:37.325Z
+updated_at: 2026-01-15T18:30:37.325Z

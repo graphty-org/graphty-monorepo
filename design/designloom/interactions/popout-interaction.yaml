@@ -1,0 +1,84 @@
+id: popout-interaction
+name: Popout Interaction
+description: Interaction pattern for floating overlay content including Popovers, Tooltips, Dropdowns, Color Pickers,
+  and the compact-mantine Popout compound component.
+interaction:
+  states:
+    - type: collapsed
+      name: closed
+      description: Popout panel is hidden
+      style: {}
+      combinable: false
+    - type: expanded
+      name: open
+      description: Popout panel visible
+      style: {}
+      combinable: false
+    - type: hover
+      name: trigger-hover
+      description: Mouse over trigger
+      style:
+        cursor: pointer
+      combinable: true
+    - type: focus
+      name: trigger-focus
+      description: Keyboard focus
+      style:
+        outline: 2px solid {colors.semantic.focus_ring}
+      combinable: true
+  transitions:
+    - from: collapsed
+      to: expanded
+      trigger: click
+      reversible: true
+    - from: expanded
+      to: collapsed
+      trigger: escape
+      reversible: true
+    - from: default
+      to: hover
+      trigger: mouseenter
+      reversible: true
+    - from: default
+      to: focus
+      trigger: focus
+      reversible: true
+  microinteractions:
+    - id: scale-fade-in
+      name: Scale Fade In
+      trigger:
+        type: click
+      rules:
+        - scale 0.95 to 1 over {motion.durations.fast}
+      feedback:
+        - type: motion
+          description: Panel grows from trigger
+    - id: scale-fade-out
+      name: Scale Fade Out
+      trigger:
+        type: click
+      rules:
+        - scale 1 to 0.95 over {motion.durations.fast}
+      feedback:
+        - type: motion
+          description: Panel shrinks
+  accessibility:
+    keyboard:
+      focusable: true
+      shortcuts:
+        - key: Enter
+          action: open
+        - key: Escape
+          action: close
+        - key: Tab
+          action: focus_within
+    aria:
+      role: button
+applies_to:
+  - dialog
+  - control
+  - utility
+sources: []
+version: 1.0.0
+created_at: 2026-01-15T18:33:46.443Z
+updated_at: 2026-01-15T18:33:46.443Z

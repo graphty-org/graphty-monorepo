@@ -1,0 +1,40 @@
+id: metric-histograms
+name: Metric Distribution Charts
+category: visualization
+description: Display histograms and distribution charts for any numeric node or edge attribute, enabling statistical
+  understanding of graph properties.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W01
+  - W03
+  - W04
+  - W10
+  - W12
+implemented_by_components:
+  - histogram
+requirements:
+  - Generate histogram for any numeric node attribute with automatic bin count (Sturges' formula)
+  - Allow manual bin count override from 5 to 100 bins
+  - Display mean value as vertical line on histogram
+  - Display median value as vertical line on histogram (distinct style from mean)
+  - Display standard deviation as shaded region around mean
+  - Display min, max, mean, median, and std dev as text statistics below chart
+  - "Identify distribution shape: normal, power-law, bimodal, uniform, or unknown"
+  - Provide log-scale toggle for x-axis to visualize power-law distributions
+  - Provide log-scale toggle for y-axis to visualize long-tail frequencies
+  - Support clicking histogram bar to select all nodes in that bin's range
+  - Support shift-clicking to add bin's nodes to current selection
+  - Support brush selection across multiple bars to select range
+  - Overlay up to 3 distributions on same chart for comparison with distinct colors
+  - Export chart as PNG image at 2x resolution for print quality
+  - Export chart data as CSV with bin edges and counts
+  - Update histogram within 500ms when filters change the visible graph
+  - Display 'Insufficient data' message when fewer than 10 data points available
+sources:
+  - title: Power Law Detection in Networks
+    url: https://arxiv.org/abs/0706.1062
+    summary: Degree distribution analysis to identify scale-free networks
+  - title: Gephi Statistics Panel
+    url: https://gephi.org/users/
+    summary: Distribution visualization for network metrics

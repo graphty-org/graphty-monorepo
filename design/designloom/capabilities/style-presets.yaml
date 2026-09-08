@@ -1,0 +1,34 @@
+id: style-presets
+name: Visual Style Presets
+category: export
+description: Save and apply consistent visual styling (colors, sizes, fonts) for professional output. Provide built-in
+  presets for different contexts (presentation, print, colorblind-safe) and allow custom presets.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W15
+implemented_by_components:
+  - visual-encoding-panel
+requirements:
+  - Provide 'Default' preset with balanced colors and sizes for general use
+  - Provide 'Presentation' preset with larger nodes (1.5x), bolder edges, larger labels (18px+)
+  - Provide 'Print' preset optimized for grayscale printing with pattern differentiation
+  - Provide 'Dark Mode' preset with light elements on dark background
+  - Provide 'Colorblind Safe' preset using ColorBrewer colorblind-friendly palette
+  - Provide 'High Contrast' preset for accessibility with maximum contrast ratios
+  - "Store preset settings: node size range, edge width range, label font/size, color palettes"
+  - "Store preset settings: background color, selection highlight color, hover effects"
+  - Apply preset with single click from preset dropdown menu
+  - Preview preset effect on hover before applying
+  - Allow saving current style configuration as custom preset with user-defined name
+  - Support up to 10 custom presets per user
+  - Provide 'Reset to Default' option for custom presets
+  - Provide 'Delete' option for custom presets (built-in presets cannot be deleted)
+  - Export presets as JSON file for sharing
+  - Import presets from JSON file with validation
+  - Apply preset changes immediately with smooth 200ms transition animation
+  - Persist selected preset preference across sessions
+sources:
+  - title: W15 Findings Communication
+    url: https://graphty.app/docs/
+    summary: Style management - apply consistent styling

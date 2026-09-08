@@ -1,0 +1,36 @@
+id: selection-statistics
+name: Selection Statistics
+category: analysis
+description: Display aggregate statistics for selected nodes compared to the overall graph, enabling quick assessment of
+  how a subset differs from the whole.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W12
+  - W17
+implemented_by_components:
+  - metric-card
+requirements:
+  - Display count of selected nodes
+  - Display count of edges among selected nodes (induced subgraph edges)
+  - Display count of edges connecting selected to unselected nodes (cut edges)
+  - Calculate mean, median, min, max for each numeric attribute of selected nodes
+  - Calculate value distribution (percentages) for each categorical attribute of selected nodes
+  - Display selection statistics alongside whole-graph statistics for comparison
+  - Highlight metrics where selection differs from graph by >1 standard deviation
+  - Display 'Above average' or 'Below average' indicator for each compared metric
+  - Update statistics within 200ms as selection changes
+  - Display mini-histogram comparing selection distribution to graph distribution for numeric attributes
+  - Support comparing two simultaneous selections (Selection A vs Selection B)
+  - Display statistical significance (p-value) for differences when selection size > 30
+  - "Export selection statistics as CSV with columns: attribute, selection_value, graph_value, difference"
+  - Display 'Selection empty' message when no nodes are selected
+  - Display 'Selection too small for statistics' when fewer than 3 nodes selected
+  - Support pinning statistics snapshot to compare against future selections
+sources:
+  - title: Gephi Data Laboratory
+    url: https://gephi.org/users/
+    summary: Selection-based statistics for node subset analysis
+  - title: Cytoscape Select Panel
+    url: https://manual.cytoscape.org/
+    summary: Selection statistics pattern in network analysis tools

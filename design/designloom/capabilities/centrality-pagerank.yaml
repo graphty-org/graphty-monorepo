@@ -1,0 +1,36 @@
+id: centrality-pagerank
+name: PageRank Centrality
+category: analysis
+description: Calculate PageRank - a prestige-based centrality where a node's importance depends on the importance of
+  nodes pointing to it. Originally developed for web search, useful for directed networks where being referenced by
+  important nodes matters.
+status: planned
+algorithms:
+  - PageRank
+  - Power iteration
+used_by_workflows:
+  - W03
+  - W10
+implemented_by_components:
+  - algorithm-card
+  - algorithm-panel
+requirements:
+  - Implement PageRank using power iteration method
+  - Provide damping factor parameter adjustable from 0.5 to 0.99 (default 0.85)
+  - Provide convergence threshold parameter adjustable from 1e-4 to 1e-8 (default 1e-6)
+  - Provide maximum iterations parameter adjustable from 100 to 10000 (default 1000)
+  - Handle sink nodes (no outgoing edges) by distributing their rank equally to all nodes
+  - Handle self-loops by including them in outlink count
+  - Normalize results so sum of all PageRank scores equals 1.0
+  - Store result with 8 decimal places precision
+  - Report 'Did not converge' warning if max iterations reached without convergence
+  - Report actual number of iterations used
+  - Complete calculation within 5 seconds for graphs under 100,000 nodes
+  - Rank nodes by PageRank in descending order
+  - Display top-10 nodes by PageRank in results panel
+  - Store result as node attribute named 'pagerank'
+  - Support personalized PageRank with configurable source node set
+sources:
+  - title: Graph Analysis Textbook - Chapter 6
+    url: https://graphty.app/docs/
+    summary: PageRank models random surfer and prestige

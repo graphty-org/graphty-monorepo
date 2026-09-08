@@ -1,0 +1,40 @@
+id: saved-filters
+name: Saved Filters
+category: interaction
+description: Save, name, and reuse filter and search configurations, enabling efficient repeated analysis and
+  pattern-based workflows.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W07
+  - W06
+  - W09
+  - W12
+implemented_by_components:
+  - filter-chip
+  - filter-panel
+requirements:
+  - Save current filter configuration with user-provided name (1-50 characters)
+  - Save filter description field (optional, up to 200 characters)
+  - "Store all active filter criteria: attribute filters, range values, structural filters"
+  - Display saved filters list sorted by most recently used
+  - Apply saved filter with single click, restoring all filter criteria
+  - Display filter criteria summary in saved filter list item
+  - Provide 'Edit' action to modify saved filter name, description, or criteria
+  - "Provide 'Delete' action with confirmation: 'Delete filter [name]?'"
+  - Provide 'Duplicate' action to create copy of saved filter for modification
+  - Export saved filters as JSON file via 'Export' button
+  - Import saved filters from JSON file via 'Import' button
+  - Validate imported filters against current graph schema; warn on incompatible attributes
+  - "Support combining saved filters: 'Apply Filter A AND Filter B'"
+  - Display indicator icon next to currently active saved filter
+  - Persist saved filters in browser localStorage
+  - Sync saved filters to user account when logged in (if auth available)
+  - Limit saved filters to 50 per user; display warning at 45
+sources:
+  - title: Splunk Saved Searches
+    url: https://docs.splunk.com/Documentation/Splunk/latest/Search/Savingsearches
+    summary: Pattern for saving and reusing search configurations
+  - title: MITRE ATT&CK Detection Patterns
+    url: https://attack.mitre.org/
+    summary: Reusable threat patterns for security analysis workflows

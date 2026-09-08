@@ -1,0 +1,38 @@
+id: node-details-panel
+name: Node Details Panel
+category: display
+description: Side panel displaying detailed information about a selected node. Shows all attributes, computed metrics,
+  and related actions.
+status: planned
+implements_capabilities:
+  - details-on-demand
+used_in_workflows:
+  - W02
+  - W05
+  - W06
+  - W09
+  - W13
+  - W17
+  - W12
+dependencies:
+  - attribute-row
+  - metric-card
+  - button
+  - divider
+  - icon-button
+props:
+  node: Node - Selected node data
+  metrics: Record<string, number> - Computed metrics for node
+  onClose: () => void - Close panel handler
+  onExpandNeighbors: () => void - Expand neighborhood handler
+  onFindPaths: () => void - Find paths from this node handler
+sources:
+  - title: Details on Demand Pattern
+    url: https://www.cs.umd.edu/~ben/papers/Shneiderman1996eyes.pdf
+    summary: Shneiderman's Visual Information Seeking Mantra - overview first, zoom/filter, details on demand
+  - title: Card-Based UI Design
+    url: https://www.nngroup.com/articles/cards-component/
+    summary: Using cards to present entity details in a scannable format
+version: 1.0.1
+created_at: 2026-01-16T04:01:27.017Z
+updated_at: 2026-01-16T16:40:38.085Z

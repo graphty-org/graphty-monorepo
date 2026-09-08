@@ -1,0 +1,37 @@
+id: centrality-degree
+name: Degree Centrality
+category: analysis
+description: Calculate degree centrality - the simplest measure of node importance based on the number of connections.
+  High-degree nodes are well-connected and may have influence through direct reach. Used in >90% of graph analysis
+  projects.
+status: planned
+algorithms:
+  - Degree centrality
+used_by_workflows:
+  - W03
+  - W08
+  - W09
+  - W10
+  - W17
+implemented_by_components:
+  - algorithm-card
+  - algorithm-panel
+requirements:
+  - Calculate raw degree (edge count) for each node as integer
+  - Calculate normalized degree as degree / (n-1) with 4 decimal places
+  - Calculate in-degree for directed graphs as count of incoming edges
+  - Calculate out-degree for directed graphs as count of outgoing edges
+  - Calculate total degree for directed graphs as in-degree + out-degree
+  - Calculate weighted degree as sum of edge weights for weighted graphs
+  - Provide toggle between unweighted and weighted degree calculation
+  - Rank nodes by degree in descending order
+  - Display top-10 nodes by degree in results panel
+  - Store degree as node attribute named 'degree' (or 'in_degree', 'out_degree' for directed)
+  - Allow using degree for visual encoding (size, color) immediately after calculation
+  - Complete calculation within 500ms for graphs under 100,000 nodes
+  - Handle isolated nodes (degree 0) without error
+  - "Report degree distribution statistics: mean, median, std dev, skewness"
+sources:
+  - title: Graph Analysis Textbook - Chapter 6
+    url: https://graphty.app/docs/
+    summary: Centrality and Influence - Degree centrality measures direct connectivity

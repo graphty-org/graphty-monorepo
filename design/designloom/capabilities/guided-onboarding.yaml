@@ -1,0 +1,31 @@
+id: guided-onboarding
+name: Guided Onboarding
+category: interaction
+description: Guide new users through their first experience with the tool. Provide interactive hints, suggested actions,
+  and contextual help to build confidence without requiring prior graph analysis knowledge.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W14
+implemented_by_components:
+  - onboarding-wizard
+requirements:
+  - Display welcome modal on first launch with 'Get Started' and 'Skip Tour' buttons
+  - Provide 5-7 step interactive tour highlighting key UI elements
+  - Highlight each UI element with spotlight effect (dim surrounding area)
+  - Display tooltip adjacent to highlighted element with 1-2 sentence explanation
+  - Provide 'Next', 'Back', and 'Skip' navigation within tour
+  - Suggest loading sample dataset as first action for users without data
+  - Display contextual hints (e.g., 'Try zooming with scroll wheel') on first relevant interaction
+  - Show 'What's Next?' suggestions panel after completing onboarding
+  - Allow re-launching tour from Help menu
+  - Store onboarding completion state in browser localStorage
+  - Do not show onboarding tour on subsequent visits after completion
+  - Provide 'Don't show again' checkbox for dismissible hints
+  - Complete tour in under 3 minutes for average user
+  - Ensure all tour steps are keyboard-accessible
+  - Track which tour steps users complete vs skip (for analytics)
+sources:
+  - title: W14 First-Time User Onboarding
+    url: https://graphty.app/docs/
+    summary: Guided tour - like museum audio guide introducing features progressively

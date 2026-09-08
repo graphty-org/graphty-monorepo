@@ -1,0 +1,29 @@
+id: sample-datasets
+name: Sample Datasets
+category: data
+description: Provide built-in example datasets that users can load to learn the tool or test features without needing
+  their own data. Include datasets of varying sizes and domains with documentation explaining what each contains.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W14
+implemented_by_components:
+  - sample-data-dialog
+requirements:
+  - Include 'Karate Club' dataset (34 nodes, 78 edges) for tutorials
+  - Include 'Les Misérables' character co-occurrence (77 nodes, 254 edges) for exploration
+  - Include 'Facebook Ego Network' sample (500-1000 nodes) for medium-scale testing
+  - Include 'Citation Network' sample (10,000+ nodes) for scalability demonstration
+  - "Include at least one dataset from each domain: social, biological, infrastructure, citation"
+  - Provide 2-3 sentence description for each dataset explaining context and source
+  - Document expected insights or patterns discoverable in each dataset
+  - Pre-compute basic metrics (node count, edge count, density, average degree) for instant display
+  - Load sample dataset within 1 second via one-click action
+  - Credit original data source with link to source documentation
+  - Include dataset with temporal attributes for time-based analysis demos
+  - Include dataset with categorical node types for visual encoding demos
+  - Ensure all sample datasets are freely redistributable (open license)
+sources:
+  - title: W14 First-Time User Onboarding
+    url: https://graphty.app/docs/
+    summary: Should I try sample data first to learn the tool?

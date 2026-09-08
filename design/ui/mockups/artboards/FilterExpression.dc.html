@@ -1,0 +1,2479 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #5b8ff9; } a:hover { color: #75a5f9; }
+  </style>
+</helmet>
+<!--
+  FILTER EXPRESSION POP-OUT (Selected). Desktop 1440 by 900. Spec revision 1.8, sections 5.1, 5.3 Explore
+  tier 1 and tier 2, 5.4 (one node), 5.6, 6.1, 6.3, 6.6, 6.8, 6.9, 6.10, 6.11; DECISIONS-1.8 A1, A4, A6,
+  B1, B2, B3, C2, C3, C6, D4, E4; VOCAB 11 (the ten row types), 12 (pop-out container), 14.1, 14.2, 14.5,
+  14.8; REGISTER-1.5 for every glyph and every title. Built from SHELL-SKELETON.html; frozen sizes
+  unchanged: rail 48, top bar 40, activity panel 280, inspector 280, status bar 24, canvas 832 by 836.
+
+  WHY THIS BOARD EXISTS. 6.11's worked-example table has a row reading "Filter expression | pop-out, 360,
+  from the section header | The Builder and Expression door rises to the section once the rule row it sat
+  on is gone", and no board in the set draws it open. FilterBuilderExpert draws the door -- with its
+  keyboard focus ring, and a comment that records the pop-out's contents in prose because 6.11 allows only
+  one pop-out per region and that board spends its one on the rule editor. This board is the other half of
+  that sentence: the same door, on the same dataset, drawn OPEN and anchored, so the anchor rule can be
+  measured rather than asserted.
+
+  DATASET: ovarian_de_string.tsv (FIXTURES 3), 318 proteins and 1,104 STRING interactions, undirected,
+  weighted by combined_score, joined with expression.tsv. Every number on this board is read off FIXTURES:
+  318 / 1,104 (3.0); padj < 0.05 matches 60 of 318 (3.2); TP53 has 41 links, rank 1 of 318, betweenness
+  0.312 at the 98th percentile, log2FoldChange -0.42, padj 3.2e-7 (3.3); 9 named node attributes plus 26
+  namespaced = 35 (3.1); the size domain 1 / median 5 / 41 is the one every ovarian board prints.
+  The canvas layout is a deterministic drawing of the six MCL groups FIXTURES 3.4 fixes (118 / 71 / 52 /
+  38 / 24 / 15 = 318); the 60 matches are drawn at full ink and the other 258 dimmed, because a 3a pop-out
+  leaves the canvas live and "every change previews live" (6.11).
+
+  STATE (6.1: Loaded, Selected). One node is selected -- TP53, clicked before the filter was opened, which
+  is why the inspector reads Node TP53 and the status bar reads "1 selected". The Filter builder holds NO
+  rules: this filter is being written in expression form, so D4's zero-rule form applies and the section is
+  one 32px row. The expression is typed and previewing but NOT yet applied: below the large-graph threshold
+  5.3 applies a selector "on Enter or blur, not per keystroke", so the live line reads "would match" and
+  the canvas shows the preview, while the status bar counts stay 318 / 1,104 because nothing is hidden yet.
+
+  ONE POINTER STATE AND ONE KEYBOARD STATE, deliberately. The pointer state is the open pop-out: its opener
+  row carries the selected-row fill #28364e (VOCAB 12: "while its pop-out is open the stub row carries the
+  selected-row background"). The keyboard state is the caret in the expression field, which carries the
+  VOCAB 1 input focus ring. No row is drawn hovered, no menu is drawn open, and no hover-revealed control
+  is drawn revealed.
+
+  THE ANCHOR, measured rather than asserted (DECISIONS-1.8 B1, B2, B3; VOCAB 12, 14.2, 14.8):
+    - Family: activity panel. Lane: opens RIGHT, left edge x = 336, which is the 8px shell-boundary gap
+      clear of the panel's 328 edge (B2's first gap constant; the 12px constant is for the canvas overlay
+      layer and does not apply, because this pop-out sits beside the panel and not in that layer).
+    - Gap axis: horizontal, 8px, and it is the LAST thing that would be surrendered.
+    - Shared edge line: row top to pop-out top. The Filter builder RT-8 header runs y 181..213 (the panel
+      content starts at 76, its 8px top pad puts the first row at 84, and three 32px rows -- search, Select
+      all visible, Select -- sit above the section's 1px divider), so the pop-out top is 181. Delta 0.
+    - Caret (14.2): 6px, on the pop-out's LEADING edge -- the left edge, pointing back at the panel it
+      belongs to -- at the vertical centre of the opener row. Row top 149 plus half of 32 is 165, and the
+      caret box is 12 tall, so its top is 191 and its point is on y 197 (x 330..336). This is the spelling
+      ARTBOARD-CHANGES-1.8 gives
+      Main's Schema caret, mirrored for a panel pop-out: the rotated square keeps border-left and
+      border-bottom so the point faces left.
+    - Height: 179 measured, which is under both caps -- the region height minus 32 (836 - 32 = 804) and
+      B1's second cap of half the owning region (418). No flip is needed, so the shared edge line is never
+      spent, and the board records no obstruction.
+    - Clearances: the pop-out occupies x 336..696, y 181..360. The minimap top is 764, the canvas toolbar
+      top is 828 and the legend top is 784, so nothing in the overlay layer is covered and B1's slide-along
+      remedy never fires.
+    - Return strip (14.3): not drawn, and correctly. The opener is on screen, so the caret is the tether;
+      the strip only appears once the opener has scrolled out of the region.
+
+  THE POP-OUT'S OWN CONTENT, and what is deliberately not in it:
+    - The 360 rung is the right one (6.11's ladder): a JMESPath line is the user's own string, and 336px of
+      content band is what keeps it off an ellipsis. 280 would truncate it; 480 is for a matrix.
+    - No pin. E2 narrows the pin to four comparative surfaces -- the colour and gradient picker, Selection
+      statistics with a pin active, the group profile and the AI console -- and an editor for one string is
+      none of them. The header's only control is the close X, and Escape closes it and returns focus to the
+      door (6.11).
+    - No Apply and no Revert footer, which CORRECTS the sketch FilterBuilderExpert's comment recorded. 5.3
+      says a selector "applies on Enter or blur, not per keystroke", and only "above the large-graph
+      threshold the builder shows Apply with progress instead of auto-apply". 318 nodes is below that
+      threshold, so a footer here would draw a control the product does not have; the state that grows one
+      is the large-graph state, and it is named here rather than drawn.
+    - The attribute autocompletion list is a MENU, not a second pop-out (6.11's nesting limit, A3's depth
+      obligation). It is drawn closed, and its rows are recorded here in full so nothing is lost:
+        data.padj                 number    the joined expression.tsv column
+        data.log2FoldChange       number
+        data.baseMean             number
+        data.go_terms             list
+        data.preferredName        text
+        data.combined_score       number    edges only
+        algorithmResults.degree.node.value        Most connected
+        algorithmResults.betweenness.node.value   Bridges
+      The list matches typed text against both the plain and the technical name (6.3, Decision B).
+    - The per-rule match count is not here and never was: floor item 4 keeps a count at the control it acts
+      on. What IS here is the count the WHOLE expression acts on, because the expression is that control.
+
+  THE RESIDENT BUILDER IS ONE ROW (D4). "At zero rules the Filter builder is one 32px row with a plus,
+  because 'Match all' at zero rules is a default and '20 of 20 nodes would match' is the null statement 6.2
+  forbids." So the Nodes / Match all pair row and the resident live-count row that Main still draws are both
+  gone here, the plus moves into the header's trailing slot, and the Builder and Expression door sits beside
+  it as the header's second trailing control -- RT-1's door rule read at section scale (6.9).
+  The door draws in the PRIMARY ink (A6, VOCAB 14.1): something behind it is not at its default -- an
+  expression has been written and the Result is Select matches rather than Hide others. At defaults it
+  would draw dimmed.
+
+  ROW TYPES, every row named (6.9). Panel: RT-2 search compound; RT-7 Select all visible; RT-7 Select split
+  button; RT-8 x 7 for the seven sections. Pop-out: RT-1 for the expression field and the Result select,
+  RT-10 for the validation line and the live count. Inspector: RT-10 reading; RT-8 headers; RT-6 attribute
+  and metric rows; RT-7 action rows. Nothing on this board is outside the ten types.
+
+  6.10 FLOOR, item by item, all seven kept:
+    1. The reading. The inspector's RT-10 opens with what TP53 is, in words, before any number.
+    2. Departures. None to name: no clamp, no sampling, no cap, nothing capped or estimated on this board,
+       and Rule 7's corollary makes that silence correct rather than missing.
+    3. The run record. No run on this board; the two metrics are named with their technical names and their
+       ranks, which is where floor 3 lands when the values are already computed.
+    4. What a control will do before it does it. "60 of 318 nodes would match" under the field; "Select
+       matches" printed in the Result field rather than implied; "318 nodes" on Select all visible;
+       "Expand 41 neighbors" rather than a bare Expand; "2 steps, 3 types" on the Neighborhood expansion
+       door; and every disabled control carrying its reason in its own title.
+    5. The legend. One block, one encoded channel, with its domain ends, its median and the scale in words.
+       C3's three cuts take nothing off it: it draws no category rows, no counts and -- new in 1.8 -- no
+       state rows, so the "Selected" swatch FilterBuilderExpert still draws is gone from the canvas and
+       belongs to the exported legend and to Help's "What the marks mean" (C2, C3, 14.5). The cap is 240,
+       not 334 (C6). The reading legend is the canvas's half of floor item 5; completeness is the export's.
+    6. Every value the user typed or picked, in full: the expression string, character for character.
+    7. The user's own strings: TP53 and its attribute names, and the gene labels on the canvas.
+
+  E4, palette index: this pop-out joins the command palette by both names -- "Filter expression" and
+  "Edit as an expression (JMESPath)" -- alongside the other doors 1.8 opens, and its opener is in the
+  panel's tab order, which is the second of 6.11's four obligations.
+-->
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
+
+  <!-- MAIN ROW: rail + everything right of it. Height 876. -->
+  <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row;">
+
+    <!-- ACTIVITY RAIL, 48 wide. Explore is the active activity. -->
+    <div style="flex: 0 0 48px; width: 48px; display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 4px 0; background: #1f2428; border-right: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+        <div title="Data" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="8" cy="4" rx="5.5" ry="2"></ellipse><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4"></path><path d="M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"></path></svg>
+          <span style="font-size: 11px; line-height: 1.2;">Data</span>
+        </div>
+        <div title="Explore" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #d5d7da; background: #28364e; cursor: pointer; box-sizing: border-box;">
+          <div style="position: absolute; left: 0; top: 0; width: 2px; height: 44px; background: #4a7ee8;"></div>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><polygon points="10.5,5.5 9,9 5.5,10.5 7,7"></polygon></svg>
+          <span style="font-size: 11px; line-height: 1.2;">Explore</span>
+        </div>
+        <div title="Analyze" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="13.5" x2="3" y2="8"></line><line x1="8" y1="13.5" x2="8" y2="2.5"></line><line x1="13" y1="13.5" x2="13" y2="6"></line></svg>
+          <span style="font-size: 11px; line-height: 1.2;">Analyze</span>
+        </div>
+        <div title="Style" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 2.5l-6 6"></path><path d="M7.5 8.5c-1.5 0-2.5 1-2.5 2.5s-1 2-2.5 2c1.5 1 4.5 1 5.5-1 .5-1 .5-2-.5-3.5z"></path></svg>
+          <span style="font-size: 11px; line-height: 1.2;">Style</span>
+        </div>
+        <div title="Present" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="8" rx="1"></rect><line x1="8" y1="11" x2="8" y2="14"></line><line x1="5.5" y1="14" x2="10.5" y2="14"></line></svg>
+          <span style="font-size: 11px; line-height: 1.2;">Present</span>
+        </div>
+        <div title="AI" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3l1.3 3.7L12 8l-3.7 1.3L7 13l-1.3-3.7L2 8l3.7-1.3z"></path><path d="M13 2v2.5M11.75 3.25h2.5"></path></svg>
+          <span style="font-size: 11px; line-height: 1.2;">AI</span>
+        </div>
+      <div style="flex: 1 1 auto;"></div>
+        <div title="Settings" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+          <span style="font-size: 11px; line-height: 1.2;">Settings</span>
+        </div>
+        <div title="Help and keyboard shortcuts (?)" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><path d="M6 6.3a2 2 0 0 1 3.9.5c0 1.3-1.9 1.6-1.9 2.7"></path><line x1="8" y1="11.75" x2="8" y2="12.25"></line></svg>
+          <span style="font-size: 11px; line-height: 1.2;">Help</span>
+        </div>
+    </div>
+
+    <!-- RIGHT OF RAIL: top bar over panel + canvas + inspector -->
+    <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column;">
+
+      <!-- TOP BAR, 40 tall (5.1). Undo is live because the selection put an entry on the shared history
+           store; Redo is empty and carries its reason. -->
+      <div style="flex: 0 0 40px; height: 40px; display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 0 12px; background: #1f2428; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+        <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 13px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">ovarian_de_string.tsv</span>
+        </div>
+        <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 8px;">
+          <div title="Undo (Cmd+Z)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h6.5a3 3 0 0 1 0 6H7"></path><polyline points="6.5,3.5 4,6 6.5,8.5"></polyline></svg></div>
+          <div title="Redo (Shift+Cmd+Z). Nothing to redo yet" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6H5.5a3 3 0 0 0 0 6H9"></path><polyline points="9.5,3.5 12,6 9.5,8.5"></polyline></svg></div>
+          <div style="width: 300px; height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 8px; border-radius: 4px; background: #2a3035; box-sizing: border-box; cursor: pointer;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line></svg>
+            <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Search commands, nodes and edges</span>
+            <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;">Cmd+K</div>
+          </div>
+        </div>
+        <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
+          <div style="display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
+            <span>Export</span>
+            <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,6 8,11 13,6"></polyline></svg>
+          </div>
+          <div title="Share this view" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="3.5" r="1.75"></circle><circle cx="4" cy="8" r="1.75"></circle><circle cx="12" cy="12.5" r="1.75"></circle><line x1="5.6" y1="7.1" x2="10.4" y2="4.4"></line><line x1="5.6" y1="8.9" x2="10.4" y2="11.6"></line></svg></div>
+          <div style="width: 1px; height: 16px; background: #48525c;"></div>
+          <div title="Compare two views" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="8" y1="2.5" x2="8" y2="13.5"></line></svg></div>
+          <div title="Toggle inspector (D)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #28364e; color: #4a7ee8; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="10" y1="2.5" x2="10" y2="13.5"></line></svg></div>
+        </div>
+      </div>
+
+      <!-- BODY ROW: panel + canvas + inspector. Height 836. -->
+      <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row;">
+
+        <!-- ACTIVITY PANEL, 280 wide: Explore -->
+        <div style="flex: 0 0 280px; width: 280px; display: flex; flex-direction: column; background: #1f2428; border-right: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+
+          <div style="flex: 0 0 36px; height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><polygon points="10.5,5.5 9,9 5.5,10.5 7,7"></polygon></svg>
+              <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Explore</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <div title="More" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3.5" r="0.75"></circle><circle cx="8" cy="8" r="0.75"></circle><circle cx="8" cy="12.5" r="0.75"></circle></svg></div>
+              <div title="Close the panel (Cmd+B)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg></div>
+            </div>
+          </div>
+
+          <!-- PANEL CONTENT. 279 wide inside the border, 800 tall. Padding 8 / 8 / 16 / 16 (VOCAB 11: the
+               right pad is 8 because the trailing slot is an icon button), so the content band is 255 and
+               every row starts at x 64. Section rhythm 1 / 32.
+               THE ORDER IS D4's FROZEN EIGHT: Filter builder, Filters, Sets, Views, Find a pattern,
+               Neighborhood expansion, Step through time, Notes. "Step through time" renders only where the
+               data carries a Time role (Rule 7c clause c) and ovarian_de_string.tsv has none, so seven
+               render. The two RT-7 rows at the head are not sections and keep their place.
+               TEN RESIDENT ROWS, which is D4's own target for this panel. -->
+          <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 8px 8px 16px 16px; overflow: hidden; box-sizing: border-box;">
+
+            <!-- 1. RT-2 compound: the query and the set it searches are one thing, so they share one 224px
+                 box divided by a 1px hairline of panel background. The trailing 24px slot holds the syntax
+                 info circle (Rule 8); the "/" binding rides in the field's own title. -->
+            <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 8px; height: 32px;">
+              <div title="Search nodes and edges (/). Scope: All nodes; the other scope is Visible nodes." style="display: flex; align-items: center; width: 224px; height: 24px; background: #2a3035; border-radius: 4px; box-sizing: border-box; overflow: hidden; cursor: text;">
+                <div style="display: flex; align-items: center; gap: 4px; flex: 1 1 auto; min-width: 0; height: 24px; padding: 0 8px;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line></svg></div>
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #5f6873; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Search nodes and edges</span>
+                </div>
+                <div style="width: 1px; height: 24px; flex: 0 0 auto; background: #1f2428;"></div>
+                <div style="display: flex; align-items: center; gap: 2px; flex: 0 0 auto; height: 24px; padding: 0 6px; cursor: pointer;">
+                  <span style="font-size: 11px; line-height: 1; color: #d5d7da; white-space: nowrap;">All</span>
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                </div>
+              </div>
+              <div title="Prefix with id:, type:, exact: or regex:, or start with = for an expression." style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg></div>
+            </div>
+
+            <!-- 2. RT-7, tier 1. The trailing slot carries what the verb will act on (floor item 4). -->
+            <div title="Select all visible (Cmd+A)" style="flex: 0 0 auto; display: flex; align-items: center; gap: 6px; height: 32px; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1.2; cursor: pointer;">
+              <span style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke-dasharray="2.5 2"></rect><polyline points="5.2,8.2 7.2,10.2 10.8,5.8"></polyline></svg></span>
+              <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Select all visible</span>
+              <span style="flex: 0 0 auto; font-size: 11px; font-weight: 400; line-height: 1.2; color: #7a828e;">318 nodes</span>
+            </div>
+
+            <!-- 3. RT-7 split button. Its menu holds Invert, Neighbors of selection (depth 1 to 3), Same
+                 group as selection, From list, By expression, Save selection as set..., and -- since 1.8,
+                 D4 -- the three verbs the deleted "Selection actions" section carried: Select matching
+                 filter, Select edges between selected, Select largest connected part. The 8px caret trails
+                 a trigger that carries its own text, so it takes no title of its own (register 1.2). -->
+            <div title="Select" style="flex: 0 0 auto; display: flex; align-items: center; gap: 6px; height: 32px; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1.2; cursor: pointer;">
+              <span style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5l9.5 5.5-4.5 1-2 4.5z"></path></svg></span>
+              <span style="flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Select</span>
+              <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+            </div>
+
+            <!-- 4. SECTION Filter builder. THE OPENER. One row, because the builder holds no rules: this
+                 filter is being written in expression form, and D4 deletes the Nodes / Match all pair and
+                 the resident live-count line at zero rules. The name is at value ink because the section
+                 holds a live filter; the row carries the selected-row fill #28364e because its pop-out is
+                 open, which is the tether the reader reads first.
+                 Trailing controls, left to right: the Builder and Expression DOOR, drawn in the primary ink
+                 (A6) because something behind it deviates and lit because it is open; the Add a rule plus,
+                 which is the builder's own verb and stays resident under Rule 7b's carve-out; and More,
+                 whose rows are Add a group / Duplicate rule / Clear all rules / Paste an expression.
+                 The teaching sentence lives on the info circle (Rule 8, 6.7), which is where
+                 FilterBuilderExpert's deleted hover tooltip sent it. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; background: #28364e; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg></div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Filter builder</span>
+                  <div title="Expression: the same filter written as JMESPath. The builder stays available while the expression can be shown as rules." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg></div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 2px; flex: 0 0 auto;">
+                  <div title="Edit as an expression (JMESPath)" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #d5d7da; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,3.5 1.5,8 5,12.5"></polyline><polyline points="11,3.5 14.5,8 11,12.5"></polyline></svg></div>
+                  <div title="Add a rule" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg></div>
+                  <div title="More" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3.5" r="0.75"></circle><circle cx="8" cy="8" r="0.75"></circle><circle cx="8" cy="12.5" r="0.75"></circle></svg></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 5. SECTION Filters, LIVE and empty. RT-8's empty form: dimmed name, no content rows, no
+                 "0", no empty-state sentence. The library plus is resident (SAV-1) and DISABLED with its
+                 reason, which is floor item 4: the expression has not been applied, so there is nothing to
+                 save yet. This is the state difference from Main, where nothing has been written at all. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg></div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Filters</span>
+                  <div title="Saved filters: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg></div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 2px; flex: 0 0 auto;">
+                  <div title="Save as filter... Apply the expression first" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 6. SECTION Sets, LIVE and empty. Its plus is ENABLED here, unlike Main's, because a node is
+                 selected: the precondition floor item 4 names is met. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg></div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Sets</span>
+                  <div title="Selection sets: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg></div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 2px; flex: 0 0 auto;">
+                  <div title="Save selection as set..." style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 7. SECTION Views, LIVE and empty. A view is the camera and the current encodings, so its
+                 plus can always act. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg></div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Views</span>
+                  <div title="View bookmarks: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg></div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 2px; flex: 0 0 auto;">
+                  <div title="Save as view..." style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 8. NOT BUILT. Register 1.5 section 3: an isolated unshipped row, or a run of two, keeps the
+                 per-row tag; this and Neighborhood expansion below are that run of two. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div title="Find a pattern (subgraph search). Coming" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg></div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Find a pattern</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 2px; flex: 0 0 auto;">
+                  <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 9. THE OTHER DOOR ON THIS PANEL (D4), drawn CLOSED and dimmed, which is exactly A6's other
+                 spelling: everything behind it is at its default, so the row reports the remembered depth
+                 and type filter and nothing more. VOCAB 14.1's RT-8 door spelling, which is the one Main
+                 already draws: permanently closed right-pointing chevron (it never opens inline), the name
+                 at 11px because a door row is 11px, gap 4, then the state mark in the trailing slot.
+                 The Coming tag is in the row's title and not drawn as a chip, because at 255 the name and
+                 the state mark fill the band exactly and 6.3 will not shorten a section name to make room
+                 for a chip; the row is dimmed, which is how every board in the set draws an unbuilt row,
+                 and Register 1.5 section 3's per-row tag is carried by Find a pattern above it. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div title="Neighborhood expansion. 2 steps, 3 types. Coming" style="display: flex; align-items: center; gap: 4px; height: 32px; cursor: pointer;">
+                <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg></div>
+                <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Neighborhood expansion</span>
+                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">2 steps, 3 types</span>
+              </div>
+            </div>
+
+            <!-- 10. SECTION Notes, LIVE and empty (5.4, 5.7). The plus is enabled because a node is
+                  selected; with nothing selected 5.6 sends N to the graph-level case note instead. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg></div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Notes</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 2px; flex: 0 0 auto;">
+                  <div title="Note (N)" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CANVAS, 832 wide by 836 tall. The six MCL groups of FIXTURES 3.4 drawn as one force-directed
+             field, size by degree on the sqrt scale the legend names, one neutral ink because no Color
+             channel is encoded. The 60 nodes the expression matches are at full ink with their edges
+             brightened; the other 258 are dimmed. That is the live preview 6.11 promises a 3a surface --
+             "the canvas keeps pointer and keyboard, the selection keeps flowing, every change previews
+             live" -- and it is NOT a filter: nothing is hidden and nothing is selected by it, which is why
+             the status bar still reads 318 nodes and 1,104 edges.
+             TP53 carries the white selection ring, because it is the one node actually selected. -->
+        <div style="flex: 1 1 auto; min-width: 0; position: relative; background: #161b22; overflow: hidden;">
+<svg width="832" height="836" viewBox="0 0 832 836" style="position: absolute; left: 0; top: 0; display: block;">
+<g stroke="#3d454e" stroke-width="1" stroke-opacity="0.55">
+<line x1="392.8" y1="543.7" x2="418.2" y2="540.1"></line>
+<line x1="392.8" y1="543.7" x2="406.1" y2="520.2"></line>
+<line x1="392.8" y1="543.7" x2="398.3" y2="516.3"></line>
+<line x1="392.8" y1="543.7" x2="421.8" y2="520.8"></line>
+<line x1="392.8" y1="543.7" x2="377.7" y2="587.0"></line>
+<line x1="392.8" y1="543.7" x2="383.0" y2="589.2"></line>
+<line x1="392.8" y1="543.7" x2="411.7" y2="500.7"></line>
+<line x1="392.8" y1="543.7" x2="438.0" y2="562.9"></line>
+<line x1="392.8" y1="543.7" x2="434.6" y2="570.9"></line>
+<line x1="392.8" y1="543.7" x2="435.9" y2="517.9"></line>
+<line x1="392.8" y1="543.7" x2="382.1" y2="493.5"></line>
+<line x1="392.8" y1="543.7" x2="339.8" y2="552.3"></line>
+<line x1="392.8" y1="543.7" x2="450.0" y2="543.8"></line>
+<line x1="392.8" y1="543.7" x2="445.6" y2="569.4"></line>
+<line x1="392.8" y1="543.7" x2="337.2" y2="512.2"></line>
+<line x1="392.8" y1="543.7" x2="403.4" y2="476.6"></line>
+<line x1="392.8" y1="543.7" x2="335.5" y2="505.2"></line>
+<line x1="392.8" y1="543.7" x2="431.8" y2="601.5"></line>
+<line x1="392.8" y1="543.7" x2="434.2" y2="486.0"></line>
+<line x1="392.8" y1="543.7" x2="328.9" y2="580.0"></line>
+<line x1="392.8" y1="543.7" x2="344.3" y2="600.8"></line>
+<line x1="392.8" y1="543.7" x2="418.2" y2="472.5"></line>
+<line x1="392.8" y1="543.7" x2="429.4" y2="476.0"></line>
+<line x1="397.4" y1="554.6" x2="418.2" y2="540.1"></line>
+<line x1="418.2" y1="540.1" x2="423.6" y2="532.8"></line>
+<line x1="418.2" y1="540.1" x2="421.8" y2="520.8"></line>
+<line x1="418.2" y1="540.1" x2="406.1" y2="520.2"></line>
+<line x1="418.2" y1="540.1" x2="422.8" y2="563.7"></line>
+<line x1="398.7" y1="569.8" x2="383.0" y2="589.2"></line>
+<line x1="398.7" y1="569.8" x2="377.7" y2="587.0"></line>
+<line x1="398.7" y1="569.8" x2="418.2" y2="540.1"></line>
+<line x1="398.7" y1="569.8" x2="434.6" y2="570.9"></line>
+<line x1="398.7" y1="569.8" x2="438.0" y2="562.9"></line>
+<line x1="406.1" y1="520.2" x2="398.3" y2="516.3"></line>
+<line x1="406.1" y1="520.2" x2="421.8" y2="520.8"></line>
+<line x1="406.1" y1="520.2" x2="411.7" y2="500.7"></line>
+<line x1="406.1" y1="520.2" x2="423.6" y2="532.8"></line>
+<line x1="423.6" y1="532.8" x2="421.8" y2="520.8"></line>
+<line x1="423.6" y1="532.8" x2="435.9" y2="517.9"></line>
+<line x1="423.6" y1="532.8" x2="450.0" y2="543.8"></line>
+<line x1="390.2" y1="569.9" x2="383.0" y2="589.2"></line>
+<line x1="390.2" y1="569.9" x2="377.7" y2="587.0"></line>
+<line x1="398.3" y1="516.3" x2="411.7" y2="500.7"></line>
+<line x1="398.3" y1="516.3" x2="421.8" y2="520.8"></line>
+<line x1="398.3" y1="516.3" x2="382.1" y2="493.5"></line>
+<line x1="398.3" y1="516.3" x2="423.6" y2="532.8"></line>
+<line x1="398.3" y1="516.3" x2="418.2" y2="540.1"></line>
+<line x1="398.3" y1="516.3" x2="435.9" y2="517.9"></line>
+<line x1="398.3" y1="516.3" x2="397.4" y2="554.6"></line>
+<line x1="398.3" y1="516.3" x2="403.4" y2="476.6"></line>
+<line x1="422.8" y1="563.7" x2="434.6" y2="570.9"></line>
+<line x1="422.8" y1="563.7" x2="438.0" y2="562.9"></line>
+<line x1="422.8" y1="563.7" x2="445.6" y2="569.4"></line>
+<line x1="421.8" y1="520.8" x2="435.9" y2="517.9"></line>
+<line x1="421.8" y1="520.8" x2="411.7" y2="500.7"></line>
+<line x1="421.8" y1="520.8" x2="450.0" y2="543.8"></line>
+<line x1="421.8" y1="520.8" x2="434.2" y2="486.0"></line>
+<line x1="421.8" y1="520.8" x2="461.8" y2="525.6"></line>
+<line x1="421.8" y1="520.8" x2="397.4" y2="554.6"></line>
+<line x1="359.3" y1="544.0" x2="339.8" y2="552.3"></line>
+<line x1="438.0" y1="562.9" x2="434.6" y2="570.9"></line>
+<line x1="438.0" y1="562.9" x2="445.6" y2="569.4"></line>
+<line x1="438.0" y1="562.9" x2="458.2" y2="566.7"></line>
+<line x1="438.0" y1="562.9" x2="450.0" y2="543.8"></line>
+<line x1="602.5" y1="240.4" x2="597.8" y2="244.5"></line>
+<line x1="602.5" y1="240.4" x2="611.1" y2="249.9"></line>
+<line x1="602.5" y1="240.4" x2="620.1" y2="261.0"></line>
+<line x1="602.5" y1="240.4" x2="633.4" y2="242.9"></line>
+<line x1="611.1" y1="249.9" x2="620.1" y2="261.0"></line>
+<line x1="611.1" y1="249.9" x2="597.8" y2="244.5"></line>
+<line x1="611.1" y1="249.9" x2="633.4" y2="242.9"></line>
+<line x1="611.1" y1="249.9" x2="597.5" y2="275.4"></line>
+<line x1="611.1" y1="249.9" x2="595.2" y2="279.5"></line>
+<line x1="611.1" y1="249.9" x2="647.5" y2="255.5"></line>
+<line x1="611.1" y1="249.9" x2="649.2" y2="253.0"></line>
+<line x1="611.1" y1="249.9" x2="606.4" y2="290.6"></line>
+<line x1="611.1" y1="249.9" x2="573.0" y2="272.8"></line>
+<line x1="597.8" y1="244.5" x2="620.1" y2="261.0"></line>
+<line x1="597.8" y1="244.5" x2="597.5" y2="275.4"></line>
+<line x1="597.8" y1="244.5" x2="595.2" y2="279.5"></line>
+<line x1="597.8" y1="244.5" x2="633.4" y2="242.9"></line>
+<line x1="597.8" y1="244.5" x2="560.8" y2="247.8"></line>
+<line x1="597.8" y1="244.5" x2="573.0" y2="272.8"></line>
+<line x1="597.8" y1="244.5" x2="594.4" y2="203.6"></line>
+<line x1="597.8" y1="244.5" x2="606.4" y2="290.6"></line>
+<line x1="620.1" y1="261.0" x2="633.4" y2="242.9"></line>
+<line x1="620.1" y1="261.0" x2="597.5" y2="275.4"></line>
+<line x1="620.1" y1="261.0" x2="647.5" y2="255.5"></line>
+<line x1="620.1" y1="261.0" x2="649.2" y2="253.0"></line>
+<line x1="620.1" y1="261.0" x2="595.2" y2="279.5"></line>
+<line x1="620.1" y1="261.0" x2="606.4" y2="290.6"></line>
+<line x1="620.1" y1="261.0" x2="652.2" y2="292.1"></line>
+<line x1="633.4" y1="242.9" x2="649.2" y2="253.0"></line>
+<line x1="633.4" y1="242.9" x2="647.5" y2="255.5"></line>
+<line x1="597.5" y1="275.4" x2="595.2" y2="279.5"></line>
+<line x1="597.5" y1="275.4" x2="606.4" y2="290.6"></line>
+<line x1="597.5" y1="275.4" x2="573.0" y2="272.8"></line>
+<line x1="597.5" y1="275.4" x2="602.5" y2="240.4"></line>
+<line x1="597.5" y1="275.4" x2="608.5" y2="312.9"></line>
+<line x1="597.5" y1="275.4" x2="624.5" y2="310.2"></line>
+<line x1="597.5" y1="275.4" x2="560.8" y2="247.8"></line>
+<line x1="597.5" y1="275.4" x2="557.4" y2="302.0"></line>
+<line x1="594.4" y1="203.6" x2="598.0" y2="196.3"></line>
+<line x1="594.4" y1="203.6" x2="595.6" y2="187.0"></line>
+<line x1="594.4" y1="203.6" x2="562.0" y2="202.3"></line>
+<line x1="594.4" y1="203.6" x2="617.5" y2="177.9"></line>
+<line x1="594.4" y1="203.6" x2="602.5" y2="240.4"></line>
+<line x1="685.1" y1="588.9" x2="698.9" y2="589.4"></line>
+<line x1="685.1" y1="588.9" x2="701.5" y2="588.4"></line>
+<line x1="685.1" y1="588.9" x2="692.2" y2="608.9"></line>
+<line x1="685.1" y1="588.9" x2="707.0" y2="610.9"></line>
+<line x1="685.1" y1="588.9" x2="676.3" y2="551.9"></line>
+<line x1="685.1" y1="588.9" x2="689.9" y2="627.3"></line>
+<line x1="698.9" y1="589.4" x2="701.5" y2="588.4"></line>
+<line x1="698.9" y1="589.4" x2="692.2" y2="608.9"></line>
+<line x1="698.9" y1="589.4" x2="707.0" y2="610.9"></line>
+<line x1="698.9" y1="589.4" x2="720.4" y2="612.9"></line>
+<line x1="698.9" y1="589.4" x2="719.8" y2="559.4"></line>
+<line x1="698.9" y1="589.4" x2="689.9" y2="627.3"></line>
+<line x1="698.9" y1="589.4" x2="700.1" y2="629.1"></line>
+<line x1="701.5" y1="588.4" x2="692.2" y2="608.9"></line>
+<line x1="701.5" y1="588.4" x2="707.0" y2="610.9"></line>
+<line x1="701.5" y1="588.4" x2="720.4" y2="612.9"></line>
+<line x1="701.5" y1="588.4" x2="719.8" y2="559.4"></line>
+<line x1="701.5" y1="588.4" x2="735.4" y2="570.3"></line>
+<line x1="701.5" y1="588.4" x2="723.2" y2="555.2"></line>
+<line x1="701.5" y1="588.4" x2="689.9" y2="627.3"></line>
+<line x1="701.5" y1="588.4" x2="700.1" y2="629.1"></line>
+<line x1="701.5" y1="588.4" x2="676.3" y2="551.9"></line>
+<line x1="676.3" y1="551.9" x2="689.9" y2="534.9"></line>
+<line x1="676.3" y1="551.9" x2="692.0" y2="526.2"></line>
+<line x1="676.3" y1="551.9" x2="646.7" y2="569.0"></line>
+<line x1="676.3" y1="551.9" x2="676.4" y2="517.6"></line>
+<line x1="676.3" y1="551.9" x2="657.0" y2="521.4"></line>
+<line x1="719.8" y1="559.4" x2="723.2" y2="555.2"></line>
+<line x1="719.8" y1="559.4" x2="735.4" y2="570.3"></line>
+<line x1="719.8" y1="559.4" x2="740.7" y2="563.4"></line>
+<line x1="719.8" y1="559.4" x2="737.7" y2="543.1"></line>
+<line x1="719.8" y1="559.4" x2="731.7" y2="534.3"></line>
+<line x1="719.8" y1="559.4" x2="749.2" y2="569.9"></line>
+<line x1="719.8" y1="559.4" x2="754.8" y2="551.6"></line>
+<line x1="719.8" y1="559.4" x2="748.4" y2="536.5"></line>
+<line x1="719.8" y1="559.4" x2="689.9" y2="534.9"></line>
+<line x1="155.0" y1="396.4" x2="144.2" y2="394.5"></line>
+<line x1="155.0" y1="396.4" x2="160.0" y2="412.5"></line>
+<line x1="155.0" y1="396.4" x2="149.0" y2="376.7"></line>
+<line x1="155.0" y1="396.4" x2="134.2" y2="395.7"></line>
+<line x1="155.0" y1="396.4" x2="133.4" y2="409.4"></line>
+<line x1="155.0" y1="396.4" x2="180.8" y2="399.9"></line>
+<line x1="155.0" y1="396.4" x2="135.2" y2="420.8"></line>
+<line x1="155.0" y1="396.4" x2="169.9" y2="428.8"></line>
+<line x1="160.0" y1="412.5" x2="169.9" y2="428.8"></line>
+<line x1="160.0" y1="412.5" x2="144.2" y2="394.5"></line>
+<line x1="160.0" y1="412.5" x2="180.8" y2="399.9"></line>
+<line x1="180.8" y1="399.9" x2="200.3" y2="413.9"></line>
+<line x1="180.8" y1="399.9" x2="202.6" y2="389.1"></line>
+<line x1="180.8" y1="399.9" x2="182.5" y2="430.4"></line>
+<line x1="180.8" y1="399.9" x2="169.9" y2="428.8"></line>
+<line x1="180.8" y1="399.9" x2="144.2" y2="394.5"></line>
+<line x1="180.8" y1="399.9" x2="149.0" y2="376.7"></line>
+<line x1="180.8" y1="399.9" x2="191.6" y2="360.2"></line>
+<line x1="180.8" y1="399.9" x2="165.0" y2="358.3"></line>
+<line x1="144.2" y1="394.5" x2="134.2" y2="395.7"></line>
+<line x1="144.2" y1="394.5" x2="133.4" y2="409.4"></line>
+<line x1="144.2" y1="394.5" x2="149.0" y2="376.7"></line>
+<line x1="756.4" y1="374.3" x2="761.9" y2="361.2"></line>
+<line x1="756.4" y1="374.3" x2="768.1" y2="390.0"></line>
+<line x1="756.4" y1="374.3" x2="734.9" y2="382.3"></line>
+<line x1="756.4" y1="374.3" x2="725.2" y2="379.4"></line>
+<line x1="756.4" y1="374.3" x2="729.5" y2="351.9"></line>
+<line x1="756.4" y1="374.3" x2="793.6" y2="388.2"></line>
+<line x1="768.1" y1="390.0" x2="793.6" y2="388.2"></line>
+<line x1="768.1" y1="390.0" x2="761.9" y2="361.2"></line>
+<line x1="768.1" y1="390.0" x2="800.3" y2="381.9"></line>
+<line x1="768.1" y1="390.0" x2="734.9" y2="382.3"></line>
+<line x1="768.1" y1="390.0" x2="804.4" y2="387.6"></line>
+<line x1="768.1" y1="390.0" x2="802.8" y2="416.5"></line>
+<line x1="768.1" y1="390.0" x2="725.2" y2="379.4"></line>
+<line x1="768.1" y1="390.0" x2="734.5" y2="419.2"></line>
+<line x1="761.9" y1="361.2" x2="761.2" y2="328.3"></line>
+<line x1="761.9" y1="361.2" x2="729.5" y2="351.9"></line>
+<line x1="761.9" y1="361.2" x2="734.9" y2="382.3"></line>
+<line x1="761.9" y1="361.2" x2="768.4" y2="326.2"></line>
+<line x1="761.9" y1="361.2" x2="738.3" y2="333.8"></line>
+<line x1="761.9" y1="361.2" x2="730.3" y2="341.2"></line>
+<line x1="761.9" y1="361.2" x2="725.2" y2="379.4"></line>
+<line x1="761.9" y1="361.2" x2="793.6" y2="388.2"></line>
+<line x1="761.9" y1="361.2" x2="800.3" y2="381.9"></line>
+<line x1="187.0" y1="636.1" x2="191.0" y2="622.6"></line>
+<line x1="187.0" y1="636.1" x2="186.6" y2="651.1"></line>
+<line x1="187.0" y1="636.1" x2="164.3" y2="620.6"></line>
+<line x1="187.0" y1="636.1" x2="193.4" y2="663.0"></line>
+<line x1="187.0" y1="636.1" x2="157.0" y2="659.6"></line>
+<line x1="187.0" y1="636.1" x2="219.9" y2="659.7"></line>
+<line x1="187.0" y1="636.1" x2="146.6" y2="650.6"></line>
+<line x1="187.0" y1="636.1" x2="231.5" y2="646.8"></line>
+<line x1="187.0" y1="636.1" x2="154.7" y2="601.7"></line>
+<line x1="187.0" y1="636.1" x2="213.8" y2="676.3"></line>
+<line x1="187.0" y1="636.1" x2="174.7" y2="683.2"></line>
+<line x1="186.6" y1="651.1" x2="193.4" y2="663.0"></line>
+<line x1="186.6" y1="651.1" x2="191.0" y2="622.6"></line>
+<line x1="186.6" y1="651.1" x2="157.0" y2="659.6"></line>
+<line x1="191.0" y1="622.6" x2="164.3" y2="620.6"></line>
+<line x1="191.0" y1="622.6" x2="193.4" y2="663.0"></line>
+<line x1="191.0" y1="622.6" x2="154.7" y2="601.7"></line>
+<line x1="191.0" y1="622.6" x2="219.9" y2="659.7"></line>
+<line x1="191.0" y1="622.6" x2="231.5" y2="646.8"></line>
+<line x1="191.0" y1="622.6" x2="157.0" y2="659.6"></line>
+<line x1="326.0" y1="605.0" x2="330.1" y2="601.0"></line>
+<line x1="326.0" y1="605.0" x2="311.3" y2="603.0"></line>
+<line x1="326.0" y1="605.0" x2="342.4" y2="609.7"></line>
+<line x1="345.7" y1="483.3" x2="325.2" y2="490.4"></line>
+<line x1="739.3" y1="515.3" x2="737.1" y2="517.0"></line>
+<line x1="739.3" y1="515.3" x2="735.0" y2="510.8"></line>
+<line x1="739.3" y1="515.3" x2="731.7" y2="534.3"></line>
+<line x1="469.7" y1="623.9" x2="478.4" y2="634.3"></line>
+<line x1="469.7" y1="623.9" x2="475.7" y2="606.7"></line>
+<line x1="737.1" y1="517.0" x2="735.0" y2="510.8"></line>
+<line x1="737.1" y1="517.0" x2="731.7" y2="534.3"></line>
+<line x1="737.1" y1="517.0" x2="748.4" y2="536.5"></line>
+<line x1="321.3" y1="500.2" x2="325.2" y2="490.4"></line>
+<line x1="321.3" y1="500.2" x2="335.5" y2="505.2"></line>
+<line x1="760.1" y1="555.6" x2="754.8" y2="551.6"></line>
+<line x1="760.1" y1="555.6" x2="768.8" y2="553.8"></line>
+<line x1="760.1" y1="555.6" x2="762.1" y2="565.2"></line>
+<line x1="646.7" y1="569.0" x2="613.3" y2="559.2"></line>
+<line x1="485.4" y1="614.3" x2="490.3" y2="625.0"></line>
+<line x1="485.4" y1="614.3" x2="475.7" y2="606.7"></line>
+<line x1="735.0" y1="510.8" x2="731.7" y2="534.3"></line>
+<line x1="342.4" y1="609.7" x2="344.3" y2="600.8"></line>
+<line x1="342.4" y1="609.7" x2="347.1" y2="622.3"></line>
+<line x1="342.4" y1="609.7" x2="330.1" y2="601.0"></line>
+<line x1="700.1" y1="629.1" x2="689.9" y2="627.3"></line>
+<line x1="700.1" y1="629.1" x2="707.0" y2="610.9"></line>
+<line x1="700.1" y1="629.1" x2="692.2" y2="608.9"></line>
+<line x1="335.5" y1="505.2" x2="337.2" y2="512.2"></line>
+<line x1="663.6" y1="514.3" x2="655.3" y2="514.2"></line>
+<line x1="663.6" y1="514.3" x2="657.0" y2="521.4"></line>
+<line x1="663.6" y1="514.3" x2="676.4" y2="517.6"></line>
+<line x1="377.9" y1="648.3" x2="356.2" y2="631.2"></line>
+<line x1="377.9" y1="648.3" x2="405.6" y2="653.8"></line>
+<line x1="377.9" y1="648.3" x2="351.2" y2="634.4"></line>
+<line x1="666.3" y1="648.0" x2="661.9" y2="652.5"></line>
+<line x1="666.3" y1="648.0" x2="662.8" y2="640.3"></line>
+<line x1="635.7" y1="623.4" x2="649.1" y2="629.8"></line>
+<line x1="635.7" y1="623.4" x2="662.8" y2="640.3"></line>
+<line x1="635.7" y1="623.4" x2="661.9" y2="652.5"></line>
+<line x1="635.7" y1="623.4" x2="666.3" y2="648.0"></line>
+<line x1="740.7" y1="563.4" x2="735.4" y2="570.3"></line>
+<line x1="740.7" y1="563.4" x2="749.2" y2="569.9"></line>
+<line x1="461.6" y1="480.6" x2="457.3" y2="480.9"></line>
+<line x1="719.3" y1="488.2" x2="720.8" y2="489.5"></line>
+<line x1="719.3" y1="488.2" x2="704.8" y2="493.4"></line>
+<line x1="719.3" y1="488.2" x2="700.0" y2="492.0"></line>
+<line x1="719.3" y1="488.2" x2="735.0" y2="510.8"></line>
+<line x1="471.5" y1="515.1" x2="461.8" y2="525.6"></line>
+<line x1="471.5" y1="515.1" x2="465.3" y2="499.6"></line>
+<line x1="703.0" y1="650.7" x2="723.7" y2="649.3"></line>
+<line x1="703.0" y1="650.7" x2="700.1" y2="629.1"></line>
+<line x1="703.0" y1="650.7" x2="677.1" y2="653.1"></line>
+<line x1="703.0" y1="650.7" x2="689.9" y2="627.3"></line>
+<line x1="509.7" y1="580.6" x2="487.8" y2="592.7"></line>
+<line x1="643.8" y1="532.0" x2="657.0" y2="521.4"></line>
+<line x1="643.8" y1="532.0" x2="655.3" y2="514.2"></line>
+<line x1="643.8" y1="532.0" x2="663.6" y2="514.3"></line>
+<line x1="643.8" y1="532.0" x2="610.6" y2="538.7"></line>
+<line x1="445.6" y1="569.4" x2="434.6" y2="570.9"></line>
+<line x1="692.0" y1="526.2" x2="689.9" y2="534.9"></line>
+<line x1="692.0" y1="526.2" x2="695.3" y2="510.9"></line>
+<line x1="692.0" y1="526.2" x2="676.4" y2="517.6"></line>
+<line x1="720.8" y1="489.5" x2="704.8" y2="493.4"></line>
+<line x1="720.8" y1="489.5" x2="700.0" y2="492.0"></line>
+<line x1="720.8" y1="489.5" x2="735.0" y2="510.8"></line>
+<line x1="154.7" y1="601.7" x2="164.3" y2="620.6"></line>
+<line x1="231.5" y1="646.8" x2="219.9" y2="659.7"></line>
+<line x1="231.5" y1="646.8" x2="213.8" y2="676.3"></line>
+<line x1="377.7" y1="587.0" x2="383.0" y2="589.2"></line>
+<line x1="649.1" y1="629.8" x2="662.8" y2="640.3"></line>
+<line x1="649.1" y1="629.8" x2="666.3" y2="648.0"></line>
+<line x1="695.3" y1="510.9" x2="700.0" y2="492.0"></line>
+<line x1="695.3" y1="510.9" x2="704.8" y2="493.4"></line>
+<line x1="695.3" y1="510.9" x2="676.4" y2="517.6"></line>
+<line x1="164.3" y1="620.6" x2="146.6" y2="650.6"></line>
+<line x1="294.3" y1="549.8" x2="297.6" y2="559.9"></line>
+<line x1="294.3" y1="549.8" x2="281.7" y2="550.9"></line>
+<line x1="294.3" y1="549.8" x2="308.4" y2="543.5"></line>
+<line x1="294.3" y1="549.8" x2="279.1" y2="556.6"></line>
+<line x1="754.0" y1="598.0" x2="768.7" y2="607.3"></line>
+<line x1="754.0" y1="598.0" x2="758.6" y2="574.5"></line>
+<line x1="754.0" y1="598.0" x2="749.2" y2="569.9"></line>
+<line x1="165.9" y1="538.1" x2="199.3" y2="552.2"></line>
+<line x1="165.9" y1="538.1" x2="154.7" y2="601.7"></line>
+<line x1="331.9" y1="639.1" x2="351.2" y2="634.4"></line>
+<line x1="331.9" y1="639.1" x2="347.1" y2="622.3"></line>
+<line x1="331.9" y1="639.1" x2="356.2" y2="631.2"></line>
+<line x1="331.9" y1="639.1" x2="342.4" y2="609.7"></line>
+<line x1="704.8" y1="493.4" x2="700.0" y2="492.0"></line>
+<line x1="146.6" y1="650.6" x2="157.0" y2="659.6"></line>
+<line x1="146.6" y1="650.6" x2="186.6" y2="651.1"></line>
+<line x1="361.1" y1="437.7" x2="371.6" y2="444.7"></line>
+<line x1="361.1" y1="437.7" x2="380.8" y2="437.7"></line>
+<line x1="361.1" y1="437.7" x2="367.0" y2="456.7"></line>
+<line x1="655.3" y1="514.2" x2="657.0" y2="521.4"></line>
+<line x1="174.7" y1="683.2" x2="190.5" y2="687.7"></line>
+<line x1="174.7" y1="683.2" x2="193.4" y2="663.0"></line>
+<line x1="328.9" y1="545.8" x2="339.8" y2="552.3"></line>
+<line x1="735.4" y1="570.3" x2="749.2" y2="569.9"></line>
+<line x1="190.5" y1="687.7" x2="193.4" y2="663.0"></line>
+<line x1="190.5" y1="687.7" x2="213.8" y2="676.3"></line>
+<line x1="213.8" y1="676.3" x2="219.9" y2="659.7"></line>
+<line x1="337.2" y1="512.2" x2="328.9" y2="530.0"></line>
+<line x1="337.2" y1="512.2" x2="321.3" y2="500.2"></line>
+<line x1="157.0" y1="659.6" x2="174.7" y2="683.2"></line>
+<line x1="485.8" y1="537.5" x2="489.0" y2="516.4"></line>
+<line x1="485.8" y1="537.5" x2="471.5" y2="515.1"></line>
+<line x1="485.8" y1="537.5" x2="461.8" y2="525.6"></line>
+<line x1="344.3" y1="600.8" x2="330.1" y2="601.0"></line>
+<line x1="344.3" y1="600.8" x2="326.0" y2="605.0"></line>
+<line x1="344.3" y1="600.8" x2="347.1" y2="622.3"></line>
+<line x1="199.3" y1="552.2" x2="154.7" y2="601.7"></line>
+<line x1="366.7" y1="577.4" x2="377.7" y2="587.0"></line>
+<line x1="610.6" y1="538.7" x2="613.3" y2="559.2"></line>
+<line x1="610.6" y1="538.7" x2="646.7" y2="569.0"></line>
+<line x1="754.8" y1="551.6" x2="768.8" y2="553.8"></line>
+<line x1="754.8" y1="551.6" x2="762.1" y2="565.2"></line>
+<line x1="754.8" y1="551.6" x2="748.4" y2="536.5"></line>
+<line x1="738.3" y1="333.8" x2="730.3" y2="341.2"></line>
+<line x1="738.3" y1="333.8" x2="729.5" y2="351.9"></line>
+<line x1="294.5" y1="494.6" x2="298.3" y2="492.3"></line>
+<line x1="294.5" y1="494.6" x2="300.7" y2="485.0"></line>
+<line x1="294.5" y1="494.6" x2="302.5" y2="519.2"></line>
+<line x1="294.5" y1="494.6" x2="321.3" y2="500.2"></line>
+<line x1="804.4" y1="387.6" x2="800.3" y2="381.9"></line>
+<line x1="804.4" y1="387.6" x2="793.6" y2="388.2"></line>
+<line x1="253.5" y1="488.0" x2="294.5" y2="494.6"></line>
+<line x1="253.5" y1="488.0" x2="298.3" y2="492.3"></line>
+<line x1="253.5" y1="488.0" x2="300.7" y2="485.0"></line>
+<line x1="253.5" y1="488.0" x2="302.5" y2="519.2"></line>
+<line x1="731.7" y1="534.3" x2="737.7" y2="543.1"></line>
+<line x1="768.4" y1="326.2" x2="761.2" y2="328.3"></line>
+<line x1="768.4" y1="326.2" x2="738.3" y2="333.8"></line>
+<line x1="768.4" y1="326.2" x2="730.3" y2="341.2"></line>
+<line x1="758.6" y1="574.5" x2="762.1" y2="565.2"></line>
+<line x1="758.6" y1="574.5" x2="749.2" y2="569.9"></line>
+<line x1="758.6" y1="574.5" x2="760.1" y2="555.6"></line>
+<line x1="328.9" y1="580.0" x2="312.3" y2="576.0"></line>
+<line x1="328.9" y1="580.0" x2="330.1" y2="601.0"></line>
+<line x1="328.9" y1="580.0" x2="307.9" y2="581.3"></line>
+<line x1="562.0" y1="202.3" x2="546.7" y2="190.9"></line>
+<line x1="411.7" y1="500.7" x2="403.4" y2="476.6"></line>
+<line x1="587.9" y1="145.8" x2="582.7" y2="165.4"></line>
+<line x1="587.9" y1="145.8" x2="611.8" y2="162.6"></line>
+<line x1="587.9" y1="145.8" x2="559.9" y2="156.1"></line>
+<line x1="587.9" y1="145.8" x2="563.2" y2="164.0"></line>
+<line x1="777.4" y1="433.9" x2="784.5" y2="432.7"></line>
+<line x1="777.4" y1="433.9" x2="802.8" y2="416.5"></line>
+<line x1="777.4" y1="433.9" x2="768.1" y2="390.0"></line>
+<line x1="777.4" y1="433.9" x2="734.5" y2="419.2"></line>
+<line x1="318.5" y1="467.7" x2="335.4" y2="452.8"></line>
+<line x1="318.5" y1="467.7" x2="325.2" y2="490.4"></line>
+<line x1="681.0" y1="256.5" x2="693.1" y2="257.0"></line>
+<line x1="681.0" y1="256.5" x2="676.7" y2="271.5"></line>
+<line x1="400.1" y1="469.8" x2="403.4" y2="476.6"></line>
+<line x1="400.1" y1="469.8" x2="418.2" y2="472.5"></line>
+<line x1="400.1" y1="469.8" x2="382.1" y2="493.5"></line>
+<line x1="714.9" y1="383.3" x2="713.3" y2="377.1"></line>
+<line x1="714.9" y1="383.3" x2="713.4" y2="376.6"></line>
+<line x1="714.9" y1="383.3" x2="725.2" y2="379.4"></line>
+<line x1="429.2" y1="652.1" x2="444.2" y2="634.0"></line>
+<line x1="429.2" y1="652.1" x2="405.6" y2="653.8"></line>
+<line x1="542.0" y1="258.6" x2="545.6" y2="267.0"></line>
+<line x1="542.0" y1="258.6" x2="551.8" y2="254.8"></line>
+<line x1="542.0" y1="258.6" x2="533.8" y2="271.7"></line>
+<line x1="542.0" y1="258.6" x2="526.6" y2="258.4"></line>
+<line x1="784.5" y1="432.7" x2="802.8" y2="416.5"></line>
+<line x1="784.5" y1="432.7" x2="793.6" y2="388.2"></line>
+<line x1="784.5" y1="432.7" x2="768.1" y2="390.0"></line>
+<line x1="508.2" y1="491.8" x2="492.7" y2="494.9"></line>
+<line x1="551.8" y1="254.8" x2="560.8" y2="247.8"></line>
+<line x1="551.8" y1="254.8" x2="545.6" y2="267.0"></line>
+<line x1="551.8" y1="254.8" x2="533.8" y2="271.7"></line>
+<line x1="431.8" y1="601.5" x2="422.9" y2="614.7"></line>
+<line x1="431.8" y1="601.5" x2="434.6" y2="570.9"></line>
+<line x1="555.2" y1="158.4" x2="559.9" y2="156.1"></line>
+<line x1="555.2" y1="158.4" x2="551.6" y2="165.8"></line>
+<line x1="693.4" y1="320.3" x2="730.3" y2="341.2"></line>
+<line x1="693.4" y1="320.3" x2="738.3" y2="333.8"></line>
+<line x1="693.4" y1="320.3" x2="729.5" y2="351.9"></line>
+<line x1="693.4" y1="320.3" x2="713.4" y2="376.6"></line>
+<line x1="402.7" y1="425.8" x2="409.1" y2="429.5"></line>
+<line x1="662.2" y1="208.4" x2="649.8" y2="216.0"></line>
+<line x1="662.2" y1="208.4" x2="654.6" y2="224.6"></line>
+<line x1="532.5" y1="461.1" x2="718.7" y2="402.6"></line>
+<line x1="532.5" y1="461.1" x2="714.9" y2="383.3"></line>
+<line x1="532.5" y1="461.1" x2="713.3" y2="377.1"></line>
+<line x1="281.7" y1="550.9" x2="279.1" y2="556.6"></line>
+<line x1="281.7" y1="550.9" x2="297.6" y2="559.9"></line>
+<line x1="557.4" y1="302.0" x2="536.9" y2="305.2"></line>
+<line x1="557.4" y1="302.0" x2="529.6" y2="289.6"></line>
+<line x1="734.5" y1="419.2" x2="729.2" y2="417.5"></line>
+<line x1="504.4" y1="512.1" x2="512.1" y2="503.3"></line>
+<line x1="504.4" y1="512.1" x2="489.0" y2="516.4"></line>
+<line x1="504.4" y1="512.1" x2="508.2" y2="491.8"></line>
+<line x1="504.4" y1="512.1" x2="492.7" y2="494.9"></line>
+<line x1="652.2" y1="292.1" x2="658.5" y2="294.3"></line>
+<line x1="652.2" y1="292.1" x2="663.3" y2="281.3"></line>
+<line x1="652.2" y1="292.1" x2="664.2" y2="302.4"></line>
+<line x1="409.1" y1="429.5" x2="412.8" y2="442.7"></line>
+<line x1="409.1" y1="429.5" x2="389.6" y2="428.1"></line>
+<line x1="409.1" y1="429.5" x2="389.6" y2="428.0"></line>
+<line x1="648.1" y1="162.7" x2="632.1" y2="172.9"></line>
+<line x1="648.1" y1="162.7" x2="654.5" y2="181.5"></line>
+<line x1="648.1" y1="162.7" x2="659.7" y2="184.8"></line>
+<line x1="729.2" y1="417.5" x2="718.7" y2="402.6"></line>
+<line x1="729.2" y1="417.5" x2="734.9" y2="382.3"></line>
+<line x1="729.2" y1="417.5" x2="714.9" y2="383.3"></line>
+<line x1="672.7" y1="189.6" x2="659.7" y2="184.8"></line>
+<line x1="672.7" y1="189.6" x2="654.5" y2="181.5"></line>
+<line x1="672.7" y1="189.6" x2="662.2" y2="208.4"></line>
+<line x1="672.7" y1="189.6" x2="696.2" y2="194.8"></line>
+<line x1="492.7" y1="494.9" x2="488.6" y2="485.0"></line>
+<line x1="624.5" y1="310.2" x2="625.6" y2="319.5"></line>
+<line x1="624.5" y1="310.2" x2="608.5" y2="312.9"></line>
+<line x1="624.5" y1="310.2" x2="641.8" y2="307.9"></line>
+<line x1="624.5" y1="310.2" x2="606.4" y2="290.6"></line>
+<line x1="654.6" y1="224.6" x2="649.8" y2="216.0"></line>
+<line x1="713.4" y1="376.6" x2="713.3" y2="377.1"></line>
+<line x1="713.4" y1="376.6" x2="725.2" y2="379.4"></line>
+<line x1="467.7" y1="445.2" x2="465.0" y2="446.4"></line>
+<line x1="467.7" y1="445.2" x2="455.1" y2="451.5"></line>
+<line x1="467.7" y1="445.2" x2="458.3" y2="456.8"></line>
+<line x1="467.7" y1="445.2" x2="461.2" y2="460.9"></line>
+<line x1="545.6" y1="267.0" x2="533.8" y2="271.7"></line>
+<line x1="545.6" y1="267.0" x2="534.4" y2="279.8"></line>
+<line x1="734.9" y1="382.3" x2="725.2" y2="379.4"></line>
+<line x1="533.8" y1="271.7" x2="534.4" y2="279.8"></line>
+<line x1="718.7" y1="402.6" x2="714.9" y2="383.3"></line>
+<line x1="718.7" y1="402.6" x2="734.5" y2="419.2"></line>
+<line x1="429.4" y1="476.0" x2="434.2" y2="486.0"></line>
+<line x1="429.4" y1="476.0" x2="439.6" y2="481.2"></line>
+<line x1="729.5" y1="351.9" x2="730.3" y2="341.2"></line>
+<line x1="461.8" y1="472.5" x2="454.6" y2="472.9"></line>
+<line x1="461.8" y1="472.5" x2="461.6" y2="480.6"></line>
+<line x1="526.6" y1="258.4" x2="525.5" y2="267.8"></line>
+<line x1="526.6" y1="258.4" x2="533.8" y2="271.7"></line>
+<line x1="649.2" y1="253.0" x2="647.5" y2="255.5"></line>
+<line x1="713.3" y1="377.1" x2="725.2" y2="379.4"></line>
+<line x1="713.3" y1="377.1" x2="734.9" y2="382.3"></line>
+<line x1="465.3" y1="499.6" x2="469.3" y2="482.3"></line>
+<line x1="617.5" y1="177.9" x2="632.1" y2="172.9"></line>
+<line x1="617.5" y1="177.9" x2="611.8" y2="162.6"></line>
+<line x1="761.2" y1="328.3" x2="738.3" y2="333.8"></line>
+<line x1="761.2" y1="328.3" x2="730.3" y2="341.2"></line>
+<line x1="165.0" y1="358.3" x2="177.6" y2="350.3"></line>
+<line x1="165.0" y1="358.3" x2="177.5" y2="342.6"></line>
+<line x1="165.0" y1="358.3" x2="183.7" y2="349.6"></line>
+<line x1="165.0" y1="358.3" x2="147.4" y2="345.9"></line>
+<line x1="307.9" y1="581.3" x2="311.3" y2="603.0"></line>
+<line x1="598.0" y1="196.3" x2="595.6" y2="187.0"></line>
+<line x1="598.0" y1="196.3" x2="617.5" y2="177.9"></line>
+<line x1="598.0" y1="196.3" x2="582.7" y2="165.4"></line>
+<line x1="191.6" y1="360.2" x2="197.4" y2="352.7"></line>
+<line x1="191.6" y1="360.2" x2="183.7" y2="349.6"></line>
+<line x1="486.9" y1="459.8" x2="467.7" y2="445.2"></line>
+<line x1="486.9" y1="459.8" x2="488.6" y2="485.0"></line>
+<line x1="486.9" y1="459.8" x2="465.0" y2="446.4"></line>
+<line x1="486.9" y1="459.8" x2="461.2" y2="460.9"></line>
+<line x1="259.9" y1="457.7" x2="238.5" y2="416.5"></line>
+<line x1="259.9" y1="457.7" x2="218.3" y2="429.2"></line>
+<line x1="259.9" y1="457.7" x2="229.5" y2="407.3"></line>
+<line x1="259.9" y1="457.7" x2="193.3" y2="457.7"></line>
+<line x1="335.4" y1="452.8" x2="361.1" y2="437.7"></line>
+<line x1="134.2" y1="395.7" x2="133.4" y2="409.4"></line>
+<line x1="458.2" y1="566.7" x2="445.6" y2="569.4"></line>
+<line x1="458.2" y1="566.7" x2="434.6" y2="570.9"></line>
+<line x1="458.2" y1="566.7" x2="450.0" y2="543.8"></line>
+<line x1="563.2" y1="164.0" x2="559.9" y2="156.1"></line>
+<line x1="563.2" y1="164.0" x2="555.2" y2="158.4"></line>
+<line x1="177.6" y1="350.3" x2="183.7" y2="349.6"></line>
+<line x1="177.6" y1="350.3" x2="177.5" y2="342.6"></line>
+<line x1="177.6" y1="350.3" x2="191.6" y2="360.2"></line>
+<line x1="378.0" y1="471.6" x2="382.1" y2="493.5"></line>
+<line x1="625.6" y1="319.5" x2="608.5" y2="312.9"></line>
+<line x1="625.6" y1="319.5" x2="641.8" y2="307.9"></line>
+<line x1="123.7" y1="346.1" x2="118.5" y2="365.0"></line>
+<line x1="123.7" y1="346.1" x2="147.4" y2="345.9"></line>
+<line x1="312.3" y1="576.0" x2="309.4" y2="558.2"></line>
+<line x1="559.9" y1="156.1" x2="551.6" y2="165.8"></line>
+<line x1="559.9" y1="156.1" x2="582.7" y2="165.4"></line>
+<line x1="177.5" y1="342.6" x2="183.7" y2="349.6"></line>
+<line x1="455.1" y1="451.5" x2="465.0" y2="446.4"></line>
+<line x1="455.1" y1="451.5" x2="461.2" y2="460.9"></line>
+<line x1="718.5" y1="292.8" x2="692.3" y2="285.3"></line>
+<line x1="718.5" y1="292.8" x2="684.9" y2="276.3"></line>
+<line x1="718.5" y1="292.8" x2="698.0" y2="260.8"></line>
+<line x1="113.7" y1="418.1" x2="119.6" y2="434.8"></line>
+<line x1="113.7" y1="418.1" x2="133.4" y2="409.4"></line>
+<line x1="113.7" y1="418.1" x2="135.2" y2="420.8"></line>
+<line x1="113.7" y1="418.1" x2="98.7" y2="399.5"></line>
+<line x1="709.7" y1="242.6" x2="698.0" y2="260.8"></line>
+<line x1="709.7" y1="242.6" x2="693.1" y2="257.0"></line>
+<line x1="709.7" y1="242.6" x2="698.2" y2="219.4"></line>
+<line x1="709.7" y1="242.6" x2="681.0" y2="256.5"></line>
+<line x1="200.3" y1="413.9" x2="218.3" y2="429.2"></line>
+<line x1="654.5" y1="181.5" x2="659.7" y2="184.8"></line>
+<line x1="444.2" y1="634.0" x2="469.7" y2="623.9"></line>
+<line x1="444.2" y1="634.0" x2="422.9" y2="614.7"></line>
+<line x1="444.2" y1="634.0" x2="478.4" y2="634.3"></line>
+<line x1="525.5" y1="267.8" x2="533.8" y2="271.7"></line>
+<line x1="525.5" y1="267.8" x2="534.4" y2="279.8"></line>
+<line x1="525.5" y1="267.8" x2="542.0" y2="258.6"></line>
+<line x1="231.2" y1="380.0" x2="229.5" y2="407.3"></line>
+<line x1="231.2" y1="380.0" x2="202.6" y2="389.1"></line>
+<line x1="231.2" y1="380.0" x2="238.5" y2="416.5"></line>
+<line x1="231.2" y1="380.0" x2="197.4" y2="352.7"></line>
+<line x1="458.3" y1="456.8" x2="461.2" y2="460.9"></line>
+<line x1="458.3" y1="456.8" x2="465.0" y2="446.4"></line>
+<line x1="698.2" y1="219.4" x2="686.2" y2="210.4"></line>
+<line x1="698.2" y1="219.4" x2="696.2" y2="194.8"></line>
+<line x1="439.6" y1="481.2" x2="434.2" y2="486.0"></line>
+<line x1="439.6" y1="481.2" x2="449.5" y2="474.7"></line>
+<line x1="439.6" y1="481.2" x2="454.6" y2="472.9"></line>
+<line x1="122.6" y1="372.6" x2="118.5" y2="365.0"></line>
+<line x1="122.6" y1="372.6" x2="112.8" y2="387.4"></line>
+<line x1="122.6" y1="372.6" x2="134.2" y2="395.7"></line>
+<line x1="122.6" y1="372.6" x2="123.7" y2="346.1"></line>
+<line x1="302.5" y1="519.2" x2="321.3" y2="500.2"></line>
+<line x1="302.5" y1="519.2" x2="298.3" y2="492.3"></line>
+<line x1="157.4" y1="443.3" x2="138.7" y2="441.8"></line>
+<line x1="157.4" y1="443.3" x2="169.9" y2="428.8"></line>
+<line x1="356.2" y1="631.2" x2="351.2" y2="634.4"></line>
+<line x1="356.2" y1="631.2" x2="347.1" y2="622.3"></line>
+<line x1="356.2" y1="631.2" x2="342.4" y2="609.7"></line>
+<line x1="659.7" y1="184.8" x2="662.2" y2="208.4"></line>
+<line x1="403.4" y1="476.6" x2="418.2" y2="472.5"></line>
+<line x1="608.5" y1="312.9" x2="596.5" y2="328.4"></line>
+<line x1="608.5" y1="312.9" x2="606.4" y2="290.6"></line>
+<line x1="229.5" y1="407.3" x2="238.5" y2="416.5"></line>
+<line x1="229.5" y1="407.3" x2="218.3" y2="429.2"></line>
+<line x1="300.7" y1="485.0" x2="298.3" y2="492.3"></line>
+<line x1="658.5" y1="294.3" x2="664.2" y2="302.4"></line>
+<line x1="98.7" y1="399.5" x2="112.8" y2="387.4"></line>
+<line x1="98.7" y1="399.5" x2="134.2" y2="395.7"></line>
+<line x1="692.3" y1="285.3" x2="684.9" y2="276.3"></line>
+<line x1="692.3" y1="285.3" x2="680.5" y2="282.4"></line>
+<line x1="596.9" y1="470.6" x2="546.0" y2="436.0"></line>
+<line x1="596.9" y1="470.6" x2="504.4" y2="512.1"></line>
+<line x1="534.4" y1="279.8" x2="529.6" y2="289.6"></line>
+<line x1="118.5" y1="365.0" x2="112.8" y2="387.4"></line>
+<line x1="118.5" y1="365.0" x2="149.0" y2="376.7"></line>
+<line x1="696.2" y1="194.8" x2="686.2" y2="210.4"></line>
+<line x1="183.7" y1="349.6" x2="197.4" y2="352.7"></line>
+<line x1="649.8" y1="216.0" x2="633.4" y2="242.9"></line>
+<line x1="529.6" y1="289.6" x2="536.9" y2="305.2"></line>
+<line x1="529.6" y1="289.6" x2="533.8" y2="271.7"></line>
+<line x1="529.6" y1="289.6" x2="525.5" y2="267.8"></line>
+<line x1="112.8" y1="387.4" x2="134.2" y2="395.7"></line>
+<line x1="707.1" y1="353.4" x2="698.6" y2="331.3"></line>
+<line x1="707.1" y1="353.4" x2="718.5" y2="292.8"></line>
+<line x1="707.1" y1="353.4" x2="647.9" y2="327.9"></line>
+<line x1="707.1" y1="353.4" x2="679.6" y2="294.2"></line>
+<line x1="182.5" y1="430.4" x2="169.9" y2="428.8"></line>
+<line x1="182.5" y1="430.4" x2="200.3" y2="413.9"></line>
+<line x1="489.0" y1="516.4" x2="471.5" y2="515.1"></line>
+<line x1="679.6" y1="294.2" x2="680.5" y2="282.4"></line>
+<line x1="679.6" y1="294.2" x2="692.3" y2="285.3"></line>
+<line x1="679.6" y1="294.2" x2="664.2" y2="302.4"></line>
+<line x1="150.9" y1="325.6" x2="147.4" y2="345.9"></line>
+<line x1="150.9" y1="325.6" x2="177.5" y2="342.6"></line>
+<line x1="150.9" y1="325.6" x2="123.7" y2="346.1"></line>
+<line x1="150.9" y1="325.6" x2="165.0" y2="358.3"></line>
+<line x1="487.8" y1="592.7" x2="492.9" y2="575.0"></line>
+<line x1="487.8" y1="592.7" x2="475.7" y2="606.7"></line>
+<line x1="663.3" y1="281.3" x2="658.5" y2="294.3"></line>
+<line x1="663.3" y1="281.3" x2="676.7" y2="271.5"></line>
+<line x1="663.3" y1="281.3" x2="680.5" y2="282.4"></line>
+<line x1="546.7" y1="190.9" x2="529.4" y2="202.9"></line>
+<line x1="193.3" y1="457.7" x2="182.5" y2="430.4"></line>
+<line x1="193.3" y1="457.7" x2="163.2" y2="470.5"></line>
+<line x1="193.3" y1="457.7" x2="169.9" y2="428.8"></line>
+<line x1="382.1" y1="493.5" x2="373.7" y2="484.2"></line>
+<line x1="611.8" y1="162.6" x2="632.1" y2="172.9"></line>
+<line x1="133.5" y1="434.6" x2="138.7" y2="441.8"></line>
+<line x1="133.5" y1="434.6" x2="135.2" y2="420.8"></line>
+<line x1="133.5" y1="434.6" x2="119.6" y2="434.8"></line>
+<line x1="133.5" y1="434.6" x2="133.4" y2="409.4"></line>
+<line x1="311.3" y1="603.0" x2="330.1" y2="601.0"></line>
+<line x1="680.5" y1="282.4" x2="684.9" y2="276.3"></line>
+<line x1="680.5" y1="282.4" x2="676.7" y2="271.5"></line>
+<line x1="218.3" y1="429.2" x2="238.5" y2="416.5"></line>
+<line x1="218.3" y1="429.2" x2="182.5" y2="430.4"></line>
+<line x1="693.1" y1="257.0" x2="698.0" y2="260.8"></line>
+<line x1="647.5" y1="255.5" x2="663.3" y2="281.3"></line>
+<line x1="641.8" y1="307.9" x2="652.2" y2="292.1"></line>
+<line x1="436.4" y1="394.8" x2="259.9" y2="457.7"></line>
+<line x1="436.4" y1="394.8" x2="238.5" y2="416.5"></line>
+<line x1="436.4" y1="394.8" x2="231.2" y2="380.0"></line>
+<line x1="436.4" y1="394.8" x2="229.5" y2="407.3"></line>
+<line x1="135.2" y1="420.8" x2="133.4" y2="409.4"></line>
+<line x1="604.0" y1="418.3" x2="596.5" y2="328.4"></line>
+<line x1="604.0" y1="418.3" x2="647.9" y2="327.9"></line>
+<line x1="604.0" y1="418.3" x2="625.6" y2="319.5"></line>
+<line x1="469.3" y1="482.3" x2="457.3" y2="480.9"></line>
+<line x1="596.5" y1="328.4" x2="625.6" y2="319.5"></line>
+<line x1="119.6" y1="434.8" x2="138.7" y2="441.8"></line>
+<line x1="546.0" y1="436.0" x2="486.9" y2="459.8"></line>
+<line x1="573.0" y1="272.8" x2="595.2" y2="279.5"></line>
+<line x1="163.2" y1="470.5" x2="157.4" y2="443.3"></line>
+<line x1="412.8" y1="442.7" x2="420.0" y2="445.9"></line>
+<line x1="412.8" y1="442.7" x2="424.0" y2="449.3"></line>
+<line x1="536.9" y1="305.2" x2="534.4" y2="279.8"></line>
+<line x1="197.4" y1="352.7" x2="177.6" y2="350.3"></line>
+<line x1="490.3" y1="625.0" x2="478.4" y2="634.3"></line>
+<line x1="490.3" y1="625.0" x2="469.7" y2="623.9"></line>
+<line x1="525.5" y1="232.5" x2="526.6" y2="258.4"></line>
+<line x1="525.5" y1="232.5" x2="529.4" y2="202.9"></line>
+<line x1="525.5" y1="232.5" x2="542.0" y2="258.6"></line>
+<line x1="202.6" y1="389.1" x2="200.3" y2="413.9"></line>
+<line x1="202.6" y1="389.1" x2="191.6" y2="360.2"></line>
+<line x1="454.6" y1="472.9" x2="449.5" y2="474.7"></line>
+<line x1="454.6" y1="472.9" x2="457.3" y2="480.9"></line>
+<line x1="698.0" y1="260.8" x2="681.0" y2="256.5"></line>
+<line x1="762.1" y1="565.2" x2="768.8" y2="553.8"></line>
+<line x1="424.0" y1="449.3" x2="420.0" y2="445.9"></line>
+<line x1="647.9" y1="327.9" x2="641.8" y2="307.9"></line>
+<line x1="647.9" y1="327.9" x2="625.6" y2="319.5"></line>
+<line x1="638.3" y1="582.1" x2="613.3" y2="559.2"></line>
+<line x1="638.3" y1="582.1" x2="635.7" y2="623.4"></line>
+<line x1="638.3" y1="582.1" x2="685.1" y2="588.9"></line>
+<line x1="309.4" y1="558.2" x2="297.6" y2="559.9"></line>
+<line x1="309.4" y1="558.2" x2="308.4" y2="543.5"></line>
+<line x1="309.4" y1="558.2" x2="294.3" y2="549.8"></line>
+<line x1="529.4" y1="202.9" x2="562.0" y2="202.3"></line>
+<line x1="261.7" y1="567.9" x2="279.1" y2="556.6"></line>
+<line x1="261.7" y1="567.9" x2="281.7" y2="550.9"></line>
+<line x1="261.7" y1="567.9" x2="297.6" y2="559.9"></line>
+<line x1="261.7" y1="567.9" x2="294.3" y2="549.8"></line>
+<line x1="686.2" y1="210.4" x2="662.2" y2="208.4"></line>
+<line x1="720.4" y1="612.9" x2="707.0" y2="610.9"></line>
+<line x1="720.4" y1="612.9" x2="700.1" y2="629.1"></line>
+<line x1="720.4" y1="612.9" x2="692.2" y2="608.9"></line>
+<line x1="723.2" y1="555.2" x2="737.7" y2="543.1"></line>
+<line x1="723.2" y1="555.2" x2="740.7" y2="563.4"></line>
+<line x1="723.2" y1="555.2" x2="735.4" y2="570.3"></line>
+<line x1="698.6" y1="331.3" x2="679.6" y2="294.2"></line>
+<line x1="698.6" y1="331.3" x2="718.5" y2="292.8"></line>
+<line x1="698.6" y1="331.3" x2="664.2" y2="302.4"></line>
+<line x1="405.6" y1="653.8" x2="422.9" y2="614.7"></line>
+<line x1="449.5" y1="474.7" x2="457.3" y2="480.9"></line>
+<line x1="449.5" y1="474.7" x2="461.8" y2="472.5"></line>
+<line x1="582.7" y1="165.4" x2="563.2" y2="164.0"></line>
+<line x1="582.7" y1="165.4" x2="595.6" y2="187.0"></line>
+<line x1="677.1" y1="653.1" x2="666.3" y2="648.0"></line>
+<line x1="677.1" y1="653.1" x2="661.9" y2="652.5"></line>
+<line x1="677.1" y1="653.1" x2="662.8" y2="640.3"></line>
+<line x1="595.6" y1="187.0" x2="617.5" y2="177.9"></line>
+<line x1="613.3" y1="559.2" x2="643.8" y2="532.0"></line>
+<line x1="418.2" y1="472.5" x2="429.4" y2="476.0"></line>
+<line x1="418.2" y1="472.5" x2="434.2" y2="486.0"></line>
+<line x1="551.6" y1="165.8" x2="563.2" y2="164.0"></line>
+<line x1="639.5" y1="388.6" x2="700.0" y2="492.0"></line>
+<line x1="639.5" y1="388.6" x2="704.8" y2="493.4"></line>
+<line x1="639.5" y1="388.6" x2="655.3" y2="514.2"></line>
+<line x1="639.5" y1="388.6" x2="719.3" y2="488.2"></line>
+<line x1="684.9" y1="276.3" x2="676.7" y2="271.5"></line>
+<line x1="429.1" y1="436.7" x2="431.4" y2="436.7"></line>
+<line x1="429.1" y1="436.7" x2="420.0" y2="445.9"></line>
+<line x1="338.2" y1="487.4" x2="325.2" y2="490.4"></line>
+<line x1="338.2" y1="487.4" x2="335.5" y2="505.2"></line>
+<line x1="457.3" y1="480.9" x2="461.8" y2="472.5"></line>
+<line x1="431.4" y1="436.7" x2="424.0" y2="449.3"></line>
+<line x1="431.4" y1="436.7" x2="420.0" y2="445.9"></line>
+<line x1="431.4" y1="436.7" x2="412.8" y2="442.7"></line>
+<line x1="723.7" y1="649.3" x2="700.1" y2="629.1"></line>
+<line x1="461.8" y1="525.6" x2="450.0" y2="543.8"></line>
+<line x1="357.6" y1="538.9" x2="339.8" y2="552.3"></line>
+<line x1="737.7" y1="543.1" x2="748.4" y2="536.5"></line>
+<line x1="737.7" y1="543.1" x2="754.8" y2="551.6"></line>
+<line x1="347.1" y1="622.3" x2="351.2" y2="634.4"></line>
+<line x1="768.7" y1="607.3" x2="758.6" y2="574.5"></line>
+<line x1="768.7" y1="607.3" x2="749.2" y2="569.9"></line>
+<line x1="183.7" y1="349.6" x2="326.0" y2="605.0"></line>
+<line x1="411.7" y1="500.7" x2="700.0" y2="492.0"></line>
+<line x1="714.9" y1="383.3" x2="723.2" y2="555.2"></line>
+<line x1="458.2" y1="566.7" x2="238.5" y2="416.5"></line>
+<line x1="434.2" y1="486.0" x2="664.2" y2="302.4"></line>
+<line x1="213.8" y1="676.3" x2="300.7" y2="485.0"></line>
+<line x1="804.4" y1="387.6" x2="534.4" y2="279.8"></line>
+<line x1="398.3" y1="516.3" x2="643.8" y2="532.0"></line>
+<line x1="698.9" y1="589.4" x2="800.3" y2="381.9"></line>
+<line x1="542.0" y1="258.6" x2="403.4" y2="476.6"></line>
+<line x1="165.9" y1="538.1" x2="261.7" y2="567.9"></line>
+<line x1="487.8" y1="592.7" x2="723.2" y2="555.2"></line>
+<line x1="525.5" y1="267.8" x2="663.6" y2="514.3"></line>
+<line x1="471.5" y1="515.1" x2="692.2" y2="608.9"></line>
+<line x1="595.2" y1="279.5" x2="424.0" y2="449.3"></line>
+<line x1="357.6" y1="538.9" x2="177.6" y2="350.3"></line>
+<line x1="259.9" y1="457.7" x2="377.9" y2="648.3"></line>
+<line x1="418.2" y1="472.5" x2="154.7" y2="601.7"></line>
+<line x1="418.2" y1="540.1" x2="532.5" y2="461.1"></line>
+<line x1="718.7" y1="402.6" x2="512.1" y2="503.3"></line>
+<line x1="429.2" y1="652.1" x2="186.6" y2="651.1"></line>
+<line x1="436.4" y1="394.8" x2="312.3" y2="576.0"></line>
+<line x1="677.1" y1="653.1" x2="475.7" y2="606.7"></line>
+<line x1="748.4" y1="536.5" x2="718.5" y2="292.8"></line>
+<line x1="389.6" y1="428.0" x2="165.0" y2="358.3"></line>
+<line x1="420.0" y1="445.9" x2="529.6" y2="289.6"></line>
+<line x1="461.6" y1="480.6" x2="602.5" y2="240.4"></line>
+<line x1="663.6" y1="514.3" x2="725.2" y2="379.4"></line>
+<line x1="761.2" y1="328.3" x2="604.0" y2="418.3"></line>
+<line x1="312.3" y1="576.0" x2="112.8" y2="387.4"></line>
+<line x1="737.7" y1="543.1" x2="679.6" y2="294.2"></line>
+<line x1="465.0" y1="446.4" x2="714.9" y2="383.3"></line>
+<line x1="118.5" y1="365.0" x2="357.6" y2="538.9"></line>
+<line x1="160.0" y1="412.5" x2="342.4" y2="609.7"></line>
+<line x1="685.1" y1="588.9" x2="411.7" y2="500.7"></line>
+<line x1="431.4" y1="436.7" x2="165.9" y2="538.1"></line>
+<line x1="761.2" y1="328.3" x2="698.0" y2="260.8"></line>
+<line x1="163.2" y1="470.5" x2="418.2" y2="472.5"></line>
+<line x1="735.4" y1="570.3" x2="465.0" y2="446.4"></line>
+<line x1="731.7" y1="534.3" x2="489.0" y2="516.4"></line>
+<line x1="551.8" y1="254.8" x2="730.3" y2="341.2"></line>
+<line x1="487.8" y1="592.7" x2="213.8" y2="676.3"></line>
+<line x1="663.3" y1="281.3" x2="748.4" y2="536.5"></line>
+<line x1="784.5" y1="432.7" x2="735.0" y2="510.8"></line>
+<line x1="449.5" y1="474.7" x2="608.5" y2="312.9"></line>
+<line x1="698.0" y1="260.8" x2="731.7" y2="534.3"></line>
+<line x1="183.7" y1="349.6" x2="300.7" y2="485.0"></line>
+<line x1="713.3" y1="377.1" x2="597.5" y2="275.4"></line>
+<line x1="508.2" y1="491.8" x2="663.3" y2="281.3"></line>
+<line x1="692.3" y1="285.3" x2="738.3" y2="333.8"></line>
+<line x1="666.3" y1="648.0" x2="461.8" y2="525.6"></line>
+<line x1="380.8" y1="437.7" x2="197.4" y2="352.7"></line>
+<line x1="666.3" y1="648.0" x2="490.3" y2="625.0"></line>
+<line x1="344.3" y1="600.8" x2="638.3" y2="582.1"></line>
+<line x1="641.8" y1="307.9" x2="762.1" y2="565.2"></line>
+<line x1="643.8" y1="532.0" x2="533.8" y2="271.7"></line>
+<line x1="383.0" y1="589.2" x2="165.9" y2="538.1"></line>
+<line x1="700.0" y1="492.0" x2="461.6" y2="480.6"></line>
+<line x1="308.4" y1="543.5" x2="229.5" y2="407.3"></line>
+<line x1="331.9" y1="639.1" x2="154.7" y2="601.7"></line>
+<line x1="633.4" y1="242.9" x2="784.5" y2="432.7"></line>
+<line x1="657.0" y1="521.4" x2="434.6" y2="570.9"></line>
+<line x1="377.7" y1="587.0" x2="610.6" y2="538.7"></line>
+<line x1="663.3" y1="281.3" x2="689.9" y2="534.9"></line>
+<line x1="165.9" y1="538.1" x2="389.6" y2="428.0"></line>
+<line x1="359.3" y1="544.0" x2="160.0" y2="412.5"></line>
+<line x1="639.5" y1="388.6" x2="471.5" y2="515.1"></line>
+<line x1="445.6" y1="569.4" x2="238.5" y2="416.5"></line>
+<line x1="492.7" y1="494.9" x2="735.4" y2="570.3"></line>
+<line x1="218.3" y1="429.2" x2="449.5" y2="474.7"></line>
+<line x1="676.3" y1="551.9" x2="707.1" y2="353.4"></line>
+<line x1="454.6" y1="472.9" x2="719.3" y2="488.2"></line>
+<line x1="643.8" y1="532.0" x2="429.4" y2="476.0"></line>
+<line x1="238.5" y1="416.5" x2="467.7" y2="445.2"></line>
+<line x1="485.8" y1="537.5" x2="768.8" y2="553.8"></line>
+<line x1="793.6" y1="388.2" x2="707.1" y2="353.4"></line>
+<line x1="465.0" y1="446.4" x2="704.8" y2="493.4"></line>
+<line x1="389.6" y1="428.1" x2="238.5" y2="416.5"></line>
+<line x1="525.5" y1="267.8" x2="338.2" y2="487.4"></line>
+<line x1="646.7" y1="569.0" x2="664.2" y2="302.4"></line>
+<line x1="219.9" y1="659.7" x2="134.2" y2="395.7"></line>
+<line x1="533.8" y1="271.7" x2="713.4" y2="376.6"></line>
+<line x1="658.5" y1="294.3" x2="713.3" y2="377.1"></line>
+<line x1="676.3" y1="551.9" x2="756.4" y2="374.3"></line>
+<line x1="532.5" y1="461.1" x2="261.7" y2="567.9"></line>
+<line x1="485.4" y1="614.3" x2="701.5" y2="588.4"></line>
+<line x1="713.4" y1="376.6" x2="719.3" y2="488.2"></line>
+<line x1="308.4" y1="543.5" x2="174.7" y2="683.2"></line>
+<line x1="231.2" y1="380.0" x2="485.8" y2="537.5"></line>
+<line x1="465.3" y1="499.6" x2="596.5" y2="328.4"></line>
+<line x1="431.4" y1="436.7" x2="259.9" y2="457.7"></line>
+<line x1="713.3" y1="377.1" x2="613.3" y2="559.2"></line>
+<line x1="200.3" y1="413.9" x2="174.7" y2="683.2"></line>
+<line x1="485.4" y1="614.3" x2="748.4" y2="536.5"></line>
+<line x1="344.3" y1="600.8" x2="154.7" y2="601.7"></line>
+<line x1="469.7" y1="623.9" x2="610.6" y2="538.7"></line>
+<line x1="475.7" y1="606.7" x2="231.5" y2="646.8"></line>
+<line x1="610.6" y1="538.7" x2="465.0" y2="446.4"></line>
+<line x1="163.2" y1="470.5" x2="300.7" y2="485.0"></line>
+<line x1="532.5" y1="461.1" x2="597.5" y2="275.4"></line>
+<line x1="163.2" y1="470.5" x2="406.1" y2="520.2"></line>
+<line x1="409.1" y1="429.5" x2="638.3" y2="582.1"></line>
+<line x1="713.4" y1="376.6" x2="624.5" y2="310.2"></line>
+<line x1="768.4" y1="326.2" x2="639.5" y2="388.6"></line>
+<line x1="238.5" y1="416.5" x2="429.1" y2="436.7"></line>
+<line x1="165.9" y1="538.1" x2="311.3" y2="603.0"></line>
+<line x1="486.9" y1="459.8" x2="698.9" y2="589.4"></line>
+<line x1="377.9" y1="648.3" x2="610.6" y2="538.7"></line>
+<line x1="551.8" y1="254.8" x2="461.8" y2="525.6"></line>
+<line x1="654.5" y1="181.5" x2="761.9" y2="361.2"></line>
+<line x1="400.1" y1="469.8" x2="165.9" y2="538.1"></line>
+<line x1="658.5" y1="294.3" x2="725.2" y2="379.4"></line>
+<line x1="229.5" y1="407.3" x2="390.2" y2="569.9"></line>
+<line x1="508.2" y1="491.8" x2="738.3" y2="333.8"></line>
+<line x1="602.5" y1="240.4" x2="695.3" y2="510.9"></line>
+<line x1="190.5" y1="687.7" x2="357.6" y2="538.9"></line>
+<line x1="193.3" y1="457.7" x2="402.7" y2="425.8"></line>
+<line x1="149.0" y1="376.7" x2="398.3" y2="516.3"></line>
+<line x1="113.7" y1="418.1" x2="328.9" y2="530.0"></line>
+<line x1="281.7" y1="550.9" x2="259.9" y2="457.7"></line>
+<line x1="300.7" y1="485.0" x2="191.6" y2="360.2"></line>
+<line x1="436.4" y1="394.8" x2="545.6" y2="267.0"></line>
+<line x1="122.6" y1="372.6" x2="294.5" y2="494.6"></line>
+<line x1="371.6" y1="444.7" x2="144.2" y2="394.5"></line>
+<line x1="366.7" y1="577.4" x2="191.0" y2="622.6"></line>
+<line x1="602.5" y1="240.4" x2="692.0" y2="526.2"></line>
+<line x1="279.1" y1="556.6" x2="147.4" y2="345.9"></line>
+<line x1="768.1" y1="390.0" x2="596.9" y2="470.6"></line>
+<line x1="720.8" y1="489.5" x2="471.5" y2="515.1"></line>
+<line x1="307.9" y1="581.3" x2="190.5" y2="687.7"></line>
+<line x1="508.2" y1="491.8" x2="692.0" y2="526.2"></line>
+<line x1="112.8" y1="387.4" x2="409.1" y2="429.5"></line>
+<line x1="389.6" y1="428.0" x2="138.7" y2="441.8"></line>
+<line x1="418.2" y1="540.1" x2="638.3" y2="582.1"></line>
+<line x1="402.7" y1="425.8" x2="676.4" y2="517.6"></line>
+<line x1="486.9" y1="459.8" x2="731.7" y2="534.3"></line>
+<line x1="768.8" y1="553.8" x2="777.4" y2="433.9"></line>
+<line x1="259.9" y1="457.7" x2="465.3" y2="499.6"></line>
+<line x1="720.4" y1="612.9" x2="509.7" y2="580.6"></line>
+<line x1="318.5" y1="467.7" x2="155.0" y2="396.4"></line>
+<line x1="639.5" y1="388.6" x2="403.4" y2="476.6"></line>
+<line x1="455.1" y1="451.5" x2="532.5" y2="461.1"></line>
+<line x1="402.7" y1="425.8" x2="639.5" y2="388.6"></line>
+<line x1="703.0" y1="650.7" x2="489.0" y2="516.4"></line>
+<line x1="238.5" y1="416.5" x2="186.6" y2="651.1"></line>
+<line x1="800.3" y1="381.9" x2="696.2" y2="194.8"></line>
+<line x1="740.7" y1="563.4" x2="492.9" y2="575.0"></line>
+<line x1="800.3" y1="381.9" x2="737.1" y2="517.0"></line>
+<line x1="659.7" y1="184.8" x2="800.3" y2="381.9"></line>
+<line x1="784.5" y1="432.7" x2="608.5" y2="312.9"></line>
+<line x1="160.0" y1="412.5" x2="199.3" y2="552.2"></line>
+<line x1="489.0" y1="516.4" x2="754.8" y2="551.6"></line>
+<line x1="431.4" y1="436.7" x2="542.0" y2="258.6"></line>
+<line x1="735.0" y1="510.8" x2="597.8" y2="244.5"></line>
+<line x1="190.5" y1="687.7" x2="300.7" y2="485.0"></line>
+<line x1="449.5" y1="474.7" x2="713.3" y2="377.1"></line>
+<line x1="190.5" y1="687.7" x2="342.4" y2="609.7"></line>
+<line x1="709.7" y1="242.6" x2="748.4" y2="536.5"></line>
+<line x1="402.7" y1="425.8" x2="157.4" y2="443.3"></line>
+<line x1="253.5" y1="488.0" x2="259.9" y2="457.7"></line>
+<line x1="698.9" y1="589.4" x2="729.2" y2="417.5"></line>
+<line x1="431.4" y1="436.7" x2="135.2" y2="420.8"></line>
+<line x1="318.5" y1="467.7" x2="133.4" y2="409.4"></line>
+<line x1="134.2" y1="395.7" x2="398.3" y2="516.3"></line>
+<line x1="231.2" y1="380.0" x2="403.4" y2="476.6"></line>
+<line x1="802.8" y1="416.5" x2="652.2" y2="292.1"></line>
+<line x1="719.8" y1="559.4" x2="488.6" y2="485.0"></line>
+<line x1="655.3" y1="514.2" x2="402.7" y2="425.8"></line>
+<line x1="429.4" y1="476.0" x2="602.5" y2="240.4"></line>
+<line x1="377.9" y1="648.3" x2="186.6" y2="651.1"></line>
+<line x1="760.1" y1="555.6" x2="492.9" y2="575.0"></line>
+<line x1="658.5" y1="294.3" x2="695.3" y2="510.9"></line>
+<line x1="465.0" y1="446.4" x2="731.7" y2="534.3"></line>
+<line x1="551.6" y1="165.8" x2="734.9" y2="382.3"></line>
+<line x1="461.6" y1="480.6" x2="639.5" y2="388.6"></line>
+<line x1="777.4" y1="433.9" x2="654.5" y2="181.5"></line>
+<line x1="793.6" y1="388.2" x2="677.1" y2="653.1"></line>
+<line x1="768.4" y1="326.2" x2="596.5" y2="328.4"></line>
+<line x1="508.2" y1="491.8" x2="655.3" y2="514.2"></line>
+<line x1="424.0" y1="449.3" x2="526.6" y2="258.4"></line>
+<line x1="439.6" y1="481.2" x2="719.3" y2="488.2"></line>
+<line x1="625.6" y1="319.5" x2="692.2" y2="608.9"></line>
+<line x1="259.9" y1="457.7" x2="337.2" y2="512.2"></line>
+<line x1="608.5" y1="312.9" x2="646.7" y2="569.0"></line>
+<line x1="238.5" y1="416.5" x2="461.2" y2="460.9"></line>
+<line x1="191.6" y1="360.2" x2="465.0" y2="446.4"></line>
+<line x1="604.0" y1="418.3" x2="754.8" y2="551.6"></line>
+<line x1="595.6" y1="187.0" x2="804.4" y2="387.6"></line>
+<line x1="461.2" y1="460.9" x2="625.6" y2="319.5"></line>
+<line x1="328.9" y1="545.8" x2="213.8" y2="676.3"></line>
+<line x1="641.8" y1="307.9" x2="489.0" y2="516.4"></line>
+<line x1="704.8" y1="493.4" x2="756.4" y2="374.3"></line>
+<line x1="361.1" y1="437.7" x2="525.5" y2="232.5"></line>
+<line x1="685.1" y1="588.9" x2="485.8" y2="537.5"></line>
+<line x1="186.6" y1="651.1" x2="406.1" y2="520.2"></line>
+<line x1="725.2" y1="379.4" x2="596.5" y2="328.4"></line>
+<line x1="654.6" y1="224.6" x2="804.4" y2="387.6"></line>
+<line x1="444.2" y1="634.0" x2="638.3" y2="582.1"></line>
+<line x1="231.5" y1="646.8" x2="359.3" y2="544.0"></line>
+<line x1="525.5" y1="267.8" x2="720.8" y2="489.5"></line>
+<line x1="380.8" y1="437.7" x2="529.6" y2="289.6"></line>
+<line x1="467.7" y1="445.2" x2="692.0" y2="526.2"></line>
+<line x1="361.1" y1="437.7" x2="200.3" y2="413.9"></line>
+<line x1="312.3" y1="576.0" x2="165.0" y2="358.3"></line>
+<line x1="672.7" y1="189.6" x2="777.4" y2="433.9"></line>
+<line x1="469.3" y1="482.3" x2="624.5" y2="310.2"></line>
+<line x1="231.5" y1="646.8" x2="229.5" y2="407.3"></line>
+<line x1="219.9" y1="659.7" x2="450.0" y2="543.8"></line>
+<line x1="465.3" y1="499.6" x2="624.5" y2="310.2"></line>
+<line x1="449.5" y1="474.7" x2="595.2" y2="279.5"></line>
+<line x1="512.1" y1="503.3" x2="701.5" y2="588.4"></line>
+<line x1="692.0" y1="526.2" x2="709.7" y2="242.6"></line>
+<line x1="762.1" y1="565.2" x2="679.6" y2="294.2"></line>
+<line x1="657.0" y1="521.4" x2="380.8" y2="437.7"></line>
+<line x1="545.6" y1="267.0" x2="373.7" y2="484.2"></line>
+<line x1="164.3" y1="620.6" x2="405.6" y2="653.8"></line>
+<line x1="639.5" y1="388.6" x2="777.4" y2="433.9"></line>
+<line x1="467.7" y1="445.2" x2="169.9" y2="428.8"></line>
+<line x1="331.9" y1="639.1" x2="219.9" y2="659.7"></line>
+<line x1="658.5" y1="294.3" x2="512.1" y2="503.3"></line>
+<line x1="174.7" y1="683.2" x2="325.2" y2="490.4"></line>
+<line x1="218.3" y1="429.2" x2="300.7" y2="485.0"></line>
+<line x1="231.5" y1="646.8" x2="492.9" y2="575.0"></line>
+<line x1="714.9" y1="383.3" x2="457.3" y2="480.9"></line>
+<line x1="768.7" y1="607.3" x2="800.3" y2="381.9"></line>
+<line x1="449.5" y1="474.7" x2="231.5" y2="646.8"></line>
+<line x1="652.2" y1="292.1" x2="532.5" y2="461.1"></line>
+<line x1="454.6" y1="472.9" x2="596.5" y2="328.4"></line>
+<line x1="681.0" y1="256.5" x2="657.0" y2="521.4"></line>
+<line x1="337.2" y1="512.2" x2="113.7" y2="418.1"></line>
+<line x1="738.3" y1="333.8" x2="638.3" y2="582.1"></line>
+<line x1="545.6" y1="267.0" x2="784.5" y2="432.7"></line>
+<line x1="165.9" y1="538.1" x2="422.9" y2="614.7"></line>
+<line x1="646.7" y1="569.0" x2="693.4" y2="320.3"></line>
+<line x1="191.0" y1="622.6" x2="238.5" y2="416.5"></line>
+<line x1="490.3" y1="625.0" x2="661.9" y2="652.5"></line>
+<line x1="738.3" y1="333.8" x2="709.7" y2="242.6"></line>
+<line x1="298.3" y1="492.3" x2="197.4" y2="352.7"></line>
+<line x1="450.0" y1="543.8" x2="525.5" y2="267.8"></line>
+<line x1="739.3" y1="515.3" x2="647.9" y2="327.9"></line>
+<line x1="679.6" y1="294.2" x2="461.6" y2="480.6"></line>
+<line x1="613.3" y1="559.2" x2="546.0" y2="436.0"></line>
+<line x1="231.5" y1="646.8" x2="469.3" y2="482.3"></line>
+<line x1="657.0" y1="521.4" x2="664.2" y2="302.4"></line>
+<line x1="532.5" y1="461.1" x2="735.0" y2="510.8"></line>
+<line x1="174.7" y1="683.2" x2="335.4" y2="452.8"></line>
+<line x1="436.4" y1="394.8" x2="402.7" y2="425.8"></line>
+<line x1="378.0" y1="471.6" x2="534.4" y2="279.8"></line>
+<line x1="434.6" y1="570.9" x2="666.3" y2="648.0"></line>
+<line x1="713.3" y1="377.1" x2="735.0" y2="510.8"></line>
+<line x1="529.6" y1="289.6" x2="335.4" y2="452.8"></line>
+<line x1="182.5" y1="430.4" x2="380.8" y2="437.7"></line>
+<line x1="693.4" y1="320.3" x2="719.8" y2="559.4"></line>
+<line x1="133.5" y1="434.6" x2="389.6" y2="428.0"></line>
+<line x1="186.6" y1="651.1" x2="390.2" y2="569.9"></line>
+<line x1="723.2" y1="555.2" x2="457.3" y2="480.9"></line>
+<line x1="467.7" y1="445.2" x2="613.3" y2="559.2"></line>
+<line x1="606.4" y1="290.6" x2="756.4" y2="374.3"></line>
+<line x1="525.5" y1="267.8" x2="718.7" y2="402.6"></line>
+<line x1="725.2" y1="379.4" x2="638.3" y2="582.1"></line>
+<line x1="382.1" y1="493.5" x2="199.3" y2="552.2"></line>
+<line x1="489.0" y1="516.4" x2="739.3" y2="515.3"></line>
+<line x1="400.1" y1="469.8" x2="186.6" y2="651.1"></line>
+<line x1="693.4" y1="320.3" x2="704.8" y2="493.4"></line>
+<line x1="309.4" y1="558.2" x2="174.7" y2="683.2"></line>
+<line x1="113.7" y1="418.1" x2="191.0" y2="622.6"></line>
+<line x1="596.5" y1="328.4" x2="389.6" y2="428.1"></line>
+<line x1="383.0" y1="589.2" x2="157.0" y2="659.6"></line>
+<line x1="356.2" y1="631.2" x2="532.5" y2="461.1"></line>
+<line x1="429.1" y1="436.7" x2="182.5" y2="430.4"></line>
+<line x1="802.8" y1="416.5" x2="597.8" y2="244.5"></line>
+<line x1="534.4" y1="279.8" x2="734.5" y2="419.2"></line>
+<line x1="424.0" y1="449.3" x2="259.9" y2="457.7"></line>
+<line x1="449.5" y1="474.7" x2="685.1" y2="588.9"></line>
+<line x1="261.7" y1="567.9" x2="98.7" y2="399.5"></line>
+<line x1="718.5" y1="292.8" x2="735.0" y2="510.8"></line>
+<line x1="734.9" y1="382.3" x2="700.0" y2="492.0"></line>
+<line x1="700.0" y1="492.0" x2="409.1" y2="429.5"></line>
+<line x1="177.5" y1="342.6" x2="361.1" y2="437.7"></line>
+<line x1="361.1" y1="437.7" x2="113.7" y2="418.1"></line>
+<line x1="676.4" y1="517.6" x2="647.9" y2="327.9"></line>
+<line x1="325.2" y1="490.4" x2="218.3" y2="429.2"></line>
+<line x1="182.5" y1="430.4" x2="406.1" y2="520.2"></line>
+<line x1="259.9" y1="457.7" x2="398.3" y2="516.3"></line>
+<line x1="467.7" y1="445.2" x2="562.0" y2="202.3"></line>
+<line x1="422.8" y1="563.7" x2="190.5" y2="687.7"></line>
+<line x1="734.5" y1="419.2" x2="754.8" y2="551.6"></line>
+<line x1="157.0" y1="659.6" x2="160.0" y2="412.5"></line>
+<line x1="403.4" y1="476.6" x2="144.2" y2="394.5"></line>
+<line x1="800.3" y1="381.9" x2="647.5" y2="255.5"></line>
+<line x1="186.6" y1="651.1" x2="138.7" y2="441.8"></line>
+<line x1="542.0" y1="258.6" x2="639.5" y2="388.6"></line>
+<line x1="756.4" y1="374.3" x2="709.7" y2="242.6"></line>
+<line x1="529.6" y1="289.6" x2="400.1" y2="469.8"></line>
+<line x1="174.7" y1="683.2" x2="261.7" y2="567.9"></line>
+<line x1="551.8" y1="254.8" x2="718.7" y2="402.6"></line>
+<line x1="434.2" y1="486.0" x2="602.5" y2="240.4"></line>
+<line x1="703.0" y1="650.7" x2="729.5" y2="351.9"></line>
+<line x1="718.7" y1="402.6" x2="654.5" y2="181.5"></line>
+<line x1="328.9" y1="545.8" x2="165.0" y2="358.3"></line>
+<line x1="138.7" y1="441.8" x2="298.3" y2="492.3"></line>
+<line x1="418.2" y1="472.5" x2="663.6" y2="514.3"></line>
+<line x1="311.3" y1="603.0" x2="218.3" y2="429.2"></line>
+<line x1="532.5" y1="461.1" x2="328.9" y2="545.8"></line>
+<line x1="492.9" y1="575.0" x2="657.0" y2="521.4"></line>
+<line x1="133.5" y1="434.6" x2="412.8" y2="442.7"></line>
+<line x1="302.5" y1="519.2" x2="154.7" y2="601.7"></line>
+<line x1="734.5" y1="419.2" x2="655.3" y2="514.2"></line>
+<line x1="461.6" y1="480.6" x2="713.3" y2="377.1"></line>
+<line x1="638.3" y1="582.1" x2="625.6" y2="319.5"></line>
+<line x1="389.6" y1="428.1" x2="610.6" y2="538.7"></line>
+<line x1="596.5" y1="328.4" x2="406.1" y2="520.2"></line>
+<line x1="467.7" y1="445.2" x2="677.1" y2="653.1"></line>
+<line x1="610.6" y1="538.7" x2="422.9" y2="614.7"></line>
+<line x1="551.8" y1="254.8" x2="380.8" y2="437.7"></line>
+<line x1="647.5" y1="255.5" x2="802.8" y2="416.5"></line>
+<line x1="371.6" y1="444.7" x2="155.0" y2="396.4"></line>
+<line x1="133.5" y1="434.6" x2="187.0" y2="636.1"></line>
+<line x1="231.5" y1="646.8" x2="180.8" y2="399.9"></line>
+<line x1="613.3" y1="559.2" x2="351.2" y2="634.4"></line>
+<line x1="633.4" y1="242.9" x2="719.3" y2="488.2"></line>
+<line x1="734.9" y1="382.3" x2="529.6" y2="289.6"></line>
+<line x1="784.5" y1="432.7" x2="662.8" y2="640.3"></line>
+<line x1="418.2" y1="472.5" x2="596.5" y2="328.4"></line>
+<line x1="649.1" y1="629.8" x2="714.9" y2="383.3"></line>
+<line x1="455.1" y1="451.5" x2="202.6" y2="389.1"></line>
+<line x1="461.8" y1="472.5" x2="182.5" y2="430.4"></line>
+<line x1="652.2" y1="292.1" x2="793.6" y2="388.2"></line>
+<line x1="177.5" y1="342.6" x2="298.3" y2="492.3"></line>
+<line x1="606.4" y1="290.6" x2="492.7" y2="494.9"></line>
+<line x1="193.4" y1="663.0" x2="458.2" y2="566.7"></line>
+<line x1="735.0" y1="510.8" x2="467.7" y2="445.2"></line>
+<line x1="157.0" y1="659.6" x2="182.5" y2="430.4"></line>
+<line x1="478.4" y1="634.3" x2="213.8" y2="676.3"></line>
+<line x1="182.5" y1="430.4" x2="328.9" y2="530.0"></line>
+<line x1="532.5" y1="461.1" x2="362.6" y2="574.9"></line>
+<line x1="164.3" y1="620.6" x2="133.4" y2="409.4"></line>
+<line x1="231.5" y1="646.8" x2="485.8" y2="537.5"></line>
+<line x1="118.5" y1="365.0" x2="297.6" y2="559.9"></line>
+<line x1="373.7" y1="484.2" x2="182.5" y2="430.4"></line>
+<line x1="458.2" y1="566.7" x2="723.7" y2="649.3"></line>
+<line x1="725.2" y1="379.4" x2="698.2" y2="219.4"></line>
+<line x1="768.4" y1="326.2" x2="641.8" y2="307.9"></line>
+<line x1="337.2" y1="512.2" x2="229.5" y2="407.3"></line>
+<line x1="461.6" y1="480.6" x2="606.4" y2="290.6"></line>
+<line x1="676.4" y1="517.6" x2="429.2" y2="652.1"></line>
+<line x1="429.1" y1="436.7" x2="557.4" y2="302.0"></line>
+</g>
+<g stroke="#8d949e" stroke-width="1" stroke-opacity="0.55">
+<line x1="392.8" y1="543.7" x2="397.4" y2="554.6"></line>
+<line x1="392.8" y1="543.7" x2="390.2" y2="569.9"></line>
+<line x1="392.8" y1="543.7" x2="398.7" y2="569.8"></line>
+<line x1="392.8" y1="543.7" x2="423.6" y2="532.8"></line>
+<line x1="392.8" y1="543.7" x2="359.3" y2="544.0"></line>
+<line x1="392.8" y1="543.7" x2="357.6" y2="538.9"></line>
+<line x1="392.8" y1="543.7" x2="422.8" y2="563.7"></line>
+<line x1="392.8" y1="543.7" x2="366.7" y2="577.4"></line>
+<line x1="392.8" y1="543.7" x2="362.6" y2="574.9"></line>
+<line x1="392.8" y1="543.7" x2="373.7" y2="484.2"></line>
+<line x1="392.8" y1="543.7" x2="328.9" y2="545.8"></line>
+<line x1="392.8" y1="543.7" x2="328.9" y2="530.0"></line>
+<line x1="392.8" y1="543.7" x2="458.2" y2="566.7"></line>
+<line x1="392.8" y1="543.7" x2="461.8" y2="525.6"></line>
+<line x1="392.8" y1="543.7" x2="378.0" y2="471.6"></line>
+<line x1="392.8" y1="543.7" x2="400.1" y2="469.8"></line>
+<line x1="392.8" y1="543.7" x2="345.7" y2="483.3"></line>
+<line x1="392.8" y1="543.7" x2="422.9" y2="614.7"></line>
+<line x1="397.4" y1="554.6" x2="398.7" y2="569.8"></line>
+<line x1="397.4" y1="554.6" x2="390.2" y2="569.9"></line>
+<line x1="397.4" y1="554.6" x2="422.8" y2="563.7"></line>
+<line x1="397.4" y1="554.6" x2="423.6" y2="532.8"></line>
+<line x1="398.7" y1="569.8" x2="390.2" y2="569.9"></line>
+<line x1="398.7" y1="569.8" x2="422.8" y2="563.7"></line>
+<line x1="398.7" y1="569.8" x2="366.7" y2="577.4"></line>
+<line x1="398.7" y1="569.8" x2="362.6" y2="574.9"></line>
+<line x1="398.7" y1="569.8" x2="423.6" y2="532.8"></line>
+<line x1="359.3" y1="544.0" x2="357.6" y2="538.9"></line>
+<line x1="359.3" y1="544.0" x2="328.9" y2="545.8"></line>
+<line x1="359.3" y1="544.0" x2="362.6" y2="574.9"></line>
+<line x1="359.3" y1="544.0" x2="328.9" y2="530.0"></line>
+<line x1="359.3" y1="544.0" x2="366.7" y2="577.4"></line>
+<line x1="345.7" y1="483.3" x2="338.2" y2="487.4"></line>
+<line x1="646.7" y1="569.0" x2="638.3" y2="582.1"></line>
+<line x1="461.6" y1="480.6" x2="469.3" y2="482.3"></line>
+<line x1="509.7" y1="580.6" x2="492.9" y2="575.0"></line>
+<line x1="328.9" y1="545.8" x2="328.9" y2="530.0"></line>
+<line x1="366.7" y1="577.4" x2="362.6" y2="574.9"></line>
+<line x1="400.1" y1="469.8" x2="378.0" y2="471.6"></line>
+<line x1="429.2" y1="652.1" x2="422.9" y2="614.7"></line>
+<line x1="508.2" y1="491.8" x2="512.1" y2="503.3"></line>
+<line x1="402.7" y1="425.8" x2="389.6" y2="428.1"></line>
+<line x1="402.7" y1="425.8" x2="389.6" y2="428.0"></line>
+<line x1="402.7" y1="425.8" x2="412.8" y2="442.7"></line>
+<line x1="307.9" y1="581.3" x2="312.3" y2="576.0"></line>
+<line x1="335.4" y1="452.8" x2="367.0" y2="456.7"></line>
+<line x1="335.4" y1="452.8" x2="345.7" y2="483.3"></line>
+<line x1="378.0" y1="471.6" x2="373.7" y2="484.2"></line>
+<line x1="378.0" y1="471.6" x2="367.0" y2="456.7"></line>
+<line x1="312.3" y1="576.0" x2="297.6" y2="559.9"></line>
+<line x1="455.1" y1="451.5" x2="458.3" y2="456.8"></line>
+<line x1="302.5" y1="519.2" x2="308.4" y2="543.5"></line>
+<line x1="596.9" y1="470.6" x2="512.1" y2="503.3"></line>
+<line x1="596.9" y1="470.6" x2="508.2" y2="491.8"></line>
+<line x1="367.0" y1="456.7" x2="371.6" y2="444.7"></line>
+<line x1="367.0" y1="456.7" x2="380.8" y2="437.7"></line>
+<line x1="380.8" y1="437.7" x2="371.6" y2="444.7"></line>
+<line x1="380.8" y1="437.7" x2="389.6" y2="428.1"></line>
+<line x1="412.8" y1="442.7" x2="429.1" y2="436.7"></line>
+<line x1="389.6" y1="428.0" x2="389.6" y2="428.1"></line>
+<line x1="389.6" y1="428.0" x2="380.8" y2="437.7"></line>
+<line x1="279.1" y1="556.6" x2="297.6" y2="559.9"></line>
+<line x1="488.6" y1="485.0" x2="469.3" y2="482.3"></line>
+<line x1="478.4" y1="634.3" x2="485.4" y2="614.3"></line>
+<line x1="308.4" y1="543.5" x2="297.6" y2="559.9"></line>
+<line x1="308.4" y1="543.5" x2="328.9" y2="545.8"></line>
+<line x1="357.6" y1="538.9" x2="328.9" y2="545.8"></line>
+<line x1="492.9" y1="575.0" x2="458.2" y2="566.7"></line>
+<line x1="638.3" y1="582.1" x2="485.4" y2="614.3"></line>
+<line x1="646.7" y1="569.0" x2="373.7" y2="484.2"></line>
+<line x1="454.6" y1="472.9" x2="646.7" y2="569.0"></line>
+<line x1="737.7" y1="543.1" x2="458.2" y2="566.7"></line>
+<line x1="512.1" y1="503.3" x2="646.7" y2="569.0"></line>
+<line x1="400.1" y1="469.8" x2="638.3" y2="582.1"></line>
+<line x1="737.1" y1="517.0" x2="485.4" y2="614.3"></line>
+<line x1="646.7" y1="569.0" x2="389.6" y2="428.1"></line>
+</g>
+<circle cx="420.0" cy="445.9" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="434.2" cy="486.0" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="457.3" cy="480.9" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="475.7" cy="606.7" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="418.2" cy="472.5" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="449.5" cy="474.7" r="4.90" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="405.6" cy="653.8" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="261.7" cy="567.9" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="309.4" cy="558.2" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="424.0" cy="449.3" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="490.3" cy="625.0" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="546.0" cy="436.0" r="3.89" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="351.2" cy="634.4" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="330.1" cy="601.0" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="298.3" cy="492.3" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="311.3" cy="603.0" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="382.1" cy="493.5" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="487.8" cy="592.7" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="461.2" cy="460.9" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="300.7" cy="485.0" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="403.4" cy="476.6" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="439.6" cy="481.2" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="444.2" cy="634.0" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="465.0" cy="446.4" r="4.90" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="383.0" cy="589.2" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="486.9" cy="459.8" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="339.8" cy="552.3" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="465.3" cy="499.6" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="418.2" cy="540.1" r="4.90" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="461.8" cy="472.5" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="429.4" cy="476.0" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="450.0" cy="543.8" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="467.7" cy="445.2" r="5.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="438.0" cy="562.9" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="492.7" cy="494.9" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="325.2" cy="490.4" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="409.1" cy="429.5" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="504.4" cy="512.1" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="281.7" cy="550.9" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="431.8" cy="601.5" r="3.89" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="318.5" cy="467.7" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="411.7" cy="500.7" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="328.9" cy="580.0" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="253.5" cy="488.0" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="294.5" cy="494.6" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="435.9" cy="517.9" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="344.3" cy="600.8" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="485.8" cy="537.5" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="337.2" cy="512.2" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="406.1" cy="520.2" r="4.90" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="361.1" cy="437.7" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="331.9" cy="639.1" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="294.3" cy="549.8" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="421.8" cy="520.8" r="5.00" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="377.7" cy="587.0" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="398.3" cy="516.3" r="5.28" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="445.6" cy="569.4" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="471.5" cy="515.1" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="434.6" cy="570.9" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="377.9" cy="648.3" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="335.5" cy="505.2" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="342.4" cy="609.7" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="321.3" cy="500.2" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="469.7" cy="623.9" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="347.1" cy="622.3" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="431.4" cy="436.7" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="684.9" cy="276.3" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="676.7" cy="271.5" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="551.6" cy="165.8" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="595.6" cy="187.0" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="582.7" cy="165.4" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="633.4" cy="242.9" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="698.6" cy="331.3" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="632.1" cy="172.9" r="3.89" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="686.2" cy="210.4" r="3.89" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="529.4" cy="202.9" r="3.89" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="606.4" cy="290.6" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="647.9" cy="327.9" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="698.0" cy="260.8" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="525.5" cy="232.5" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="664.2" cy="302.4" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="536.9" cy="305.2" r="3.89" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="573.0" cy="272.8" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="596.5" cy="328.4" r="4.90" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="604.0" cy="418.3" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="595.2" cy="279.5" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="641.8" cy="307.9" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="647.5" cy="255.5" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="693.1" cy="257.0" r="3.89" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="680.5" cy="282.4" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="611.8" cy="162.6" r="3.89" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="546.7" cy="190.9" r="3.63" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="663.3" cy="281.3" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="679.6" cy="294.2" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="707.1" cy="353.4" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="529.6" cy="289.6" r="4.90" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="649.8" cy="216.0" r="3.89" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="696.2" cy="194.8" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="534.4" cy="279.8" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="692.3" cy="285.3" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="658.5" cy="294.3" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="608.5" cy="312.9" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="659.7" cy="184.8" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="602.5" cy="240.4" r="5.00" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="597.5" cy="275.4" r="5.19" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="698.2" cy="219.4" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="525.5" cy="267.8" r="4.90" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="654.5" cy="181.5" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="709.7" cy="242.6" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="718.5" cy="292.8" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="559.9" cy="156.1" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="625.6" cy="319.5" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="563.2" cy="164.0" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="597.8" cy="244.5" r="5.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="594.4" cy="203.6" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="598.0" cy="196.3" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="560.8" cy="247.8" r="3.89" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="617.5" cy="177.9" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="649.2" cy="253.0" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="526.6" cy="258.4" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="611.1" cy="249.9" r="4.90" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="533.8" cy="271.7" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="545.6" cy="267.0" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="654.6" cy="224.6" r="3.89" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="624.5" cy="310.2" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="672.7" cy="189.6" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="648.1" cy="162.7" r="3.89" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="652.2" cy="292.1" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="557.4" cy="302.0" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="662.2" cy="208.4" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="555.2" cy="158.4" r="3.89" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="551.8" cy="254.8" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="542.0" cy="258.6" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="620.1" cy="261.0" r="4.90" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="681.0" cy="256.5" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="587.9" cy="145.8" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="562.0" cy="202.3" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="758.6" cy="574.5" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="731.7" cy="534.3" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="701.5" cy="588.4" r="5.19" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="754.8" cy="551.6" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="610.6" cy="538.7" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="700.0" cy="492.0" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="689.9" cy="627.3" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="689.9" cy="534.9" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="676.3" cy="551.9" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="735.4" cy="570.3" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="655.3" cy="514.2" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="704.8" cy="493.4" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="754.0" cy="598.0" r="3.89" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="649.1" cy="629.8" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="685.1" cy="588.9" r="4.90" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="692.0" cy="526.2" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="643.8" cy="532.0" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="703.0" cy="650.7" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="707.0" cy="610.9" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="719.3" cy="488.2" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="740.7" cy="563.4" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="635.7" cy="623.4" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="666.3" cy="648.0" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="663.6" cy="514.3" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="700.1" cy="629.1" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="735.0" cy="510.8" r="5.00" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="760.1" cy="555.6" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="739.3" cy="515.3" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="692.2" cy="608.9" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="657.0" cy="521.4" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="723.7" cy="649.3" r="3.89" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="749.2" cy="569.9" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="662.8" cy="640.3" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="661.9" cy="652.5" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="639.5" cy="388.6" r="5.00" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="719.8" cy="559.4" r="5.19" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="613.3" cy="559.2" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="677.1" cy="653.1" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="698.9" cy="589.4" r="5.00" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="676.4" cy="517.6" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="723.2" cy="555.2" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="720.4" cy="612.9" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="748.4" cy="536.5" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="762.1" cy="565.2" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="202.6" cy="389.1" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="238.5" cy="416.5" r="5.19" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="197.4" cy="352.7" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="163.2" cy="470.5" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="119.6" cy="434.8" r="3.89" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="147.4" cy="345.9" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="135.2" cy="420.8" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="436.4" cy="394.8" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="138.7" cy="441.8" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="160.0" cy="412.5" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="218.3" cy="429.2" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="133.5" cy="434.6" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="193.3" cy="457.7" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="149.0" cy="376.7" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="150.9" cy="325.6" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="182.5" cy="430.4" r="5.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="112.8" cy="387.4" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="169.9" cy="428.8" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="183.7" cy="349.6" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="118.5" cy="365.0" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="180.8" cy="399.9" r="5.00" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="98.7" cy="399.5" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="229.5" cy="407.3" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="155.0" cy="396.4" r="4.90" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="157.4" cy="443.3" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="122.6" cy="372.6" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="144.2" cy="394.5" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="231.2" cy="380.0" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="133.4" cy="409.4" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="200.3" cy="413.9" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="113.7" cy="418.1" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="177.5" cy="342.6" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="123.7" cy="346.1" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="177.6" cy="350.3" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="134.2" cy="395.7" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="259.9" cy="457.7" r="5.19" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="191.6" cy="360.2" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="165.0" cy="358.3" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="761.2" cy="328.3" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="713.3" cy="377.1" r="5.00" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="756.4" cy="374.3" r="4.90" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="729.5" cy="351.9" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="718.7" cy="402.6" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="734.9" cy="382.3" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="713.4" cy="376.6" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="793.6" cy="388.2" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="768.1" cy="390.0" r="5.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="729.2" cy="417.5" r="4.26" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="725.2" cy="379.4" r="5.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="734.5" cy="419.2" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="532.5" cy="461.1" r="5.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="693.4" cy="320.3" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="802.8" cy="416.5" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="784.5" cy="432.7" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="714.9" cy="383.3" r="4.90" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="800.3" cy="381.9" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="777.4" cy="433.9" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="730.3" cy="341.2" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="761.9" cy="361.2" r="5.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="768.4" cy="326.2" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="804.4" cy="387.6" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="738.3" cy="333.8" r="4.90" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="186.6" cy="651.1" r="5.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="199.3" cy="552.2" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="187.0" cy="636.1" r="5.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="157.0" cy="659.6" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="213.8" cy="676.3" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="190.5" cy="687.7" r="4.67" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="174.7" cy="683.2" r="4.90" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="146.6" cy="650.6" r="4.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="165.9" cy="538.1" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="164.3" cy="620.6" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="219.9" cy="659.7" r="4.55" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="231.5" cy="646.8" r="5.10" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="154.7" cy="601.7" r="4.79" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="191.0" cy="622.6" r="5.00" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="193.4" cy="663.0" r="4.41" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="326.0" cy="605.0" r="4.26" fill="#c3c8ce"></circle>
+<circle cx="512.1" cy="503.3" r="4.55" fill="#c3c8ce"></circle>
+<circle cx="359.3" cy="544.0" r="4.79" fill="#c3c8ce"></circle>
+<circle cx="308.4" cy="543.5" r="4.55" fill="#c3c8ce"></circle>
+<circle cx="429.1" cy="436.7" r="4.41" fill="#c3c8ce"></circle>
+<circle cx="389.6" cy="428.1" r="4.67" fill="#c3c8ce"></circle>
+<circle cx="478.4" cy="634.3" r="4.26" fill="#c3c8ce"></circle>
+<circle cx="488.6" cy="485.0" r="4.10" fill="#c3c8ce"></circle>
+<circle cx="279.1" cy="556.6" r="4.26" fill="#c3c8ce"></circle>
+<circle cx="389.6" cy="428.0" r="4.67" fill="#c3c8ce"></circle>
+<circle cx="454.6" cy="472.9" r="4.55" fill="#c3c8ce"></circle>
+<circle cx="362.6" cy="574.9" r="4.26" fill="#c3c8ce"></circle>
+<circle cx="412.8" cy="442.7" r="4.55" fill="#c3c8ce"></circle>
+<circle cx="469.3" cy="482.3" r="4.41" fill="#c3c8ce"></circle>
+<circle cx="371.6" cy="444.7" r="4.26" fill="#c3c8ce"></circle>
+<circle cx="373.7" cy="484.2" r="4.41" fill="#c3c8ce"></circle>
+<circle cx="328.9" cy="530.0" r="4.41" fill="#c3c8ce"></circle>
+<circle cx="489.0" cy="516.4" r="4.67" fill="#c3c8ce"></circle>
+<circle cx="380.8" cy="437.7" r="4.90" fill="#c3c8ce"></circle>
+<circle cx="367.0" cy="456.7" r="4.26" fill="#c3c8ce"></circle>
+<circle cx="422.9" cy="614.7" r="4.55" fill="#c3c8ce"></circle>
+<circle cx="596.9" cy="470.6" r="4.26" fill="#c3c8ce"></circle>
+<circle cx="390.2" cy="569.9" r="4.55" fill="#c3c8ce"></circle>
+<circle cx="356.2" cy="631.2" r="4.41" fill="#c3c8ce"></circle>
+<circle cx="302.5" cy="519.2" r="4.41" fill="#c3c8ce"></circle>
+<circle cx="458.3" cy="456.8" r="4.10" fill="#c3c8ce"></circle>
+<circle cx="455.1" cy="451.5" r="4.41" fill="#c3c8ce"></circle>
+<circle cx="312.3" cy="576.0" r="4.55" fill="#c3c8ce"></circle>
+<circle cx="378.0" cy="471.6" r="4.41" fill="#c3c8ce"></circle>
+<circle cx="458.2" cy="566.7" r="4.90" fill="#c3c8ce"></circle>
+<circle cx="335.4" cy="452.8" r="4.41" fill="#c3c8ce"></circle>
+<circle cx="307.9" cy="581.3" r="4.10" fill="#c3c8ce"></circle>
+<circle cx="402.7" cy="425.8" r="4.90" fill="#c3c8ce"></circle>
+<circle cx="508.2" cy="491.8" r="4.67" fill="#c3c8ce"></circle>
+<circle cx="429.2" cy="652.1" r="4.26" fill="#c3c8ce"></circle>
+<circle cx="400.1" cy="469.8" r="4.79" fill="#c3c8ce"></circle>
+<circle cx="423.6" cy="532.8" r="4.79" fill="#c3c8ce"></circle>
+<circle cx="366.7" cy="577.4" r="4.41" fill="#c3c8ce"></circle>
+<circle cx="328.9" cy="545.8" r="4.79" fill="#c3c8ce"></circle>
+<circle cx="398.7" cy="569.8" r="5.10" fill="#c3c8ce"></circle>
+<circle cx="509.7" cy="580.6" r="3.89" fill="#c3c8ce"></circle>
+<circle cx="392.8" cy="543.7" r="7.00" fill="#c3c8ce"></circle>
+<circle cx="461.6" cy="480.6" r="4.79" fill="#c3c8ce"></circle>
+<circle cx="422.8" cy="563.7" r="4.67" fill="#c3c8ce"></circle>
+<circle cx="485.4" cy="614.3" r="4.55" fill="#c3c8ce"></circle>
+<circle cx="397.4" cy="554.6" r="4.67" fill="#c3c8ce"></circle>
+<circle cx="345.7" cy="483.3" r="4.10" fill="#c3c8ce"></circle>
+<circle cx="492.9" cy="575.0" r="4.55" fill="#c3c8ce"></circle>
+<circle cx="357.6" cy="538.9" r="4.55" fill="#c3c8ce"></circle>
+<circle cx="461.8" cy="525.6" r="4.55" fill="#c3c8ce"></circle>
+<circle cx="338.2" cy="487.4" r="4.10" fill="#c3c8ce"></circle>
+<circle cx="297.6" cy="559.9" r="4.67" fill="#c3c8ce"></circle>
+<circle cx="695.3" cy="510.9" r="4.41" fill="#c3c8ce"></circle>
+<circle cx="720.8" cy="489.5" r="4.41" fill="#c3c8ce"></circle>
+<circle cx="646.7" cy="569.0" r="5.00" fill="#c3c8ce"></circle>
+<circle cx="737.1" cy="517.0" r="4.41" fill="#c3c8ce"></circle>
+<circle cx="768.7" cy="607.3" r="4.10" fill="#c3c8ce"></circle>
+<circle cx="737.7" cy="543.1" r="4.55" fill="#c3c8ce"></circle>
+<circle cx="768.8" cy="553.8" r="4.26" fill="#c3c8ce"></circle>
+<circle cx="638.3" cy="582.1" r="5.19" fill="#c3c8ce"></circle>
+<circle cx="392.8" cy="543.7" r="10.00" fill="none" stroke="#ffffff" stroke-width="1.5"></circle>
+<text x="404.8" y="546.7" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="10" font-weight="600" fill="#e6e8ea">TP53</text>
+<text x="648.5" y="585.1" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="10" font-weight="400" fill="#a3a8b1">MDM2</text>
+<text x="408.8" y="572.8" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="10" font-weight="400" fill="#a3a8b1">CDKN1A</text>
+<text x="614.1" y="572.0" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="10" font-weight="400" fill="#a3a8b1">BAX</text>
+<text x="412.6" y="428.8" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="10" font-weight="400" fill="#a3a8b1">CASP3</text>
+<text x="468.1" y="569.7" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="10" font-weight="400" fill="#a3a8b1">BCL2</text>
+<text x="348.3" y="440.7" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="10" font-weight="400" fill="#a3a8b1">ATM</text>
+<text x="412.3" y="522.1" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="10" font-weight="400" fill="#a3a8b1">MYC</text>
+<text x="409.9" y="472.8" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="10" font-weight="400" fill="#a3a8b1">EGFR</text>
+<text x="314.5" y="547.0" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="10" font-weight="400" fill="#a3a8b1">STAT3</text>
+<text x="471.4" y="483.6" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="10" font-weight="400" fill="#a3a8b1">AKT1</text>
+<text x="314.5" y="562.6" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="10" font-weight="400" fill="#a3a8b1">PTEN</text>
+</svg>
+
+          <!-- CANVAS TOOLBAR (5.6, VOCAB 12). 246 x 36, centred on the live canvas rect, bottom offset 12
+               (no time slider and no drawer on this board). The item set is fixed; Zoom to selection is
+               ENABLED because a node is selected, so it takes the bare register title. -->
+          <div style="position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: inline-flex; align-items: center; height: 36px; padding: 3px; border-radius: 7px; background: #1f2428; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; z-index: 6;">
+            <div style="display: flex; align-items: center; width: 60px; height: 28px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
+              <div style="flex: 1; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-size: 11px; font-weight: 500; line-height: 1; color: #7a828e; cursor: pointer;">2D</div>
+              <div style="flex: 1; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 3px; background: #374047; font-size: 11px; font-weight: 500; line-height: 1; color: #d5d7da; cursor: pointer;">3D</div>
+            </div>
+            <div style="width: 12px; height: 28px; display: flex; align-items: center; justify-content: center;"><div style="width: 1px; height: 16px; background: #48525c;"></div></div>
+            <div title="Zoom out (-)" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line><line x1="5" y1="7" x2="9" y2="7"></line></svg></div>
+            <div style="width: 2px;"></div>
+            <div title="Zoom in (=)" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line><line x1="7" y1="5" x2="7" y2="9"></line><line x1="5" y1="7" x2="9" y2="7"></line></svg></div>
+            <div style="width: 2px;"></div>
+            <div title="Zoom to fit (0)" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path></svg></div>
+            <div style="width: 2px;"></div>
+            <div title="Zoom to selection (F)" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path><circle cx="8" cy="8" r="2"></circle></svg></div>
+            <div style="width: 12px; height: 28px; display: flex; align-items: center; justify-content: center;"><div style="width: 1px; height: 16px; background: #48525c;"></div></div>
+            <div title="Views" style="display: flex; align-items: center; justify-content: center; gap: 2px; width: 36px; height: 28px; border-radius: 4px; color: #a3a8b1; cursor: pointer;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2l5.5 3v6L8 14l-5.5-3V5z"></path><path d="M8 8l5.5-3M8 8v6M8 8L2.5 5"></path></svg>
+              <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 8,5 13,10"></polyline></svg>
+            </div>
+          </div>
+
+          <!-- MINIMAP, bottom left at the 12px overlay inset (14.8): the same 318 nodes without edges, the
+               60 previewed matches at full ink, and the viewport rectangle. -->
+          <div style="position: absolute; left: 12px; bottom: 12px; width: 160px; height: 100px; display: flex; align-items: flex-start; padding: 6px 8px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+<svg width="158" height="98" viewBox="0 0 158 98" style="position: absolute; left: 0; top: 0; display: block;">
+<circle cx="69.3" cy="69.1" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="89.3" cy="58.2" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="79.4" cy="52.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="72.9" cy="62.6" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="81.0" cy="56.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="83.4" cy="55.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="67.4" cy="62.5" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="80.4" cy="51.0" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="85.4" cy="69.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="76.2" cy="50.1" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="79.2" cy="54.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="85.7" cy="72.3" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="82.6" cy="55.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="77.9" cy="74.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="86.8" cy="56.2" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="64.3" cy="63.9" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="62.4" cy="65.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="76.2" cy="50.1" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="67.5" cy="64.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="79.9" cy="52.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="83.2" cy="54.9" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="73.3" cy="65.9" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="87.0" cy="71.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="78.7" cy="51.7" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="93.0" cy="50.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="84.7" cy="55.9" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="72.0" cy="72.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="74.2" cy="51.9" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="69.8" cy="68.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="74.4" cy="56.1" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="66.3" cy="57.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="67.7" cy="68.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="75.3" cy="57.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="69.6" cy="61.1" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="86.7" cy="67.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="86.9" cy="59.6" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="83.9" cy="53.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="75.2" cy="51.1" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="73.7" cy="53.2" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="79.7" cy="70.2" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="98.5" cy="54.7" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="76.2" cy="65.4" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="66.6" cy="56.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="77.6" cy="55.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="72.6" cy="72.0" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="66.8" cy="59.9" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="81.5" cy="55.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="83.6" cy="53.2" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="82.0" cy="72.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="84.3" cy="52.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="75.4" cy="67.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="83.2" cy="52.6" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="67.8" cy="66.0" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="74.9" cy="54.8" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="83.5" cy="65.0" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="70.3" cy="52.7" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="86.6" cy="53.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="67.4" cy="66.6" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="70.8" cy="63.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="84.3" cy="57.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="79.2" cy="62.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="83.9" cy="54.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="80.4" cy="55.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="82.7" cy="62.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="84.6" cy="51.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="81.4" cy="64.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="87.3" cy="57.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="69.2" cy="56.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="78.3" cy="50.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="88.5" cy="59.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="64.5" cy="63.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="77.6" cy="49.8" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="80.7" cy="68.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="88.9" cy="56.9" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="80.4" cy="74.2" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="77.3" cy="54.6" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="68.5" cy="54.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="78.5" cy="57.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="69.6" cy="66.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="79.8" cy="61.4" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="61.5" cy="56.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="65.9" cy="57.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="81.1" cy="59.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="73.7" cy="66.2" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="71.3" cy="68.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="86.5" cy="61.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="70.5" cy="59.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="77.9" cy="60.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="69.6" cy="62.8" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="73.1" cy="51.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="70.0" cy="72.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="65.9" cy="63.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="79.6" cy="60.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="74.9" cy="67.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="77.1" cy="65.3" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="77.1" cy="59.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="82.2" cy="65.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="89.1" cy="66.5" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="76.5" cy="62.5" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="85.0" cy="59.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="83.9" cy="55.7" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="81.0" cy="65.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="79.7" cy="64.7" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="74.9" cy="73.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="70.3" cy="58.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="71.1" cy="69.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="86.5" cy="70.1" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="77.0" cy="63.7" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="68.8" cy="57.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="84.8" cy="71.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="71.4" cy="56.0" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="87.3" cy="65.9" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="71.6" cy="71.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="72.7" cy="62.0" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="83.9" cy="60.6" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="80.7" cy="51.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="70.6" cy="56.5" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="66.3" cy="64.3" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="108.0" cy="33.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="107.1" cy="33.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="93.6" cy="21.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="98.3" cy="24.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="96.9" cy="21.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="102.4" cy="30.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="109.4" cy="39.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="102.3" cy="22.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="108.1" cy="26.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="91.2" cy="25.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="99.5" cy="35.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="104.0" cy="39.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="109.4" cy="32.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="90.8" cy="29.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="105.7" cy="36.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="92.0" cy="36.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="95.9" cy="33.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="98.4" cy="39.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="99.2" cy="49.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="98.3" cy="34.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="103.3" cy="37.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="103.9" cy="31.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="108.8" cy="31.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="107.5" cy="34.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="100.1" cy="21.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="93.1" cy="24.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="105.6" cy="34.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="107.4" cy="35.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="110.3" cy="42.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="91.2" cy="35.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="104.2" cy="27.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="109.2" cy="25.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="91.7" cy="34.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="108.7" cy="34.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="105.1" cy="35.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="99.7" cy="37.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="105.2" cy="23.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="99.1" cy="29.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="98.5" cy="33.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="109.4" cy="27.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="90.8" cy="32.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="104.7" cy="23.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="110.6" cy="30.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="111.6" cy="35.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="94.5" cy="20.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="101.6" cy="38.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="94.8" cy="21.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="98.6" cy="30.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="98.2" cy="25.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="98.6" cy="25.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="94.6" cy="30.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="100.7" cy="23.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="104.1" cy="31.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="90.9" cy="31.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="100.0" cy="30.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="91.7" cy="33.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="92.9" cy="32.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="104.7" cy="28.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="101.4" cy="37.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="106.6" cy="24.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="104.0" cy="21.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="104.4" cy="35.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="94.2" cy="36.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="105.5" cy="26.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="94.0" cy="21.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="93.6" cy="31.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="92.6" cy="31.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="101.0" cy="32.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="107.5" cy="31.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="97.5" cy="19.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="94.7" cy="25.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="115.9" cy="65.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="113.0" cy="61.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="109.7" cy="67.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="115.5" cy="63.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="100.0" cy="62.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="109.6" cy="57.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="108.5" cy="71.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="108.5" cy="61.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="107.0" cy="63.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="113.4" cy="65.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="104.8" cy="59.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="110.1" cy="57.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="115.4" cy="68.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="109.1" cy="59.0" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="104.1" cy="71.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="108.0" cy="67.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="111.8" cy="56.7" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="108.7" cy="60.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="103.5" cy="61.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="109.9" cy="74.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="110.3" cy="69.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="111.6" cy="56.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="114.0" cy="64.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="102.7" cy="71.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="105.9" cy="73.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="105.7" cy="59.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="109.6" cy="71.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="113.3" cy="59.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="103.8" cy="65.3" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="116.0" cy="63.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="113.6" cy="59.7" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="113.8" cy="59.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="108.7" cy="69.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="117.0" cy="69.4" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="113.6" cy="62.5" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="104.9" cy="60.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="112.1" cy="73.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="114.9" cy="65.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="105.6" cy="72.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="105.5" cy="74.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="103.1" cy="45.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="111.7" cy="64.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="100.2" cy="64.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="107.1" cy="74.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="109.5" cy="67.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="107.0" cy="59.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="112.1" cy="63.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="111.8" cy="70.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="114.8" cy="61.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="117.0" cy="63.6" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="102.9" cy="66.7" r="1.3" fill="#c3c8ce"></circle>
+<circle cx="116.3" cy="64.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="56.0" cy="45.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="59.9" cy="48.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="55.5" cy="42.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="51.8" cy="54.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="47.1" cy="50.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="50.1" cy="41.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="48.8" cy="49.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="81.2" cy="46.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="49.2" cy="51.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="51.4" cy="48.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="57.7" cy="50.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="48.6" cy="50.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="55.0" cy="53.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="50.3" cy="44.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="50.5" cy="39.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="53.9" cy="50.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="46.4" cy="45.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="52.5" cy="50.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="54.0" cy="41.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="47.0" cy="43.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="53.7" cy="47.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="44.8" cy="47.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="58.9" cy="47.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="50.9" cy="46.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="51.2" cy="51.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="47.4" cy="44.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="49.7" cy="46.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="59.1" cy="44.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="48.6" cy="48.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="55.8" cy="48.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="46.5" cy="49.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="53.3" cy="40.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="47.5" cy="41.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="53.3" cy="41.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="48.7" cy="46.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="62.2" cy="53.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="54.8" cy="42.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="52.0" cy="42.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="116.2" cy="39.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="111.0" cy="44.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="115.6" cy="44.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="112.8" cy="41.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="111.6" cy="47.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="113.3" cy="45.2" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="111.0" cy="44.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="119.6" cy="45.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="116.9" cy="46.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="112.7" cy="49.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="112.3" cy="44.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="113.3" cy="49.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="91.5" cy="53.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="108.9" cy="38.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="120.6" cy="48.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="118.7" cy="50.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="111.2" cy="45.3" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="120.4" cy="45.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="117.9" cy="50.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="112.8" cy="40.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="116.2" cy="42.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="116.9" cy="39.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="120.8" cy="45.7" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="113.7" cy="39.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="54.3" cy="74.1" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="55.7" cy="63.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="54.3" cy="72.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="51.1" cy="75.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="57.2" cy="76.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="54.7" cy="78.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="53.0" cy="77.5" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="50.0" cy="74.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="52.1" cy="61.9" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="51.9" cy="70.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="57.9" cy="75.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="59.1" cy="73.6" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="50.9" cy="68.8" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="54.8" cy="71.0" r="1" fill="#5a636d" opacity="0.75"></circle>
+<circle cx="55.0" cy="75.4" r="1" fill="#5a636d" opacity="0.75"></circle>
+</svg>
+            <div style="position: absolute; left: 22px; top: 6px; width: 114px; height: 86px; border: 1px solid #4a7ee8; border-radius: 2px; box-sizing: border-box;"></div>
+          </div>
+
+          <!-- LEGEND, bottom right at the 12px overlay inset. One block, because one channel is encoded.
+               1.8 (C2, C3, C6): floor item 5 is now two obligations. On screen the legend carries one block
+               per encoded channel -- channel, attribute, domain endpoints with the median, the scale in
+               words, and every departure line -- and NO category counts, NO state rows and at most five
+               categorical rows plus Other. In the export it carries all of that plus twelve categories with
+               counts, the coverage footer and one row per state drawn in the frame, composed from the
+               encoding model at the export's own scale and never captured from this overlay. So the
+               "Selected" state row that stood here before 1.8 is deleted, not moved: the export legend
+               carries it, and so does Help's "What the marks mean".
+               max-height is 240, not 334 (C6): it binds nothing today and forbids regrowth. Measured height
+               is 80, the min-height, because a single Size block is 63.
+               Numbers: FIXTURES 3.3 fixes the domain 1 to 41 (TP53 holds the top); the median 5 is the one
+               LEGEND-1.8 fixed for this dataset and every ovarian board prints it. -->
+          <div style="position: absolute; right: 12px; bottom: 12px; width: 256px; min-height: 80px; max-height: 240px; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 6px 8px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Size: Most connected <span style="color: #7a828e;">(Degree centrality)</span></span>
+              <div style="display: flex; align-items: center; gap: 8px; height: 16px;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="#a3a8b1"></circle></svg>
+                  <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">1</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.9" fill="#a3a8b1"></circle></svg>
+                  <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">median 5</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#a3a8b1"></circle></svg>
+                  <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">41</span>
+                </div>
+              </div>
+              <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">sqrt scale</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- INSPECTOR, 280 wide. One node: TP53, clicked before the filter was opened.
+             Title row per INSPECTOR-TITLE-1.9: 36 tall, padding 0 8 0 16, gap 8; the KIND at 12px 500 which
+             never truncates, the IDENTITY at 11px dimmed which is the half that gives; no leading glyph;
+             the cluster is Copy reading, Pin as A, Toggle inspector, in that order and nothing else. -->
+        <div style="flex: 0 0 280px; width: 280px; display: flex; flex-direction: column; background: #1f2428; border-left: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+
+          <div style="flex: 0 0 36px; height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+            <div style="flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px;">
+              <span style="flex: 0 0 auto; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Node</span>
+              <span title="TP53" style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">TP53</span>
+            </div>
+            <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 4px;">
+              <div title="Copy reading" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+              <div title="Pin as A" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line></svg></div>
+              <div title="Toggle inspector (D)" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg></div>
+            </div>
+          </div>
+
+          <!-- INSPECTOR CONTENT. The reading first (floor item 1), then the attributes and metrics the
+               reading quotes, then the two consulted lists as closed sections, then the action block pinned
+               at the bottom and capped at four rows (D4), with everything else in its More menu, each verb
+               keeping its full text: Select neighbors, Frame this node, Radial layout around this node, Use
+               as root or focus, Pin, Distance from here, Likely missing links from here, Simulate removing,
+               Merge with..., Tag..., Bookmark this node, Show in table, Copy as JSON, Copy neighbor ids. -->
+          <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 8px 8px 16px 16px; overflow: hidden; box-sizing: border-box;">
+
+            <!-- RT-10 reading. Two sentences, under 220 characters. "Slightly down" and not "strongly down"
+                 is FIXTURES 3.2's own rule: -0.42 is a tenth of the drawn domain and draws near-neutral. -->
+            <div style="flex: 0 0 auto; font-size: 12px; line-height: 1.5; color: #d5d7da; padding: 4px 0 8px;">The most connected protein here: 41 links, rank 1 of 318. Slightly down in the tumour samples, and one of the 60 the expression would match.</div>
+
+            <!-- RT-8 Attributes, open. The pinned attribute is the one the filter is written against, which
+                 is 5.4's "pinned group of the attributes currently encoded or filtered". The count rides on
+                 the link and not on the header (5.4): 9 named plus 26 namespaced is 35 (FIXTURES 3.1). -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg></div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Attributes</span>
+                </div>
+                <div title="Copy all" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></div>
+              </div>
+            <div style="display: flex; align-items: center; gap: 8px; height: 28px;">
+              <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Adjusted p-value <span style="color: #7a828e;">padj</span></span>
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; font-variant-numeric: tabular-nums;">3.2e-7</span>
+            </div>
+              <div style="height: 1px; background: #374047;"></div>
+            <div style="display: flex; align-items: center; gap: 8px; height: 28px;">
+              <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Fold change <span style="color: #7a828e;">log2FoldChange</span></span>
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; font-variant-numeric: tabular-nums;">-0.42</span>
+            </div>
+              <div style="display: flex; align-items: center; height: 24px;">
+                <span style="font-size: 11px; line-height: 1.2; color: #5b8ff9; cursor: pointer;">Show all 35</span>
+              </div>
+            </div>
+
+            <!-- RT-8 Computed metrics, open. Both are already computed on this graph, so floor item 3 lands
+                 as the technical name and the rank beside each value rather than as a run record. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg></div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Computed metrics</span>
+                </div>
+              </div>
+            <div style="display: flex; align-items: center; gap: 8px; height: 28px;">
+              <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Most connected <span style="color: #7a828e;">degree</span></span>
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; font-variant-numeric: tabular-nums;">41, rank 1 of 318</span>
+            </div>
+              <div style="height: 1px; background: #374047;"></div>
+            <div style="display: flex; align-items: center; gap: 8px; height: 28px;">
+              <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Bridges <span style="color: #7a828e;">betweenness</span></span>
+              <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; font-variant-numeric: tabular-nums;">0.312, top 2%</span>
+            </div>
+            </div>
+
+            <!-- RT-8 Neighbors, closed, with the count in the trailing slot. A closed section, not a door:
+                 A4's discriminator refuses a door here -- it buys no width, no survival and no operability,
+                 and the neighbour list is floor item 7's scan surface, which 6.11 refuses by name. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div title="Neighbors. 41" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg></div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Neighbors</span>
+                </div>
+                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">41</span>
+              </div>
+            </div>
+
+            <!-- RT-8 Notes, live and empty: dimmed name, one resident plus, no count and no empty-state
+                 sentence. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg></div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Notes</span>
+                </div>
+                <div title="Note (N)" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg></div>
+              </div>
+            </div>
+
+            <div style="flex: 1 1 auto; min-height: 0;"></div>
+
+            <!-- THE ACTION BLOCK, pinned at the bottom, four rows (D4). Expand neighbors is a split button
+                 and reads its own cost in full, because floor item 4 binds an estimate to the control that
+                 spends it: 41 is under the 500 cap, so the row is "Expand 41 neighbors" and no "may slow
+                 the canvas down" warning belongs to it. Around the selection | Ego network moved here from
+                 the Explore panel in 1.8 (D4) and keeps 6.3's canonical pair.
+                 THREE OF THE FOUR ROWS DRAW NO LEADING GLYPH, and that is the register rather than an
+                 omission: REGISTER 1.6 lists "expand neighbors" among the verbs with no drawing ("there is
+                 no expand-neighbors drawing, so the row keeps its empty 14px leading slot and carries its
+                 text alone"), and neither "Around the selection" nor "Find path from here" has an entry
+                 either -- ExplorerExpert already draws the second as text alone for that reason. The empty
+                 14px slot is kept so the four labels stay on one text column. Only More, which register 1.2
+                 does hold, draws its glyph. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+            <div title="Expand neighbors" style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+              <span style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;"></span>
+              <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Expand 41 neighbors</span>
+              <span style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,6 8,11 13,6"></polyline></svg></span>
+            </div>
+            <div title="Around the selection (Ego network)" style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+              <span style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;"></span>
+              <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Around the selection</span>
+              <span style="flex: 0 0 auto; font-size: 11px; font-weight: 400; color: #7a828e;">Ego network</span>
+            </div>
+            <div title="Find path from here" style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+              <span style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;"></span>
+              <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Find path from here</span>
+            </div>
+            <div title="More" style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+              <span style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3.5" r="0.75"></circle><circle cx="8" cy="8" r="0.75"></circle><circle cx="8" cy="12.5" r="0.75"></circle></svg></span>
+              <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">More</span>
+            </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS BAR, 24 tall (5.1): counts | Zoom | layout | running | viewing | issues | selection.
+       The counts are the whole graph, not a filtered pair, because nothing is applied yet: the expression
+       is previewing, and a preview does not change what is loaded. The AI slot renders only when a provider
+       is configured (MIN-8). No separate 2D / 3D chip: the canvas toolbar's segmented control is that
+       fact's one home on every board in this set, and 5.1's One fact, one region forbids the second copy.
+       The selection slot is filled because one node is selected; it is the only slot this board adds. -->
+  <div style="flex: 0 0 24px; height: 24px; display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 0 12px; background: #1f2428; border-top: 1px solid #48525c; box-sizing: border-box; font-size: 11px; line-height: 1.2; color: #7a828e;">
+    <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+      <span>318 nodes</span>
+      <span>1,104 edges</span>
+    </div>
+    <div style="width: 1px; height: 12px; background: #48525c;"></div>
+    <span style="cursor: pointer;">Zoom 100%</span>
+    <div style="width: 1px; height: 12px; background: #48525c;"></div>
+    <div title="Force directed (ngraph) - settled" style="display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 4px 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">
+      <span>Force directed - settled</span>
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+    </div>
+    <div style="display: none; align-items: center; gap: 8px;"></div>
+    <div style="display: none; align-items: center; gap: 8px;"></div>
+    <div style="display: none; align-items: center; gap: 8px;"></div>
+    <div style="flex: 1 1 auto;"></div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="color: #d5d7da;">1 selected</span>
+    </div>
+  </div>
+
+  <!-- THE POP-OUT CARET (VOCAB 14.2). 6px on the pop-out's LEADING edge, which for an activity-panel
+       pop-out is the LEFT edge, pointing back at the panel. Its box is x 330..336 and y 191..203, so its
+       point sits on y 197, the vertical centre of the opener row at 181..213. It is drawn as its own
+       absolutely positioned element rather than as a child of the pop-out, because the pop-out clips its
+       own overflow; the geometry is identical. -->
+  <div style="position: absolute; left: 330px; top: 191px; width: 6px; height: 12px; overflow: hidden; z-index: 9;">
+    <div style="position: absolute; left: 3px; top: 1px; width: 10px; height: 10px; transform: rotate(45deg); background: #1f2428; border-left: 1px solid #48525c; border-bottom: 1px solid #48525c; box-sizing: border-box;"></div>
+  </div>
+
+  <!-- THE FILTER EXPRESSION POP-OUT (6.11 tier 3a, 360 rung). No scrim and no focus trap: the canvas keeps
+       pointer and keyboard, the selection keeps flowing, the match preview runs live, Escape closes and
+       returns focus to the door. One per region.
+       left 336 = the panel's 328 edge plus B2's 8px shell-boundary gap. top 181 = the opener row's own top,
+       so the shared edge line is exact. It never flips horizontally, because a pop-out that crosses the
+       shell stops meaning "this panel's". -->
+  <div style="position: absolute; left: 336px; top: 181px; width: 360px; max-height: 418px; display: flex; flex-direction: column; background: #1f2428; border: 1px solid #48525c; border-radius: 4px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; overflow: hidden; z-index: 8;">
+    <div style="display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 4px 0 12px; flex: 0 0 auto; box-sizing: border-box;">
+      <span style="flex: 0 0 auto; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Filter expression</span>
+      <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">JMESPath</span>
+      <div title="Close (Esc)" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg></div>
+    </div>
+    <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 0 12px 12px; box-sizing: border-box;">
+
+      <!-- RT-1, the one control this pop-out exists for. A 336px content band is what keeps a JMESPath line
+           off an ellipsis, which is the whole argument for the 360 rung over 280. The 16px slot carries the
+           scope letter N (VOCAB 11's closed set: N nodes, E edges, W weight, D depth, K k), so the expression
+           does not have to spell its own scope; an edge expression carries E in the same slot. The field has
+           the keyboard focus ring and the text caret sits after the closing backtick.
+           6.6: everything resolves against one root -- data.<attribute> for imported, joined and computed
+           attributes, algorithmResults.<namespace>.<type>.<field> for result metrics. -->
+      <div title="Filter expression (JMESPath). Applies on Enter or on leaving the field." style="display: flex; align-items: flex-start; gap: 4px; min-height: 44px; padding: 6px 8px; background: #2a3035; border-radius: 4px; box-shadow: 0 0 0 1px #5b8ff9; box-sizing: border-box; cursor: text;">
+        <span style="flex: 0 0 auto; width: 16px; text-align: center; font-size: 11px; line-height: 1.5; color: #7a828e;">N</span>
+        <span style="flex: 1 1 0; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1.5; color: #d5d7da; word-break: break-word;">data.padj &lt; `0.05`<span style="display: inline-block; width: 1px; height: 12px; background: #5b8ff9; vertical-align: -2px;"></span></span>
+      </div>
+
+      <!-- RT-10, inline validation (5.3 Explore, Expression tab). It reports two things and both change
+           with the data, so 6.7 keeps them on screen rather than behind a circle: that the expression parses,
+           and whether it is still form-representable -- because 5.3 allows switching back to the builder
+           "only while the expression is form-representable", and that is the one fact that says whether the
+           door still swings both ways. -->
+      <div style="display: flex; align-items: flex-start; gap: 6px;">
+        <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #61d095;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline></svg></div>
+        <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.4; color: #7a828e;">Valid. Shows as 1 rule in the builder.</span>
+      </div>
+
+      <!-- RT-1 select: what happens to the matches. Its default is Hide others, so Rule 7a would delete it;
+           it renders because this filter deviates, and floor item 4 wants what the control will do printed
+           before it does it. It sits behind the door under A1's door test -- the default is one most filters
+           never leave, and the row left behind still reports the deviation, because the chip the applied
+           filter writes reads "Selected: N" instead of "Showing N of M".
+           A2's veto does not reach it: a wrong result mode is visible the instant it applies.
+           The field runs the full 336 content band rather than the panel's 224 rung, which is what the
+           wider surface buys and what FilterBuilderExpert's rule pop-out already does with its own
+           fields. -->
+      <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+        <div title="Result: hide the others, or select the matches" style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
+          <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Select matches</span>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+        </div>
+      </div>
+
+      <!-- RT-10, the live count. Floor item 4, and the one number this surface owes: it is the scope the
+           expression acts on, it updates as the string changes, and it says "would" because nothing has
+           been applied -- 5.3 applies a selector on Enter or blur, not per keystroke. FIXTURES 3.2 fixes
+           it: padj < 0.05 matches 60 of 318. -->
+      <div style="font-size: 12px; line-height: 1.4; color: #d5d7da;">60 of 318 nodes would match.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

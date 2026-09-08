@@ -1,0 +1,110 @@
+id: W16
+name: Graph-Based Recommendation
+category: analysis
+validated: false
+personas:
+  - ml-engineer-recsys
+requires_capabilities:
+  - link-prediction
+  - shortest-path
+  - clustering-coefficient
+  - data-import
+  - data-export
+  - filtering
+  - statistics-panel
+suggested_components:
+  - graph-canvas
+  - data-import-dialog
+  - data-export-dialog
+  - filter-panel
+  - statistics-panel
+  - link-prediction-panel
+starting_state:
+  data_type: user-item interaction data
+  node_count: 10000-10000000
+  edge_density: very sparse
+  user_expertise: expert
+goal: >-
+  **Intent**: Build a recommendation system that leverages graph structure to suggest relevant items to users. User
+  wants to go beyond simple collaborative filtering by using network topology.
+
+
+  **Mental Model**: "Six degrees of separation" - finding items through indirect connections. If you like what your
+  friends like, and their friends like similar things, we can follow the graph to find recommendations.
+
+
+  **Task Phases**:
+
+  1. **Graph Construction** - Build user-item bipartite graph from interaction data
+
+  2. **Feature Engineering** - Compute graph features (common neighbors, path lengths, embeddings)
+
+  3. **Similarity Computation** - Calculate user-user and item-item similarities via graph metrics
+
+  4. **Recommendation Generation** - Score unconnected user-item pairs, rank by relevance
+
+  5. **Evaluation** - Measure precision, recall, coverage, diversity, serendipity
+
+  6. **Deployment** - Integrate into production system
+
+
+  **Decision Points**:
+
+  - Which interactions to include (views, clicks, purchases)?
+
+  - User-based or item-based approach?
+
+  - What graph features are most predictive?
+
+  - How to balance accuracy vs. diversity vs. serendipity?
+
+  - How to handle cold-start (new users/items)?
+
+
+  **Information Needs**:
+
+  - User-item interaction data with timestamps
+
+  - Item attributes for content-based augmentation
+
+  - Graph metrics (common neighbors, Jaccard, Adamic-Adar)
+
+  - Evaluation metrics by segment
+
+  - A/B test results
+
+
+  **Pain Points**:
+
+  - Sparse interaction graphs (most user-item pairs have no data)
+
+  - Cold-start problem for new users/items
+
+  - Scalability of graph computations
+
+  - Balancing relevance with novelty
+
+  - Filter bubbles (only recommending similar items)
+
+
+  **Data Flow**:
+
+  - Input: User interaction logs + item catalog
+
+  - Transformations: Graph construction, feature extraction, similarity scoring, ranking
+
+  - Output: Top-N recommendations per user + evaluation metrics
+success_criteria:
+  - metric: Recommendation quality
+    target: Precision@10 > baseline
+  - metric: Coverage
+    target: Recommendations span item catalog
+  - metric: Business impact
+    target: Improved engagement/conversion metrics
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 11
+    url: https://graphty.app/docs/
+    summary: Graph-Based Recommendation Workflow
+version: 1.0.0
+created_at: 2026-01-16T16:42:38.607Z
+updated_at: 2026-01-16T16:42:38.607Z

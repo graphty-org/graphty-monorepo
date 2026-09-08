@@ -1,0 +1,35 @@
+id: clustering-coefficient
+name: Clustering Coefficient
+category: analysis
+description: Calculate the clustering coefficient - the tendency of a node's neighbors to be connected to each other.
+  High clustering indicates tightly-knit neighborhoods, common in social networks where friends of friends tend to be
+  friends.
+status: planned
+algorithms:
+  - Local clustering coefficient
+  - Transitivity calculation
+  - Triangle counting
+used_by_workflows:
+  - W12
+  - W16
+implemented_by_components:
+  - statistics-panel
+requirements:
+  - Calculate local clustering coefficient for each node as triangles / possible_triangles
+  - Assign clustering coefficient of 0.0 to nodes with degree < 2 (undefined case)
+  - Calculate global average clustering coefficient as mean of all local coefficients
+  - Calculate transitivity as 3 * triangle_count / connected_triple_count
+  - Store local coefficient with 4 decimal places precision
+  - Display global average and transitivity with 4 decimal places
+  - Support weighted clustering using geometric mean of edge weights
+  - Provide toggle between unweighted and weighted calculation
+  - Complete calculation within 5 seconds for graphs under 50,000 nodes
+  - Display progress indicator for calculations exceeding 2 seconds
+  - Store local result as node attribute named 'clustering_coefficient'
+  - Identify nodes with coefficient = 0 (open neighborhoods) vs = 1 (cliques)
+  - Report count of triangles in the graph
+  - Handle directed graphs using directed triangle definition
+sources:
+  - title: Graph Analysis Textbook - Chapter 3
+    url: https://graphty.app/docs/
+    summary: Clustering coefficient measures local density and triadic closure

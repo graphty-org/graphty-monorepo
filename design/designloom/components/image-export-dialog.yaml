@@ -1,0 +1,24 @@
+id: image-export-dialog
+name: Image Export Dialog
+category: dialog
+description: Modal dialog for exporting graph visualization as an image. Supports format selection, resolution, and
+  background options.
+status: planned
+implements_capabilities:
+  - export-image
+used_in_workflows:
+  - W15
+dependencies:
+  - select
+  - slider
+  - checkbox
+  - color-picker
+  - button
+props:
+  open: boolean - Whether dialog is open
+  onClose: () => void - Close handler
+  onExport: "(options: ImageExportOptions) => void - Export handler"
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T04:00:58.376Z
+updated_at: 2026-01-16T04:00:58.376Z

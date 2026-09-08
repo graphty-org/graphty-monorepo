@@ -1,0 +1,38 @@
+id: temporal-navigation
+name: Temporal Navigation
+category: interaction
+description: Navigate through time-varying graph data using interactive controls, enabling exploration of how the
+  network structure evolves over time.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W06
+  - W07
+  - W19
+implemented_by_components:
+  - temporal-controls
+requirements:
+  - Display horizontal time slider spanning full temporal range of data
+  - Show time range labels at slider endpoints (earliest and latest timestamps)
+  - Display current selected time point or range above slider
+  - Support point-in-time selection for discrete snapshots
+  - Support time range selection with draggable start/end handles
+  - Provide 'Play' button to animate through time at configurable speed
+  - Provide 'Pause' button to stop animation at current time point
+  - "Provide playback speed control: 0.5x, 1x, 2x, 4x (default 1x = 1 second per time step)"
+  - Provide 'Step Forward' and 'Step Backward' buttons for manual navigation
+  - Maintain node positions during temporal navigation (don't re-layout on each step)
+  - Fade in nodes/edges appearing at current time step over 200ms
+  - Fade out nodes/edges disappearing at current time step over 200ms
+  - "Display timestamp prominently during playback: 'Viewing: [date/time]'"
+  - Show activity indicator on timeline (tick marks where changes occur)
+  - Allow clicking timeline to jump directly to that time point
+  - Sync temporal navigation with any linked timeline charts
+  - "Support keyboard navigation: left/right arrows for step, space for play/pause"
+sources:
+  - title: Cambridge Intelligence Dynamic Networks
+    url: https://cambridge-intelligence.com/visualizing-dynamic-networks/
+    summary: Temporal navigation patterns for evolving network visualization
+  - title: Gephi Timeline
+    url: https://gephi.org/users/
+    summary: Dynamic network exploration with time-based filtering

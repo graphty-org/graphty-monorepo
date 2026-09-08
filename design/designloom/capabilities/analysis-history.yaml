@@ -1,0 +1,37 @@
+id: analysis-history
+name: Analysis History
+category: collaboration
+description: Track the history of analysis actions for reproducibility and undo/redo capability. Record what algorithms
+  were run, what parameters were used, and what results were obtained.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W03
+  - W07
+implemented_by_components:
+  - analysis-history-panel
+requirements:
+  - Record each analysis action with timestamp (ISO 8601 format)
+  - "Store action type: algorithm execution, filter change, selection change, view change"
+  - Store algorithm name, version, and all parameter values for algorithm actions
+  - Store computed results summary (e.g., 'Found 12 communities, modularity=0.45')
+  - Support undo to restore previous graph state (data, computed attributes, view)
+  - Support multi-level undo up to 50 actions
+  - Support redo after undo up to the most recent state
+  - Clear redo stack when new action is performed after undo
+  - Display history panel showing chronological action list
+  - Show action icon, name, timestamp, and brief result summary in history list
+  - Allow clicking any history item to preview that state without applying
+  - Allow double-clicking history item to restore graph to that state
+  - Provide 'Clear History' option with confirmation (irreversible)
+  - Export history as JSON containing all actions with parameters
+  - Export history as executable script (JavaScript/Python) for reproducibility
+  - Import history to replay analysis on same or different dataset
+  - Indicate current position in history with visual marker
+  - Display 'Modified since checkpoint' indicator when unsaved changes exist
+  - Persist history in browser storage; warn before closing with unsaved history
+  - Limit history to 1000 actions; auto-prune oldest when limit exceeded
+sources:
+  - title: W03 Iterative Analysis Cycle
+    url: https://graphty.app/docs/
+    summary: Reproducibility - analysis steps documented for replication

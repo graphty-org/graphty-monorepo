@@ -1,0 +1,35 @@
+id: overview-minimap
+name: Overview Minimap
+category: interaction
+description: Show a small overview window displaying the entire graph with a viewport indicator. Helps users maintain
+  orientation when zoomed in and enables quick navigation to different regions.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W02
+  - W05
+  - W06
+  - W07
+  - W09
+implemented_by_components:
+  - minimap
+requirements:
+  - Display minimap in corner showing entire graph at reduced scale
+  - "Default position: bottom-right corner with 20px margin"
+  - "Default size: 200x150 pixels, resizable from 100x75 to 400x300"
+  - Draw viewport indicator rectangle showing current view bounds
+  - Update viewport indicator in real-time during pan/zoom (60fps)
+  - Allow dragging viewport indicator in minimap to pan main view
+  - Allow clicking in minimap to center main view on clicked location
+  - Scale minimap automatically to fit entire graph with 10% padding
+  - Render minimap at reduced detail (no labels, simplified edges) for performance
+  - Provide toggle button to show/hide minimap
+  - Remember minimap visibility preference across sessions
+  - Allow repositioning minimap to any corner via drag or settings
+  - Render minimap within 100ms of graph changes
+  - Display node density heatmap in minimap for very large graphs (>10,000 nodes)
+  - Ensure minimap does not obscure graph content in primary viewport
+sources:
+  - title: Complete Graph Visualization Textbook - Chapter 6
+    url: https://graphty.app/docs/
+    summary: Overview + Detail navigation pattern

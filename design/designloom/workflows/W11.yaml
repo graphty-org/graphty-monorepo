@@ -1,0 +1,114 @@
+id: W11
+name: Supply Chain Risk Assessment
+category: analysis
+validated: false
+personas:
+  - supply-chain-analyst
+requires_capabilities:
+  - centrality-betweenness
+  - component-analysis
+  - filtering
+  - visual-encoding-nodes
+  - layout-hierarchical
+  - statistics-panel
+  - comparison-view
+  - removal-impact-analysis
+suggested_components:
+  - graph-canvas
+  - statistics-panel
+  - filter-panel
+  - visual-encoding-panel
+  - comparison-view
+  - impact-analysis-dialog
+  - legend-panel
+starting_state:
+  data_type: supply chain network
+  node_count: 100-10000
+  edge_density: sparse
+  user_expertise: intermediate
+goal: >-
+  **Intent**: Identify vulnerabilities in a supply chain network before disruptions occur. User wants to find single
+  points of failure, assess geographic concentration risk, and model "what if" scenarios.
+
+
+  **Mental Model**: "Stress testing the chain" - finding weak links before they break. Like earthquake preparedness -
+  identifying which buildings would fall.
+
+
+  **Task Phases**:
+
+  1. **Network Mapping** - Build complete supply network (Tier 1, Tier 2+, logistics routes)
+
+  2. **Dependency Analysis** - Identify supplier concentration, geographic clustering
+
+  3. **Centrality Assessment** - Find high-betweenness nodes (bottlenecks)
+
+  4. **Scenario Modeling** - What if supplier X fails? What if region Y is disrupted?
+
+  5. **Mitigation Planning** - Develop alternatives, redundancy, monitoring
+
+
+  **Decision Points**:
+
+  - How deep into the supply chain to map (Tier 2? Tier 3?)
+
+  - What constitutes "unacceptable" concentration?
+
+  - Which scenarios are most likely/impactful to model?
+
+  - How much redundancy investment is justified?
+
+
+  **Information Needs**:
+
+  - Complete supplier network with tier information
+
+  - Geographic locations of all entities
+
+  - Capacity and lead time data
+
+  - Alternative supplier options
+
+  - Historical disruption data
+
+
+  **Pain Points**:
+
+  - Tier 2+ suppliers often unknown
+
+  - Data scattered across procurement systems
+
+  - Scenario modeling requires assumptions
+
+  - Cost of redundancy vs. probability of disruption trade-off
+
+  - Dynamic nature of supply networks
+
+
+  **Data Flow**:
+
+  - Input: Supplier relationship data + geographic data + capacity data
+
+  - Transformations: Network construction, centrality analysis, scenario simulation
+
+  - Output: Risk assessment report + prioritized mitigation recommendations
+success_criteria:
+  - metric: Single points of failure identified
+    target: All critical dependencies mapped
+  - metric: Scenarios modeled
+    target: Top 5 disruption scenarios quantified
+  - metric: Mitigation plan
+    target: Actionable recommendations with cost/benefit
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 9
+    url: https://graphty.app/docs/
+    summary: Supply Chain Risk Assessment Workflow
+  - title: Cambridge Intelligence Supply Chain Management
+    url: https://cambridge-intelligence.com/supply-chain-management-with-graph-analytics/
+    summary: Supply chain visualization with graph analytics
+  - title: Neo4j Supply Chain Use Cases
+    url: https://neo4j.com/use-cases/supply-chain-management/
+    summary: Graph database approach to supply chain risk analysis
+version: 1.0.0
+created_at: 2026-01-16T16:42:38.131Z
+updated_at: 2026-01-16T16:42:38.131Z

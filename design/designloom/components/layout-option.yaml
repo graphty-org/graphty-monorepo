@@ -1,0 +1,23 @@
+id: layout-option
+name: Layout Option
+category: control
+description: Selectable layout option with preview thumbnail. Used in layout selection interface.
+status: planned
+implements_capabilities:
+  - layout-force-directed
+  - layout-hierarchical
+  - layout-radial
+used_in_workflows:
+  - W15
+dependencies: []
+props:
+  layout: string - Layout identifier
+  name: string - Display name
+  description: string - Layout description
+  thumbnail: string - Preview image URL
+  selected: boolean - Whether currently selected
+  onClick: () => void - Selection handler
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T04:00:31.878Z
+updated_at: 2026-01-16T04:00:31.878Z

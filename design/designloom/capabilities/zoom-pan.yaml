@@ -1,0 +1,34 @@
+id: zoom-pan
+name: Zoom and Pan Navigation
+category: interaction
+description: Navigate the graph visualization through zooming (changing magnification) and panning (shifting viewport).
+  The most fundamental interaction for exploring graphs of any size.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W02
+  - W14
+implemented_by_components:
+  - zoom-controls
+requirements:
+  - Zoom in/out with mouse scroll wheel (10% per scroll notch)
+  - Zoom toward cursor position (semantic zoom, not center-zoom)
+  - Support pinch-to-zoom gesture on touch devices
+  - Pan by click-and-drag with left mouse button on empty canvas area
+  - Pan by click-and-drag with middle mouse button anywhere
+  - Support two-finger pan gesture on touch devices
+  - Provide 'Zoom to Fit' button that frames entire graph with 10% padding
+  - Provide 'Zoom to Selection' button that frames selected nodes with 10% padding
+  - Display current zoom level as percentage (e.g., '150%') in status bar
+  - Set minimum zoom limit at 10% (prevent zooming out too far)
+  - Set maximum zoom limit at 1000% (prevent zooming in too far)
+  - Maintain 60fps during pan and zoom operations
+  - Support momentum/inertia scrolling on trackpads
+  - "Support keyboard zoom: '+' or '=' to zoom in, '-' to zoom out"
+  - "Support keyboard pan: arrow keys to pan viewport"
+  - Animate zoom-to-fit transition over 300ms
+  - Provide zoom slider control as alternative to scroll wheel
+sources:
+  - title: Complete Graph Visualization Textbook - Chapter 6
+    url: https://graphty.app/docs/
+    summary: Navigation Interactions - zooming and panning fundamentals

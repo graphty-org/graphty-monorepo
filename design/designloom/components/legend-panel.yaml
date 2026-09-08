@@ -1,0 +1,35 @@
+id: legend-panel
+name: Legend Panel
+category: display
+description: Collapsible panel displaying visual encoding legend. Shows color, size, and shape mappings for nodes and edges.
+status: planned
+implements_capabilities:
+  - legend-display
+  - visual-encoding-nodes
+  - visual-encoding-edges
+used_in_workflows:
+  - W02
+  - W15
+  - W04
+  - W05
+  - W11
+dependencies:
+  - legend-item
+  - divider
+  - icon-button
+props:
+  nodeEncodings: EncodingConfig - Node visual encoding configuration
+  edgeEncodings: EncodingConfig - Edge visual encoding configuration
+  collapsed: boolean - Whether panel is collapsed
+  onToggle: () => void - Toggle collapse handler
+  interactive: boolean - Whether legend items are clickable for filtering
+sources:
+  - title: Legend Design Best Practices
+    url: https://www.nngroup.com/articles/legend-vs-labeling/
+    summary: When to use legends vs direct labeling for data visualization
+  - title: Interactive Legends
+    url: https://www.tableau.com/learn/articles/chart-legend
+    summary: Making legends clickable for filtering and highlighting
+version: 1.0.1
+created_at: 2026-01-16T04:01:55.211Z
+updated_at: 2026-01-16T16:40:54.393Z

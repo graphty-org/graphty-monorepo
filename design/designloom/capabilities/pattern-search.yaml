@@ -1,0 +1,37 @@
+id: pattern-search
+name: Subgraph Pattern Search
+category: analysis
+description: Search for specific structural patterns (motifs) in the graph. Define a pattern template and find all
+  matching subgraphs. Essential for threat hunting, fraud detection, and motif analysis.
+status: planned
+algorithms:
+  - Subgraph isomorphism
+  - VF2 algorithm
+used_by_workflows:
+  - W07
+  - W06
+  - W09
+implemented_by_components:
+  - pattern-search-dialog
+requirements:
+  - Define pattern as a small graph template with 2-10 nodes and their connections
+  - Support node type constraints in pattern (e.g., 'this node must be type Person')
+  - Support edge type constraints in pattern (e.g., 'this edge must be type KNOWS')
+  - Support node attribute constraints using comparison operators (e.g., 'degree > 5')
+  - Find all subgraphs matching the pattern using VF2 algorithm
+  - Display match count before showing individual matches
+  - Limit displayed matches to configurable maximum (default 50)
+  - Rank matches by optional relevance criteria (e.g., sum of node centralities)
+  - Highlight matched subgraph nodes and edges in main graph view
+  - Allow clicking match to center view on that subgraph
+  - Save pattern definitions for reuse with user-specified name
+  - Load previously saved patterns from pattern library
+  - "Provide pre-built patterns: triangle, star-3, chain-3, square, clique-4"
+  - Support approximate matching with configurable similarity threshold (0.8-1.0)
+  - Complete exact search within 10 seconds for patterns up to 5 nodes in graphs under 10,000 nodes
+  - Report 'No matches found' when pattern does not exist in graph
+  - Report 'Search timeout' with partial results after 30 seconds
+sources:
+  - title: W07 Threat Hunting
+    url: https://graphty.app/docs/
+    summary: Pattern Translation - convert hypothesis into graph query/pattern

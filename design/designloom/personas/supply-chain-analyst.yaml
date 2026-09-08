@@ -1,0 +1,57 @@
+id: supply-chain-analyst
+name: Supply Chain Network Analyst
+role: Supply Chain Risk Manager / Operations Analyst
+quote: Every supplier is a node, every shipment is an edge, and somewhere in that network is the vulnerability that will
+  disrupt us next quarter.
+bio: David spent 10 years in logistics operations before moving into supply chain analytics. The COVID-19 disruptions
+  taught him that traditional spreadsheet-based supplier management couldn't capture the cascading risks hidden in
+  multi-tier supply networks. He now builds network models of supply chains to identify single points of failure,
+  optimize routes, and stress-test the organization's resilience to disruptions before they happen.
+characteristics:
+  expertise: intermediate
+  time_pressure: medium
+  graph_literacy: moderate
+  domain_knowledge: advanced
+motivations:
+  - Prevent supply chain disruptions by identifying vulnerabilities before they cause problems
+  - Reduce costs through network optimization without sacrificing resilience
+  - Provide executives with clear visibility into supply chain risks
+  - Build more resilient supplier networks that can withstand regional disruptions
+  - Justify diversification investments with quantified risk analysis
+behaviors:
+  - Maps multi-tier supplier networks including Tier 2 and Tier 3 dependencies
+  - Computes betweenness centrality to identify chokepoint suppliers
+  - Runs scenario analysis - 'what if supplier X fails?' - to quantify impact
+  - Overlays geographic data to identify concentration risks by region
+  - Analyzes flow capacity and utilization across the network
+  - Identifies alternative paths and backup suppliers for critical components
+  - Creates risk heat maps for executive presentations
+goals:
+  - Map complete supply chain network including indirect suppliers
+  - Identify single points of failure and concentration risks
+  - Optimize logistics routes for cost and delivery time
+  - Quantify the impact of potential disruption scenarios
+  - Track supplier network changes over time
+frustrations:
+  - Supplier data is scattered across multiple ERP systems
+  - Difficulty getting visibility into Tier 2+ suppliers
+  - Tools designed for social networks don't understand supply chain semantics
+  - Hard to combine network analysis with traditional supply chain metrics
+  - Geographic visualization options are limited
+context:
+  frequency: weekly
+  devices:
+    - desktop
+  voluntary: true
+workflows:
+  - W11
+sources:
+  - title: Supply Chain Visualization With Graph Analytics - Cambridge Intelligence
+    url: https://cambridge-intelligence.com/supply-chain-management-with-graph-analytics/
+    summary: Webinar on using graph visualization for supply chain risk analysis and network optimization
+  - title: Supply Chain Graph Database Use Cases - Neo4j
+    url: https://neo4j.com/use-cases/supply-chain-management/
+    summary: How graph databases improve supply chain visibility, risk analysis, and traceability
+  - title: Towards Knowledge Graph Reasoning for Supply Chain Risk Management
+    url: https://www.tandfonline.com/doi/full/10.1080/00207543.2022.2100841
+    summary: Research on using GNNs and knowledge graphs to detect hidden supply chain risks

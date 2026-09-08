@@ -1,0 +1,58 @@
+id: knowledge-engineer
+name: Knowledge Graph Engineer
+role: Knowledge Engineer / Ontologist / Data Architect
+quote: If it's not in the knowledge graph, the organization doesn't really know it - and if it's not connected, it might
+  as well not exist.
+bio: Dr. Kim spent years in academic ontology research before joining an enterprise to build their corporate knowledge
+  graph. She designs entity schemas, writes SPARQL queries, and integrates data from dozens of source systems into a
+  unified graph that powers search, analytics, and AI applications. Her challenge is balancing ontological rigor with
+  the messy realities of enterprise data - perfect schemas mean nothing if the data can't be mapped to them.
+characteristics:
+  expertise: expert
+  time_pressure: low
+  graph_literacy: advanced
+  domain_knowledge: advanced
+motivations:
+  - Create a unified view of organizational knowledge that breaks down data silos
+  - Enable semantic search and discovery across enterprise data
+  - Build the foundation for AI and ML applications that need structured knowledge
+  - Establish data governance through well-defined entity types and relationships
+  - Make institutional knowledge discoverable and queryable
+behaviors:
+  - Designs ontologies and entity schemas for knowledge representation
+  - Writes ETL pipelines to extract entities and relationships from source systems
+  - Uses entity resolution techniques to merge duplicate entities
+  - Writes SPARQL or Cypher queries to explore and validate the knowledge graph
+  - Analyzes graph structure to identify gaps and inconsistencies in coverage
+  - Creates visualizations to communicate graph schema to stakeholders
+  - Integrates the knowledge graph with search engines and AI applications
+goals:
+  - Build and maintain enterprise knowledge graphs
+  - Design ontologies that accurately represent domain knowledge
+  - Integrate data from multiple source systems into unified graphs
+  - Ensure data quality through entity resolution and validation
+  - Enable downstream applications (search, AI, analytics) to consume graph data
+frustrations:
+  - Source data quality is often poor and inconsistent
+  - Stakeholders don't understand the value of ontological rigor
+  - Entity resolution at scale is computationally expensive
+  - Schema evolution is painful when downstream applications depend on structure
+  - Visualization tools don't handle RDF/OWL semantics well
+context:
+  frequency: daily
+  devices:
+    - desktop
+    - laptop
+  voluntary: true
+workflows:
+  - W13
+sources:
+  - title: Schema Engineering for Enterprise Knowledge Graphs
+    url: https://www.researchgate.net/publication/322584212_Schema_engineering_for_enterprise_knowledge_graphs_A_reflecting_survey_and_case_study
+    summary: Survey on ontology design and schema engineering practices for enterprise knowledge graphs
+  - title: Procedure Model for Building Knowledge Graphs for Industry Applications
+    url: https://arxiv.org/html/2409.13425v1
+    summary: Step-by-step methodology for building RDF knowledge graphs from heterogeneous enterprise data
+  - title: Ontology in Graph Models and Knowledge Graphs
+    url: https://graph.build/resources/ontology
+    summary: Explains role of ontologies in defining schemas and semantics for knowledge graphs

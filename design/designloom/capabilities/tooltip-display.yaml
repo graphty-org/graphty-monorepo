@@ -1,0 +1,36 @@
+id: tooltip-display
+name: Tooltip Display
+category: interaction
+description: Show quick information tooltips when hovering over nodes and edges. Display key attributes without
+  requiring full detail panel. Balance informativeness with brevity.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W14
+  - W02
+  - W05
+  - W06
+implemented_by_components:
+  - tooltip
+  - node-tooltip
+requirements:
+  - Display tooltip after 300ms hover delay (configurable 100-1000ms)
+  - Show tooltip within 50ms of delay completion (no perceptible lag after delay)
+  - Display node label as tooltip header in bold
+  - Display node type as secondary line if type attribute exists
+  - "Display up to 5 key attributes as label: value pairs"
+  - "Display degree as 'Connections: N' in metrics section"
+  - "Display community ID as 'Community: N' if community detection has run"
+  - Position tooltip 10px offset from cursor, avoiding viewport edges
+  - Reposition tooltip to stay within viewport bounds
+  - Dismiss tooltip within 100ms when cursor leaves hover target
+  - "Display edge tooltip on edge hover: source → target, weight, type"
+  - Truncate long values to 50 characters with '...' in tooltip
+  - Provide setting to customize which attributes appear in tooltip
+  - Provide setting to disable tooltips entirely for performance
+  - Use consistent tooltip styling with application theme
+  - "Support touch devices: show tooltip on tap, dismiss on tap elsewhere"
+sources:
+  - title: Complete Graph Visualization Textbook - Chapter 6
+    url: https://graphty.app/docs/
+    summary: Tooltips - informative but brief, appearing quickly

@@ -1,0 +1,24 @@
+id: histogram
+name: Histogram
+category: display
+description: Bar chart showing distribution of a numeric attribute. Supports brushing for range selection.
+status: planned
+implements_capabilities:
+  - metric-histograms
+  - degree-analysis
+used_in_workflows:
+  - W01
+  - W03
+  - W12
+dependencies: []
+props:
+  data: number[] - Values to histogram
+  bins: "number - Number of bins (default: 10)"
+  selection: "[number, number] - Selected range"
+  onSelectionChange: "(range: [number, number]) => void - Selection change handler"
+  label: string - Axis label
+  height: "number - Chart height in pixels (default: 100)"
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T04:00:32.495Z
+updated_at: 2026-01-16T04:00:32.495Z

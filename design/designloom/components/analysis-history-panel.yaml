@@ -1,0 +1,23 @@
+id: analysis-history-panel
+name: Analysis History Panel
+category: display
+description: Panel showing history of analysis operations with ability to restore previous states or re-run analyses.
+status: planned
+implements_capabilities:
+  - analysis-history
+used_in_workflows:
+  - W03
+dependencies:
+  - button
+  - icon
+  - badge
+  - divider
+props:
+  history: AnalysisHistoryEntry[] - Analysis history entries
+  onRestore: "(id: string) => void - Restore state handler"
+  onRerun: "(id: string) => void - Re-run analysis handler"
+  onClear: () => void - Clear history handler
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T04:02:53.950Z
+updated_at: 2026-01-16T04:02:53.950Z

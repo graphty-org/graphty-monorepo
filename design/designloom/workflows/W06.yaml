@@ -1,0 +1,145 @@
+id: W06
+name: Fraud Ring Investigation
+category: analysis
+validated: false
+personas:
+  - fraud-analyst
+requires_capabilities:
+  - neighborhood-expansion
+  - ego-network
+  - community-detection
+  - anomaly-detection
+  - search
+  - path-highlighting
+  - details-on-demand
+  - annotation
+  - filtering
+  - visual-encoding-nodes
+  - computed-attributes
+  - all-paths-finding
+  - temporal-navigation
+  - temporal-analysis
+  - algorithm-progress
+  - keyboard-shortcuts
+  - overview-minimap
+  - pattern-search
+  - saved-filters
+  - tooltip-display
+suggested_components:
+  - graph-canvas
+  - ego-network-dialog
+  - algorithm-panel
+  - community-panel
+  - anomaly-panel
+  - search-input
+  - search-panel
+  - path-finder-dialog
+  - node-details-panel
+  - annotation-toolbar
+  - filter-panel
+  - visual-encoding-panel
+  - computed-attributes-panel
+  - temporal-controls
+  - progress-bar
+  - keyboard-shortcut
+  - minimap
+  - pattern-search-dialog
+  - node-tooltip
+starting_state:
+  data_type: financial transaction graph
+  node_count: 10000-1000000
+  edge_density: sparse
+  user_expertise: intermediate
+goal: >-
+  **Intent**: Investigate a flagged alert to determine if it's part of a coordinated fraud attack. User starts with a
+  suspicious entity and needs to understand its network context, identify related bad actors, and document evidence for
+  action.
+
+
+  **Mental Model**: "Following the money trail" - tracing connections to uncover the full scope of fraudulent activity.
+  Like pulling a thread that unravels the whole sweater.
+
+
+  **Task Phases**:
+
+  1. **Alert Contextualization** - View flagged entity in its network context (1-2 hop neighborhood)
+
+  2. **Pattern Recognition** - Look for known fraud indicators (shared identifiers, velocity anomalies, circular flows)
+
+  3. **Ring Identification** - Expand investigation to find all connected suspicious entities
+
+  4. **Risk Scoring** - Prioritize which entities to investigate further
+
+  5. **Evidence Documentation** - Capture the evidence chain for each finding
+
+  6. **Determination** - Confirm fraud, clear alert, or escalate
+
+
+  **Decision Points**:
+
+  - Is this a false positive or real fraud?
+
+  - How far should I expand the investigation (1-hop? 2-hop? community?)
+
+  - Which shared identifiers are suspicious vs. coincidental?
+
+  - When do I have enough evidence to take action?
+
+  - Should I escalate or handle myself?
+
+
+  **Information Needs**:
+
+  - Entity's immediate connections highlighted
+
+  - Paths to known fraud cases
+
+  - Community membership (is entity in a suspicious cluster?)
+
+  - Shared identifiers with other entities (device, address, payment method)
+
+  - Transaction timeline (velocity, sequence patterns)
+
+  - Risk scores for related entities
+
+
+  **Pain Points**:
+
+  - Alert fatigue from high false positive rates
+
+  - Losing context when expanding to large neighborhoods
+
+  - Difficulty documenting evidence trail
+
+  - Time pressure - suspicious transactions may need quick action
+
+  - Data spread across multiple systems
+
+
+  **Data Flow**:
+
+  - Input: Alert with flagged entity ID + transaction/entity graph
+
+  - Transformations: Neighborhood expansion, community detection, risk scoring
+
+  - Output: Investigation decision (confirm/clear/escalate) + documented evidence
+success_criteria:
+  - metric: False positive reduction
+    target: 40-60% fewer false escalations
+  - metric: Investigation time
+    target: Under 30 minutes per alert
+  - metric: Evidence chain
+    target: Complete documentation for each determination
+sources:
+  - title: Cambridge Intelligence Fraud Investigation
+    url: https://cambridge-intelligence.com/enterprise-fraud-management-investigation-v-detection/
+    summary: Distinguishes fraud detection from investigation workflows
+  - title: Practical Graph Analysis Guide - Chapter 5
+    url: https://graphty.app/docs/
+    summary: Fraud Detection Workflow and Fraud Ring Detection case study
+  - title: CACM Graph Databases for Fraud Detection
+    url: https://cacm.acm.org/blogcacm/leveraging-graph-databases-for-fraud-detection-in-financial-systems/
+    summary: Using graph databases to reveal fraud patterns
+version: 1.0.0
+created_at: 2026-01-16T16:39:01.568Z
+updated_at: 2026-01-16T16:39:01.568Z

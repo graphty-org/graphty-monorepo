@@ -1,0 +1,35 @@
+id: centrality-eigenvector
+name: Eigenvector Centrality
+category: analysis
+description: Calculate eigenvector centrality - a node's importance is proportional to the importance of its neighbors.
+  Connections to well-connected nodes matter more. Captures prestige and influence in undirected networks.
+status: planned
+algorithms:
+  - Eigenvector centrality
+  - Power iteration for dominant eigenvector
+used_by_workflows:
+  - W09
+  - W10
+  - W03
+implemented_by_components:
+  - algorithm-card
+  - algorithm-panel
+requirements:
+  - Calculate eigenvector centrality using power iteration method
+  - Provide convergence threshold parameter adjustable from 1e-4 to 1e-8 (default 1e-6)
+  - Provide maximum iterations parameter adjustable from 100 to 10000 (default 1000)
+  - Normalize result so maximum eigenvector centrality equals 1.0
+  - Store result with 6 decimal places precision
+  - Handle disconnected graphs by computing for largest connected component only
+  - "Display warning when graph is disconnected: 'Computed for giant component only (N nodes)'"
+  - Report 'Did not converge' warning if max iterations reached without convergence
+  - Report actual number of iterations used
+  - Complete calculation within 5 seconds for graphs under 50,000 nodes
+  - Rank nodes by eigenvector centrality in descending order
+  - Display top-10 nodes by eigenvector centrality in results panel
+  - Store result as node attribute named 'eigenvector'
+  - Handle graphs with multiple components by assigning 0 to nodes outside giant component
+sources:
+  - title: Graph Analysis Textbook - Chapter 6
+    url: https://graphty.app/docs/
+    summary: Eigenvector centrality captures prestige through neighbor importance

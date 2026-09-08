@@ -1,0 +1,26 @@
+id: ego-network-dialog
+name: Ego Network Dialog
+category: dialog
+description: Dialog for extracting ego network centered on a node. Configure hop distance and edge filters.
+status: planned
+implements_capabilities:
+  - ego-network
+  - neighborhood-expansion
+used_in_workflows:
+  - W06
+  - W09
+  - W17
+dependencies:
+  - slider
+  - checkbox
+  - select
+  - button
+props:
+  open: boolean - Whether dialog is open
+  centerNode: string - Center node ID
+  onClose: () => void - Close handler
+  onExtract: "(options: EgoNetworkOptions) => void - Extract network handler"
+sources: []
+version: 1.0.1
+created_at: 2026-01-16T04:02:54.524Z
+updated_at: 2026-01-16T16:39:29.031Z

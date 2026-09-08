@@ -1,0 +1,30 @@
+id: icon
+name: Icon
+category: control
+description: Displays an icon from the icon library. Supports sizing, coloring, and accessibility labels. Used
+  throughout the UI for visual cues and button labels.
+status: planned
+implements_capabilities: []
+used_in_workflows: []
+dependencies: []
+props:
+  name:
+    type: string
+    required: true
+    description: Icon name from icon library (e.g., 'search', 'close', 'graph')
+  size:
+    type: string
+    required: false
+    description: "Icon size: 'xs' | 'sm' | 'md' | 'lg' | 'xl'"
+  color:
+    type: string
+    required: false
+    description: Icon color (CSS color value or theme token)
+  ariaLabel:
+    type: string
+    required: false
+    description: Accessible label for screen readers when icon conveys meaning
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T03:58:11.482Z
+updated_at: 2026-01-16T03:58:11.482Z

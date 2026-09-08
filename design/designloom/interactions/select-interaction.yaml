@@ -1,0 +1,116 @@
+id: select-interaction
+name: Select Interaction
+description: Interaction pattern for dropdown selects including Select, MultiSelect, and Autocomplete components.
+interaction:
+  states:
+    - type: default
+      name: default
+      description: Select closed
+      style:
+        background: "{colors.neutral.700}"
+        cursor: pointer
+      combinable: true
+    - type: default
+      name: placeholder
+      description: No value selected
+      style: {}
+      combinable: true
+    - type: hover
+      name: hover
+      description: Mouse over select
+      style:
+        background: "{colors.neutral.600}"
+      combinable: true
+    - type: focus
+      name: focus
+      description: Keyboard focus
+      style: {}
+      combinable: true
+    - type: expanded
+      name: open
+      description: Dropdown is open
+      style: {}
+      combinable: false
+    - type: hover
+      name: option-hover
+      description: Mouse over option
+      style: {}
+      combinable: true
+    - type: selected
+      name: option-selected
+      description: Option is selected
+      style: {}
+      combinable: true
+    - type: disabled
+      name: disabled
+      description: Cannot be changed
+      style:
+        opacity: 0.38
+      combinable: false
+  transitions:
+    - from: default
+      to: hover
+      trigger: mouseenter
+      reversible: true
+    - from: default
+      to: focus
+      trigger: focus
+      reversible: true
+    - from: default
+      to: expanded
+      trigger: click
+      reversible: true
+    - from: expanded
+      to: default
+      trigger: escape
+      reversible: true
+  microinteractions:
+    - id: dropdown-open
+      name: Dropdown Open
+      trigger:
+        type: click
+      rules:
+        - scale 0.95 to 1 over {motion.durations.fast}
+      feedback:
+        - type: motion
+          description: Dropdown appears
+    - id: option-highlight
+      name: Option Highlight
+      trigger:
+        type: hover
+      rules:
+        - background change over {motion.durations.fastest}
+      feedback:
+        - type: visual
+          description: Option highlights
+    - id: chevron-flip
+      name: Chevron Flip
+      trigger:
+        type: click
+      rules:
+        - rotate 0 to 180deg over {motion.durations.fast}
+      feedback:
+        - type: visual
+          description: Chevron indicates open
+  accessibility:
+    keyboard:
+      focusable: true
+      shortcuts:
+        - key: Enter
+          action: select
+        - key: Space
+          action: open
+        - key: Escape
+          action: close
+        - key: ArrowDown
+          action: next
+        - key: ArrowUp
+          action: previous
+    aria:
+      role: combobox
+applies_to:
+  - control
+sources: []
+version: 1.0.0
+created_at: 2026-01-15T18:34:26.091Z
+updated_at: 2026-01-15T18:34:26.091Z

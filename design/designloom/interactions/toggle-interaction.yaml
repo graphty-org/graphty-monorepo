@@ -1,0 +1,117 @@
+id: toggle-interaction
+name: Toggle Interaction
+description: Interaction pattern for binary state controls including Checkbox, Switch, and EffectToggle. Handles
+  checked/unchecked states with optional indeterminate state.
+interaction:
+  states:
+    - type: default
+      name: unchecked
+      description: Toggle is off/unchecked
+      style:
+        cursor: pointer
+      combinable: true
+    - type: checked
+      name: checked
+      description: Toggle is on/checked
+      style:
+        cursor: pointer
+      combinable: true
+    - type: indeterminate
+      name: indeterminate
+      description: Checkbox in partial/mixed state
+      style:
+        cursor: pointer
+      combinable: false
+    - type: hover
+      name: hover
+      description: Mouse over toggle with 8% overlay
+      style:
+        cursor: pointer
+      combinable: true
+    - type: focus
+      name: focus
+      description: Keyboard focus on toggle
+      style:
+        outline: 2px solid {colors.semantic.focus_ring}
+      combinable: true
+    - type: active
+      name: active
+      description: Toggle being pressed with 12% overlay
+      style: {}
+      combinable: false
+    - type: disabled
+      name: disabled
+      description: Toggle cannot be changed, 38% opacity
+      style:
+        opacity: 0.38
+        cursor: not-allowed
+      combinable: false
+  transitions:
+    - from: default
+      to: checked
+      trigger: click
+      reversible: true
+    - from: checked
+      to: default
+      trigger: click
+      reversible: true
+    - from: default
+      to: hover
+      trigger: mouseenter
+      reversible: true
+    - from: checked
+      to: hover
+      trigger: mouseenter
+      reversible: true
+    - from: default
+      to: focus
+      trigger: focus
+      reversible: true
+    - from: checked
+      to: focus
+      trigger: focus
+      reversible: true
+  microinteractions:
+    - id: checkmark-draw
+      name: Checkmark Draw
+      trigger:
+        type: click
+      rules:
+        - stroke-dashoffset 100% to 0% over {motion.durations.fast}
+      feedback:
+        - type: visual
+          description: Checkmark draws itself
+    - id: switch-slide
+      name: Switch Thumb Slide
+      trigger:
+        type: click
+      rules:
+        - translateX with spring over {motion.durations.normal}
+      feedback:
+        - type: motion
+          description: Thumb slides with bounce
+    - id: expand-children
+      name: Expand Children
+      trigger:
+        type: custom
+      rules:
+        - height expand over {motion.durations.normal}
+      feedback:
+        - type: visual
+          description: Related controls expand
+  accessibility:
+    keyboard:
+      focusable: true
+      shortcuts:
+        - key: Space
+          action: toggle
+        - key: Enter
+          action: toggle
+    aria:
+      role: checkbox
+applies_to:
+  - control
+sources: []
+version: 1.0.0
+created_at: 2026-01-15T18:33:36.013Z
+updated_at: 2026-01-15T18:33:36.013Z

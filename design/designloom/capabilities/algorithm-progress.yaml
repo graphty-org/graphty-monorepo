@@ -1,0 +1,42 @@
+id: algorithm-progress
+name: Algorithm Progress Indication
+category: performance
+description: Show progress indication when running computationally intensive algorithms. Provide estimated completion
+  time, allow cancellation, and prevent UI blocking during long operations.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W01
+  - W03
+  - W04
+  - W06
+  - W08
+  - W09
+  - W10
+implemented_by_components:
+  - progress-bar
+requirements:
+  - Display progress indicator for any operation exceeding 500ms
+  - Show progress bar with percentage complete (0-100%) when progress is determinable
+  - Show indeterminate progress spinner when completion percentage cannot be calculated
+  - Display estimated time remaining when algorithm supports progress reporting
+  - Update progress bar at minimum every 500ms during long operations
+  - "Display algorithm name in progress indicator: 'Computing [algorithm name]...'"
+  - "Display current parameters in progress detail: 'Resolution: 1.0, Max iterations: 1000'"
+  - Provide 'Cancel' button to abort algorithm execution
+  - Cancel algorithm within 500ms of cancel button click
+  - Display 'Cancelled' status when algorithm is aborted
+  - Display 'Completed' status with duration when algorithm finishes
+  - Run all algorithms in Web Worker to prevent UI thread blocking
+  - Maintain 60fps UI responsiveness during algorithm execution
+  - Support queueing multiple algorithms with sequential execution
+  - "Display queue position for queued algorithms: 'Queued (2 of 3)'"
+  - Allow cancelling queued algorithms before they start
+  - Display notification toast when background algorithm completes
+  - Log algorithm execution to analysis history on completion
+  - Report 'Out of memory' error gracefully if algorithm exhausts available memory
+  - Provide 'Run in Background' option for algorithms exceeding 30 seconds
+sources:
+  - title: W01 First Exploration
+    url: https://graphty.app/docs/
+    summary: Large datasets can crash or hang tools - pain point

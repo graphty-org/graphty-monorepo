@@ -1,0 +1,22 @@
+id: node-tooltip
+name: Node Tooltip
+category: utility
+description: Tooltip displaying node information on hover. Shows label, type, and key attributes.
+status: planned
+implements_capabilities:
+  - tooltip-display
+  - hover-highlight
+used_in_workflows:
+  - W02
+  - W06
+dependencies:
+  - attribute-row
+  - badge
+props:
+  node: Node - Node data to display
+  position: "{x: number, y: number} - Tooltip position"
+  attributes: string[] - Attribute names to display
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T04:01:56.315Z
+updated_at: 2026-01-16T04:01:56.315Z

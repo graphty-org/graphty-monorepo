@@ -1,0 +1,40 @@
+id: shortest-path
+name: Shortest Path Finding
+category: analysis
+description: Find the shortest path(s) between two specified nodes. Essential for understanding how entities are
+  connected, tracing relationships, and calculating distances in the network.
+status: planned
+algorithms:
+  - BFS for unweighted
+  - Dijkstra for weighted
+  - Yen's k-shortest paths
+used_by_workflows:
+  - W05
+  - W08
+  - W16
+implemented_by_components:
+  - algorithm-card
+  - algorithm-panel
+  - path-finder-dialog
+requirements:
+  - Find shortest path between user-specified source and target nodes
+  - Support unweighted paths (minimum hop count) using BFS
+  - Support weighted paths (minimum total weight) using Dijkstra's algorithm
+  - Return path as ordered list of node IDs from source to target
+  - Return path length as hop count for unweighted, total weight for weighted
+  - Return 'No path exists' message when source and target are disconnected
+  - Find all shortest paths when multiple paths of equal length exist
+  - Report count of shortest paths found
+  - Support directed path finding (follow edge direction) for directed graphs
+  - Support undirected path finding (ignore edge direction) for directed graphs
+  - Provide K-shortest paths using Yen's algorithm with configurable K from 1 to 20 (default 1)
+  - Display paths ranked by length with path details expandable
+  - Highlight path nodes and edges in graph visualization
+  - Allow stepping through path nodes one at a time
+  - Complete single shortest path within 500ms for graphs under 100,000 nodes
+  - Complete K=10 shortest paths within 3 seconds for graphs under 50,000 nodes
+  - Display intermediate nodes on path with their attributes
+sources:
+  - title: Graph Analysis Textbook - Chapter 10
+    url: https://graphty.app/docs/
+    summary: Pathfinding and Flow Analysis including shortest path algorithms

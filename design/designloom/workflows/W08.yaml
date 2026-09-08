@@ -1,0 +1,109 @@
+id: W08
+name: Drug Target Discovery
+category: analysis
+validated: false
+personas:
+  - bioinformatics-researcher
+requires_capabilities:
+  - centrality-degree
+  - centrality-betweenness
+  - centrality-closeness
+  - community-detection
+  - shortest-path
+  - filtering
+  - visual-encoding-nodes
+  - statistics-panel
+  - data-export
+  - computed-attributes
+  - algorithm-progress
+suggested_components: []
+starting_state:
+  data_type: protein-protein interaction network
+  node_count: 1000-20000
+  edge_density: sparse
+  user_expertise: expert
+goal: >-
+  **Intent**: Identify potential drug targets for a disease by analyzing protein-protein interaction networks. User
+  wants to find proteins that are both central to disease pathways and amenable to drug intervention.
+
+
+  **Mental Model**: "Finding the key dominos" - identifying proteins that, if knocked down, would disrupt the disease
+  network. Also like "finding the right lock for your key" - matching druggable proteins to disease mechanisms.
+
+
+  **Task Phases**:
+
+  1. **Disease Network Construction** - Build network from disease genes, PPIs, pathways, drug-target data
+
+  2. **Module Definition** - Define the disease-relevant subnetwork (proteins close to disease genes)
+
+  3. **Target Prioritization** - Rank proteins by centrality, druggability, expression, proximity to disease
+
+  4. **Computational Validation** - Cross-reference with literature, existing drugs, pathway enrichment
+
+  5. **Candidate Selection** - Select top targets for experimental validation
+
+
+  **Decision Points**:
+
+  - What confidence threshold for PPI data?
+
+  - How to define the boundary of the disease module?
+
+  - How to weight different prioritization criteria (centrality vs druggability)?
+
+  - Which candidates warrant expensive experimental validation?
+
+
+  **Information Needs**:
+
+  - PPI network with confidence scores (STRING, BioGRID)
+
+  - Disease gene list (from GWAS, differential expression)
+
+  - Druggability assessment (existing drug targets, binding site predictions)
+
+  - Expression data (is protein expressed in relevant tissue?)
+
+  - Pathway annotations (GO terms, KEGG pathways)
+
+  - Literature support (has this target been studied before?)
+
+
+  **Pain Points**:
+
+  - PPI data is noisy and incomplete
+
+  - Many proteins are "undruggable"
+
+  - Centrality doesn't guarantee therapeutic relevance
+
+  - Long cycle time from computational prediction to experimental validation
+
+  - Need to justify target selection to stakeholders
+
+
+  **Data Flow**:
+
+  - Input: Disease gene list + PPI databases + drug-target databases
+
+  - Transformations: Network construction, centrality calculation, scoring, enrichment analysis
+
+  - Output: Ranked target list with evidence profiles for each candidate
+success_criteria:
+  - metric: Target list generated
+    target: Prioritized list of druggable targets
+  - metric: Evidence compilation
+    target: Each target has centrality, druggability, and literature scores
+  - metric: Experimental validation success
+    target: Top targets validate in experiments
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 7
+    url: https://graphty.app/docs/
+    summary: Drug Target Identification Workflow
+  - title: STRING Database
+    url: https://string-db.org/
+    summary: Protein-protein interaction database with confidence scores
+  - title: Cytoscape Network Analysis
+    url: https://cytoscape.org/cytoscape-tutorials/presentations/network-analysis-ebi-2021.html
+    summary: Biological network analysis workflow with Cytoscape

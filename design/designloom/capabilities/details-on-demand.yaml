@@ -1,0 +1,41 @@
+id: details-on-demand
+name: Details on Demand
+category: interaction
+description: "Show comprehensive information for selected nodes or edges in a detail panel. Display all attributes,
+  computed metrics, and related context. The fourth step of Shneiderman's mantra: overview, zoom, filter,
+  details-on-demand."
+status: planned
+algorithms: []
+used_by_workflows:
+  - W02
+  - W05
+  - W06
+  - W07
+  - W09
+  - W12
+  - W13
+  - W17
+implemented_by_components:
+  - attribute-row
+  - node-details-panel
+requirements:
+  - Display detail panel within 100ms of node selection
+  - Show all node attributes as label-value pairs in detail panel
+  - Show computed metrics (degree, centrality scores, community ID) in dedicated 'Metrics' section
+  - Show neighbor count with breakdown by edge type if multiple types exist
+  - Show scrollable list of connected edges with target node label and edge attributes
+  - Show edge attributes (weight, type, timestamps) when edge is selected
+  - "Support multi-selection showing aggregate statistics: count, attribute ranges, common values"
+  - Display 'N nodes selected' header with selection summary for multi-select
+  - Provide 'Expand neighborhood' button in detail panel to trigger neighborhood expansion
+  - Provide 'Copy to clipboard' button that copies node data as JSON
+  - Provide 'Copy ID' button for quick node identifier copying
+  - Truncate long attribute values to 100 characters with 'Show more' expansion
+  - Display attribute data types (string, number, date) as subtle indicators
+  - Highlight missing/null attributes with 'Not set' placeholder
+  - Persist detail panel position and size across session
+  - Provide 'Pin' option to keep detail panel open while selecting other nodes
+sources:
+  - title: Shneiderman Visual Information Seeking Mantra
+    url: https://www.cs.umd.edu/~ben/papers/Shneiderman1996eyes.pdf
+    summary: Overview first, zoom and filter, then details-on-demand

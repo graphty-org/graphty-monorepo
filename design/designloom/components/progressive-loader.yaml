@@ -1,0 +1,22 @@
+id: progressive-loader
+name: Progressive Loader
+category: display
+description: Visual indicator for progressive graph loading. Shows loading progress with node/edge counts and estimated completion.
+status: planned
+implements_capabilities:
+  - progressive-loading
+used_in_workflows:
+  - W01
+  - W18
+dependencies:
+  - progress-bar
+  - button
+  - spinner
+props:
+  loaded: "{nodes: number, edges: number} - Currently loaded counts"
+  total: "{nodes: number, edges: number} - Total expected counts"
+  onCancel: () => void - Cancel loading handler
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T04:03:36.625Z
+updated_at: 2026-01-16T04:03:36.625Z

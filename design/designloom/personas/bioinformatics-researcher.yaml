@@ -1,0 +1,68 @@
+id: bioinformatics-researcher
+name: Bioinformatics Researcher
+role: Computational Biologist / Drug Discovery Scientist
+quote: Every protein interaction is a clue - the network topology often reveals function before any wet lab experiment.
+bio: Dr. Chen completed her PhD in computational biology and now leads a research group studying protein-protein
+  interaction networks. She works with massive datasets from STRING, BioGRID, and internal experimental data, often
+  analyzing networks with tens of thousands of nodes. Her research focuses on identifying drug targets by finding
+  essential network hubs and understanding how diseases disrupt normal cellular pathways.
+characteristics:
+  expertise: expert
+  time_pressure: low
+  graph_literacy: advanced
+  domain_knowledge: advanced
+motivations:
+  - Discover novel drug targets by identifying essential proteins in disease networks
+  - Publish high-impact research by uncovering previously unknown biological pathways
+  - Understand disease mechanisms through network perturbation analysis
+  - Validate computational predictions with experimental collaborators
+  - Build reproducible analysis pipelines that other researchers can use and cite
+behaviors:
+  - Imports data from public databases (STRING, BioGRID, KEGG) and merges with experimental results
+  - Uses network clustering to identify functional modules (protein complexes, pathways)
+  - Applies centrality measures to find essential genes - hub proteins are often lethal when knocked out
+  - Compares disease vs. healthy networks to identify differentially connected proteins
+  - Exports subnetworks for visualization in publications
+  - Runs pathway enrichment analysis on detected clusters
+  - Documents analysis parameters for reproducibility and peer review
+goals:
+  - Identify potential drug targets for diseases
+  - Understand disease mechanisms through PPI networks
+  - Find hub proteins and bottleneck proteins
+  - Perform pathway enrichment analysis
+  - Generate publication-quality network visualizations
+frustrations:
+  - Poor integration with biological databases like STRING
+  - Limited pathway visualization
+  - No support for functional enrichment
+  - Difficulty exporting for publications
+context:
+  frequency: weekly
+  devices:
+    - desktop
+    - laptop
+  voluntary: true
+workflows:
+  - W01
+  - W03
+  - W08
+  - W19
+  - W20
+  - W21
+  - W22
+  - W23
+  - W24
+  - W25
+sources:
+  - title: STRING Database
+    url: https://string-db.org
+    summary: Primary protein-protein interaction database - key data source for biological network analysis
+  - title: BioGRID
+    url: https://thebiogrid.org
+    summary: Repository of protein, genetic, and chemical interactions
+  - title: KEGG Pathway Database
+    url: https://www.kegg.jp
+    summary: Kyoto Encyclopedia of Genes and Genomes - pathway mapping resource
+  - title: PPI Network Analysis
+    url: https://www.cd-genomics.com/bmb/ppi-network-analysis.html
+    summary: Overview of protein-protein interaction network analysis techniques for drug discovery

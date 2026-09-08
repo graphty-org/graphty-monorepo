@@ -1,0 +1,23 @@
+id: pattern-search-dialog
+name: Pattern Search Dialog
+category: dialog
+description: Dialog for searching subgraph patterns. Draw or specify pattern structure to find matching subgraphs.
+status: planned
+implements_capabilities:
+  - pattern-search
+used_in_workflows:
+  - W06
+  - W07
+dependencies:
+  - button
+  - select
+  - text-input
+props:
+  open: boolean - Whether dialog is open
+  onClose: () => void - Close handler
+  onSearch: "(pattern: GraphPattern) => void - Search handler"
+  results: PatternMatch[] - Search results
+sources: []
+version: 1.0.1
+created_at: 2026-01-16T04:03:20.583Z
+updated_at: 2026-01-16T16:39:44.532Z

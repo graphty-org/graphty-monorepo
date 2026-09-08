@@ -1,0 +1,22 @@
+id: slider
+name: Slider
+category: control
+description: Numeric slider for selecting a value within a range. Supports single value and range selection modes.
+status: planned
+implements_capabilities: []
+used_in_workflows: []
+dependencies: []
+props:
+  value: number | [number, number] - Current value(s)
+  onChange: "(value: number | [number, number]) => void - Value change handler"
+  min: "number - Minimum value (default: 0)"
+  max: "number - Maximum value (default: 100)"
+  step: "number - Step increment (default: 1)"
+  label: string - Slider label
+  showValue: "boolean - Display current value (default: true)"
+  marks: "Array<{value: number, label: string}> - Scale marks"
+  disabled: "boolean - Disable the slider (default: false)"
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T03:58:37.052Z
+updated_at: 2026-01-16T03:58:37.052Z

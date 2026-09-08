@@ -1,0 +1,112 @@
+id: W17
+name: Hub Investigation
+category: exploration
+validated: false
+personas:
+  - analyst-alex
+  - fraud-analyst
+  - intelligence-analyst
+requires_capabilities:
+  - ego-network
+  - centrality-degree
+  - centrality-betweenness
+  - temporal-analysis
+  - details-on-demand
+  - filtering
+  - visual-encoding-nodes
+  - layout-radial
+  - selection-statistics
+  - neighborhood-expansion
+suggested_components:
+  - graph-canvas
+  - ego-network-dialog
+  - node-details-panel
+  - filter-panel
+  - visual-encoding-panel
+  - statistics-panel
+  - attribute-row
+starting_state:
+  data_type: graph with high-degree nodes identified
+  node_count: any
+  edge_density: any
+  user_expertise: intermediate+
+goal: >-
+  **Intent**: Understand the nature and role of highly connected nodes in the network. User has identified nodes with
+  unusually high degree and wants to understand if they're important, problematic, or artifacts.
+
+
+  **Mental Model**: "Examining the popular kids" - understanding why certain nodes have so many connections and what
+  role they play. Are they legitimate hubs, or suspicious concentrators?
+
+
+  **Task Phases**:
+
+  1. **Hub Identification** - Find nodes with high degree or centrality
+
+  2. **Ego Network Examination** - View the hub's immediate neighborhood
+
+  3. **Attribute Analysis** - What do the hub and its neighbors have in common?
+
+  4. **Temporal Analysis** - Did the hub grow organically or suddenly?
+
+  5. **Role Classification** - Is this a connector, broker, authority, or anomaly?
+
+  6. **Anomaly Assessment** - Is this hub expected or suspicious?
+
+
+  **Decision Points**:
+
+  - What degree threshold defines a "hub"?
+
+  - Is this hub's centrality legitimate for its type?
+
+  - What type of hub is this (connector, broker, authority)?
+
+  - Should this hub be investigated further as suspicious?
+
+
+  **Information Needs**:
+
+  - Degree and centrality scores
+
+  - Ego network visualization (hub + neighbors)
+
+  - Attribute profiles (hub vs. neighbors vs. network average)
+
+  - Temporal growth pattern
+
+  - Comparison to similar entity types
+
+
+  **Pain Points**:
+
+  - Ego networks of high-degree nodes can be overwhelming
+
+  - Hard to distinguish legitimate hubs from data quality issues
+
+  - No clear threshold for "suspiciously high" degree
+
+  - Hub analysis can be computationally expensive for very high-degree nodes
+
+
+  **Data Flow**:
+
+  - Input: Graph with identified high-degree nodes
+
+  - Transformations: Ego network extraction, profile comparison, temporal analysis
+
+  - Output: Hub classification + explanation of role + anomaly flag if warranted
+success_criteria:
+  - metric: Hubs classified
+    target: Each major hub has a role assignment
+  - metric: Anomalies flagged
+    target: Suspicious hubs identified for investigation
+  - metric: Roles explained
+    target: User can articulate why hub has high degree
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 3
+    url: https://graphty.app/docs/
+    summary: Hub Investigation workflow pattern
+version: 1.0.0
+created_at: 2026-01-16T16:42:38.801Z
+updated_at: 2026-01-16T16:42:38.801Z

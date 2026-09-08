@@ -1,0 +1,38 @@
+id: removal-impact-analysis
+name: Removal Impact Analysis
+category: analysis
+description: Simulate the effect of removing selected nodes or edges from the graph to assess network resilience,
+  identify critical dependencies, and model disruption scenarios.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W09
+  - W11
+implemented_by_components:
+  - impact-analysis-dialog
+requirements:
+  - Select one or more nodes for simulated removal via multi-select or list input
+  - Select one or more edges for simulated removal via multi-select or list input
+  - Calculate component count before and after removal
+  - Calculate diameter before and after removal (for connected graphs)
+  - Calculate average path length before and after removal
+  - Calculate size of giant component before and after removal
+  - Identify nodes that become disconnected (unreachable from giant component) after removal
+  - Report count and list of newly disconnected nodes
+  - Identify paths between specific node pairs that become broken after removal
+  - "Calculate cascading impact: nodes reachable only through removed node(s)"
+  - Display before/after comparison table with metric changes and delta percentages
+  - "Display impact severity rating: 'Low' (<5% change), 'Medium' (5-20%), 'High' (>20%)"
+  - Do not modify actual graph data; operate on simulated copy
+  - Provide 'Reset simulation' button to clear removal selection
+  - Support batch simulation comparing multiple removal scenarios side-by-side
+  - Complete single removal impact analysis within 3 seconds for graphs under 10,000 nodes
+  - Export impact report as JSON or CSV with all metrics
+  - Highlight affected nodes (disconnected, cascade) in graph visualization
+sources:
+  - title: Network Resilience Analysis
+    url: https://www.nature.com/articles/nphys3318
+    summary: Resilience analysis identifies critical nodes whose removal fragments the network
+  - title: Cambridge Intelligence Supply Chain Analysis
+    url: https://cambridge-intelligence.com/supply-chain-management-with-graph-analytics/
+    summary: What-if analysis for supply chain disruption modeling

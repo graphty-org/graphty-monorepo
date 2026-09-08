@@ -1,0 +1,204 @@
+id: default-theme
+name: Graphty Default Theme
+description: Default design tokens for Graphty applications. A compact, dark-mode-first design system optimized for
+  dense, tool-heavy interfaces like graph editors. Based on Mantine UI with custom compact sizing.
+colors:
+  primary:
+    "50": "#e8f0fe"
+    "100": "#d1e1fd"
+    "200": "#a3c3fb"
+    "300": "#75a5f9"
+    "400": "#5b8ff9"
+    "500": "#4a7ee8"
+    "600": "#3a6dd7"
+    "700": "#2a5cc6"
+    "800": "#1a4bb5"
+    "900": "#0a3aa4"
+    "950": "#052d8a"
+  neutral:
+    "50": "#d5d7da"
+    "100": "#c0c4ca"
+    "200": "#a3a8b1"
+    "300": "#7a828e"
+    "400": "#5f6873"
+    "500": "#48525c"
+    "600": "#374047"
+    "700": "#2a3035"
+    "800": "#1f2428"
+    "900": "#161b22"
+    "950": "#0d1117"
+  success:
+    base: "#61d095"
+  warning:
+    base: "#f7b731"
+  info:
+    base: "#33bfd7"
+  semantic:
+    background: "#0d1117"
+    surface: "#1f2428"
+    text_primary: "#d5d7da"
+    text_secondary: "#a3a8b1"
+    text_disabled: "#5f6873"
+    text_inverse: "#0d1117"
+    border_default: "#374047"
+    border_subtle: "#2a3035"
+    border_strong: "#48525c"
+    interactive: "#5b8ff9"
+    interactive_hover: "#75a5f9"
+    interactive_active: "#4a7ee8"
+    focus_ring: "#5b8ff9"
+  danger:
+    "50": "#ffe8e8"
+    "100": "#ffd1d1"
+    "200": "#ffa3a3"
+    "300": "#ff6b6b"
+    "400": "#f55a5a"
+    "500": "#eb4949"
+    "600": "#d13838"
+    "700": "#b72727"
+    "800": "#9d1616"
+    "900": "#830505"
+    "950": "#6e0303"
+typography:
+  fonts:
+    sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple
+      Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'
+    mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace
+  sizes:
+    xs: 10px
+    sm: 11px
+    base: 13px
+    lg: 14px
+    xl: 16px
+    2xl: 20px
+    3xl: 24px
+    4xl: 32px
+  weights:
+    normal: 400
+    medium: 500
+    semibold: 600
+    bold: 700
+  line_heights:
+    tight: 1.25
+    normal: 1.5
+    relaxed: 1.75
+  styles:
+    h1:
+      font_family: sans
+      font_size: 4xl
+      font_weight: bold
+      line_height: tight
+      letter_spacing: tight
+    h2:
+      font_family: sans
+      font_size: 3xl
+      font_weight: bold
+      line_height: tight
+      letter_spacing: tight
+    h3:
+      font_family: sans
+      font_size: 2xl
+      font_weight: semibold
+      line_height: tight
+    h4:
+      font_family: sans
+      font_size: xl
+      font_weight: semibold
+      line_height: normal
+    h5:
+      font_family: sans
+      font_size: lg
+      font_weight: medium
+      line_height: normal
+    h6:
+      font_family: sans
+      font_size: base
+      font_weight: medium
+      line_height: normal
+    body:
+      font_family: sans
+      font_size: sm
+      font_weight: normal
+      line_height: normal
+    body_large:
+      font_family: sans
+      font_size: base
+      font_weight: normal
+      line_height: normal
+    caption:
+      font_family: sans
+      font_size: xs
+      font_weight: normal
+      line_height: normal
+    label:
+      font_family: sans
+      font_size: sm
+      font_weight: medium
+      line_height: tight
+    code:
+      font_family: mono
+      font_size: sm
+      font_weight: normal
+      line_height: normal
+spacing:
+  scale:
+    "0": "0"
+    "1": 4px
+    "2": 6px
+    "3": 8px
+    "4": 12px
+    "5": 16px
+    "6": 20px
+    "7": 24px
+    "8": 32px
+    "9": 40px
+    "10": 48px
+    "11": 56px
+    "12": 64px
+radii:
+  none: "0"
+  sm: 4px
+  md: 6px
+  lg: 8px
+  xl: 12px
+  full: 9999px
+  xs: 2px
+shadows:
+  none: none
+  sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)
+  md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)
+  lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)
+  xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)
+  2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25)
+  inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05)
+  xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05)
+  dropdown: 0 4px 6px -1px rgba(0, 0, 0, 0.15), 0 2px 4px -2px rgba(0, 0, 0, 0.1)
+  popover: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -4px rgba(0, 0, 0, 0.15)
+  modal: 0 25px 50px -12px rgba(0, 0, 0, 0.35)
+motion:
+  durations:
+    instant: 0ms
+    fast: 100ms
+    normal: 200ms
+    slow: 300ms
+    slower: 400ms
+    fastest: 50ms
+    slowest: 500ms
+  easings:
+    linear: linear
+    ease_in: cubic-bezier(0.4, 0, 1, 1)
+    ease_out: cubic-bezier(0, 0, 0.2, 1)
+    ease_in_out: cubic-bezier(0.4, 0, 0.2, 1)
+    bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55)
+    ease: ease
+    spring: cubic-bezier(0.175, 0.885, 0.32, 1.275)
+breakpoints:
+  sm: 48em
+  md: 62em
+  lg: 75em
+  xl: 88em
+  xs: 36em
+sources: []
+version: 1.0.1
+created_at: 2026-01-15T18:16:47.755Z
+updated_at: 2026-01-15T18:17:29.009Z

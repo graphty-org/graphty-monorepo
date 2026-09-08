@@ -1,0 +1,38 @@
+id: annotation
+name: Visualization Annotation
+category: export
+description: Add text labels, callouts, and highlights to the visualization to explain findings. Create annotated views
+  for communication that guide the viewer's attention to key insights.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W06
+  - W09
+  - W15
+implemented_by_components:
+  - annotation-toolbar
+requirements:
+  - Add text labels at arbitrary canvas positions via click-to-place interaction
+  - Support text label font sizes from 10px to 48px (default 14px)
+  - Support text label colors from full color palette
+  - "Support text styling: bold, italic, underline"
+  - Add callout boxes with leader lines pointing to specific nodes
+  - "Add highlight shapes: circle, rectangle, freeform polygon"
+  - Support highlight fill colors with adjustable opacity (0-100%, default 20%)
+  - Support highlight border colors and widths (1-5px)
+  - Position annotations relative to nodes (annotations move when layout changes)
+  - Position annotations at fixed canvas coordinates (annotations stay in place)
+  - Provide 'Anchor to node' vs 'Anchor to canvas' option per annotation
+  - Select annotation by clicking; show resize handles and edit controls
+  - Edit annotation text by double-clicking
+  - Delete selected annotation with Delete key or context menu
+  - Save all annotations as part of view bookmark
+  - Include annotations in image export (PNG, SVG, JPEG)
+  - Provide annotation layer toggle to show/hide all annotations
+  - "Support z-order: bring annotation forward/backward relative to graph elements"
+  - Limit text label length to 500 characters
+  - Limit annotations to 50 per view; display warning at 45
+sources:
+  - title: Cambridge Intelligence Investigation Workflow
+    url: https://cambridge-intelligence.com/investigation-workflow-annotations/
+    summary: Annotations improve investigation workflow and reveal data narrative

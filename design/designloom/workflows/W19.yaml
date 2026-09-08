@@ -1,0 +1,117 @@
+id: W19
+name: Network Evolution Analysis
+category: analysis
+validated: false
+personas:
+  - analyst-alex
+  - expert-emma
+  - bioinformatics-researcher
+requires_capabilities:
+  - temporal-analysis
+  - comparison-view
+  - community-detection
+  - basic-statistics
+  - filtering
+  - animated-transitions
+  - statistics-panel
+  - temporal-navigation
+suggested_components:
+  - graph-canvas
+  - temporal-controls
+  - comparison-view
+  - filter-panel
+  - statistics-panel
+  - community-panel
+  - progress-bar
+starting_state:
+  data_type: timestamped graph
+  node_count: any
+  edge_density: any
+  user_expertise: intermediate+
+goal: >-
+  **Intent**: Understand how a network changes over time. User wants to track growth, detect significant changes,
+  identify emerging patterns, and understand network dynamics.
+
+
+  **Mental Model**: "Time-lapse photography" - compressing network evolution into observable patterns. Also "vital signs
+  monitoring" - tracking key metrics over time to detect health changes.
+
+
+  **Task Phases**:
+
+  1. **Time Segmentation** - Define time windows (daily, weekly, monthly snapshots)
+
+  2. **Metric Tracking** - Compute key metrics per time period (size, density, centrality distributions)
+
+  3. **Change Detection** - Identify significant changes (new nodes, disappeared edges, centrality shifts)
+
+  4. **Pattern Recognition** - Look for trends (growth, decline, seasonality, events)
+
+  5. **Community Evolution** - Track how communities form, merge, split over time
+
+  6. **Interpretation** - Connect changes to external events or internal dynamics
+
+
+  **Decision Points**:
+
+  - What time granularity is appropriate?
+
+  - What metrics should be tracked over time?
+
+  - What constitutes a "significant" change?
+
+  - How to handle nodes that appear/disappear?
+
+  - Should animation or small multiples show evolution?
+
+
+  **Information Needs**:
+
+  - Time-series of key network metrics
+
+  - Change detection alerts (spikes, drops, trends)
+
+  - Community evolution mapping (which communities merged/split?)
+
+  - New/disappeared entity lists per period
+
+  - Correlation with external events timeline
+
+
+  **Pain Points**:
+
+  - Choosing the right time granularity (too fine = noise, too coarse = miss events)
+
+  - Defining "significant" change without arbitrary thresholds
+
+  - Computational cost of re-analyzing at each time point
+
+  - Visualizing change over time without overwhelming user
+
+  - Attributing changes to causes (correlation vs. causation)
+
+
+  **Data Flow**:
+
+  - Input: Timestamped graph data spanning a period
+
+  - Transformations: Snapshot creation, metric calculation, change detection
+
+  - Output: Evolution report + trend analysis + significant events flagged
+success_criteria:
+  - metric: Trends identified
+    target: Major growth/decline patterns documented
+  - metric: Events detected
+    target: Significant changes flagged with timestamps
+  - metric: Evolution understood
+    target: User can explain how network changed and why
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 4
+    url: https://graphty.app/docs/
+    summary: Network Evolution Analysis Pipeline
+  - title: Cambridge Intelligence Dynamic Networks
+    url: https://cambridge-intelligence.com/visualizing-dynamic-networks/
+    summary: Visualizing how connections evolve over time
+version: 1.0.0
+created_at: 2026-01-16T16:42:39.052Z
+updated_at: 2026-01-16T16:42:39.052Z

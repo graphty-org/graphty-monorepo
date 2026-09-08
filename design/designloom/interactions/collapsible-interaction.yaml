@@ -1,0 +1,98 @@
+id: collapsible-interaction
+name: Collapsible Interaction
+description: Interaction pattern for expandable/collapsible content sections including Accordion, ControlSection, and
+  ControlSubGroup.
+interaction:
+  states:
+    - type: collapsed
+      name: collapsed
+      description: Content hidden
+      style: {}
+      combinable: true
+    - type: expanded
+      name: expanded
+      description: Content visible
+      style: {}
+      combinable: true
+    - type: hover
+      name: hover
+      description: Mouse over header
+      style: {}
+      combinable: true
+    - type: focus
+      name: focus
+      description: Keyboard focus
+      style:
+        outline: 2px solid {colors.semantic.focus_ring}
+      combinable: true
+    - type: custom
+      name: configured
+      description: Has non-default values
+      style: {}
+      combinable: true
+  transitions:
+    - from: collapsed
+      to: expanded
+      trigger: click
+      reversible: true
+    - from: expanded
+      to: collapsed
+      trigger: click
+      reversible: true
+    - from: collapsed
+      to: hover
+      trigger: mouseenter
+      reversible: true
+    - from: expanded
+      to: hover
+      trigger: mouseenter
+      reversible: true
+    - from: collapsed
+      to: focus
+      trigger: focus
+      reversible: true
+  microinteractions:
+    - id: height-expand
+      name: Height Expand
+      trigger:
+        type: click
+      rules:
+        - height 0 to auto over {motion.durations.normal}
+      feedback:
+        - type: motion
+          description: Content expands
+    - id: chevron-rotate
+      name: Chevron Rotate
+      trigger:
+        type: click
+      rules:
+        - rotate 0 to 90deg over {motion.durations.fast}
+      feedback:
+        - type: visual
+          description: Chevron indicates state
+    - id: configured-dot
+      name: Configured Dot
+      trigger:
+        type: data-change
+      rules:
+        - show blue dot when configured
+      feedback:
+        - type: visual
+          description: Blue dot shows configured
+  accessibility:
+    keyboard:
+      focusable: true
+      shortcuts:
+        - key: Enter
+          action: toggle
+        - key: Space
+          action: toggle
+    aria:
+      role: button
+applies_to:
+  - control
+  - layout
+sources: []
+version: 1.0.0
+created_at: 2026-01-15T18:33:56.196Z
+updated_at: 2026-01-15T18:33:56.196Z

@@ -1,0 +1,123 @@
+id: W07
+name: Threat Hunting
+category: analysis
+validated: false
+personas:
+  - cybersecurity-analyst
+requires_capabilities:
+  - pattern-search
+  - anomaly-detection
+  - filtering
+  - search
+  - analysis-history
+  - view-bookmarks
+  - details-on-demand
+  - temporal-analysis
+  - large-graph-rendering
+  - temporal-navigation
+  - saved-filters
+  - keyboard-shortcuts
+  - overview-minimap
+suggested_components:
+  - graph-canvas
+  - pattern-search-dialog
+  - anomaly-panel
+  - filter-panel
+  - search-panel
+  - search-result-item
+  - temporal-controls
+  - bookmark-panel
+  - minimap
+  - keyboard-shortcut
+starting_state:
+  data_type: behavioral/security event graph
+  node_count: 100000+
+  edge_density: sparse
+  user_expertise: expert
+goal: >-
+  **Intent**: Proactively search for threats in network/system data before they cause damage. Unlike alert-driven
+  investigation, user forms hypotheses about potential threats and queries the graph to find evidence.
+
+
+  **Mental Model**: "Hunting expedition" - you're not waiting for prey to come to you, you're actively tracking it based
+  on known behavior patterns. Also like "pattern matching" against known attack playbooks (TTPs).
+
+
+  **Task Phases**:
+
+  1. **Hypothesis Formation** - Based on threat intelligence, known TTPs, or anomaly signals
+
+  2. **Pattern Translation** - Convert hypothesis into a graph query/pattern
+
+  3. **Query Execution** - Search for matching patterns in the data
+
+  4. **Result Triage** - Review matches, investigate promising ones, filter noise
+
+  5. **Iteration** - Refine query based on findings, expand or narrow scope
+
+  6. **Response** - If threat found, trigger incident response; if not, document hunt
+
+
+  **Decision Points**:
+
+  - What threat hypothesis should I hunt for?
+
+  - How do I translate TTP into a graph pattern?
+
+  - Are query results true threats or false positives?
+
+  - Should I refine the query or try a different hypothesis?
+
+  - When is the hunt complete?
+
+
+  **Information Needs**:
+
+  - Threat intelligence feeds (current TTPs, IOCs)
+
+  - Entity behavior baselines (what's normal?)
+
+  - Query results with context
+
+  - Confidence scores for matches
+
+  - Historical hunt results (what worked before?)
+
+
+  **Pain Points**:
+
+  - Translating TTPs into graph queries requires expertise
+
+  - High false positive rates in query results
+
+  - Balancing query specificity (too narrow misses threats, too broad is noisy)
+
+  - Documenting hunts for future reference
+
+  - SIEM tools often lack native graph query support
+
+
+  **Data Flow**:
+
+  - Input: Behavioral graph (users, endpoints, processes, connections) + threat intelligence
+
+  - Transformations: Pattern matching, anomaly detection, correlation
+
+  - Output: Threat findings or documented negative hunt + refined queries for reuse
+success_criteria:
+  - metric: Threats found proactively
+    target: Detect threats before damage
+  - metric: Query reusability
+    target: Successful queries saved for future hunts
+  - metric: False positive rate
+    target: Manageable triage workload
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 10
+    url: https://graphty.app/docs/
+    summary: Threat Hunting Workflow with hypothesis formation and pattern analysis
+  - title: MITRE ATT&CK Framework
+    url: https://attack.mitre.org/
+    summary: Knowledge base of adversary TTPs for hypothesis formation
+version: 1.0.0
+created_at: 2026-01-16T16:42:47.760Z
+updated_at: 2026-01-16T16:42:47.760Z

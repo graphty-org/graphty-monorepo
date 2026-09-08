@@ -1,0 +1,102 @@
+id: slider-interaction
+name: Slider Interaction
+description: Interaction pattern for range sliders including Slider and RangeSlider components.
+interaction:
+  states:
+    - type: default
+      name: default
+      description: Slider at rest
+      style: {}
+      combinable: true
+    - type: hover
+      name: hover
+      description: Mouse over slider
+      style: {}
+      combinable: true
+    - type: focus
+      name: focus
+      description: Keyboard focus
+      style:
+        outline: 2px solid {colors.semantic.focus_ring}
+      combinable: true
+    - type: dragging
+      name: dragging
+      description: Thumb being dragged
+      style:
+        cursor: grabbing
+      combinable: false
+    - type: disabled
+      name: disabled
+      description: Cannot be changed
+      style:
+        opacity: 0.38
+      combinable: false
+  transitions:
+    - from: default
+      to: hover
+      trigger: mouseenter
+      reversible: true
+    - from: hover
+      to: default
+      trigger: mouseleave
+      reversible: true
+    - from: default
+      to: focus
+      trigger: focus
+      reversible: true
+    - from: hover
+      to: dragging
+      trigger: mousedown
+      reversible: true
+    - from: dragging
+      to: hover
+      trigger: mouseup
+      reversible: true
+  microinteractions:
+    - id: thumb-scale
+      name: Thumb Scale
+      trigger:
+        type: hover
+      rules:
+        - scale 1 to 1.1 over {motion.durations.fast}
+      feedback:
+        - type: visual
+          description: Thumb grows on hover
+    - id: value-tooltip
+      name: Value Tooltip
+      trigger:
+        type: drag
+      rules:
+        - show tooltip above thumb
+      feedback:
+        - type: visual
+          description: Current value shown
+    - id: track-fill
+      name: Track Fill
+      trigger:
+        type: drag
+      rules:
+        - fill track to current value
+      feedback:
+        - type: visual
+          description: Filled portion
+  accessibility:
+    keyboard:
+      focusable: true
+      shortcuts:
+        - key: ArrowLeft
+          action: decrease
+        - key: ArrowRight
+          action: increase
+        - key: Home
+          action: min
+        - key: End
+          action: max
+    aria:
+      role: slider
+applies_to:
+  - control
+sources: []
+version: 1.0.0
+created_at: 2026-01-15T18:34:08.360Z
+updated_at: 2026-01-15T18:34:08.360Z

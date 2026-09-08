@@ -1,0 +1,35 @@
+id: comparison-view
+name: Comparison View
+category: visualization
+description: Compare two graph states or algorithm results side-by-side. Useful for temporal comparison (before/after),
+  algorithm comparison (Louvain vs Infomap), or scenario analysis (what-if).
+status: planned
+algorithms: []
+used_by_workflows:
+  - W03
+  - W11
+  - W19
+  - W04
+implemented_by_components:
+  - comparison-view
+requirements:
+  - Display two graph views in vertical split-screen (50/50 by default)
+  - Display two graph views in horizontal split-screen as alternative option
+  - Allow adjustable split ratio from 30/70 to 70/30 via draggable divider
+  - Synchronize pan operations across both views by default
+  - Synchronize zoom operations across both views by default
+  - Provide toggle to enable independent navigation per view
+  - Highlight nodes present in only one view with distinct border color
+  - Highlight edges present in only one view with distinct line style (dashed)
+  - Highlight nodes with changed attributes using color intensity variation
+  - Display side-by-side metric comparison table for selected node
+  - Support loading different temporal snapshots into each view
+  - Support loading different algorithm results into each view
+  - Label each view with timestamp or algorithm name
+  - Provide 'Swap views' button to exchange left and right content
+  - Provide 'Sync positions' button to align node positions between views
+  - Maintain consistent visual encoding (colors, sizes) across both views
+sources:
+  - title: W19 Network Evolution Analysis
+    url: https://graphty.app/docs/
+    summary: Track changes - compare time periods

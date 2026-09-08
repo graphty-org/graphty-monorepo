@@ -1,0 +1,38 @@
+id: all-paths-finding
+name: All Paths Finding
+category: analysis
+description: Find all paths between two nodes up to a specified maximum length, enabling comprehensive connection
+  analysis beyond just the shortest path.
+status: planned
+algorithms:
+  - depth-first-search
+  - breadth-first-search
+  - yen-k-shortest-paths
+used_by_workflows:
+  - W05
+  - W06
+implemented_by_components:
+  - algorithm-panel
+  - path-finder-dialog
+requirements:
+  - Find all simple paths (no repeated nodes) between user-specified source and target
+  - Provide maximum path length parameter adjustable from 2 to 15 (default 5)
+  - Return paths sorted by length in ascending order (shortest first)
+  - Display total path count before showing individual paths
+  - Limit displayed results to configurable maximum (default 100) to prevent UI overload
+  - Display 'N more paths not shown' when results exceed display limit
+  - Identify nodes appearing in >50% of paths as common intermediate nodes
+  - Highlight common intermediate nodes distinctly in path list
+  - Support directed path finding for directed graphs
+  - Support undirected path finding (ignore direction) for directed graphs
+  - Display 'No paths found within length limit' when no paths exist up to max length
+  - Display 'No path exists (disconnected)' when nodes are in different components
+  - Provide filter to show only paths containing specified intermediate node
+  - Provide filter to show only paths using specified edge type
+  - Complete search within 5 seconds; abort and report partial results after timeout
+  - "Report 'Search timeout: showing N of estimated M paths' when computation exceeds limit"
+  - "Export path list as CSV with columns: path_id, length, node_sequence"
+sources:
+  - title: NetworkX All Simple Paths
+    url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.simple_paths.all_simple_paths.html
+    summary: Standard algorithm for enumerating all paths between nodes

@@ -1,0 +1,55 @@
+id: explorer-elena
+name: Explorer Elena
+role: New Graph User
+quote: Just show me something interesting - I'll figure out what questions to ask once I can see the shape of the data.
+bio: Elena is a product manager who occasionally needs to explore relationship data but has no formal training in graph
+  theory or network analysis. She's technically curious and comfortable with software, but she doesn't want to learn
+  specialized terminology just to answer a simple question. She values tools that let her discover insights through
+  interaction rather than requiring upfront expertise.
+characteristics:
+  expertise: novice
+  time_pressure: low
+  graph_literacy: none
+  domain_knowledge: basic
+motivations:
+  - Quickly understand unfamiliar datasets without extensive training
+  - Find interesting patterns that spark questions worth investigating further
+  - Communicate findings to stakeholders using intuitive visualizations
+  - Avoid feeling intimidated by technical tools that assume domain expertise
+  - Build confidence with graph data before deciding if deeper analysis is worthwhile
+behaviors:
+  - Starts by loading data and immediately looking at the visualization
+  - Clicks on prominent nodes to see what they are and who they connect to
+  - Uses search to find specific entities she knows about
+  - Explores by following connections outward from interesting starting points
+  - Relies heavily on visual cues like node size and color to understand importance
+  - Takes screenshots to share discoveries with colleagues
+  - Abandons tools quickly if the learning curve feels too steep
+goals:
+  - Visualize a network dataset
+  - Understand what graph analysis can do
+  - Learn basic structure of their data
+  - Load data and see visualization quickly
+frustrations:
+  - Overwhelming number of options
+  - Unclear terminology
+  - No guidance on where to start
+  - Fear of breaking things
+context:
+  frequency: as-needed
+  devices:
+    - laptop
+  voluntary: true
+workflows:
+  - W01
+  - W02
+  - W14
+  - W18
+sources:
+  - title: Progressive Disclosure - Nielsen Norman Group
+    url: https://www.nngroup.com/articles/progressive-disclosure/
+    summary: Foundation for progressive disclosure design pattern - new users should see only the most important options
+      initially
+  - title: Progressive Disclosure - The Decision Lab
+    url: https://thedecisionlab.com/reference-guide/design/progressive-disclosure
+    summary: Cognitive science behind progressive disclosure for reducing complexity

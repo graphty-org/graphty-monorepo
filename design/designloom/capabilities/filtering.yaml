@@ -1,0 +1,47 @@
+id: filtering
+name: Graph Filtering
+category: interaction
+description: Show or hide nodes and edges based on attribute values or structural properties. Reduce visual complexity
+  by focusing on relevant subsets. Essential for managing large or complex graphs.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W02
+  - W03
+  - W04
+  - W06
+  - W07
+  - W08
+  - W10
+  - W11
+  - W12
+  - W15
+  - W16
+  - W17
+  - W19
+implemented_by_components:
+  - range-slider
+  - filter-chip
+  - filter-panel
+requirements:
+  - Filter by categorical attribute via checkbox list (show/hide each category)
+  - Filter by numeric attribute via range slider with min/max inputs
+  - Filter by degree with minimum threshold slider (0 to max degree)
+  - Filter by centrality threshold with slider (0.0 to 1.0 for normalized metrics)
+  - Filter to single community by community ID selection
+  - Filter to connected component by component ID selection
+  - Filter to N-hop neighborhood of selected node(s)
+  - "Display filter summary: 'Showing X of Y nodes (Z%)'"
+  - Provide 'Reset all filters' button to restore full graph
+  - Combine multiple filters using AND logic (all conditions must match)
+  - Provide 'Invert filter' option to show hidden nodes instead
+  - Apply filter changes within 300ms for graphs under 50,000 nodes
+  - Animate filtered nodes fading out over 200ms
+  - Preserve node positions when filtering (don't re-layout)
+  - Provide filter indicator icon when any filter is active
+  - Support filtering edges independently of nodes (e.g., by edge type)
+  - Hide edges connected to filtered-out nodes automatically
+sources:
+  - title: Complete Graph Visualization Textbook - Chapter 6
+    url: https://graphty.app/docs/
+    summary: Filtering - attribute, structural, and neighborhood filtering

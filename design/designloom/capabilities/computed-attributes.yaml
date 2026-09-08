@@ -1,0 +1,40 @@
+id: computed-attributes
+name: Computed Attributes
+category: analysis
+description: Define custom node or edge attributes by combining existing metrics using formulas, enabling
+  domain-specific scoring and ranking without hardcoded logic.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W06
+  - W08
+  - W10
+  - W12
+implemented_by_components:
+  - computed-attributes-panel
+requirements:
+  - "Support arithmetic operators: + (add), - (subtract), * (multiply), / (divide), % (modulo), ^ (power)"
+  - "Support comparison operators: > (greater), < (less), >= (gte), <= (lte), == (equal), != (not equal)"
+  - "Support logical operators: AND, OR, NOT for boolean expressions"
+  - "Support functions: min(a,b), max(a,b), abs(x), sqrt(x), log(x), log10(x), exp(x), round(x,decimals)"
+  - "Support aggregation functions: sum(), avg(), count(), stddev() over neighbor values"
+  - "Support conditional function: if(condition, true_value, false_value)"
+  - Support normalize(attribute) to scale values to 0-1 range
+  - "Reference node attributes by name: [attribute_name] syntax"
+  - "Reference computed metrics by name: [degree], [betweenness], [pagerank], [community]"
+  - Validate formula syntax before execution; display parse error with position marker
+  - "Display 'Unknown attribute: X' error when referencing non-existent attribute"
+  - Display 'Type mismatch' error when applying numeric operation to string attribute
+  - Recompute derived attributes automatically when source attributes change
+  - Allow naming computed attribute with alphanumeric identifier (no spaces)
+  - Save formula definitions to session for reuse
+  - Delete computed attribute when no longer needed
+  - Complete computation within 1 second for graphs under 50,000 nodes
+  - Use computed attributes for visual encoding (size, color, filter) immediately after creation
+sources:
+  - title: Gephi Calculated Columns
+    url: https://gephi.org/users/
+    summary: Users need to derive new attributes from existing ones for domain-specific analysis
+  - title: Cytoscape Column Expressions
+    url: https://manual.cytoscape.org/en/stable/Column_Data_Functions_and_Equations.html
+    summary: Formula-based attribute computation pattern in network analysis tools

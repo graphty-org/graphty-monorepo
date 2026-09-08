@@ -1,0 +1,116 @@
+id: W18
+name: Data Import and Validation
+category: onboarding
+validated: false
+personas:
+  - explorer-elena
+  - analyst-alex
+  - expert-emma
+requires_capabilities:
+  - data-import
+  - data-validation
+  - data-preview
+  - progressive-loading
+  - basic-statistics
+suggested_components:
+  - data-import-dialog
+  - file-drop-zone
+  - column-mapper
+  - data-preview-table
+  - progress-bar
+  - progressive-loader
+  - statistics-panel
+starting_state:
+  data_type: external file or source
+  node_count: unknown
+  edge_density: unknown
+  user_expertise: any
+goal: >-
+  **Intent**: Load graph data from various sources and validate that it imported correctly. User has data in some format
+  and needs to get it into the tool while catching any data quality issues.
+
+
+  **Mental Model**: "Airport security" - data goes through checkpoints that verify it's valid before being admitted.
+  Also "translation" - converting from the user's format to the tool's internal representation.
+
+
+  **Task Phases**:
+
+  1. **Source Selection** - Choose input method (file upload, URL, paste, database connection)
+
+  2. **Format Detection** - Automatically identify format (CSV, JSON, GraphML, etc.)
+
+  3. **Field Mapping** - Map source fields to node/edge attributes (may be automatic or manual)
+
+  4. **Preview** - See sample of data before committing to full load
+
+  5. **Load** - Import the full dataset
+
+  6. **Validation** - Check for issues (missing values, type mismatches, orphan references)
+
+  7. **Quality Report** - See summary of data quality issues
+
+
+  **Decision Points**:
+
+  - What format is my data in?
+
+  - How should fields be mapped to graph elements?
+
+  - Are detected issues blocking or just warnings?
+
+  - Should I clean data before loading or handle issues after?
+
+
+  **Information Needs**:
+
+  - Supported formats list
+
+  - Auto-detected format with confidence
+
+  - Field mapping preview
+
+  - Data sample before full load
+
+  - Node/edge counts after load
+
+  - Quality issue summary
+
+
+  **Pain Points**:
+
+  - Data format not recognized
+
+  - Field mapping is wrong (e.g., treating edge list as node list)
+
+  - Large files take long time to load with no progress indicator
+
+  - Cryptic error messages when load fails
+
+  - Data quality issues not surfaced until deep in analysis
+
+
+  **Data Flow**:
+
+  - Input: Data file/URL/paste in user's format
+
+  - Transformations: Format detection, parsing, field mapping, validation
+
+  - Output: Loaded graph + quality report + field mapping documentation
+success_criteria:
+  - metric: Load success rate
+    target: Common formats load without manual intervention
+  - metric: Quality issues surfaced
+    target: All major issues flagged before user proceeds
+  - metric: Time to loaded graph
+    target: Fast enough that user doesn't abandon
+sources:
+  - title: Graphty Progressive Disclosure Design
+    url: https://graphty.app/docs/
+    summary: Load Data Wizard with staged disclosure
+  - title: University of Toronto Gephi Guide
+    url: https://mdl.library.utoronto.ca/technology/tutorials/visualizing-network-dataset-using-gephi
+    summary: Data preparation workflow for network visualization
+version: 1.0.0
+created_at: 2026-01-16T16:22:52.356Z
+updated_at: 2026-01-16T16:22:52.356Z

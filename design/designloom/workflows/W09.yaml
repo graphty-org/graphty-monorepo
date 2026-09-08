@@ -1,0 +1,138 @@
+id: W09
+name: Criminal Network Analysis
+category: analysis
+validated: false
+personas:
+  - intelligence-analyst
+requires_capabilities:
+  - data-import
+  - centrality-degree
+  - centrality-betweenness
+  - centrality-eigenvector
+  - community-detection
+  - ego-network
+  - annotation
+  - export-image
+  - details-on-demand
+  - path-highlighting
+  - removal-impact-analysis
+  - node-merging
+  - temporal-analysis
+  - algorithm-progress
+  - neighborhood-expansion
+  - overview-minimap
+  - pattern-search
+  - saved-filters
+suggested_components:
+  - graph-canvas
+  - ego-network-dialog
+  - node-details-panel
+  - annotation-toolbar
+  - path-finder-dialog
+  - impact-analysis-dialog
+  - node-merge-dialog
+  - filter-panel
+  - visual-encoding-panel
+  - minimap
+  - progress-bar
+starting_state:
+  data_type: multi-source intelligence data
+  node_count: 100-10000
+  edge_density: varies
+  user_expertise: intermediate
+goal: >-
+  **Intent**: Map and analyze a criminal organization's structure to support investigation and intervention planning.
+  User needs to identify key players, understand hierarchy, and find vulnerabilities for disruption.
+
+
+  **Mental Model**: "Organizational chart reconstruction" - building the hidden org chart of a criminal enterprise. Also
+  "finding the weak links" - identifying where intervention would be most effective.
+
+
+  **Task Phases**:
+
+  1. **Case Initialization** - Define scope, identify seed entities, establish time frame
+
+  2. **Data Integration** - Collect and merge records (communications, financial, travel, surveillance)
+
+  3. **Network Building** - Extract entities and relationships, resolve duplicates, build graph
+
+  4. **Structural Analysis** - Identify leadership (centrality), subgroups (communities), communication flows
+
+  5. **Vulnerability Assessment** - Find single points of failure, critical brokers, weak links
+
+  6. **Intelligence Production** - Create visualizations and briefings for operational planning
+
+
+  **Decision Points**:
+
+  - Who are the initial seed entities?
+
+  - How to handle uncertain or conflicting information?
+
+  - What time window is relevant?
+
+  - Who are the likely leaders vs. lieutenants vs. foot soldiers?
+
+  - Where would intervention be most effective?
+
+  - What's the anticipated network response to intervention?
+
+
+  **Information Needs**:
+
+  - Entity relationships with evidence documentation
+
+  - Centrality scores (degree, betweenness, eigenvector) to identify leaders/brokers
+
+  - Community structure (cells, subgroups)
+
+  - Communication patterns (who talks to whom, when)
+
+  - Financial flows (follow the money)
+
+  - Temporal evolution (how has network changed?)
+
+
+  **Pain Points**:
+
+  - Incomplete data - criminal networks hide connections
+
+  - Data from multiple sources with different formats/quality
+
+  - Entity resolution challenges (same person, multiple identities)
+
+  - Maintaining chain of custody for legal proceedings
+
+  - Balancing investigation depth with operational timeline
+
+
+  **Data Flow**:
+
+  - Input: Multi-source intelligence data (COMMS, financial, surveillance)
+
+  - Transformations: Entity extraction, relationship mapping, centrality analysis, community detection
+
+  - Output: Network map + key player profiles + vulnerability assessment + operational recommendations
+success_criteria:
+  - metric: Network mapped
+    target: Complete structure with key players identified
+  - metric: Hierarchy understood
+    target: Leadership and roles documented
+  - metric: Vulnerabilities identified
+    target: Intervention points prioritized
+  - metric: Evidence documented
+    target: Chain of custody maintained
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 8
+    url: https://graphty.app/docs/
+    summary: Intelligence Analysis and Link Analysis Workflows
+  - title: CACM Graph-Based Technologies for Intelligence Analysis
+    url: https://cacm.acm.org/research/graph-based-technologies-for-intelligence-analysis/
+    summary: Graph algorithms for security analysis with SNA metrics
+  - title: Cambridge Intelligence Big Graph Visualization
+    url: https://cambridge-intelligence.com/big-graph-data-visualization/
+    summary: Visualizing large networks for intelligence analysis
+version: 1.0.0
+created_at: 2026-01-16T16:42:37.868Z
+updated_at: 2026-01-16T16:42:37.868Z

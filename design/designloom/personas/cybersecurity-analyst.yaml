@@ -1,0 +1,59 @@
+id: cybersecurity-analyst
+name: Cybersecurity Threat Analyst
+role: Security Operations Center Analyst / Threat Hunter
+quote: The attacker left a trail through our network - I just need to see the graph to find where they pivoted and what
+  they touched.
+bio: Priya started as a SOC analyst triaging alerts and graduated to threat hunting after realizing that the most
+  dangerous attacks aren't caught by rules - they're found by understanding how attackers move through networks. She
+  builds behavioral graphs from SIEM data to detect lateral movement, correlates threat intelligence to identify
+  campaigns, and constructs attack graphs to prioritize vulnerability remediation. She thinks in terms of attack paths,
+  not individual events.
+characteristics:
+  expertise: expert
+  time_pressure: high
+  graph_literacy: advanced
+  domain_knowledge: advanced
+motivations:
+  - Detect sophisticated attacks that evade rule-based detection
+  - Understand attacker behavior by tracing their path through the network
+  - Prioritize vulnerability remediation based on actual attack paths
+  - Reduce mean time to detect (MTTD) and respond (MTTR) to incidents
+  - Build threat intelligence that connects indicators to campaigns and actors
+behaviors:
+  - Builds graphs from SIEM events connecting users, endpoints, processes, and network connections
+  - Traces lateral movement paths to understand attack progression
+  - Uses graph queries to hunt for specific TTPs (Tactics, Techniques, Procedures)
+  - Correlates internal events with external threat intelligence feeds
+  - Constructs attack graphs to model potential intrusion paths
+  - Identifies high-betweenness nodes as critical chokepoints for monitoring
+  - Creates timeline visualizations showing attack progression for incident reports
+goals:
+  - Detect and investigate security incidents using behavioral graphs
+  - Hunt for threats by querying for suspicious graph patterns
+  - Model attack paths to prioritize defensive measures
+  - Correlate threat intelligence with internal network activity
+  - Reduce alert fatigue by focusing on graph-based anomalies
+frustrations:
+  - SIEM tools don't provide native graph visualization
+  - Difficulty correlating events across multiple data sources
+  - Graph databases are too slow for real-time threat detection
+  - Hard to translate MITRE ATT&CK patterns into graph queries
+  - Visualizations become unusable during active incidents with high event volume
+context:
+  frequency: daily
+  devices:
+    - desktop
+  voluntary: false
+workflows:
+  - W07
+  - W12
+sources:
+  - title: MITRE ATT&CK Framework
+    url: https://attack.mitre.org/
+    summary: Knowledge base of adversary tactics, techniques, and procedures used as reference for threat hunting
+  - title: Graph-Based Technologies For Intelligence Analysis - CACM
+    url: https://cacm.acm.org/research/graph-based-technologies-for-intelligence-analysis/
+    summary: Research on using graph algorithms for security analysis and threat detection
+    bibliography:
+      date: 2023-08
+      publisher: Communications of the ACM

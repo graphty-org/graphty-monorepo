@@ -1,0 +1,97 @@
+id: modal-interaction
+name: Modal Interaction
+description: Interaction pattern for centered overlay dialogs with backdrop. Unlike popout-interaction, modals are
+  viewport-centered, have a backdrop overlay, require focus trap, and block page scroll. Used for confirmations, forms,
+  and focused tasks.
+interaction:
+  states:
+    - type: collapsed
+      name: closed
+      description: Modal and backdrop hidden
+      style: {}
+      combinable: false
+    - type: custom
+      name: opening
+      description: Backdrop and content animating in
+      style: {}
+      combinable: false
+    - type: expanded
+      name: open
+      description: Modal fully visible, page scroll locked
+      style: {}
+      combinable: false
+    - type: custom
+      name: closing
+      description: Animating out
+      style: {}
+      combinable: false
+  transitions:
+    - from: collapsed
+      to: expanded
+      trigger: open
+      reversible: true
+    - from: expanded
+      to: collapsed
+      trigger: close
+      reversible: true
+    - from: expanded
+      to: collapsed
+      trigger: escape
+      reversible: true
+    - from: expanded
+      to: collapsed
+      trigger: backdrop_click
+      reversible: true
+  microinteractions:
+    - id: backdrop-fade
+      name: Backdrop Fade
+      trigger:
+        type: custom
+      rules:
+        - opacity 0 to 0.5 over {motion.durations.normal}
+      feedback:
+        - type: visual
+          description: Dark overlay fades in behind modal
+    - id: content-scale-in
+      name: Content Scale In
+      trigger:
+        type: custom
+      rules:
+        - scale 0.95 to 1, opacity 0 to 1 over {motion.durations.normal}
+      feedback:
+        - type: motion
+          description: Modal content grows into view
+    - id: content-scale-out
+      name: Content Scale Out
+      trigger:
+        type: custom
+      rules:
+        - scale 1 to 0.95, opacity 1 to 0 over {motion.durations.fast}
+      feedback:
+        - type: motion
+          description: Modal shrinks and fades
+    - id: scroll-lock
+      name: Scroll Lock
+      trigger:
+        type: custom
+      rules:
+        - prevent body scroll while open
+      feedback:
+        - type: visual
+          description: Page cannot scroll behind modal
+  accessibility:
+    keyboard:
+      focusable: true
+      shortcuts:
+        - key: Escape
+          action: close
+        - key: Tab
+          action: cycle_focus_within
+    aria:
+      role: dialog
+applies_to:
+  - dialog
+sources: []
+version: 1.0.0
+created_at: 2026-01-15T20:07:45.993Z
+updated_at: 2026-01-15T20:07:45.993Z

@@ -1,0 +1,20 @@
+id: icon-button
+name: Icon Button
+category: control
+description: Compact button displaying only an icon. Used in toolbars and dense UI areas where space is limited.
+status: planned
+implements_capabilities: []
+used_in_workflows: []
+dependencies:
+  - icon
+props:
+  icon: string - Icon name (required)
+  ariaLabel: string - Accessible label (required)
+  variant: "string - Visual variant: 'default' | 'ghost' | 'filled' (default: 'default')"
+  size: "string - Button size: 'sm' | 'md' | 'lg' (default: 'md')"
+  disabled: "boolean - Disable the button (default: false)"
+  onClick: () => void - Click handler (required)
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T03:59:04.351Z
+updated_at: 2026-01-16T03:59:04.351Z

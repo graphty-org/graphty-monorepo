@@ -1,0 +1,116 @@
+id: W01
+name: First Exploration - Quick Data Assessment
+category: onboarding
+validated: false
+personas:
+  - explorer-elena
+  - analyst-alex
+  - expert-emma
+  - fraud-analyst
+  - intelligence-analyst
+  - bioinformatics-researcher
+requires_capabilities:
+  - data-import
+  - data-validation
+  - data-preview
+  - basic-statistics
+  - degree-analysis
+  - component-analysis
+  - statistics-panel
+  - progressive-loading
+  - algorithm-progress
+  - metric-histograms
+suggested_components:
+  - data-import-dialog
+  - data-preview-table
+  - statistics-panel
+  - histogram
+  - progressive-loader
+  - progress-bar
+  - metric-card
+starting_state:
+  data_type: unknown graph file
+  node_count: unknown
+  edge_density: unknown
+  user_expertise: any
+goal: >-
+  **Intent**: Rapidly understand an unfamiliar graph dataset before committing to deep analysis. User needs to determine
+  if the data is suitable for their question, identify data quality issues, and formulate initial hypotheses.
+
+
+  **Mental Model**: "Triage" - quickly assessing what you're working with before diving in. Like a doctor's initial
+  assessment before ordering tests.
+
+
+  **Task Phases**:
+
+  1. **Size Assessment** (1 min) - Determine computational approach needed
+
+  2. **Structure Check** (2 min) - Verify graph type matches expectations
+
+  3. **Distribution Scan** (3 min) - Identify if data follows expected patterns
+
+  4. **Sample Inspection** (5 min) - Manually verify data makes sense
+
+  5. **Attribute Assessment** (4 min) - Understand available data dimensions
+
+
+  **Decision Points**:
+
+  - Is graph size manageable or does it require sampling/filtering?
+
+  - Does structure (directed/undirected, weighted) match domain expectations?
+
+  - Are there data quality red flags requiring cleaning?
+
+  - Should I proceed with this dataset or seek better data?
+
+
+  **Information Needs**:
+
+  - Node/edge counts and their ratio (sparse vs dense indicator)
+
+  - Connectivity status (single component or fragmented?)
+
+  - Degree distribution shape (normal, power-law, bimodal)
+
+  - Attribute completeness percentages
+
+  - Sample of actual node/edge data to verify interpretation
+
+
+  **Pain Points**:
+
+  - Large datasets can crash or hang tools during initial load
+
+  - Unclear what "normal" looks like for this domain
+
+  - Attribute names may be cryptic without documentation
+
+  - Missing values may not be obvious
+
+
+  **Data Flow**:
+
+  - Input: Raw graph file (CSV, JSON, GraphML) or database connection
+
+  - Transformations: Basic statistics computation, distribution calculation
+
+  - Output: Mental model of dataset + decision to proceed/clean/abandon
+success_criteria:
+  - metric: Time to basic understanding
+    target: Under 15 minutes
+  - metric: Data quality issues identified
+    target: All major issues flagged
+  - metric: Proceed/abandon decision confidence
+    target: User can articulate why they're proceeding or not
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 2
+    url: https://graphty.app/docs/
+    summary: "The First 15 Minutes: Quick Assessment workflow"
+  - title: Brown University Gephi LibGuide
+    url: https://libguides.brown.edu/gephi
+    summary: Network analysis workflow starting with data preparation and basic statistics
+version: 1.0.0
+created_at: 2026-01-16T16:22:44.628Z
+updated_at: 2026-01-16T16:22:44.628Z

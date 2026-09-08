@@ -1,0 +1,27 @@
+id: layout-panel
+name: Layout Panel
+category: display
+description: Panel for selecting graph layout algorithm and configuring layout parameters. Shows layout preview thumbnails.
+status: planned
+implements_capabilities:
+  - layout-force-directed
+  - layout-hierarchical
+  - layout-radial
+used_in_workflows:
+  - W02
+  - W15
+dependencies:
+  - layout-option
+  - slider
+  - toggle-switch
+  - divider
+props:
+  currentLayout: string - Active layout identifier
+  layouts: LayoutDefinition[] - Available layouts
+  onLayoutChange: "(layout: string) => void - Layout selection handler"
+  onParameterChange: "(params: any) => void - Parameter change handler"
+  layoutParams: Record<string, any> - Current layout parameters
+sources: []
+version: 1.0.1
+created_at: 2026-01-16T04:01:28.184Z
+updated_at: 2026-01-16T16:39:36.540Z

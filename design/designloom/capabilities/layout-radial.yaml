@@ -1,0 +1,34 @@
+id: layout-radial
+name: Radial Layout
+category: visualization
+description: Position nodes in concentric circles emanating from a central focus node. Useful for ego-network
+  visualization where a selected node is placed at center with neighbors in successive rings by distance.
+status: planned
+algorithms:
+  - Radial tree layout
+  - Ego-centric placement
+used_by_workflows:
+  - W17
+implemented_by_components:
+  - layout-option
+  - layout-panel
+requirements:
+  - Place designated focus node at exact center of viewport
+  - Arrange 1-hop neighbors in first ring around center
+  - Arrange 2-hop neighbors in second ring, and so on up to configurable maximum depth
+  - Distribute nodes evenly by angle within each ring (360° / node count)
+  - Allocate angular sector proportional to subtree size for hierarchical data
+  - Provide ring spacing parameter adjustable from 75 to 250 pixels (default 100)
+  - Provide maximum ring count parameter adjustable from 2 to 10 (default 5)
+  - Collapse nodes beyond maximum ring into 'peripheral' indicator
+  - Handle disconnected components by showing only connected component of focus node
+  - Display node count per ring as label option
+  - Minimize edge crossings within angular constraints using local optimization
+  - Support changing focus node via double-click on any node
+  - Animate transition when focus node changes over 500ms
+  - Complete layout of 500-node ego network within 1 second
+  - "Provide option to show only nodes within N hops of focus (default: all reachable)"
+sources:
+  - title: Complete Graph Visualization Textbook - Chapter 4
+    url: https://graphty.app/docs/
+    summary: Radial layouts for hierarchies and ego-networks

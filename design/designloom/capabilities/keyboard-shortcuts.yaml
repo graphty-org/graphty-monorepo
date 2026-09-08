@@ -1,0 +1,39 @@
+id: keyboard-shortcuts
+name: Keyboard Shortcuts
+category: interaction
+description: Enable keyboard shortcuts for common operations to speed up expert workflows. Provide discoverable
+  shortcuts that don't conflict with browser defaults.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W02
+  - W03
+  - W05
+  - W06
+  - W07
+  - W15
+implemented_by_components:
+  - keyboard-shortcut
+  - keyboard-shortcuts-dialog
+requirements:
+  - Zoom in with '+' or '=' key (10% zoom increase per press)
+  - Zoom out with '-' key (10% zoom decrease per press)
+  - Reset view to fit-all with 'Home' or '0' key
+  - Delete selected nodes with 'Delete' or 'Backspace' key (with confirmation)
+  - Select all visible nodes with 'Ctrl+A' (Cmd+A on Mac)
+  - Deselect all with 'Escape' key
+  - Undo last action with 'Ctrl+Z' (Cmd+Z on Mac)
+  - Redo action with 'Ctrl+Shift+Z' or 'Ctrl+Y'
+  - Open search with 'Ctrl+F' (Cmd+F on Mac) or '/' key
+  - Show keyboard shortcut help overlay with '?' key
+  - Navigate selection with arrow keys (move to nearest neighbor)
+  - Expand selection to neighbors with 'E' key
+  - Toggle detail panel with 'D' key
+  - Toggle minimap with 'M' key
+  - Do not override browser shortcuts (Ctrl+T, Ctrl+W, etc.)
+  - Provide shortcut customization in settings panel
+  - Display shortcut hints in tooltips for toolbar buttons
+sources:
+  - title: W02 Visual Exploration
+    url: https://graphty.app/docs/
+    summary: Navigation fluidity - transitions feel smooth

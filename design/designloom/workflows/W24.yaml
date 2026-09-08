@@ -1,0 +1,143 @@
+id: W24
+name: Condition Comparison - Disease vs Control Networks
+category: analysis
+validated: false
+personas:
+  - genomics-cytoscape-user
+  - bioinformatics-researcher
+requires_capabilities:
+  - data-import
+  - basic-statistics
+  - statistics-panel
+  - comparison-view
+  - node-merging
+  - community-detection
+  - computed-attributes
+  - filtering
+  - visual-encoding-nodes
+  - visual-encoding-edges
+  - selection-statistics
+  - data-export
+  - export-image
+  - analysis-history
+suggested_components:
+  - data-import-dialog
+  - network-list-panel
+  - network-merge-dialog
+  - comparison-view
+  - statistics-panel
+  - filter-panel
+  - visual-encoding-panel
+  - export-dialog
+starting_state:
+  data_type: two or more networks over the same gene identifier space (tumor vs normal, treated vs untreated, two diseases)
+  node_count: 100-5000 each
+  edge_density: sparse to medium
+  user_expertise: intermediate+
+goal: >-
+  **Intent**: Compare two networks built for two conditions and find what is shared, what is specific to each, and
+  which genes changed their position (rewired) between them. Typical pairs: tumor vs normal co-expression modules,
+  two disease gene networks from STRING, before vs after a treatment.
+
+
+  **Mental Model**: "Overlay two maps of the same city." Streets present in both are the stable backbone; streets in
+  only one are the interesting difference; a junction that got busier is a rewired gene.
+
+
+  **Task Phases**:
+
+  1. **Load both** (3 min) - Import each network as its own named network in one session; confirm both use the same
+  identifier column
+
+  2. **Merge** (3 min) - Union to see everything, intersection for the shared core, difference for condition-specific
+  parts, matching nodes by identifier; keep per-condition attributes side by side (logFC_tumor, logFC_normal)
+
+  3. **Compare statistics** (3 min) - Node and edge counts, density, component count and community count for each
+  network and for the merged one
+
+  4. **Find rewired genes** (8 min) - Compute degree or betweenness in each condition, build a custom score for the
+  difference, filter to the largest changes, encode edges by "in A only / in B only / both"
+
+  5. **Look side by side** (5 min) - Two synchronized views with the same node positions, one per condition; select a
+  gene in one and see it highlighted in the other
+
+  6. **Report** (3 min) - Export the merged edge list with a membership column and a figure with the three-state
+  edge legend
+
+
+  **Decision Points**:
+
+  - Union, intersection, or difference as the working network?
+
+  - Match on which identifier column, and what to do with unmatched nodes?
+
+  - Which metric defines "rewired", and what threshold?
+
+  - Same layout for both views, or lay each out independently?
+
+  - Report condition-specific edges or condition-specific communities?
+
+
+  **Information Needs**:
+
+  - Membership counts: nodes and edges in A only, B only, both
+
+  - Per-node metric values in each condition and their difference
+
+  - Attribute conflicts on merged nodes and how they were resolved
+
+  - Community assignments in each condition and which communities split or merged
+
+  - Which network is currently active and which it was derived from
+
+
+  **Pain Points**:
+
+  - Tools that hold one graph at a time force export and re-import to compare
+
+  - Identifier mismatches between conditions produce phantom "specific" nodes
+
+  - Attribute name collisions on merge (both files have "logFC")
+
+  - Keeping node positions identical across the two views by hand
+
+  - Explaining rewiring without an edge-membership legend
+
+
+  **Data Flow**:
+
+  - Input: Two or more networks with a shared identifier column and per-condition attributes
+
+  - Transformations: Set operations on nodes and edges keyed by identifier, per-condition metrics, difference score,
+  membership attribute on edges
+
+  - Output: Merged network with membership attributes, rewired-gene table, side-by-side figure
+
+  **Adoption Note (2026-09-04)**: Phases 1 and 2 (several named networks in one session, union, intersection and
+  difference between networks) are blocked on network collections, which are next-phase work. In this pass the
+  Compare mode accepts a second file matched by identifier as side B, which covers phases 3, 4 and 5 for one pair of
+  conditions: per-half statistics, Run on A / B / both with namespaced results, the Biggest differences table
+  and the positions rule are specified in spec revision 1.4.
+success_criteria:
+  - metric: Membership counts reported
+    target: A-only, B-only and shared node and edge counts visible after merge
+  - metric: Rewired genes ranked
+    target: Table of genes by metric change exported as CSV
+  - metric: Views aligned
+    target: Same node occupies the same position in both views
+sources:
+  - title: JensenLab stringApp exercises - network comparison
+    url: https://jensenlab.org/training/stringapp/
+    summary: Exercise 5 merges two disease networks by intersection and union and encodes disease score
+  - title: Cytoscape User Manual - Merge
+    url: https://manual.cytoscape.org/en/stable/Merge.html
+    summary: Union, intersection, difference with matching columns and attribute handling; table merge
+  - title: Cytoscape User Manual - Creating Networks
+    url: https://manual.cytoscape.org/en/stable/Creating_Networks.html
+    summary: Network collections share the name attribute so related networks can be kept together
+  - title: A protocol for WGCNA with module preservation for tumor and normal transcriptomic data
+    url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12457846/
+    summary: Tumor and normal co-expression networks built separately, module preservation compared, both exported to Cytoscape
+version: 1.0.0
+created_at: 2026-09-04T00:00:00.000Z
+updated_at: 2026-09-04T00:00:00.000Z

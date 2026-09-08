@@ -1,0 +1,23 @@
+id: column-mapper
+name: Column Mapper
+category: control
+description: Interface for mapping source data columns to graph properties. Used during CSV import to specify source,
+  target, and attribute columns.
+status: planned
+implements_capabilities:
+  - data-import
+used_in_workflows:
+  - W18
+dependencies:
+  - select
+  - label
+props:
+  columns: string[] - Available source columns
+  mappings: Record<string, string> - Current column mappings
+  onChange: "(mappings: Record<string, string>) => void - Mapping change handler"
+  requiredFields: string[] - Required target fields (e.g., ['source', 'target'])
+  optionalFields: string[] - Optional target fields (e.g., ['weight', 'label'])
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T04:00:02.979Z
+updated_at: 2026-01-16T04:00:02.979Z

@@ -1,0 +1,1165 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #5b8ff9; } a:hover { color: #75a5f9; }
+  </style>
+</helmet>
+<!--
+  ANALYZE PANEL, SWEEP. Desktop 1440 by 900, state Result. Spec revision 1.8, section 5.3 Analyze
+  (Run as sweep, Advanced parameters, Result shapes, run record), 5.1, 5.6, 6.3, 6.7, 6.8, 6.9, 6.10, 6.11, 5.8.
+  Dataset: fraud-ring-synthetic.json, 200 nodes, 612 edges, directed, weighted by amount, timed by opened.
+  The Analyze panel is on the Run tab: the Groups card is two rows, a title row carrying the Advanced door's
+  gear in its trailing slot and the card's own "3 runs" / "Run sweep" row. The door is a closed 280 pop-out
+  holding the Run as sweep block (parameter Resolution, values 0.5, 1.0, 1.5); the RT-1 Method and Scope pair
+  it used to sit beside was deleted in 1.8 (D3, Rule 7a), and the run row does not travel with the door.
+  The pinned Results section below holds one card, the sweep family, whose three runs sit behind that card's
+  Sweep runs door as of 1.8; they were RT-6 rows inside it through 1.7.
+  The canvas is colored by the middle run (resolution 1.0, 7 groups). The inspector shows the Sweep summary
+  result view with its reading, its one departure line and its run record.
+  One result body renders on screen (MIN-6): from 1.8 the runs table, the sparkline and the pairwise agreement
+  block are drawn in neither region, but behind the one Sweep runs door that both regions open. The three runs are one family (C5), so the shared run fields render once, on the
+  family's card, and the graph-level weight and direction render once, on the panel's pinned bottom row.
+  PANEL AND INSPECTOR REBUILT UNDER COMPACTION-1.6 (row types, the twelve rules, the six-item floor). The
+  canvas, the rail, the top bar and the status bar are unchanged. Per-region notes sit above each region.
+  Shell chrome is copied from SHELL-SKELETON.html; snippets from VOCAB.md sections 11 and 12.
+  REVISION 1.7. Four changes land here and one audit changes nothing.
+  POP-5: the Advanced block left the run card for a 280 3a pop-out anchored, in 1.7, to the Method / Scope row
+  at left: 336px, headed "Advanced" with "Communities (Louvain)" dimmed beside it, and the gear stayed in the
+  primary colour #4a7ee8 because a hidden option deviates from its default -- Resolution is swept over three
+  values rather than left at 1.0. In 1.8 that row was deleted and the anchor moved with the gear to the card
+  title row; the width, the lane and the left: 336px are unchanged. The "3 runs" / "Run sweep" row did NOT go
+  with it: floor item 4 keeps the estimate and the verb at the control they belong to, so it stays resident on
+  the card as its own RT-7 row.
+  The pop-out is not drawn open; POP-5's shell is drawn nowhere in the set.
+  STY-5: the Sweep summary card gained the applied state row -- the three-stripe swatch, the layer name
+  "Groups (resolution 1.0)" and "Change encoding", which opens Style with that layer selected -- and lost
+  nothing. No card holds a palette, a scale or a domain.
+  STY-2 limit 3: this board draws the batch limit. All three per-value runs landed un-applied and the picture on
+  the canvas came from the user pressing the summary card's own applier and choosing resolution 1.0, so the
+  brush glyph said where the paint came from while the three RT-6 rows were drawn. Six runs never paint six
+  times, and a sweep paints only when the user picks. In 1.8 the rows went behind the Sweep runs door and the
+  brush went with them; the applied state row still names "Groups (resolution 1.0)" and the canvas result chip
+  prints it again, so which run the canvas reads is still reported resident, twice.
+  POP-7: both run records keep their one line and their Details chevron now opens a 360 pop-out -- the panel
+  card's at left: 336px, the inspector's at left: 792px -- and neither is drawn open (POP-13b: the chevron keeps
+  the closed right-pointing form permanently).
+  TB-1..TB-4 and TB-8: the navigation cluster became the bottom-centre canvas toolbar at bottom offset 12,
+  246 by 36, with the Views caret pointing up and its menu opening upward.
+  POP-12c IS REVERSED, and this file is where that is said. The 1.7 audit called the sweep run table and the
+  pairwise agreement block "neutral, an audit and not a change" and left both resident; D3 overturns it, on
+  the room test and on MIN-6, and both now sit behind the Sweep runs door.
+  REVISION 1.8, four changes. D3 deletes the run card's Method and Scope pair and moves the Advanced gear to
+  that card's title row; D3 puts the sweep run table behind one door in the panel card and the same table, its
+  sparkline and the agreement block behind the matching door in the inspector; C3 and C6 take the counts and
+  two rows off the canvas legend and drop its cap to 240; A6, A3 and B4 are written into every door comment.
+  TWO ANALYZE REFUSALS, recorded so a compaction pass does not "improve" them: Analyze is already the model
+  this revision asks the other activities to copy, and two things on it must not move: Metric histograms stays
+  inline, because W23 phase 2 is a scan across five distributions and a reader comparing five cannot open five
+  doors (A4); and the per-card Advanced gear with its pinnable fields is the pattern Style is now being made
+  to copy (D2). Neither is drawn on this board, and both are recorded here because this is the sweep board a
+  later pass will reach for.
+  Palette index (E4 measure 1): Advanced parameters, Sweep runs, Run record. Each is one click from the row
+  that owns it with the run present (A3), and no door on this board sits behind another door.
+  NOTHING TRANSIENT IS DRAWN OPEN HERE, so B1's anchor rule is recorded rather than rendered. Five openers,
+  four surfaces, none drawn. Measured in the browser today, with the panel's right edge at 328 and the
+  inspector's left edge at 1160:
+    Advanced parameters, 280, opens right at left: 336. Opener row [73..310] x [125..149]; 8px from the panel
+    boundary, 26px from the row's right edge, shared top edge 125.
+    Sweep runs, 480. From the panel card it opens right at left: 336, opener row [73..310] x [726..758]; 8px
+    from the panel boundary, 26px from the row's right edge, shared top edge 726. From the inspector it opens
+    left, right edge 1152 so left: 672, opener row [1177..1432] x [264..296]; 8px from the inspector boundary,
+    25px from the row's left edge, shared top edge 264.
+    Run record, 360. Panel at left: 336, opener row [73..310] x [689..720]; 8px, 26px, shared top edge 689.
+    Inspector at left: 792, right edge 1152, opener row [1177..1432] x [237..257]; 8px, 25px, shared top edge
+    237.
+  Every one of the five ends within 32px of its opener's anchor box, so none falls back to the centred form.
+  The gap constant is measured to the shell region boundary and not to the glyph (VOCAB 14.8), and the
+  cross-axis anchor box is the opener's ROW, which is what the caret in VOCAB 14.2 centres on.
+  RESIDENT PANEL ROWS: 16 before 1.8, 12 after. Measured in the browser today, by the same sum the 1.7
+  comment used (the six children of the panel body less the flexible spacer, plus 40 of gaps, the 41px pinned
+  weight and direction block and the 8px top padding): 559px before 1.8, 457px after. The run card falls from
+  106px to 72px and the Sweep summary card from 283px to 215px. 1.7's "548px" and "272px" were estimates and
+  are corrected here by measurement, not by a change to what 1.7 drew.
+  Nothing put behind a door on this board is a floor item.
+-->
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
+
+  <!-- MAIN ROW: rail + everything right of it. Height 876. -->
+  <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row;">
+
+    <!-- ACTIVITY RAIL, 48 wide -->
+    <div style="flex: 0 0 48px; width: 48px; display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 4px 0; background: #1f2428; border-right: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+
+      <!-- Data: an unnumbered warning dot (MIN-8). The count lives in the status bar issues chip and its tooltip
+           (fraud ring: repeated edges 5, self-loops 2, missing amount 14, non-date 6). -->
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="8" cy="4" rx="5.5" ry="2"></ellipse><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4"></path><path d="M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Data</span>
+        <div title="Data issues" style="position: absolute; top: 7px; right: 10px; width: 6px; height: 6px; border-radius: 50%; background: #f7b731; box-sizing: border-box;"></div>
+      </div>
+
+      <!-- Explore -->
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><polygon points="10.5,5.5 9,9 5.5,10.5 7,7"></polygon></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Explore</span>
+      </div>
+
+      <!-- Analyze, ACTIVE -->
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #d5d7da; background: #28364e; cursor: pointer; box-sizing: border-box;">
+        <div style="position: absolute; left: 0; top: 0; width: 2px; height: 44px; background: #4a7ee8;"></div>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="13.5" x2="3" y2="8"></line><line x1="8" y1="13.5" x2="8" y2="2.5"></line><line x1="13" y1="13.5" x2="13" y2="6"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Analyze</span>
+      </div>
+
+      <!-- Style -->
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 2.5l-6 6"></path><path d="M7.5 8.5c-1.5 0-2.5 1-2.5 2.5s-1 2-2.5 2c1.5 1 4.5 1 5.5-1 .5-1 .5-2-.5-3.5z"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Style</span>
+      </div>
+
+      <!-- Present -->
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="8" rx="1"></rect><line x1="8" y1="11" x2="8" y2="14"></line><line x1="5.5" y1="14" x2="10.5" y2="14"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Present</span>
+      </div>
+
+      <!-- AI -->
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3l1.3 3.7L12 8l-3.7 1.3L7 13l-1.3-3.7L2 8l3.7-1.3z"></path><path d="M13 2v2.5M11.75 3.25h2.5"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">AI</span>
+      </div>
+
+      <div style="flex: 1 1 auto;"></div>
+
+      <!-- Settings -->
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Settings</span>
+      </div>
+
+      <!-- Help -->
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 47px; height: 44px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><path d="M6 6.3a2 2 0 0 1 3.9.5c0 1.3-1.9 1.6-1.9 2.7"></path><line x1="8" y1="11.75" x2="8" y2="12.25"></line></svg>
+        <span style="font-size: 11px; line-height: 1.2;">Help</span>
+      </div>
+    </div>
+
+    <!-- RIGHT OF RAIL -->
+    <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column;">
+
+      <!-- TOP BAR, 40 tall -->
+      <div style="flex: 0 0 40px; height: 40px; display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 0 12px; background: #1f2428; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+        <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 13px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">fraud-ring-synthetic.json</span>
+        </div>
+        <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 8px;">
+          <div title="Undo (Cmd+Z)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h6.5a3 3 0 0 1 0 6H7"></path><polyline points="6.5,3.5 4,6 6.5,8.5"></polyline></svg>
+          </div>
+          <div title="Redo (Shift+Cmd+Z). Nothing to redo yet" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6H5.5a3 3 0 0 0 0 6H9"></path><polyline points="9.5,3.5 12,6 9.5,8.5"></polyline></svg>
+          </div>
+          <div style="width: 300px; height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 8px; border-radius: 4px; background: #2a3035; box-sizing: border-box; cursor: pointer;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line></svg>
+            <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Search commands, nodes and edges</span>
+            <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;">Cmd+K</div>
+          </div>
+        </div>
+        <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
+          <div style="display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px 0 6px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
+            <span>Export</span>
+            <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,6 8,11 13,6"></polyline></svg>
+          </div>
+          <div title="Share this view" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="3.5" r="1.75"></circle><circle cx="4" cy="8" r="1.75"></circle><circle cx="12" cy="12.5" r="1.75"></circle><line x1="5.6" y1="7.1" x2="10.4" y2="4.4"></line><line x1="5.6" y1="8.9" x2="10.4" y2="11.6"></line></svg>
+          </div>
+          <div style="width: 1px; height: 16px; background: #48525c;"></div>
+          <div title="Compare two views" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="5.5" height="11" rx="1.5"></rect><rect x="8.5" y="2.5" width="5.5" height="11" rx="1.5"></rect></svg>
+          </div>
+          <div title="Toggle inspector (D)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #28364e; color: #4a7ee8; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="10" y1="2.5" x2="10" y2="13.5"></line></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- BODY ROW: panel + canvas + inspector. Height 836. -->
+      <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row;">
+
+        <!-- ACTIVITY PANEL, 280 wide: Analyze -->
+        <div style="flex: 0 0 280px; width: 280px; display: flex; flex-direction: column; background: #1f2428; border-right: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+
+          <!-- panel title row, 36 tall: Cards / List view toggle, then close -->
+          <div style="flex: 0 0 36px; height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="13.5" x2="3" y2="8"></line><line x1="8" y1="13.5" x2="8" y2="2.5"></line><line x1="13" y1="13.5" x2="13" y2="6"></line></svg>
+              <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Analyze</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <div style="display: flex; gap: 1px; height: 22px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
+                <div title="Cards" style="width: 24px; height: 20px; display: flex; align-items: center; justify-content: center; border-radius: 3px; background: #374047; color: #d5d7da; cursor: pointer;">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="4.5" rx="1"></rect><rect x="2.5" y="9" width="11" height="4.5" rx="1"></rect></svg>
+                </div>
+                <div title="List" style="width: 24px; height: 20px; display: flex; align-items: center; justify-content: center; border-radius: 3px; color: #7a828e; cursor: pointer;">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5.5" y1="4" x2="13.5" y2="4"></line><line x1="5.5" y1="8" x2="13.5" y2="8"></line><line x1="5.5" y1="12" x2="13.5" y2="12"></line><circle cx="3" cy="4" r="0.5"></circle><circle cx="3" cy="8" r="0.5"></circle><circle cx="3" cy="12" r="0.5"></circle></svg>
+                </div>
+              </div>
+              <div title="Close the panel (Cmd+B)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL BODY. REBUILT UNDER COMPACTION 1.6.
+               Grid: 16 | 108 | 8 | 108 | 8 | 24 | 8 = 280, so the body padding is 0 8px 8px 16px and every row
+               spans the 256px content band. Row types used here: RT-1 (Method + Scope, the sweep's Parameter +
+               Values, the pinned weight and direction row), RT-6 (the three runs of the sweep), RT-7 (the sweep's
+               run row and the result card's action row), RT-8 (Results), RT-10 (the reading and the run record).
+               Deleted by rule: the sticky "Scope: all 200 nodes. Change" line (Rule 7a and Decision A point 1 --
+               the scope is the whole visible graph, and the Scope field states it for the Run that acts on it);
+               "Cluster nodes that interact more with each other than with the rest." (Rule 8 and the VOCAB 11 card
+               override -- a resting card carries no description, so the sentence is the info circle's title and the
+               picker row's sentence); the word "Parameters" (RT-7: a 12px chevron, and here the block is open);
+               the "Advanced" disclosure row (RT-1's door rule names the Advanced block, so it is the 24px gear in
+               the Method row's trailing slot); the "Method", "Scope", "Parameter" and "Values" label lines
+               (Rule 3 -- no label column: each label is inside its field, in the title. No glyph is invented for
+               them either, because all four are selects, none scrubs and none is in REGISTER-1.5.md, so Rule 4
+               fails both tests); the single "Resolution 1.0" field (Rule 8 -- the sweep below sets Resolution, so
+               a second Resolution field restates a control on the same screen); the "Random seed 42 Coming" field
+               (Rule 7a: at its default, and the seed is named in the run record); the card's second "Run" button
+               (Rule 8 -- with Resolution swept, "Run sweep" is the run this card performs); the three
+               "Groups (resolution N)" member cards, which become RT-6 rows inside the family's own card (Rule 9:
+               "Groups", "modularity", "Resolution" and "ms" each stood on all three rows, so the two words the
+               panel still needs rise to the column captions and the rest goes to the inspector's runs table); the three member run records and the one drawn
+               open (floor 3 keeps the family record below the reading; each member's only unshared parameter is
+               the row's own value, and its full record is the row's title); "Weight: amount (strength).
+               Direction: ignored." on both cards (COMPACTION group B -- the graph-level facts are stated once, on
+               the pinned row at the bottom of the panel).
+               "tolerance 1e-6" inside both run records (Rule 7a: it sits at the engine default, so only the
+               deviation is drawn and the default is behind Details. "max passes 20" is NOT a default, but at
+               235 px the inspector's line cannot hold it beside the scope with its noun either -- the shortest
+               honest form still ellipsizes by two pixels -- so both records spend their width on the scope,
+               which 6.10 ranks above parameters, and the pass cap is a title and a Details fact on both).
+               Floor kept: the reading in full on the result card; the one-line run record -- method, seed 42
+               and the scope "all 200 nodes" on both lines (the 1.7 sweep moved the scope off the card
+               header and onto the record line, where 6.10 item 3 puts it), with "max passes 20" and the record
+               whole in each line's title and behind the Details chevron; the Scope field and "3 runs" stating what Run
+               sweep will act on before it acts; "Run sweep" in full text; every id, value and attribute name.
+               REVISION 1.7, what this comment no longer describes. Two lines above are superseded: the sweep's
+               Parameter and Values RT-1 row is no longer inline on the card, and the parenthesis reading "here
+               the block is open" is now "here the block is behind the gear's 280 pop-out" (POP-5). Everything
+               else above still describes what is drawn. The RT-7 sweep run row -- "3 runs" and "Run sweep" --
+               did not travel with it, so the floor line above still holds word for word: the estimate and the
+               verb stay at the Run control (floor 4). The panel also gains one row it did not have, the Sweep
+               summary card's applied state row (STY-5), and the floor is unaffected in both directions:
+               nothing behind a door on this board is a reading, a departure, a run record, a legend line or a
+               control's stated scope. Resident panel content 586px before, 548px after.
+               REVISION 1.8, two deletions and one door in this region (D3). Rule 7a deletes the run card's
+               32px Method and Scope pair row: both fields sat at their defaults and both are restated by the
+               card title "Groups / Communities (Louvain)" on the same screen, so Rule 7a and Rule 8 each
+               delete them independently. It is a RENDERING rule and not a tier change, and nobody should read
+               it as a demotion -- Method returns as a top-level control the moment it deviates, because W04's
+               decision point is which community algorithm and W21 phase 1 wants MCL. The Advanced gear did
+               not go with the row: it moves to the card title row's trailing slot, right-aligned after the
+               info circle, and keeps its primary ink. The card's RT-7 row "3 runs | Run sweep" does not move,
+               because floor item 4 keeps the estimate and the verb at the control they belong to, so card 1
+               falls from three drawn rows to two. The Sweep summary card's RT-6 run table -- a caption row
+               and three run rows -- becomes one RT-8 door stub.
+               Resident panel rows 16 before 1.8, 12 after. Measured: resident panel content 559px before,
+               457px after; the run card 106px -> 72px, the Sweep summary card 283px -> 215px. -->
+          <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;">
+
+            <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 8px 8px 8px 16px; overflow: hidden; box-sizing: border-box;">
+
+              <!-- Run | Results sub-tabs (5.3 Analyze tier 1). Both words pass Rule 1a: they name a place you
+                   navigate to. Run is selected so the sweep control stays in view. -->
+              <div style="flex: 0 0 auto; display: flex; gap: 2px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
+                <div style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; background: #374047; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Run</div>
+                <div style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Results</div>
+              </div>
+
+              <!-- RUN CARD: Groups, with Advanced behind the gear's pop-out. Decision B: first mention of the
+                   concept in this surface, so both names render on one line. -->
+              <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box;">
+                <!-- The card title row, and the Advanced door's opener. 1.8 moved the 24px gear here from the
+                     deleted Method / Scope row (D3), right-aligned after the info circle, and the row grew
+                     from 20px to 24px because a 24px control needs a 24px row.
+                     The gear keeps the primary ink #4a7ee8 because a hidden option deviates -- Resolution is
+                     swept over three values rather than left at 1.0 -- which is A6's stub obligation and
+                     VOCAB 14.1's second spelling; it would draw #7a828e the moment nothing behind it did. It
+                     carries no #28364e fill, because an opener takes the selected-row fill only while its
+                     pop-out is open (POP-13b).
+                     Behind it, the Advanced block's two field rows: "Run as sweep" with the Values / Range
+                     segmented pair, and the Resolution parameter select with its 0.5, 1.0, 1.5 values field.
+                     THE ANCHOR (B2): the 280 3a pop-out opens right with its left edge at 336px, 8px clear of
+                     the panel's 328px edge, and shares its top edge with this row's anchor box. It is not
+                     drawn open: POP-5's shell is drawn nowhere in the set, and the pop-out shell itself is
+                     drawn once in ValidationPopout and once in GroupProfilePopout.
+                     A3, the depth: one click from the row that owns the parameters, with the card present,
+                     and this door sits behind no other door.
+                     The door's state is reported twice over, which is what keeps it legal against the floor:
+                     the gear's colour and its title, and the resident "3 runs" and "Run sweep" row below,
+                     which says a three-value sweep is configured before the button acts. -->
+                <div style="display: flex; align-items: center; gap: 6px; height: 24px;">
+                  <span style="flex: 0 0 auto; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Groups</span>
+                  <span style="min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Communities (Louvain)</span>
+                  <div title="Cluster nodes that interact more with each other than with the rest." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #7a828e; cursor: default;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
+                  </div>
+                  <div style="flex: 1 1 auto;"></div>
+                  <div title="Advanced parameters. Run as sweep is on" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #4a7ee8; cursor: pointer;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+                  </div>
+                </div>
+
+                <!-- WHAT WAS HERE, and why it is gone (D3, Rule 7a, 1.8): the RT-1 pair row, 32px, holding
+                     title="Method: Louvain, or Label propagation" reading "Louvain" and
+                     title="Scope: visible, 200 of 200 nodes" reading "Visible (200)". Both fields sat at
+                     their defaults under a card already titled "Groups / Communities (Louvain)", so Rule 7a
+                     and Rule 8 each delete them independently. This is a rendering rule, not a tier change:
+                     Method returns as a top-level control the moment it deviates -- W04's decision point is
+                     which community algorithm, and W21 phase 1 wants MCL -- so nobody should read the
+                     deletion as a demotion. What the Run acts on is still stated before it acts: the "3 runs"
+                     row below and the run record's "200 nodes" both say it.
+                     The gear that sat in this row's trailing slot was not lost with the row; it is in the
+                     card title row above, with its primary ink and its title unchanged. -->
+
+                <!-- RT-7, resident, and deliberately not behind the door: floor item 4 puts the estimate and
+                     the verb at the control they belong to, and POP-5's own row says the cost estimate stays at
+                     the Run control, so this row stays on the card while the two field rows above it went into
+                     the pop-out. "3 runs" says what Run sweep will act on before it acts.
+                     DEF-2, MIN-1: three runs of about 20 ms each are under the 2 s band, so no cost estimate is
+                     drawn and Run sweep keeps its filled primary shape. -->
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px;">
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">3 runs</span>
+                  <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Run sweep</div>
+                </div>
+              </div>
+
+              <!-- Decision A: the 26-card catalogue is one click behind this row, in the question-first picker. -->
+              <div style="flex: 0 0 auto; display: flex; align-items: center; height: 24px;">
+                <div title="Add an analysis: 26 methods behind 7 questions" style="display: flex; align-items: center; justify-content: center; gap: 4px; width: 224px; height: 24px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #a3a8b1; cursor: pointer; box-sizing: border-box;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg>
+                  <span style="font-size: 11px; font-weight: 500; line-height: 1;">Analysis</span>
+                </div>
+              </div>
+
+              <!-- The Run tab's own content ends here; the Results block below is pinned to the foot of the
+                   panel, above the graph-level row. -->
+              <div style="flex: 1 1 auto; min-height: 0;"></div>
+
+              <!-- RT-8: Results, pinned under the Run tab. The section holds a value, so the name is at value ink;
+                   the header carries the section's verbs, so no row inside it spends width on one. -->
+              <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+                <div style="height: 1px; background: #495057;"></div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                  <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                    <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                    </div>
+                    <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Results</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- RESULT CARD: the sweep family, selected (it is the card the inspector is showing). C5 and IC-5:
+                   the fields the three runs share render once, here. The three runs were RT-6 rows of this card
+                   through 1.7 and sit behind its Sweep runs door from 1.8; they are one family, and each row's
+                   title carries that run's own record.
+                   More, full text (6.8 twin, mandatory): Keep / Compare with... / Run again with changes /
+                   Export CSV (Coming) / Pin to report (Coming) / Copy as TSV / Remove result.
+                   STY-2, limit 3, and why this card is not an inconsistency. A run applies its shape's primary
+                   action on first completion, but a batch that emits several runs into one channel applies the
+                   first and lands the rest un-applied, and the batch's own summary card carries the applier:
+                   six runs never paint six times. On this board nothing auto-applied at all. All three
+                   per-value runs landed un-applied, and the picture on the canvas came from the user pressing
+                   this card's own applier and choosing resolution 1.0 -- a sweep paints only when the user
+                   picks, which is why the paint is on 1.0 and not on the first value swept, 0.5. The brush that
+                   marked the 1.0 row went behind the Sweep runs door with that row in 1.8; the resident state
+                   mark saying which run the layer reads is now the applied state row's "Groups (resolution
+                   1.0)", with the canvas result chip printing it a second time. The canvas and the result chip
+                   are untouched by 1.7 and by 1.8; the legend lost its counts and two rows to C3. -->
+              <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 4px; background: #28364e; border: 1px solid #4a7ee8; box-sizing: border-box;">
+                <!-- The card title. 1.7 parked the scope clause here, beside the name; the 1.7 sweep puts it
+                     back on the record line below, because 6.10 item 3 names the ONE line that carries method,
+                     non-default parameters and scope, and a neighbouring row is not that line. -->
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 20px;">
+                  <span style="flex: 0 0 auto; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Sweep summary</span>
+                </div>
+                <!-- floor 1: the reading, on screen, in full -->
+                <span style="font-size: 12px; line-height: 1.5; color: #a3a8b1;">Three runs at resolution 0.5, 1.0 and 1.5 found 4, 7 and 11 groups.</span>
+                <!-- floor 3: the run record -- method, BOTH non-default parameters, and the scope. FLOOR-1.9:
+                     neither parameter gives way, because 6.10 item 3 names them as plainly as it names the
+                     scope and Rule 0 lets no rule below shorten a floor item. What gives is emphasis and, at
+                     this width, the line count. One string is printed on both copies of this record --
+                     "Louvain, seed 42, 20 pass cap, 200 nodes", 231 px: the inspector's 235 px band holds it
+                     on one line, and this card's 217 px band wraps it, with "200 nodes" kept whole so the
+                     break falls between the parameters and the scope rather than orphaning the noun. "20 pass
+                     cap" is the shortest spelling that still says the number is a ceiling and not a count, and
+                     the scope drops only its determiner -- "200 nodes", the string HistoryPopover and
+                     ExplorerExpert already print for a whole-graph run. The line itself does
+                     not move: floor 3 keeps it resident, and POP-7 changes only where its contents go. The line's title is the record
+                     in full, which is what the Details chevron opens, in a 360 pop-out at x = 336 (POP-7): the
+                     swept parameter and its values, the default tolerance, the weight and direction treatment,
+                     the scope spelled out, the timestamp, the total duration and the engine version, and under
+                     them Copy as JSON / Copy as command / Copy methods text. The record is never placed behind
+                     an info circle: a pop-out is disclosure by tier, a circle is disclosure by explanation.
+                     The chevron keeps the closed right-pointing form permanently (POP-13b) and is not drawn
+                     open here.
+                     A6 and VOCAB 14.1, the stub's ink: this chevron is dimmed #7a828e because everything
+                     behind it is at its default -- what is behind it is a report, and the two values that
+                     are not default, the seed and the pass cap, are printed resident on the line itself; it
+                     draws #d5d7da the moment a hidden field deviates.
+                     A3, the depth: one click from the row that owns the record, with the run present, and
+                     this door sits behind no other door.
+                     THE ANCHOR (B2), measured: the 360 pop-out opens right with its left edge at 336px, 8px
+                     clear of the panel's 328px edge, and shares its top edge with this record row's anchor
+                     box. It is not drawn open. -->
+                <div style="display: flex; align-items: flex-start; gap: 4px; min-height: 20px;">
+                  <span title="Louvain, seed 42, max passes 20, tolerance 1e-6. Sweep of Resolution over 0.5, 1.0, 1.5 (3 runs). Weight: amount (strength). Direction: ignored. Scope: visible, 200 of 200 nodes. 2026-09-04 14:20, 61 ms in total, algorithms 1.4.0" style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.4; color: #7a828e; overflow: hidden;">Louvain, seed 42, 20 pass cap, <span style="white-space: nowrap;">200 nodes</span></span>
+                  <div title="Details" style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: pointer;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
+                </div>
+                <!-- RT-8 DOOR, new in 1.8 (D3). WHAT WAS HERE: a caption row reading "resolution | groups"
+                     and three RT-6 rows -- 0.5 / 4, 1.0 / 7 with the paintbrush state glyph, and 1.5 / 11 --
+                     a squeezed table that had already dropped the modularity column to fit, which is how a
+                     table announces it is in the wrong band. This board rendered one result body three times
+                     (this table, the inspector's fuller table with its sparkline, and the agreement bars),
+                     which breaks "One result body renders on screen at a time" (MIN-6). The table now renders
+                     once, in the 480 pop-out 6.11's worked-examples table already gives it.
+                     THE STUB REPORTS WHAT IT HIDES: "Runs" with the trailing count 3, and the title "Sweep
+                     runs. 3 runs, 4 to 11 groups", which carries the range the three deleted rows carried.
+                     The chevron stays permanently in the closed right-pointing form (POP-13b).
+                     Behind it: the three runs with Resolution, Groups and Modularity, the sparkline of group
+                     count over the swept value, then the pairwise agreement block (0.5 vs 1.0 0.81, 1.0 vs
+                     1.5 0.64, 0.5 vs 1.5 0.72), with Keep per row, Compare and Export CSV.
+                     The paintbrush that marked which run the canvas reads does not vanish: the applied state
+                     row below already names "Groups (resolution 1.0)" and the canvas result chip prints it
+                     again.
+                     A6 and VOCAB 14.1: the chevron is dimmed #7a828e because what is behind it is a report
+                     and not a parameter block, so nothing behind it can deviate from a default.
+                     A3, the depth: one click from the card that owns the runs, with the card present, and
+                     this door sits behind no other door.
+                     B4, the multi-opener rule: A pop-out reachable from more than one opener is anchored to
+                     the opener that was used, and its lane follows that opener's region (B4): from the panel
+                     card it opens right at `left: 336px`; from the inspector it opens left at `left: 672px`
+                     at the 480 rung. The palette route, which has no on-screen opener, opens it in the
+                     inspector's lane and lights that row.
+                     THE ANCHOR (B2) for this opener, measured: left edge 336, 8px clear of the panel's 328px
+                     edge, top edge shared with this stub row's anchor box. It is not drawn open here. -->
+                <div title="Sweep runs. 3 runs, 4 to 11 groups" style="display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 8px 0 0; box-sizing: border-box; cursor: pointer;">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="6,3.5 11,8 6,12.5"></polyline></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; font-weight: 500; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Runs</span>
+                  <span style="flex: 0 0 auto; font-size: 11px; color: #7a828e; white-space: nowrap;">3</span>
+                </div>
+                <!-- STY-5, the applied form. STY-1 makes the run and its style layer two faces of one object,
+                     so the card carries the state that face owns and nothing more: the resident three-stripe
+                     swatch showing the seven-group palette, the layer name, and "Change encoding", which opens
+                     Style with that layer selected. No card holds a palette, a scale or a domain -- the swatch
+                     is a state mark, not an editor -- and "Change encoding" is deliberately a cross-panel link,
+                     because encoding has one home and that home is Style.
+                     The swatch draws without the #28364e selected-row fill its siblings carry on other boards:
+                     this card is the selected card and already carries #28364e, so the fill would vanish into
+                     it and the swatch would stop reading as a control.
+                     Width, measured rather than assumed: the card is 237px inside, and 24 + 4 + 127 + 4 + 96 is
+                     259, so the three items do not fit on one line at 11px. Ellipsizing the layer name was the
+                     earlier answer and it was the wrong one -- it cut at "Groups (resolutio...", which hides the
+                     one thing this row exists to report, which of the three runs the canvas is painted with. The
+                     resolution is the state, and a state a title has to be hovered to read is not reported. So
+                     the row keeps the name whole and "Change encoding" drops to the head of the RT-7 actions row
+                     below, which was flex-end with 185px of empty left half: 96 + 4 + 24 + 4 + 24 is 152 there,
+                     and 24 + 4 + 127 is 155 here. Nothing ellipsizes, nothing moves off the card, and the card
+                     gains no height. The swatch's title still prints the whole binding, "Node color: Groups
+                     (resolution 1.0), 7 groups", and the canvas result chip prints it again. -->
+                <div style="display: flex; align-items: center; gap: 4px; height: 24px;">
+                  <div title="Node color: Groups (resolution 1.0), 7 groups" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer;">
+                    <div style="display: flex; width: 14px; height: 14px; border-radius: 2px; overflow: hidden; border: 1px solid #48525c; box-sizing: border-box;">
+                      <div style="flex: 1; background: #4a7ee8;"></div>
+                      <div style="flex: 1; background: #33bfd7;"></div>
+                      <div style="flex: 1; background: #f7b731;"></div>
+                    </div>
+                  </div>
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Groups (resolution 1.0)</span>
+                </div>
+                <!-- RT-7: actions right, every glyph carrying its register title, with the cross-panel link at the
+                     head of the same row (see the width note above). -->
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px; height: 24px;">
+                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #5b8ff9; cursor: pointer; white-space: nowrap;">Change encoding</span>
+                  <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                    <div title="Compare two views" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="5.5" height="11" rx="1.5"></rect><rect x="8.5" y="2.5" width="5.5" height="11" rx="1.5"></rect></svg>
+                    </div>
+                    <div title="More" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3.5" r="0.75"></circle><circle cx="8" cy="8" r="0.75"></circle><circle cx="8" cy="12.5" r="0.75"></circle></svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pinned graph-level RT-1 row: the weight attribute with its treatment as the dimmed mode word
+                 (Rule 6), and direction as an RT-3 icon group. Stated once here, so no card and no run record
+                 repeats "Weight: amount (strength). Direction: ignored." -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column; padding: 0 8px 8px 16px; background: #1f2428; box-sizing: border-box;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+                <div title="Weight: amount, treated as strength" style="display: flex; align-items: center; width: 148px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 11px; line-height: 1; color: #7a828e;">W</div>
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">amount</span>
+                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">strength</span>
+                </div>
+                <div style="display: flex; gap: 2px; width: 68px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
+                  <div title="Follow edge direction" style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; cursor: pointer;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="3" cy="8" r="1.25"></circle><line x1="4.75" y1="8" x2="10" y2="8"></line><polyline points="8.5,5.75 11.5,8 8.5,10.25"></polyline></svg>
+                  </div>
+                  <div title="Ignore direction" style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; background: #374047; color: #d5d7da; cursor: pointer;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="3" cy="8" r="1.25"></circle><circle cx="13" cy="8" r="1.25"></circle><line x1="4.75" y1="8" x2="11.25" y2="8"></line></svg>
+                  </div>
+                </div>
+                <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CANVAS, 832 wide by 836 tall, colored by Groups (resolution 1.0) -->
+        <div style="flex: 1 1 auto; min-width: 0; position: relative; background: #161b22; overflow: hidden;">
+
+          <!-- CANVAS CONTENT: the fraud ring, colors by the 7 groups of the middle run -->
+          <svg width="832" height="836" viewBox="0 0 832 836" style="position: absolute; left: 0; top: 0; display: block;">
+            <g stroke="#48525c" stroke-width="1" stroke-opacity="0.3">
+              <line x1="486.5" y1="277" x2="404.2" y2="138"></line>
+              <line x1="486.5" y1="277" x2="514.9" y2="231.6"></line>
+              <line x1="486.5" y1="277" x2="494.3" y2="476.3"></line>
+              <line x1="394.9" y1="347.5" x2="379.7" y2="208.5"></line>
+              <line x1="394.9" y1="347.5" x2="391.9" y2="479.3"></line>
+              <line x1="394.9" y1="347.5" x2="249.2" y2="329.3"></line>
+              <line x1="394.9" y1="347.5" x2="305.4" y2="258.9"></line>
+              <line x1="394.9" y1="347.5" x2="389.7" y2="259.4"></line>
+              <line x1="236.3" y1="257.6" x2="379.7" y2="208.5"></line>
+              <line x1="236.3" y1="257.6" x2="279.8" y2="303.6"></line>
+              <line x1="236.3" y1="257.6" x2="249.2" y2="329.3"></line>
+              <line x1="236.3" y1="257.6" x2="182.8" y2="194.8"></line>
+              <line x1="236.3" y1="257.6" x2="249.4" y2="381.4"></line>
+              <line x1="236.3" y1="257.6" x2="107.2" y2="330.4"></line>
+              <line x1="540.8" y1="565.9" x2="437.2" y2="488.1"></line>
+              <line x1="540.8" y1="565.9" x2="442.6" y2="643.8"></line>
+              <line x1="540.8" y1="565.9" x2="657.3" y2="593.4"></line>
+              <line x1="540.8" y1="565.9" x2="494.3" y2="476.3"></line>
+              <line x1="540.8" y1="565.9" x2="513.8" y2="524.1"></line>
+              <line x1="540.8" y1="565.9" x2="541.8" y2="706"></line>
+              <line x1="563.1" y1="253.4" x2="473.8" y2="321.6"></line>
+              <line x1="563.1" y1="253.4" x2="514.9" y2="231.6"></line>
+              <line x1="563.1" y1="253.4" x2="389.7" y2="259.4"></line>
+              <line x1="563.1" y1="253.4" x2="536.5" y2="294.6"></line>
+              <line x1="351.7" y1="347.2" x2="473.8" y2="321.6"></line>
+              <line x1="351.7" y1="347.2" x2="379.7" y2="208.5"></line>
+              <line x1="351.7" y1="347.2" x2="296.8" y2="538.9"></line>
+              <line x1="351.7" y1="347.2" x2="389.7" y2="259.4"></line>
+              <line x1="351.7" y1="347.2" x2="305.4" y2="258.9"></line>
+              <line x1="351.7" y1="347.2" x2="345.6" y2="508.4"></line>
+              <line x1="308.3" y1="369.6" x2="279.8" y2="303.6"></line>
+              <line x1="308.3" y1="369.6" x2="249.2" y2="329.3"></line>
+              <line x1="308.3" y1="369.6" x2="249.4" y2="381.4"></line>
+              <line x1="308.3" y1="369.6" x2="409.5" y2="406"></line>
+              <line x1="400.4" y1="550.4" x2="437.2" y2="488.1"></line>
+              <line x1="400.4" y1="550.4" x2="442.6" y2="643.8"></line>
+              <line x1="400.4" y1="550.4" x2="296.8" y2="538.9"></line>
+              <line x1="400.4" y1="550.4" x2="494.3" y2="476.3"></line>
+              <line x1="400.4" y1="550.4" x2="345.6" y2="508.4"></line>
+              <line x1="546.6" y1="425.6" x2="473.8" y2="321.6"></line>
+              <line x1="546.6" y1="425.6" x2="599.6" y2="447"></line>
+              <line x1="546.6" y1="425.6" x2="662.5" y2="464.4"></line>
+              <line x1="546.6" y1="425.6" x2="513.8" y2="524.1"></line>
+              <line x1="461.1" y1="188" x2="379.7" y2="208.5"></line>
+              <line x1="461.1" y1="188" x2="279.8" y2="303.6"></line>
+              <line x1="461.1" y1="188" x2="440.6" y2="60"></line>
+              <line x1="461.1" y1="188" x2="504.6" y2="123.3"></line>
+              <line x1="461.1" y1="188" x2="523.4" y2="361"></line>
+              <line x1="226.6" y1="180.2" x2="279.8" y2="303.6"></line>
+              <line x1="226.6" y1="180.2" x2="249.2" y2="329.3"></line>
+              <line x1="226.6" y1="180.2" x2="182.8" y2="194.8"></line>
+              <line x1="226.6" y1="180.2" x2="96.3" y2="118.9"></line>
+              <line x1="502.8" y1="619.5" x2="437.2" y2="488.1"></line>
+              <line x1="502.8" y1="619.5" x2="442.6" y2="643.8"></line>
+              <line x1="502.8" y1="619.5" x2="513.8" y2="524.1"></line>
+              <line x1="502.8" y1="619.5" x2="597" y2="647.2"></line>
+              <line x1="422.4" y1="307.2" x2="473.8" y2="321.6"></line>
+              <line x1="422.4" y1="307.2" x2="514.9" y2="231.6"></line>
+              <line x1="422.4" y1="307.2" x2="435.5" y2="247.5"></line>
+              <line x1="422.4" y1="307.2" x2="536.5" y2="294.6"></line>
+              <line x1="355.8" y1="129.4" x2="379.7" y2="208.5"></line>
+              <line x1="355.8" y1="129.4" x2="440.6" y2="60"></line>
+              <line x1="355.8" y1="129.4" x2="404.2" y2="138"></line>
+              <line x1="355.8" y1="129.4" x2="389.7" y2="259.4"></line>
+              <line x1="128.9" y1="263.6" x2="279.8" y2="303.6"></line>
+              <line x1="128.9" y1="263.6" x2="170.7" y2="331.7"></line>
+              <line x1="128.9" y1="263.6" x2="182.8" y2="194.8"></line>
+              <line x1="128.9" y1="263.6" x2="107.2" y2="330.4"></line>
+              <line x1="340.2" y1="417.4" x2="279.8" y2="303.6"></line>
+              <line x1="340.2" y1="417.4" x2="437.2" y2="488.1"></line>
+              <line x1="340.2" y1="417.4" x2="249.2" y2="329.3"></line>
+              <line x1="340.2" y1="417.4" x2="513.8" y2="524.1"></line>
+              <line x1="545" y1="191.1" x2="473.8" y2="321.6"></line>
+              <line x1="545" y1="191.1" x2="514.9" y2="231.6"></line>
+              <line x1="545" y1="191.1" x2="435.5" y2="247.5"></line>
+              <line x1="545" y1="191.1" x2="504.6" y2="123.3"></line>
+              <line x1="545" y1="191.1" x2="536.5" y2="294.6"></line>
+              <line x1="332.6" y1="221.9" x2="379.7" y2="208.5"></line>
+              <line x1="332.6" y1="221.9" x2="279.8" y2="303.6"></line>
+              <line x1="332.6" y1="221.9" x2="404.2" y2="138"></line>
+              <line x1="332.6" y1="221.9" x2="305.4" y2="258.9"></line>
+              <line x1="332.6" y1="221.9" x2="347.4" y2="295.3"></line>
+              <line x1="200.8" y1="382.6" x2="279.8" y2="303.6"></line>
+              <line x1="200.8" y1="382.6" x2="94.9" y2="453.9"></line>
+              <line x1="200.8" y1="382.6" x2="249.2" y2="329.3"></line>
+              <line x1="200.8" y1="382.6" x2="249.4" y2="381.4"></line>
+              <line x1="200.8" y1="382.6" x2="107.2" y2="330.4"></line>
+              <line x1="279.7" y1="430.9" x2="279.8" y2="303.6"></line>
+              <line x1="279.7" y1="430.9" x2="437.2" y2="488.1"></line>
+              <line x1="279.7" y1="430.9" x2="170.7" y2="331.7"></line>
+              <line x1="279.7" y1="430.9" x2="435.5" y2="247.5"></line>
+              <line x1="626.2" y1="376.9" x2="473.8" y2="321.6"></line>
+              <line x1="626.2" y1="376.9" x2="662.5" y2="464.4"></line>
+              <line x1="626.2" y1="376.9" x2="582.3" y2="320.6"></line>
+              <line x1="626.2" y1="376.9" x2="737.1" y2="347.5"></line>
+              <line x1="291.8" y1="173.1" x2="379.7" y2="208.5"></line>
+              <line x1="291.8" y1="173.1" x2="325.8" y2="67.6"></line>
+              <line x1="291.8" y1="173.1" x2="305.4" y2="258.9"></line>
+              <line x1="291.8" y1="173.1" x2="182.8" y2="194.8"></line>
+              <line x1="291.8" y1="173.1" x2="347.4" y2="295.3"></line>
+              <line x1="206" y1="283.9" x2="379.7" y2="208.5"></line>
+              <line x1="206" y1="283.9" x2="279.8" y2="303.6"></line>
+              <line x1="206" y1="283.9" x2="170.7" y2="331.7"></line>
+              <line x1="206" y1="283.9" x2="249.2" y2="329.3"></line>
+              <line x1="206" y1="283.9" x2="249.4" y2="381.4"></line>
+              <line x1="206" y1="283.9" x2="182.8" y2="194.8"></line>
+              <line x1="601.3" y1="547.8" x2="437.2" y2="488.1"></line>
+              <line x1="601.3" y1="547.8" x2="657.3" y2="593.4"></line>
+              <line x1="601.3" y1="547.8" x2="662.5" y2="464.4"></line>
+              <line x1="601.3" y1="547.8" x2="513.8" y2="524.1"></line>
+              <line x1="601.3" y1="547.8" x2="597" y2="647.2"></line>
+              <line x1="477.2" y1="401.3" x2="473.8" y2="321.6"></line>
+              <line x1="477.2" y1="401.3" x2="599.6" y2="447"></line>
+              <line x1="477.2" y1="401.3" x2="582.3" y2="320.6"></line>
+              <line x1="477.2" y1="401.3" x2="249.4" y2="381.4"></line>
+              <line x1="477.2" y1="401.3" x2="536.5" y2="294.6"></line>
+              <line x1="286.6" y1="108.1" x2="379.7" y2="208.5"></line>
+              <line x1="286.6" y1="108.1" x2="404.2" y2="138"></line>
+              <line x1="286.6" y1="108.1" x2="325.8" y2="67.6"></line>
+              <line x1="286.6" y1="108.1" x2="182.8" y2="194.8"></line>
+              <line x1="141" y1="400.2" x2="279.8" y2="303.6"></line>
+              <line x1="141" y1="400.2" x2="94.9" y2="453.9"></line>
+              <line x1="141" y1="400.2" x2="249.4" y2="381.4"></line>
+              <line x1="141" y1="400.2" x2="107.2" y2="330.4"></line>
+              <line x1="463.7" y1="551" x2="437.2" y2="488.1"></line>
+              <line x1="463.7" y1="551" x2="391.9" y2="479.3"></line>
+              <line x1="463.7" y1="551" x2="494.3" y2="476.3"></line>
+              <line x1="463.7" y1="551" x2="513.8" y2="524.1"></line>
+              <line x1="170.7" y1="331.7" x2="279.8" y2="303.6"></line>
+              <line x1="249.2" y1="329.3" x2="279.8" y2="303.6"></line>
+              <line x1="391.9" y1="479.3" x2="437.2" y2="488.1"></line>
+              <line x1="514.9" y1="231.6" x2="473.8" y2="321.6"></line>
+              <line x1="325.8" y1="67.6" x2="379.7" y2="208.5"></line>
+              <line x1="345.6" y1="508.4" x2="437.2" y2="488.1"></line>
+              <line x1="409.5" y1="406" x2="473.8" y2="321.6"></line>
+              <line x1="347.4" y1="295.3" x2="437.2" y2="488.1"></line>
+              <line x1="523.4" y1="361" x2="437.2" y2="488.1"></line>
+              <line x1="435.5" y1="247.5" x2="379.7" y2="208.5"></line>
+              <line x1="389.7" y1="259.4" x2="279.8" y2="303.6"></line>
+              <line x1="504.6" y1="123.3" x2="379.7" y2="208.5"></line>
+              <line x1="305.4" y1="258.9" x2="279.8" y2="303.6"></line>
+              <line x1="582.3" y1="320.6" x2="379.7" y2="208.5"></line>
+              <line x1="355.8" y1="129.4" x2="226.6" y2="180.2"></line>
+              <line x1="394.9" y1="347.5" x2="546.6" y2="425.6"></line>
+              <line x1="351.7" y1="347.2" x2="332.6" y2="221.9"></line>
+              <line x1="563.1" y1="253.4" x2="461.1" y2="188"></line>
+              <line x1="422.4" y1="307.2" x2="308.3" y2="369.6"></line>
+              <line x1="340.2" y1="417.4" x2="236.3" y2="257.6"></line>
+              <line x1="200.8" y1="382.6" x2="422.4" y2="307.2"></line>
+              <line x1="540.8" y1="565.9" x2="463.7" y2="551"></line>
+              <line x1="626.2" y1="376.9" x2="563.1" y2="253.4"></line>
+              <line x1="400.4" y1="550.4" x2="477.2" y2="401.3"></line>
+              <line x1="626.2" y1="376.9" x2="540.8" y2="565.9"></line>
+              <line x1="486.5" y1="277" x2="422.4" y2="307.2"></line>
+              <line x1="192.2" y1="543.2" x2="279.7" y2="430.9"></line>
+              <line x1="168.9" y1="111.2" x2="236.3" y2="257.6"></line>
+              <line x1="473.8" y1="321.6" x2="379.7" y2="208.5"></line>
+              <line x1="536.5" y1="294.6" x2="486.5" y2="277"></line>
+              <line x1="486.5" y1="277" x2="473.8" y2="321.6"></line>
+              <line x1="473.8" y1="321.6" x2="279.8" y2="303.6"></line>
+            </g>
+            <g stroke="#161b22" stroke-width="1">
+              <circle cx="379.7" cy="208.5" r="11.7" fill="#4a7ee8"></circle>
+              <circle cx="437.2" cy="488.1" r="10.1" fill="#f7b731"></circle>
+              <circle cx="394.9" cy="347.5" r="7.3" fill="#c084fc"></circle>
+              <circle cx="236.3" cy="257.6" r="8.4" fill="#33bfd7"></circle>
+              <circle cx="540.8" cy="565.9" r="8.4" fill="#e879a8"></circle>
+              <circle cx="563.1" cy="253.4" r="7.3" fill="#61d095"></circle>
+              <circle cx="351.7" cy="347.2" r="7.9" fill="#c084fc"></circle>
+              <circle cx="308.3" cy="369.6" r="6.8" fill="#c084fc"></circle>
+              <circle cx="400.4" cy="550.4" r="7.3" fill="#f7b731"></circle>
+              <circle cx="546.6" cy="425.6" r="6.8" fill="#f28c4b"></circle>
+              <circle cx="461.1" cy="188" r="7.3" fill="#61d095"></circle>
+              <circle cx="226.6" cy="180.2" r="6.8" fill="#4a7ee8"></circle>
+              <circle cx="502.8" cy="619.5" r="6.2" fill="#e879a8"></circle>
+              <circle cx="422.4" cy="307.2" r="7.9" fill="#c084fc"></circle>
+              <circle cx="355.8" cy="129.4" r="6.8" fill="#4a7ee8"></circle>
+              <circle cx="128.9" cy="263.6" r="6.2" fill="#33bfd7"></circle>
+              <circle cx="340.2" cy="417.4" r="6.8" fill="#c084fc"></circle>
+              <circle cx="545" cy="191.1" r="6.8" fill="#61d095"></circle>
+              <circle cx="332.6" cy="221.9" r="7.3" fill="#4a7ee8"></circle>
+              <circle cx="200.8" cy="382.6" r="7.3" fill="#33bfd7"></circle>
+              <circle cx="279.7" cy="430.9" r="6.8" fill="#33bfd7"></circle>
+              <circle cx="626.2" cy="376.9" r="7.3" fill="#f28c4b"></circle>
+              <circle cx="291.8" cy="173.1" r="6.8" fill="#4a7ee8"></circle>
+              <circle cx="206" cy="283.9" r="7.3" fill="#33bfd7"></circle>
+              <circle cx="601.3" cy="547.8" r="6.8" fill="#f28c4b"></circle>
+              <circle cx="477.2" cy="401.3" r="7.3" fill="#c084fc"></circle>
+              <circle cx="286.6" cy="108.1" r="6.2" fill="#4a7ee8"></circle>
+              <circle cx="141" cy="400.2" r="6.2" fill="#33bfd7"></circle>
+              <circle cx="463.7" cy="551" r="6.8" fill="#e879a8"></circle>
+              <circle cx="662.5" cy="464.4" r="5.7" fill="#f28c4b"></circle>
+              <circle cx="296.8" cy="538.9" r="5.1" fill="#f7b731"></circle>
+              <circle cx="170.7" cy="331.7" r="6.2" fill="#33bfd7"></circle>
+              <circle cx="657.3" cy="593.4" r="5.1" fill="#f28c4b"></circle>
+              <circle cx="599.6" cy="447" r="5.1" fill="#f28c4b"></circle>
+              <circle cx="404.2" cy="138" r="6.2" fill="#4a7ee8"></circle>
+              <circle cx="94.9" cy="453.9" r="5.1" fill="#33bfd7"></circle>
+              <circle cx="442.6" cy="643.8" r="5.7" fill="#e879a8"></circle>
+              <circle cx="192.2" cy="543.2" r="4.6" fill="#33bfd7"></circle>
+              <circle cx="440.6" cy="60" r="5.1" fill="#4a7ee8"></circle>
+              <circle cx="249.2" cy="329.3" r="8.4" fill="#33bfd7"></circle>
+              <circle cx="391.9" cy="479.3" r="5.7" fill="#f7b731"></circle>
+              <circle cx="514.9" cy="231.6" r="6.8" fill="#61d095"></circle>
+              <circle cx="325.8" cy="67.6" r="5.7" fill="#4a7ee8"></circle>
+              <circle cx="435.5" cy="247.5" r="6.2" fill="#61d095"></circle>
+              <circle cx="389.7" cy="259.4" r="6.8" fill="#c084fc"></circle>
+              <circle cx="182.8" cy="194.8" r="7.3" fill="#4a7ee8"></circle>
+              <circle cx="513.8" cy="524.1" r="7.3" fill="#f7b731"></circle>
+              <circle cx="504.6" cy="123.3" r="5.7" fill="#61d095"></circle>
+              <circle cx="305.4" cy="258.9" r="6.8" fill="#4a7ee8"></circle>
+              <circle cx="249.4" cy="381.4" r="7.3" fill="#33bfd7"></circle>
+              <circle cx="494.3" cy="476.3" r="6.2" fill="#f7b731"></circle>
+              <circle cx="582.3" cy="320.6" r="5.7" fill="#61d095"></circle>
+              <circle cx="345.6" cy="508.4" r="5.7" fill="#f7b731"></circle>
+              <circle cx="409.5" cy="406" r="5.1" fill="#c084fc"></circle>
+              <circle cx="541.8" cy="706" r="4.6" fill="#e879a8"></circle>
+              <circle cx="168.9" cy="111.2" r="4.6" fill="#4a7ee8"></circle>
+              <circle cx="347.4" cy="295.3" r="5.7" fill="#c084fc"></circle>
+              <circle cx="107.2" cy="330.4" r="6.2" fill="#33bfd7"></circle>
+              <circle cx="597" cy="647.2" r="5.1" fill="#e879a8"></circle>
+              <circle cx="737.1" cy="347.5" r="4.6" fill="#f28c4b"></circle>
+              <circle cx="523.4" cy="361" r="5.1" fill="#61d095"></circle>
+              <circle cx="96.3" cy="118.9" r="4.6" fill="#4a7ee8"></circle>
+              <circle cx="473.8" cy="321.6" r="10.6" fill="#61d095"></circle>
+              <circle cx="279.8" cy="303.6" r="12.8" fill="#33bfd7"></circle>
+              <circle cx="486.5" cy="277" r="7.3" fill="#61d095"></circle>
+              <circle cx="536.5" cy="294.6" r="6.8" fill="#61d095"></circle>
+            </g>
+            <!-- labels for the hubs -->
+            <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10" fill="#d5d7da">
+              <text x="488.4" y="325.1" text-anchor="start">acct-4471</text>
+              <text x="395.4" y="212" text-anchor="start">dev-19c2</text>
+              <text x="263" y="307.1" text-anchor="end">merch-88</text>
+              <text x="437.2" y="473.1" text-anchor="middle">ph-2076</text>
+              <text x="547.3" y="298.1" text-anchor="start">ph-1140</text>
+              <text x="497" y="271" text-anchor="start">acct-2093</text>
+            </g>
+          </svg>
+
+          <!-- result chip, top left: which run colors the canvas -->
+          <div style="position: absolute; left: 12px; top: 12px; display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 6px 0 8px; border-radius: 10px; background: #28364e; border: 1px solid #4a7ee8; color: #d5d7da; font-size: 11px; line-height: 1; box-sizing: border-box;">
+            <span>Colors: Groups (resolution 1.0), 7 groups</span>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
+          </div>
+
+          <!-- CANVAS TOOLBAR (5.6, TB-1). The 5.6 navigation cluster -- a 56px column at left: 12px;
+               bottom: 120px -- is deleted, and its controls become one horizontal bar centred on the live canvas
+               rect with left: 50%; transform: translateX(-50%), never centred on the window. Order left to
+               right, by how long the effect lasts: [2D | 3D], divider, Zoom out, Zoom in, Zoom to fit, Zoom to
+               selection, divider, Views. Zoom out precedes Zoom in because horizontally magnitude should
+               increase rightward; vertically, in-above-out was already correct.
+               TB-2's geometry: 246 by 36, padding 3, items 28 with the register's fixed 14px glyph, container
+               radius 7 concentric with the 4px item radius, and the tooltip shadow token -- this is the one
+               canvas overlay that carries lift, because lift is what makes it read as the viewer's instrument
+               while the minimap and the legend stay flat as content boxes. The segmented control's selected
+               half uses the neutral raised fill #374047, not the accent: choosing a view is not an armed state.
+               TB-4 and A1, the bottom stack: offset 12, the plain case. The viewing slot in the status bar is
+               empty because the time slider is off, and no Data table drawer is open, so nothing sits between
+               the bar and the canvas floor (the four offsets are 12 / 82 / 272 / 342).
+               The item set is fixed -- nothing appears or disappears with selection, because a centred bar that
+               changes width moves every item under the pointer -- so Zoom to selection is drawn permanently and
+               merely disables. Nothing is selected on this board, so it keeps #5f6873, cursor: default and the
+               register's exact disabled title, which is floor item 4: a disabled control states its reason.
+               TB-8: the Views caret points up and its menu opens upward, bottom edge 4px above the bar, centred
+               on the Views button and clamped 12px inside the canvas's left, right and top edges. No Views list
+               is printed on this board; ViewsMenu draws it.
+               TB-3, the clearances, measured here rather than asserted: the canvas rect is 832 wide, so a 246px
+               bar centred on it spans canvas x 293..539. The minimap ends at x 172 and the legend begins at
+               x 660, so each is 121px clear of the bar against a 16px minimum. Both therefore keep
+               bottom: 12px on the toolbar's own baseline and nothing reflows; the two-line rule fires only
+               below 622px of canvas. The result chip is on the top edge at left: 12px; top: 12px and cannot
+               collide with the bottom band. -->
+          <div style="position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: inline-flex; align-items: center; height: 36px; padding: 3px; border-radius: 7px; background: #1f2428; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; z-index: 6;">
+            <div style="display: flex; align-items: center; width: 60px; height: 28px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
+              <div style="flex: 1; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-size: 11px; font-weight: 500; line-height: 1; color: #7a828e; cursor: pointer;">2D</div>
+              <div style="flex: 1; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 3px; background: #374047; font-size: 11px; font-weight: 500; line-height: 1; color: #d5d7da; cursor: pointer;">3D</div>
+            </div>
+            <div style="width: 12px; height: 28px; display: flex; align-items: center; justify-content: center;"><div style="width: 1px; height: 16px; background: #48525c;"></div></div>
+            <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom out (-)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line><line x1="5" y1="7" x2="9" y2="7"></line></svg>
+            </div>
+            <div style="width: 2px;"></div>
+            <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom in (=)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line><line x1="7" y1="5" x2="7" y2="9"></line><line x1="5" y1="7" x2="9" y2="7"></line></svg>
+            </div>
+            <div style="width: 2px;"></div>
+            <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom to fit (0)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path></svg>
+            </div>
+            <div style="width: 2px;"></div>
+            <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;" title="Zoom to selection (F). Select something first">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path><circle cx="8" cy="8" r="2"></circle></svg>
+            </div>
+            <div style="width: 12px; height: 28px; display: flex; align-items: center; justify-content: center;"><div style="width: 1px; height: 16px; background: #48525c;"></div></div>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 2px; width: 36px; height: 28px; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Views">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2l5.5 3v6L8 14l-5.5-3V5z"></path><path d="M8 8l5.5-3M8 8v6M8 8L2.5 5"></path></svg>
+              <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 8,5 13,10"></polyline></svg>
+            </div>
+          </div>
+          <!-- MINIMAP (MIN-7): no caption. Only the heatmap form above 10,000 nodes keeps one, because that picture
+               is not self-describing. -->
+          <div style="position: absolute; left: 12px; bottom: 12px; width: 160px; height: 100px; display: flex; align-items: flex-start; padding: 6px 8px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+            <svg width="158" height="98" viewBox="0 0 160 100" style="position: absolute; left: 0; top: 0;">
+              <g fill="#a3a8b1">
+                <circle cx="62" cy="34" r="1.2"></circle><circle cx="70" cy="52" r="1.2"></circle><circle cx="50" cy="30" r="1"></circle><circle cx="46" cy="48" r="1"></circle><circle cx="86" cy="40" r="1"></circle><circle cx="96" cy="60" r="1"></circle><circle cx="80" cy="66" r="1"></circle><circle cx="58" cy="60" r="1"></circle><circle cx="100" cy="36" r="1"></circle><circle cx="108" cy="52" r="1"></circle><circle cx="40" cy="38" r="1"></circle><circle cx="66" cy="22" r="1"></circle><circle cx="90" cy="26" r="1"></circle><circle cx="112" cy="66" r="1"></circle><circle cx="72" cy="76" r="1"></circle><circle cx="34" cy="56" r="1"></circle><circle cx="54" cy="72" r="1"></circle><circle cx="118" cy="46" r="1"></circle><circle cx="78" cy="18" r="1"></circle><circle cx="30" cy="26" r="1"></circle>
+              </g>
+            </svg>
+            <div style="position: absolute; left: 44px; top: 26px; width: 72px; height: 48px; border: 1px solid #4a7ee8; border-radius: 2px; box-sizing: border-box;"></div>
+          </div>
+
+          <!-- LEGEND (5.1, floor item 5), the one component, settled once in LEGEND-1.8 and drawn
+               identically on every board that has one: 256 wide, one block per ENCODED channel in the
+               order Color, Size, Outline, Edge width, Arrow, then the state rows, a 1px #374047 rule
+               between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
+               content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
+               the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
+               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               minimum 5.6 sets.
+               A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
+               one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
+               string. The middle stop carries the word "median", the swatch radius is the encoding's own
+               transform, and the scale is spelled out even when it is the default, because the legend
+               travels inside an exported image where no one can hover a glyph.
+               No "Legend" caption, no palette name in the body, no counts on state rows, no block for a
+               channel that is not encoded.
+               THIS BOARD: the fraud ring. Degree runs 1 to 44 over all 200 nodes (FIXTURES 2.2) and the median is 6. The resident partition is the resolution 1.0 run, 7 groups of 41 / 38 / 33 / 29 / 24 / 20 / 15 (FIXTURES 2.5); the sweep's other two runs are records, not the drawn encoding.
+               C3, THE READING LEGEND (1.8). Cut 2, the category counts leave the canvas: the seven trailing
+               counts 41 / 38 / 33 / 29 / 24 / 20 / 15 are gone and each label takes the full width. They are
+               not lost -- they render on the Sweep summary card, in the groups table and in the exported
+               legend. This board is also the one C3 names for the scrub cost: after the cut the legend is
+               scrub-invariant and 5.3's per-step time summary stops recomputing its counts on every scrub.
+               Cut 3, seven rows cap to five plus Other: Group 1 to Group 5 (41, 38, 33, 29, 24 = 165), then
+               one Other row in the neutral #6b7480 rolling up two groups, 35 nodes, 17.5% -> 18%. The
+               canvas keeps all seven colours; the Other row is a roll-up and not a colour key, and its click
+               opens the groups table. Cut 1, the state rows: checked and empty -- this legend draws no
+               state-row block, so cut 1 removes nothing here and a later pass need not look for it.
+               C6, THE CAP: max-height 334 -> 240. Measured after the two cuts this legend is 187 (Color 111 +
+               rule 1 + Size 49 + two 6px gaps + 15 of box), down from 203, so its top edge moves from y 661 to
+               y 677 and the cap binds nothing here. The minimap and the toolbar do not move, and TB-3's
+               two-line rule still does not fire.
+               TWO OBLIGATIONS (6.10 item 5, as split by DECISIONS-1.8 C2). EXPORT, ABSOLUTE: every exported
+               image carries a legend composed from the encoding model -- every channel with its word,
+               attribute, endpoints, median or midpoint and scale; twelve categories with counts and the
+               coverage footer; every departure line; one row per state drawn in the frame. It is drawn into
+               the image, never captured from this DOM overlay, because ScreenshotCapture.ts calls
+               CreateScreenshotAsync on the Babylon scene and cannot see an overlay. SCREEN: this box, one
+               block per encoded channel, no counts, no state rows, five categories plus Other.
+               THIS BOARD'S EXPORT LEGEND carries 2 channels -- Color: Groups (Communities, Louvain) with all
+               seven groups and their counts, Size: Most connected 1 / median 6 / 44, sqrt -- plus one state
+               row per state drawn in the exported frame. -->
+          <div style="position: absolute; right: 12px; bottom: 12px; width: 256px; min-height: 80px; max-height: 240px; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 6px 8px; border-radius: 4px; background: #1f2428; border: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Color: Groups <span style="color: #7a828e;">(Communities, Louvain)</span></span>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <div style="display: flex; align-items: center; gap: 6px; height: 14px;">
+                  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#4a7ee8"></circle></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Group 1</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; height: 14px;">
+                  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#33bfd7"></circle></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Group 2</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; height: 14px;">
+                  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#f7b731"></circle></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Group 3</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; height: 14px;">
+                  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#61d095"></circle></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Group 4</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; height: 14px;">
+                  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#c084fc"></circle></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Group 5</span>
+                </div>
+                <div title="Open the groups table" style="display: flex; align-items: center; gap: 6px; height: 14px; cursor: pointer;">
+                  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#6b7480"></circle></svg>
+                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Other <span style="color: #7a828e;">(2 groups, 18% of nodes)</span></span>
+                </div>
+              </div>
+            </div>
+            <div style="height: 1px; background: #374047;"></div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Size: Most connected <span style="color: #7a828e;">(Degree centrality)</span></span>
+              <div style="display: flex; align-items: center; gap: 8px; height: 16px;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="#a3a8b1"></circle></svg>
+                  <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">1</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="4" fill="#a3a8b1"></circle></svg>
+                  <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">median 6</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#a3a8b1"></circle></svg>
+                  <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">44</span>
+                </div>
+              </div>
+              <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">sqrt scale</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- INSPECTOR, 280 wide: the Sweep summary result view (5.4). REBUILT UNDER COMPACTION 1.6.
+             Row types: RT-10 (the reading, the departure line, the run record), RT-8 (the Runs door),
+             RT-7 (the pinned action block). RT-6 and RT-9 left this region in 1.8 with the runs table, its
+             sparkline and the agreement bars (D3).
+             Floor kept: the reading in full, two sentences; the one real departure, "One seed per run, so seed
+             noise is not measured.", now drawn with RT-10's warning mark instead of buried at the end of a
+             three-clause caveat line; the one-line run record -- method, both non-default parameters and the
+             scope on one line, the record whole in its title and behind the Details chevron; "Compare 0.5 with
+             1.5" naming the two runs it will open, "Remove result" and "Run again with changes" in full text.
+             The runs table's values and the sparkline's two labelled ends left this region in 1.8 with the
+             Sweep runs door (D3): neither is a floor item, floor 1, 2, 3 and 4 all stay resident above the
+             door, and the stub reports the count and the range it hides.
+             Deleted by rule: "Exact." (Rule 7 corollary -- an exact, complete, unfiltered run draws no departure
+             clause at all, which is exactly what makes the seed caveat above it loud); "Agreement is normalized
+             mutual information over all 200 nodes." (Rule 8 -- it explains the section header two rows below, so
+             it is that header's info circle); "Sweep of Resolution over 0.5, 1.0, 1.5 (3 runs)." (Rule 8 -- the
+             runs table is the same list and its first column is now named Resolution); "Weight: amount
+             (strength). Direction: ignored. algorithms 1.4.0" (group B -- weight and direction are the panel's
+             pinned row, the engine version is behind Details); "tolerance 1e-6" (Rule 7a -- it is the engine
+             default, and a record names the parameters that were not; "max passes 20" is not one, so it stays on
+             the record line with the seed and the scope); "Groups by resolution"
+             (Rule 8 -- the table's columns and the sparkline's two labelled ends already say it); the word
+             "Details" (RT-10 -- the chevron carries it as its title); the "ms" repeated on three rows (Rule 9),
+             and then the ms column itself -- three durations of about 20 ms are not what a sweep is read for,
+             the caption collided with Modularity at 280px, and a run's duration belongs to its record, so each
+             row's title carries it and Details holds the total.
+             One of the two "Coming" tags goes too, because the two unshipped actions are now one row.
+             The reading loses its middle clause "The 0.5 and 1.0 runs agree most (0.81)", which restated the
+             first agreement bar 200px below it (Rule 8), and comes back inside RT-10's two-sentence cap. -->
+        <div style="flex: 0 0 280px; width: 280px; display: flex; flex-direction: column; background: #1f2428; border-left: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
+
+          <!-- INSPECTOR TITLE ROW. One inventory, one order, all 40 boards that draw one (INSPECTOR-TITLE-1.9.md).
+               Right, in this order and nothing else, ever: Copy reading, Pin as A, Toggle inspector (D).
+               Pin drawn: a result is shown (5.4).
+               Left: the surface kind at 12px, then its identity at 11px muted. The kind never truncates and the
+               identity ellipsizes into its own title, which is 6.3's ladder installed as a mechanism.
+               No leading glyph. It had five spellings across the set -- three of them the register's PIN verb drawn
+               as decoration beside the real Pin control -- and its 22px is exactly what makes every name pair in the
+               set fit at 280. FilterBuilderExpert had already dropped it alone, for this reason.
+               Cluster 3 x 24 + gap 4 = 80; name band 167; this row's name is 37.1. -->
+          <div style="flex: 0 0 36px; height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
+            <div style="flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px;">
+              <span style="flex: 0 0 auto; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Result</span>
+            </div>
+            <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 4px;">
+              <div title="Copy reading" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>
+              </div>
+              <div title="Pin as A" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line></svg>
+              </div>
+              <div title="Toggle inspector (D)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- INSPECTOR CONTENT: scrolling body, actions pinned at the bottom (5.4) -->
+          <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px 8px 0 16px; overflow: hidden; box-sizing: border-box;">
+
+            <!-- title: plain name, then the concept's pair on one line (Decision B: first mention in this
+                 surface). NAV-5 and IK-5: one copy control per surface, and it is the inspector title row's
+                 Copy reading, 36px above this line (REGISTER 10.1, RT-8); its menu holds Copy reading /
+                 Copy as TSV / Copy methods text. The three record copies live inside the run record's
+                 Details block below. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 2px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                <span style="font-size: 14px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Sweep summary</span>
+              </div>
+              <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Sweep of Groups (Communities, Louvain)</span>
+            </div>
+
+            <!-- RT-10, floor 1: the reading, on screen, in full, two sentences -->
+            <span style="flex: 0 0 auto; font-size: 12px; line-height: 1.5; color: #a3a8b1;">Three runs at resolution 0.5, 1.0 and 1.5 found 4, 7 and 11 groups. The 4-group and 7-group readings are the stable ones; 1.5 mostly splits the two largest groups.</span>
+
+            <!-- RT-10, floor 2: the one departure from exact and complete. The run itself is exact, complete and
+                 unfiltered, so nothing else is claimed here. -->
+            <div style="flex: 0 0 auto; display: flex; align-items: flex-start; gap: 4px;">
+              <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
+              </div>
+              <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.4; color: #d5d7da;">One seed per run, so seed noise is not measured.</span>
+            </div>
+
+            <!-- RT-10, floor 3: the run record, one line -- the method, BOTH non-default parameters, and the
+                 scope with its noun. FLOOR-1.9 undoes the trade that had sent "max passes 20" into the title:
+                 a floor item may not live only on hover. Measured in the 235px the chevron leaves:
+                 "Louvain, seed 42, max passes 20, all 200 nodes" is 264px and "Louvain, seed 42, 20 passes,
+                 all 200 nodes" 237px, so something still has to give -- and what gives is the scope's
+                 EMPHASIS, not the scope. "Louvain, seed 42, 20 pass cap, 200 nodes" is 231px, carries both
+                 non-default parameters, and keeps the counted noun; "pass cap" says the number is a ceiling
+                 and not a count, which "20 passes" would not. It is the trade HistoryPopover already made for
+                 the same reason -- its scope clause reads "200 nodes", never "all 200 nodes", on both of its
+                 surfaces -- and it is the same one string this board's panel card prints, wrapped there
+                 because 217px is narrower than the string. The line does not move: floor 3 keeps it resident
+                 and POP-7 changes only where its contents go.
+                 The line's title is the record in full, which is what Details opens, in a 360 pop-out at
+                 left: 792px -- an inspector pop-out opens left, so its right edge lands at 1152, 8px clear of
+                 the inspector's 1160 edge (POP-7): the swept parameter and its values, the default tolerance,
+                 the weight and direction treatment, the scope spelled out, the timestamp, the total duration
+                 and the engine version, and under them the three record copies --
+                 Copy as JSON, Copy as command, Copy methods text (IK-5), which is also where the exact statistics
+                 behind the charts stay reachable.
+                 Only one pop-out may be open per region, so the panel card's run record and this one are
+                 separate doors in separate regions and may both be open at once, while opening either one twice
+                 in its own region closes the other door in that region (POP-0). The chevron keeps the closed
+                 right-pointing form permanently (POP-13b) and is not drawn open.
+                 A6 and VOCAB 14.1, the stub's ink: this chevron is dimmed #7a828e because everything behind
+                 it is at its default -- what is behind it is a report, and the two values that are not
+                 default, the seed and the pass cap, are printed resident on the line itself; it draws
+                 #d5d7da the moment a hidden field deviates.
+                 A3, the depth: one click from the row that owns the record, with the run present, and this
+                 door sits behind no other door.
+                 THE ANCHOR (B2), measured: the 360 pop-out opens left, so its right edge lands at 1152, 8px
+                 clear of the inspector's 1160px edge, and it shares its top edge with this record row's
+                 anchor box. -->
+            <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 4px; height: 20px; cursor: pointer;">
+              <span title="Louvain, seed 42, max passes 20, tolerance 1e-6. Sweep of Resolution over 0.5, 1.0, 1.5 (3 runs). Weight: amount (strength). Direction: ignored. Scope: visible, 200 of 200 nodes. 2026-09-04 14:20, 61 ms in total, algorithms 1.4.0" style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.4; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Louvain, seed 42, 20 pass cap, 200 nodes</span>
+              <div title="Details" style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: pointer;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+              </div>
+            </div>
+
+            <!-- RT-8 DOOR, new in 1.8 (D3). WHAT WAS HERE: the three-column runs table (Resolution | Groups |
+                 Modularity, with the Modularity info circle and three rows) and, beside it, the 40 by 78
+                 sparkline of group count over the swept value; and immediately below it the whole
+                 "Agreement between runs (NMI)" block, three 32px micro-bar rows reading 0.5 vs 1.0 0.81,
+                 1.0 vs 1.5 0.64 and 0.5 vs 1.5 0.72. All of it is gone. It was the second and third
+                 rendering of one result body and broke "One result body renders on screen at a time"
+                 (MIN-6).
+                 POP-12c IS REVERSED, and it must be said so: the 1.7 audit called this "neutral, an audit
+                 and not a change" and left both resident; D3 overturns it, on the room test and on MIN-6.
+                 THE STUB REPORTS WHAT IT HIDES: "Runs" with the trailing count 3, and the title "Sweep runs.
+                 3 runs, 4 to 11 groups". The chevron stays permanently in the closed right-pointing form
+                 (POP-13b).
+                 Behind it, in the 480 inspector pop-out 6.11's worked-examples table already specifies: the
+                 three runs with Resolution, Groups and Modularity and the sparkline, then the pairwise
+                 agreement block, with Keep per row, Compare and Export CSV.
+                 THE ANCHOR (B2), measured: a 480 pop-out opening left has its right edge at 1152, 8px clear
+                 of the inspector's 1160px edge, so left: 672px, and it shares its top edge with this stub
+                 row's anchor box. It is NOT drawn open on this board.
+                 A6 and VOCAB 14.1: the chevron is dimmed #7a828e because what is behind it is a report and
+                 not a parameter block, so nothing behind it can deviate from a default.
+                 A3, the depth: one click from the section row that owns the runs, with the result present,
+                 and this door sits behind no other door.
+                 B4, the multi-opener rule: A pop-out reachable from more than one opener is anchored to the
+                 opener that was used, and its lane follows that opener's region (B4): from the panel card it
+                 opens right at `left: 336px`; from the inspector it opens left at `left: 672px` at the 480
+                 rung. The palette route, which has no on-screen opener, opens it in the inspector's lane and
+                 lights that row. -->
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
+              <div style="height: 1px; background: #495057;"></div>
+              <div title="Sweep runs. 3 runs, 4 to 11 groups" style="display: flex; align-items: center; gap: 4px; height: 32px; box-sizing: border-box; cursor: pointer;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="6,3.5 11,8 6,12.5"></polyline></svg>
+                <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; font-weight: 500; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Runs</span>
+                <span style="flex: 0 0 auto; font-size: 11px; color: #7a828e; white-space: nowrap;">3</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ACTIONS, pinned (5.4). RT-7: the verbs that keep their words are the ones floor 4 protects --
+               "Compare 0.5 with 1.5" states the two runs it will open before it opens them, "Remove result" is
+               destructive, and every Run form keeps its full text. NAV-11: the caret half opens a one-item menu,
+               "Run and compare", which enters Compare with A set to this card and B to the new run.
+               The two unshipped actions are one row under one Coming tag (register section 3: a run of two). -->
+          <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; padding: 8px 8px 8px 16px; border-top: 1px solid #495057; background: #1f2428; box-sizing: border-box;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Compare 0.5 with 1.5</div>
+              <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 6px; border-radius: 4px; background: transparent; color: #eb4949; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Remove result</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div title="Run again with changes" style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">
+                <span>Run again with changes</span>
+                <div style="width: 1px; height: 16px; background: #48525c;"></div>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px; height: 24px;">
+              <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 6px 0 0; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Export CSV</div>
+              <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 6px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Pin to report</div>
+              <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS BAR, 24 tall, full width (5.1) -->
+  <div style="flex: 0 0 24px; height: 24px; display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 0 12px; background: #1f2428; border-top: 1px solid #48525c; box-sizing: border-box; font-size: 11px; line-height: 1.2; color: #7a828e;">
+    <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+      <span>200 nodes</span>
+      <span>612 edges</span>
+    </div>
+    <div style="width: 1px; height: 12px; background: #48525c;"></div>
+    <span style="cursor: pointer;">Zoom 100%</span>
+    <div style="width: 1px; height: 12px; background: #48525c;"></div>
+    <!-- MIN-8: no 3D chip -- the canvas 2D/3D control is always visible (5.6), and a mode chip renders only in XR.
+         NAV-12: one layout chip carrying the engine name and the running state with no "Layout:" label. The 12px
+         caret opens the layout quick picks with the active engine checked, then Re-run, Stop and
+         "Layout settings...", which opens Style with the list focused. -->
+    <div title="Force directed (ngraph) - settled" style="display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 4px 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">
+      <span>Force directed - settled</span>
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+    </div>
+    <!-- running slot: empty, the sweep finished -->
+    <div style="display: none; align-items: center; gap: 8px;"></div>
+    <!-- viewing slot: empty, time slider off -->
+    <div style="display: none; align-items: center; gap: 8px;"></div>
+    <!-- issues slot: the fraud ring's validation chip -->
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div title="4 issue types, 27 issues" style="display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"><div style="width: 6px; height: 6px; border-radius: 50%; background: #f7b731;"></div>4 data issues</div>
+    </div>
+    <div style="flex: 1 1 auto;"></div>
+    <!-- MIN-8: the AI slot is drawn only when a provider is configured or a call is in flight; there is no
+         "AI: not configured" line. -->
+    <div style="display: none; align-items: center; gap: 8px;"></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

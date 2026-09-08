@@ -1,0 +1,34 @@
+id: node-selection
+name: Node Selection
+category: interaction
+description: Select one or more nodes for further operations. Selection can be used to view details, apply algorithms,
+  filter, or export. Support single and multi-select patterns.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W02
+  - W05
+implemented_by_components:
+  - graph-canvas
+  - context-menu
+requirements:
+  - Select single node with left-click
+  - Add node to existing selection with Shift+click
+  - Toggle node selection state with Ctrl+click (Cmd+click on Mac)
+  - Select multiple nodes with rectangle drag (lasso selection)
+  - Start lasso from empty area; complete on mouse release
+  - Select all visible nodes with 'Select All' menu option or Ctrl+A
+  - Select nodes by attribute criteria via 'Select by Attribute' dialog
+  - Clear all selection with Escape key or clicking empty area
+  - "Display selected nodes with distinct border color (default: blue, 3px)"
+  - "Display selection count: 'N nodes selected' in status bar"
+  - Provide 'Invert Selection' to select all unselected and deselect selected
+  - Provide 'Select Neighbors' to add neighbors of current selection
+  - Provide 'Select Community' to select all nodes in same community as selection
+  - Support edge selection with click (distinct from node selection)
+  - Display selected edges with distinct style (thicker, different color)
+  - Maintain separate selection state for nodes and edges
+sources:
+  - title: Complete Graph Visualization Textbook - Chapter 6
+    url: https://graphty.app/docs/
+    summary: Selection and Highlighting - click selection patterns

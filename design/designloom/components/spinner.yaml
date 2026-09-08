@@ -1,0 +1,16 @@
+id: spinner
+name: Spinner
+category: display
+description: Loading spinner animation for indicating pending operations. Used inline or as page-level loading indicator.
+status: planned
+implements_capabilities: []
+used_in_workflows: []
+dependencies: []
+props:
+  size: "string - Spinner size: 'sm' | 'md' | 'lg' (default: 'md')"
+  color: "string - Spinner color (default: 'primary')"
+  label: "string - Accessible label (default: 'Loading...')"
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T03:59:03.869Z
+updated_at: 2026-01-16T03:59:03.869Z

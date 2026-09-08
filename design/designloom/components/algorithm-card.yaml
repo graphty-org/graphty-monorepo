@@ -1,0 +1,32 @@
+id: algorithm-card
+name: Algorithm Card
+category: control
+description: Card for selecting and configuring a graph algorithm. Shows algorithm name, description, parameters, and run button.
+status: planned
+implements_capabilities:
+  - centrality-degree
+  - centrality-betweenness
+  - centrality-closeness
+  - centrality-eigenvector
+  - centrality-pagerank
+  - community-detection
+  - shortest-path
+used_in_workflows:
+  - W03
+dependencies:
+  - button
+  - text-input
+  - slider
+  - select
+  - progress-bar
+props:
+  algorithm: string - Algorithm identifier
+  name: string - Display name
+  description: string - Algorithm description
+  parameters: "Array<{name: string, type: string, default: any}> - Algorithm parameters"
+  onRun: "(params: Record<string, any>) => void - Run algorithm handler"
+  running: "boolean - Show running state (default: false)"
+sources: []
+version: 1.0.0
+created_at: 2026-01-16T04:00:31.685Z
+updated_at: 2026-01-16T04:00:31.685Z

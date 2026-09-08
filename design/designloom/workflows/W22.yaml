@@ -1,0 +1,141 @@
+id: W22
+name: Enrichment Map - Pathway Similarity Network
+category: analysis
+validated: false
+personas:
+  - genomics-cytoscape-user
+  - bioinformatics-researcher
+requires_capabilities:
+  - data-import
+  - data-validation
+  - visual-encoding-nodes
+  - visual-encoding-edges
+  - filtering
+  - search
+  - community-detection
+  - annotation
+  - node-merging
+  - layout-force-directed
+  - details-on-demand
+  - legend-display
+  - export-image
+  - report-generation
+  - analysis-history
+suggested_components:
+  - data-import-dialog
+  - gene-set-import-dialog
+  - filter-panel
+  - threshold-slider
+  - heatmap-panel
+  - annotation-toolbar
+  - cluster-collapse-control
+  - legend
+  - export-dialog
+starting_state:
+  data_type: enrichment results table (pathway, p-value, FDR, NES, genes) plus gene-set definitions
+  node_count: 100-2000 gene sets
+  edge_density: medium
+  user_expertise: intermediate
+goal: >-
+  **Intent**: Summarize hundreds of enriched pathways as a network where nodes are gene sets and edges mean two
+  gene sets share genes, so that redundant pathways collapse into a handful of biological themes.
+
+
+  **Mental Model**: "Zoom out from pathways to themes." Individual pathways overlap heavily; drawing overlap as
+  edges makes the themes appear as clusters that can be named and collapsed.
+
+
+  **Task Phases**:
+
+  1. **Build the map** (5 min) - Load an enrichment table (g:Profiler, GSEA, or generic) and its gene-set file; set
+  the FDR q-value cutoff (0.01 to 0.05) and the similarity cutoff (Jaccard, overlap, or combined, typically 0.375);
+  node size is gene-set size, node color is enrichment direction or FDR, edge width is overlap
+
+  2. **Explore** (10 min) - Search a gene and highlight every pathway containing it; click a node to see its genes;
+  sort the node table by FDR or NES; when an expression matrix is present, show a heat map of the genes in the
+  selected pathways
+
+  3. **Tune** (5 min) - Slide the node q-value and edge similarity cutoffs to thin the map; re-run layout; separate
+  up-regulated (positive NES) and down-regulated pathways into two halves of the canvas
+
+  4. **Name the themes** (10 min) - Cluster the map, auto-label each cluster from the most frequent words in its
+  pathway names, rename by hand, collapse clusters into single theme nodes for the summary figure
+
+  5. **Publish** (5 min) - Export the figure as PDF or SVG with a legend; record the creation parameters (q cutoff,
+  similarity metric and cutoff) for the methods section
+
+
+  **Decision Points**:
+
+  - Which enrichment tool produced the table (flat gene list -> g:Profiler; ranked list -> GSEA)?
+
+  - FDR cutoff: lenient (0.25) for exploration or strict (0.01) for publication?
+
+  - Similarity metric and cutoff: fewer edges gives cleaner themes but may split real ones
+
+  - Which clusters to collapse and what to name them
+
+  - Whether to build a sub-map for one theme of interest
+
+
+  **Information Needs**:
+
+  - Node count and edge count after each cutoff change, live
+
+  - Gene-set size, FDR, NES or p-value, and the gene list for any node
+
+  - For a searched gene, all pathways that contain it
+
+  - Cluster membership and auto-generated labels
+
+  - The exact creation parameters, always retrievable
+
+
+  **Pain Points**:
+
+  - Very lenient cutoffs produce thousands of nodes and a slow canvas
+
+  - Overlapping cluster labels and hand-arranging clusters to reduce overlap
+
+  - Collapsed theme nodes lose the ability to inspect member pathways unless expandable
+
+  - Legend for node size, color, and edge width must be drawn by hand in most tools
+
+  - Publication figures need labels hidden on nodes but visible on themes
+
+
+  **Data Flow**:
+
+  - Input: Enrichment results table (tab-delimited), gene-set file (GMT), optional ranks and expression matrix
+
+  - Transformations: Gene-set overlap computation, threshold filtering, clustering, label generation, cluster
+  collapse
+
+  - Output: Enrichment map figure, theme list, parameter record
+
+  **Adoption Note (2026-09-04)**: Adopted as a data-only case. The enrichment table and gene-set file load as an
+  edge list plus node attributes through the standard Data panel; no enrichment-specific UI is added. Thresholding
+  by q-value and similarity uses the generic filter builder.
+success_criteria:
+  - metric: Map built
+    target: Enrichment table and gene-set file load with correct node and edge encodings in under 10 minutes
+  - metric: Themes named
+    target: Every cluster of >= 3 pathways carries a label
+  - metric: Parameters recorded
+    target: q-value and similarity cutoffs appear in the exported report
+sources:
+  - title: Pathway enrichment analysis and visualization of omics data using g:Profiler, GSEA, Cytoscape and EnrichmentMap (Nature Protocols)
+    url: https://www.nature.com/articles/s41596-018-0103-9
+    summary: Full protocol including cutoffs (q < 0.01, Jaccard-overlap combined > 0.375), AutoAnnotate, collapse, publication-ready export
+  - title: Cytoscape tutorial - EnrichmentMap pipeline
+    url: https://cytoscape.org/cytoscape-tutorials/protocols/enrichmentmap-pipeline/
+    summary: Step list for building, exploring, tuning, annotating and exporting the enrichment map
+  - title: Bader Lab EnrichmentMap protocol materials
+    url: https://baderlab.github.io/EnrichmentMap_Protocol/materials.html
+    summary: Example enrichment tables, GMT files, expression matrices and legend components
+  - title: Enrichment Map - a Cytoscape app to visualize and explore OMICs pathway enrichment results
+    url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4103489/
+    summary: Node = gene set, edge = overlap, similarity metrics
+version: 1.0.0
+created_at: 2026-09-04T00:00:00.000Z
+updated_at: 2026-09-04T00:00:00.000Z

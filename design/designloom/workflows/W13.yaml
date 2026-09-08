@@ -1,0 +1,118 @@
+id: W13
+name: Knowledge Graph Construction
+category: administration
+validated: false
+personas:
+  - knowledge-engineer
+requires_capabilities:
+  - data-import
+  - data-validation
+  - data-export
+  - basic-statistics
+  - component-analysis
+  - search
+  - details-on-demand
+  - node-merging
+suggested_components:
+  - data-import-dialog
+  - data-preview-table
+  - data-export-dialog
+  - statistics-panel
+  - search-input
+  - node-details-panel
+  - node-merge-dialog
+starting_state:
+  data_type: multiple source systems
+  node_count: 10000-10000000
+  edge_density: varies
+  user_expertise: expert
+goal: >-
+  **Intent**: Build and maintain an enterprise knowledge graph that integrates data from multiple sources. User wants to
+  create a unified, queryable representation of organizational knowledge.
+
+
+  **Mental Model**: "Building a living encyclopedia" - creating interconnected knowledge that grows and evolves. Also
+  like "connecting the corporate brain" - linking information across silos.
+
+
+  **Task Phases**:
+
+  1. **Schema Design** - Define entity types, relationship types, and constraints (ontology)
+
+  2. **Entity Extraction** - Extract entities from source systems (databases, documents, APIs)
+
+  3. **Relationship Mapping** - Identify and create relationships between entities
+
+  4. **Entity Resolution** - Merge duplicate entities representing the same real-world thing
+
+  5. **Quality Validation** - Check completeness, consistency, accuracy
+
+  6. **Deployment** - Connect to query interfaces, applications, AI systems
+
+
+  **Decision Points**:
+
+  - What entities and relationships should the schema include?
+
+  - How to handle schema evolution as requirements change?
+
+  - What confidence threshold for entity resolution matches?
+
+  - How to balance ontological rigor with practical mappability?
+
+  - When is quality "good enough" to deploy?
+
+
+  **Information Needs**:
+
+  - Source system schemas and data samples
+
+  - Domain expertise (what entities matter?)
+
+  - Entity extraction results with confidence scores
+
+  - Duplicate candidate pairs for resolution
+
+  - Quality metrics (coverage, consistency, freshness)
+
+
+  **Pain Points**:
+
+  - Source data quality varies widely
+
+  - Schema changes break downstream applications
+
+  - Entity resolution errors propagate through the graph
+
+  - Stakeholders don't understand ontology value
+
+  - Keeping the KG up-to-date as source data changes
+
+
+  **Data Flow**:
+
+  - Input: Multiple source systems (databases, documents, APIs)
+
+  - Transformations: Extraction, mapping, resolution, validation
+
+  - Output: Integrated knowledge graph + query interfaces + quality reports
+success_criteria:
+  - metric: Coverage
+    target: Key domain entities and relationships captured
+  - metric: Quality
+    target: Entity resolution accuracy > 95%
+  - metric: Usability
+    target: Downstream applications successfully query the KG
+sources:
+  - title: Practical Graph Analysis Guide - Chapter 12
+    url: https://graphty.app/docs/
+    summary: Knowledge Graph Construction Workflow
+  - title: Schema Engineering for Enterprise Knowledge Graphs
+    url: https://www.researchgate.net/publication/322584212_Schema_engineering_for_enterprise_knowledge_graphs_A_reflecting_survey_and_case_study
+    summary: Survey on ontology design for enterprise KGs
+  - title: Procedure Model for Building Knowledge Graphs
+    url: https://arxiv.org/html/2409.13425v1
+    summary: Step-by-step methodology for RDF knowledge graph construction
+version: 1.0.0
+created_at: 2026-01-16T16:42:38.371Z
+updated_at: 2026-01-16T16:42:38.371Z

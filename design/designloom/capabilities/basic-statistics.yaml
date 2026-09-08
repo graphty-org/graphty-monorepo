@@ -1,0 +1,41 @@
+id: basic-statistics
+name: Basic Graph Statistics
+category: analysis
+description: "Compute fundamental graph metrics that provide an overview of the dataset: node count, edge count,
+  density, average degree, and graph type classification. These metrics are the first thing analysts check when
+  assessing a new dataset."
+status: planned
+algorithms: []
+used_by_workflows:
+  - W01
+  - W12
+  - W13
+  - W14
+  - W18
+  - W19
+implemented_by_components:
+  - metric-card
+  - statistics-panel
+requirements:
+  - Calculate total node count and display as integer
+  - Calculate total edge count and display as integer
+  - Calculate graph density as edges / (n*(n-1)/2) for undirected, edges / (n*(n-1)) for directed
+  - Display density with 4 decimal places (e.g., 0.0234)
+  - Calculate average degree with 2 decimal places
+  - Calculate minimum degree and identify node(s) with minimum
+  - Calculate maximum degree and identify node(s) with maximum
+  - Detect directed vs undirected based on edge symmetry; display as 'Directed' or 'Undirected'
+  - Detect weighted vs unweighted based on presence of weight attribute; display as 'Weighted' or 'Unweighted'
+  - Detect presence of self-loops; display count if any exist
+  - Detect presence of multi-edges (parallel edges); display count if any exist
+  - Calculate diameter (longest shortest path) for connected graphs
+  - Display 'Infinite (disconnected)' for diameter when graph has multiple components
+  - Calculate average path length with 2 decimal places
+  - Compute all statistics within 2 seconds for graphs under 10,000 nodes
+  - Display progress indicator for statistics taking longer than 1 second
+  - Report 'Graph is empty' message when node count is 0
+  - Display all statistics in a summary panel with labeled rows
+sources:
+  - title: Graph Analysis Textbook - Chapter 3
+    url: https://graphty.app/docs/
+    summary: Structural Properties and Metrics - node, network-level metrics

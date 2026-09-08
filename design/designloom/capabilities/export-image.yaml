@@ -1,0 +1,35 @@
+id: export-image
+name: Image Export
+category: export
+description: Export the current visualization as a static image for use in presentations, reports, or documentation.
+  Support common image formats with configurable resolution and transparency.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W09
+  - W15
+implemented_by_components:
+  - image-export-dialog
+requirements:
+  - Export to PNG format with alpha channel transparency support
+  - Export to JPEG format with configurable quality (60-100%, default 90%)
+  - Export to SVG format for vector scaling without quality loss
+  - "Provide resolution options: 1x (screen), 2x, 4x for high-DPI displays and print"
+  - Display estimated file size before export based on format and resolution
+  - "Provide checkbox: 'Include legend' (default checked)"
+  - "Provide checkbox: 'Include annotations' (default checked)"
+  - "Provide checkbox: 'Transparent background' (PNG/SVG only, default unchecked)"
+  - Provide background color picker when transparency is disabled
+  - "Provide export scope: 'Current viewport' or 'Entire graph'"
+  - Fit entire graph export to specified maximum dimensions (default 4096x4096 pixels)
+  - Maintain all visual styling (colors, sizes, fonts) in export exactly as displayed
+  - Include scale bar or node count indicator optionally
+  - Generate export within 5 seconds for graphs up to 10,000 nodes
+  - Display progress indicator for exports taking longer than 2 seconds
+  - "Trigger browser download dialog with suggested filename: '[graph-name]-[timestamp].[format]'"
+  - Report 'Export failed' with reason if rendering fails
+  - Warn when export resolution exceeds 8192 pixels in any dimension
+sources:
+  - title: W15 Findings Communication
+    url: https://graphty.app/docs/
+    summary: Production phase - create image deliverable

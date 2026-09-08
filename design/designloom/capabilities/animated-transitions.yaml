@@ -1,0 +1,32 @@
+id: animated-transitions
+name: Animated Transitions
+category: visualization
+description: Animate changes to the visualization (layout changes, filtering, expansion) to help users maintain mental
+  models of the data. Smooth transitions show how elements move from old to new positions.
+status: planned
+algorithms: []
+used_by_workflows:
+  - W02
+  - W19
+implemented_by_components:
+  - graph-canvas
+requirements:
+  - Animate node position changes over 300-500ms duration for layout transitions
+  - Animate node position changes over 800-1000ms duration for major layout algorithm changes
+  - Animate filtered nodes with fade-out (opacity 1.0 to 0.0) over 200ms before removal
+  - Animate restored nodes with fade-in (opacity 0.0 to 1.0) over 200ms after addition
+  - Animate node expansion with radial spread from parent over 400ms
+  - Animate node collapse with convergence to parent over 300ms
+  - Animate zoom changes with smooth interpolation over 250ms
+  - Animate pan changes with momentum-based easing over 150-300ms
+  - Use ease-in-out easing function for position animations
+  - Use ease-out easing function for fade animations
+  - Provide 'Reduce motion' setting that disables all animations
+  - Provide 'Instant transitions' setting that sets all durations to 0ms
+  - Maintain minimum 30fps during animations; skip frames if below threshold
+  - Cancel in-progress animation when new animation targets same property
+  - Queue sequential animations when multiple layout changes occur within 100ms
+sources:
+  - title: Complete Graph Visualization Textbook - Chapter 6
+    url: https://graphty.app/docs/
+    summary: Animation - transitions help maintain mental models (300-1000ms)

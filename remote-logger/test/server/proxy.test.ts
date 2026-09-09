@@ -97,7 +97,7 @@ describe("Reverse proxy", () => {
 
     beforeEach(async () => {
         target = await createTargetServer();
-        const port = 8600 + Math.floor(Math.random() * 50);
+        const port = 8950 + Math.floor(Math.random() * 20);
         dualServer = await createDualServer({
             httpPort: port,
             httpHost: "127.0.0.1",
@@ -201,7 +201,7 @@ describe("Reverse proxy", () => {
     test("is available in logReceiveOnly mode", async () => {
         await dualServer.shutdown();
 
-        const port = 8650 + Math.floor(Math.random() * 50);
+        const port = 8970 + Math.floor(Math.random() * 15);
         dualServer = await createDualServer({
             httpPort: port,
             httpHost: "127.0.0.1",

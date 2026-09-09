@@ -20,7 +20,7 @@ let portCounter = 0;
 
 function getNextPort(): number {
     portCounter++;
-    return 8300 + (portCounter % 100);
+    return 8400 + (portCounter % 100);
 }
 
 /**

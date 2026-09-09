@@ -21,7 +21,7 @@ describe("E2E: Browser to Claude Code", () => {
     let jsonlWriter: JsonlWriter;
 
     beforeEach(async () => {
-        port = 8500 + Math.floor(Math.random() * 100);
+        port = 8100 + Math.floor(Math.random() * 100);
 
         // Create unique temp directory
         testBaseDir = path.join(

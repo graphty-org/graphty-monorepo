@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { createDualServer, LogStorage, type DualServerResult } from "../../src/server/index.js";
 
 // Use ports in the integration test range (8200-8399)
-const BASE_PORT = 8250;
+const BASE_PORT = 8300;
 
 describe("Server modes", () => {
     let server: DualServerResult | undefined;

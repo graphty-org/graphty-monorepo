@@ -20,7 +20,7 @@ const mockedInternalIpV4Sync = vi.mocked(internalIpV4Sync);
 
 describe("IP address fallback", () => {
     let dualServer: DualServerResult | undefined;
-    const basePort = 8500;
+    const basePort = 7900;
 
     beforeEach(() => {
         vi.clearAllMocks();

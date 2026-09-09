@@ -17,7 +17,7 @@ describe("Dual mode (HTTP + MCP)", () => {
     let port: number;
 
     beforeEach(async () => {
-        port = 8400 + Math.floor(Math.random() * 100);
+        port = 8500 + Math.floor(Math.random() * 100);
     });
 
     afterEach(async () => {
@@ -269,7 +269,7 @@ describe("Dual mode (HTTP + MCP)", () => {
     });
 
     it("configures HTTP port correctly", async () => {
-        const customPort = 8450 + Math.floor(Math.random() * 50);
+        const customPort = 8320 + Math.floor(Math.random() * 50);
         dualServer = await createDualServer({
             httpPort: customPort,
             httpHost: "127.0.0.1",

@@ -19,7 +19,7 @@ let portCounter = 0;
 
 function getNextPort(): number {
     // Use 8400-8499 range for JSONL streaming tests (different from browser.test.ts 8300 range)
-    return 8400 + (portCounter++ % 100);
+    return 7700 + (portCounter++ % 100);
 }
 
 describe("JSONL streaming integration", () => {

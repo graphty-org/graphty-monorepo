@@ -28,7 +28,7 @@ describe("GET /remote-logger.js endpoint", () => {
 
     beforeEach(() => {
         resetBrowserBundleCache();
-        port = 8500 + Math.floor(Math.random() * 50);
+        port = 7950 + Math.floor(Math.random() * 50);
     });
 
     afterEach(async () => {

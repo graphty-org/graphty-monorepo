@@ -347,3 +347,7 @@ The `design/` directory contains architecture documentation:
 - Performance benchmarks: `npm run benchmark` (in algorithms/)
 - Coverage preview servers for inspecting coverage reports
 - Nx graph visualization: `pnpm exec nx graph`
+
+## Claude Session History
+
+- Past Claude Code sessions for this project (transcripts, subagent logs, workflows, memory) are archived in ./.claudehistory/. Look there for context from earlier work. Synced by claude-history-sync.sh.

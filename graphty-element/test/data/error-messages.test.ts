@@ -1,4 +1,4 @@
-import { assert, describe, test } from "vitest";
+import { afterEach, assert, describe, test, vi } from "vitest";
 
 import { CSVDataSource } from "../../src/data/CSVDataSource.js";
 import { DOTDataSource } from "../../src/data/DOTDataSource.js";
@@ -54,10 +54,19 @@ describe("Standardized error messages", () => {
         assert.strictEqual(errorThrown, true, "Expected error to be thrown");
     });
 
+    // fetch is stubbed rather than pointed at an unreachable host: the retry
+    // path sleeps 1s then 2s between three attempts, which left under two
+    // seconds for three real DNS lookups and made the test fail on a slow
+    // resolver. Stubbing also lets us assert the attempt count directly.
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
     test("network error includes retry count", async () => {
-        const source = new GraphMLDataSource({
-            url: "http://invalid-url-that-does-not-exist-graphty-test.example",
-        });
+        const fetchMock = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
+        vi.stubGlobal("fetch", fetchMock);
+
+        const source = new GraphMLDataSource({url: "http://graphty.invalid/graph.graphml"});
         let errorThrown = false;
 
         try {
@@ -70,5 +79,6 @@ describe("Standardized error messages", () => {
             assert.match((error as Error).message, /Failed to fetch .* after 3 attempts/);
         }
         assert.strictEqual(errorThrown, true, "Expected error to be thrown");
-    });
+        assert.strictEqual(fetchMock.mock.calls.length, 3, "Expected three fetch attempts");
+    }, 10000);
 });

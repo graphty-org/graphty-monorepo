@@ -124,8 +124,6 @@ const config: KnipConfig = {
             ignoreDependencies: [
                 // Testing
                 "jsdom",
-                // Zod is used but through workspace dependency
-                "zod",
             ],
         },
 
@@ -145,8 +143,6 @@ const config: KnipConfig = {
                 // Used in storybook demos
                 "@zag-js/floating-panel",
                 "@zag-js/react",
-                // Browser testing
-                "playwright",
             ],
         },
     },
@@ -159,6 +155,14 @@ const config: KnipConfig = {
         "**/.nx/**",
         "**/docs/**",
     ],
+
+    rules: {
+        // compact-mantine keeps a superseded name working alongside its
+        // replacement (DoorButton beside AdvancedButton), which is one symbol
+        // exported twice from one file on purpose. Reported, not fatal: a
+        // genuinely accidental double export still shows up here.
+        duplicates: "warn",
+    },
 
     // Ignore unlisted binaries that are shell built-ins or CI tools
     ignoreBinaries: [

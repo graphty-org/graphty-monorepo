@@ -24,7 +24,7 @@ export interface SelectionModifiers {
 /**
  * Everything the selection rules need to know about one activation.
  */
-export interface SelectionGesture {
+interface SelectionGesture {
     /** Every row currently on show, by identifier, in the order they are drawn. */
     ids: readonly string[];
     /** Which row was activated, as a position in `ids`. */

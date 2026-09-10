@@ -19,7 +19,7 @@ export type Direction = "ltr" | "rtl";
 /**
  * The angle a CSS gradient runs at, from the inline start to the inline end.
  */
-export type GradientDirection = "to right" | "to left";
+type GradientDirection = "to right" | "to left";
 
 /**
  * Reads the text direction in force.

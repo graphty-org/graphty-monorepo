@@ -26,7 +26,7 @@ export interface GridPosition {
 /**
  * How big the table is.
  */
-export interface GridExtent {
+interface GridExtent {
     /** How many rows of data are on show. */
     rowCount: number;
     /** How many columns are visible. */
@@ -44,7 +44,7 @@ export interface GridBounds extends GridExtent {
 /**
  * The state of the modifier keys a movement key was pressed with.
  */
-export interface GridModifiers {
+interface GridModifiers {
     /** Whether Control or Command was held, which turns Home and End into whole-table moves. */
     jumpToEnd: boolean;
 }

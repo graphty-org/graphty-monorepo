@@ -85,8 +85,61 @@
   legend that nothing else on this screen says. The categorical cap of five plus Other does not fire: there
   are four groups. No state rows: none are drawn in this frame. Completeness is the export's obligation, and
   the export legend is drawn on its own board.
--->
+  FORMAT FIX, 1.9: the line below sat OUTSIDE the comment behind a stray terminator and rendered as loose text
+  at the top of the body. Nothing is deleted -- the duplicate terminator is, so the sentence is comment again.
   and bridge scores (betweenness, normalized) were computed from the real edge list.
+
+  REVISION 1.9 (SECTIONS-1.9 D1, D3, D5, D11; work list 5.16 Provider and 5.17 Console; VOCAB 15.1 and 15.2).
+  THIS BOARD IS RE-SCOPED, NOT RETIRED. Its 1.8 premise was a door drawn open: the Console as a section whose
+  whole content lived in a 280 pop-out, with the pop-out drawn so its anchor could be measured. D1 withdraws
+  the licence for a section that is only a door -- a chevron that reveals nothing is a defect -- so under D11
+  the board is re-aimed at what replaces it. It is now THE DRAWING OF THE EXPANDED CONSOLE WITH ITS GEAR, and
+  of the expanded Provider beside it, which is what D11's table asks of this board in as many words: "both
+  sections expanded". The pop-out is withdrawn; its contents are the Console section's resident rows now, and
+  its anchor arithmetic is kept at the foot of the file as the measured record of the surface 1.9 removes.
+  PROVIDER, expanded (5.16). Resident: the RT-1 model field reading "claude-sonnet-5", drawn with no field
+  glyph because the value names the model and "model" has no entry in the closed field register, so the word
+  rides in the field's title -- the spelling GroupProfilePopout already uses for its Method field; and the RT-5
+  Voice input switch, on, with its full title "Voice input. Also used for push-to-talk in VR and AR." That
+  switch is floor item 6 and this board is where it is DRAWN rather than named behind a door. The green
+  Connected dot stays in the trailing slot beside the gear, because it is the section's own state and not a
+  precis of the rows (D5); the model name that 1.8 put there is deleted, because the resident row prints it.
+  Behind the gear: the provider select, the API key and the Base URL / max tokens / temperature trio, with ONE
+  destination -- Settings > AI, whose provider accordion already files the trio under an Advanced row -- so the
+  trio gets no second home in the panel (Rule 9). The gear is dimmed: nothing behind it deviates, and it keeps
+  the chrome ink of a navigation control because it reaches a pane rather than an option set.
+  CONSOLE, expanded (5.17). Resident: the last two transcript lines, which are the tail of the same block the
+  pop-out drew, and the RT-7 input row with its ghost completion and Run script, keeping the focus ring because
+  Shift+backtick is what opened and focused it. Behind the gear: console preferences only -- clear transcript,
+  copy transcript, transcript length, the completion-hint toggle -- and that gear pop-out is NOT drawn here;
+  were it drawn it would be a 280 in the panel lane at left 336, anchored to the section header, which is the
+  same lane and the same 8 px constant the withdrawn pop-out used. The Coming tag stays in the trailing slot,
+  because the capability is unshipped and the rows are now on the surface rather than behind a door. The pin
+  stays with the section (E2's closed set of four), where it now means the section stays open. The count
+  "3 commands" is DELETED from the header while the section is open, on this board's own 1.8 ruling that where
+  the transcript is drawn "the transcript itself is the report there" (D5, and Schema's precedent in 5.8);
+  AiPanel keeps it as the closed mark. Measured, both spellings: with the count the header would use 245.3 px of
+  the 255 px band and leave under 10 px between the two groups; without it the header measures 174 px.
+  MEASURED, and one region overflows. The column still closes exactly: 84 + 524 + 6 + 97 + 6 + 117 + 6 + 24 =
+  864. Provider is 1 + 32 + 32 + 24 + 8 = 97; Console is 1 + 32 + 44 + 32 + 8 = 117, where the 44 px transcript
+  block is two mono lines at 11/1.3 plus 6 px padding and its 1 px border and is the one block in either
+  section that is not on the 32n rhythm. The two blocks grew from 66 px to 214 px, so the conversation, which
+  takes the slack, falls from 672 px to 524 px while still carrying its 661 px of transcript: THE LOG REGION
+  OVERFLOWS BY 137 px. Nothing is deleted to fit -- all three exchanges and all four run records stay in the
+  file -- and the log's anchor is flipped from flex-start to flex-end so the 137 px that scroll off go off the
+  TOP, which is where a chat log scrolled to its newest turn puts them. Measured with the anchor flipped: what
+  sits above the region's top edge is the first user turn and the upper 98 px of the first answer, and the last
+  reading runs 482 to 608, whole. That flip is not a reversal of 1.8's top anchor but the case 1.8 did not
+  reach: 1.8 chose the top anchor to decide where SLACK sits, and there is
+  no slack left here, so the anchor now decides only which end is clipped. Keeping the top anchor would clip
+  the newest answer, and that answer is the reading -- floor item 1, on screen and in full -- so the flip is
+  what holds the floor. The panel itself does not scroll and no other region overflows.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Console's Coming tag moves from the trailing group to sit beside the NAME, which is the set's arrangement
+  for a tag plus a slot: the tag qualifies the name, and the trailing slot belongs to the section's mark
+  when it is closed and to its verbs and gear when it is open (D5). The pin and the gear keep the slot.
 -->
 <div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -240,7 +293,19 @@
                spent it on one exchange and 380 px of void would prove nothing: slack under the last block of a
                column is headroom, slack between two drawn sections is a fault, and this column has drawn
                sections underneath. Three exchanges and four tool calls fill 661 of the 672, so the 11 px that
-               remain sit directly above the Provider divider and read as its padding. -->
+               remain sit directly above the Provider divider and read as its padding.
+               REVISION 1.9 RE-CUTS THIS COLUMN. Provider and Console are expanded sections now, not door rows,
+               so the two 33 px blocks become 97 and 117 and the conversation gives up the difference:
+               84 + 524 + 6 + 97 + 6 + 117 + 6 + 24 = 864, the same closing number by a different route.
+               Positions, measured: conversation 84 to 608; Provider 614 to 711 (divider 614, header 615 to 647,
+               model row 647 to 679, Voice input row 679 to 703, 8 px pad); Console 717 to 834 (divider 717,
+               header 718 to 750, transcript 750 to 794, input row 794 to 826, 8 px pad); composer 840 to 864.
+               THE LOG OVERFLOWS BY 137 px -- 661 px of transcript in 524 px of region, both measured in the
+               browser -- and the paragraph in the board comment above says why nothing was deleted to fix it and
+               why the anchor flipped to flex-end instead. With the flip the last reading sits 482 to 608, whole,
+               and the 137 px that go are the first user turn and the top 98 px of the first answer. Row types are unchanged except that the two RT-8 headers are now OPEN section
+               headers carrying their verbs and gears in the trailing slot rather than a door's state mark, and
+               the pop-out's RT-6 transcript and RT-7 input row are resident rows of the Console section. -->
           <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px 8px 12px 16px; overflow: hidden; box-sizing: border-box;">
 
             <!-- TIER 1: the conversation (5.3 AI). Top-anchored: the log grows down towards the composer and the
@@ -249,7 +314,7 @@
                  the attribution. "Assistant" stays on each of the three answering turns, because a transcript
                  attributes turns rather than restating one fact -- Rule 9 raises a repeated word out of a set of
                  rows that describe one thing, and these are three different turns. -->
-            <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: flex-start; gap: 10px; overflow: hidden;">
+            <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; overflow: hidden;">
 
               <!-- EXCHANGE 1 -->
               <div style="display: flex; flex-direction: column; align-items: flex-end;">
@@ -359,17 +424,74 @@
                  panel's lane and anchored to this row: the provider select, the model select, the Voice input
                  switch, and the row that opens Settings > AI for keys.
                  The header gear above stays and is not a second door on the same thing: the gear opens Settings >
-                 AI, which is tier 3, and this door opens tier 2, so they are two destinations. -->
+                 AI, which is tier 3, and this door opens tier 2, so they are two destinations.
+                 REVISION 1.9 (5.16, D1, D3, D5). THE DOOR IS GONE AND THE SECTION IS DRAWN EXPANDED. What was
+                 one header row is now a header plus two resident rows plus a gear, which is the owner's own
+                 shape -- a couple of locally common controls, an advanced gear for the rest. Of the readers who
+                 open Provider, the model and the microphone are what they touch; the keys and the trio are what
+                 the gear is for.
+                 ROW 1, RT-1 single field at 224 px with an empty 24 px trailing slot so the 16 + 224 + 8 + 24 +
+                 8 grid holds. No field glyph: "model" has no entry in the closed field register of VOCAB 11 and
+                 a concept with no entry keeps its word, so the value names the field and the word "Model" lives
+                 in its title -- the spelling GroupProfilePopout uses for Method. D3 is what lets it draw at all:
+                 claude-sonnet-5 is the provider's own default model, and Rule 7a no longer reaches the two or
+                 three locally common rows of a section.
+                 ROW 2, RT-5 toggle at the 24 px pitch, checked. It is drawn alone, which RT-5's "never alone"
+                 sub-rule would rather it were not; the sub-rule's remedy is to fold a lone boolean into the
+                 trailing slot of the row it modifies, and Voice input modifies neither the model field above it
+                 nor the composer four rows below, so it stays a row. 5.16 names it a resident RT-5 switch and
+                 floor item 6 wants the capability named in full on the surface: this board is where it is drawn
+                 rather than relocated, and its title carries the whole sentence, "Voice input. Also used for
+                 push-to-talk in VR and AR."
+                 TRAILING SLOT, open (D5): the section's gear, and the green Connected dot which stays because
+                 it is the section's own state -- 5.16 overturns 1.8's Rule 8 deletion of the dot, on the
+                 ground that the status bar's "AI: Anthropic ready" is a different region's copy of a different
+                 fact. The model name leaves the slot, because the resident row prints it. The word "connected"
+                 stays deleted and rides in the dot's title.
+                 THE GEAR holds the provider select, the API key and the Base URL / max tokens / temperature
+                 trio, and it has ONE destination: Settings > AI, whose provider accordion already files the
+                 trio under an Advanced row, so nothing is duplicated into a panel pop-out (Rule 9). It is
+                 dimmed, because nothing behind it deviates and because a gear that reaches a pane keeps the
+                 chrome ink of a navigation control. NOTE FOR THE PANEL'S OWNER, outside this work list: that
+                 makes this gear and the panel title row's Settings gear two routes to one pane. 1.8 defended
+                 them as "two destinations" and 1.9 cannot, because the tier 2 pop-out they distinguished no
+                 longer exists; one of the two is now redundant and the panel header row is not this pass's to
+                 cut.
+                 MEASURED: header 32, model row 32, Voice input row 24, 8 px pad, 1 px divider = 97 px. The
+                 header uses 105 px of the 255 px band (16 + 4 + 49.4 name, then a 6 px dot, a 6 px gap and the
+                 24 px gear ending at x 320). -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Provider. Anthropic, claude-sonnet-5. Voice input is on" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
-                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #d5d7da;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px;">
+                <div title="Collapse Provider. Anthropic, connected" style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Provider</span>
                 </div>
-                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">claude-sonnet-5</span>
+                <div style="display: flex; align-items: center; gap: 6px; flex: 0 0 auto;">
+                  <div title="Connected" style="width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: #61d095;"></div>
+                  <div title="Provider keys and settings. Opens Settings &gt; AI" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display: flex; flex-direction: column; padding-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+                  <div title="Model: claude-sonnet-5, from Anthropic" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; cursor: pointer; box-sizing: border-box;">
+                    <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">claude-sonnet-5</span>
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                  <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
+                </div>
+
+                <div title="Voice input. Also used for push-to-talk in VR and AR." style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; border-radius: 2px; background: #4a7ee8; display: flex; align-items: center; justify-content: center; box-sizing: border-box;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline></svg>
+                  </div>
+                  <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Voice input</span>
+                </div>
               </div>
             </div>
 
@@ -386,18 +508,73 @@
                  count is the one listed stub form a surface with no settings can honestly carry.
                  The Coming tag keeps the trailing slot: the console is new work (5.8) and an unshipped capability
                  is named on the surface, never only in a title. The tag is not repeated in the pop-out header
-                 8 px to its right, and neither is the count -- the transcript itself is the report there. -->
+                 8 px to its right, and neither is the count -- the transcript itself is the report there.
+                 REVISION 1.9 (5.17, D1, D5, D11). THE POP-OUT IS WITHDRAWN AND THIS IS THE SECTION EXPANDED --
+                 the change this whole board is now the drawing of. A section whose entire content sat behind a
+                 door is the defect D1 names, and the console is the clearest case of it in the set: it is a
+                 working surface, not a settings set, and 1.8's own note conceded it should be "resident and
+                 expanded" whenever no provider is configured. Only the configured state hid it, and the width
+                 argument was never true -- the widest console line measures 219 px inside the 256 px band.
+                 RESIDENT, exactly what 5.17 names and nothing more: the LAST TWO TRANSCRIPT LINES, which are
+                 the tail of the same monospace block the pop-out drew, bottom-anchored the way a terminal draws
+                 itself; and the RT-7 input row, the one-line input over the same command registry the assistant
+                 calls, its completion drawn as ghost text after the typed characters, with Run script beside it
+                 at its full text (floor item 4). The input keeps its focus ring because Shift+backtick is what
+                 opened and focused this surface, and that binding still lives in the input's own title (DEF-1)
+                 rather than in the section header. The four transcript lines above the tail are one scroll away
+                 in the block, not deleted.
+                 TRAILING SLOT, open (D5): the Coming tag, the pin and the gear, ending at x 320 on the 28 px
+                 pitch. The Coming tag stays because the capability is unshipped and now has ROWS on the
+                 surface, so a reader who can see an input needs to be told it does not run yet. The pin stays
+                 with the section, which is 5.17 read literally -- E2's closed set of four keeps the console --
+                 and on a section it means the section stays open rather than that a transient stays put.
+                 THE COUNT "3 commands" IS DELETED WHILE THE SECTION IS OPEN, on this board's own 1.8 ruling one
+                 paragraph above: where the transcript is drawn, "the transcript itself is the report there".
+                 That is D5's rule -- a mark the rows repeat dies the moment the rows are visible -- and Schema
+                 does the same thing with "3 node types, 7 edge types" (5.8). AiPanel, where the section is
+                 closed, keeps the count as its mark. Measured both ways in the browser: with the count the
+                 header would use 245.3 px of the 255 px band -- the name group is 68 px, the count measures
+                 67.3 px where AiPanel draws it, and the tag, pin and gear group is 106 px -- and
+                 without it the 174 px this board draws.
+                 BEHIND THE GEAR, console preferences only: clear transcript, copy transcript, transcript length
+                 and the completion-hint toggle. The gear pop-out is NOT drawn on this board -- it would be a
+                 280 in the panel lane at left 336, 8 px clear of the panel's 328 edge, anchored to this section
+                 header -- and the gear draws dimmed because nothing behind it deviates.
+                 MEASURED: divider 1, header 32, transcript block 44, input row 32, 8 px pad = 117 px. The 44 px
+                 is two mono lines at 11/1.3 (28.6) plus a 1 px inter-line gap, 6 px of vertical padding and the
+                 block's 1 px border, and it is the one block in either section off the 32n rhythm. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Console. 3 commands run in this session" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; border-radius: 4px; background: #28364e; cursor: pointer;">
-                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px;">
+                <div title="Collapse Console. 3 commands run in this session" style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;">
                   <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Console</span>
-                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">3 commands</span>
+                  <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
                 </div>
-                <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
+                <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                  <div title="Pin the Console open" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line></svg>
+                  </div>
+                  <div title="Console preferences" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display: flex; flex-direction: column; padding-bottom: 8px;">
+                <div style="display: flex; flex-direction: column; justify-content: flex-end; gap: 1px; height: 44px; padding: 6px 8px; border-radius: 4px; background: #161b22; border: 1px solid #374047; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1.3; overflow: hidden; box-sizing: border-box;">
+                  <span style="color: #d5d7da; white-space: pre; overflow: hidden; text-overflow: ellipsis;">&gt; runAlgorithm betweenness</span>
+                  <span style="color: #7a828e; white-space: pre; overflow: hidden; text-overflow: ellipsis;">  top The_Vet 0.35</span>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 4px; height: 32px;">
+                  <div title="Console (Shift+`)" style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-shadow: 0 0 0 1px #5b8ff9; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; box-sizing: border-box; white-space: nowrap; overflow: hidden;">
+                    <span style="color: #d5d7da;">zoomToN</span><span style="color: #5f6873;">odes &lt;ids&gt;</span>
+                  </div>
+                  <div style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; height: 24px; padding: 0 8px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Run script</div>
+                </div>
               </div>
             </div>
 
@@ -542,6 +719,11 @@
                transient surface is not on TB-3's ladder and does not push a permanent overlay anywhere; the rule
                that governs it is 6.11's clearance clause, which protects the legend alone and says in as many words
                that a pop-out may cover the toolbar and the minimap.
+               REVISION 1.9: THERE IS NO FOURTH OBJECT ANY MORE. The Console pop-out is withdrawn under D1 and
+               D11 -- its contents are resident rows of the Console section in the panel now -- so nothing
+               transient sits in this band, the minimap's top 70 px are uncovered, and the three permanent
+               overlays measured above are the whole of it. The clearance numbers are kept because they are the
+               measured record of what the surface cleared while it existed.
                TB-2's shadow: the bar carries the tooltip shadow token 0 8px 24px rgba(0,0,0,.45) and is the only
                canvas overlay that does, because lift is the mark of an instrument. The minimap and the legend stay
                flat at radius 4 and read as content boxes. The 7px radius and the shadow are a deliberate two-value
@@ -891,7 +1073,9 @@
     <div style="display: none; align-items: center; gap: 8px;"></div>
   </div>
 
-  <!-- CONSOLE POP-OUT (6.11 tier 3a). This is the surface the board exists to draw: the Console door row, which
+  <!-- CONSOLE POP-OUT, WITHDRAWN IN 1.9 AND KEPT AS THE RECORD OF WHAT WAS REMOVED (see the note at the foot of
+       this block; the surface itself is no longer drawn).
+       6.11 tier 3a. This was the surface the board existed to draw: the Console door row, which
        D6 creates, opened, with its anchor measurable rather than asserted.
 
        ANCHOR, every number measured on this board.
@@ -956,50 +1140,26 @@
        the console lines carry the answers in their script form. The widest line is 30 characters, about 198 px
        inside the 236 px content band, which is the measurement that says width was never this door's argument.
        Actions inside a pop-out are resident, not hover-revealed: at this width there is room, and floor item 4
-       wants Run script's full text. -->
-  <div style="position: absolute; left: 336px; top: 644px; width: 280px; height: 190px; display: flex; flex-direction: column; background: #1f2428; border: 1px solid #48525c; border-radius: 4px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; z-index: 8;">
+       wants Run script's full text.
 
-    <!-- the caret, on the leading edge, clamped 12 px inside the pop-out's own corners -->
-    <div style="position: absolute; left: -6px; top: 166px; width: 6px; height: 12px; overflow: hidden;">
-      <div style="position: absolute; left: 3px; top: 1px; width: 10px; height: 10px; transform: rotate(45deg); background: #1f2428; border-left: 1px solid #48525c; border-bottom: 1px solid #48525c; box-sizing: border-box;"></div>
-    </div>
-
-    <!-- header, 32: the member's own name, its context clause dimmed beside it, the earned pin, the close X.
-         No Coming tag here: the door row 8 px to the left already carries it and Rule 8 forbids the second copy.
-         No binding in the header (DEF-1); Shift+backtick lives in the input's own title below. -->
-    <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 4px 0 12px; box-sizing: border-box;">
-      <span style="flex: 0 0 auto; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Console</span>
-      <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">no provider needed</span>
-      <div title="Pin this open" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line></svg>
-      </div>
-      <div title="Close (Esc)" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
-      </div>
-    </div>
-
-    <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 12px; box-sizing: border-box;">
-      <!-- RT-6: the user's own commands and the answers they returned, bottom-anchored against the input the way
-           every terminal draws them, which is the one place on this surface where a bottom anchor is right. -->
-      <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 1px; padding: 6px 8px; border-radius: 4px; background: #161b22; border: 1px solid #374047; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1.3; overflow: hidden; box-sizing: border-box;">
-        <span style="color: #d5d7da; white-space: pre; overflow: hidden; text-overflow: ellipsis;">&gt; findNodes indoorOutdoor=outdoor</span>
-        <span style="color: #7a828e; white-space: pre; overflow: hidden; text-overflow: ellipsis;">  5 nodes</span>
-        <span style="color: #d5d7da; white-space: pre; overflow: hidden; text-overflow: ellipsis;">&gt; runAlgorithm louvain res=1.0</span>
-        <span style="color: #7a828e; white-space: pre; overflow: hidden; text-overflow: ellipsis;">  4 groups, modularity 0.447</span>
-        <span style="color: #d5d7da; white-space: pre; overflow: hidden; text-overflow: ellipsis;">&gt; runAlgorithm betweenness</span>
-        <span style="color: #7a828e; white-space: pre; overflow: hidden; text-overflow: ellipsis;">  top The_Vet 0.35</span>
-      </div>
-      <!-- RT-7: the input carries the focus ring, because Shift+backtick opened this surface and focused it.
-           The completion is ghost text after the typed characters, which is 5.3's "completion and inline help"
-           drawn in the field rather than as a second line of explanation. -->
-      <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 4px;">
-        <div title="Console (Shift+`)" style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-shadow: 0 0 0 1px #5b8ff9; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; box-sizing: border-box; white-space: nowrap; overflow: hidden;">
-          <span style="color: #d5d7da;">zoomToN</span><span style="color: #5f6873;">odes &lt;ids&gt;</span>
-        </div>
-        <div style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; height: 24px; padding: 0 8px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Run script</div>
-      </div>
-    </div>
-  </div>
+       REVISION 1.9 -- THIS SURFACE IS WITHDRAWN, AND NOTHING ABOVE IS DELETED.
+       SECTIONS-1.9 D1 ends the section that is only a door, and 5.17 rules that the console's contents are
+       resident rows: the last two transcript lines and the one-line input with its completion hint and Run
+       script are drawn in the panel now, in the Console section 8 px to the left of where this pop-out stood,
+       with console preferences behind that section's gear. D11 re-scopes this board to draw that expanded
+       section rather than this pop-out, so the 280 x 190 surface, its caret, its 32 px header and its close X
+       are all gone from the drawing.
+       WHAT SURVIVES THE MOVE: the transcript's monospace block and its bottom anchor; the ghost completion in
+       the input; Run script at its full text; the focus ring, because Shift+backtick still opens and focuses
+       the console and DEF-1 still keeps that binding in the input's own title; and the pin, which E2 gives to
+       the console and which now sits in the section header. The pop-out header's dimmed context clause, "no
+       provider needed", has no slot on a 255 px section header beside the Coming tag, the pin and the gear, so
+       it moves into the section header's title rather than being dropped.
+       WHY THE ARITHMETIC ABOVE IS KEPT: it is the measured record of a surface this revision removes, and it
+       is the only place in the set where B1's order of surrender is walked far enough to reach the flip. A
+       later pass that proposes any panel-lane pop-out at this anchor can read what it would cost here. The
+       clearance numbers no longer describe anything drawn: with the surface gone the minimap's top 70 px are
+       uncovered and the canvas bottom band holds three permanent overlays and nothing transient. -->
 </div>
 </x-dc>
 </body>

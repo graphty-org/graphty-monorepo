@@ -30,6 +30,25 @@
   section "1.3 additions".
   Palette: canvas #161b22, panels #1f2428, inputs #2a3035, hover #374047, border #48525c,
   text #d5d7da, dimmed #7a828e, accent #4a7ee8, selected #28364e. See VOCAB.md.
+
+  REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8). One section changes and no drawn pixel moves. The
+  inspector's Schema row stops being a permanent door and becomes an ordinary collapsed section: the chevron
+  opens IN PLACE onto the node-type rows with their counts (cat 17, human 2, dog 1) and the edge-type rows with
+  theirs, capped at five with an "N more" row, plus the RT-7 verb row Filter to type / Select all of type, with
+  only per-type completeness and the edges-by-type-pair matrix left behind a gear that keeps its 480 (D7).
+  This board is already in the compliant form 5.8 names as the target -- the mark packed after the name, the
+  trailing group empty because these headers draw at rest -- so the edit is to what the chevron means and not
+  to what it draws.
+  The keyboard pane is untouched and gains no binding. 1.9 opens sections that a chevron already opened, so it
+  adds no destination that needs one, which is the same finding the doors made when they were added.
+  Measured after the edit: the inspector's 800px content region uses 483px, 317px of headroom, the Settings
+  overlay's shortcut table is unchanged, and no clipped region on this board overflows.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  The empty library sections lose the chevron they could not open: Notes. RT-8's empty form is a
+  dimmed name, its resident "+" and an EMPTY 16px leading slot, and D1 turns that snippet into a rule -- a
+  chevron renders only where it opens onto resident rows. The chevron returns with the first saved note.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -215,9 +234,7 @@
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; padding-left: 4px;">Notes</span>
                 </div>
                 <div title="Note (N)" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
@@ -451,7 +468,21 @@
                  the pop-out's node type table and a tooltip inside a tooltip is not a second home. The trailing slot
                  reads "measuring..." instead of the counts while SchemaExtractor is still running; drawn ready here.
                  Floor check: nothing on the 6.10 floor goes behind this door -- the reading, the counts, the degree
-                 distribution and every id stay resident in this column. -->
+                 distribution and every id stay resident in this column.
+                 REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8). The permanent-door licence is WITHDRAWN
+                 and the POP-13b sentence above is struck: there is no permanently-closed chevron, and a chevron
+                 that reveals nothing is a defect. This is an ordinary collapsed section, closed because the
+                 section is closed, and it opens IN PLACE onto the node-type rows with their counts (cat 17,
+                 human 2, dog 1) and the edge-type rows with their counts, capped at five with an "N more" row,
+                 plus the RT-7 verb row Filter to type / Select all of type. What leaves is a gear on the open
+                 section holding per-type completeness and the edges-by-type-pair matrix, and that gear keeps the
+                 480 (D7) because a two-dimensional table cannot be drawn honestly in the 256px band.
+                 No drawn pixel moves. 5.8 settles the board divergence toward the five boards that already draw
+                 the live collapsed section, and this row is already in that form: the closed chevron, the
+                 primary name, the mark packed after it, and an empty trailing group because every header in this
+                 column draws at rest and only the hovered Most connected reveals its verbs. The mark is the D5
+                 CLOSED-state mark now rather than a door stub, deleted the moment the section is open and the
+                 type rows repeat it (Rule 8), and it still reads "measuring..." while SchemaExtractor runs. -->
             <div style="display: flex; flex-direction: column;"><div style="height: 1px; background: #495057;"></div><div title="Schema. 3 node types, 7 edge types" style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;"><div style="display: flex; align-items: center; gap: 4px;"><div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg></div><span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Schema</span><span style="font-size: 11px; line-height: 1.2; color: #7a828e;">3 node types, 7 edge types</span></div><div style="display: flex; gap: 4px;"></div></div></div>
             <div style="display: flex; flex-direction: column;"><div style="height: 1px; background: #495057;"></div><div style="display: flex; align-items: center; gap: 8px; height: 32px; font-size: 11px; line-height: 1.2; color: #7a828e;"><span style="color: #5b8ff9; cursor: pointer;">Add a case note</span></div></div>
           </div>
@@ -507,7 +538,12 @@
                    1.7 refusals, recorded here so a later pass does not add them. (a) The seven 1.7 pop-outs -- Time
                    slider settings, Validation report, Group profile, Run record, Schema, All statistics, Filter
                    expression -- are reachable by their opener, by a home-panel row and by the command palette, and
-                   carry NO key binding, so none of them gets a row in this table (POP-13d). (b) The canvas toolbar's
+                   carry NO key binding, so none of them gets a row in this table (POP-13d). REVISION 1.9 narrows
+                   that list without changing the refusal: Schema, All statistics, Validation report and Filter
+                   expression are no longer pop-outs at all but ordinary sections whose chevrons open in place
+                   (SECTIONS-1.9 D1), and what is left behind a gear on each of them is reached the same three
+                   ways. A section that a chevron already opened needs no new binding, so this table still gains
+                   no row. (b) The canvas toolbar's
                    visibility toggle has no binding, deliberately (TB-8): M and L are taken, and the toolbar is the
                    only canvas overlay whose toggle can hide its own front door, so the way back is the palette row
                    "Show canvas toolbar" rather than a key. There is no Toolbar row here. (c) "Select (V)" and

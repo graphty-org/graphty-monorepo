@@ -140,6 +140,36 @@
   NEW ICONS: none. NEW WORDS: none beyond the two pane group names, "How much is on screen" and "Look and
   names", which are this pane's own headers in the same class as Performance's "Thresholds and loading".
   Every switch label, sub-line and option name is copied from spec 5.3 Settings word for word.
+
+  REVISION 1.9 (SECTIONS-1.9 D1, D4, D5, D7, D10, work-list 5.8 and 5.13). Two sections are named and neither
+  is redrawn, so every number above stands as published.
+  (1) Schema, in the inspector: already the ordinary live collapsed section that 5.8 names as the target for
+  the twenty-one boards that drew it as a permanent door. 1.9 only says what its chevron opens onto -- the
+  node-type rows with their counts (cat 17, dog 1, human 2) and the edge-type rows with theirs, capped at five
+  with an "N more" row, plus Filter to type / Select all of type -- with per-type completeness and the
+  edges-by-type-pair matrix behind a gear that keeps the 480 (D7).
+  (2) Export video, in the preview: SECTIONS-1.9 section 4 names this board as the exemplar of the inline form
+  and 5.13 makes that form the DEFAULT form rather than a hatch-on one. The four rows drawn here are what the
+  section draws whenever it is open, and it carries no gear, because no video quality group ships.
+  D10 is what keeps this board's premise intact and it is unchanged: the hatch governs what is behind the GEAR,
+  the chevron governs what is behind the CHEVRON, and sections still default closed (D4). Nothing new inlines
+  because of 1.9 -- Export video was already inline here and has no gear to unfold -- so the arithmetic above is
+  untouched: 28 resident rows, 839px in an 800px content area, a 39px overflow, and the thumb at 95 per cent of
+  its track. The two-lists finding of E4 stands with it: this mode is allowed to scroll and the default mode is
+  not.
+  Measured after the edit: the preview frame clips at 676px of region against 875px of content, which is the
+  preview's own edge and is what its caption and its 95-per-cent thumb already report; the inspector's 800px
+  content region uses 538px with 262px of headroom; the panel behind the scrim is unchanged at 155px.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Schema is drawn CLOSED here, so its trailing slot belongs to its state mark alone and "Export schema
+  JSON" is deleted from this header. D5 gives a closed section's slot to its mark and an open one's to its
+  verbs and its gear; the set drew the verb on ten closed Schema headers and left it off fifteen. Main draws
+  the open form with the verb in the slot, so nothing became unreachable, and no row changes height.
+  The empty library sections lose the chevron they could not open: Reports. RT-8's empty form is a
+  dimmed name, its resident "+" and an EMPTY 16px leading slot, and D1 turns that snippet into a rule -- a
+  chevron renders only where it opens onto resident rows. The chevron returns with the first saved report configuration.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -539,7 +569,6 @@
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Counts</span>
                 </div>
-                <div style="display: flex; gap: 4px;"></div>
               </div>
             </div>
 
@@ -617,7 +646,16 @@
               </div>
             </div>
 
-            <!-- Schema, collapsed (5.4): open rows are node types with counts (cat 17, dog 1, human 2), edge types with counts (interactionType), the type-pair list, and Filter to type, Select all of type, Export schema JSON -->
+            <!-- Schema, collapsed and live (5.4). REVISION 1.9: this is the compliant form, and SECTIONS-1.9 5.8
+                 names it as the target the other twenty-one boards are brought to, so nothing here moves. Open, its
+                 rows are the node types with their counts (cat 17, dog 1, human 2) and the edge types with their
+                 counts (interactionType), capped at five with an "N more" row, plus the RT-7 verb row Filter to type /
+                 Select all of type. What leaves is a gear on the OPEN section holding per-type completeness and the
+                 edges-by-type-pair matrix, and that gear keeps the 480 (D7) because a two-dimensional table cannot be
+                 drawn honestly in the 256px band. Closed here, so the header carries the D5 closed-state mark
+                 "3 node types, 7 edge types" beside its name and Export schema JSON in the trailing slot; the mark is
+                 deleted the moment the type rows are drawn and repeat it (Rule 8), and it reads "measuring..." until
+                 SchemaExtractor finishes. -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Schema. 3 node types, 7 edge types" style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
@@ -629,11 +667,6 @@
                   <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">3 node types, 7 edge types</span>
                 </div>
                 <!-- IK-6: the same hover-revealed export icon, drawn revealed; its menu holds "Export schema JSON". -->
-                <div style="display: flex; gap: 4px;">
-                  <div title="Export schema JSON" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -650,7 +683,6 @@
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Attributes</span>
                   <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">11</span>
                 </div>
-                <div style="display: flex; gap: 4px;"></div>
               </div>
             </div>
 
@@ -1182,7 +1214,21 @@
                              down form, the stub is gone because the three values it named are now the two rows
                              under it, and the pop-out's own header and Close X are gone with the pop-out. The
                              estimate rides on the RT-7 row's left, where floor item 4 wants it, and Record keeps
-                             its word because the register has no glyph for it. -->
+                             its word because the register has no glyph for it.
+                             REVISION 1.9 (SECTIONS-1.9 5.13, and section 4, which names this board as the
+                             exemplar). Nothing here is redrawn, and its standing changes: these four rows are no
+                             longer the hatch-on form of a door, they are what the section always draws when it
+                             is open. Duration | Camera as one RT-1 pair, Video format, and the
+                             estimate-plus-Record row are the resident rows; the section carries NO gear at all,
+                             because the video twin of the Image quality group -- scope, background, resolution,
+                             frame rate -- does not ship, and D1 permits that: a gear is an addition, never an
+                             obligation. The stub "10 s, Orbit once, WebM" that DECISIONS-1.8 D1 specified
+                             survives as the D5 CLOSED-state mark and is deleted here, where the rows say it
+                             (Rule 8).
+                             What this does NOT change: the chevron still defaults CLOSED on the boards that draw
+                             the panel at rest (D4), so Present is still 10 rows there and 13 with this section
+                             open. This board draws it open because the hatch is on and the panel is drawn in
+                             that mode, which is the board's premise and is unchanged. -->
                         <div style="display: flex; flex-direction: column;">
                           <div style="height: 1px; background: #495057;"></div>
                           <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px;">
@@ -1230,9 +1276,7 @@
                           <div style="height: 1px; background: #495057;"></div>
                           <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                             <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                              <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                              </div>
+                              <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                               <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Reports</span>
                             </div>
                             <div style="display: flex; gap: 4px; flex: 0 0 auto;">

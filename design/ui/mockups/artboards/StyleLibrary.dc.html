@@ -104,6 +104,55 @@
   of the row that owns them; both one click from that row.
   Frozen sizes: rail 48, top bar 40, activity panel 280, inspector 280, status bar 24. Canvas 832 by 836.
   Shell from SHELL-SKELETON.html. Palette in VOCAB.md. Row anatomy in VOCAB.md sections 11 and 12.
+  REVISION 1.9 (SECTIONS-1.9.md, VOCAB section 15). D1 withdraws the licence a section had to be nothing
+  but a door: every section expands in place, a chevron renders only where it opens onto resident rows,
+  and a gear is an ADDITION to a section that already draws content, never the section itself. The door
+  test keeps its shape and changes one word -- clause (a)'s denominator is now LOCAL: of the readers who
+  open THIS section, is this among the two or three things they commonly adjust or consult (D2).
+  5.1 PARAMETERS. The section expands in place, drawn from VOCAB 15.1 verbatim: the RT-1 pair Edge length
+  30 | Pull to centre -1.2, and the bound Edge weight field below it reading "value", which is this file's own
+  Weight column (FIXTURES 0). All three sit at their shipped defaults -- NGraphLayoutEngine.ts declares
+  springLength .default(30) and gravity .default(-1.2), and Edge weight defaults to the import column --
+  and they are drawn anyway, which is D3: Rule 7a no longer reaches the two or three locally common rows
+  of a section, because a section whose rows 7a all deletes is a chevron over nothing, which D1 forbids.
+  No reset x on any of them, since there is nothing to reset; each gains one the moment it deviates. The
+  six engine internals stay exactly where 6.2 and 1.8's D2 put them, behind the gear that was already
+  here: Start from current arrangement, Stiffness (springCoefficient), Speed vs accuracy (theta), Damping
+  (dragCoefficient), Time step (timeStep), Random seed (seed). Three values resident, six behind the gear,
+  which is the product owner's own sentence. The gear keeps its "Layout parameters" title and A6's two
+  inks, dimmed because nothing behind it deviates, and it is now an addition to a section rather than the
+  section itself. Pull to centre takes 1.9's one new field glyph, four chevrons pointing inward at a
+  centre dot, owed to REGISTER-1.5 section 1.
+  This board is section 4's exemplar and was already one row short of it: it drew the section open with
+  the Edge weight row resident and the gear beside it, and what it lacked was the pair above. The 1.8 note
+  in the section comment below -- "this board is right where StylePanel is wrong", because Rule 7a deletes
+  two engine defaults -- is settled the other way by D3, and settled for both boards at once: the pair is
+  drawn on all five Style boards.
+  5.2 ANIMATION, AND THE ONE THING THIS BOARD CANNOT DRAW. The header drew no chevron at all -- an empty
+  16px leading slot -- and no rows, so its gear was the only route in, which is D1's defect in its purest
+  form. It gains a real chevron in the CLOSED form and loses the gear, because D5 gives a closed header's
+  trailing slot to its state mark and 5.2 says no mark is needed while both values sit at their defaults;
+  the dimmed name says it. Behind the chevron are the two rows 5.2 names, Transitions (on) and Reduce
+  motion (off). They are not DRAWN here, and the reason is measured rather than asserted: with Animation
+  open as well as Parameters this column renders 834px of content and a scrollHeight of 850 against the
+  region's 800, which is 50px past the frame, with the closing hairline crushed from 1px to 0 by flex
+  shrink -- the same symptom the overflow paragraph above records and fixed once already. The other four
+  Style boards draw Animation open; this one, the tightest column in the set at 283px of Styles library,
+  draws it closed. Section 7 asks for the overflow to be named rather than for content to be truncated,
+  and this is that number.
+  D4, AND WHAT THIS BOARD DRAWS. Nothing here opens a live collapsed section: each of these was a DOOR,
+  and a door has no open state to preserve. Every one of them still DEFAULTS closed in the product, so
+  6.9's skyline promise is untouched -- eight collapsed sections are still 8 x 33 = 264px -- and the new
+  rows cost a reader nothing until they open the section. This board draws them open because section 4 of
+  the record settles 5.1's board-to-board divergence in StyleLibrary's favour and moves the other four
+  Style boards to its open form.
+  MEASURED, by rendering the board and reading the boxes. Parameters goes 73 to 105 (1 + 32 + 64 + 8: the
+  Edge length / Pull to centre pair is ONE row, which is why VOCAB 15.1's "three rows is 137" counts three
+  VALUES and its own snippet measures two rows), so the section stack goes 747 to 779 -- Layers 147,
+  Arrangement 137, Parameters 105, Styles 283, Canvas 73, Animation 33, closing hairline 1 -- and with the
+  region's 8px top and 8px bottom padding that is 795 of 800. That is exactly the 795 this board measured
+  before 1.8's D2 cut, so the column is back where it was and still does not scroll. The inspector is
+  untouched at 656 of content, 680 of 800. RESIDENT ROWS: panel 1 -> 2 in Parameters, nothing else moves.
 -->
 <div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -480,28 +529,64 @@
                  dimmed #7a828e because everything behind it is at its default; it draws #d5d7da the moment
                  one is not (VOCAB 14.1). This board is right where StylePanel is wrong -- it already omits
                  Edge length 30 and Pull to center -1.2 under Rule 7a -- settled by DECISIONS-1.8 D2 in this
-                 board's favour; StylePanel draws the two defaults and loses them. -->
+                 board's favour; StylePanel draws the two defaults and loses them.
+                 REVISION 1.9 (SECTIONS-1.9 5.1, D1, D3, D5; VOCAB 15.1). The door is withdrawn and the section
+                 expands in place. Resident, from VOCAB 15.1 verbatim: the RT-1 pair Edge length 30 | Pull to centre
+                 -1.2, and the bound Edge weight field below it. All three sit at their shipped defaults and are drawn
+                 anyway -- D3 lifts Rule 7a off the two or three locally common rows of a section, because a section
+                 whose rows 7a all deletes is a chevron over nothing, which D1 forbids. No reset x on any of them:
+                 there is nothing to reset, and each gains one the moment it deviates. Behind the gear, unchanged from
+                 6.2 and 1.8's D2: Start from current arrangement, Stiffness (springCoefficient), Speed vs accuracy
+                 (theta), Damping (dragCoefficient), Time step (timeStep), Random seed (seed). Three values resident,
+                 six behind the gear, which is the product owner's own sentence. The gear keeps A6's two inks (VOCAB
+                 14.1), dimmed here because none of the six deviates, and it is now an ADDITION to a section that
+                 draws content rather than the section itself. Pull to centre takes 1.9's one new field glyph -- four
+                 chevrons pointing inward at a centre dot, owed to REGISTER-1.5 section 1 -- and every field keeps the
+                 title of the word its glyph replaced. Closed, this header would carry no gear and the mark
+                 "Force directed - settled" instead (VOCAB 15.2); open, D5 gives the slot to the gear and Rule 8
+                 deletes the mark, because the header above already says Force directed.
+                 This board already drew the section open with the Edge weight row resident and is the target section 4
+                 names; what it was missing is the pair above it. The 1.8 note above -- that this board is right where
+                 StylePanel is wrong -- is settled the other way by D3: the two engine defaults come back on both.
+                 SUPERSEDED AND RECORDED, so the argument is not lost with the markup: an inline note sat inside this
+                 section's body saying "Edge length (springLength) and Pull to center (gravity) are NOT drawn here.
+                 Both sit at ngraph's own defaults, 30 and -1.2, and Rule 7a does not draw a control sitting at its
+                 default; only the deviation is drawn. StylePanel draws them, so the two boards disagree and a later
+                 pass should settle which is right rather than let the pair drift." This is that later pass, and D3
+                 settles it in StylePanel's favour: the pair is drawn on both boards, at its defaults, because the
+                 alternative is a section with no rows at all.
+                 -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; height: 32px;">
-                <div style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;" title="Collapse Parameters">
                   <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Parameters</span>
                 </div>
-                <div title="Layout parameters" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                <div title="Layout parameters" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
                 </div>
               </div>
 
               <div style="display: flex; flex-direction: column; padding-bottom: 8px;">
-                <!-- Edge length (springLength) and Pull to center (gravity) are NOT drawn here. Both sit at
-                     ngraph's own defaults, 30 and -1.2, and Rule 7a does not draw a control sitting at its
-                     default; only the deviation is drawn. StylePanel draws them, so the two boards disagree
-                     and a later pass should settle which is right rather than let the pair drift.
-                     RT-1 single: the edge weight attribute. The filled tag glyph is what says "bound to an
-                     attribute" -- Rule 6, which is also what deletes the five Fixed | By attribute pairs. -->
+                <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+                  <div title="Edge length: 30" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;">
+                    <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2.5" y1="8" x2="13.5" y2="8"></line><polyline points="5,5.5 2.5,8 5,10.5"></polyline><polyline points="11,5.5 13.5,8 11,10.5"></polyline></svg>
+                    </div>
+                    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">30</span>
+                  </div>
+                  <div title="Pull to centre: -1.2" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;">
+                    <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="1.5"></circle><polyline points="6,3 8,5 10,3"></polyline><polyline points="6,13 8,11 10,13"></polyline><polyline points="3,6 5,8 3,10"></polyline><polyline points="13,6 11,8 13,10"></polyline></svg>
+                    </div>
+                    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-1.2</span>
+                  </div>
+                  <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
+                </div>
+
                 <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
                   <div title="Edge weight attribute" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
                     <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
@@ -512,7 +597,6 @@
                   </div>
                   <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
                 </div>
-
               </div>
             </div>
 
@@ -720,16 +804,26 @@
             <!-- SECTION Animation. 300 ms is the default transition, so no row is drawn (Rule 7a) and the
                  header takes the dim ink of a section holding no user value (RT-8). The gear still reaches
                  Transitions, Easing and Reduce motion, so the capability is one click away and the dim name
-                 keeps it in the inventory of what has not been touched. -->
+                 keeps it in the inventory of what has not been touched.
+                 REVISION 1.9 (SECTIONS-1.9 5.2, D1, D4, D5). This header was neither a section nor a door -- an empty
+                 16px leading slot, no rows, and a gear that was the only route in -- which is D1's defect in its purest
+                 form. It gains a real chevron, in the closed form because the section is closed and not because it
+                 cannot open, and it loses the gear: D5 gives the trailing slot of a CLOSED header to its state mark,
+                 and 5.2 says no mark is needed while both values are at their defaults, so the slot is empty and the
+                 dimmed name says it. Behind the chevron: Transitions, on, and Reduce motion, off, two packed RT-5
+                 toggles drawn at their defaults under D3. Behind the gear, once the section is opened: Easing and any
+                 per-channel transition overrides. Drawn closed here and open on the other four Style boards for a
+                 measured reason, recorded in the board comment: this column is the tightest in the set and cannot
+                 hold both this section and Parameters open.
+                 -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px;">
+              <div title="Animation. Transitions 300 ms, Reduce motion off" style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                  </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e;">Animation</span>
-                </div>
-                <div title="Animation settings" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
                 </div>
               </div>
             </div>

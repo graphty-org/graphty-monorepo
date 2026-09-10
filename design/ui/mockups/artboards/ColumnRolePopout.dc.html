@@ -180,6 +180,35 @@
   ARIA: static mock. Every icon-only control carries a title and nothing else (REGISTER-1.5 5).
   Desktop 1440 by 900. Spec revision 1.8: 5.3 Data, 6.1 Empty, 6.7 info circles, 6.8 icon tooltips,
   6.9 row types, 6.10 the floor, 6.10a the veto, 6.11 the surfaces and the anchor.
+
+  REVISION 1.9 (SECTIONS-1.9.md). Two items land here.
+  5.15 POLICIES. The 1.8 collapse left a chevron over an empty section -- both controls deleted by Rule
+  7a, no pop-out behind it, nothing on the other side of the click -- which is the defect D1 removes and
+  which 5.15 calls the purest case in the set. D3 repairs it: Rule 7a no longer reaches the two or three
+  rows a section's own readers commonly adjust, so Policies opens onto "Repeats: Combine + sum" and
+  "Self-loops: Keep" at their shipped defaults. D4 keeps this board's drawing exactly where it is -- a
+  converted door still defaults CLOSED -- so the row itself does not change: same 33.00px, same chevron
+  in the closed form, same Coming tag, same "5 repeats, 2 self-loops" in the trailing slot as the closed
+  state's mark (D5). What changed is the doctrine the section comment cited, VOCAB 14.1's
+  permanently-closed door form, which D1 strikes. No gear either: 5.15 puts only the rarer merge detail
+  behind one and neither half of it ships.
+  D12 IMPORT SETTINGS, deleted from the panel's Open file header -- it reported nothing, it duplicated
+  the one general import door on the Loaded data header, and with no file open it reached nothing.
+  Welcome.dc.html deleted it first under 1.8 D5; ImportOptions and this board now match it, and
+  ImportLargeFile does too.
+  MEASURED after both edits: the dialog body holds 444.19px of content in its 476.00px client (reading
+  34.19 / Format 39.00 / grid 229.00 / footer 20.00 / Policies 33.00 / Parsing 29.00, five 12px gaps),
+  31.81px of headroom, no overflow. The panel's content region is 800.00px and does not overflow. Two
+  32px policy rows would exceed that headroom by 32.19px if the section were opened here, which it is
+  not; the section's open form is drawn on no board in this set and no board in this set can hold it
+  without scrolling the dialog, which is worth saying plainly rather than discovering later.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Policies LOSES ITS CHEVRON, for the reason ImportOptions records: the controls are unshipped, and an
+  unshipped section draws no chevron (D1, 5.7's corollary, 5.15's own fallback). The row's 400-character
+  title is replaced by ImportOptions' shorter one so the two boards that draw this section carry one
+  string; the definitions it held are the dialog's to teach, not a tooltip's.
 -->
 <div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -308,13 +337,15 @@
 
           <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 8px 16px 16px; overflow: hidden; box-sizing: border-box;">
 
-            <!-- Open file -->
+            <!-- Open file. 1.9, D12: the "Import settings" gear is DELETED from this header. It reported
+                 nothing -- no count, no state, no departure -- which fails 6.11's stub obligation outright,
+                 and it duplicated the one general import door that DECISIONS-1.8 D5 put on the Loaded data
+                 header as "Import options". With no file open it reached nothing at all. Welcome.dc.html
+                 deleted it first; this board and ImportOptions now draw the same name-only header, so the
+                 four boards that carried this gear stop disagreeing. No row changes height. -->
             <div style="display: flex; flex-direction: column; gap: 6px;">
               <div style="display: flex; align-items: center; justify-content: space-between; height: 32px;">
                 <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Open file</span>
-                <div title="Import settings" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
-                </div>
               </div>
               <!-- G3 + MIN-11: the drop sentence and the format list are on the Welcome block to the
                    right; the panel drop zone keeps only the never-list buttons (IK-8). -->
@@ -881,22 +912,31 @@
           </div>
         </div>
 
-        <!-- 5. Policies, collapsed to one row (1.8 RULE7A-3). ImportOptions draws a header, a Repeats row
-             and a self-loops row -- three rows, both controls at their shipped defaults (Combine + sum,
-             Keep) and both dimmed under one Coming tag. Rule 7a deletes the CONTROLS; the counts are this
-             file's own parse record and floor item 3 keeps them, so they rise into the trailing slot as
-             "5 repeats, 2 self-loops". VOCAB 14.1's RT-8 door form: the chevron stays in the closed
-             right-pointing form and the trailing slot carries the one fact that says what is behind it.
-             NOT a pop-out: A4's discriminator refuses it on all three counts -- it buys no width beyond
-             256, no survival across a selection change and no operability below -- and a closed section
-             and a door cost the same one row, so the door would add a click for nothing.
+        <!-- 5. Policies, an ordinary section drawn CLOSED (1.9: SECTIONS-1.9 5.15, D1, D3, D4, D5; it was
+             one collapsed row under 1.8 RULE7A-3). What 1.8 left here was a chevron over an empty section:
+             Rule 7a had deleted both controls, there is no pop-out behind it, and nothing at all was on the
+             other side of the click. That is the defect D1 exists to remove, and 5.15 calls this the purest
+             case in the set. D3 repairs it -- Rule 7a no longer reaches the two or three rows a section's
+             own readers commonly adjust -- so the chevron now opens onto TWO RESIDENT ROWS, "Repeats:
+             Combine + sum" and "Self-loops: Keep", at their shipped defaults, with the value in the field
+             and no reset x. They are not drawn on this board because D4 leaves the resting state alone: a
+             converted door still defaults CLOSED. So the ROW IS UNCHANGED and only its meaning is -- the
+             chevron is the closed form of a section that opens, and VOCAB 14.1's permanently-closed door
+             form, which this comment used to cite, is struck.
+             The counts stay where they are: "5 repeats, 2 self-loops" is this file's own parse record
+             (floor item 3) and is the closed state's mark under D5, deleted only when the section is open,
+             because the two rows would then repeat it (Rule 8). The Coming tag stays too -- both controls
+             are still unshipped and FLOOR-1.9 keeps an unshipped capability's name and its tag.
+             NO GEAR: 5.15 puts only the rarer merge detail behind one -- which attribute wins on a
+             combine, and the name of the repeat-count column -- and neither ships, so this section carries
+             no gear. D1 permits it: a gear is an addition, never an obligation.
+             STILL NOT a pop-out: A4's discriminator refuses it on all three counts -- it buys no width
+             beyond 256, no survival across a selection change and no operability below.
              The two info-circle sentences are not lost: both ride verbatim in this row's title. -->
         <div style="display: flex; flex-direction: column;">
           <div style="height: 1px; background: #495057;"></div>
-          <div title="Policies. Repeats: two or more rows joining the same pair of nodes. Combining them writes a repeat count, so nothing is lost. Currently combine and sum. Edges that point at their own node (self-loops): an edge whose two ends are the same node. Keep leaves it in the graph; Drop removes it on import. Currently keep. Not built yet." style="display: flex; align-items: center; gap: 4px; height: 32px; cursor: pointer; box-sizing: border-box;">
-            <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-            </div>
+          <div title="Policies. Repeats: combine into one, count the repeats, sum the weight. Edges that point at their own node (self-loops): keep. Not built yet." style="display: flex; align-items: center; gap: 4px; height: 32px; cursor: default; box-sizing: border-box;">
+            <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
             <span style="flex: 0 0 auto; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Policies</span>
             <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
             <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">5 repeats, 2 self-loops</span>

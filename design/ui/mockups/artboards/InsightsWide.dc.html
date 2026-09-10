@@ -53,6 +53,25 @@
   because it buys width, and its stub is a count rather than an ink state; Counts and Attributes stay collapsed sections), plus
   two measured corrections to overlay clearances left stale by LEGEND-1.8's 256 width. No panel is open on this board, so no
   section split reaches it.
+  Revision 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8), one section and no drawn pixel. Schema stops being a
+  permanent door: the chevron opens IN PLACE onto the four node-type rows with their counts (account 96,
+  device 48, phone 34, merchant 22) and the three edge-type rows (transfer, paid, registered-to) with theirs,
+  plus the RT-7 verb row Filter to type / Select all of type. Only per-type completeness and the
+  edges-by-type-pair matrix stay behind a gear on the open section, and that gear keeps the 480 (D7). The 1.8
+  line above -- "Schema stays a door because it buys width" -- keeps its clause about the matrix and loses its
+  clause about the section: a chevron that reveals nothing is a defect, and a two-dimensional table is the one
+  part of this section that cannot be drawn honestly at 256.
+  Closed is the state this board draws, so the header keeps its D5 mark "4 node types, 3 edge types" and its
+  hover-revealed Export schema JSON icon exactly as drawn, and the 200 = 96 + 48 + 34 + 22 agreement between
+  the mark and the reading is unchanged. Measured after the edit: the inspector's 800px content region uses
+  507px, 293px of headroom, and no clipped region on this board overflows.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Schema is drawn CLOSED here, so its trailing slot belongs to its state mark alone and "Export schema
+  JSON" is deleted from this header. D5 gives a closed section's slot to its mark and an open one's to its
+  verbs and its gear; the set drew the verb on ten closed Schema headers and left it off fifteen. Main draws
+  the open form with the verb in the slot, so nothing became unreachable, and no row changes height.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -1152,7 +1171,22 @@
                  when anything behind it is not. That rule governs OPTION doors. Schema is a report of what is currently true and has
                  no default at all -- A2 records that class as derivable at the door test's first clause -- so its stub is a count and
                  not an ink state, and the count is what 6.11's stub obligation asks of it. A4 keeps it a door for the other reason:
-                 the type-pair matrix cannot be drawn honestly at 256, so the door buys width beyond the band. -->
+                 the type-pair matrix cannot be drawn honestly at 256, so the door buys width beyond the band.
+                 REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8). The permanent-door licence is WITHDRAWN
+                 and the sentences above that assert it are struck: there is no permanently-closed chevron, and a
+                 chevron that reveals nothing is a defect. Schema is an ordinary collapsed section here, closed
+                 because the section is closed, and it opens IN PLACE onto the four node-type rows with their
+                 counts (account 96, device 48, phone 34, merchant 22) and the three edge-type rows (transfer,
+                 paid, registered-to) with theirs, plus the RT-7 verb row Filter to type / Select all of type.
+                 The A4 sentence above is half-struck: the MATRIX buys the width and keeps its 480 (D7), the
+                 SECTION does not go with it. Per-type completeness goes with the matrix, behind a gear on the
+                 open section.
+                 The A6 paragraph above is untouched and is now the reason the mark reads as it does: this is the
+                 D5 CLOSED-state mark, a count rather than an ink state, deleted the moment the section is open
+                 and the four type rows repeat it (Rule 8), and reading "measuring..." until SchemaExtractor
+                 finishes. Nothing drawn moves: the mark still says "4 node types, 3 edge types", which still
+                 agrees with the reading's own 96 + 48 + 34 + 22 = 200, and the hover-revealed export icon keeps
+                 the trailing slot. -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Schema. 4 node types, 3 edge types" style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
@@ -1162,11 +1196,6 @@
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Schema</span>
                   <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">4 node types, 3 edge types</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 4px;">
-                  <div title="Export schema JSON" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
-                  </div>
                 </div>
               </div>
             </div>

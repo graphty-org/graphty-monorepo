@@ -70,8 +70,37 @@
   with completeness moved to the export (C2, C3, C6); and D4 takes the panel from 17 resident rows to 13 and
   the inspector's action block from eight rows to four, every deleted verb keeping its full text in a menu.
   Palette index (E4 measure 1): Selection statistics, Ego network. Both one click from the row that owns them.
+  REVISION 1.9 (SECTIONS-1.9). Two work-list items land here: 5.10 Selection statistics and 5.5 Step through
+  time. D1 withdraws the licence for a section that is only a door, so both chevrons now open onto real rows.
+  5.10, the inspector. Selection statistics stops being a door and EXPANDS: Nodes 7 | 200, Edges 4 | 612 and
+  Average links per node 9.4 | 6.1 in the two-column Selection / Graph form, with the two shared-attribute rows
+  under them where A3 cut 1 already kept them. The 360 pop-out is not deleted and not moved -- it is now what
+  the section's GEAR holds, and it holds exactly what 5.10 assigns there: the A column against the pinned
+  acct-4471, the "inside the selection" split, Average amount (weight) and Export CSV. Its anchor, its caret,
+  its pin and every number in it are untouched. The header's "4" mark is deleted, because three of the four
+  rows it counted are now on screen (D5, Rule 8), and the gear takes the slot in the primary ink, because the
+  pin behind it is a departure from the unpinned default (A6).
+  5.5, the panel. Step through time's chevron now opens onto Window 30 days | Step 7 days and the Cumulative |
+  Sliding track, with the time attribute, Speed, Recompute on each step and Compare with another window behind
+  its gear. D4 keeps the section CLOSED here, and D5 keeps the On switch in the trailing slot in both states
+  because it is the section's own master control and not a precis of the rows below it, so the row is unchanged
+  in every pixel. TimeSlider draws the open form and the bar gear that shares its contents.
+  MEASURED after 1.9, in the DOM at 1440x900, with the sections this board draws open: panel content 427px,
+  unchanged, in an 800px window. Inspector content 323px -> 417px in its 677px region -- the three resident
+  rows plus their caption are 94px -- so nothing scrolls and nothing was truncated to fit. The 360 pop-out is
+  unchanged at [792,183 360x238] with its caret at [1152,199 6x12]. Canvas, legend, minimap, toolbar and status
+  bar untouched.
   Palette: canvas #161b22, panels #1f2428, inputs #2a3035, hover #374047, border #48525c,
   text #d5d7da, dimmed #7a828e, accent #4a7ee8, selected #28364e. See VOCAB.md.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Find a pattern takes the set's one unbuilt spelling (no chevron, #5f6873 name, Coming tag) and Filter
+  builder at zero rules takes RT-8's empty form -- no chevron, dimmed name, one 24px plus, which it was
+  missing. 5.6: at zero rules there is no chevron, because there is nothing to open.
+  The empty library sections lose the chevron they could not open: Filters and Views. RT-8's empty form is a
+  dimmed name, its resident "+" and an EMPTY 16px leading slot, and D1 turns that snippet into a rule -- a
+  chevron renders only where it opens onto resident rows. The chevron returns with the first saved filter or view.
 -->
 <div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -327,11 +356,14 @@
 
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div style="display: flex; align-items: center; height: 32px; cursor: pointer;">
-                <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Filter builder</span>
                 </div>
-                <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; padding-left: 4px;">Filter builder</span>
+                <div title="Add a rule" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg>
+                </div>
               </div>
             </div>
 
@@ -339,9 +371,7 @@
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Filters</span>
                   <div title="Saved filters: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
@@ -451,9 +481,7 @@
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Views</span>
                   <div title="View bookmarks: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
@@ -467,10 +495,10 @@
 
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Find a pattern (subgraph search). Coming" style="display: flex; align-items: center; gap: 6px; height: 32px; cursor: default;">
-                <div style="display: flex; align-items: center; flex: 1 1 auto; min-width: 0;">
+              <div title="Find a pattern (subgraph search). Coming" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: default;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
                   <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
-                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap; padding-left: 4px;">Find a pattern</span>
+                  <span style="min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Find a pattern</span>
                 </div>
                 <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
               </div>
@@ -490,7 +518,23 @@
                  the top of this board and stands. The technical name and the T binding stay in the row title (Decision B;
                  DEF-1 puts no key chip in a switch row). The row renders at all only because this graph is timed by
                  opened -- on an untimed graph it does not render, which is why Main and ExplorePanel draw nine sections
-                 and this board draws ten. -->
+                 and this board draws ten.
+                 REVISION 1.9 (D1, D3, D4, D5, 5.5). POP-13b is struck: this chevron OPENS. Behind it are the
+                 three things a reader who opens this section changes -- the RT-1 pair Window 30 days | Step
+                 7 days and the Cumulative | Sliding RT-3 track -- and they render at their shipped defaults,
+                 because D3 lifts Rule 7a off the two or three locally common rows of a section (a section whose
+                 every row is deleted for sitting at a default is a chevron that opens onto nothing, which is the
+                 defect this revision exists to remove). Behind the section's gear go the time attribute select,
+                 Speed, "Recompute results on each step" and "Compare with another window"; the bar gear opens
+                 that same set, so there is still one destination (D8), and TimeSlider draws both.
+                 The 1.7 NO-change recorded at the top of this board -- "Step through time gains no settings gear"
+                 -- stood on register section 3's ban on an icon-only control inside a contiguous unbuilt run, and
+                 it still holds HERE, because D4 keeps this section closed and a closed section draws no gear at
+                 all. The gear exists only in the open state, which this board does not draw.
+                 The On switch stays in the trailing slot in BOTH states, and it is the one mark in the seventeen
+                 that does: D5 keeps a mark that says something the rows do not, and a master On switch is the
+                 section's own control rather than a precis of the rows below it. So this row is unchanged in
+                 every pixel. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Step through time (T). Temporal navigation: filter the graph to a window of time and step the window along." style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
@@ -1443,16 +1487,79 @@
                  and a door glyph draws in the dimmed ink when everything behind it is at its default and in the
                  primary ink when anything behind it is not (VOCAB 14.1). That is the only signal a reader has
                  that a door hides a non-default, and it renders at every density. The title is unchanged:
-                 "Selection statistics. 4 rows, compared with acct-4471 and the whole graph". -->
+                 "Selection statistics. 4 rows, compared with acct-4471 and the whole graph".
+                 REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, D8, 5.10). The split survives; the door does not. D1
+                 withdraws the licence for a section whose whole content lives behind a chevron that never opens,
+                 and D7 refuses this table the 480 treatment on the same page it grants it to the schema matrix
+                 and the NMI block: a four-column numeric table reduces honestly, and the audit says so. So the
+                 section EXPANDS, and the 360 becomes what its GEAR holds.
+                 RESIDENT (5.10): Nodes 7 | 200, Edges 4 | 612 and Average links per node 9.4 | 6.1, in the
+                 two-column Selection / Graph form. The 1.7 argument for the door was width -- "a three-column
+                 numeric table does not fit the 256px band" -- and it is TWO columns that are resident, which is
+                 the form DataTableDrawer already draws at four rows and ExplorePanel at seven in this same band.
+                 The third column is what buys the pop-out, and it is still behind one; what changed is that it is
+                 an addition to a section rather than the section itself. The two shared-attribute rows keep the
+                 place A3 cut 1 gave them and now sit under the rows instead of beside a door.
+                 BEHIND THE GEAR (5.10): the comparison machinery -- the A column against the pinned acct-4471,
+                 the "inside the selection" split, Average amount (weight), and Export CSV. Only the pinned-A case
+                 needs the 360, and this board is that case, which is why the pop-out is still drawn open.
+                 THE TRAILING SLOT (D5): the mark was the count "4" of the rows behind the door. Three of those
+                 four rows are now on screen, so Rule 8 deletes the mark and the slot carries the gear. The gear
+                 takes the PRIMARY ink under A6, because a pin is set and the whole A column behind it is a
+                 departure from the unpinned default; its title names that after a full stop.
+                 D8 has nothing to reconcile here -- the drawer copy of this section was already the resident
+                 form, and this board now draws the same shape, which is the point of D8. E2's pin stays on the
+                 pop-out: it is one of the four comparative surfaces that earn one, and it is the pin case, not
+                 the section, that the 360 serves. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Selection statistics. 4 rows, compared with acct-4471 and the whole graph" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; border-radius: 4px; background: #28364e; cursor: pointer; box-sizing: border-box;">
-                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg></div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; border-radius: 4px; background: #28364e; box-sizing: border-box;">
+                <div title="Collapse Selection statistics" style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Selection statistics</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
-                  <span style="font-size: 11px; line-height: 1; color: #7a828e;">4</span>
+                <div title="Selection statistics detail. Compared with acct-4471, average amount, and links inside the selection" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #d5d7da; cursor: pointer; box-sizing: border-box;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+                </div>
+              </div>
+              <!-- REVISION 1.9, the three resident rows (5.10). Two fixed columns, Selection and Graph, in the
+                   256px band -- which is DataTableDrawer's form at four rows and ExplorePanel's at seven, on this
+                   same shell, so the width argument the 1.7 split rested on is answered by two boards in the set
+                   rather than by an assertion. Column widths are ExplorePanel's, 48 and 36.
+                   Nodes and Edges take one 22px row each. Average links per node keeps the two-line block this
+                   board already drew, because R2-M16a's finding stands: 9.4 means nothing until its population is
+                   named, and "all links" is that name. Its second line, "inside the selection" 1.1, is the split
+                   5.10 puts behind the gear, so only the "all links" line is resident. The arrow and the
+                   highlight are the row's own (12.2): 9.4 against a graph 6.1 is more than one standard
+                   deviation above. -->
+              <div style="display: flex; flex-direction: column;">
+                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px; height: 16px; font-size: 11px; line-height: 1.2; color: #7a828e;">
+                  <span style="width: 48px; text-align: right;">Selection</span>
+                  <span style="width: 36px; text-align: right;">Graph</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 22px; font-size: 11px; line-height: 1.2;">
+                  <span style="flex: 1 1 0; min-width: 0; color: #7a828e;">Nodes</span>
+                  <span style="width: 48px; text-align: right; color: #d5d7da; font-weight: 500; font-variant-numeric: tabular-nums;">7</span>
+                  <span style="width: 36px; text-align: right; color: #7a828e; font-variant-numeric: tabular-nums;">200</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 22px; font-size: 11px; line-height: 1.2;">
+                  <span style="flex: 1 1 0; min-width: 0; color: #7a828e;">Edges</span>
+                  <span style="width: 48px; text-align: right; color: #d5d7da; font-weight: 500; font-variant-numeric: tabular-nums;">4</span>
+                  <span style="width: 36px; text-align: right; color: #7a828e; font-variant-numeric: tabular-nums;">612</span>
+                </div>
+                <div style="display: flex; flex-direction: column; padding: 0 3px; border-radius: 4px; background: #28364e; box-sizing: border-box;">
+                  <div style="display: flex; align-items: center; gap: 4px; height: 16px;">
+                    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Average links per node</span>
+                    <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">(mean degree)</span>
+                  </div>
+                  <div title="Counts every link a selected node has, not only the links inside the selection." style="display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 18px; font-size: 11px; line-height: 1.2;">
+                    <span style="flex: 1 1 0; min-width: 0; font-size: 10px; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">all links</span>
+                    <span style="width: 48px; display: inline-flex; align-items: center; justify-content: flex-end; gap: 2px; color: #d5d7da; font-weight: 500; font-variant-numeric: tabular-nums;">
+                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#4a7ee8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="13" x2="8" y2="3"></line><polyline points="4,7 8,3 12,7"></polyline></svg>
+                      <span>9.4</span>
+                    </span>
+                    <span style="width: 36px; text-align: right; color: #7a828e; font-variant-numeric: tabular-nums;">6.1</span>
+                  </div>
                 </div>
               </div>
               <div style="display: flex; flex-direction: column; padding: 0 0 4px 0;">

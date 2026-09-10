@@ -55,6 +55,25 @@
   content rows are floor items and three are the front door. The general import door moved from the Open file
   header to the Loaded data header and is titled "Import options". Legend: two encoded channels kept, four
   category counts deleted, no state rows, cap 334 -> 240.
+
+  REVISION 1.9 (SECTIONS-1.9.md). One work-list item lands here: 5.14 Validation report. This board and
+  ValidationPopout drew it as a permanent door; ImportAddToGraph and TableJoin drew it as an ordinary live
+  collapsed section, and 5.8's board divergence settles in their favour -- so this board moves to THEM. The
+  drawing does not move with it: D4 leaves every resting state alone, this section is drawn CLOSED, and a
+  closed section's header is the same 32px row with the same amber triangle and the same "4 types" mark it
+  already carried. What changes is the doctrine the comment asserted -- "a door, not a section", "a chevron
+  permanently in the closed right-pointing form" -- both struck by D1, and the section comment below now says
+  what the chevron opens onto instead. The 360 pop-out anchored to this row is likewise no longer the report:
+  under 5.14 it is what the section's gear holds once the section is open, and ValidationPopout draws that.
+  MEASURED after the edit, at the 256px band: panel content stack 560.00px inside the 800px scroll region
+  (sections 104 / 165 / 33 / 33 / 33 / 33 / 98 / 61), unchanged from 1.8 because no row was added; the
+  inspector is 477.00px in the same region and is untouched. Open, the section would cost 153px against its
+  33px closed form (+120px, panel 680px), which still clears the region -- the arithmetic is in the section
+  comment and it is the 5.14 measurement flag's answer.
+  NOT DONE HERE, and named so it is not read as an omission: 5.8 Schema lists this board among the
+  twenty-one that draw the inspector Schema row as a permanent door. Schema was not assigned to this pass and
+  no Schema row on this board has been touched; it is still the 1.8 door and still owes its twelve resident
+  rows, its five-row cap and its 480 matrix gear.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -435,16 +454,21 @@
               </div>
             </div>
 
-            <!-- SECTION Validation report, POP-3: a door, not a section. The whole report -- the four open
-                 warning cards with their consequences and their example ids, the four verbs on the hovered
-                 card, the "8 mixed-form ids. Fixed by step 2" line and the collapsed Info 3 group -- moves
-                 into a 360 pop-out anchored to this stub, opening right with its left edge at x = 336, 8px
-                 clear of the panel's 328 edge (6.11), and drawn on ValidationPopout, not here. The pop-out
-                 coexists with the Data table drawer along the canvas bottom, which is the whole argument for
-                 tier 3a over 3b: "Show rows" opens that drawer and a dialog would have to close to let it
-                 happen. The stub is an ordinary RT-8 header whose chevron is permanently the closed
-                 right-pointing form -- no open state is drawn anywhere on this board -- and whose trailing
-                 slot carries the door's state mark, the highest severity glyph and the count (6.11). The name
+            <!-- SECTION Validation report, POP-3 as amended by SECTIONS-1.9 D1: a live section, drawn
+                 CLOSED, not a door. The 360 pop-out anchored here -- opening right with its left edge at
+                 x = 336, 8px clear of the panel's 328 edge (6.11), and drawn on ValidationPopout, not here --
+                 is no longer the report: it is what this section's GEAR holds once the section is open,
+                 which is the per-card consequence sentences and example ids with "Show more", the fourth
+                 amber type, the collapsed Info 3 group, the Ignore list and "Re-ran after step 2" (1.9,
+                 5.14). The pop-out coexists with the Data table drawer along the canvas bottom, which is the
+                 whole argument for tier 3a over 3b: "Show rows" opens that drawer and a dialog would have to
+                 close to let it happen. The header is an ordinary RT-8 header. Its chevron is in the closed
+                 right-pointing form because the section is CLOSED on this board (D4 keeps every resting
+                 state), not because it cannot open -- there is no permanently-closed form, and the open form
+                 with its three amber rows, its green "Fixed by step 2" line and its gear is drawn on
+                 ValidationPopout. Closed, the trailing slot carries the state mark, the highest severity
+                 glyph and the count (D5, 6.11); the gear is not drawn, because the slot belongs to the mark.
+                 The name
                  stays primary #d5d7da because issues are open; it dims only once all four are fixed or
                  ignored. Not a repeat of the status bar: 5.1's "4 data issues" chip is a global alarm and
                  this "4" is the door's state mark, so both stay.
@@ -471,7 +495,17 @@
                  While this row is in the panel the pop-out follows it; when this row scrolls out the pop-out
                  docks to the edge it left through, drops its caret, keeps this row lit and grows a 20px return
                  strip naming it; when this section collapses or the region changes activity, the pop-out closes.
-                 It carries no pin (E2 closes the pin set at four comparative surfaces and this is not one). -->
+                 It carries no pin (E2 closes the pin set at four comparative surfaces and this is not one).
+                 1.9, D1 / D5 / 5.14, and it changes no pixel on this board: what the chevron opens onto is
+                 now four resident rows -- "No amount, 14 edges / Auto-fix", "Not dates, 6 opened values /
+                 Show rows", "Repeated pairs, 5 / Show rows" at 28px each, and the green "8 mixed-form ids.
+                 Fixed by step 2" line -- plus the 24px detail gear in the trailing slot. Measured budget for
+                 the open state, which this board does not draw: 1 + 32 + 4 x 28 + 8 = 153px against the 33px
+                 header drawn here, so opening it would take this panel's content stack from 560px to 680px
+                 inside its 800px scroll region. That is the 5.14 measurement flag answered -- four rows, not
+                 the 282px the pre-1.7 open section cost -- and it is why the consequence sentences and the
+                 example ids stay behind the gear. -->
+
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;" title="Validation report. 4 issue types, 27 issues">

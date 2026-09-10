@@ -23,6 +23,15 @@
   Dataset: security-events-120k.csv, 120,418 nodes (processes, hosts, users, IPs), 1,104,206 events,
   directed, repeated events combined at import into a count attribute used as strength.
   Shell frozen sizes from SHELL-SKELETON.html: rail 48, top bar 40, panel 280, inspector 280, status bar 24.
+  REVISION 1.9 (SECTIONS-1.9 D1, D4, D5, D6, D7; work list 5.8). The inspector's Schema section stops being a
+  permanent door. It stays CLOSED (D4) and keeps its "4 node types, 6 edge types" mark, so the change is to
+  what the chevron means, not to what the panel weighs: opened it is resident -- node-type and edge-type rows
+  with their counts, capped at five with an "N more" row, plus Filter to type / Select all of type -- with
+  per-type completeness and the 480 edges-by-type-pair matrix behind its gear (D6, D7). One drawn change: the
+  mark moves out of the left group into the trailing slot D5 gives it, which is where every other board in the
+  set already puts it. MEASURED: the header is 16 + 4 + 48.3 name + 8 + 150.5 mark = 227 of the 255 band, no
+  truncation; the inspector is 483px of rows in the 776px its paddings leave, unchanged by this pass, and the
+  panel is untouched at 752px. No overflow.
 -->
 <!--
   SIBLING STATE, RECORDED AND NOT DRAWN: Explorer, loaded subset (spec 6.1 "Loaded, subset";
@@ -3414,17 +3423,34 @@
                  ladder. The summary "4 node, 6 edge types" is now the door's state mark required by 6.11 and may
                  not be compacted away; while SchemaExtractor is still working it reads "measuring...", so the
                  door never hides the fact that the numbers are not there yet. Rule 9 lifts the repeated word
-                 "types" out of the first half of the summary; the header title keeps it in full. -->
+                 "types" out of the first half of the summary; the header title keeps it in full.
+                 REVISION 1.9 (5.8, D1/D4/D5/D6/D7). POP-6 IS STRUCK where it made this a permanent door: there is
+                 no permanently-closed chevron and no section whose whole content lives behind one. Schema is an
+                 ordinary live collapsed section, and 5.8 settles the board divergence in favour of the five boards
+                 that already drew it that way. What the chevron opens onto is resident and is what a reader came
+                 to READ (D6): the node-type rows with their counts and the edge-type rows with their counts, as
+                 the short two-column tables Main draws, capped at five with an "N more" row -- which this dataset
+                 needs on neither table at 4 and 6 -- plus the RT-7 verb row Filter to type / Select all of type.
+                 Behind the gear go per-type completeness and the edges-by-type-pair MATRIX, which keeps its 480
+                 under D7 for the reason this comment already gives: a two-dimensional relationship cannot be drawn
+                 honestly in a 256px band. Export schema JSON stays in the trailing slot. The matrix is now opened
+                 from a gear on an expanded section instead of BEING the section, which is the whole of D1.
+                 DRAWN CHANGE, and the only one here: the mark was sitting inside the left group, hard against the
+                 name; D5 gives the trailing slot to the closed state mark, so it moves to the right edge on the
+                 space-between the row already had, in Main's own spelling (flex 0 1 auto, min-width 0, ellipsis).
+                 Measured: the name is 48.3 and the mark 150.5 in the 255 band, so 16 + 4 + 48.3 + 8 + 150.5 = 227
+                 and nothing truncates. D4 leaves the section closed, so no type row is drawn here and the mark
+                 stays -- D5 deletes it only once the rows repeat it. -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Schema. 4 node types, 6 edge types" style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
-                <div style="display: flex; align-items: center; gap: 4px;">
-                  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+              <div title="Schema. 4 node types, 6 edge types" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
                   </div>
-                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Schema</span>
-                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">4 node types, 6 edge types</span>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Schema</span>
                 </div>
+                <span style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">4 node types, 6 edge types</span>
               </div>
             </div>
 

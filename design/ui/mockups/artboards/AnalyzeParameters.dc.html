@@ -42,8 +42,8 @@
     - the More SECTION (header, Compare, Remove several nodes at once) becomes one panel-level More ROW with a menu.
       -2 rows.
   Recipes gains its count in the RT-8 trailing slot (A4). 17 content rows -> 14; D3 counts the panel title row and
-  writes it 18 -> 14. Every row below is one of RT-1 through RT-10 and the content ends at y 558 in an 800px column,
-  so nothing scrolls and 6.9's skyline promise holds.
+  writes it 18 -> 14. Every row below is one of RT-1 through RT-10 and the content ended at y 558 in an 800px
+  column -- y 590 after 1.9 adds the resident Damping row -- so nothing scrolls and 6.9's skyline promise holds.
 
   WHAT IS RESIDENT AND MAY NEVER GO BEHIND THIS GEAR:
     - Weight and Treat as (6.10a / A2). A control whose wrong value is invisible until it does damage stays resident
@@ -62,6 +62,39 @@
   is both defaulted and non-deviating 7a wins and nothing is drawn in the panel at all. Inside the pop-out the
   defaults ARE drawn, because "the door exists so a reader can reach the control in order to CREATE the deviation,
   which 7a alone leaves unreachable" (6.11).
+
+  REVISION 1.9 (SECTIONS-1.9 D1, D2, D3, D4, D5, D6, D7, D11; work list 5.8, 5.9, and D11's row for this board).
+  THE DOOR TEST ABOVE KEEPS ITS SHAPE AND CHANGES ONE WORD, and the paragraph above is superseded exactly there.
+  Clause (a) asked whether a control sits at a default MOST INSTANCES never leave; it now asks whether, of the
+  readers who open THIS section, it is among the two or three things they commonly adjust or consult. Clause (b) is
+  unchanged, the two still conjoin, and 6.10a's veto still overrides both -- so Weight and Treat as, Run in full
+  text, and the scope "20 nodes" are all exactly where they were.
+  WHAT THE NEW DENOMINATOR MOVES ON THIS BOARD: one row. Damping is what a reader opening the Influence card's
+  parameters came to change, so D11's promotion draws it resident under the Influence row -- "Damping 0.5" with a
+  reset x, because it deviates from PageRank's 0.85 -- and it leaves the pop-out, on 5.3's own pin rule that an
+  inline field does not render in the gear's surface. Tolerance, Max iterations and Run as sweep stay behind the
+  gear, all three at their defaults. Three behind, one in front.
+  THE COST, NAMED: with the one deviation promoted, nothing behind the gear deviates, so the gear draws DIMMED
+  #7a828e and its title is plain "Advanced parameters". This board was the primary half of A6's two-ink pair and it
+  is no longer; the deviation is reported by the resident row instead, which prints 0.5 and offers the reset. The
+  pair still wants a board where a hidden parameter deviates, and AnalyzeSweep is where that state now lives -- Run
+  as sweep is on there. That board still paints the deviating gear in the accent #4a7ee8, which is the 1.7 spelling
+  VOCAB 14.1 supersedes with the primary text ink; the redraw is a 1.8 debt, it is not on this pass's work list, and
+  it is recorded here rather than done quietly.
+  THE TWO DOORS THAT ARE NOT DOORS ANY MORE. All statistics (5.9) and, in the inspector, Schema (5.8) become
+  ordinary collapsed sections. D4 keeps both closed, so neither drawing moves; what changes is what their chevrons
+  promise and what their comments claim. Their trailing marks -- "4" and "3 node types, 7 edge types" -- are the
+  closed marks D5 asks for and they stay until the rows that repeat them are visible.
+  MEASURED, on the render. The Suggested list goes from five rows to six: Groups 189, Most connected 221, Bridges
+  253, Influence 285, Damping 317, + Analysis 349, so the panel goes 14 content rows to 15. Everything below
+  shifts 32px -- All statistics 390 to 422,
+  Metric histograms 431 to 463, History 463 to 496, Recipes 497 to 557, More 558 to 590 -- and the panel content
+  ends at y 590 in the 800px column that runs y 76 to 876. 214px of the column is still unused and nothing scrolls.
+  The pop-out keeps its lane, its left edge 336 and its shared edge line (top 285 on the Influence row, which did
+  not move) and falls from 208px to 176px, four rows to three. Its verb row falls to one verb with it: "Reset to
+  defaults" renders only while something in that surface deviates, and after the promotion nothing does -- the reset
+  for the one value that does deviate is the x on its own resident row. The inspector is untouched at y 76 to
+  531.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -345,13 +378,48 @@
                   <span style="min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">PageRank</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
-                  <div title="Advanced parameters. Damping is 0.5, not 0.85" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #d5d7da; cursor: pointer;">
+                  <div title="Advanced parameters" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
                   </div>
                   <div title="Nodes with well-linked neighbors: a node scores high when the nodes pointing at it score high." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #d5d7da; cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
                   </div>
                   <div style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Run</div>
+                </div>
+              </div>
+
+              <!-- ROW 8, RT-1 single: Damping 0.5, RESIDENT. y 317 to 349, new in 1.9 (SECTIONS-1.9 D11, D2, D3).
+                   D11 keeps this board's premise -- a card gear on a card that already has resident content is
+                   legal, and always was -- and adds the one promotion the local denominator forces: of the readers
+                   who open the Influence card's parameters, damping is the one they change, so it is resident and
+                   the rest are the gear's.
+                   Three rows behind the gear, one in front of it, which is the owner's own sentence at card scale.
+                   IT LEAVES THE POP-OUT WHEN IT ARRIVES HERE. 5.3's pin already spells the mechanism -- "a pinned
+                   field renders inline and does not render in the pop-out" -- and one value has one place: drawing
+                   Damping in the card and in the gear's surface would be the same fact twice in one region (5.1).
+                   THE RESET x RENDERS BECAUSE THIS ROW DEVIATES. D3 draws a locally common row whether or not it
+                   deviates, with its value in the field and no x when it sits at the default; 0.5 against PageRank's
+                   own 0.85 is a departure, so the x is drawn and it resets to 0.85.
+                   WHAT THIS COSTS, AND IT IS NAMED RATHER THAN HIDDEN: the gear above is now DIMMED. A6's ink reports
+                   whether anything BEHIND the gear deviates, and with damping promoted nothing does -- Tolerance
+                   1e-6, Max iterations 100 and Run as sweep off are all defaults. This board was drawn as the primary
+                   half of A6's pair, against ExplorerLoading's dimmed half, and the promotion takes that pairing off
+                   this board: what reports the deviation now is the resident row itself, printing 0.5 with its reset
+                   x, which is a stronger report than an ink. The pair still needs a board where a HIDDEN parameter
+                   deviates, and AnalyzeSweep's Advanced parameters gear is the one that still carries that state --
+                   Run as sweep is on there. It draws that gear in the accent #4a7ee8, the 1.7 spelling that VOCAB
+                   14.1 supersedes with the primary text ink; that redraw is a 1.8 debt and not this pass's, and it
+                   is named here so the pair is not assumed to be drawn somewhere it is not.
+                   WORD, NOT GLYPH, IN THE FIELD SLOT: damping is a concept and Rule 4 forbids giving a concept a
+                   glyph, so the word is the 16px slot and the scrub handle. Same spelling as the pop-out's rows and
+                   as StyleFromAnalysis's Granularity field. Only the value takes the value ink. -->
+              <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+                <div title="Damping. Default 0.85" style="display: flex; align-items: center; width: 224px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;">
+                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e; cursor: ew-resize;">Damping</span>
+                  <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">0.5</span>
+                </div>
+                <div title="Reset to the default, 0.85" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
                 </div>
               </div>
 
@@ -363,7 +431,8 @@
                    tier change, and Katz (Attenuated influence) stays one click away in the pop-out's own method
                    route. -1 resident row.
 
-                   ROW 8: + Analysis. y 317 to 349. The whole 26-card catalogue lives one click behind it: a search
+                   ROW 9: + Analysis. y 349 to 381; 1.9 shifted it 32px down, with the new Damping row above it.
+                   The whole 26-card catalogue lives one click behind it: a search
                    field, then 7 question rows (Find groups, Find important nodes, Find weak points, Find paths, Find
                    unusual things, Predict, Advanced), each expanding to its methods with a one-line description on
                    the picker row.
@@ -383,15 +452,23 @@
               </div>
             </div>
 
-            <!-- ROW 9, RT-8 door stub: All statistics. y 358 to 390. The chevron stays in the closed right-pointing
-                 form because this section never opens; the trailing slot carries the count.
-                 D3 / A4: it is a door because the 360 table buys width beyond the 256px band -- the first of A4's
-                 three things a collapsed section cannot give. Its stub reads the computation, which is 6.11's stub
-                 obligation and A6's requirement that a door never hides a deviation; while the passes run the
-                 trailing slot reads "Computing 3 of 7" instead of the count, because behind a door there is no row to
-                 say it. Drawn open on the new AllStatistics board, with the stub still reading its progress string.
-                 NOTE THE ONE-PER-REGION RULE (E2): this stub and the Influence gear are two doors in one region, and
-                 only one may be open. Opening this one closes the Advanced parameters pop-out. -->
+            <!-- ROW 10, RT-8 live collapsed section: All statistics. y 390 to 422. REVISION 1.9, SECTIONS-1.9 5.9:
+                 it stops being a door. The chevron is the closed right-pointing form because the section is CLOSED,
+                 not because it cannot open, and D4 keeps it closed at rest, so the drawing does not move.
+                 WHAT IT NOW OPENS ONTO: three resident rows -- How tightly linked (density), Longest shortest path
+                 (diameter), Typical distance (average path length), each carrying its own value or its own
+                 "Computing..." -- with the long tail and the recompute policy behind one dimmed gear: Graph type and
+                 its multigraph note, Spread of links (degree distribution), Tight-knit neighborhoods and Closed
+                 triangles (both Coming), Recompute, Copy values, Export CSV, "Recompute on every filter change".
+                 AllStatistics draws that open, and the 360 surface there is the GEAR's pop-out now, not the
+                 section's.
+                 THE MARK STAYS (D5, 6.11's stub obligation): closed, the trailing slot carries the count 4, and
+                 "Computing 3 of 7" while any pass runs, because that is the one fact that says what is inside
+                 without opening it. Open, the count goes -- the rows repeat it -- and only the progress string can
+                 survive, and only while something behind the gear is still running.
+                 THE ONE-PER-REGION RULE (E2) still binds and now binds one door fewer in this region: the Influence
+                 gear's pop-out and this section's gear pop-out are the two, and opening either closes the other.
+                 Expanding the section itself closes nothing -- an expanded section is not a transient surface. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column; padding-top: 8px;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="All statistics. 4 statistics, computed 14:12" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
@@ -408,7 +485,7 @@
               </div>
             </div>
 
-            <!-- ROW 10, RT-8 empty section: Metric histograms. y 399 to 431. Nothing has been computed, so the header
+            <!-- ROW 11, RT-8 empty section: Metric histograms. y 431 to 463. Nothing has been computed, so the header
                  is the whole section: dimmed name, no content rows, no "No results yet". The "+" commits to the one
                  histogram that needs no run -- links per node.
                  D3 / 6.11: refused a door BY NAME and protected here. W23 phase 2 is a scan across five distributions
@@ -427,7 +504,7 @@
               </div>
             </div>
 
-            <!-- ROW 11, RT-8 collapsed and live: History -- the import is already an entry. Its overflow hides until
+            <!-- ROW 12, RT-8 collapsed and live: History -- the import is already an entry. Its overflow hides until
                  the header is hovered, which is why no icon is drawn at rest.
                  D3 / 6.11: History is on 6.11's refused list by name and is protected here. A3 also forbids by name
                  "an Advanced parameter block behind a History door", which is the exact shape this board would take
@@ -444,7 +521,7 @@
               </div>
             </div>
 
-            <!-- ROWS 12 and 13, RT-8 library section plus one RT-6 row: Recipes. y 465 to 525.
+            <!-- ROWS 13 and 14, RT-8 library section plus one RT-6 row: Recipes. y 497 to 557.
                  A4 REFUSES IT A DOOR, on all three counts: it buys no width beyond 256, it does not need to survive a
                  selection change, and nothing below it needs to stay operable while it is open. A closed section and
                  a door cost the same single row, so the door would add a click for nothing. Instead its RT-8 trailing
@@ -479,7 +556,7 @@
               </div>
             </div>
 
-            <!-- ROW 14: the panel-level More ROW. y 526 to 558. It was a SECTION -- header, "Compare | Comparison
+            <!-- ROW 15: the panel-level More ROW. y 558 to 590. It was a SECTION -- header, "Compare | Comparison
                  view", "Remove several nodes at once | Coming" -- which is five rows spent on one overflow glyph.
                  6.11 already routes verbs to menus and 5.3 already writes it as "a panel-level More row", and Compare
                  has six other entry points, so this row is nobody's first route. 3 rows -> 1.
@@ -796,10 +873,17 @@
               </div>
             </div>
 
-            <!-- SECTION: Schema, a door (6.11, RT-8, B5). A4 worked in the door direction: the type-pair matrix
-                 cannot be drawn honestly at 256, so it buys width. Its 480 pop-out is drawn once, on Main, at
-                 [672,473 480x295] from a row at [1177,473 255x32] -- top 473 on 473, right edge on 1152 -- which is
-                 one of the five anchors 6.11 now cites by pixel so a later pass has something to measure against. -->
+            <!-- SECTION: Schema, a live collapsed section (RT-8, B5). REVISION 1.9, SECTIONS-1.9 5.8 and D7: the
+                 section stops being a door and the MATRIX keeps one. A4 was right that the type-pair matrix cannot
+                 be drawn honestly at 256 and wrong about what that licenses: it buys width for itself, not for the
+                 whole section. So the chevron opens onto the node-type rows with their counts (cat 17, human 2,
+                 dog 1) and the edge-type rows with theirs, capped at five with an "N more" row, plus Filter to type /
+                 Select all of type; and per-type completeness and the edges-by-type-pair matrix sit behind a gear at
+                 480, which is the anchor Main already draws at [672,473 480x295] from a row at [1177,473 255x32] --
+                 top 473 on 473, right edge on 1152. That anchor is unchanged; only its opener is, from the section
+                 header to the gear inside it.
+                 D4 keeps the section CLOSED here, so this board draws what it drew before: the closed chevron and
+                 the closed mark "3 node types, 7 edge types" (D5), deleted the moment the rows are drawn. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Schema. 3 node types, 7 edge types" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
@@ -948,7 +1032,7 @@
        a row renders in the PANEL, and "the door exists so a reader can reach the control in order to CREATE the
        deviation, which 7a alone leaves unreachable" (6.11).
        =================================================================================================== -->
-  <div style="position: absolute; left: 336px; top: 285px; width: 280px; height: 208px; display: flex; flex-direction: column; background: #1f2428; border: 1px solid #48525c; border-radius: 4px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; z-index: 8;">
+  <div style="position: absolute; left: 336px; top: 285px; width: 280px; height: 176px; display: flex; flex-direction: column; background: #1f2428; border: 1px solid #48525c; border-radius: 4px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; z-index: 8;">
 
     <!-- the caret, VOCAB 14.2 verbatim: 6px on the leading (left) edge, its centre on the opener row's centre -->
     <div style="position: absolute; left: -6px; top: 9px; width: 6px; height: 12px; overflow: hidden;">
@@ -984,28 +1068,20 @@
          spelling StyleFromAnalysis uses for Granularity. Only the value ink is #d5d7da; the word stays #7a828e. -->
     <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0 8px 8px 16px; box-sizing: border-box;">
 
-      <!-- RT-1 single: Damping. THE ONE DEVIATION on this board, and the reason the gear outside is drawn primary.
-           0.85 is PageRank's own default; 0.5 shortens the walk, which is a real thing a reader changes when the
-           graph is small and dense. Floor item 3 is not owed a line yet: the one-line run record names "the
-           parameters that were not defaults", and it renders on the RESULT card after Run, not here -- nothing has
-           been run, so the Results tab is empty and there is no record to carry.
-           Nor is floor item 2 owed one: a departure line names approximate, partial, subset, largest-component-only
-           or filtered, and this run will be exact, whole-graph and unfiltered. A6 is explicit that where a hidden
-           option DOES create a floor-2 departure the line renders resident under the section that owns the door and
-           not inside it -- so if this were a sample size rather than a damping factor, the line would be in the
-           panel, under Suggested, and not in this box. -->
-      <div style="display: flex; align-items: center; gap: 8px; height: 32px; padding-top: 8px; box-sizing: content-box;">
-        <div title="Damping. Default 0.85" style="display: flex; align-items: center; width: 224px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;">
-          <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e; cursor: ew-resize;">Damping</span>
-          <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">0.5</span>
-        </div>
-        <div title="Pin into the card" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line></svg>
-        </div>
-      </div>
+      <!-- DAMPING IS NOT IN HERE ANY MORE (1.9, D11). It is the one commonly adjusted parameter of this card, so it
+           was promoted to a resident row on the card itself, and 5.3's pin rule is the mechanism: a field that
+           renders inline does not render in the pop-out. What is left behind the gear is what the gear is for --
+           three engine internals and the shape of the run, all three at their defaults, which is why the gear that
+           opens this surface is drawn dimmed. Floor item 3 is not owed a line here either way: the one-line run
+           record names the parameters that were not defaults and it renders on the RESULT card after Run, and
+           nothing has been run. Nor is floor item 2: a departure line names approximate, partial, subset,
+           largest-component-only or filtered, and this run will be exact, whole-graph and unfiltered. A6 is explicit
+           that where a hidden option DOES create a floor-2 departure the line renders resident under the section
+           that owns the door and not inside it. -->
 
-      <!-- RT-1 single: Tolerance, at its default -->
-      <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+      <!-- RT-1 single: Tolerance, at its default. It carries the 8px of air the deleted Damping row used to carry,
+           so the first field still sits 8px under the header. -->
+      <div style="display: flex; align-items: center; gap: 8px; height: 32px; padding-top: 8px; box-sizing: content-box;">
         <div title="Tolerance. Default 1e-6" style="display: flex; align-items: center; width: 224px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;">
           <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e; cursor: ew-resize;">Tolerance</span>
           <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">1e-6</span>
@@ -1050,13 +1126,16 @@
            Both keep their whole words and neither takes a glyph: REGISTER-1.5 1.6 puts "run" in every form among the
            verbs that have no drawing and may not start acquiring one, and "Reset to defaults" is the Arrangement
            header's own string, also text.
-           Reset to defaults renders ONLY because something deviates. At every value's default this row is one verb
-           wide, which is Rule 7's corollary working in the small: the line is rare, so it is loud.
+           REVISION 1.9: "Reset to defaults" is NOT drawn any more, and the sentence that used to stand here is why.
+           It renders only while something in this surface deviates, and 1.9 promoted the one deviation -- Damping --
+           to a resident row on the card, where its own reset x is the shorter path to the same undo. What is left in
+           here is three values at their defaults, so this row is one verb wide, which is what "At every value's
+           default this row is one verb wide" always predicted. Rule 7a still governs gear contents, and this is it
+           governing them.
            It is a 32px pitch row carrying 11px text, not a 24px row with a margin above it: the format brief forbids
            margins between siblings, and the panel grid's own 32px pitch already spells the 8px of air. -->
       <div style="display: flex; align-items: center; gap: 12px; height: 32px;">
         <span style="font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Copy as command</span>
-        <span style="font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Reset to defaults</span>
       </div>
 
     </div>

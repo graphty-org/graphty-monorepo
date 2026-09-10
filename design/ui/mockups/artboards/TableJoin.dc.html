@@ -103,6 +103,35 @@
   pop-over opened from the Conflicts field's own in-field chevron (dialog lane, B2); Color by log2FoldChange,
   the match reports, the unmatched list and both its verbs stay resident. Data panel: the Add data gear is
   deleted and the Loaded data pencil becomes the one registered "Import options" gear.
+
+  REVISION 1.9 (SECTIONS-1.9.md). NO PIXEL ON THIS BOARD CHANGES, and that is the finding rather than an
+  omission. 5.14 Validation report split the set in two: DataPanelLoaded and ValidationPopout drew it as a
+  permanent door with the whole report inside a 360 pop-out, while this board and ImportAddToGraph drew it
+  as an ordinary live collapsed section carrying its own state mark. 5.8's board-divergence clause settles
+  the split in favour of the collapsed section, so this board is the TARGET of the 1.9 edit rather than
+  its subject: its header at [64,571 247x32], chevron closed, name primary, "2 info" in the trailing slot,
+  is the shape the other two were brought to. The mark is this file's own state -- the gene table join has
+  no warnings, only two info lines -- and it is a count, which is 6.11's stub vocabulary, so it stays.
+  What the section opens onto when it is opened, recorded so it is not re-derived: its issue rows one line
+  each (severity glyph, name with count, that issue's single primary verb), the green fixed line if a
+  cleaning step closed one, and a 24px detail gear holding the consequence sentences, the example ids, the
+  Info group and the Ignore list. D4 leaves it closed here; ValidationPopout draws the open form.
+  D12 DOES NOT REACH THIS BOARD: the "Import settings" gear swept from three sibling Import boards was
+  already gone -- 1.8 deleted the Add data gear and made the Loaded data pencil the one "Import options"
+  gear -- and the dialog's Conflicts field, which is the other door here, already reports the conflict
+  rule in words on screen with the other two controls in its title, so it owes no stub either.
+  5.15 POLICIES does not reach it either: "Policies: defaults." was deleted outright by Rule 7a and no
+  chevron was left behind, so there is no chevron over nothing to repair. This is a join, not an import of
+  a new edge table, and the repeat and self-loop counts belong to the file that carries them.
+  MEASURED for the record, unchanged from 1.8: panel content 639.00px in the 800px scroll region
+  (146 / 33 / 201 / 33 / 33 / 33 / 33 / 33 / 61 / 33), inspector 565.00px in its own 800px region, no
+  overflow in either, and the dialog is untouched.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  The Validation report header gains the title the other three boards carry, "Validation report. 2 info".
+  The mark itself stays as it is: 5.14 asks for the highest severity glyph plus the count, and on this file
+  the severity is info and the word says it, so a glyph would restate what the mark already reads (Rule 8).
 -->
 <div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -395,14 +424,14 @@
             <!-- Validation report (tier 2, collapsed) -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+              <div title="Validation report. 2 info" style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px;">
                   <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Validation report</span>
                 </div>
-                <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">2 info</span>
+                <span style="font-size: 11px; line-height: 1; color: #7a828e;">2 info</span>
               </div>
             </div>
 

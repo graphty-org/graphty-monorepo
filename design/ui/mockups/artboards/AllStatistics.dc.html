@@ -89,6 +89,35 @@
   no categorical rows to cap at five, no counts to remove and no state rows. What changes is the rule --
   max-height 334 -> 240 -- and the split: the canvas keeps the reading legend, and completeness is the export's
   obligation, composed from the encoding model at export scale rather than captured from this overlay.
+
+  REVISION 1.9 (SECTIONS-1.9 D1, D2, D3, D5, D6, D7, D11; work list 5.8 and 5.9). Two work-list items land here.
+  ALL STATISTICS, 5.9: the section stops being a door and expands in place. Three resident rows -- How tightly
+  linked (density) 0.031, Longest shortest path (diameter) Computing..., Typical distance (average path length)
+  Computing... -- and one dimmed gear in the header's trailing slot, which opens the pop-out beside the panel with
+  the long tail and the policy in it: Graph type and its multigraph note, Spread of links (degree distribution),
+  Tight-knit neighborhoods and Closed triangles (both Coming), and the Recompute / Copy values / Export CSV /
+  "Recompute on every filter change" set that was already in this surface's header and overflow. The stub's
+  "Computing 3 of 7" is retired as a CONTORTION and kept as a MARK: each of the three rows now says for itself that
+  it is running, which is what 6.2 asked for, and the string survives beside the gear only because one of the three
+  running passes -- the degree distribution -- is behind that gear and the visible rows cannot report it (D5). At
+  rest, with every pass landed, that slot reads the count 4, as AnalyzePanel draws it.
+  MEASURED. The panel content ran y 76 to 558 before and runs y 76 to 644 after, in an 800px region (y 76 to 876):
+  three RT-6 rows at 28px on a 1px gap is +86px and nothing scrolls. The pop-out falls from 291px to 204px against
+  B1's 418 cap; its lane, its left edge 336, its shared edge line 358 on 358 and its caret at top 12 are all
+  unchanged, because the opener is the gear inside the same 32px row the stub used to be.
+  The parenthetical technical names drop into the resident rows' titles (13.3): at 256 a row has 240px between its
+  pads, and "Longest shortest path (diameter)" plus "Computing..." measures 278px, "Typical distance (average path
+  length)" plus its value 310px. "How tightly linked (density)" plus 0.031 measures 204px and would have fitted; it
+  drops its parenthetical with the other two so the three read as one column. All three pairs render inline at 360
+  in the pop-out, which is the width doing its job.
+  SCHEMA, 5.8: the inspector's Schema section is no longer described as a permanent door. It is a live collapsed
+  section whose chevron opens onto the node-type and edge-type rows with their counts, with the type-pair matrix
+  and per-type completeness behind a 480 gear (D7). D4 keeps it closed at rest, so the drawing does not change --
+  the chevron was already the closed form and the mark "4 node types, 3 edge types" is exactly the closed mark D5
+  asks for. The edit is to the comment and to what the chevron promises.
+  D11 KEEPS THIS BOARD'S PREMISE, re-scoped: it was "the 360 statistics pop-out drawn open" and it is now "All
+  statistics expanded, with the long-tail gear pop-out beside it". The anchor this board exists to test is
+  unchanged, and it is still the only board in the set that draws this surface open.
 -->
 <div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -371,31 +400,69 @@
               </div>
             </div>
 
-            <!-- SECTION: All statistics, the door, OPEN. This is the opener the pop-out is anchored to, and the two
-                 marks that tie the two together are both on this row: the selected-row fill #28364e (VOCAB 12) and
-                 the shared edge line, this row's top at 358 against the pop-out's top at 358.
-                 The chevron stays in the closed right-pointing form because this section never opens in place
-                 (6.11's stub obligation); the name is at value ink; the info circle carries the technical name
-                 "Statistics panel", which is floor item 6.
-                 The trailing slot is the stub's whole job: while the passes run it reads "Computing 3 of 7"
-                 instead of the count, because 6.2 guarantees that a row still computing says so and behind a door
-                 there is no row left to say it. When they land it reads the count, and the title reads
-                 "All statistics. 7 statistics, computed 14:12".
-                 D3 / A4: this is a door because the 360 table buys width beyond the 256px band -- the discriminator's
-                 first clause and the only one it needs. -->
+            <!-- SECTION: All statistics, EXPANDED (SECTIONS-1.9 D1, 5.9). What was a 32px stub over a 360 report
+                 is a section with three resident rows and one gear. The licence for a section that is only a door
+                 is withdrawn: a chevron renders only where it opens onto real rows, and a gear is an ADDITION to a
+                 section that already draws content.
+                 WHICH THREE, and why (D2, D6). Clause (a)'s denominator is local now -- of the readers who open
+                 THIS section, what are the two or three things they consult? -- and "commonly adjusted" reads as
+                 "commonly adjusted or commonly consulted", because this section holds readouts and not controls.
+                 Density, diameter and average path length are what a reader came for. The long tail is the gear's.
+                 6.2 IS SATISFIED PER ROW NOW, which is what it asked for. Each row carries its own "Computing..."
+                 while its pass runs, so nothing depends on a stub to say a pass is in flight, and the stub's
+                 "Computing 3 of 7" contortion -- a progress string standing in for seven rows that were not drawn --
+                 is retired as a contortion. The string itself survives in the trailing slot beside the gear (D5),
+                 because with the degree distribution behind the gear it still says something the three visible rows
+                 do not: how many of the seven passes are running. It goes when the last pass lands and the slot
+                 reads the count 4, which is what AnalyzePanel and AnalyzeParameters draw at rest.
+                 THE PARENTHETICAL DROPS INTO THE TITLE (13.3), measured rather than assumed: inside the 256px band
+                 a row has 240px between its 8px pads, and "Longest shortest path (diameter)" plus "Computing..."
+                 measures 278px, "Typical distance (average path length)" plus its value 310px. Both overrun, so the
+                 general form applies -- it gives up the technical name, never the plain one -- and the pair rides in
+                 each row's title. "How tightly linked (density)" plus 0.031 measures 204px and would fit; it drops
+                 its parenthetical with the other two so the three read as one column of plain names rather than a
+                 column with one row indented by a parenthesis. All three pairs render inline at 360 in the pop-out.
+                 THE GEAR (14.1, A6) is dimmed: everything behind it is a readout or a default -- Graph type with its
+                 multigraph note, Spread of links (degree distribution), the two Coming rows, and the Recompute /
+                 Copy values / Export CSV / "Recompute on every filter change" set. It draws #d5d7da the moment one
+                 of those deviates.
+                 The header row keeps the selected-row fill #28364e while its pop-out is open (VOCAB 12). The opener
+                 is the gear now, and this row is the tether the reader follows back to it. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column; padding-top: 8px;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="All statistics. Computing 3 of 7" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; border-radius: 4px; background: #28364e; cursor: pointer; box-sizing: border-box;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
                   <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">All statistics</span>
                   <div title="Statistics panel. Instant rows follow the data; computed rows are recomputed on request." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #7a828e; cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
                   </div>
                 </div>
-                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #a3a8b1;">Computing 3 of 7</span>
+                <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #a3a8b1;">Computing 3 of 7</span>
+                  <div title="All statistics options" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+                  </div>
+                </div>
+              </div>
+              <!-- RT-6, the three resident statistics. D3 does not reach them: they are readouts, not controls at a
+                   default, so Rule 7a was never what kept them off the panel. Density has landed; the other two are
+                   still running and say so on their own rows. -->
+              <div style="display: flex; flex-direction: column; gap: 1px;">
+                <div title="How tightly linked (density): 0.031" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; box-sizing: border-box;">
+                  <span style="min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">How tightly linked</span>
+                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #a3a8b1;">0.031</span>
+                </div>
+                <div title="Longest shortest path (diameter). Computing..." style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; box-sizing: border-box;">
+                  <span style="min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Longest shortest path</span>
+                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e;">Computing...</span>
+                </div>
+                <div title="Typical distance (average path length). Computing..." style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; box-sizing: border-box;">
+                  <span style="min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Typical distance</span>
+                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e;">Computing...</span>
+                </div>
               </div>
             </div>
 
@@ -965,9 +1032,17 @@
               </div>
             </div>
 
-            <!-- SECTION: Schema, a door (6.11, RT-8). Consulted rather than operated, so it never renders open: the
-                 chevron stays closed permanently and the trailing slot carries the one fact behind the door. The
-                 type names, per-type completeness and the type pairs are in its 480 pop-out, drawn on Main. -->
+            <!-- SECTION: Schema, a live collapsed section (RT-8). REVISION 1.9, 5.8: it is no longer a permanent
+                 door. There is no permanently-closed chevron in the set any more (D1), and D6 settles what a
+                 consulted section keeps: of the readers who open Schema, the type names and their counts are what
+                 they came for, so opening this one draws the node-type rows with their counts and the edge-type
+                 rows with their counts -- capped at five with an "N more" row -- plus the existing Filter to type /
+                 Select all of type verb row. Per-type completeness and the edges-by-type-pair matrix stay behind a
+                 gear at 480 (D7): a two-dimensional matrix is the one part that cannot be drawn honestly at 256.
+                 D4 keeps it CLOSED at rest, so nothing on this board moves: the chevron is the closed
+                 right-pointing form because the section is closed, not because it cannot open, and the trailing
+                 slot carries the closed mark, "4 node types, 3 edge types" (D5), which is deleted the moment the
+                 rows are drawn. Main draws the open form; this board draws the mark. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Schema. 4 node types, 3 edge types" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
@@ -1049,47 +1124,45 @@
     <div style="display: none; align-items: center; gap: 8px;"></div>
   </div>
 
-  <!-- ALL STATISTICS POP-OUT. Tier 3a: no scrim, no focus trap, the canvas keeps pointer and keyboard, the
-       selection keeps flowing, Escape closes and returns focus to the stub row. One per region, and the region is
-       the OPENER's region, so this counts against the activity panel even where it overhangs the canvas.
-       GEOMETRY, and every number here is measurable on the render rather than asserted:
-         lane        activity panel, opens right, left edge 336, which is 8px clear of the panel's own 328 edge
-         gap axis    horizontal, 8 -- the constant for a shell region boundary, not the 12 the canvas overlay layer
-                     uses for the legend, the minimap and the toolbar
-         edge line   top to top with the opener row: 358 on 358
-         width       360, the middle rung. 280 is for field rows; this is a report of named statistics and their
-                     values, which is what 6.11 assigns the 360 rung, and two of its seven rows do not fit a name
-                     and a value on one line inside the panel's 256px band
-         height      291, against B1's second cap of 418 (half the 836px activity panel) and 6.11's cap of 804
-                     (region height less 32). Neither binds, so the body does not scroll and the flip never fires
+  <!-- THE GEAR POP-OUT: the long tail of All statistics, and its policy. Under SECTIONS-1.9 D1 this surface stops
+       being the section and becomes the ADDITION to it: the section beside it draws three rows, and the gear in its
+       header opens this. D11 re-scopes the board on the same terms -- it was "the 360 statistics pop-out drawn open"
+       and it is now "All statistics expanded, with the long-tail gear pop-out beside it" -- so the premise, the
+       anchor and every measurement below survive the revision; only what is inside changes.
+       WHAT IS IN HERE (5.9): Graph type with its multigraph note, Spread of links (degree distribution), and the two
+       capabilities that have not shipped, which keep their names and their Coming tags (6.10 item 6, VOCAB 13.2).
+       The policy and the verbs 5.9 also files behind the gear are already here and do not move: Recompute in the
+       header, disabled while the passes run and stating why in its own title; Export CSV beside it; and the section
+       overflow, whose rows are the full-text twins 6.8 requires -- Copy values, Export CSV, Recompute all
+       statistics, Recompute on every filter change.
+       WHY 360 AND NOT 280 (A4, 6.11): the width buys the one row that cannot be drawn in the 256px band as a name
+       and a value on one line, "Graph type -- Multigraph, flattened at import", and the pair of a plain name, its
+       technical name and a Coming tag on the two unshipped rows. That is A4's first clause and the only one it
+       needs. The three rows that DO fit 256 left this surface for the panel, which is the whole point of the
+       revision.
+       Tier 3a: no scrim, no focus trap, the canvas keeps pointer and keyboard, the selection keeps flowing, Escape
+       closes and returns focus to the gear it came from.
+       GEOMETRY, measured on the render rather than asserted, and unchanged by 1.9 except for the height:
+         lane        activity panel, opens right, left edge 336, 8px clear of the panel's own 328 edge
+         gap axis    horizontal, 8 -- the shell-region constant, not the 12 the canvas overlay layer uses
+         edge line   top to top with the opener row: 358 on 358. The opener is the gear now, and the gear sits in
+                     that row, so the shared edge line does not move
+         width       360, the middle rung
+         height      204 measured, was 291 with the seven rows. Against B1's second cap of 418 (half the 836px
+                     activity panel) and 6.11's cap of 804 (region height less 32): neither binds, so the body does
+                     not scroll and the flip never fires
          clearance   right edge 696 against the legend's 892, the minimap's 500, the toolbar's 621. Nothing is
-                     covered, so no clause of the fallback ladder runs: it does not slide along the shared-edge
-                     axis, does not flip top-to-top into bottom-to-bottom, does not drop to 280, does not open
-                     centred with "from All statistics" in its header
-       THE CARET (B3, VOCAB 14.2): 6px on the leading edge, which for an activity-panel pop-out is the LEFT edge,
-       pointing back at the panel. Its y is decided by the clamp: the opener row's vertical centre sits 16px below
-       this pop-out's top, which would put a 12px caret at top 10, inside the 12px corner clamp, so it draws at
-       top 12. It is drawn rather than the return strip because the opener is in the region and in view.
-       NO PIN (E2): the pin is narrowed to four comparative surfaces and this is not one of them. A pop-out whose
-       content is a report of the whole graph has nothing to hold still while the selection changes, and pinning it
-       would produce a stale panel that lies.
-       THE THREE HEADER VERBS ARE RESIDENT (6.8, and VOCAB 12's local override of RT-7's hover split): at 360 there
-       is room and floor item 4 wants their full text one hover away. Recompute is disabled while the passes run
-       and states the reason in its own title, which is the one floor item whose words may live in a title.
-       THE SEVEN ROWS. 6.11's own list for this section, drawn for this graph. Two instant rows carry values; three
-       passes are running and say so; two capabilities have not shipped and keep their names and their Coming tags
-       rather than being omitted (6.10 item 6, VOCAB 13.2). The giant-component row is not among them because the
-       inspector's reading already says "One connected part holds all 200 nodes", and "Isolated nodes 0" is the row
-       MIN-2 and REGISTER-1.5 S14 delete. Three of seven are computing, which is exactly what the stub says.
-       One 1px hairline separates the two instant rows from the five that are asked for, so the footer's
-       sentence about instant and computed rows has something to point at.
-       Rows 6 and 7 carry their technical names in their titles rather than inline: at this width the pair plus the
-       Coming tag overruns the row, and 13.3's general form gives up the technical name, never the plain one.
-       NO DEPARTURE LINE (RT-10): 200 nodes is under the exact-computation cap, so diameter and average path length
-       are exact and there is nothing to qualify. A departure line is drawn only when there is a departure, never
-       to say "Exact." -- which is what makes it loud when it does appear. Above the cap these two rows would read
-       "Not computed" with an "Estimate (100 sampled sources, about 8 s)" offer, and the result would carry
-       "estimated from 100 samples" as its own per-row caveat, travelling with the row into this surface. -->
+                     covered, so no clause of the fallback ladder runs
+       THE CARET (B3, VOCAB 14.2): 6px on the leading edge, which for an activity-panel pop-out is the LEFT edge.
+       The opener row's vertical centre is 16px below this pop-out's top, which would put a 12px caret at top 10,
+       inside the 12px corner clamp, so it draws at top 12.
+       NO PIN (E2): the pin is narrowed to four comparative surfaces and a report of the whole graph is none of
+       them. NO RETURN STRIP (B3, VOCAB 14.3): the opener is in the region and in view.
+       ONE 1px HAIRLINE still separates the instant row from the rows that had to be asked for, so the footer
+       sentence has something to point at. Below the exact-computation cap the computed rows recompute on a filter
+       change; above it they read as totals for the full graph and say so.
+       NO DEPARTURE LINE (RT-10): 200 nodes is under the exact-computation cap, so nothing here is approximate and
+       a departure line is drawn only when there is a departure. -->
   <div style="position: absolute; left: 336px; top: 358px; width: 360px; display: flex; flex-direction: column; background: #1f2428; border: 1px solid #48525c; border-radius: 4px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; z-index: 8;">
 
     <!-- the 6px leading-edge caret, clamped 12px inside the corner -->
@@ -1098,8 +1171,8 @@
     </div>
 
     <div style="display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 4px 0 12px; flex: 0 0 auto; box-sizing: border-box;">
-      <span style="flex: 0 0 auto; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">All statistics</span>
-      <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Statistics panel</span>
+      <span style="flex: 0 0 auto; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">All statistics options</span>
+      <div style="flex: 1 1 0; min-width: 0;"></div>
       <div title="Recompute. Wait for the three passes now running to finish" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"></path><polyline points="2.5,2.5 2.5,6 6,6"></polyline></svg>
       </div>
@@ -1118,7 +1191,9 @@
 
     <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0 12px 12px; box-sizing: border-box;">
 
-      <!-- RT-6 rows: the plain name, the technical name dimmed in parentheses (6.3), the value right-aligned. -->
+      <!-- RT-6 rows: the plain name, the technical name dimmed in parentheses (6.3), the value right-aligned. At
+           360 the pair fits inline, which is the width's other job; in the 256px band beside it the parenthetical
+           rides in the row's title instead (13.3). -->
       <div style="display: flex; flex-direction: column; gap: 1px;">
 
         <div title="Graph type: multigraph, flattened at import. 5 repeated pairs were combined by sum; 2 self-loops were kept and are counted in the 612 edges" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; box-sizing: border-box;">
@@ -1126,27 +1201,12 @@
           <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #a3a8b1;">Multigraph, flattened at import</span>
         </div>
 
-        <div title="3.1e-2" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; box-sizing: border-box;">
-          <span style="min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">How tightly linked <span style="color: #7a828e;">(density)</span></span>
-          <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #a3a8b1;">0.031</span>
-        </div>
-
         <div style="display: flex; align-items: center; height: 9px;">
           <div style="flex: 1 1 auto; height: 1px; background: #374047;"></div>
         </div>
 
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; box-sizing: border-box;">
+        <div title="Spread of links (degree distribution). Computing..." style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; box-sizing: border-box;">
           <span style="min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Spread of links <span style="color: #7a828e;">(degree distribution)</span></span>
-          <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e;">Computing...</span>
-        </div>
-
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; box-sizing: border-box;">
-          <span style="min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Longest shortest path <span style="color: #7a828e;">(diameter)</span></span>
-          <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e;">Computing...</span>
-        </div>
-
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; box-sizing: border-box;">
-          <span style="min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Typical distance <span style="color: #7a828e;">(average path length)</span></span>
           <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e;">Computing...</span>
         </div>
 

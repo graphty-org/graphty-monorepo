@@ -124,6 +124,25 @@
   minimap, legend, inspector and status bar copied from CommandPalette.dc.html, which drew this exact
   no-panel-open state first; the reference card is copied from ShortcutsDialog.dc.html. Identical
   inputs render identically (6.3, K1, K5).
+
+  REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8). Schema stops being a permanent door and becomes an
+  ordinary collapsed section, opening IN PLACE onto the node-type rows with their counts (cat 17, human 2,
+  dog 1) and the edge-type rows with theirs, capped at five with an "N more" row, plus the RT-7 verb row Filter
+  to type / Select all of type; per-type completeness and the edges-by-type-pair matrix stay behind a gear that
+  keeps the 480 (D7). No drawn pixel moves -- closed is the state this board draws, so the header keeps its D5
+  mark "3 node types, 7 edge types" and its Export schema JSON verb, and CommandPalette.dc.html, which this
+  inspector is copied from, takes the identical edit so identical inputs still render identically.
+  The reference overlay itself gains no binding and no row: 1.9 opens sections that a chevron already opened,
+  so it adds no destination that needs one, which is the finding the doors already made in 1.7.
+  Measured after the edit: the inspector's 800px content region uses 528px, 272px of headroom, and no clipped
+  region on this board overflows.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Schema is drawn CLOSED here, so its trailing slot belongs to its state mark alone and "Export schema
+  JSON" is deleted from this header. D5 gives a closed section's slot to its mark and an open one's to its
+  verbs and its gear; the set drew the verb on ten closed Schema headers and left it off fifteen. Main draws
+  the open form with the verb in the slot, so nothing became unreachable, and no row changes height.
 -->
 <div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -645,7 +664,21 @@
                  completeness and the type-pair matrix; before SchemaExtractor finishes, the mark reads
                  "measuring..." in its place, so the stub never hides the fact that the numbers are not there yet.
                  Not drawn open here: the reference overlay is this board's subject, it is a different surface class, and
-                 E2 allows one transient at a time; POP-6's shell is drawn on Main. -->
+                 E2 allows one transient at a time.
+                 REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8). The permanent-door licence is WITHDRAWN
+                 and every sentence above that asserts it is struck -- there is no permanently-closed chevron, and
+                 a chevron that reveals nothing is a defect. This is an ordinary collapsed section. It is closed
+                 here because the section is closed, and it opens IN PLACE onto the node-type rows with their
+                 counts (cat 17, human 2, dog 1) and the edge-type rows with their counts, capped at five with an
+                 "N more" row, plus the RT-7 verb row Filter to type / Select all of type. What leaves is a gear
+                 on the open section holding per-type completeness and the edges-by-type-pair matrix, and that
+                 gear keeps the 480 (D7) because a two-dimensional table cannot be drawn honestly in the 256px
+                 band. 5.8 settles the board divergence toward the five boards that already draw the live
+                 collapsed section, and this row is already in that form, so no drawn pixel moves.
+                 The mark is now the D5 CLOSED-state mark rather than a door stub, and the 151-against-156
+                 arithmetic above still holds. It is deleted the moment the section is open and the type rows
+                 repeat it (Rule 8), and it still reads "measuring..." before SchemaExtractor finishes. Export
+                 schema JSON stays in the trailing slot. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Schema. 3 node types, 7 edge types" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
@@ -655,11 +688,6 @@
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Schema</span>
                   <span style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">3 node types, 7 edge types</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
-                  <div title="Export schema JSON" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
-                  </div>
                 </div>
               </div>
             </div>

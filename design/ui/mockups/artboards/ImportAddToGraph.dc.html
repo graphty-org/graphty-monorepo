@@ -92,6 +92,40 @@
   Resident Data panel rows 18 -> 15. The one transient surface drawn open is the Import options dialog,
   which is opened by a file dropped on the canvas and so has no anchor box: it takes the CENTRED form,
   720 wide on 1440 (x 360 to 1080), vertically centred on 900. No anchored pop-over is drawn open.
+
+  REVISION 1.9 (SECTIONS-1.9.md). NO PIXEL ON THIS BOARD CHANGES, and that is the finding rather than an
+  omission. 5.14 Validation report split the set in two: DataPanelLoaded and ValidationPopout drew it as a
+  permanent door with the whole report in a 360 pop-out, while this board and TableJoin drew it as an
+  ordinary live collapsed section with its own state mark. 5.8's board-divergence clause settles that
+  split in favour of the collapsed section -- "the boards that draw the live collapsed section are
+  correct and the others are brought to them" -- so this board is the TARGET of the 1.9 edit, not its
+  subject. Its 33px header at [64,446 255x32] with the amber dot and "4 issue types (27)" is what
+  DataPanelLoaded's and ValidationPopout's headers were measured against.
+  What the section now opens onto, so a later pass does not have to re-derive it: three amber issue rows
+  one line each -- severity glyph, the name with its count, that issue's single primary verb -- plus the
+  green "8 mixed-form ids. Fixed by step 2" line, and a 24px detail gear in the trailing slot holding the
+  consequence sentences, the example ids, the fourth amber type, the Info group and the Ignore list.
+  ValidationPopout draws that open form; this board draws the closed one, and D4 leaves it closed.
+  D12 DOES NOT REACH THIS BOARD: the "Import settings" gear it swept from three sibling Import boards was
+  already gone here -- 1.8 D5 moved the one general import door to the Loaded data header as "Import
+  options", which is what this board draws, and the Parsing group in the dialog already prints its
+  summary ("comma, quote ", header row, UTF-8"), so it owes no stub.
+  MEASURED for the record, unchanged from 1.8: panel content 492.59px in the 800px scroll region
+  (44 / 32 / 64 / 212.59 / 41 / 33 / 33 / 33), inspector 485.19px in its own 800px region, no overflow in
+  either. The dialog is untouched.
+  ONE-SHAPE NOTE, recorded and deliberately not acted on: the four boards that draw this section closed
+  now spell its mark three ways -- this board's dot-plus-pill "4 issue types (27)", DataPanelLoaded's and
+  ValidationPopout's amber triangle plus "4 types", and TableJoin's "2 info", which is its own file's
+  different state. 5.14 names the triangle and "4 types". Changing this one would contradict the
+  instruction that these two boards are the target, so the spelling difference is left for whichever pass
+  owns the mark vocabulary.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  The Validation report mark takes the ONE spelling 5.14 names, which this board's own comment flagged and
+  left for "whichever pass owns the mark vocabulary": the amber triangle plus "4 types" in the trailing
+  slot, with "Validation report. 4 issue types, 27 issues" in the title. The dot-plus-pill "4 issue types
+  (27)" was the third spelling of one mark across four boards. No row changes height.
 -->
 <div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -350,13 +384,18 @@
                  headers is a legible inventory of what has not been opened yet. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column; padding-top: 8px;">
               <div style="height: 1px; background: #495057;"></div>
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+              <div title="Validation report. 4 issue types, 27 issues" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
                   <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Validation report</span>
-                  <div style="display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;"><div style="width: 6px; height: 6px; border-radius: 50%; background: #f7b731;"></div>4 issue types (27)</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #f7b731;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
+                  </div>
+                  <span style="font-size: 11px; line-height: 1; color: #7a828e;">4 types</span>
                 </div>
               </div>
             </div>

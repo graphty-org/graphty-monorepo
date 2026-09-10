@@ -104,8 +104,71 @@
   the row cannot be drawn without one; FIXTURES.md fixes no video numbers for any dataset. One value is chosen
   here -- a 10 s real-time capture plus its encode -- and it should be entered in FIXTURES.md as INVENTED before
   a second board draws a video estimate.
+
+  REVISION 1.9 (SECTIONS-1.9.md, VOCAB section 15). A panel always expands; a gear is an addition and never the
+  section itself. THIS BOARD IS RE-SCOPED, AND ITS PREMISE CHANGES SHAPE RATHER THAN GOING AWAY: it was "the one
+  door in D1's pop-over inventory that no other board draws open", and it is now the one board that draws Export
+  video EXPANDED IN PLACE. Everything above this paragraph about that pop-out -- the opening line, the 280 anchor
+  measured at left 336 / top 326, the 6px caret clamped to y 344, the lit #28364e opener fill, the row-9 line in
+  the split inventory -- is kept as the record of WHAT WAS HERE and is no longer what the board draws.
+    - 5.13 Export video, the work-list item. D1 withdraws the licence for a section that is only a door, so the
+      pop-out is deleted and its four rows come back into the panel as this section's resident rows. Drawn:
+      the Duration | Camera RT-1 pair, the Video format field on the 224 single, and the estimate-plus-Record
+      RT-7 row. That is literally what KeepAdvancedOpen already draws when "Keep advanced sections open" is on
+      (SECTIONS-1.9 section 4), so the inline form was already specified and already measured; 1.9 makes it the
+      default form and this board is where the default is drawn. The chevron takes the open down form.
+      THE STUB IS DELETED, which is D5's changeover rule: "10 s, Orbit once, WebM" named the duration, the camera
+      and the format, and all three are fields 32 px below the header now, so Rule 8 takes it. The lit opener fill
+      goes with it, because nothing is anchored to this row any more.
+      NO GEAR AT ALL. 5.13 puts the video twin of the Image quality group -- scope, background, resolution, frame
+      rate -- behind one, and none of it ships, so the section carries none and is simply an expanded section.
+      D1 permits exactly that: a gear is an ADDITION to a section that already draws content.
+    - 5.8 Schema, the stub. The POP-6 permanent door becomes a live collapsed section. D4 keeps it closed and
+      "3 node types, 7 edge types" is already the closed mark 5.8 specifies, so nothing moved; what changed is
+      what the chevron promises -- node-type and edge-type rows with their counts, capped at five with an
+      "N more" row (D6) -- and the edges-by-type-pair matrix keeps its 480 behind the gear under D7.
+  EXPORT IMAGE IS THE MODEL AND IS UNTOUCHED. It is the first of SECTIONS-1.9 section 4's exemplars: an open
+  chevron, resident rows, one gear in the trailing slot that is an addition rather than the section, A6's two inks
+  on that gear, and the departure line resident under the section that caused it. Export video has been brought to
+  that shape, minus the gear it has nothing to put in.
+  THE ROW INVENTORY AS DRAWN AFTER 1.9. Thirteen rows where the 1.8 list above has ten, all three new ones inside
+  Export video, and none of them at rest -- D4 is what pays for them, since the section still defaults closed and
+  this board draws it opened deliberately:
+     1  RT-8 Export image, with the gear that opens Image options            y  76..108
+     2  RT-1 pair Format PNG | Scale 2x                                      y 108..140
+     3  the floor line 1664 x 1672, about 420 KB                             y 140..160
+     4  RT-7 Copy to clipboard | Export image                                y 160..192
+     5  RT-6 Last export cat-social-network.png                              y 192..212
+     6  RT-8 Export data, with its gear and its recipe overflow              y 221..253
+     7  RT-1 pair Format JSON | Scope Whole graph                            y 253..285
+     8  RT-7 Copy node ids | Export data                                     y 285..317
+     9  RT-8 Export video, OPEN, no mark and no gear                         y 326..358
+    10  RT-1 pair Duration 10 s | Camera Orbit once                          y 358..390
+    11  RT-1 single Video format WebM                                        y 390..422
+    12  RT-7 about 12 s to record | Record                                   y 422..454
+    13  RT-8 Reports -- the library section, empty, resident plus            y 463..495
+  MEASURED IN THE BROWSER at 1440 x 900, not added up on paper. Panel column y 76 to y 495 = 419 px, against
+  315 px before, in an 800 px content area: 381 px of headroom, so it does not scroll and no scrollbar affordance
+  returns. The Export video section itself measures 137 px -- 1 divider + 32 header + 104 of content, the 104
+  being three 32 px rows and the section's 8 px bottom pad -- and every row lands on the y values listed above to
+  the pixel. That is 5.13's "Present draws 13" measured rather than assumed, which is what SECTIONS-1.9 section 7
+  asks each newly inlined section to state. Inspector column 455 px in the same 800, unchanged. The canvas is
+  unchanged and now has nothing over it at all.
+  ONE STYLE PROPERTY WENT WITH THE POP-OUT: the frame div's "position: relative", which existed only to be the
+  containing block for the caret and the pop-out. With both gone the root is the same declaration PresentPanel
+  carries, which is what "the same screen in two states" asks for.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Schema is drawn CLOSED here, so its trailing slot belongs to its state mark alone and "Export schema
+  JSON" is deleted from this header. D5 gives a closed section's slot to its mark and an open one's to its
+  verbs and its gear; the set drew the verb on ten closed Schema headers and left it off fifteen. Main draws
+  the open form with the verb in the slot, so nothing became unreachable, and no row changes height.
+  The empty library sections lose the chevron they could not open: Reports. RT-8's empty form is a
+  dimmed name, its resident "+" and an EMPTY 16px leading slot, and D1 turns that snippet into a rule -- a
+  chevron renders only where it opens onto resident rows. The chevron returns with the first saved report configuration.
 -->
-<div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
   <!-- MAIN ROW: rail + everything right of it. Height 876. -->
   <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row;">
@@ -406,33 +469,87 @@
               </div>
             </div>
 
-            <!-- SECTION Export video. ROW 9, and the DOOR THIS BOARD DRAWS OPEN. VOCAB 14.1's RT-8 door form:
-                 the chevron is permanently in the closed right-pointing shape and never opens the section in
-                 place, and the trailing slot carries the one fact that says what is behind it -- here the
-                 written shape of the file the section will write, "10 s, Orbit once, WebM", which is floor
-                 item 4 and is why Rule 7a may not delete it as three untouched defaults. The name is at value
-                 ink because RT-8 dims a name only when its section holds nothing, and this one visibly holds
-                 three values.
-                 A4's discriminator, checked: this door buys survival of the rows below staying operable and,
-                 more simply, it is a set of field rows with a verb and an estimate -- a collapsed section would
-                 cost the same one row and the door adds a click for something, which is that the recording
-                 controls and the canvas stay visible together.
-                 OPEN STATE: the row carries the selected-row fill #28364e for as long as its pop-out is open
-                 (VOCAB section 12). The row's top is y 326 and the pop-out's top is y 326. The fill is drawn
-                 the way Main draws the lit Schema door -- square, no radius, no padding, spanning the content
-                 band 64 to 319 -- because that is one of B5's five verified anchors and a full-band square fill
-                 reads as a selected ROW. CategoryTable's rounded spelling with a 6px right pad is the other
-                 form in the set; Main's is the one copied here, since this row is the same object as its. -->
+            <!-- SECTION Export video, ROW 9, AND THE SECTION THIS BOARD DRAWS EXPANDED. It was a door row with
+                 a 280 pop-out hanging off it; SECTIONS-1.9 D1 withdraws the licence for a section that is only a
+                 door, so the pop-out is deleted and its contents come back inside the panel as this section's
+                 resident rows. Everything here is a restoration rather than a new drawing: KeepAdvancedOpen
+                 already draws this exact inline form when "Keep advanced sections open" is on (SECTIONS-1.9
+                 section 4), and 1.9 makes that the DEFAULT form. Same three rows, same order, same 32px pitch.
+                 THE CHEVRON is the open down form, because the section is open. THE MARK IS GONE: "10 s, Orbit
+                 once, WebM" named the duration, the camera and the format, and all three are now fields 32px
+                 below it, so Rule 8 deletes it -- D5's rule for the changeover exactly, a mark the rows repeat
+                 dies the moment the rows are visible. The lit #28364e opener fill goes with it: nothing is
+                 anchored to this row any more, so there is nothing for it to be lit as the opener OF.
+                 NO GEAR, AND THAT IS LEGAL. 5.13: behind the gear would go the video twin of the Image quality
+                 group -- scope, background, resolution, frame rate -- and none of it ships, so this section
+                 carries no gear at all and is simply an expanded section. D1 permits it in terms: a gear is an
+                 ADDITION to a section that already draws content, never an obligation. What D1 forbids is the
+                 other way round, a gear or a chevron with no resident content under it, which is what this row
+                 was until now.
+                 THE FLOOR KEPT BOTH OF THE LAST ROW'S HALVES. The estimate is floor item 4 -- a cost stated
+                 before the verb spends it -- and Record's full text is floor item 4 as well, so both were always
+                 going to be resident under an open chevron. REGISTER-1.5 has no glyph for Record and none is
+                 invented (6.8 keeps an unregistered verb in words).
+                 WHILE RECORDING, not drawn because this board is at rest: progress and Cancel mirror into the
+                 status bar like an algorithm run, and the estimate-plus-Record row becomes the progress row. -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Export video. 10 s, Orbit once, WebM" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; background: #28364e; cursor: pointer;">
-                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px;">
+                <div title="Collapse Export video" style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;">
                   <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Export video</span>
                 </div>
-                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">10 s, Orbit once, WebM</span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; padding-bottom: 8px;">
+
+                <!-- RT-1 pair: the two values the recording is made of. Neither 16px slot carries a glyph -- the
+                     register's field-glyph list has no entry for a duration or a camera move and VOCAB 11 forbids
+                     inventing one -- so each value is its own label and the word it replaced rides in the field's
+                     title. The unit "s" is the right-aligned dimmed suffix inside the field (Rule 5). Both sit at
+                     their shipped defaults and both are drawn anyway: D3 takes Rule 7a off the two or three
+                     locally common rows of a section, because a section whose rows are all deleted by 7a is a
+                     chevron that opens onto nothing. -->
+                <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+                  <div title="Duration" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
+                    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">10</span>
+                    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">s</span>
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                  <div title="Camera" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
+                    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Orbit once</span>
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                  <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
+                </div>
+
+                <!-- RT-1 single, 224: the container format. Its list is WebM and, when the browser supports it,
+                     MP4; the alternatives are the select's rows and not a second control. It takes the whole band
+                     rather than half of a pair because there is no fourth value to pair it with, and RT-1's two
+                     legal widths are 224 and 108 + 8 + 108. The empty 24px trailing slot is what holds the grid:
+                     16 + 108 + 8 + 108 + 8 + 24 + 8 = 280. -->
+                <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+                  <div title="Video format" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
+                    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">WebM</span>
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                  </div>
+                  <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
+                </div>
+
+                <!-- RT-7: the cost on the left, resident, and the verb on the right in full text. Floor item 4
+                     twice over -- what the control will do before it does it, and the full text of the verb the
+                     user commits to. Record has no glyph in REGISTER-1.5 and none is invented for it.
+                     INVENTED NUMBER, and it survives the move out of the pop-out unchanged: "about 12 s to
+                     record" is not in FIXTURES.md, which fixes no video numbers for any of the three datasets.
+                     5.3 requires "Record showing the estimated time", so the row cannot be drawn without one. One
+                     value is chosen -- a 10 s real-time capture plus its encode -- and it belongs in FIXTURES.md
+                     as INVENTED before a second board draws a video estimate. -->
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px;">
+                  <span style="min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">about 12 s to record</span>
+                  <div style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; height: 24px; padding: 0 10px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box; white-space: nowrap;">Record</div>
+                </div>
               </div>
             </div>
 
@@ -461,9 +578,7 @@
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Reports</span>
                   <div title="Report configurations: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
@@ -480,12 +595,12 @@
         </div>
 
 
-        <!-- CANVAS, fills the middle: 832 wide by 836 tall.
-             The Export video pop-out is drawn at the end of the frame, in root coordinates, and covers
-             x 336 to 616 by y 326 to 464 of this rect. It touches nothing that matters: the minimap ends at
-             y 876-12-100 = 764, the toolbar spans x 621..867 in root coordinates on the bottom-12 baseline,
-             and the legend's top is 784. Floor item 5's legend is not covered, which is B4's one named
-             obstruction test. -->
+        <!-- CANVAS, fills the middle: 832 wide by 836 tall. NOTHING COVERS IT AFTER 1.9. The Export video
+             pop-out that used to be drawn at the end of the frame, in root coordinates over x 336..616 by
+             y 326..464, is deleted with the door it belonged to, and the section it held expands inside the
+             panel instead. B4's obstruction test therefore has nothing left to test on this board: the minimap
+             still ends at y 876-12-100 = 764, the toolbar still spans x 621..867 in root coordinates on the
+             bottom-12 baseline, the legend's top is still 784, and floor item 5's legend was never covered. -->
         <div style="flex: 1 1 auto; min-width: 0; position: relative; background: #161b22; overflow: hidden;">
 
           <!-- graph drawing -->
@@ -840,11 +955,21 @@
               </div>
             </div>
 
-            <!-- SECTION Schema, a POP-6 door (6.11, RT-8). The section is consulted rather than operated, so it never
-                 renders open: the chevron stays closed permanently and the trailing slot carries the one fact behind
-                 the door. The three node type names with their counts, the seven edge type names and the type pairs
-                 are in the 480 pop-out, drawn once on Main. Export schema JSON stays drawn on the header, revealed,
-                 because Present is the activity that writes files. -->
+            <!-- SECTION Schema, a live collapsed SECTION (SECTIONS-1.9 D1, 5.8). It was a POP-6 permanent door
+                 here; 1.9 strikes the permanently-closed chevron form, and 5.8 settles the board divergence in
+                 favour of the five boards that already drew this as an ordinary collapsed section -- this board is
+                 one of the twenty-one brought to them. D4 keeps it CLOSED, so nothing on this board moved.
+                 D6 is what gives it rows to open onto: "commonly adjusted" reads as "commonly adjusted or commonly
+                 consulted", and of the readers who open Schema the type names and their counts are what they came
+                 for. Open, it draws the node types with their counts (cat 17, human 2, dog 1) and the edge types
+                 with theirs, as the short two-column tables Main already draws, capped at five with an "N more"
+                 row, plus the RT-7 verb row Filter to type / Select all of type.
+                 BEHIND THE GEAR, when open: per-type completeness, and the edges-by-type-pair matrix, which keeps
+                 its 480 under D7 because a two-dimensional thing cannot be drawn honestly in the 256 band. The
+                 matrix is drawn once, on Main.
+                 THE MARK: "3 node types, 7 edge types" is the closed-state mark 5.8 specifies, and Rule 8 deletes
+                 it when the rows are drawn, because the rows repeat it (D5). Export schema JSON stays drawn on the
+                 header, revealed, because Present is the activity that writes files. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Schema. 3 node types, 7 edge types" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
@@ -854,12 +979,7 @@
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Schema</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
-                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">3 node types, 7 edge types</span>
-                  <div title="Export schema JSON" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
-                </div>
-                </div>
+                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">3 node types, 7 edge types</span>
               </div>
             </div>
 
@@ -962,99 +1082,6 @@
     <div style="display: none; align-items: center; gap: 8px;"></div>
   </div>
 
-  <!-- ============================================================================================
-       THE OPEN DOOR: Export video, 280, from its own door row (5.3 Present's pop-over inventory,
-       DECISIONS-1.8 D1). The 3a surface: no scrim and no focus trap, the canvas keeps pointer and
-       keyboard, every change previews live, Escape closes and returns focus to the door row.
-       ANCHOR, measured (B1, B2, B3):
-         family        activity panel -- opens right, left edge 336
-         gap axis      horizontal, 8px: the panel's own edge is 328, the pop-out's left is 336.
-                       14.8's panel-boundary constant, not the overlay layer's 12: this surface sits
-                       ON the boundary and has not slid into the overlay.
-         shared edge   row top to pop-out top. Door row top y 326, pop-out top y 326. Delta 0.
-         not spent     nothing. Height 138 against a half-region cap of 418 and 6.11's
-                       region-minus-32 of 804, the smaller binding; bottom 464 clears the status bar
-                       at 876 by 412. No slide along the edge axis, no flip to bottom-to-bottom, no
-                       width rung dropped, no centred "from Export video" fallback.
-         caret         6px on the LEFT edge, the edge that points back at the panel (VOCAB 14.2's
-                       snippet, written for the activity-panel case). Its centre is clamped 12px
-                       inside the pop-out's corners, so it sits at y 344 against the row centre's
-                       342; the clamp winning by 2px is the rule working. Drawn as a sibling of the
-                       pop-out because the pop-out clips its own overflow.
-         opener state  the door row carries #28364e while this is open (VOCAB section 12), so the
-                       relationship is drawn twice over -- by the 8px gap, by the shared top edge,
-                       by the caret, and by the lit row.
-       WIDTH: 280, the first rung of the ladder, because the body is field rows on the panel's own
-       identity 16 + 108 + 8 + 108 + 8 + 24 + 8. Not 360: there is no user-id report and no numeric
-       table here. Not 480: nothing two-dimensional.
-       NO PIN (E2): the pin set is closed at four -- the colour and gradient picker, Selection
-       statistics, the group profile, the AI console -- and a pop-out holding the parameters of the
-       row that opened it has nothing to hold still across a selection change.
-       CONTENT is 5.3's list verbatim: Duration, Camera (Hold still, Orbit once), Format (WebM; MP4
-       when supported), Record showing the estimated time. The stub's three values are NOT reprinted
-       in the header: 5.1's One fact, one region -- the door row states the shape of the file, this
-       surface holds the controls that set it.
-       WHILE RECORDING, not drawn here because this board is at rest: progress and Cancel are
-       mirrored in the status bar like algorithm runs, and the Record row becomes the progress row.
-       ============================================================================================ -->
-  <div style="position: absolute; left: 330px; top: 338px; width: 6px; height: 12px; overflow: hidden; z-index: 9;">
-    <div style="position: absolute; left: 3px; top: 1px; width: 10px; height: 10px; transform: rotate(45deg); background: #1f2428; border-left: 1px solid #48525c; border-bottom: 1px solid #48525c; box-sizing: border-box;"></div>
-  </div>
-  <div style="position: absolute; left: 336px; top: 326px; width: 280px; max-height: 418px; display: flex; flex-direction: column; background: #1f2428; border: 1px solid #48525c; border-radius: 4px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; overflow: hidden; z-index: 8;">
-    <div style="display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 4px 0 12px; flex: 0 0 auto; box-sizing: border-box;">
-      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Export video</span>
-      <div style="flex: 1; min-width: 0;"></div>
-      <div style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Close (Esc)">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
-      </div>
-    </div>
-    <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 0 8px 8px 16px; box-sizing: border-box;">
-
-      <!-- RT-1 pair: the two values the recording is made of. Neither 16px slot carries a glyph -- the
-           register's field-glyph list has no entry for a duration or a camera move and VOCAB 11 forbids
-           inventing one -- so each value is its own label and the word it replaced rides in the field's
-           title. The unit "s" is the right-aligned dimmed suffix inside the field (Rule 5). -->
-      <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
-        <div title="Duration" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
-          <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">10</span>
-          <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">s</span>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
-        </div>
-        <div title="Camera" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
-          <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Orbit once</span>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
-        </div>
-        <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
-      </div>
-
-      <!-- RT-1 single, 224: the container format. Its list is WebM and, when the browser supports it,
-           MP4; the alternatives are the select's rows and not a second control. It takes the whole band
-           rather than half of a pair because there is no fourth value to pair it with, and RT-1's two
-           legal widths are 224 and 108 + 8 + 108. -->
-      <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
-        <div title="Video format" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
-          <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">WebM</span>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
-        </div>
-        <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
-      </div>
-
-      <!-- RT-7: the cost on the left, resident, and the verb on the right in full text. Floor item 4
-           twice over -- what the control will do before it does it, and the full text of the verb the
-           user commits to -- and inside a pop-out the action is resident rather than hover-revealed
-           (VOCAB section 12). Record has no glyph in REGISTER-1.5 and none is invented for it: 6.8
-           keeps an unregistered verb in words.
-           INVENTED NUMBER: "about 12 s to record" is not in FIXTURES.md, which fixes no video numbers
-           for any of the three datasets. 5.3 requires "Record showing the estimated time", so the row
-           cannot be drawn without one. One value is chosen -- a 10 s real-time capture plus its encode
-           -- and it belongs in FIXTURES.md as INVENTED before a second board draws a video estimate. -->
-      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px;">
-        <span style="min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">about 12 s to record</span>
-        <div style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; height: 24px; padding: 0 10px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box; white-space: nowrap;">Record</div>
-      </div>
-
-    </div>
-  </div>
 </div>
 </x-dc>
 </body>

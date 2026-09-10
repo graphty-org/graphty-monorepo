@@ -133,6 +133,44 @@
   E4, palette index: this pop-out joins the command palette by both names -- "Filter expression" and
   "Edit as an expression (JMESPath)" -- alongside the other doors 1.8 opens, and its opener is in the
   panel's tab order, which is the second of 6.11's four obligations.
+
+  REVISION 1.9 (SECTIONS-1.9 D1, D4, D5, D11, D12; work list 5.6, 5.7, 5.4). This board is re-scoped rather
+  than retired: a GEAR or a door drawn open is still a legal board, and only a SECTION drawn as a pop-out is
+  not. The pop-out is untouched -- same 360 rung, same left 336, same top 181, same 179 height, same 6px
+  caret at y 197 -- and every measurement in "THE ANCHOR" above still reads true.
+  5.6, the section under it, is the state bug this pass fixes. An OPEN chevron over ZERO rows is the defect
+  D1 names, and at zero rules the Filter builder is now the RT-8 empty-section form: no chevron, the name at
+  the dimmed ink, one 24px plus. The audit's cheaper cure -- draw the Nodes | Match all pair and the Result
+  select resident so the chevron has something to open -- is REFUSED by 5.6, and DECISIONS-1.8 D4's reasoning
+  stands: "Match all" at zero rules is a default and "20 of 20 nodes would match" is the null statement 6.2
+  forbids. No rule row is invented.
+  So the paragraph above beginning "THE RESIDENT BUILDER IS ONE ROW" keeps its first half and loses its
+  second: the plus stays in the trailing slot, and the Builder and Expression door does NOT sit beside it.
+  5.6 keeps the expression editor a door but puts the angle-brackets glyph "on a section that has resident
+  content", which is FilterBuilderExpert's ten-rule section (D11); an empty section has none, so the door and
+  the More overflow both come off this header and A6's primary-ink argument goes with them. The header keeps
+  its #28364e fill because the pop-out still belongs to this section (VOCAB 12), and its opener on this board
+  is the palette entry E4 already registers. That is the one thing the re-scope leaves off screen and it is
+  said here rather than papered over.
+  5.7 Find a pattern loses its chevron and keeps its name and its Coming tag, which is the unshipped state's
+  spelling and FLOOR-1.9 2.3's corollary intact. 5.4 Neighborhood expansion keeps its chevron, which stops
+  being permanent: it now opens onto the Hops "2 steps" and type-filter "3 types" pair, with direction, the
+  max-nodes cap and the per-type list behind its gear. D4 leaves both sections closed, so no new row is drawn
+  and the "2 steps, 3 types" mark stays; the 11px name on that row survives, measured, at the row itself.
+  D12, the inspector's Expand-neighbors caret: the depth and type filter it owes does not fit the 239px row
+  and rides in the row's title instead. The arithmetic is at the action block.
+  MEASURED. The panel is 327px of rows in the 776px its 8/16 paddings leave of the 800px scroll region,
+  unchanged by this pass -- the Filter builder header is still one 32px row on its 1px divider, and two
+  chevrons and two trailing glyphs leaving changes no height. The inspector is 451px of rows plus the flex
+  spacer that pins the 97px action block to the foot, in the same 776, also unchanged. No overflow on either
+  side, and the ten resident panel rows D4 targets are still ten.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Neighborhood expansion and Find a pattern take the set's one unbuilt spelling: no chevron, empty 16px
+  leading slot, name at 12px 500 in #5f6873, Coming tag in the trailing slot (D1, 5.7's corollary). The
+  11px name is retired with the mark, which keeps the row's title. The zero-rule Filter builder above is
+  untouched: this board already drew 5.6's form and it is what Main and MultiSelection were brought to.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -281,19 +319,39 @@
                  which is the builder's own verb and stays resident under Rule 7b's carve-out; and More,
                  whose rows are Add a group / Duplicate rule / Clear all rules / Paste an expression.
                  The teaching sentence lives on the info circle (Rule 8, 6.7), which is where
-                 FilterBuilderExpert's deleted hover tooltip sent it. -->
+                 FilterBuilderExpert's deleted hover tooltip sent it.
+                 REVISION 1.9 (5.6, D1/D11). AT ZERO RULES THIS IS THE RT-8 EMPTY-SECTION FORM: no chevron, the
+                 name at the dimmed ink, and ONE 24px plus in the trailing slot. The open chevron that stood here
+                 over zero rows is the defect D1 names -- a chevron that reveals nothing -- and 5.6 refuses the
+                 cheaper cure the audit proposed: the Nodes | Match all pair and the Result select are NOT invented
+                 to give it something to open, because "Match all" at zero rules is a default and "20 of 20 nodes
+                 would match" is the null statement 6.2 forbids (DECISIONS-1.8 D4, upheld). "D1 forbids a chevron
+                 over nothing; it does not require rows to be invented so that one can be drawn."
+                 THE EXPRESSION DOOR LEAVES THIS HEADER WITH IT, and this is the board's own re-scope (D11). 5.6
+                 keeps the expression editor a door but puts it "on a section that has resident content", which is
+                 how FilterBuilderExpert draws it on its ten-rule section; at zero rules there is no resident
+                 content, so there is no angle-brackets glyph to draw and no overflow either -- three of the four
+                 More rows (Add a group, Duplicate rule, Clear all rules) need a rule that does not exist. The
+                 pop-out is NOT deleted (D11: none of the eight boards is) and does not move: same 360 rung, same
+                 left 336, same top 181, same 6px caret at y 197. Its opener on this board is the palette, by both
+                 the names E4 already registers -- "Filter expression" and "Edit as an expression (JMESPath)" --
+                 and the header keeps the #28364e fill because the pop-out still belongs to this section and the
+                 caret still points at it (VOCAB 12). Once the expression is applied and shows as its 1 rule, the
+                 section takes FilterBuilderExpert's shape -- rule rows, the scope pair, the live match count --
+                 and the door comes back onto the header with them. The info circle stays: it sits beside the name
+                 and not in the trailing slot, and the surface it teaches is open on this screen.
+                 Closed mark, for the record: the rule count and the match count once rules exist ("38 of 318");
+                 the dimmed name alone at zero, which is what RT-8 means by dimming it. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; background: #28364e; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg></div>
-                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Filter builder</span>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Filter builder</span>
                   <div title="Expression: the same filter written as JMESPath. The builder stays available while the expression can be shown as rules." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg></div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 2px; flex: 0 0 auto;">
-                  <div title="Edit as an expression (JMESPath)" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #d5d7da; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,3.5 1.5,8 5,12.5"></polyline><polyline points="11,3.5 14.5,8 11,12.5"></polyline></svg></div>
                   <div title="Add a rule" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg></div>
-                  <div title="More" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3.5" r="0.75"></circle><circle cx="8" cy="8" r="0.75"></circle><circle cx="8" cy="12.5" r="0.75"></circle></svg></div>
                 </div>
               </div>
             </div>
@@ -349,17 +407,22 @@
             </div>
 
             <!-- 8. NOT BUILT. Register 1.5 section 3: an isolated unshipped row, or a run of two, keeps the
-                 per-row tag; this and Neighborhood expansion below are that run of two. -->
+                 per-row tag; this and Neighborhood expansion below are that run of two.
+                 REVISION 1.9 (5.7): the chevron comes off. Until Find a pattern ships there is nothing behind it,
+                 and D1 forbids a chevron that opens onto nothing; 5.7 fixes the unshipped state as "the Coming tag
+                 in the trailing slot and no chevron", on FLOOR-1.9 2.3's corollary that an unshipped control keeps
+                 its TEXT and its TAG. The 16px leading slot stays, empty, so the name column holds against the six
+                 live sections around it, and the row drops cursor: pointer. When it ships the chevron returns over
+                 two resident rows -- the saved-pattern field, and the Find row with its live match count -- with
+                 induced versus non-induced, whether direction is followed and the result cap behind its gear. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Find a pattern (subgraph search). Coming" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+              <div title="Find a pattern (subgraph search). Coming" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: default;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg></div>
-                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Find a pattern</span>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                  <span style="min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Find a pattern</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 2px; flex: 0 0 auto;">
-                  <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
-                </div>
+                <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
               </div>
             </div>
 
@@ -371,13 +434,27 @@
                  The Coming tag is in the row's title and not drawn as a chip, because at 255 the name and
                  the state mark fill the band exactly and 6.3 will not shorten a section name to make room
                  for a chip; the row is dimmed, which is how every board in the set draws an unbuilt row,
-                 and Register 1.5 section 3's per-row tag is carried by Find a pattern above it. -->
+                 and Register 1.5 section 3's per-row tag is carried by Find a pattern above it.
+                 REVISION 1.9 (5.4, D1/D3/D4/D5). "Permanently closed right-pointing chevron (it never opens
+                 inline)" is STRUCK, and so is "a door row is 11px" as a reason: 1.9 has no door rows. The chevron
+                 stays and now opens onto an RT-1 pair -- a Hops field reading "2 steps" and a type-filter field
+                 reading "3 types", the two facts this mark already prints, drawn at their remembered values under
+                 D3 -- with direction (followed / ignored / reversed), the max-nodes cap and the per-type checkbox
+                 list behind the section's gear. D4 leaves the section CLOSED here, so neither row is drawn and the
+                 mark stays; D5 deletes a mark only once the rows repeat it.
+                 THE 11px NAME SURVIVES, measured. D5 retires it "when the Hops and type-filter fields are drawn",
+                 and on a closed section they are not. In the 255 band "Neighborhood expansion" at the section-header
+                 12px/500 measures 149.7 against the 143.2 left beside the 87.8 mark, so it would clip by 6.5px;
+                 at 11px it is 137.2 and nothing clips. The mark is floor item 4 and does not give way to a type
+                 size. The deviation is retired on whichever board draws this section open. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Neighborhood expansion. 2 steps, 3 types. Coming" style="display: flex; align-items: center; gap: 4px; height: 32px; cursor: pointer;">
-                <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg></div>
-                <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Neighborhood expansion</span>
-                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">2 steps, 3 types</span>
+              <div title="Neighborhood expansion. 2 steps, 3 types. Coming" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: default;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                  <span style="min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Neighborhood expansion</span>
+                </div>
+                <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
               </div>
             </div>
 
@@ -2350,10 +2427,25 @@
                  text alone"), and neither "Around the selection" nor "Find path from here" has an entry
                  either -- ExplorerExpert already draws the second as text alone for that reason. The empty
                  14px slot is kept so the four labels stay on one text column. Only More, which register 1.2
-                 does hold, draws its glyph. -->
+                 does hold, draws its glyph.
+                 REVISION 1.9 (D12, the Expand-neighbors caret). D12 asks this caret for the depth and type filter
+                 its Explore twin carries, "2 steps, 3 types", because the row prints a count and nothing else and
+                 a reader cannot otherwise see what the button will do before pressing it (floor item 4). MEASURED,
+                 IT DOES NOT FIT AND IS NOT DRAWN: the row is 255 wide with 8px of padding each side, so 239 of
+                 content; the empty 14px leading slot, three 6px gaps and the 14px caret spend 46, leaving 193 for
+                 text, and "Expand 41 neighbors" (116.8) plus "2 steps, 3 types" (87.8) is 204.6 -- 11.6 over, and
+                 the label is the flex: 1 1 0 half, so what would clip is "Expand 41 neighb...", which is the count
+                 floor item 4 already protects. Nothing here can pay for it: the leading slot is what keeps the four
+                 labels on one text column, the caret is the control D12 is about, and D4 caps this block at four
+                 rows so there is no second row to spend. So the mark rides in the ROW's title, where this set
+                 already puts a fact a row cannot fit (the Coming tag on the panel's Neighborhood expansion row),
+                 and the caret takes none of its own, per register 1.2. Recorded, not fixed, in FLOOR-1.9 section
+                 4's form: the visible fix needs a row that is not this row. One thing to settle with it -- "Expand
+                 41 neighbors" is TP53's 41 links, which is one step, so a 2-step mark on the same row needs the
+                 2-step count beside it and that number is not on this board or in FIXTURES. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-            <div title="Expand neighbors" style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+            <div title="Expand neighbors. 2 steps, 3 types" style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
               <span style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;"></span>
               <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Expand 41 neighbors</span>
               <span style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,6 8,11 13,6"></polyline></svg></span>

@@ -107,6 +107,60 @@
   Info circles (6.7) are drawn at rest with their sentence in the native title attribute. VOCAB section 10 draws the 250px
   popover bubble only where a tooltip is shown open, and on the reference shell an open bubble would read as permanent chrome
   and would cover the rows beneath it.
+
+  REVISION 1.9 (SECTIONS-1.9). Two work-list items land here: 5.8 Schema and 5.4 Neighborhood expansion.
+  D1 withdraws the licence for a section that is only a door -- the sentence 1.7 added to RT-8 and this board
+  cited as POP-13b ("a door chevron never opens") is struck in all three documents that carried it -- so every
+  chevron on this board now opens onto real rows.
+  5.8, the inspector. Schema stops being a permanent door and becomes an EXPANDED section with a gear, and Main
+  is the board that draws the shape end to end because it is the one board in the set that draws this
+  disclosure open. Resident: the node types with their counts (cat 17, human 2, dog 1) and the edge types with
+  theirs (social 8, play 5, territorial 4, medical 4, feeding 4) under 5.8's five-row cap with a "2 more" row
+  whose title names romantic 2 and hunting 2, plus the RT-7 verb row Filter to type / Select all of type. Behind
+  the gear: per-type completeness and the edges-by-type-pair matrix, which keeps its 480 under D7 as one of the
+  two artefacts in the set that cannot be drawn honestly at 256. Export schema JSON keeps the header's trailing
+  slot; the closed mark "3 node types, 7 edge types" is deleted while the rows are drawn, because the rows
+  repeat it (D5, Rule 8).
+  5.4, the panel. Neighborhood expansion's chevron now opens onto a Hops field ("2 steps") and a type-filter
+  field ("3 types"), with direction, the max-nodes cap and the per-type list behind its gear. D4 keeps the
+  section closed, so nothing on that row moved: closed, the slot belongs to the mark, and the mark is the one it
+  already draws.
+  MEASURED after 1.9, in the DOM at 1440x900, with the sections this board's comment says are open:
+  Explore panel content 327px, unchanged, in an 800px window -- 5.4 is a closed section and costs nothing at
+  rest. Inspector rows 528px -> 806px in the same 800px window: the Schema section measures [1177,472 255x311]
+  (1px divider, 32px header, 270px of rows, 8px pad) where the door row was 33px. With the column's own 8px
+  bottom padding the inspector's scroll height is 814 against a client height of 800, so THIS BOARD NOW
+  OVERFLOWS ITS INSPECTOR BY 14px, and it is declared here rather than paid for by dropping a row
+  (SECTIONS-1.9 section 7). What that 14 looks like in this static drawing, measured: the last row,
+  "More in Analyze", runs 849 to 882 against a region floor of 876, so 6px of it is cut and the column's 8px
+  bottom pad is gone. In the app the column is a scroll region and 14px is what the reader scrolls; 1.6's
+  worst-case scroll target was 1,040px, so 814 is inside it. The five-row cap is drawn and is what holds it to 14px; without it the two extra
+  edge-type rows would put the column 58px over. The 480 pop-out is the one region that got shorter: with the
+  count tables and the verbs gone it measures [672,473 480x257] with a 223px body against a 295px cap, so the
+  21px of matrix padding that used to fall below the fold is now drawn and this board's only pre-existing
+  overflow is closed by the same edit. Canvas, toolbar, legend, minimap and status bar untouched.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Neighborhood expansion and Find a pattern LOSE THEIR CHEVRONS. Both are unshipped on every board in the
+  set -- this board says so in the row's own title, ExploreNotesList and TimeSlider in a Coming tag, and
+  ContextMenu draws "Expand 37 neighbors" at the unbuilt ink -- and D1 with 5.7's corollary gives an
+  unshipped section no chevron: it keeps its TEXT and its TAG and loses only an affordance that opens
+  nothing. So each row is the RT-8 unbuilt form: an empty 16px leading slot, the name at 12px 500 in
+  #5f6873, and the Coming tag in the trailing slot. Two consequences, both of them wins recorded in this
+  file's own 1.8 comment as things that could not be had: the 11px name is RETIRED, because with the mark
+  out of the trailing slot the whole 255px band is the name's (16 + 4 + 149.7 + 8 + 50.3 = 228), and the
+  Coming TAG comes back on screen, which is what REGISTER 3 asks of an isolated unbuilt row. The mark
+  "2 steps, 3 types" stays in the row's title, where 5.4 and D12 can still find it; it returns to the
+  trailing slot when the capability ships and the chevron comes back with the rows.
+  Filter builder at ZERO RULES takes the RT-8 empty-section form, which is 5.6's decision drawn: "at zero
+  rules there is no chevron, because there is nothing to open". Empty 16px slot, dimmed name, and ONE 24px
+  plus -- "Edit as expression" leaves the header, because a builder with no rules has no expression to
+  edit and RT-8's empty form carries one plus. FilterExpression already drew exactly this and is the
+  spelling copied.
+  The empty library sections lose the chevron they could not open: Filters, Sets, Views and Notes. RT-8's empty form is a
+  dimmed name, its resident "+" and an EMPTY 16px leading slot, and D1 turns that snippet into a rule -- a
+  chevron renders only where it opens onto resident rows. The chevron returns with the first saved filter, set, view or note.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -418,19 +472,12 @@
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
-                <div style="display: flex; align-items: center; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
-                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; padding-left: 4px;">Filter builder</span>
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Filter builder</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
-                  <div title="Edit as expression" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.2 2.3l2.5 2.5-8 8-3.2.7.7-3.2z"></path><line x1="9.6" y1="3.9" x2="12.1" y2="6.4"></line></svg>
-                  </div>
-                  <div title="Add rule" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5b8ff9; cursor: pointer;">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg>
-                  </div>
+                <div title="Add a rule" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg>
                 </div>
               </div>
             </div>
@@ -442,9 +489,7 @@
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Filters</span>
                   <div title="Saved filters: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
@@ -464,9 +509,7 @@
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Sets</span>
                   <div title="Selection sets: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
@@ -485,9 +528,7 @@
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Views</span>
                   <div title="View bookmarks: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
@@ -506,12 +547,10 @@
                   render; the technical name is chrome ink because it is not the answer. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Find a pattern (subgraph search). Coming" style="display: flex; align-items: center; gap: 6px; height: 32px; cursor: pointer;">
-                <div style="display: flex; align-items: center; flex: 1 1 auto; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
-                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; padding-left: 4px;">Find a pattern</span>
+              <div title="Find a pattern (subgraph search). Coming" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: default;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                  <span style="min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Find a pattern</span>
                 </div>
                 <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
               </div>
@@ -551,15 +590,26 @@
                  The mark's numbers reconcile with this graph: the 3 is the three node types the Schema stub
                  reports on the same screen (cat, human, dog), so the remembered filter keeps all of them, and
                  the depth is 2. A door whose mark could not be checked against the fixture would be a stub that
-                 reports nothing. -->
+                 reports nothing.
+                 REVISION 1.9 (D1, D4, D5, 5.4). The clause this row was built on is struck: there is no
+                 permanently-closed chevron and no section that is only a door, so this chevron now OPENS, onto a
+                 Hops field reading "2 steps" and a type-filter field reading "3 types" -- the two facts the mark
+                 already prints, which is what makes them the locally common pair by construction. Direction,
+                 the max-nodes cap and the per-type checkbox list the "3 types" field summarises go behind the
+                 section's gear. D4 keeps the section CLOSED, which is the state this board draws, so the row is
+                 unchanged in every pixel: closed, the trailing slot belongs to the mark, and the mark is what it
+                 already carries. The 11px name stays for the same reason -- it was bought to fit name plus mark
+                 into 255, and the mark is still drawn. Open, the mark goes (the two fields repeat it) and the
+                 11px name is retired with it. A6's two inks now ride on the chevron of a closed section: dimmed,
+                 because "3 types" is all three of this graph's node types and nothing behind the gear deviates. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Neighborhood expansion. 2 steps, 3 types. Coming" style="display: flex; align-items: center; gap: 4px; height: 32px; cursor: pointer;">
-                <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+              <div title="Neighborhood expansion. 2 steps, 3 types. Coming" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: default;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                  <span style="min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Neighborhood expansion</span>
                 </div>
-                <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Neighborhood expansion</span>
-                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">2 steps, 3 types</span>
+                <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
               </div>
             </div>
 
@@ -578,9 +628,7 @@
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; padding-left: 4px;">Notes</span>
                 </div>
                 <div title="Note (N). Select something first" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;">
@@ -803,7 +851,15 @@
                to the same 29 edges the reading and the status bar count. The graph is undirected, so the matrix is
                symmetric and only the upper half is filled -- the caption says so, or a reader would take the empty
                cells for missing data. Completeness is 100% for all three types: all 20 nodes carry all 8 node
-               attributes. -->
+               attributes.
+               REVISION 1.9. This surface is no longer the Schema section: it is what the Schema section's GEAR
+               holds (D1, D7). Its width is unchanged and its reason is unchanged -- the matrix is the two-
+               dimensional artefact 6.11's ladder spends 480 on, and D7 names it as one of exactly two artefacts
+               in the set that keep a 480 pop-out. Its anchor is unchanged too: the opener is still that header
+               row, now by way of the gear inside it, whose centre sits on the same y 489, so the caret does not
+               move. What DID change is the height: with the two count tables and the three verbs gone the body
+               measures 255px against the 295px cap, so the 21px of matrix padding that used to fall below the
+               fold is now drawn -- measured [672,473 480x257] with a 223px body, against the 295px cap. -->
           <div style="position: absolute; left: 344px; top: 433px; width: 480px; max-height: 295px; display: flex; flex-direction: column; background: #1f2428; border: 1px solid #48525c; border-radius: 4px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; overflow: visible; z-index: 8;">
 
             <!-- CARET (1.8, B3 / VOCAB 14.2). 6px on the pop-out's LEADING edge, which for an inspector pop-out
@@ -846,78 +902,30 @@
             <!-- Body, 456px content band. -->
             <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px 12px; box-sizing: border-box;">
 
-              <!-- The two type tables, side by side. Node types take the three-column form POP-6 names -- type,
-                   count, completeness -- and edge types run two-up, because seven 22px rows in one column would
-                   push the matrix under the clamp. The 1px rule between them is load-bearing: without it the eye
-                   reads "dog 1 100% territorial 4 hunting 2" as one record instead of three tables. -->
-              <div style="display: flex; align-items: stretch; gap: 16px; padding: 8px 0 0;">
-
-                <div style="flex: 0 0 200px; width: 200px; display: flex; flex-direction: column;">
-                  <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
-                    <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #7a828e;">Node type</span>
-                    <span style="flex: 0 0 40px; font-size: 11px; line-height: 1; color: #7a828e; text-align: right;">Nodes</span>
-                    <span style="flex: 0 0 56px; font-size: 11px; line-height: 1; color: #7a828e; text-align: right;">Complete</span>
-                  </div>
-                  <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
-                    <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">cat</span>
-                    <span style="flex: 0 0 40px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">17</span>
-                    <span style="flex: 0 0 56px; font-size: 12px; line-height: 1.2; color: #a3a8b1; text-align: right; font-variant-numeric: tabular-nums;">100%</span>
-                  </div>
-                  <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
-                    <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">human</span>
-                    <span style="flex: 0 0 40px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">2</span>
-                    <span style="flex: 0 0 56px; font-size: 12px; line-height: 1.2; color: #a3a8b1; text-align: right; font-variant-numeric: tabular-nums;">100%</span>
-                  </div>
-                  <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
-                    <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">dog</span>
-                    <span style="flex: 0 0 40px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">1</span>
-                    <span style="flex: 0 0 56px; font-size: 12px; line-height: 1.2; color: #a3a8b1; text-align: right; font-variant-numeric: tabular-nums;">100%</span>
-                  </div>
+              <!-- REVISION 1.9 (D1, D6, D7). The node-type and edge-type COUNT tables left this pop-out: they
+                   are what a reader opens Schema for, so they are resident rows in the inspector section now,
+                   drawn in this same 20px caption / 22px row rhythm. What is left here is what 5.8 puts behind the
+                   gear -- per-type completeness, and the matrix below it.
+                   Completeness keeps the three type names because a percentage column with no subject is not a
+                   table; the FACT this table reports is the percentage, which is drawn nowhere else, so 5.1's one
+                   fact one region holds. The numbers are unchanged and read from the same TEST_GRAPH_DATA: all 20
+                   nodes carry all 8 node attributes, so every type is 100%. -->
+              <div style="display: flex; flex-direction: column; padding: 8px 0 0;">
+                <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #7a828e;">Node type</span>
+                  <span style="flex: 0 0 88px; font-size: 11px; line-height: 1; color: #7a828e; text-align: right;">Complete</span>
                 </div>
-
-                <div style="width: 1px; flex: 0 0 auto; background: #495057;"></div>
-
-                <div style="flex: 1 1 auto; min-width: 0; display: flex; align-items: flex-start; gap: 16px;">
-                  <div style="flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;">
-                    <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
-                      <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #7a828e;">Edge type</span>
-                      <span style="flex: 0 0 32px; font-size: 11px; line-height: 1; color: #7a828e; text-align: right;">Edges</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
-                      <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">social</span>
-                      <span style="flex: 0 0 32px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">8</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
-                      <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">play</span>
-                      <span style="flex: 0 0 32px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">5</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
-                      <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">territorial</span>
-                      <span style="flex: 0 0 32px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">4</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
-                      <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">medical</span>
-                      <span style="flex: 0 0 32px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">4</span>
-                    </div>
-                  </div>
-                  <div style="flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;">
-                    <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
-                      <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #7a828e;">Edge type</span>
-                      <span style="flex: 0 0 32px; font-size: 11px; line-height: 1; color: #7a828e; text-align: right;">Edges</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
-                      <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">feeding</span>
-                      <span style="flex: 0 0 32px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">4</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
-                      <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">romantic</span>
-                      <span style="flex: 0 0 32px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">2</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
-                      <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">hunting</span>
-                      <span style="flex: 0 0 32px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">2</span>
-                    </div>
-                  </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">cat</span>
+                  <span style="flex: 0 0 88px; font-size: 12px; line-height: 1.2; color: #a3a8b1; text-align: right; font-variant-numeric: tabular-nums;">100%</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">human</span>
+                  <span style="flex: 0 0 88px; font-size: 12px; line-height: 1.2; color: #a3a8b1; text-align: right; font-variant-numeric: tabular-nums;">100%</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">dog</span>
+                  <span style="flex: 0 0 88px; font-size: 12px; line-height: 1.2; color: #a3a8b1; text-align: right; font-variant-numeric: tabular-nums;">100%</span>
                 </div>
               </div>
 
@@ -955,14 +963,10 @@
                 </div>
               </div>
 
-              <div style="height: 1px; background: #495057;"></div>
-
-              <!-- RT-7, resident inside a pop-out: the three verbs the Schema section owns, in full text. -->
-              <div style="display: flex; align-items: center; gap: 16px; height: 28px; padding-top: 8px;">
-                <span style="font-size: 11px; font-weight: 500; line-height: 1.2; color: #5b8ff9; cursor: pointer;">Filter to type</span>
-                <span style="font-size: 11px; font-weight: 500; line-height: 1.2; color: #5b8ff9; cursor: pointer;">Select all of type</span>
-                <span style="font-size: 11px; font-weight: 500; line-height: 1.2; color: #5b8ff9; cursor: pointer;">Export schema JSON</span>
-              </div>
+              <!-- REVISION 1.9. The three verbs left this pop-out. Filter to type and Select all of type are the
+                   resident RT-7 row in the inspector section (5.8); Export schema JSON is in that section header's
+                   trailing slot. A gear's contents hold what the section does not, and a verb the section draws is
+                   not that. -->
             </div>
           </div>
 
@@ -1169,32 +1173,103 @@
               </div>
             </div>
 
-            <!-- SECTION: Schema, now a DOOR (POP-6, 6.11). The row is unchanged in every dimension: same divider,
-                 same 32px height, same chevron, same summary. What changed is what it means. The 480 pop-out it
-                 opens is drawn on the canvas to the left, and while that pop-out is open the stub carries the
-                 selected-row background #28364e, so the door is visibly the thing the pop-out belongs to.
-                 POP-13b: the chevron is permanently in the closed right-pointing form and NEVER renders the open
-                 form -- there is no open state to draw, here or anywhere else on this board.
-                 "3 node types, 7 edge types" is the door's state mark, which 6.11 requires and RT-8 already had a
-                 slot for; the name stays primary because the section holds a value. The stub carries "measuring..."
-                 in the trailing slot instead of the counts while SchemaExtractor is still running (POP-6); drawn
-                 here in the ready state. The row's title is now the stub form, "Schema. 3 node types, 7 edge
-                 types"; the old trailing-span tooltip that spelled out cat 17, human 2, dog 1 is gone because
-                 those three numbers are resident in the pop-out's node type table, and a tooltip inside a tooltip
-                 is not a second home.
-                 Floor check: POP-6 puts no floor item behind this door. The reading, the counts, the degree
-                 distribution and every id stay in the inspector column; what moves is a table that never had
-                 anywhere to render. -->
+            <!-- SECTION: Schema, an EXPANDED SECTION with a gear (SECTIONS-1.9 D1, D6, D7, 5.8). It was a
+                 permanent door: one 32px row whose chevron never opened and whose whole content lived in the 480
+                 pop-out. 1.9 strikes that form -- "a chevron that reveals nothing is a defect" -- so the section
+                 expands here and the pop-out becomes what its GEAR holds. Main is the one board in the set that
+                 draws this disclosure open, so it draws the whole new shape end to end: expanded section, gear,
+                 and the 480 opening from the gear.
+                 WHY THESE ROWS. D6 reads clause (a) as "commonly adjusted OR commonly consulted", and of the
+                 readers who open Schema the type names and their counts are what they came for. So the node types
+                 with their counts and the edge types with theirs are resident, in the same 20px caption / 22px row
+                 rhythm the pop-out was already drawing them in -- the tables did not change, only which surface
+                 they sit on. 5.8's five-row cap is DRAWN, not assumed: seven edge types, five rows, then a "2 more"
+                 row whose title names the two it stands for (romantic 2, hunting 2) so no user string is lost.
+                 Node types are three and need no cap.
+                 BEHIND THE GEAR (5.8): per-type completeness, and the edges-by-type-pair MATRIX, which keeps its
+                 480 under D7 because a two-dimensional table cannot be drawn honestly in a 256px band at any
+                 density. Those are the only two things left in the pop-out.
+                 THE TRAILING SLOT (D5). Closed, this header carries the mark "3 node types, 7 edge types". Open,
+                 the mark is DELETED, because the rows below repeat it word for word and Rule 8 deletes a mark the
+                 rows restate; the slot carries the section's verb and its gear instead, on RT-8's 28px pitch
+                 ending at x = 272. Export schema JSON is the verb that stays in the slot, which is where
+                 PresentPanel, PresentCompact, ImageOptionsPopout, CommandPalette and InsightsWide already put it;
+                 Filter to type and Select all of type are the resident RT-7 row, which is 5.8's wording.
+                 THE GEAR'S INK (A6, VOCAB 14.1): dimmed, because nothing behind it deviates -- completeness is
+                 100% on all three types. The header row keeps the selected-row background #28364e, and VOCAB 12
+                 moves that clause's subject with the door: it is now the row whose GEAR owns the open pop-out.
+                 MEASURED, in the DOM: this section is [1177,472 255x311] -- 1px divider, 32px header, 270px of
+                 rows, 8px pad -- against the 33px door row it replaces, and the inspector column's rows go 528px
+                 -> 806px. With the column's own 8px bottom padding that is a scroll height of 814 against an
+                 800px region: a 14px OVERFLOW, declared here rather than paid for by deleting a row
+                 (SECTIONS-1.9 section 7). The five-row cap is what holds it to 14: uncapped, the two extra
+                 edge-type rows would put it 58px over. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Schema. 3 node types, 7 edge types" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; background: #28364e; cursor: pointer;">
-                <div style="display: flex; align-items: center; min-width: 0;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; background: #28364e;">
+                <div title="Collapse Schema" style="display: flex; align-items: center; min-width: 0; cursor: pointer;">
                   <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; padding-left: 4px;">Schema</span>
                 </div>
-                <span style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">3 node types, 7 edge types</span>
+                <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                  <div title="Export schema JSON" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
+                  </div>
+                  <div title="Schema detail. Per-type completeness, edges by type pair" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+                  </div>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; padding-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #7a828e;">Node type</span>
+                  <span style="flex: 0 0 40px; font-size: 11px; line-height: 1; color: #7a828e; text-align: right;">Nodes</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">cat</span>
+                  <span style="flex: 0 0 40px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">17</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">human</span>
+                  <span style="flex: 0 0 40px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">2</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">dog</span>
+                  <span style="flex: 0 0 40px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">1</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 20px;">
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1; color: #7a828e;">Edge type</span>
+                  <span style="flex: 0 0 40px; font-size: 11px; line-height: 1; color: #7a828e; text-align: right;">Edges</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">social</span>
+                  <span style="flex: 0 0 40px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">8</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">play</span>
+                  <span style="flex: 0 0 40px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">5</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">territorial</span>
+                  <span style="flex: 0 0 40px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">4</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">medical</span>
+                  <span style="flex: 0 0 40px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">4</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 22px;">
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">feeding</span>
+                  <span style="flex: 0 0 40px; font-size: 12px; line-height: 1.2; color: #d5d7da; text-align: right; font-variant-numeric: tabular-nums;">4</span>
+                </div>
+                <div title="romantic 2, hunting 2" style="display: flex; align-items: center; gap: 8px; height: 22px; cursor: pointer;">
+                  <span style="flex: 1 1 0; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">2 more</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 16px; height: 32px;">
+                  <span style="font-size: 11px; font-weight: 500; line-height: 1.2; color: #5b8ff9; cursor: pointer;">Filter to type</span>
+                  <span style="font-size: 11px; font-weight: 500; line-height: 1.2; color: #5b8ff9; cursor: pointer;">Select all of type</span>
+                </div>
               </div>
             </div>
 

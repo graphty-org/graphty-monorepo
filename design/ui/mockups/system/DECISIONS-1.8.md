@@ -36,6 +36,16 @@ The two user points, restated as they will be answered:
 
 ## A1. The door test -- one test, stated as a test
 
+> **Superseded in part by `SECTIONS-1.9.md`.** Clause (a)'s denominator changed
+> from global to local: it now asks whether, of the readers who open THIS
+> section, the control is among the two or three things they commonly adjust or
+> consult -- because "a default that most instances never leave" returns the same
+> answer for every row of a section, so it empties the section instead of
+> splitting it (SECTIONS-1.9 D2). Nothing else here moves: the conjunction,
+> clause (b), A2's veto and the three refutations below all stand, and every case
+> this record decided by the conjunction is decided the same way now. Read that
+> document alongside this one; on the denominator, it wins.
+
 **Does this control sit at a default that most instances never leave, AND can
 the row it leaves behind still report whether THIS instance left it? Both
 yes: it goes behind the door on that row. Either no: it stays resident.**

@@ -91,6 +91,48 @@
   frame hint (item 4) -- stay resident, and the hint now carries the legend clause as well.
   Dataset: TEST_GRAPH_DATA in graphty/src/components/layout/AppLayout.tsx (cat social network, 20 nodes, 29 edges).
   The panel column no longer overflows the 800 px viewport, so the scroll clip and its scrollbar thumb are gone.
+  REVISION 1.9 (SECTIONS-1.9.md, VOCAB section 15): a panel always expands, and a gear is an addition rather than
+  the section. Two work-list items land here and NEITHER MOVES A PIXEL, because D4 leaves a section's resting
+  state alone and both of them are drawn closed on this board.
+    - 5.13 Export video. The door row 1.8 re-typed goes back to being a collapsed SECTION: D1 withdraws the
+      permanently-closed chevron form, so the chevron now opens onto rows in place instead of onto a 280 pop-out.
+      Closed, the row is unchanged -- closed chevron, name at value ink, and the stub "10 s, Orbit once, WebM"
+      surviving as the closed-state MARK 5.13 names. Open, it draws three resident rows and NO GEAR: the
+      Duration | Camera RT-1 pair, the Video format field, and the estimate-plus-Record row, which is literally
+      what KeepAdvancedOpen already draws with the hatch on and is now the default form. The video twin of the
+      Image quality group (scope, background, resolution, frame rate) does not ship, and 5.13 says a section with
+      nothing to hide carries no gear at all.
+    - 5.8 Schema, the stub. The POP-6 permanent door becomes a live collapsed section; D4 keeps it closed and
+      "3 node types, 7 edge types" is exactly the closed mark 5.8 specifies, so again nothing moved. What changed
+      is what the chevron promises: the node-type and edge-type rows with their counts, capped at five with an
+      "N more" row (D6), with per-type completeness and the edges-by-type-pair matrix behind a gear, that matrix
+      keeping its 480 under D7. The five boards drawing this as a live collapsed section were right; the
+      twenty-one are brought to them, and this is one of the twenty-one.
+  EXPORT IMAGE IS THE MODEL, AND NOT ONE ROW OF IT CHANGED. SECTIONS-1.9 section 4 names it first among the
+  exemplars this whole revision copies: an open chevron, four resident rows, one gear in the trailing slot holding
+  Scope, Background, View angle, Legend, Note markers, Only pinned labels and the Image quality group, A6's two
+  inks on that gear, and the departure line resident under the section that caused it. Every section on the work
+  list was measured against that section, and this board is where it sits at rest.
+  MEASURED AFTER 1.9, in the browser at 1440 x 900 rather than added up on paper. Panel column y 76 to y 391 =
+  315 px, unchanged, in an 800 px content area, so it still does not scroll and no scrollbar affordance returns.
+  Inspector column 455 px in the same 800, also unchanged and also clear. Opened, Export video would add three
+  32 px rows plus the section's 8 px pad = 104 px for a column of 419 px, which is 5.13's "Present draws 13" and
+  still 381 px inside the region; PresentCompact draws that state and measures it there at exactly 419.
+  ONE CROSS-REFERENCE ABOVE IS SUPERSEDED, and is left standing as the record of what was here: the 1.8 paragraph
+  says "PresentCompact draws this same panel with the Export video pop-out open". That pop-out does not exist
+  after 1.9. PresentCompact draws the same section EXPANDED IN PLACE, and the anchor measurement went with it.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Schema is drawn CLOSED here, so its trailing slot belongs to its state mark alone and "Export schema
+  JSON" is deleted from this header. D5 gives a closed section's slot to its mark and an open one's to its
+  verbs and its gear; the set drew the verb on ten closed Schema headers and left it off fifteen. Main draws
+  the open form with the verb in the slot, so nothing became unreachable, and no row changes height.
+  The empty library sections lose the chevron they could not open: Reports. RT-8's empty form is a
+  dimmed name, its resident "+" and an EMPTY 16px leading slot, and D1 turns that snippet into a rule -- a
+  chevron renders only where it opens onto resident rows. The chevron returns with the first saved report configuration.
+  Export video's closed header gains the title ImageOptionsPopout and ReportEditorDrawer already carry,
+  "Export video. 10 s, Orbit once, WebM", so the four boards that draw the section closed carry one string.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -246,7 +288,7 @@
                  6  RT-8 Export data, with its gear and its recipe overflow              y 221..253
                  7  RT-1 pair Format JSON | Scope Whole graph                            y 253..285
                  8  RT-7 Copy node ids | Export data                                     y 285..317
-                 9  RT-8 Export video -- a DOOR, stub "10 s, Orbit once, WebM"           y 326..358
+                 9  RT-8 Export video -- a closed SECTION, mark "10 s, Orbit once, WebM" y 326..358
                  10 RT-8 Reports -- the library section, empty, resident plus            y 359..391
                Every row is one of RT-1 through RT-10 and names which.
                THE FLOOR, 6.10, and what it kept resident: the size estimate before writing and the Format and
@@ -432,26 +474,30 @@
               </div>
             </div>
 
-            <!-- SECTION Export video. A DOOR ROW, re-typed in 1.8 from the collapsed section it was: VOCAB 14.1's
-                 RT-8 door form is this row exactly -- the chevron stays permanently in the closed right-pointing
-                 shape and never opens the section in place, the name is at value ink, and the trailing slot
-                 carries the one fact that says what is behind it. The state is unchanged from 1.5; only the row
-                 type is.
-                 THE STUB: "10 s, Orbit once, WebM", the written shape of the file this section will write. It is
-                 floor item 4, which is why Rule 7a may not delete it as three untouched defaults, and it is what
-                 makes this door legible -- the duration, the camera and the format are read without opening
-                 anything. The name stays at value ink for the same reason: RT-8 dims a name only when its section
-                 holds nothing, and this one visibly holds three values.
-                 IT OPENS a 280 pop-out from its own door row, holding Duration, Camera (Hold still / Orbit once),
-                 Format (WebM / MP4), the estimated time and Record, with progress and Cancel mirrored in the
-                 status bar like an algorithm run. Closed on this board; PresentCompact draws it open, anchored to
-                 this row, and is where that anchor is measured.
-                 A4's discriminator, checked: this is a set of field rows with a verb and an estimate, so a
-                 collapsed section and a door cost the same one row -- and the door buys the recording controls
-                 and the canvas staying visible together. -->
+            <!-- SECTION Export video, a live collapsed SECTION and no longer a door (SECTIONS-1.9 D1, 5.13).
+                 1.8 re-typed this from the collapsed section it was into a permanent door; 1.9 strikes the
+                 permanently-closed chevron form outright, so this is an ordinary section header again and its
+                 chevron opens ONTO ROWS in place. Nothing on the board moved: D4 leaves every section's resting
+                 state alone and this one was drawn closed, so the drawing is identical and only its meaning
+                 changed.
+                 THE MARK: "10 s, Orbit once, WebM", the stub DECISIONS-1.8 D1 specified, which 5.13 keeps as the
+                 CLOSED-state mark. It is the written shape of the file this section will write -- floor item 4 --
+                 which is why Rule 7a may not delete it as three untouched defaults, and it is what makes the
+                 closed row legible: the duration, the camera and the format are read without opening anything.
+                 The name stays at value ink for the same reason: RT-8 dims a name only when its section holds
+                 nothing, and this one visibly holds three values. D5 deletes the mark the moment the rows are
+                 drawn, because the rows repeat it, and PresentCompact is where that state is drawn.
+                 WHAT IS BEHIND THE CHEVRON, three resident rows and NO GEAR: the Duration | Camera RT-1 pair,
+                 the Video format field, and the estimate-plus-Record row. That is the form KeepAdvancedOpen
+                 already draws with "Keep advanced sections open" on, and from 1.9 it is the default form. There
+                 is no gear because the video twin of the Image quality group -- scope, background, resolution,
+                 frame rate -- does not ship, and 5.13 says a section with nothing to hide carries none: a gear is
+                 an ADDITION to a section that already draws content, never an obligation (D1).
+                 The estimate is floor item 4 and Record's full text is floor item 4, so both were always going to
+                 be resident under an open chevron; nothing behind this chevron was ever a hidden default. -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+              <div title="Export video. 10 s, Orbit once, WebM" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
                   <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
@@ -512,9 +558,7 @@
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Reports</span>
                   <div title="Report configurations: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
@@ -886,11 +930,21 @@
               </div>
             </div>
 
-            <!-- SECTION Schema, a POP-6 door (6.11, RT-8). The section is consulted rather than operated, so it never
-                 renders open: the chevron stays closed permanently and the trailing slot carries the one fact behind
-                 the door. The three node type names with their counts, the seven edge type names and the type pairs
-                 are in the 480 pop-out, drawn once on Main. Export schema JSON stays drawn on the header, revealed,
-                 because Present is the activity that writes files. -->
+            <!-- SECTION Schema, a live collapsed SECTION (SECTIONS-1.9 D1, 5.8). It was a POP-6 permanent door
+                 here; 1.9 strikes the permanently-closed chevron form, and 5.8 settles the board divergence in
+                 favour of the five boards that already drew this as an ordinary collapsed section -- this board is
+                 one of the twenty-one brought to them. D4 keeps it CLOSED, so nothing on this board moved.
+                 D6 is what gives it rows to open onto: "commonly adjusted" reads as "commonly adjusted or commonly
+                 consulted", and of the readers who open Schema the type names and their counts are what they came
+                 for. Open, it draws the node types with their counts (cat 17, human 2, dog 1) and the edge types
+                 with theirs, as the short two-column tables Main already draws, capped at five with an "N more"
+                 row, plus the RT-7 verb row Filter to type / Select all of type.
+                 BEHIND THE GEAR, when open: per-type completeness, and the edges-by-type-pair matrix, which keeps
+                 its 480 under D7 because a two-dimensional thing cannot be drawn honestly in the 256 band. The
+                 matrix is drawn once, on Main.
+                 THE MARK: "3 node types, 7 edge types" is the closed-state mark 5.8 specifies, and Rule 8 deletes
+                 it when the rows are drawn, because the rows repeat it (D5). Export schema JSON stays drawn on the
+                 header, revealed, because Present is the activity that writes files. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Schema. 3 node types, 7 edge types" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
@@ -900,12 +954,7 @@
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Schema</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
-                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">3 node types, 7 edge types</span>
-                  <div title="Export schema JSON" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
-                </div>
-                </div>
+                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">3 node types, 7 edge types</span>
               </div>
             </div>
 

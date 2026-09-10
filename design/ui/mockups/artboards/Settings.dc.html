@@ -41,6 +41,31 @@
   Layout size ratings at 360 and Rebind at 280, both drawn on their own boards), E4 (Appearance carries "Keep advanced
   sections open", the second escape hatch for the roughly 25 rows that move behind doors this revision), E2 (one
   transient class at a time), C6 (legend cap 334 -> 240). No control on this board moves.
+  REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, D12, work-list 5.8). Two things, and only one of them is drawn.
+  Schema, in the inspector, stops being a permanent door and becomes an ordinary collapsed section -- except
+  that this board already drew it that way, and 5.8 names these five boards as the target the other twenty-one
+  are brought to. Open, its chevron gives the node-type rows with their counts (cat 17, human 2, dog 1) and the
+  edge-type rows with theirs, capped at five with an "N more" row, plus Filter to type / Select all of type;
+  per-type completeness and the edges-by-type-pair matrix stay behind a gear that keeps the 480 (D7). No pixel
+  moves, and the panel's resident content height is still 155px.
+  D12, the stub-silent doors, is the drawn change, and both of its Settings rows are here. "Advanced", inside
+  the Anthropic accordion, gains "All default", which reports whether Base URL, max tokens or temperature
+  deviate; when one does, the mark names it in A6's grammar and the chevron takes the primary ink.
+  "Encryption password", under Key storage, gains "Not set", which is D12's own words for what that row owes.
+  Neither row is a section under D1 -- each is a disclosure row inside a section that already draws content --
+  so neither gains or loses a chevron; what they gain is the report they never drew. Both marks are 11px
+  #7a828e riding in their row's existing 4px gap, so both rows stay 24px and nothing below them moves.
+  Refused here, and it is D9 restating 1.8's D7: the Settings nav list is not a section with a chevron and D1
+  does not reach it. In Settings the nav item is the door and the pane is what is behind it.
+  Measured after the edit: the AI providers pane and its 640px column do not overflow, the inspector's 800px
+  content region uses 538px with 262px of headroom, and no clipped region on this board overflows.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Schema is drawn CLOSED here, so its trailing slot belongs to its state mark alone and "Export schema
+  JSON" is deleted from this header. D5 gives a closed section's slot to its mark and an open one's to its
+  verbs and its gear; the set drew the verb on ten closed Schema headers and left it off fifteen. Main draws
+  the open form with the verb in the slot, so nothing became unreachable, and no row changes height.
 -->
 
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
@@ -441,7 +466,6 @@
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Counts</span>
                 </div>
-                <div style="display: flex; gap: 4px;"></div>
               </div>
             </div>
 
@@ -519,7 +543,16 @@
               </div>
             </div>
 
-            <!-- Schema, collapsed (5.4): open rows are node types with counts (cat 17, dog 1, human 2), edge types with counts (interactionType), the type-pair list, and Filter to type, Select all of type, Export schema JSON -->
+            <!-- Schema, collapsed and live (5.4). REVISION 1.9: this is the compliant form, and SECTIONS-1.9 5.8
+                 names it as the target the other twenty-one boards are brought to, so nothing here moves. Open, its
+                 rows are the node types with their counts (cat 17, dog 1, human 2) and the edge types with their
+                 counts (interactionType), capped at five with an "N more" row, plus the RT-7 verb row Filter to type /
+                 Select all of type. What leaves is a gear on the OPEN section holding per-type completeness and the
+                 edges-by-type-pair matrix, and that gear keeps the 480 (D7) because a two-dimensional table cannot be
+                 drawn honestly in the 256px band. Closed here, so the header carries the D5 closed-state mark
+                 "3 node types, 7 edge types" beside its name and Export schema JSON in the trailing slot; the mark is
+                 deleted the moment the type rows are drawn and repeat it (Rule 8), and it reads "measuring..." until
+                 SchemaExtractor finishes. -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Schema. 3 node types, 7 edge types" style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
@@ -531,11 +564,6 @@
                   <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">3 node types, 7 edge types</span>
                 </div>
                 <!-- IK-6: the same hover-revealed export icon, drawn revealed; its menu holds "Export schema JSON". -->
-                <div style="display: flex; gap: 4px;">
-                  <div title="Export schema JSON" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -552,7 +580,6 @@
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Attributes</span>
                   <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">11</span>
                 </div>
-                <div style="display: flex; gap: 4px;"></div>
               </div>
             </div>
 
@@ -819,12 +846,23 @@
                     <!-- The door onto the rarely used parameters (RT-1's door rule). The contents list is a preview
                          of what is one click away, so it comes out of the copy and stays here, which is what
                          REGISTER-1.5 section 6 (S11) already did to the same list on StylePanel:
-                         Advanced holds Base URL, max tokens, temperature. -->
-                    <div style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer;">
+                         Advanced holds Base URL, max tokens, temperature.
+                         REVISION 1.9, D12 (the stub-silent doors, swept in the same pass). This row survives D1 --
+                         it is a disclosure row inside a section that already draws four rows of content, not a
+                         section that is only a door -- and it failed 6.11's stub obligation, because it reported
+                         nothing at all. It now carries the report: "All default" is the answer to the door test's
+                         second clause for Base URL, max tokens and temperature, and it is drawn rather than left
+                         to A6's ink because this row's own label is already in the dimmed ink, so an ink state
+                         has nothing to say against. When one of the three deviates the mark names it in A6's
+                         grammar, as AnalyzeSweep's gear already does ("Advanced parameters. Run as sweep is on"),
+                         and the chevron takes the primary ink. The mark is 11px #7a828e in the row's existing 4px
+                         gap, so the row stays 24px and nothing below it moves. -->
+                    <div title="Advanced. Base URL, max tokens and temperature are all at their defaults" style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer;">
                       <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
                         <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
                       </div>
                       <span style="font-size: 12px; line-height: 1.2; color: #7a828e;">Advanced</span>
+                      <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">All default</span>
                     </div>
                   </div>
 
@@ -930,7 +968,16 @@
                          carve-out) and it is what the checkbox above will do before it does it (floor item 4).
                          COMPACTION-1.6 Rule 8 does not reach it and no density setting may move it. -->
                     <span style="font-size: 11px; line-height: 1.4; color: #7a828e;">Keys are encrypted and stored in this browser only. They are sent to the provider you choose and nowhere else.</span>
-                    <div style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer;">
+                    <!-- REVISION 1.9, D12. The second of the two stub-silent doors on this board. It survives D1
+                         for the same reason Advanced does -- it is a disclosure row inside Key storage, which
+                         already draws a checkbox, a floor sentence and this row -- and it failed the stub
+                         obligation in the same way, by drawing no state at all. D12 names what it owes in its own
+                         words, set or not set, and no password is set on this board, so the mark reads "Not set".
+                         This is not the "Not set" the set deletes elsewhere: those were a repeated cell word in a
+                         grid that a single dim -- says better, and this is the one fact a single row exists to
+                         report. The mark is 11px #7a828e after the info circle, inside the row's existing 4px
+                         gap, so the row stays 24px. -->
+                    <div title="Encryption password. Not set. Optional, re-entered each session" style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer;">
                       <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
                         <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
                       </div>
@@ -938,6 +985,7 @@
                       <div title="Optional, re-entered each session." style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;">
                         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
                       </div>
+                      <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Not set</span>
                     </div>
                   </div>
                 </div>

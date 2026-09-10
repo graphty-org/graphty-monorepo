@@ -56,6 +56,43 @@
   Insert content only at the three marked containers: PANEL CONTENT, CANVAS CONTENT, INSPECTOR CONTENT.
   Palette: canvas #161b22, panels #1f2428, inputs #2a3035, hover #374047, border #48525c,
   text #d5d7da, dimmed #7a828e, accent #4a7ee8, selected #28364e. See VOCAB.md.
+
+  REVISION 1.9 (SECTIONS-1.9). Three work-list items touch this board: 5.5 Step through time, 5.4 Neighborhood
+  expansion and 5.8 Schema. D1 withdraws the licence for a section that is only a door -- POP-13b, the sentence
+  that let a chevron stay closed for ever, is struck -- so every chevron here opens onto real rows.
+  5.5, AND THIS IS THE BOARD THAT DRAWS THE SECTION OPEN. The set-wide pass found that no board drew Step
+  through time expanded, while MultiSelection's own comment already promised that "TimeSlider draws the open
+  form" -- one of the two boards was wrong, and this is the one that has the room (349px of 800) and the
+  subject. So the section is drawn EXPANDED here: the RT-1 pair Window 30 days | Step 7 days with the
+  recompute toggle in the Step field's trailing slot, and the Cumulative | Sliding RT-3 track, both at their
+  shipped defaults under D3. The header now carries the open chevron, and D5 gives its trailing slot the
+  section's gear (dimmed at #7a828e, because nothing behind it deviates -- attribute opened, speed 1x,
+  recompute off, no comparison window) and the On switch, which stays in BOTH states because it is the
+  section's own master control and not a precis of the rows below it.
+  THE 280 POP-OUT LOSES TWO ROWS, and that is the other half of the same edit. It is the bar gear's route
+  into this section's GEAR, and a gear never repeats a row the section already draws (Rule 8; One fact, one
+  region). What it holds now is exactly 5.5's gear list: the time attribute, Speed, and "Compare with another
+  window". Its position, its 82 baseline, its 8px clearance of the legend and its missing caret are all
+  unchanged; only its height falls with the two rows.
+  THE COMING TAG IS DELETED from this header. A section drawn open and operating -- switch on, bar scrubbing,
+  playhead on the track -- cannot also be unshipped, and MultiSelection, the section's other board, draws no
+  tag. Two boards, one section, one spelling.
+  5.4: Neighborhood expansion is UNSHIPPED on every board that draws it, and D1 plus 5.7's corollary give an
+  unshipped section no chevron: a chevron renders only where it opens onto resident rows. So the row loses its
+  chevron and keeps its name at the unshipped ink, its Coming tag and its title. The mark "2 steps, 3 types"
+  stays in that title, where 5.4 and D12 can still find it, and returns to the trailing slot when the
+  capability ships and the chevron comes back with the rows. Find a pattern and Filter builder take the same
+  edit for the same reason, and Filters with them, so no run of dim rows is half-chevroned.
+  5.8: Schema stops being a permanent door and becomes an ordinary live collapsed section. Closed, its
+  trailing slot belongs to its state mark alone, so "Export schema JSON" leaves this header -- D5 gives a
+  closed section's slot to the mark and an open one's to its verbs and its gear, and Main draws the open form
+  with the verb in it.
+  MEASURED after 1.9, in the DOM at 1440x900: Explore panel content 349px -> 421px in an 800px window (the
+  expanded section adds two 32px rows and an 8px pad; the deleted chevrons sit inside existing 32px rows and
+  those rows keep their height), inspector content 519px, unchanged, in the same window. Neither scrolls. The
+  settings pop-out goes [604,592 280x202] -> [604,656 280x138]: it is bottom-anchored, so its bottom stays on
+  794 and the 82 baseline the bar, the minimap and the legend share is untouched, as are its 8px clearance of
+  the legend at x 892 and its right edge at 884. Bar, track, legend, minimap, toolbar and status bar untouched.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -264,9 +301,7 @@
               </div>
               <div style="display: flex; align-items: center; height: 32px; cursor: default;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #5f6873;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap;">Filter builder</span>
                 </div>
               </div>
@@ -278,9 +313,7 @@
                    read apart from anything. -->
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: default;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #5f6873;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap;">Filters</span>
                 </div>
                 <span style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #5f6873; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Saved filters</span>
@@ -299,9 +332,7 @@
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Sets</span>
                   <div title="Selection sets: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
@@ -341,15 +372,10 @@
                  from 40px to the frozen 32. -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+              <div title="Find a pattern (subgraph search). Coming" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: default;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
-                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Find a pattern</span>
-                  <div title="Subgraph search: find every place a small pattern of nodes and edges repeats." style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                  <span style="min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Find a pattern</span>
                 </div>
                 <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
               </div>
@@ -359,14 +385,26 @@
                  what moved it out of the Filter builder / Filters run above. Standing alone it is no longer a
                  member of a run of three, so REGISTER 3 gives it back its own per-row Coming tag -- the same
                  form Find a pattern directly above already draws, which is what makes the two read as one
-                 pair rather than as two spellings. -->
+                  pair rather than as two spellings.
+                  REVISION 1.9 (D1, D4, D5, 5.4). 5.4 names this board by hand as the one that "draws the same row
+                  dimmed with no state mark", and the mark it owes is "2 steps, 3 types" -- the depth and the type
+                  filter a reader must know BEFORE pressing expand, which is floor item 4. It cannot be drawn on
+                  this row, and the arithmetic is Main's, measured there in the same 255px band: chevron 16 plus
+                  the name plus the mark plus the two 4px gaps is 249 at an 11px name, and this row also carries
+                  the 50.3px Coming tag, which puts every arrangement of the four over 291 in a 255 band. The name
+                  is floor item 6 and does not shrink; the tag is what says the capability is not built. So the
+                  mark takes the row's title, in Main's exact form -- name, full stop, mark, full stop, the
+                  disabled reason -- which is register 1.1's spelling and this board's own answer for a string
+                  that will not fit at 256. Recorded rather than quietly dropped: on this board the mark is one
+                  hover away, not on the surface.
+                  The chevron itself is unchanged and now opens, once the capability ships, onto a Hops field
+                  reading "2 steps" and a type-filter field reading "3 types", with direction, the max-nodes cap
+                  and the per-type list behind the section's gear (5.4). D4 keeps it closed. -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: default;">
+              <div title="Neighborhood expansion. 2 steps, 3 types. Coming" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: default;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #5f6873;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap;">Neighborhood expansion</span>
                 </div>
                 <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
@@ -407,24 +445,84 @@
                  #28364e background (B4); this one does not.
                  The stub reports the state of what it hides, which is what earns the door: the On switch is
                  the door's state mark, the Coming tag says the visibility layer is not built, and the window
-                 itself is printed on the bar, on the status bar and in the inspector -- never here (D4). -->
+                 itself is printed on the bar, on the status bar and in the inspector -- never here (D4).
+                 REVISION 1.9 (SECTIONS-1.9 D1, D3, D4, D5, D8, 5.5). POP-13b is struck, and this is the board
+                 that DRAWS THE OPEN FORM. The chevron opens, and what it opens onto is here: the RT-1 pair
+                 Window 30 days | Step 7 days and the Cumulative | Sliding RT-3 track, drawn at their shipped
+                 defaults because D3 lifts Rule 7a off the two or three locally common rows of a section, and a
+                 section every one of whose rows is deleted for sitting at a default is a chevron that opens
+                 onto nothing. Behind its gear: the time attribute select, Speed and "Compare with another
+                 window". The bar gear opens that same set, so there is still one destination (D8).
+                 WHY HERE AND NOT SOMEWHERE ELSE. The set-wide pass found that no board in the file drew this
+                 section expanded, while MultiSelection's comment already recorded that "TimeSlider draws the
+                 open form". Of the two boards 5.5 names, this is the one whose subject is time and the one
+                 with the room: the Explore panel measured 349px of content in an 800px window, and two 32px
+                 rows plus an 8px pad take it to 421.
+                 THE GEAR IS IN THE SLOT, not deleted. D5 gives a CLOSED section's trailing slot to its state
+                 mark and an OPEN one's to its verbs and its gear; this section is open, so the gear is drawn,
+                 dimmed at #7a828e because nothing behind it deviates (attribute opened, speed 1x, recompute
+                 off, no comparison window). It is not lit: the bar gear is the opener that was used and
+                 carries the #28364e background (B4). The 1.8 argument that the bar gear does not MOVE is
+                 untouched.
+                 THE ON SWITCH STAYS IN BOTH STATES, and it is the one closed mark in the seventeen that
+                 survives being opened: D5 keeps a mark that says something the rows do not, and a master On
+                 switch is the section's own control rather than a precis of the rows below it.
+                 THE COMING TAG GOES. A section drawn open and operating cannot also be unshipped, and
+                 MultiSelection -- the section's other board under D8 -- draws no tag. Two regions, two boards,
+                 one spelling.
+                 The recompute toggle rides in the Step field's trailing slot even though 5.5 files it under
+                 the gear: RT-5 forbids a lone toggle row and RT-1 puts a boolean in the trailing slot of the
+                 row it modifies, which is the step. -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Step through time (Temporal navigation): filter the graph to a window of time and step the window along." style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
-                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+              <div title="Step through time (T). Temporal navigation: filter the graph to a window of time and step the window along." style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px;">
+                <div title="Collapse Step through time" style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;">
                   <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Step through time</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
-                  <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
-                  <div title="Time slider settings" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <div title="Time slider settings" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
                   </div>
                   <div style="width: 28px; height: 16px; border-radius: 8px; background: #4a7ee8; position: relative; box-sizing: border-box; flex: 0 0 auto;">
                     <div style="position: absolute; top: 2px; left: 14px; width: 12px; height: 12px; border-radius: 50%; background: #ffffff;"></div>
                   </div>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; padding-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+                  <div title="Window size: 30 days" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;">
+                    <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2.5" y1="8" x2="13.5" y2="8"></line><polyline points="5,5.5 2.5,8 5,10.5"></polyline><polyline points="11,5.5 13.5,8 11,10.5"></polyline></svg>
+                    </div>
+                    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">30</span>
+                    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e; cursor: pointer;">days</span>
+                  </div>
+                  <div title="Step: 7 days" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;">
+                    <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="4,3.5 10,8 4,12.5"></polygon><line x1="12" y1="3.5" x2="12" y2="12.5"></line></svg>
+                    </div>
+                    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">7</span>
+                    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e; cursor: pointer;">days</span>
+                  </div>
+                  <div title="Recompute results on each step" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"></path><polyline points="2.5,2.5 2.5,6 6,6"></polyline></svg>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+                  <div style="display: flex; gap: 2px; flex: 0 0 108px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
+                    <div title="Cumulative: everything up to the end of the window" style="flex: 0 0 32px; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; cursor: pointer;">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5.5" width="11" height="5" rx="1"></rect><rect x="2.5" y="5.5" width="7" height="5" rx="1" fill="currentColor" stroke="none"></rect></svg>
+                    </div>
+                    <div title="Sliding: only what falls inside the window" style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; height: 22px; padding: 0 6px; border-radius: 3px; background: #374047; color: #d5d7da; cursor: pointer; box-sizing: border-box;">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><rect x="2.5" y="5.5" width="11" height="5" rx="1"></rect><rect x="5.5" y="5.5" width="5" height="5" rx="1" fill="currentColor" stroke="none"></rect></svg>
+                      <span style="font-size: 11px; font-weight: 500; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Sliding</span>
+                    </div>
+                  </div>
+                  <div style="flex: 1 1 0; min-width: 0;"></div>
+                  <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
                 </div>
               </div>
             </div>
@@ -447,9 +545,7 @@
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; padding-left: 4px;">Notes</span>
                 </div>
                 <div title="Note (N). Select something first" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;">
@@ -1406,7 +1502,29 @@
                live, Escape closes and returns focus to the gear, at most one pop-out per region. 6.2's scrub
                clause holds: a control the user scrubs while watching the canvas is never 3a or 3b, but its
                settings may be 3a and may never be 3b, which is exactly why the transport, the track, the
-               sparkline, the playhead and the Viewing readout stay on the bar. -->
+                sparkline, the playhead and the Viewing readout stay on the bar.
+                REVISION 1.9 (SECTIONS-1.9 D1, D5, D8, 5.5). This surface no longer IS the Step through time
+                section -- no section is a pop-out any more -- and its five rows now divide in two. Window 30 days
+                | Step 7 days and the Cumulative | Sliding track are the section's RESIDENT rows, the three things
+                a reader who opens that section changes (5.5), and the Explore panel on this same board now draws
+                them open. The time attribute select, Speed and "Compare with another window" are what its gear
+                holds, and that is what is left here.
+                SO TWO ROWS LEFT THIS SURFACE, which is a change from the first 1.9 pass and the reason it is
+                named. That pass kept all five here on the argument that a pop-out may not carry a second
+                pop-out, so the bar route had to render the section whole. The argument fails on Rule 8 and on
+                One fact, one region: with the section drawn open in the panel, the same window pair and the same
+                window-mode track would be on screen twice, once as the section's rows and once as its gear's
+                contents, and a gear never repeats a row the section already draws. D8 asks for ONE set of
+                hidden controls, not for one surface that holds everything; the bar keeps everything that is
+                scrubbed, the section keeps its three resident controls, and this gear keeps the three that are
+                neither.
+                The recompute toggle went with the Step field it modifies (RT-1's trailing-slot boolean, and
+                RT-5's ban on a lone toggle row), so it is drawn in the section rather than here.
+                MEASURED after the two rows left: the rect goes [604,592 280x202] -> [604,656 280x138]. The
+                surface is bottom-anchored at bottom: 82px, so its BOTTOM does not move -- 794 in root
+                coordinates, 12px clear of the bar's top edge at 806 -- and every other number above stands:
+                right edge 884, 8px clear of the legend's 892, no caret because the edge line is spent on the
+                legend, max-height 418 unreached. -->
           <div style="position: absolute; left: 276px; bottom: 82px; width: 280px; max-height: 418px; display: flex; flex-direction: column; background: #1f2428; border: 1px solid #48525c; border-radius: 4px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; overflow: hidden; z-index: 8;">
             <div style="display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 4px 0 12px; flex: 0 0 auto; box-sizing: border-box;">
               <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Time slider settings</span>
@@ -1431,49 +1549,13 @@
                 <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
               </div>
 
-              <!-- RT-1 pair: the window's two durations, 108 + 108. The unit is a right-aligned dimmed
-                   suffix inside the field and is still the thing you click to change it (Rule 5, Rule 6).
-                   Trailing slot: the recompute toggle, drawn off.
-                   Window size uses the register width glyph (an extent, here an extent in time); Step uses
-                   the register step-forward drawing on purpose, because this field is what that transport
-                   button advances by. -->
-              <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
-                <div title="Window size: 30 days" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2.5" y1="8" x2="13.5" y2="8"></line><polyline points="5,5.5 2.5,8 5,10.5"></polyline><polyline points="11,5.5 13.5,8 11,10.5"></polyline></svg>
-                  </div>
-                  <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">30</span>
-                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e; cursor: pointer;">days</span>
-                </div>
-                <div title="Step: 7 days" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="4,3.5 10,8 4,12.5"></polygon><line x1="12" y1="3.5" x2="12" y2="12.5"></line></svg>
-                  </div>
-                  <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">7</span>
-                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e; cursor: pointer;">days</span>
-                </div>
-                <div title="Recompute results on each step" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"></path><polyline points="2.5,2.5 2.5,6 6,6"></polyline></svg>
-                </div>
-              </div>
-
-              <!-- RT-3 hybrid: two drawable, mutually exclusive window modes on one 108px track -- the
-                   glyph on both, the word on the active one only, so the choice keeps its name and the
-                   alternative is learnable by clicking. -->
-              <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
-                <div style="display: flex; gap: 2px; flex: 0 0 108px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
-                  <div title="Cumulative: everything up to the end of the window" style="flex: 0 0 32px; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; cursor: pointer;">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5.5" width="11" height="5" rx="1"></rect><rect x="2.5" y="5.5" width="7" height="5" rx="1" fill="currentColor" stroke="none"></rect></svg>
-                  </div>
-                  <div title="Sliding: only what falls inside the window" style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; height: 22px; padding: 0 6px; border-radius: 3px; background: #374047; color: #d5d7da; cursor: pointer; box-sizing: border-box;">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><rect x="2.5" y="5.5" width="11" height="5" rx="1"></rect><rect x="5.5" y="5.5" width="5" height="5" rx="1" fill="currentColor" stroke="none"></rect></svg>
-                    <span style="font-size: 11px; font-weight: 500; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Sliding</span>
-                  </div>
-                </div>
-                <div style="flex: 1 1 0; min-width: 0;"></div>
-                <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
-              </div>
-
+              <!-- The window pair and the Cumulative | Sliding track are NOT drawn here any more (1.9, 5.5,
+                   D5, D8). They are the section's RESIDENT rows and the Explore panel draws them open on this
+                   same board; this surface is what the section's GEAR holds, and a gear never repeats a row the
+                   section already draws (Rule 8, One fact one region). What is left is exactly 5.5's gear list:
+                   the time attribute, Speed, and "Compare with another window". The recompute toggle went with
+                   the Step field it modifies, because RT-1 puts a boolean in the trailing slot of the row it
+                   modifies and RT-5 forbids it a row of its own. -->
               <!-- RT-1 single: playback speed. The play glyph is the register drawing and the slot scrubs
                    the rate; the sentence that named the rate in words is the field's title. -->
               <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
@@ -1673,7 +1755,19 @@
                  the closed right-pointing form and never opens.
                  POP-6: opens a 480 inspector pop-out with a node-type table, an edge-type table and the
                  type-pair list drawn as a matrix; the stub reads "measuring..." while SchemaExtractor is still
-                 running. Drawn open on Main.dc.html. -->
+                 running. Drawn open on Main.dc.html.
+                 REVISION 1.9 (SECTIONS-1.9 D1, D4, D5, 5.8). "A permanent door" is not a thing any more: the
+                 sentence that let a chevron stay in the closed form for ever is struck from RT-8, from VOCAB and
+                 from DECISIONS-1.7 A2, and 5.8 settles the board divergence -- the five boards that already drew
+                 this as an ordinary live collapsed section are correct and the twenty-one that drew a door are
+                 brought to them. This row is one of the twenty-one and it does not move a pixel, because the two
+                 forms are drawn identically when closed: the closed chevron, the name at value ink, the state
+                 mark. D4 keeps it CLOSED. What changed is what is on the other side: open, it draws the node
+                 types with their counts and the edge types with theirs, capped at five with an "N more" row, plus
+                 the RT-7 verb row Filter to type / Select all of type, with per-type completeness and the
+                 edges-by-type-pair matrix behind its gear. Main draws that open form, and the matrix keeps the
+                 480 that D7 grants it. This board's fraud fixture reads 4 node types and 3 edge types, so the
+                 mark is its own numbers and not Main's. -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Schema. 4 node types, 3 edge types" style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
@@ -1683,9 +1777,6 @@
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Schema</span>
                   <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">4 node types, 3 edge types</span>
-                </div>
-                <div title="Export schema JSON" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
                 </div>
               </div>
             </div>

@@ -39,6 +39,19 @@
   section and one door), B1 / B2 (the iPad answer to the anchor rule: a sheet over its own panel has no boundary to
   be clear of, so the back chevron and the title carry the anchor), C6 (legend cap 302 -> 200). Resident panel rows
   18 -> 17.
+
+  REVISION 1.9 (SECTIONS-1.9). One work-list item touches this board: 5.9 All statistics. D1 withdraws the
+  licence for a section that is only a door -- POP-13b's permanently-closed chevron is struck from RT-8, from
+  VOCAB and from DECISIONS-1.7 A2 -- so the All statistics chevron opens, onto density, diameter and average
+  path length, with the long tail and the verbs behind its gear (D6 makes a section of readouts eligible for the
+  test; AllStatistics.dc.html draws the open form). D4 keeps the section CLOSED here and D5 keeps its trailing
+  slot for the mark, which is the count 4 in the idle state this board draws and the progress string
+  "Computing 3 of 7" while any pass runs. So NOTHING ON THIS BOARD MOVES, and that is the whole of 1.9 here.
+  MEASURED after 1.9, in the DOM at 1180x820: panel content 650px in its 720px region, unchanged, no scroll.
+  Opened, the three rows would need 84px and this column would overflow by 14px -- recorded so that a later pass
+  does not open it without measuring, since the iPad panel is the tightest column in the set. The canvas,
+  the toolbar, the legend and the status bar are untouched. Nothing is drawn open on this board, so no anchor
+  and no gap is measured here.
 -->
 <div style="position: relative; width: 1180px; height: 820px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -612,7 +625,29 @@
            with a back chevron rather than a floating 360 box (POP-0, 5.2's one-overlay-at-a-time rule): the four stat
            rows with their per-row caveats travelling with them, so no departure is separated from what it qualifies
            (6.10); the "Computed 14:12" footer; and Recompute, Export CSV and More resident in its header. Nothing is
-           drawn open here. While it is open this stub carries the selected-row fill #28364e. -->
+           drawn open here. While it is open this stub carries the selected-row fill #28364e.
+           REVISION 1.9 (SECTIONS-1.9 D1, D4, D5, D6, 5.9), and it changes what is behind this row without moving
+           the row. POP-13b is struck: "this section never opens" is not a sentence any board may write any more,
+           and DECISIONS-1.8 D3's confirmation that All statistics "stays a door with its Computing 3 of 7 stub"
+           is overturned by D1. The section EXPANDS, onto the three statistics a reader opens it for -- How
+           tightly linked (density), Longest shortest path (diameter) and Typical distance (average path length),
+           each carrying its own "Computing..." on its own row. D6 is what makes a section of readouts eligible:
+           "commonly adjusted" reads as "commonly adjusted or commonly consulted", and those three are what the
+           reader came to read. Behind the gear go Graph type with its multigraph note, Spread of links (degree
+           distribution), the two Coming rows -- Tight-knit neighborhoods and Closed triangles -- and the
+           Recompute / "Recompute on every filter change" / Copy values / Export CSV set. AllStatistics.dc.html
+           draws that open form; on this board the sheet the row opens holds the gear's contents, in the same
+           full-width sheet form every other 1.8 door on this board takes (5.2's one-overlay-at-a-time rule).
+           D4 KEEPS THIS SECTION CLOSED, so nothing here moves. The trailing slot belongs to the mark while it is
+           closed and the mark is the one this row already draws: the count 4 in the idle state, replaced by the
+           progress string "Computing 3 of 7" while any pass runs. 5.9 gives that string one privilege the other
+           sixteen marks do not have -- it SURVIVES being opened, beside the gear, for as long as anything is
+           still computing, because each resident row reports only itself and the string reports the set. This
+           board draws the idle state, so it draws the count.
+           MEASURED: the panel is 650px of content in a 720px region, so the section costs nothing at rest and
+           there is 70px of headroom. Opened it would need 84px of rows and this column would overflow by 14px;
+           D4 is what pays for that not happening, and it is recorded here so a later pass does not open it
+           without measuring. -->
       <div style="flex: 0 0 auto; display: flex; flex-direction: column; padding-top: 8px;">
         <div style="height: 1px; background: #495057;"></div>
         <div title="All statistics. 4 statistics, computed 14:12" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">

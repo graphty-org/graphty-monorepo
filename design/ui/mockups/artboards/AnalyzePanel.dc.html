@@ -47,6 +47,25 @@
   is declared here: the Advanced parameters pop-out (AnalyzeParameters, 280) and the All statistics pop-out
   (AllStatistics, 360) both sit in the panel lane with their left edge at x = 336 -- 8px clear of the panel's right
   edge at 328 (B2) -- and share their opener row's top edge.
+
+  Revision 1.9 (SECTIONS-1.9 D1, D4, D5, D6, D7; work list 5.8 and 5.9). Two sections on this board stop being
+  doors and become ordinary collapsed sections: All statistics and, in the inspector, Schema. Nothing in the
+  drawing moves, and that is D4 working as designed -- a section's default open-or-closed state is unchanged, both
+  of these default CLOSED, and on a closed section what changed is invisible. The chevron each carries was already
+  the closed right-pointing form; what is withdrawn is the sentence that said it could never take the open one.
+  What the two chevrons now promise: All statistics opens onto three resident rows -- density, diameter, average
+  path length, each with its own value or its own "Computing..." -- with the long tail and the recompute policy
+  behind one dimmed gear (5.9, drawn open on AllStatistics). Schema opens onto the node-type and edge-type rows
+  with their counts, capped at five with an "N more" row, plus Filter to type / Select all of type, with the
+  edges-by-type-pair matrix and per-type completeness behind a 480 gear (5.8, D7).
+  The marks in both trailing slots are the closed marks D5 asks for and they stay: "4" for All statistics ("Computing
+  3 of 7" while any pass runs) and "3 node types, 7 edge types" for Schema. Both are deleted the moment their rows
+  are visible, because the rows repeat them.
+  MEASURED, after the pass: the panel body still runs y 76 to 558 in its 800px region and the inspector body y 76
+  to 531 in the same 800, because no row was added or removed on this board. The two pop-outs this panel declares
+  are unaffected -- AnalyzeParameters at 280 keeps its lane and its shared edge line, and the 360 All statistics
+  surface is now the GEAR's pop-out rather than the section's, opened from the same 32px row at the same left edge
+  336 and the same top-to-top edge line.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -430,25 +449,24 @@
               </div>
             </div>
 
-            <!-- SECTION: All statistics, now a door (POP-8). One 32px stub row and nothing else. The chevron stays in
-                 the closed right-pointing form because this section never opens (POP-13b); the name is at value ink
-                 because values exist; the info circle is kept verbatim, carrying the technical name "Statistics panel",
-                 which is floor 6; the trailing slot carries the count.
-                 The stub's state clause is mandatory, not decorative: while the passes run the trailing slot reads
-                 "Computing 3 of 7" instead of the count, because 6.2 guarantees that a row still computing reads
-                 "Computing..." and behind a door there is no row to say it. The idle state is what is drawn.
-                 Behind the door, in a 360 activity-panel pop-out with its left edge at x = 336 and the header "All
-                 statistics" with the dimmed technical name beside it: the four stat rows (Longest shortest path
-                 (diameter) 5, Typical distance (average path length) 2.99, Tight-knit neighborhoods Coming, Closed
-                 triangles (transitivity) Coming), the "Computed 14:12" footer, and the three header verbs Recompute,
-                 Export CSV and More, which are resident inside a pop-out and whose per-row caveats travel with their
-                 rows. The pop-out is not drawn on this board; VOCAB.md section 12 holds the snippets for when it is.
-                 While it is open this stub carries the selected-row fill #28364e.
-                 REVISION 1.8, D3 / A4: confirmed a door, because the 360 table buys width beyond the 256px band --
-                 the one of A4's three tests it passes, and one is enough. Its stub reads the computation, which is
-                 6.11's stub obligation and A6's requirement that a door never hides a deviation: the count at rest,
-                 "Computing 3 of 7" while the passes run. The new AllStatistics board draws it open at 360 from this
-                 section row, with the stub still reading its progress string. -->
+            <!-- SECTION: All statistics, a live collapsed section (RT-8). REVISION 1.9, SECTIONS-1.9 5.9: it stops
+                 being a door. D1 withdraws the licence for a section that is only a door, so the chevron here is the
+                 closed right-pointing form because the section is CLOSED, not because it cannot open, and D4 keeps
+                 it closed at rest -- which is why nothing on this board moves.
+                 WHAT THE CHEVRON NOW OPENS ONTO: three resident rows, not a pop-out. How tightly linked (density),
+                 Longest shortest path (diameter) and Typical distance (average path length) -- what a reader who
+                 opens this section came to read (D6) -- each carrying its own value or its own "Computing...", which
+                 is what 6.2 asked for and what a stub could never do. Beside them, in the header's trailing slot, one
+                 dimmed gear holding the long tail and the policy: Graph type and its multigraph note, Spread of links
+                 (degree distribution), Tight-knit neighborhoods and Closed triangles (both Coming), Recompute, Copy
+                 values, Export CSV and "Recompute on every filter change". AllStatistics draws all of that open.
+                 THE MARK IS UNCHANGED AND STILL MANDATORY (D5, 6.11's stub obligation). Closed, the trailing slot
+                 carries the one fact that says what is inside: the count 4 at rest, "Computing 3 of 7" while any
+                 pass runs. On this board every pass has landed, so the count is what is drawn. Open, the count goes
+                 -- the rows repeat it -- and only the progress string survives, because it says how many of the seven
+                 are running and the visible three cannot report the fourth one behind the gear.
+                 The name stays at value ink, and the info circle stays with its technical name "Statistics panel"
+                 (floor 6). While the gear's pop-out is open this row carries the selected-row fill #28364e. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column; padding-top: 8px;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="All statistics. 4 statistics, computed 14:12" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
@@ -885,14 +903,19 @@
               </div>
             </div>
 
-            <!-- SECTION: Schema, a POP-6 door (6.11, RT-8). The section is consulted rather than operated, so it never
-                 renders open: the chevron stays in its closed right-pointing form permanently and the trailing slot
-                 carries the one fact behind the door. The node type names (cat 17, human 2, dog 1), the seven edge
-                 type names, the per-type completeness (100%) and the three type pairs are in the 480 pop-out, which
-                 is drawn once, on Main; the three verbs -- Filter to type, Select all of type, Export schema JSON --
-                 travel with them as that pop-out's one RT-7 row, because a verb may not be separated from the list
-                 it acts on (6.10). Nothing here was deleted: 96 px of clipped, ellipsised type lists became a door
-                 that names its own contents. -->
+            <!-- SECTION: Schema, a live collapsed section (RT-8). REVISION 1.9, SECTIONS-1.9 5.8: the permanent door
+                 is withdrawn with every other one (D1), and the five boards that already drew Schema as an ordinary
+                 collapsed section are the target the other twenty-one move to.
+                 WHAT THE CHEVRON OPENS ONTO: the node-type rows with their counts (cat 17, human 2, dog 1) and the
+                 edge-type rows with their counts, as the short two-column tables Main already draws, capped at five
+                 with an "N more" row, plus the RT-7 verb row Filter to type / Select all of type. Of the readers who
+                 open Schema, the type names and their counts are what they came for (D6).
+                 BEHIND THE GEAR, at 480 (D7): per-type completeness and the edges-by-type-pair matrix, which is the
+                 one part that cannot be drawn honestly in the 256px band because it is two-dimensional; Export schema
+                 JSON stays in the trailing slot. The verbs still travel with the list they act on (6.10).
+                 D4 keeps the section CLOSED at rest, so this board draws exactly what it drew before: the closed
+                 chevron and, in the trailing slot, the closed mark "3 node types, 7 edge types" (D5), which is
+                 deleted the moment the rows are drawn because the rows say it. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Schema. 3 node types, 7 edge types" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">

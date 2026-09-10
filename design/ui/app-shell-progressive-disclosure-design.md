@@ -1,7 +1,7 @@
 # Graphty App Shell and Progressive Disclosure Design
 
-Status: draft 1.8, validated, pop-over and legend decisions applied
-Date: 2026-09-07
+Status: draft 1.9, validated, the always-expands section rule applied
+Date: 2026-09-08
 Scope: the graphty React application (`graphty/`), not graphty-element
 
 ## 1. Purpose
@@ -620,7 +620,11 @@ least: of the twelve content rows in the Loaded state, eight are 6.10 floor
 items and three are the front door. The Loaded state rests at 17 rows rather
 than 19, and both removals are verbs going to menus rather than controls going
 behind doors -- "Close dataset" to the panel header's overflow, "Find and merge
-duplicates" to the Cleaning steps header's overflow. Columns caps at 8 rows
+duplicates" to the Cleaning steps header's overflow. Opened, the validation
+report adds four rows and the Loaded state draws 21; the resting 17 is
+unchanged, because that section still defaults closed and nothing about which
+sections default open or closed changed, which is what pays for the rows
+coming back. Columns caps at 8 rows
 with "Show all 12" opening the Data table drawer. The Empty state stays at 7
 rows, and the import gear is deleted from it, because a general import door
 reaches nothing when nothing is loaded.
@@ -1067,22 +1071,30 @@ list exports as CSV from Present. Warning counts are unbounded; only errors
 stop the import. Validation re-runs after every Cleaning step; fixed issues
 read "Fixed by step 4" and the Data rail badge and the status chip update.
 
-In the Data panel the report is one 32 px RT-8 door: the name, the highest
-severity's glyph, the count in the trailing slot, the name primary while any
-issue is open and dimmed once all are fixed or ignored. It opens a 360 pop-out
-at the panel's right edge headed "Validation report" with "Re-ran after step
-2" dimmed beside it, holding errors, then warnings, then a collapsed Info
-group; per type the count, the consequence sentence, the first examples of the
-user's own ids with Show more, and the actions resident rather than
+In the Data panel the report is a section that expands in place (6.11). Open,
+it draws the issue rows themselves, one line each -- severity glyph, count,
+name and that type's primary verb, as in "No amount, 14 edges  Auto-fix" --
+errors first, then the two or three amber warnings, with the green "Fixed by
+step 2" line beside them: those rows are what a reader opens the report to
+read. Closed, its 32 px RT-8 header carries the highest severity's glyph and
+the count "4 types" as its state mark, the name primary while any issue is
+open and dimmed once all are fixed or ignored. The gear in that header takes
+the report DETAIL and its policy -- the per-type consequence sentence, the
+first examples of the user's own ids with Show more, the collapsed Info group,
+the Ignore list, and "Re-ran after step 2" -- into a 360 pop-out at the panel's
+right edge headed "Validation report", whose actions are resident rather than
 hover-revealed, because at 360 there is room and floor item 4 wants their full
 text. 360 rather than 280 because the consequence sentence and the line of
-user ids are floor items 4 and 7 and cannot be shortened. The pop-out is the
+user ids are floor items 4 and 7 and cannot be shortened. That pop-out is the
 case that decides tier 3a against 3b: every issue's Show rows opens the Data
 table drawer along the canvas bottom, a dialog would have to close to let that
 happen, and the user would lose the issue text at the moment they need to
-compare it against the rows. The stub's count is not a repeat of the status
-bar's "4 issue types (27)": the chip is a global alarm and the row is the door's
-state mark, and 6.9 licenses a count on a collapsed header. Inside the Import
+compare it against the rows. The header's count is not a repeat of the status
+bar's "4 issue types (27)": the chip is a global alarm and the header is the
+section's own state mark, and 6.9 licenses a count on a collapsed header. The
+resident form comes in near four rows, not near the 282 px this section
+measured before it was cut to a door, which is why the consequence sentences
+go behind the gear rather than staying beside their rows. Inside the Import
 options dialog the issues stay inline, because 6.11 forbids a pop-out opening
 from inside a dialog and because errors there gate the Import button.
 Per-column completeness comes from the same pass and appears in Columns and
@@ -1342,16 +1354,22 @@ Explore
   builder also scopes these) -- a list of verbs is a menu (6.11), and the
   section duplicated the split button two rows above it and reprinted a
   selection size the inspector header and the status bar each already print;
-  neighborhood expansion, which is one RT-8 door row whose trailing state mark
-  names the remembered depth and type filter ("2 steps, 3 types") so that
-  5.4's remembered last node and edge type filter is readable before it acts,
-  opening a 280 pop-out holding depth, node and edge type checkboxes with
-  counts such as
-  "process (11,900), user (80)", a preview from a bounded traversal that
+  neighborhood expansion, which is a section that expands in place onto the two
+  facts its state mark used to summarise -- a Hops field reading "2 steps" and
+  a type-filter field reading "3 types" -- so that 5.4's remembered last node
+  and edge type filter is readable before it acts, which is floor item 4 drawn
+  rather than summarised; the mark "2 steps, 3 types" survives only while the
+  section is closed, and drawing the fields retires the 11 px section name two
+  boards had to invent to fit a name and a stub into 255 px (6.11). Its gear
+  opens a 280 pop-out holding direction, the max-nodes cap and the node and
+  edge type checkboxes with counts such as
+  "process (11,900), user (80)"; the preview from a bounded traversal that
   stops at 2,001 nodes reading "Adds about 37 nodes", "Large expansion
   (1,240 nodes). Continue?" above 500, or "More than 2,000 nodes: the canvas may
-  slow down. Filter by type first, or expand anyway" above 2,000; depth 2
-  warns the same way when depth 1 exceeds 1,000, and Collapse last and Collapse
+  slow down. Filter by type first, or expand anyway" above 2,000 stays resident
+  beside the control it spends, because floor item 4 binds an estimate to that
+  control; depth 2 warns the same way when depth 1 exceeds 1,000, and Collapse
+  last and Collapse
   all; a Views library section for bookmarks (newest first; the plus reads "Save as
   view...", the row menu holds Rename, Duplicate, Update from current, Compare
   with current, Export JSON and Delete, and the section overflow holds "Import
@@ -1373,17 +1391,23 @@ Explore
   run (count, rank score, click to center; Up, Down and Enter step the list;
   50 rows at a time with Show more, bounded by the 30 s time box, and "See
   all in data table");
-  one "Step through time" row, which is the slider's only settings home and
-  is one 32 px RT-8 door: name, dimmed technical name, the On switch resident
-  in the trailing slot, and a gear opening a 280 pop-out (window size and step
-  in the Time role's units, playback speed, Cumulative or Sliding, "Recompute
+  one "Step through time" section, which is the slider's only settings home and
+  expands in place: name, dimmed technical name, the On switch resident in the
+  trailing slot in both states, because it is the section's own master control
+  and not a precis of the rows below it (6.11), and, when the section is open,
+  the window size and step in the Time role's units as one pair row and the
+  Cumulative or Sliding track -- the three things a reader who opens this
+  section came to change, drawn at their defaults under Rule 7a's carve-out.
+  Its gear opens a 280 pop-out with the rare remainder (the time attribute
+  select, fixed at import on most graphs, playback speed, "Recompute
   results on each step", off by default, offered only when the last run took
   under the estimate threshold, writing one history entry per step, and
   "Compare with another window"). The gear on the slider bar opens the same
   pop-out, 8 px above the bar with right edges aligned, rather than switching
   the panel to Explore and scrolling it, because changing a number that
   immediately re-renders the canvas should not take the user off the canvas.
-  The row renders only when a Time role is assigned; and a Notes section with a
+  The section renders only when a Time role is assigned; and a Notes section
+  with a
   count in its header ("Notes 14", or "8 of 14 visible" under a filter or
   window): a search input over note text, author and tags, resident; the filter chips
   Open (default), Done, Mine and Assistant, the tag picker and the sort
@@ -1431,7 +1455,12 @@ sections are 264 px and never scroll (6.9), and that skyline is the target the
 panel is measured against. At rest the panel is 10 rows on the first-load
 screen, 20 with filters, sets, views and notes in play, 13 on a multi-selection
 and 11 with the time slider docked; the selection inspector is 24 rows on one
-node and 16 on a multi-selection.
+node and 16 on a multi-selection. Those resting counts stand, because no
+section's default open-or-closed state changed and that is what pays for the
+rows coming back: Neighborhood expansion draws two more when it is opened,
+Step through time two, Find a pattern two once it ships, and Selection
+statistics three in the inspector -- four rows on the panel and three on the
+inspector, none of them at rest.
 
 What leaves without a door. The Selection actions section, whose five verbs
 join the Select split button's menu. The inspector's action block, which caps
@@ -1444,8 +1473,11 @@ being an Explore section, because 5.4 already assigns selection-scoped actions
 to the inspector. And the "More..." text row is retired from the panel
 vocabulary outright: a text row that hides two sections is a third disclosure
 mechanism doing the job of the other two. At zero rules the Filter builder is
-one 32 px row with a plus, because "Match all" at zero rules is a default and
-"20 of 20 nodes would match" is the null statement 6.2 forbids; and the filter
+one 32 px row with a plus and NO chevron, because "Match all" at zero rules is
+a default, "20 of 20 nodes would match" is the null statement 6.2 forbids, and
+a chevron over nothing is what 6.11 forbids -- the rule does not require rows
+to be invented so that one can be drawn; with rules it draws them and takes
+the expression door above. And the filter
 strip carries no time chip while the slider is docked, which 5.1 already
 forbids and which printed the window a third time.
 
@@ -1454,7 +1486,8 @@ The pop-over inventory for Explore and the selection inspector:
 - One filter rule, 360, from the rule row, titled with the rule read back.
 - Filter expression, 360, from the section header's Builder and Expression
   door.
-- Neighborhood expansion, 280, from its RT-8 door row.
+- Neighborhood expansion, 280, from the gear on its expanded section:
+  direction, the max-nodes cap and the per-type checkbox list.
 - Ego network, 280, from the inspector's Ego network action.
 - Pattern editor, 360, panel lane, anchored to the pattern row.
 - Time slider settings, 280, from either the panel gear or the bar gear,
@@ -1476,9 +1509,10 @@ placeholder and its syntax sentence stays on the info circle (Rules 3 and 8).
 The filter builder's attribute, operator and value are one thing, so they are
 one RT-2 compound box divided by hairlines rather than three labelled stacks,
 and they live in that rule's pop-out (6.11); the Builder and Expression switch
-is a trailing door on the section header rather than a resident tab pair
-(RT-1's door rule at section scale), opening a separate 360 pop-out for the
-JMESPath field. Depth, hop and cap numbers are
+is a trailing door on the section header rather than a resident tab pair --
+a door on a section that draws its own rule rows, and so a door on resident
+content rather than the section itself (6.11) -- opening a separate 360 pop-out
+for the JMESPath field. Depth, hop and cap numbers are
 field rows whose units ride as dimmed suffixes -- 2 steps, 500 nodes, 3 hops
 -- never as labels and never as parentheticals (Rule 5). Note rows, saved
 filters, selection sets, bookmarks and match lists are RT-6: they carry the
@@ -1639,25 +1673,32 @@ Analyze
   on cards whose engine accepts them (5.8), and the caveats line never says
   Approximate for an exact run. Every card has a Scope control: Visible
   (default), Selection (N), Set..., Whole graph, Largest component; disabled
-  choices carry a tooltip. Also: All statistics, which is one 32 px door row whose trailing slot
-  reports state -- "Computing 3 of 7" while the passes run, the count when
-  idle, the name primary once values exist -- opening a 360 pop-out (graph
-  type, giant component share and isolated node count, degree distribution
-  summary, diameter, average path length, clustering; below the threshold
-  they compute on opening the section; above it each shows "Not computed"
+  choices carry a tooltip. Also: All statistics, a section that expands in
+  place onto the three figures a reader opens it for -- how tightly linked
+  (density) 0.031, the longest shortest path (diameter) 5, the typical
+  distance (average path length) 2.99 -- each carrying its own "Computing..."
+  on its own row until its pass finishes, which is what retires the stub's
+  "Computing 3 of 7" contortion; its header's trailing slot
+  reports state while the section is CLOSED -- the progress string while the
+  passes run, the count when idle, the name primary once values exist -- and
+  that progress string is the one mark that survives the section being opened,
+  because each resident row reports only itself (6.11); its gear opens a 360
+  pop-out holding the long tail and the policy (graph
+  type, giant component share and isolated node count, the degree distribution
+  summary, clustering, Recompute, "Recompute on every filter change", Copy
+  values and Export CSV); below the threshold every figure
+  computes on opening the section, above it each shows "Not computed"
   with "Estimate (100 sampled sources, about 8 s)" and the result carries
   the caveats line "estimated from 100 samples" or a lower bound "at least
   14 (two sweeps)"; diameter and average path length are exact below the
-  exact-computation cap and BFS-sampled above it; rows show "Computing..."
-  until their pass finishes and are recomputed on filter change only below
+  exact-computation cap and BFS-sampled above it; rows are recomputed on
+  filter change only below
   the threshold, otherwise they read as totals with the caveat "for the full
   graph"; the footer reads "Instant rows follow the data. Computed rows: [time]" and
   nothing else, because Copy, Export CSV and Recompute are hover-revealed
   icons on the section header they act on (6.8), each with a full-text twin in
-  the section's overflow menu; the per-row caveats travel into the pop-out
-  with their rows, and the stub's progress string is mandatory rather than
-  decorative, because behind a door there is no row left to say
-  "Computing..."); histograms of computed metrics, whose attribute picker
+  the section's overflow menu; and the per-row caveats travel with their rows,
+  resident or behind the gear; histograms of computed metrics, whose attribute picker
   ends with the "Not computed yet" group (5.4, Style layer) so a metric can be
   chosen before it has been run, with "Compare two
   metrics" (an X and Y scatter with a log toggle in a 480 pop-out; brushing
@@ -1720,22 +1761,38 @@ Resting state and doors in Analyze (6.11). Analyze already obeys the rule the
 rest of this revision applies, and that is recorded here so a later compaction
 pass does not "improve" it. Confirmed as drawn and not to be moved: Metric
 histograms stays inline, because a reader comparing five distributions cannot
-open five doors; History stays inline, a scan list 6.11 refuses by name; All
-statistics stays a door with its "Computing 3 of 7" stub; the per-card Advanced
-gear with its pinnable fields is the pattern every other gear in the product
-copies, and Style now copies it verbatim; and the picker's suggested-method
-scan list stays resident with Run in full text on every card. The Run tab rests
-at 14 rows rather than 18.
+open five doors; History stays inline, a scan list 6.11 refuses by name; the
+per-card Advanced gear with its pinnable fields is the pattern every other gear
+in the product copies, and Style now copies it verbatim; and the picker's suggested-method
+scan list stays resident with Run in full text on every card.
+
+One entry on that list is corrected rather than confirmed. All statistics was
+written down as staying a door with its "Computing 3 of 7" stub; it is now a
+section that expands onto density, diameter and average path length with the
+long tail behind a gear, and the stub string survives as the mark its header
+carries while it is closed (above, and 6.11). The per-card Advanced gear gains
+the one parameter a reader of that method actually turns -- Resolution on a
+community method, Damping on PageRank -- as a resident row on the card, so the
+gear is an addition to content rather than the card's only route in. The Run
+tab rests at 14 rows rather than 18, and draws three more with All statistics
+open and four more with the sweep's Runs section open; the resting count is
+unchanged, because both sections still default closed, which is what pays for
+the rows coming back.
 
 Two corrections. The panel-level More row becomes a menu (above). And the sweep
-run table renders once, in the 480 pop-out this section already gives it,
-rather than three times across a panel card, an inspector table and a set of
-agreement bars -- three renders break "One result body renders on screen at a
-time", and the room test decides it independently, because the panel copy has
-had to drop the modularity column to fit and that is how a squeezed table
-announces itself. The sweep's panel card keeps its title, its reading, a
-one-line run record with its Details chevron, a "Runs 3" door stub and the
-applied action row.
+run table renders twice rather than three times -- on the panel card and in the
+inspector, which is one control at two scopes -- instead of a third time as a
+set of agreement bars; three renders break "One result body renders on screen
+at a time", and the room test decides it independently, because the panel copy
+has had to drop the modularity column to fit and that is how a squeezed table
+announces itself. The rendering that leaves is the agreement block, which
+becomes the contents of a gear on the Runs section rather than the section
+itself. The sweep's panel card keeps its title, its reading, a one-line run
+record with its Details chevron and the applied action row, and its Runs
+section expands in place onto the caption row "resolution | groups" and one row
+per run -- 0.5 / 4, 1.0 / 7 carrying the mark that says which run the canvas is
+reading, 1.5 / 11 -- with "Runs 3" as the mark its header carries while it is
+closed.
 
 Rule 7a is enforced on the cards, which it was not. A Method select reading
 "PageRank" under a card titled "Influence PageRank", and "Louvain | Visible
@@ -1745,11 +1802,13 @@ them independently. Method returns as a top-level control the moment it
 deviates, because which community algorithm ran is a decision point in the
 workflows; this is a rendering rule, not a tier change.
 
-The pop-over inventory for Analyze: Advanced parameters, 280, from the
-parameters row gear; All statistics, 360, from the section row; Run record
-Details, 360, from the Details chevron, which appears on eleven boards and must
-open somewhere; Sweep runs, 480, from the sweep card's "Runs 3" stub; Compare
-two metrics, 480; and one group's profile, 360, from the clicked table row.
+The pop-over inventory for Analyze: Advanced parameters, 280, from the gear on
+a card that draws its own commonly adjusted parameter; the All statistics long
+tail, 360, from the gear on that expanded section; Run record Details, 360,
+from the Details chevron, which appears on eleven boards and must open
+somewhere; the sweep's agreement block, 480, from the gear on the expanded Runs
+section; Compare two metrics, 480; and one group's profile, 360, from the
+clicked table row.
 
 Two refusals with reasons. Recipes stays a collapsed library section rather
 than becoming a door: it buys none of the three things a door must buy (6.11),
@@ -1965,13 +2024,18 @@ step); runs are queued through the existing progress row ("Queued (k of
 n)", cancellable as one unit) and produce one result card per value
 labelled with the value ("Groups (resolution 0.5)") plus one Sweep summary
 card. The run table (value, headline statistic such as group count and
-modularity or top node and score, duration), its sparkline and the pairwise
+modularity or top node and score, duration) is the Runs section's own resident
+content, a caption row over one row per run, and it draws in that form both on
+the Sweep summary card and in the inspector, which is one control at two scopes
+rather than one fact twice in one region (6.11); Keep per row stays on the run
+row it materializes into a normal result card. Its sparkline and the pairwise
 agreement between partition runs (NMI) or the rank correlation of the top 20
-for node metrics live in a 480 pop-out from the Sweep summary card, where Keep per row materializes a
-normal result card, Compare opens Compare mode with two rows, and Export CSV
-writes the table; the panel's Sweep summary card carries the headline plus
-Keep, Compare and Export CSV, so the table is not rendered twice with two
-different sets of actions. Each run
+for node metrics live behind the gear on that section, in a 480 pop-out,
+because a pairwise comparison of three runs is a matrix and cannot be drawn
+honestly in a 256 px band; Compare opens Compare mode with two rows and Export
+CSV writes the table from there. The panel's Sweep summary card carries the
+headline plus Keep, Compare and Export CSV, so the comparison apparatus renders
+once even where the run rows render at both scopes. Each run
 lands in History.
 
 Compare. Plain name "Compare", technical name "Comparison view". A canvas
@@ -2247,10 +2311,16 @@ Style
   existing StyleLayerPropertiesPanel structure and adds a "By attribute" mode
   to Node color, Node size, Node shape and Node label, and to Edge width,
   Edge color, Line style and Edge opacity. The sub-mode follows the
-  attribute type. Categories: a "Values (N)" table of value to swatch, shape or line style
-  with Assign palette and per-row overrides, capped at 12 rows with "and N
-  more", in a 280 pop-out from the encodable row it belongs to (6.11). Range:
-  the same door from the same slot, a 280 pop-out from the RT-4 trailing glyph
+  attribute type. Categories: a "Values (N)" SECTION nested in the Color or
+  Outline section, expanding in place onto the value rows themselves -- swatch,
+  value name, count -- capped at five with an "N more" row, which is the cap
+  the canvas legend already takes, with Assign palette and the per-row
+  overrides on the rows they act on and the palette-level controls behind its
+  gear: palette family and Reverse, value ordering, the "Other" roll-up
+  threshold, and Reset per-value overrides. Its header count is dimmed while
+  every value is at its default and primary once any value is overridden
+  (6.11). Range:
+  a door rather than a section, a 280 pop-out from the RT-4 trailing glyph
   titled with the channel and its attribute, holding Scale (linear, log,
   -log10, square root), Palette family (sequential, diverging, categorical)
   with a Reverse toggle, Midpoint (shown for diverging; default 0), Domain
@@ -2308,23 +2378,41 @@ histogram: two sub-modes of one row, two different disclosures, and Color
 costing six pitches where the categorical case costs three. 6.9's RT-1 door
 rule already named the domain pair on a Scale field among the doors of the
 product, and the room test decides it independently, because the histogram is
-the only control in the section that cannot be drawn at 32 px. Both sub-modes
-are now the same door from the same slot (above). The panel rests at 14 rows
-rather than 24, with three doors in seven sections, and Show legend -- tier 1
-in this section and drawn on no board -- comes back as one of the fourteen.
+the only control in the section that cannot be drawn at 32 px. The NUMERIC
+sub-mode keeps that door, on a row that is itself resident, which the
+always-expands rule does not reach; its categorical twin was hiding a list
+rather than a histogram, so it becomes a section that draws its value rows and
+puts the palette-level controls behind a gear (above). The panel rests at 14
+rows rather than 24, with one row-level door and three section gears across its
+seven sections, and Show legend -- tier 1 in this section and drawn on no
+board -- comes back as one of the fourteen.
+Opened, the three sections this revision reopens add ten rows to this one
+panel -- Parameters three, Animation two, Values five -- and the resting
+fourteen is unchanged, because all three still default closed, which is what
+pays for them.
 
 The pop-over inventory for Style: Ramp options, 280, from the RT-4 trailing
-glyph; Values (N), 280, from the encodable row it belongs to; Layout
-parameters, 280, from a gear on the row it belongs to; and the rich text label
-editor and the colour picker, unchanged, both keeping their pins because they
+glyph; the palette-level controls of a Values section, 280, from that section's
+gear; the six layout engine internals, 280, from the gear on the expanded
+Parameters section; Easing and the per-channel transition overrides, 280, from
+the gear on the expanded Animation section; and the rich text label editor and
+the colour picker, unchanged, both keeping their pins because they
 are two of the four comparative surfaces that earn one (6.11).
 
 Layout parameters use the gear that already exists, which is the Analyze card
-gear verbatim: two gears in the product, one behaviour. All three drawn field
-rows sit at their schema defaults -- the engine declares springLength 30 and
-gravity -1.2, and Edge weight defaults to the import Weight column -- so Rule
-7a already forbids drawing them and 6.2's arithmetic already routes the rest to
-a 3a pop-out from a gear on the row it belongs to. Six rows become one.
+gear verbatim: two gears in the product, one behaviour. What that gear takes is
+the rare remainder, never the section. Edge length 30, Pull to centre -1.2 and
+the Edge weight attribute are the three dials a reader opens the Layout section
+for -- nobody opens it to do nothing; they open it because the arrangement is
+wrong -- so all three render, at their schema defaults, under Rule 7a's one
+carve-out: the engine declares springLength 30 and gravity -1.2 and Edge weight
+defaults to the import Weight column, so 7a on its own would delete every row
+in the section and leave a chevron opening onto nothing, which 6.11 forbids.
+Behind the gear go the six engine internals 6.2's arithmetic always meant it to
+hold, in a 3a pop-out from the gear on the section header: Start from current
+arrangement, Stiffness (spring coefficient), Speed vs accuracy (theta), Damping
+(drag coefficient), Time step and Random seed. Six rows became one in the
+previous revision; three come back, and the six stay where they were sent.
 
 Two refusals. The Styles library stays a collapsed section rather than becoming
 a door: it buys none of the three things a door must buy, and its RT-8 header's
@@ -2332,11 +2420,15 @@ trailing slot carries the active style's own name, which is strictly more
 information than a selected background on a row the reader may have scrolled
 past. The departure line an applied style creates ("Applied Publication style.
 2 of 5 layers matched nothing: they need logFC and padj.") is floor item 2 and
-stays resident under that header. And Source may not become a door at any
-density: 6.10's separation clause binds the reading to the run, the departure to
-the channel, the run record to the run and the cost estimate to the control,
-and all four live inside that one section -- give it a chevron and the layer
-stops saying what it is drawing at the exact moment its parameter is being
+stays resident under that header. And Source keeps all of its rows at any
+density -- the reading, the run record, the deviating Granularity field, the
+cost gate and Open result -- with only the MCL engine internals behind a dimmed
+Advanced parameters gear. No section may become a door now (6.11), and this one
+may not be given a chevron either: 6.10's separation clause binds the reading to
+the run, the departure to the channel, the run record to the run and the cost
+estimate to the control,
+and all four live inside that one section, so either move stops the layer
+saying what it is drawing at the exact moment its parameter is being
 turned. That is written down because the section measures 164 px and someone
 will try.
 
@@ -2772,7 +2864,10 @@ Present
 Resting state and doors in Present (6.11). Present is the largest change in
 this revision by a wide margin, and the only panel where more than half the
 resident rows move: 28 resident rows filling 795 px of a 795 px content area,
-on a 20-node fixture with no saved reports, become 10 rows and about 330 px.
+on a 20-node fixture with no saved reports, become 10 rows and about 330 px at
+rest, and 13 rows with Export video open. The resting ten is what the split
+bought and it stands, because that section still defaults closed, which is what
+pays for the three rows coming back into it.
 The finding was not that too much is visible. It is that the doors were already
 drawn and nothing had gone behind them -- two gears titled "Image export
 options" and "Data export options", with eleven of those options rendering as
@@ -2797,7 +2892,12 @@ The resting top level, ten rows:
 7. An RT-1 pair, Format JSON | Scope Whole graph, with "about 6 KB" as the
    dimmed suffix inside the scope field.
 8. RT-7: Copy node ids | Export data.
-9. RT-8 Export video, a door whose stub reads "10 s, Orbit once, WebM".
+9. RT-8 Export video, a section that expands in place onto three rows --
+   Duration | Camera as one RT-1 pair, Video format, and the estimate row with
+   Record beside it -- and whose header carries "10 s, Orbit once, WebM" as its
+   state mark while it is closed. It carries no gear at all unless the video
+   twin of the Image quality group ships, which the rule permits: a gear is an
+   addition, not an obligation (6.11).
 10. RT-8 Reports, a library section with its resident plus and RT-6 rows
     carrying each saved report's own name, plus the pinned-items RT-6 list when
     it is non-empty.
@@ -2818,9 +2918,11 @@ The pop-over inventory for Present:
   BOM, precision, Include computed metrics, Positions, Include notes, Top K per
   source node, Copy as TSV, and an "Other exports" group that renders only when
   it is non-empty.
-- Export video, 280, from its own door row: Duration, Camera, Format, the
-  estimated time and Record, with progress and Cancel mirrored in the status
-  bar.
+- Export video has no pop-over. Duration, Camera, Format, the estimated time
+  and Record are the section's own resident rows -- the estimate and Record's
+  full text are floor item 4 twice over -- with progress and Cancel mirrored in
+  the status bar. A 280 gear appears there only if the video twin of the Image
+  quality group ever ships: scope, background, resolution and frame rate.
 - A menu, not a pop-over: Export recipe (JSON) and Export as script, on the
   Export data header's overflow.
 
@@ -2948,29 +3050,50 @@ AI
 Resting state and doors in AI (6.11). The AI panel is inverted. The
 conversation occupies about 280 px while Provider and Console occupy about 445,
 so 56 per cent of the panel is supporting machinery and 35 per cent is the
-thing the panel is for. Two door rows fix it, and after them nothing else in
-the panel is a candidate, because a transcript has no doors.
+thing the panel is for. Two sections fix it, each keeping the two things a
+reader of that section touches and putting the rare remainder behind a gear,
+and after them nothing else in the panel is a candidate, because a transcript
+has no doors.
 
-- Provider becomes a door row whose stub's trailing slot carries the model
-  name. Provider keys and settings are already tier 3, so only the STATUS was
-  ever meant to be resident -- and the status is already resident in the status
-  bar ("AI: Anthropic ready"), so Rule 8 deletes the panel's copy. What the
-  status bar does not carry is the model, which is why that is the fact the
-  stub reports.
-- Console is a door when a provider is configured, and resident and expanded
-  when none is (6.1's state axis), with the setup prompt replacing the chat
-  input in that state. Two input surfaces for one job, stacked, and at most one
-  of them is this user's route. Width is not the argument and was checked: the
+- Provider is a section with two resident rows: the RT-1 model field
+  ("claude-sonnet-5") and the RT-5 Voice input switch, whose full title reads
+  "Voice input. Also used for push-to-talk in VR and AR" and which is floor
+  item 6. Of the readers who open Provider, the model and the microphone are
+  what they touch. Its gear takes the provider select and its keys -- the API
+  key, and the Base URL, max tokens and temperature trio that Settings > AI
+  already files under an Advanced row in the same provider accordion, which is
+  one destination and not two (Rule 9). The status is already resident in the
+  status bar ("AI: Anthropic ready"), so Rule 8 deletes the panel's copy of it;
+  what the status bar does not carry is the model, which is the fact the
+  header's trailing slot reports while the section is closed and the resident
+  row prints once it is open. The Connected dot stays in that slot in both
+  states, because it is the section's own state and not a precis of the rows
+  below it.
+- Console is resident and expanded whether or not a provider is configured
+  (6.1's state axis), with the setup prompt replacing the chat
+  input in the no-provider state. It is a working surface and not a settings
+  set: the one-line input with its completion hint and Run script, and the last
+  two transcript lines, are what it draws, and only its preferences -- clear
+  transcript, copy transcript, transcript length and the completion-hint
+  toggle -- go behind a gear. Two input surfaces for one job, stacked, and at
+  most one of them is this user's route. Width is not the argument and was
+  checked: the
   widest console line measures 219 px inside the 256 px band. The Console keeps
   its pin, because it is one of the four comparative surfaces that earn one
   (6.11), and Shift+backtick already opens and focuses it, so the keyboard
   obligation is met by a binding that already exists.
 
-Six supporting blocks of about 445 px become two door rows of about 64, and the
-conversation goes from about 280 px to about 660. This is the one place in the
+Six supporting blocks of about 445 px become about 130 -- a collapsed Provider
+header, and a Console drawing its input and its last two transcript lines --
+and the conversation goes from about 280 px to about 595. Provider adds two
+rows when it is opened and that arithmetic is unchanged, because it still
+defaults closed, which is what pays for them. This is the one place in the
 revision where 6.2's frequency override does the whole job: 6.11 question 3
 would send the Console inline and 6.2 moves it, and that is the intended
-mechanism rather than an exception for a later reader to rediscover.
+mechanism rather than an exception for a later reader to rediscover. What the
+override can move under the always-expands rule is a section's CONTENTS behind
+a gear and never the section itself, so the console's preferences leave and the
+console does not.
 
 One floor item is restored rather than hidden: each step row's second muted
 line ("on 100,000 nodes, 100 sampled sources, 38 s") is floor item 3 and is
@@ -3143,8 +3266,14 @@ Resting state and doors in Settings (6.11). Settings is a full-panel overlay
 and therefore has no region boundary for a pop-out to sit clear of, so a
 pop-over inside it would have nothing to point at. The mechanism is already
 applied here at the right scale: the nav item is the door and the pane is what
-is behind it, which is RT-1's door rule at section scale (6.9). That is written
-down so a later pass does not "fix" Settings with pop-overs.
+is behind it. That is a PICKER and not a section, which is why the
+always-expands rule does not reach it -- a nav row carries no chevron, opens a
+full pane rather than a transient, and is one of seven mutually exclusive
+destinations rather than a disclosure of its own row's content (6.11). The
+extension of RT-1's door rule to section scale that this used to cite is
+withdrawn, and the arrangement it justified stands on the picker clause
+instead. That is written down so a later pass does not "fix" Settings with
+pop-overs.
 
 Refused, with reasons. Saved items is 26 user-named rows across 8 kinds on one
 screen, which is floor item 7 and 6.11's own refused example, and its per-row
@@ -3156,7 +3285,9 @@ resident because 5.9 requires them learnable before the headset goes on, so
 Rule 7c does not fire.
 
 Two exceptions, and the Performance pane rests at about 25 control rows rather
-than about 33.
+than about 33 -- a count the always-expands rule leaves standing, because both
+exceptions are gears on rows that are themselves resident and no section in
+this pane was ever emptied into a door.
 
 - Layout size ratings, 360, from a gear on the row it belongs to. A header plus
   nine engine rows of constants that are benchmarked before release sits 35 px
@@ -3226,10 +3357,10 @@ inspector overlay.
 
 | Selection | Inspector shows |
 |---|---|
-| Nothing | Graph summary: the plain-language reading (section 7.5) first, with Copy reading in its header row, which copies the reading plus the caveats line plus the Counts rows plus the legend's channel lines, so one click produces a paragraph a user can paste to a colleague. No count line sits above the reading; the status bar owns node and edge totals (5.1). Then Counts as a tier 2 section, collapsed by default and remembered per 6.5, holding one Type row ("Directed (from file), weighted (amount), timed (opened)"), average links per node, density in its plain form with the scientific notation on hover, connected parts as "3,412", and self-loops and parallel edges when non-zero; isolated nodes and the largest part's share are in the reading and are not repeated as rows. Most connected: top 5 by degree with "See all N ranked" opening the Data table drawer, the repeated unit word on the column header rather than on every row, and a hover-revealed download icon on the section header whose menu holds "Export top 20 (CSV)" and "Export ranked list (CSV)"; plus a 50 px degree histogram (log scale above the threshold). Schema section, which is a door: the row keeps its summary ("4 node types, 3 edge types") as the door's state mark, carries "measuring..." until SchemaExtractor is ready, keeps its chevron permanently closed, and opens a 480 pop-out to the left of the inspector holding a node type table (type, count, completeness), an edge type table, the type-pair list drawn as a matrix with node types on both axes and edge counts in the cells, and Filter to type, Select all of type and Export schema JSON as one RT-7 row. The matrix is a two-dimensional relationship and is drawn honestly only as a matrix, which is the width-driven case that justifies having 480 in 6.11's ladder. One collapsed Attributes section with Nodes and Edges tabs (the first 20 with a filter box and "N more", distinct counts computed lazily on expansion from a 50,000-row sample above the threshold, the sampling caveat stated once inside the section rather than on both tabs, capped at "1,000+ values", id-like attributes marked "unique"). Case notes render as one affordance: "Add a case note" at zero, "N case notes" above it. One link, "More in Analyze", replaces the several pointers into that panel. Diameter and average path length are not in the inspector; they live in Analyze tier 2. Counts read as shown of loaded of total while a filter, window or subset is active, and as a plain number when shown, loaded and total are equal. Rows show "Computing..." until their background pass finishes. |
+| Nothing | Graph summary: the plain-language reading (section 7.5) first, with Copy reading in its header row, which copies the reading plus the caveats line plus the Counts rows plus the legend's channel lines, so one click produces a paragraph a user can paste to a colleague. No count line sits above the reading; the status bar owns node and edge totals (5.1). Then Counts as a tier 2 section, collapsed by default and remembered per 6.5, holding one Type row ("Directed (from file), weighted (amount), timed (opened)"), average links per node, density in its plain form with the scientific notation on hover, connected parts as "3,412", and self-loops and parallel edges when non-zero; isolated nodes and the largest part's share are in the reading and are not repeated as rows. Most connected: top 5 by degree with "See all N ranked" opening the Data table drawer, the repeated unit word on the column header rather than on every row, and a hover-revealed download icon on the section header whose menu holds "Export top 20 (CSV)" and "Export ranked list (CSV)"; plus a 50 px degree histogram (log scale above the threshold). Schema section, which expands in place: open, it draws the node-type rows with their counts and the edge-type rows with their counts as the short two-column tables, capped at five with an "N more" row, and Filter to type / Select all of type as one RT-7 verb row beneath them, because of the readers who open Schema the type names and their counts are what they came for (6.11); closed, the header keeps its summary ("4 node types, 3 edge types") as its state mark and carries "measuring..." until SchemaExtractor is ready, and that summary is deleted the moment the type rows are drawn, because the rows say it. Its gear takes the rare remainder into a 480 pop-out to the left of the inspector: per-type completeness, and the type-pair list drawn as a matrix with node types on both axes and edge counts in the cells. Export schema JSON stays in the trailing slot. The matrix is a two-dimensional relationship and is drawn honestly only as a matrix, which is the width-driven case that justifies having 480 in 6.11's ladder, and it is now opened from a gear on an expanded section rather than being the section. One collapsed Attributes section with Nodes and Edges tabs (the first 20 with a filter box and "N more", distinct counts computed lazily on expansion from a 50,000-row sample above the threshold, the sampling caveat stated once inside the section rather than on both tabs, capped at "1,000+ values", id-like attributes marked "unique"). Case notes render as one affordance: "Add a case note" at zero, "N case notes" above it. One link, "More in Analyze", replaces the several pointers into that panel. Diameter and average path length are not in the inspector; they live in Analyze tier 2. Counts read as shown of loaded of total while a filter, window or subset is active, and as a plain number when shown, loaded and total are equal. Rows show "Computing..." until their background pass finishes. |
 | One node | Label with a copy-id icon and a Locate icon (centers and zooms to the node at a scale where its neighbors resolve), a Pinned badge with Unpin when the node has been dragged, subtitle "Selected 1 of 120,000 visible (1,000,000 total)" while a filter, window or subset is active; attributes section (the existing DataAccordion grid: per-cell Copy value and Copy path, where the path is the JMESPath the Style By attribute select and the Explore filter builder accept, or a [name] token for formulas, chosen from a two-item menu; Copy all; a filter box above 10 attributes; collapsible groups from the "::" namespace prefix or the source table ("Joined from expression.tsv"); a pinned group of the attributes currently encoded or filtered, separated from the rest by a hairline rule rather than by a "Key attributes" sub-header inside a section already titled Attributes; the node's type is not repeated as a row when the header badge shows it, the id row is dropped when the displayed label equals the id (the id-type annotation moving to the copy-id tooltip), and a long text value renders as its shape ("sequence  393 aa, MEEPQSDPSV...") with a copy icon rather than 390 inline characters; the first 10 rows (label, type, then alphabetical) with the count on the link and not on the header ("Attributes" plus "Show all 52"); numeric formatting of 3 significant digits with scientific notation below 1e-3; a small type glyph; list values as chips; text over 100 characters truncated with Show more; "Not set" for missing values; cells edit on double-click, undoable); computed metrics (any results that include this node, each under its plain name with the technical field name muted, dual results showing both columns, the raw value and a percentile "4,212, top 0.4%" with the normalized value in the tooltip, and no rank sub-row where the reading already states the rank; the percentile row carries its explanation in an info circle, 6.7); notes: an "Add a note..." input (one line, grows to a text area on focus; cmd-Enter saves, Escape cancels), then existing notes newest first, each with author, relative time (full timestamp on hover), color chip, tag chips, text and a Done checkbox; hover shows Edit and Delete; done notes collapse under "N done"; neighbors: the count with a breakdown by edge type capped at the top 5 types plus "N more types" ("12,412: 9,100 logon, 3,380 process") and, when a Groups result exists, a per-group breakdown beside it ("in 4 groups: group 3 holds 71%"), a sortable list (neighbor, edge type, weight, recency) with the per-type counts as filter chips, In, Out and All tabs on directed graphs, which carry their own counts, so there is no separate directional degree breakdown row and no "Both N" line duplicating the section header count; the neighbour-type prose line is dropped wherever the type filter chips already carry the same numbers, and Neighbors-in-group and Share-of-neighbors render as one row, the top 10 by edge weight then neighbor degree, 20 rows then "Show all in data table" and Select these, "See all 12,412" opening a virtualized list paged at 100 with a filter box, and per neighbor row "Note this relationship" (a stopgap until edge selection ships, 5.8); actions: Expand neighbors as a split button (main action uses the last node and edge type filter, the arrow opens the type checkboxes, each carrying the "Adds about N" that box alone would add; reads "Expand 37 neighbors" below 500, "Expand top 50 of 12,412 by weight (Choose which)" above 500 where Choose which opens the Explore expansion section. Every estimate binds to the path that spends it and never to the capped default, which is floor item 4 read forwards -- the cost estimate goes with its control: the line under the button opens with that button's own cost, "Adds 50 nodes", and the warning, its consequence and its "anyway" belong to expanding all of them, "All 12,412 may slow the canvas down. Expand all anyway". A capped default is never warned about a cost it does not incur; pairing "Expand top 50" with "Adds about 12,412 nodes" made one control quote two sizes for one tap, and on a touch screen there is no hover to tell a reader which of them it meant), Select neighbors (same depth control; confirms above the selection cap), Ego network (applies the radial layout with this node as focus; Hops 1 to 5 beside Max nodes, default 1, changeable from the canvas chip's steppers), Frame this node (camera only), Radial layout around this node, Use as root or focus (fills the active layout's node input), Pin or Unpin (live layouts), Find path from here (opens Analyze > Find a path with From filled and focus in To; a canvas click also fills To), Distance from here (opens Analyze > Distance from here with From filled), Likely missing links from here, Simulate removing, Merge with..., Tag... (writes a multi-value tags attribute; tags are data, notes are not), Bookmark this node, Show in table (opens the Data table drawer on this row), and under More: Copy as JSON (attributes and metrics only), Copy neighbor ids (warns above 1,000). Computed metrics, neighbors and the actions block never move below the first screen of the inspector; the content scrolls and the action block is pinned at the bottom. |
 | One edge | Endpoints as "source -> target" (each a link that selects that node), attributes table as for a node, weight and time when present, notes (as for a node); actions: Select endpoints, Simulate removing this edge, Filter to this edge type, Find alternate route (Every route with this edge excluded), Show in table, Delete edge (undoable), Copy as JSON. |
-| Multiple nodes and edges | Count reads "3 nodes, 2 edges"; the status bar shows N selected. Selection statistics: count, shared attributes (above 10 selected nodes an Attribute profile: top three values per categorical attribute with percentages, five attributes shown, "Show all" -- inline at every density, because nine rows of the user's own attribute names and top values is a scan surface made of floor-7 data and a reader comparing five attributes cannot open five doors), and each aggregate beside its whole-graph value with an above or below marker; when a pin is active or above the selection cap the third column (A, B, Graph and Delta) does not fit the 256 px band, so the section becomes a door row opening a 360 pop-out carrying the three columns and the Export CSV of attribute, A, B, graph and difference; notes: "Add a note to these N nodes" creates one note targeting the set; notes on any member are listed grouped by target with a "Show on canvas" link. Actions: Zoom to selection (becomes "Filter to selection" when the selection's bounding box covers more than 60% of the graph), Filter to selection, Save as subgraph (name, counts; "Disease module, 66 nodes"; appears in Explore > Saved filters), Save as set, Style selection (creates a layer selecting on a per-node flag, not an id list), Select neighbors (depth), Expand neighbors of all, Invert, Copy ids, Pin as A (the next selection shows as B beside A and the whole-graph column, with Export CSV of attribute, A, B, graph, difference), "Merge N nodes" with two to five selected, naming the survivor and merging immediately with the default conflict rules (one Cleaning step, and the toast "Merged 2 nodes into acct-4471" with Undo and Review conflicts beside it), and "Merge selected nodes" above five, which opens the Data merge dialog pre-filled (warns above 100 with the reason shown and confirms), "Export selection..." (lands in Present with Scope preset), Find path between (exactly two nodes), Simulate removing (N) (one scenario; warns above the selection cap and runs anyway), Remove selected (undoable, toast with Undo), Tag..., Set attribute on selection..., Pin selected positions, Layout selected nodes only, Pin to report, Show in table (opens the drawer in Show: Selected), Clear selection. Above the selection cap (default 5,000) the inspector switches to summary form: count, type breakdown, a categorical profile (the top three values of the group id and of up to five categorical attributes, with percentages, from the attribute index, so joined demographic columns and group membership survive the cap), and the five numeric attributes with the largest difference from the whole-graph value, then "Show all 38"; whole-graph aggregates come from the attribute index, selection aggregates are computed in the background behind a "Computing..." skeleton. |
+| Multiple nodes and edges | Count reads "3 nodes, 2 edges"; the status bar shows N selected. Selection statistics: count, shared attributes (above 10 selected nodes an Attribute profile: top three values per categorical attribute with percentages, five attributes shown, "Show all" -- inline at every density, because nine rows of the user's own attribute names and top values is a scan surface made of floor-7 data and a reader comparing five attributes cannot open five doors), and each aggregate beside its whole-graph value with an above or below marker; the section expands in place onto the two-column Selection and Graph form -- Nodes 7 against 200, Edges 4 against 612, Average links per node 9.4 against 6.1 -- which the Data table drawer already draws at four rows and the Explore panel at seven in the same 256 px band, and both regions that draw this section take that same resident form; when a pin is active or above the selection cap the third column (A, B, Graph and Delta) does not fit the band, so a gear on that section opens a 360 pop-out carrying the three columns, the "inside the selection" split, the per-attribute means and the Export CSV of attribute, A, B, graph and difference, and only the pinned-A case needs the 360; notes: "Add a note to these N nodes" creates one note targeting the set; notes on any member are listed grouped by target with a "Show on canvas" link. Actions: Zoom to selection (becomes "Filter to selection" when the selection's bounding box covers more than 60% of the graph), Filter to selection, Save as subgraph (name, counts; "Disease module, 66 nodes"; appears in Explore > Saved filters), Save as set, Style selection (creates a layer selecting on a per-node flag, not an id list), Select neighbors (depth), Expand neighbors of all, Invert, Copy ids, Pin as A (the next selection shows as B beside A and the whole-graph column, with Export CSV of attribute, A, B, graph, difference), "Merge N nodes" with two to five selected, naming the survivor and merging immediately with the default conflict rules (one Cleaning step, and the toast "Merged 2 nodes into acct-4471" with Undo and Review conflicts beside it), and "Merge selected nodes" above five, which opens the Data merge dialog pre-filled (warns above 100 with the reason shown and confirms), "Export selection..." (lands in Present with Scope preset), Find path between (exactly two nodes), Simulate removing (N) (one scenario; warns above the selection cap and runs anyway), Remove selected (undoable, toast with Undo), Tag..., Set attribute on selection..., Pin selected positions, Layout selected nodes only, Pin to report, Show in table (opens the drawer in Show: Selected), Clear selection. Above the selection cap (default 5,000) the inspector switches to summary form: count, type breakdown, a categorical profile (the top three values of the group id and of up to five categorical attributes, with percentages, from the attribute index, so joined demographic columns and group membership survive the cap), and the five numeric attributes with the largest difference from the whole-graph value, then "Show all 38"; whole-graph aggregates come from the attribute index, selection aggregates are computed in the background behind a "Computing..." skeleton. |
 | Style layer | The existing StyleLayerPropertiesPanel, plus the Source section at tier 1 when the layer was created by a run (5.3, Style, Analysis-backed layers): the reading in full, the caveats line when there is a departure, the one-line run record with its Details chevron, the deviating parameters as live rows whose change re-runs the algorithm under Analyze's three cost bands, and "Open result". Then: Which nodes or Which edges: the Explore attribute, operator, value builder compiling to JMESPath (6.6), with a tier 3 Expression toggle showing the raw string; the selector applies on Enter or blur, not per keystroke; the helper line reads "Matches 41,200 nodes" (names only when 5 or fewer match) and "Matches about 41k (sampled), counting..." above the threshold until the exact pass finishes, with a Preview matches link that selects them on the canvas; Use as filter. Every encodable row -- Color, Size, Opacity, Shape, Label text, Edge width, Edge color, Line style, Edge opacity -- is one field row whose mode is what the field contains (Rule 6, 6.9); there is no Fixed / By attribute segmented pair, because binding a row is choosing an attribute in it, from a select whose last group is "Not computed yet": the node metrics this graph supports that have not been run, each a 12 px play glyph, the plain name, the technical name dimmed, and a trailing hint reading "not run" under 2 s and the estimate otherwise. A metric that has not been computed is still an encoding you can pick: choosing one runs it and applies the selection the user was making, as one undoable pair, under the same estimate-and-confirm gate the Insights strip and the palette use. The row shows a spinner while it runs, the type-default scale or palette is already editable, and a helper line reads "Computing Bridges (betweenness)... 42%  Cancel", mirrored in the status bar. On completion: one result card in Analyze, one Data table column, one entry in Explore's attribute list and no duplicate; the encoding applies; the legend updates; and one history entry, "Ran Bridges (betweenness) and encoded it as node size", which one undo takes back in full. Metrics that cannot run on this graph are listed disabled with the reason in the tooltip; cubic and unbounded metrics are never listed. The search input at the top of the popover is required, not optional, and not-run metrics sort last inside Metrics, never above a file attribute. Analyze's "Encode as style" is unchanged and remains the other way in; a run started from an attribute list is an ordinary run with the same queue, progress row, result card and history entry. The select also shows the distinct-value count beside each categorical attribute; above the palette size the top values by frequency are colored and the rest painted Other, and the helper says "Top 9 of 3,412 values colored"), a Palette select for color (grouped Categorical, Sequential, Diverging with swatches, defaulting by attribute type: text to Okabe-Ito, number to Viridis, signed number to Blue-Orange) or a Scale select for numbers (Linear, Square root default, Log, -log10, Bins, Five tiers) with min and max clipped at the 99th percentile by default ("Degree 1 to 812 (99th percentile) maps to sizes 1.0 to 2.0; 1,040 nodes above are capped. Change"), the Range and Categories sub-modes of 5.3 Style; a tier 3 Expression mode per row exposes inputs and expression with inline validation. Effects: Glow with Color and Strength when on, Outline with Color and Width, Wireframe, Flat shaded; Glow and Outline warn for layers matching more than the effects cap (default 5,000 nodes) with "Effects on 41,200 nodes will slow rendering. Narrow the selector, or turn on anyway" and stay available Label adds a "Show on" control (All matched, Top N by degree with N default 50, Selected only, Hovered only) whose default above the threshold is Top N. Edge properties (shown when the layer has an edge selector): Line (Type across the 9 patterns, Width, Color, Opacity, Curved), Arrow head (Type with icons, Size, Color), Arrow tail under More, Label and Tooltip popouts, Animation speed under More; above the threshold Color, Width and Opacity only, with dashed, dotted and arrow styles off by default with the note "Line styles are off in Performance mode. Turn on anyway" and a switch to enable them. Rich text popout tiers: text source, font, size, color, location inline; background, outline and shadow, depth fade as sections; badge, pointer callout, borders, margins, billboard and resolution under Advanced. The legend names the palette in use. Attribute ranges, percentiles and distinct counts come from the one attribute index (5.3 Data, Schema); controls show "measuring..." until it is ready. |
 | Algorithm result | Reading, caveats line, the one-line run record with its Details chevron (section 5.3, Result shapes), then the body for its shape, then the resident state swatch and layer name with "Change encoding" where the run painted, "Delete layer" and "Remove result" (both undoable by toast; Remove result names the layer count before it acts). The card in the Analyze Results list is collapsed to title, state and headline while this view is open, so one body is on screen at a time. |
 | Pattern match | Match count, the ranked match list, the matched nodes of the current match, Center on match, Select match. |
@@ -4469,7 +4600,7 @@ The ten row types.
 | RT-5 Toggle row | a boolean whose concept has no glyph in the icon register | 24 px on a 24 px pitch, the one type that packs tighter; a 16 px checkbox or a 28 by 16 switch, then a one- to three-word label |
 | RT-6 Data row | the user's own strings: an id, label, attribute name, filename, list member | 28 px on a 28 px pitch; an optional 16 px type icon, the name at 12 px, a trailing value at 11 px dimmed. The one place a left-hand text label column is correct |
 | RT-7 Action row | state on the left, verbs on the right | 24 px on a 32 px pitch; resident state, then right-aligned 24 px actions at a 4 px gap, each carrying its register title; text buttons for the verbs that keep their words |
-| RT-8 Section header | the name of a place you navigate to | 32 px preceded by a 1 px divider: chevron, name, info circle, then actions ending at x = 272. The name is primary when the section holds a value and dimmed when it holds none. A section that has become a door (6.11) keeps its chevron in the closed right-pointing form permanently and never renders the open form, and its trailing slot may carry the one fact that says what is behind the door: a count, the highest severity glyph, an On switch, or a progress string |
+| RT-8 Section header | the name of a place you navigate to | 32 px preceded by a 1 px divider: chevron, name, info circle, then actions ending at x = 272. The name is primary when the section holds a value and dimmed when it holds none. Every section expands in place: the chevron renders the open form when the section is open and the closed form when it is closed, there is no permanently-closed form, and a chevron is drawn only where it opens onto resident rows (6.11). The two or three locally common rows that 6.11's door test keeps resident render whether or not they deviate, which is the one carve-out from Rule 7a below; everything behind the section's gear, and every resident row that is not locally common, is still governed by 7a. The trailing slot carries a state mark when the section is CLOSED -- a count, the highest severity glyph, an On switch, a progress string, the active member's own name -- and the section's own verbs and its gear when it is OPEN, with the exception of a mark the resident rows do not repeat, which survives the changeover (6.11). A section the data could support but that holds nothing is not a door: it takes the empty form of Rule 7c below, a dimmed name and one 24 px plus, and draws no chevron, because there is nothing for a chevron to open |
 | RT-9 Chart row | a distribution, or the summary statistics over one | one pitch (a 32 px sparkline or micro-bar) or two (a 64 px histogram), never another height; the two axis-end values are the only text, and they are always drawn |
 | RT-10 Prose block | the reading, a departure line, the run record | auto height across the full 256 px band; the reading at 12 px over 1.5, at most two sentences and 220 characters; the departure line carries a 14 px warning glyph; the run record is one dimmed line with a chevron to Details |
 
@@ -4477,9 +4608,13 @@ Four sub-rules the types depend on. RT-1's door rule: a control used by a
 minority of selections never gets a resident row, it gets a 24 px trailing
 glyph that opens a popover -- the Builder and Expression switch, the domain
 pair on a Scale field, edge-property overrides, tooltip configuration and the
-Advanced parameter block are all doors; and a section consulted rather than
-operated gets the same treatment at section scale, with 6.11 deciding which
-sections those are. One mechanism at two scales, not two concepts. A control may also have two
+Advanced parameter block are all doors, each of them on a row that is itself
+resident. The rule stops at field scale. A section consulted rather than
+operated does not get the same treatment at section scale: it expands like
+every other section and puts its rare remainder behind a gear, with 6.11
+deciding which controls those are. The extension of this rule to section scale
+is withdrawn, because a denominator that is the same for every row of a section
+cannot split the section and empties it instead. A control may also have two
 HOMES when it applies at two scopes: per-selection or per-graph it is resident,
 and per-member of a list the surface already shows it sits behind that member's
 own door, repeated there rather than moved there. A duplicate at two scopes is
@@ -4563,7 +4698,16 @@ the number.
 
 Rule 7, the default does not render. Three clauses. (a) A control sitting at
 its default is not drawn; only the deviation is, inline, with a 12 px reset x
-in the trailing slot. (b) An affordance that acts hides until row hover;
+in the trailing slot. This clause has one carve-out and it is 6.11's: it does
+not reach the two or three locally common rows that 6.11's door test keeps
+resident in a section. Those render at their defaults, with the value in the
+field and no reset x -- there is nothing to reset -- and they gain the reset x
+the moment they deviate. The reason is arithmetic rather than taste: a section
+whose every row is deleted by this clause is a chevron that opens onto nothing,
+which 6.11 forbids, and it forbids it in exactly the state a first-time reader
+arrives in, since a fresh graph is all defaults. Everything behind a gear is
+still governed here, and so is every resident row that is not locally common.
+(b) An affordance that acts hides until row hover;
 anything that reports state is resident. One carve-out, and only one: the plus
 that adds to a library section (5.3, Saved things) is resident whether the
 section is empty or full, because saving your first style is a first-visit
@@ -4716,8 +4860,8 @@ Three further classes were proposed as vetoes and are refused, because 6.11's
 door test already stops them at its first clause and a rule that restates
 another rule drifts away from it: a report of what is currently true has no
 default; a scan surface of the user's own strings has no default; and the entry
-to a capability is the door row itself, which the stub obligation already keeps
-resident. They are recorded so a later pass sees they were considered.
+to a capability is the section header itself, which expands in place and which
+the stub obligation already keeps reporting. They are recorded so a later pass sees they were considered.
 
 The floor on the first-load screen is about 49 words. A compaction pass works
 in the band above that number; below it, the pass is removing the product.
@@ -4736,18 +4880,57 @@ The governing test, applied before anything below, because it is the one a
 drafter reaches for most and the one two drafters must not split differently.
 It decides a single control rather than a surface.
 
-Does this control sit at a default that most instances never leave, AND can the
-row it leaves behind still report whether THIS instance left it? Both yes: it
-goes behind the door on that row. Either no: it stays resident.
+Of the readers who open THIS section, is this among the two or three things
+they commonly adjust or consult, AND can the row it leaves behind still report
+whether THIS instance left the default? Not among them and the report survives:
+it goes behind that section's gear. Either clause fails: it stays resident.
+
+The denominator is local, and moving it there is the whole of what revision 1.9
+changed in this test. The earlier form asked whether a control sits at a default
+that most instances of the product never leave, which is the right question
+asked of the wrong population. It was written to decide one control against its
+siblings -- layer opacity against font size, a dash style against a stroke
+colour -- and applied that way it discriminates, because the siblings share the
+denominator. Applied to a whole section it stops discriminating, because every
+row of the section shares it too: for any section below the first screen the
+global denominator says "most instances never leave the default" of every row
+at once, the whole section departs, and what is left is a chevron over nothing.
+Nobody opens the Layout section to do nothing. They open it because the
+arrangement is wrong, and edge length is rare across the product and common
+inside the section that owns it, so it is the section's own population that
+decides. "Commonly adjusted" reads as "commonly adjusted or commonly
+consulted", because five sections in this product hide readouts rather than
+controls -- Schema, All statistics, Categories, the sweep's runs and the
+validation report -- and a clause that sees only controls resolves each of them
+to "nothing resident, therefore a door", which is the same defect by another
+route. Those five resolve on what a reader came to READ.
+
+Every section expands in place. A chevron renders only where it opens onto
+resident rows, and no section's content lives entirely behind a door. A gear or
+a trailing door is an ADDITION to a section that already draws content; it is
+never the section itself, and the test above decides only which controls are
+the addition. Three consequences a drafter checks on every section. A section
+with no resident rows and no gear contents is not a section: it is either Rule
+7c's empty form -- dimmed name, one 24 px plus in the trailing slot, no chevron
+-- or, where the data cannot support it, it does not render at all. A gear is
+optional, and a section may be entirely resident and carry none; a gear with no
+resident section above it is the shape this paragraph exists to forbid. And the
+24 px trailing door on a ROW is untouched, because RT-1's door rule operates at
+field scale on a row that is itself resident. What is withdrawn is the
+extension of that rule to section scale, and with it the sentence in RT-8 that
+let a section keep its chevron in the closed form permanently and never open. A
+chevron that reveals nothing is a defect.
 
 The second clause is the stub obligation below, stated as half of the test so
 that the test and the obligation cannot drift apart. The three questions that
 follow decide what SURFACE a group of controls gets once the test has said
 which controls belong behind a door; Rule 7a of 6.9 decides, separately,
-whether a row renders at all. Where a control is both defaulted and
-non-deviating, 7a wins and nothing is drawn; the door exists so a reader can
-reach the control in order to CREATE the deviation, which 7a alone leaves
-unreachable.
+whether a row renders at all -- except for the two or three locally common rows
+this test keeps resident, which render whether or not they deviate, since a
+section whose every row is deleted by 7a is a chevron that opens onto nothing.
+Everywhere else 7a still wins where a control is both defaulted and
+non-deviating, and the gear exists so a reader can reach the control in order to
+CREATE the deviation, which 7a alone leaves unreachable.
 
 The line is drawn by a conjunction, and every single-property version of it was
 tried and refuted. They are recorded so they are not re-derived. Frequency
@@ -4763,6 +4946,16 @@ on the stroke swatch and an uppercase run looks uppercase in the layer.
 Everything kept resident fails one or both: the fill colour, the font size, the
 gap and the export scale have no default worth speaking of, and the panel row
 IS the report.
+
+The three refutations survive the move to a local denominator, because what
+they refuted was the conjunction and only the first clause's population has
+moved. Layer opacity is still resident because clause (b) fails and no row
+behind it reports the value, not because of any frequency, global or local;
+room was never a clause at all; and an export configuration's scale and suffix
+are locally common to the configuration that owns them, so the local
+denominator agrees with the global one exactly where the global one was right.
+A drafter who finds the two denominators disagreeing is looking at a whole
+section, which is the case the global one could not see.
 
 One class vetoes the test whatever it says, and it is 6.10a: a control whose
 wrong value is invisible until it does damage stays resident however rarely it
@@ -4780,20 +4973,25 @@ only where question 3 has.
    report read once and not returned to? Yes: tier 3a pop-out, anchored to
    that member's row and titled with that member's own name.
 3. Otherwise it is an inline section at the tier 6.2 assigns.
-4. Where question 3 sends content inline, one further question decides pop-out
-   from collapsed section, because the three questions above never decided
-   between them and four mechanisms were running for one job. Does a door buy
-   width beyond the 256 px band, survival across a selection change, or leaving
-   the rows below operable while it is open? None of the three: it is a
-   collapsed section, whose RT-8 header carries in its trailing slot the one
-   fact a door stub would have carried. A closed section and a door cost the
-   same single row, so a door that buys none of the three adds a click for
-   nothing. Worked in both directions: Schema is a door, because the type-pair
-   matrix cannot be drawn honestly at 256; Counts is a section, because it is
-   consulted rather than operated; the Selection statistics third column is a
-   door, because an A / B / Graph / Delta table does not fit 256; Metric
-   histograms is a section, because a reader comparing five distributions
-   cannot open five doors. This question is what keeps the Recipes library and
+4. Where question 3 sends content inline, one further question decides which
+   of that content, if any, goes behind a gear, because the three questions
+   above never decided it and four mechanisms were running for one job. It is
+   asked about a GEAR's contents now and never about a whole section, because a
+   whole section no longer has the option of leaving. Does a door buy width
+   beyond the 256 px band, survival across a selection change, or leaving the
+   rows below operable while it is open? None of the three: the content stays
+   in the section, whose RT-8 header carries in its trailing slot, while it is
+   closed, the one fact a door stub would have carried. A closed section and a
+   door cost the same single row, so a door that buys none of the three adds a
+   click for nothing. Worked in both directions: Schema's edges-by-type-pair
+   matrix buys a 480 gear, because a two-dimensional table cannot be drawn
+   honestly at 256, while the type rows and counts that Schema is opened FOR
+   stay in the section; Counts is a section, because it is consulted rather
+   than operated; the Selection statistics third column buys a 360 gear,
+   because an A / B / Graph / Delta table does not fit 256, while the
+   two-column Selection and Graph rows stay resident; Metric histograms is a
+   section, because a reader comparing five distributions cannot open five
+   doors. This question is what keeps the Recipes library and
    the Styles library collapsed sections rather than doors, against two
    independent proposals that they become doors because they grow without
    bound, and it retires the two informal mechanisms the boards had grown: a
@@ -4807,19 +5005,26 @@ AI Console is the case, where question 3 would send it inline and 6.2 moves it
 
 Four obligations make a pop-out legal.
 
-- The stub. Whatever leaves leaves a resident RT-8 row that names it and
-  reports its state: the count, the highest severity glyph, the On switch, the
-  progress string. RT-8's own rule -- the name is primary when the section
-  holds a value and dimmed when it holds none -- is how a door marks that it
-  hides a non-default. A door over lazily computed content reports the
-  computation on its stub, so 6.2's guarantee that a row still computing reads
-  "Computing..." survives behind the door. The stub is drawable and must be
-  drawn: a gear or door glyph renders in the dimmed ink when everything behind
-  it is at its default and in the primary ink when anything behind it is not,
-  at every density, and no board may omit it, because it is the only signal a
-  reader has that a door hides a non-default. Where a hidden option creates a
-  departure that 6.10 item 2 requires be named, the departure line renders
-  resident under the section that owns the door, not inside it.
+- The stub. What leaves is the RARE REMAINDER, never the section. The section
+  keeps its two or three locally common rows and the remainder goes behind a
+  gear in that section's own header, so what the reader is left with is not a
+  stub standing in for a section but the section itself with one glyph added.
+  Whatever leaves still leaves something resident that names it and reports its
+  state: the count, the highest severity glyph, the On switch, the progress
+  string, the active member's own name. RT-8's own rule -- the name is primary
+  when the section holds a value and dimmed when it holds none -- is how a
+  header marks that something hidden is not at its default. A gear over lazily
+  computed content reports the computation, so 6.2's guarantee that a row still
+  computing reads "Computing..." survives behind it. The stub is drawable and
+  must be drawn: the gear or door glyph renders in the dimmed ink when
+  everything behind it is at its default and in the primary ink when anything
+  behind it is not, at every density, and no board may omit it, because it is
+  the only signal a reader has that a closed surface hides a non-default. The
+  two inks now mark a gear on an expanded section rather than a section that
+  has become a door, and that is the only thing about this obligation revision
+  1.9 changed. Where a hidden option creates a departure that 6.10 item 2
+  requires be named, the departure line renders resident under the section that
+  owns the gear, not inside it.
 - The keyboard. Hover never opens a pop-out (a preview is not a pop-out: see
   the sixth surface below); hover only reveals the opener, which RT-7's hover
   split already permits and already makes resident on a touch pointer. Every
@@ -4844,6 +5049,45 @@ Four obligations make a pop-out legal.
   export options behind a Reports door, and gradient handle editing as its own
   pop-out opened from the ramp pop-out -- which becomes a section of that
   pop-out instead (5.3 Style).
+
+The trailing slot of a section header, by state. A closed section SUMMARISES
+and an open section OPERATES. Closed, the slot carries the one fact that says
+what is inside without opening it, from the stub vocabulary above: a count, the
+highest severity glyph, an On switch, a progress string, the active member's
+own name. Open, it carries the section's verbs and its gear, on the 28 px pitch
+RT-8 already specifies, ending at x = 272. The changeover is Rule 8 of 6.9
+doing its ordinary work, and it is where the pixels are, because it governs
+every section on every board that draws one. A mark that restates something now
+visible on the same screen is an explanation of the rows beneath it, so it is
+deleted the moment those rows are drawn: Schema's "3 node types, 7 edge types"
+when the type rows render, Categories' "41 rows" when the footer reads "6 of 41
+rows", Neighborhood expansion's "2 steps, 3 types" when the Hops and
+type-filter fields render. A mark that says something the rows do not stays
+when the section is open: All statistics' "Computing 3 of 7" for as long as
+anything is still running, because each resident row reports only itself; Step
+through time's On switch, because it is the section's own master control and
+not a precis of the rows below it; the Provider section's Connected dot, for
+the same reason, while its model name goes because the resident model row
+prints it. The rule generalises in one sentence: the mark survives if it is the
+section's own control or the section's own state, and dies if it is a precis of
+rows now on screen.
+
+Five doors in the current set survive the always-expands rule -- each sits on a
+section or a control that already has resident content -- and fail the stub
+obligation instead, printing nothing about what they hide. They are named
+together because the fix is the same edit, and because a door that reports
+nothing is the failure the two inks were made drawable to prevent. Import
+settings on the Open file header is deleted outright: it reports nothing, it
+duplicates the Loaded data door, and one general import door already exists as
+the gear on the Loaded data header. The Data table drawer's Columns chip owes a
+count, "9 of 12". The Parsing gear on a large import keeps its five values in a
+title and owes the separator and the header-row state as its mark, and a
+keyboard route it does not have today. Settings' Advanced and Encryption
+password rows draw no state at all and owe, respectively, whether Base URL, max
+tokens or temperature deviate, and set or not set. And the Expand-neighbors
+caret prints a count and never the depth and type filter its Explore twin
+carries, so a reader cannot see what the button will do before pressing it,
+which is floor item 4 and not a matter of polish.
 
 Anatomy. Widths are a ladder of three, taken from the 5.1 grid and never
 invented per case. 280 reuses the panel identity 16 + 108 + 8 + 108 + 8 + 24 +
@@ -5078,31 +5322,59 @@ One clause joins the artboard review pass: every pop-out's shared edge line is
 within 8 px of its opener's anchor box unless a named obstruction is recorded
 in that board's own comment.
 
-Worked examples, so a later pass does not re-derive them one at a time.
+Worked examples, so a later pass does not re-derive them one at a time. The
+verdicts belong to classes, and the classes are not interchangeable, so each
+one is said here rather than inferred from the table. A GEAR ON AN EXPANDED
+SECTION is a section that draws its two or three locally common rows and puts
+the rare remainder behind a gear in its own header; it is what every verdict
+that used to read "this section becomes a door" now says, and the resident rows
+are named in each case so the claim is checkable rather than asserted. A
+POP-OUT is one member of a list, a report read once and not returned to, or a
+door at field scale on a row that is itself resident: none of the three is a
+section, and the always-expands rule does not reach them. A MENU, a DIALOG, a
+PREVIEW and a DRAWER are the other surfaces this section governs, decided by
+questions 1 to 3. A PICKER is none of the above and is also untouched -- the
+"+ Analysis" catalogue, the Settings nav list, the attribute and encoding
+pickers -- because a nav row carries no chevron, opens a full pane rather than
+a transient, and is one of several mutually exclusive destinations rather than
+a disclosure of its own row's content. And INLINE, REFUSED is a group of
+controls that gets no second surface at all. Where a gear buys width beyond the
+256 px band, the width belongs to the gear's CONTENTS; the section above it
+stays in the band.
 
 | Candidate | Verdict | Why |
 |---|---|---|
-| Time slider settings | pop-out, 280, from the slider's gear | The scrubbed controls stay on the bar; only the settings move |
+| Time slider settings | a gear on an expanded Step through time section, 280 | Window 30 days with Step 7 days as one pair, and the Cumulative / Sliding track, are the three things a reader opens this section to change, so they stay resident at their defaults; the time attribute (fixed at import on most graphs), Speed, "Recompute results on each step" and "Compare with another window" go behind the gear. The scrubbed controls stay on the bar, and the bar's own gear opens the same gear contents, so there is still one destination and one set of hidden controls |
 | One filter rule | pop-out, 360, from the rule row | The builder is the job the panel is open to do; the rule is one member. The per-rule match count stays in the rule row's trailing slot |
-| Filter expression | pop-out, 360, from the section header | The Builder and Expression door rises to the section once the rule row it sat on is gone |
-| Validation report | pop-out, 360, beside the Data panel | Its Show rows opens the bottom drawer, and a dialog would have to close to let that happen |
+| Filter expression | pop-out, 360, from the section header | The Builder and Expression door rises to the section once the rule row it sat on is gone, and it opens from a section that draws its own rule rows, so it is a door on resident content and not the section itself |
+| The Filter builder at zero rules | no chevron; refused as a door and refused as invented rows | With rules it draws them and takes the expression door above; with none there is nothing to open, so it takes Rule 7c's empty form -- dimmed name, one plus, no chevron. The rule forbids a chevron over nothing; it does not require rows to be invented so that one can be drawn, and "Match all" at zero rules and "20 of 20 nodes would match" are exactly the null statements 6.2 forbids |
+| Validation report | a gear on an expanded section, 360 for the detail | The issue rows themselves are what a reader came to read -- severity glyph, count, name and the primary verb, one line each -- with the green "Fixed by step 2" line beside them; the per-card consequence sentences, the example ids and Show more, the Info (3) group, the Ignore list and "Re-ran after step 2" go behind the gear, which keeps 360 where the example ids need it. Its Show rows opens the bottom drawer, and a dialog would have to close to let that happen. The resident form must come in near four rows, not near the 282 px the pre-door section measured, which is why the consequence sentences leave with the gear |
 | One group's profile | pop-out, 360, from the clicked table row | Fixed to one group inline; anchored to a row it becomes a detail view over every group |
-| Advanced parameters | pop-out, 280, from the parameters row | More than four schema rows (6.2); the gear draws primary whenever a hidden option deviates |
-| Schema | pop-out, 480, from the inspector row | The type-pair matrix cannot be drawn honestly in a 256 px band |
+| Advanced parameters | a gear on a card that draws its commonly adjusted parameter, 280 | More than four schema rows (6.2), and the gear draws primary whenever a hidden option deviates; but the one parameter a reader of that method actually turns -- Resolution on a community method, Damping on PageRank -- is promoted to a resident row on the card, so the gear is an addition to content rather than the card's only route in |
+| The layout Parameters block | a gear on an expanded section, 280 | Edge length 30, Pull to centre -1.2 and the Edge weight attribute are the three dials a reader opens the Layout section for, and they render at their defaults under Rule 7a's carve-out; Start from current arrangement, Stiffness (spring coefficient), Speed vs accuracy (theta), Damping (drag coefficient), Time step and Random seed are the six engine internals the gear was built for. A couple of common parameters and an advanced gear for the rest, which is the shape the whole rule was written from |
+| Animation | a gear on an expanded section, 280 | Transitions 300 ms and Reduce motion are two RT-5 toggles packed together, resident at their defaults, and Reduce motion argues for residence on accessibility grounds independently of this test; Easing and any per-channel transition overrides go behind the gear. Drawn as a bare gear it is a header that is neither a section nor a door, which is the purest form of the defect this rule removes |
+| Schema | a gear on an expanded section, 480 for the matrix | The node-type rows and the edge-type rows with their counts, capped at five with an "N more" row, are what a reader opens Schema to read, and Filter to type / Select all of type is already an RT-7 verb row beneath them; per-type completeness and the edges-by-type-pair matrix go behind the gear, and the matrix keeps the 480 because a two-dimensional table cannot be drawn honestly in a 256 px band. Export schema JSON stays in the trailing slot |
 | Run record Details | pop-out, 360, from the Details chevron | Floor item 3 names the chevron itself |
-| All statistics | pop-out, 360, from the section row | The stub must report "Computing 3 of 7", or 6.2's guarantee breaks behind the door |
-| Selection statistics, third column | pop-out, 360, when a pin is active | A three-column numeric table does not fit 256 px |
+| All statistics | a gear on an expanded section, 360 | Density 0.031, the diameter 5 and the average path length 2.99 are the three a reader came for, each carrying its own "Computing..." state on its own row, which is what retires the stub's "Computing 3 of 7" contortion; graph type and the multigraph note, the degree distribution, the two unshipped rows, Recompute, "Recompute on every filter change", Copy values and Export CSV go behind the gear. The progress string stays in the header even when the section is open, because each resident row reports only itself, and 6.2's guarantee survives either way |
+| Selection statistics, third column | a gear on an expanded section, 360 when a pin is active | Nodes 7 against 200, Edges 4 against 612 and Average links per node 9.4 against 6.1 fit the 256 px band -- the Data table drawer draws four such rows and the Explore panel seven, in the band this pop-out claimed was too narrow for them -- so the section is resident in both regions that draw it; only the A / B / Graph / Delta table, the "inside the selection" split, the per-attribute means and Export CSV need the 360 |
+| Categories | a gear on an expanded section, and the full table in the Data table drawer | The top three categories as two-column rows, name and adjusted p with the source demoted to the row title, plus the "6 of 41 rows" footer that opens the full table; which adjusted-p column, which members column, sort by members, the Jaccard >= 0.5 redundancy rule, the source filter and Export categories go behind the gear. Most connected already draws five ranked rows and a distribution chart in the same band on about twenty boards |
+| The sweep's runs | a gear on an expanded section, 480 for the agreement block | The caption row and the three run rows with their resolution and group count, including the mark that says which run the canvas is reading; the "Agreement between runs (NMI)" block, the sparkline, Compare and Export CSV go behind the gear, and the NMI block keeps its 480 because a pairwise comparison of three runs is a matrix. The panel card and the inspector take the same resident form: that is A5's one control at two scopes, and the third rendering, which One fact one region refused, is the agreement block, now gear contents in one place |
+| Neighborhood expansion | a gear on an expanded section, 280 | The two facts the stub already printed become the two fields -- Hops reading "2 steps" and a type filter reading "3 types" -- which is floor item 4 drawn instead of summarised, since it is what a reader must know before pressing expand; direction, the max-nodes cap and the per-type checkbox list go behind the gear. Drawing them retires the 11 px section name two boards had to invent to fit a name and a stub into 255 px |
+| Provider | a gear on an expanded section, 280 | The model field and the Voice input switch are what a reader opens Provider to touch, and Voice input is floor item 6; the provider select, the API key and the Base URL, max tokens and temperature trio go behind the gear, into the one destination Settings > AI already gives them (Rule 9). The Connected dot stays in the trailing slot when the section is open because it is the section's own state; the model name goes, because the resident row prints it |
+| Console | resident and expanded, with a gear for its preferences | It is a working surface and not a settings set: the one-line input with its completion hint and Run script, and the last two transcript lines, all inside the 256 px band that the widest console line measures 219 px against. Clear transcript, copy transcript, transcript length and the completion-hint toggle go behind the gear. The pin stays, Shift+backtick still opens and focuses it, and 6.2's frequency override on the AI Console is unchanged |
+| Export video | an expanded section with no gear at all | Duration and Camera as one pair, Video format, and the estimate-plus-Record row, which floor item 4 keeps resident twice over -- the estimate and Record's full text. If the video twin of the Image quality group never ships, this section carries no gear, which the rule permits: a gear is an addition, not an obligation |
+| Values, the categorical table | a gear on an expanded section, 280 | The value rows themselves -- swatch, value name, count -- capped at five with an "N more" row, which is the same cap the canvas legend takes; palette family and Reverse, value ordering, the "Other" roll-up threshold and Reset per-value overrides go behind the gear. The count in the header is dimmed while every value is at its default and primary once any is overridden |
 | The attribute profile | inline, refused | Floor 7. Nine rows of the user's own attribute names and top values is a scan surface, and a reader comparing five attributes cannot open five doors |
 | The notes list | inline, refused | Floor 7 and the same scan argument. Size alone is never a trigger. Its header filter chips and its row editor do pop out |
 | Selection-set verbs | a menu, refused | A pop-out is for parameters and reports; a menu is for verbs |
-| Import policies | inline, refused | A control whose home is a dialog may not acquire a second home as a pop-out; the fix is Rule 3's noun-and-value field |
+| Import policies | inline, and two resident rows | A control whose home is a dialog may not acquire a second home as a pop-out, and the fix is still Rule 3's noun-and-value field: "Repeats: Combine + sum" and "Self-loops: Keep" render at their defaults, and the rarer merge detail -- which attribute wins on a combine, the name of the repeat-count column -- goes behind a gear, or the chevron is deleted rather than left decorative if neither ships. Where the file has no repeats and no self-loops the rows do not render and neither does the section, which is Rule 7c and a different clause from the one the carve-out amends |
 | Cleaning steps, History, the Insights strip | inline, refused | Scan lists and the novice route. A reader comparing five distributions or scanning fourteen of their own strings cannot open five doors |
 | The canvas legend | inline, refused | Floor item 5, whose justification is the exported image. A pop-out is dismissible and a legend is not; a panel is not exported and a legend is; and the panel that would hold it, the Style layer inspector, already exists and only fills when a layer is selected in Style. The size complaint is answered by the two obligations of 6.10 item 5, not by a new surface |
 | The legend's state-row block | delete, not move | App chrome, not an encoded channel. Every state is already named by the region that owns it (5.1), and the exported legend carries them because a static figure has no such region |
 | The Data table column menu, the History row menu, the Role and Type chip menus, the Views menu | menus | One choice from a closed list is a menu |
 | Two methods drawn side by side while choosing | preview, 280, unanchored | A picture separates Bridges from Most connected where a sentence cannot; it holds no controls and takes no focus, so it is not a pop-out |
 | Save as style | pop-out, 280, from the Styles header bookmark button | It names one member of a list and commits nothing the canvas must wait on, so it is not a dialog and needs no scrim |
-| The numeric ramp of an encodable row | pop-out, 280, from the RT-4 trailing glyph | The same slot on the same row as the categorical "Values (N)" table, and the histogram is the one control in the section that cannot be drawn at 32 px. Gradient handles are a section of this pop-out, never a second one |
+| The numeric ramp of an encodable row | pop-out, 280, from the RT-4 trailing glyph | A trailing glyph on a row that is itself resident, which the always-expands rule does not reach: the histogram is the one control in the section that cannot be drawn at 32 px. Its categorical twin, the "Values (N)" table, was hiding a list rather than a histogram and becomes an expanded section instead (above). Gradient handles are a section of this pop-out, never a second one |
 | A column's role parameters | pop-out, 280, from the Role chip inside the Import options dialog | Per-item parameters of one column; the chip prints the chosen value as a dimmed suffix, which is what keeps them clear of 6.10a |
 | The Data table drawer's column list | pop-out, 280, from the Columns chip | Show, hide and reorder over 10 to 40 columns is not a menu, and drag-reorder inside a menu is not a menu at all |
 | Rebind a shortcut | pop-out, 280, from the key chip | It buys the third thing a door can buy: the roughly 60 rows below stay operable instead of reflowing under a conflict warning |
@@ -5458,6 +5730,26 @@ showing the capped neighbor section, actions that warn and confirm, and the Note
 every existing artboard shows the canvas toolbar with the 2D/3D toggle
 and the status bar mode chip.
 
+Revision 1.9 changes one thing across the set, and every board is read against
+it. Every section drawn with a gear is a section with resident rows above that
+gear: no board draws a chevron over nothing, and no board draws a section whose
+whole content sits behind a door. Because the rule is about what a chevron
+opens ONTO, it cannot be validated from a set of closed headers -- a closed
+header looks the same either way -- so for every section that carries a gear,
+at least one artboard in the set draws that section EXPANDED, with its resident
+rows and its gear glyph both visible in the same picture. A section that
+appears only as a closed header across all 48 boards has been asserted and not
+drawn. A board whose premise is a resting panel keeps that premise and
+discharges the obligation through the board that draws the same section open,
+which is what re-scopes the eight boards whose only premise was a door drawn
+open: none is deleted, each becomes the drawing of the expanded section with
+its gear pop-out beside it where one still exists. Three measurements are drawn
+rather than asserted, because they are where the arithmetic is closest -- the
+main inspector with Schema open, StylePanel with Parameters, Animation and the
+Color section's Values all open, and the Data panel with the validation report
+open -- and any board that overflows its region names the section and the
+overflow in pixels in its own comment.
+
 Revision 1.8 changes two things across the set, and every board is read against
 them.
 
@@ -5501,9 +5793,11 @@ Revision 1.7 changes five things across the set, and the changes are stated
 here so a board is read against them. Every Import board names its entry state
 in the title row again and replaces its copy-pasted reopen paragraph with an
 IN / REOPENS AS / OUT / CANCEL form for its own state. Every board that draws a
-section which has become a door (6.11) draws the 32 px stub with its state mark
-rather than the section body. Every panel that owns a saved kind draws that
-kind's library section with its resident plus. Every result card whose run
+CLOSED section draws the 32 px header with its state mark rather than the
+section body -- which is the surviving half of a 1.7 instruction whose other
+half, licensing a section to have become a door, is withdrawn (6.11). Every
+panel that owns a saved kind draws that kind's library section with its
+resident plus. Every result card whose run
 painted draws the resident swatch, the layer name and "Change encoding" in
 place of an encoding control. And every board that drew the vertical navigation
 cluster at the canvas's left edge draws the bottom-centre canvas toolbar
@@ -5561,30 +5855,30 @@ of a 280 px column, then total visible words.
 | Data panel, loaded (added by analysis 2) | Loaded | Data panel with Loaded data policies and joined tables, Columns, Validation report with Show rows, and Cleaning steps after one merge and one Auto-fix |
 | Style, diverging encoding (added by analysis 2) | Loaded | A layer with Color by logFC: diverging palette, midpoint 0, histogram domain, missing-value swatch, and the matching legend block |
 | Inspector, genomics node (added by analysis 2) | Selected | The biology sample; attribute groups from the joined table, Key attributes pinned, metrics with percentiles, Notes |
-| Category table result (added by analysis 2) | Result | A category-score table joined onto Groups: sortable categories, Remove redundant categories, Select members |
+| Category table result (added by analysis 2) | Result | A category-score table joined onto Groups: sortable categories, Remove redundant categories, Select members. The inspector's Categories section is drawn EXPANDED -- the top three categories as two-column rows, name and adjusted p, with the "6 of 41 rows" footer -- its parameters behind a gear and the full table in the Data table drawer |
 | Filter builder, expert (added by analysis 2) | Selected | Builder tab with a between slider over a log histogram, Match any grouping, the Expression tab preview, Select matches result mode |
 | Explorer, loading (added by analysis 2) | Loading | A 120,000-node file mid-load: status bar in the Building phase with Cancel, quick-grid canvas filling in, heavy Analyze cards disabled, Insights strip absent |
 | Explorer, large graph, Performance mode (added by analysis 2) | Loaded plus Result | 120,000-node security graph: point-and-line canvas with 20 labels, density-heatmap minimap, legend with 11 groups plus Other, status bar with compact counts, "Positions from file" and the Performance mode chip, above-threshold Insights cards, Analyze panel with cost classes, a sampled Bridges card with its estimate and one card warning "Run anyway (about 3 h)", inspector graph summary without diameter |
 | Explorer, loaded subset (added by revision 1.5) | Loaded, subset | 6.1 defines a Loaded-subset state that no artboard drew, and it is where the large-file path ends -- the most intimidating arrival in the product. It continues the large-file import: 50,000 of 1,000,000 nodes and 410,000 of 10,000,000 edges on the quick grid in Performance mode, drawn honestly as a bounded field of small uniform dots with the 20-label cap; the filter strip's two sample lines; the compact status bar counts and the Performance mode chip; the Insights strip carrying "Load the full graph" and "Narrow the view"; and the graph summary opening "Showing a sample." with every count reading shown of loaded of total |
 | Import flow (added by revision 1.7) | Any | The whole machine as one picture: the seven ways in with their clauses in precedence order and the note that the list is evaluated from the end; the dialog's nine items as bands, the five always-present ones solid and the four conditional ones tinted with their render conditions on leader lines; the ways out with their destination states, Cancel with its two behaviours, and Esc and the title-row X noted as the same action; the seven ways back in with their scroll targets; and the decision table beneath at 11 px with eight example files, including the two rows no board draws. The only board in the set that draws a transition rather than a resting state, and the relationship between the Import boards is not visible from inside any of them |
 | Import options -- parse error (added by revision 1.7) | Empty | The one entry state where the primary is disabled: the error block with the offending line quoted and its count, the grid rendered as far as it parsed with the bad row in the warning colour, the Parsing group drawn open with Separator focused, Cancel never disabled, the footer note carrying the reason in full, and "Skip 4 rows and import" beside the disabled Import. No board exercised floor item 4's disabled-reason clause on the highest-stakes disabled button in the app |
-| Validation report pop-out (added by revision 1.7) | Loaded | A 360 activity-panel pop-out beside the Data panel with the Data table drawer open beneath it. The coexistence of a left pop-out and a bottom drawer is the whole argument for tier 3a over 3b and cannot be drawn on one surface |
+| Validation report pop-out (added by revision 1.7) | Loaded | The Validation report drawn EXPANDED in the Data panel -- its issue rows with their counts and primary verbs and the green "Fixed by step 2" line -- with the detail gear's 360 activity-panel pop-out beside it and the Data table drawer open beneath. The coexistence of a left pop-out and a bottom drawer is the whole argument for tier 3a over 3b and cannot be drawn on one surface. It draws no pin, which the closed pin set already forbids |
 | Group profile pop-out (added by revision 1.7) | Result | A 360 inspector pop-out anchored to a row of the Groups by size table, opening left, with the selected-row fill showing the tether and a comment recording that Up and Down re-target it. The browsable-detail case and the left-opening anchor |
 | Style library (added by revision 1.7) | Loaded | The Styles section at rest and hovered, its overflow drawn open -- the only place a section overflow is drawn open in the set -- plus the Save as style dialog with its destination line and its two off-by-default checkboxes over the column roles and the analyses to run on open |
 | Saved items (added by revision 1.7) | Any | Settings > Data management with every saved kind grouped, storage used, per-row origins, and the dimmed "For graphs you do not have open" group with its count. The housekeeping list is a different job from the working lists and must be seen to be different |
 | Style from analysis (added by revision 1.7) | Result | MCL at granularity 2.5 on the 318-node ovarian dataset: the layer row reading "Groups (granularity 2.5)" with 6 in its trailing value, the Source section with the reading, the run record and the one deviating parameter, "Open result", and the granularity mid-edit showing the cost gate while the canvas still holds the 2.5 colours. The whole of the analysis-as-style change in one picture |
 | Canvas toolbar (added by revision 1.7) | Loaded | The bar at both sizes (246 x 36 and 274 x 40), the three-way bottom stack as a labelled slice with its four offsets, and the two-line minimap and legend state drawn on a 600-wide canvas slice. A new component with a shadow, a concentric radius and four vertical offsets |
 | Settings, Performance (added by analysis 2) | Any | The Settings overlay with the Performance section active: the readout, the detected block replacing the threshold and ceiling rows (headline, provenance, consequence, Recalibrate and Change), each remaining row's explanation behind an info circle on its label, "Show config keys" off so the storage keys are hidden, and the four XR rows under their sub-header |
-| Present, compact (added by revision 1.8) | Loaded | The re-cut Present panel at rest, both gears closed, ten rows: the two RT-1 input pairs beside their resident estimates, the last export's filename, the Export video door with its "10 s, Orbit once, WebM" stub, and the Reports library section. The proof that the largest split in the revision lands |
+| Present, compact (added by revision 1.8) | Loaded | The re-cut Present panel at rest, both gears closed, ten rows: the two RT-1 input pairs beside their resident estimates, the last export's filename, the Export video section closed with "10 s, Orbit once, WebM" as its header's state mark, and the Reports library section. The proof that the largest split in the revision lands |
 | Image options pop-out (added by revision 1.8) | Loaded | The Image options gear pop-out at 280 in the panel lane, its gear drawn primary, with the canvas export frame hint reading "current view, 832 x 836, about 20 nodes in frame; legend: 2 channels". The board that proves a resident floor-4 report can carry the promise a hidden control makes |
 | Exported legend (added by revision 1.8) | Loaded | The composed export legend drawn as an exported PNG at 2x: full blocks, twelve categories with counts, the coverage footer, the clamp line and one row per state drawn in the frame. Makes the export half of floor item 5 drawable and checkable rather than aspirational, and it is the only board in the set that is a picture of an output file rather than of the app |
-| Ramp pop-out (added by revision 1.8) | Loaded | The numeric ramp door beside the categorical "Values (N)" door on one board, so the two sub-modes of one row are visibly the same door from the same slot, with gradient handle editing as a section of the ramp pop-out and not a second surface, and the Palette select, the clamp line and the attribute chip resident beside it |
-| All statistics pop-out (added by revision 1.8) | Loaded | 360, from the section row, with the stub behind it still reading "Computing 3 of 7" |
+| Ramp pop-out (added by revision 1.8) | Loaded | The numeric ramp door on its own resident RT-4 row, with gradient handle editing as a section of the ramp pop-out and not a second surface, and the Palette select, the clamp line and the attribute chip resident beside it. Its categorical twin is no longer a door: the same board draws the Values, Parameters and Animation sections all EXPANDED with their gears, which is three of the seventeen fixes on one board and the panel this revision measures first |
+| All statistics pop-out (added by revision 1.8) | Loaded | All statistics drawn EXPANDED -- density 0.031, diameter 5 and average path length 2.99, each with its own "Computing..." state -- with the long-tail gear's 360 pop-out beside it and the header still reading "Computing 3 of 7" while any pass runs, which is the mark that survives the section being open |
 | Run record pop-out (added by revision 1.8) | Result | 360, from a run-record Details chevron. The chevron appears on eleven boards and opens nowhere |
-| Analyze parameters pop-out (added by revision 1.8) | Loaded | 280, from the parameters row gear, panel lane, top on the row, the gear drawn primary because a hidden option deviates, and one field pinned inline to show the pin path |
+| Analyze parameters pop-out (added by revision 1.8) | Loaded | 280, from the parameters row gear, panel lane, top on the row, the gear drawn primary because a hidden option deviates, one field pinned inline to show the pin path, and the card's own commonly adjusted parameter -- Resolution here -- drawn as a resident row above the gear, so the board shows a gear that is an addition to content rather than a card's only route in |
 | Column role pop-out (added by revision 1.8) | Empty to Loaded | A column's role parameters from the Role chip inside the Import options dialog, the chip carrying "Weight strength" as its dimmed suffix. The one board that exercises the dialog lane, and the one that shows why the value stays visible while the editing moves |
 | Report editor drawer (added by revision 1.8) | Result | The report editor as a non-modal bottom drawer with the sections checklist inside it, the canvas live above it, and the Present panel behind showing no checklist. The board that settles a dialog-versus-drawer contradiction two sections had carried |
-| AI panel, compact (added by revision 1.8) | Result | Provider and Console as door rows with the model name in the Provider stub, plus the no-provider state where the Console is resident and expanded and the setup prompt replaces the chat input |
+| AI panel, compact (added by revision 1.8) | Result | Provider and Console both drawn EXPANDED with their gears -- the model field and the Voice input switch under Provider, the console input and its last two transcript lines under Console -- plus the no-provider state where the setup prompt replaces the chat input |
 | Note editor pop-out (added by revision 1.8) | Selected | 280, from a note row's edit glyph, with the notes list still inline behind it, because the list is refused a door and the row editor is not |
 | Filter expression pop-out (added by revision 1.8) | Selected | 360, from the filter section header's Builder and Expression door, with the resident builder reduced to one row and a plus behind it |
 | Shortcuts overlay (added by revision 1.8) | Loaded | The ? reference non-modal, replacing the scrimmed and focus-trapped dialog, with the canvas keeping pointer and keyboard behind it |
@@ -5931,8 +6225,173 @@ a check that decides whether the mitigation held.
   drawn on boards that make the independence visible, as 1.7's risk entry
   already asks for the exclusivity case.
 
+Open risks carried by revision 1.9. Same form: a stated mitigation and a check
+that decides whether the mitigation held. One risk, and it is the price of the
+rule rather than an accident of it.
+
+- Resident rows come back into a set that spent revision 1.6 removing them.
+  1.6 cut 3,648 words and set the worst-case panel scroll target under 1,040 px
+  against a measured 3,060; 1.8 took the six activity panels from about 116
+  resident rows to about 80; the seventeen sections this revision reopens gain
+  about 54 rows between them, and about a dozen of those are drawn only because
+  Rule 7a's new carve-out renders a locally common row sitting at its shipped
+  default -- Edge length 30, Window 30 days, Transitions 300 ms. A reviewer
+  counting rows will read 1.9 as a regression against both revisions, and the
+  count will be right. What pays for it is the decision that no section's
+  default open-or-closed state changes: none of the 54 is drawn at rest, every
+  one is behind a chevron that still defaults closed, the skyline of eight
+  collapsed sections is still 8 x 33 = 264 px and still never scrolls, and the
+  resting counts published in 1.8 stand, with the single exception of Present,
+  which is 10 rows at rest and 13 with Export video open. What changed is the
+  cost of an OPEN section, and that cost is paid only by a reader who chose to
+  open it, which is the whole difference between disclosure and deletion.
+  Check: every newly inlined section is measured against the panel's 800 px
+  scroll region on the board that draws it, and against the inspector's own
+  region on the boards that draw it there, with the sections the board's own
+  comment says are open -- one section at a time is not a rule and must not be
+  assumed. Any board that overflows names the section and the overflow in
+  pixels in its own comment, in the form the two pre-existing overflows already
+  use; a board that overflows silently has not been measured. Three cases are
+  named in advance because they are where the arithmetic is closest: the main
+  inspector with Schema open, twelve rows at the 32 px pitch on an inspector
+  1.8 already projects at 24 resident rows, where the five-row cap and the
+  "N more" row are the mitigation and must be drawn rather than assumed;
+  StylePanel with Parameters, Animation and the Color section's Values all open,
+  three of the seventeen fixes on one panel, ten rows on top of the fourteen
+  1.8 leaves resident; and DataPanelLoaded with the validation report open, the
+  section this set already cut from 282 px to a 32 px door once, where four rows
+  is the budget and anything approaching 282 means the consequence sentences did
+  not go behind the gear. Measure each of the three twice, because "Keep
+  advanced sections open" inlines every gear's contents as well, and that mode
+  is allowed to scroll where the default mode is not.
+
+This revision also closes a risk carried since 1.7. 6.9's RT-1 door rule and
+6.11's section-scale door rule no longer do similar work, because the
+section-scale form is withdrawn: the door survives only at field scale, on a
+row that is itself resident, so there is one mechanism at one scale and nothing
+left to drift.
+
 ## 13. Revision history
 
+- 1.9 (2026-09-08): three changes, applied against revision 1.8. (1) A section
+  always expands. The rule, stated once: every section expands in place, a
+  chevron is drawn only where it opens onto real rows, no section's content
+  lives entirely behind a door, and a gear is an ADDITION to a section that
+  already has resident content rather than a section's only content. Two things
+  in 6.11 change and only two. The governing test keeps its conjunction, its
+  stub clause and 6.10a's veto, and moves the denominator of its first clause
+  from "sits at a default that most instances never leave" to "of the readers
+  who open THIS section, is this among the two or three things they commonly
+  adjust or consult" -- with "adjusted" reading as "adjusted or consulted", so
+  the five sections that hide readouts rather than controls (Schema, All
+  statistics, Categories, the sweep's runs, the validation report) resolve on
+  what a reader came to read instead of resolving to "no controls, therefore a
+  door". The global denominator was the same denominator for every row of one
+  section, so it could not tell them apart and emptied sections rather than
+  splitting them; seventeen sections in the drawn set had become a chevron over
+  nothing, which is the test returning the answer it was asked for rather than
+  a drafter's error repeated seventeen times. And the licence for a section that
+  is only a door is withdrawn: RT-8's sentence permitting a permanently closed
+  chevron, and 6.9's extension of RT-1's door rule to section scale, both go.
+  The three refuted single-property tests survive unchanged and 6.11 now says
+  why -- what they refuted is the conjunction, and only the first clause's
+  population moved. Rule 7a gains its one carve-out: the two or three locally
+  common rows render whether or not they deviate, which puts Edge length 30,
+  Window 30 days and Transitions 300 ms back on screen and leaves 7a governing
+  gear contents and every other row, while Rule 7c is untouched -- an empty
+  section is not a door, and a section the data cannot support still does not
+  render. RT-8's trailing slot splits by state: a state mark when the section is
+  closed (a count, the highest severity glyph, an On switch, a progress string,
+  the active member's own name) and the section's verbs and its gear when it is
+  open, with Rule 8 deleting every mark the resident rows now repeat and keeping
+  the ones they do not -- All statistics' "Computing 3 of 7", Step through
+  time's On switch, Provider's Connected dot, against Schema's type counts,
+  Categories' "41 rows" and Neighborhood expansion's "2 steps, 3 types", which
+  go. Two artefacts keep a 480 pop-out and are opened from a gear on an expanded
+  section instead of being the section: Schema's edges-by-type-pair matrix and
+  the sweep's NMI agreement block. Question 4 is re-aimed at a gear's contents
+  rather than at a whole section; the stub obligation is rewritten so that what
+  leaves is the rare remainder and the two inks mark a gear rather than a
+  section that has left; five stub-silent doors are swept in the same pass
+  (Import settings on the Open file header, deleted outright as a duplicate of
+  the Loaded data gear; the Columns chip's "9 of 12"; the Parsing gear's
+  separator and header-row state, plus a keyboard route; Settings' Advanced and
+  Encryption password rows; and the Expand-neighbors caret's depth and type
+  filter, which is floor item 4); and the worked-examples table is rewritten
+  with its verdict classes named above it and fifteen verdicts moved to the
+  expanded form -- twelve a gear on an expanded section, one a gear on a card
+  that draws its commonly adjusted parameter, one resident and expanded with a
+  gear for its preferences, and Export video an expanded section with no gear at
+  all -- each naming its resident rows, ten of them written as new rows, taking
+  the table from 30 candidates to 40; every verdict that was already right --
+  one member of a list, a report read once, a picker, a menu, a dialog, a
+  preview -- is kept and marked as out of the rule's reach, so a later pass does
+  not over-apply it. Nothing about which sections default open
+  or closed changes, which is what pays for the roughly 54 rows the seventeen
+  sections gain: none is drawn at rest, and 6.9's promise that eight collapsed
+  sections are 264 px and never scroll survives intact. Settings navigation
+  stays out of scope (a nav list is a picker), and "Keep advanced sections
+  open" survives as a separate preference, because it governs what is behind
+  the GEAR while the new rule governs what is behind the CHEVRON. The rule is
+  then applied where the file still contradicted it: 5.3's Data, Explore,
+  Analyze, Style, Present, AI and Settings passages, 5.4's Schema and Selection
+  statistics rows, and section 9's artboard brief, which gains the obligation
+  that every section carrying a gear is drawn EXPANDED on at least one board so
+  the pattern is visible rather than asserted. (2) Floor
+  content is drawn, not hovered. A floor item is drawn in the words the reader
+  needs, on the surface, at the size the surface has; a title attribute, an HTML
+  comment and the far side of a door are the same place, which is not on screen.
+  When the room is short what gives is emphasis -- an adverb, a determiner, a
+  longer spelling of the same fact, or the line count -- never the fact itself,
+  and inside one line scope ranks above parameters and both above emphasis. All
+  48 boards were rendered and read out of the DOM rather than grepped: about
+  2,500 titled elements, 1,600 of them with no visible text of their own, some
+  380 distinct title strings, each tested against the seven floor items. Four
+  fixes on seven boards. The sweep run record regains its pass cap as "Louvain,
+  seed 42, 20 pass cap, 200 nodes" at 231.3 px, one line in the inspector's
+  235 px band and two in the panel card's 217, chosen over "20 passes" because
+  a cap is not a count. "Selection only" is drawn in words on four Style boards
+  at 109.5 px a segment, ending a segmented control in which the shipped choice
+  had a name and the unshipped one did not. The lone unshipped "Select all
+  visible" on the time-slider board keeps its text and its tag. And the path
+  block joins the legend's five channel words as "Outline: Find a path (shortest
+  path)" and draws its domain as four numbered stops with "Path order source to
+  target", retiring the last two-endpoint domain string in the set. One
+  corollary is added from 6.8: an unshipped control is never icon-only when it
+  stands alone or when its siblings in the same segmented control carry words.
+  Four residuals are recorded rather than half-fixed, led by the Arrangement
+  quick-pick, whose three capability names need 232.1 px inside a 217 px track.
+  (3) One inspector title row, decided once and applied to all 40 boards that
+  draw an inspector. Measured first, and the defect was drift rather than
+  clipping: seven trailing-cluster inventories, two right paddings, three
+  left-group gaps, two cluster gaps, five leading glyphs and six name bands
+  (141, 145, 169, 173, 195, 197), with exactly one board actually rendering
+  truncated. The row is 36 px with right padding 8, so its cluster ends at
+  x = 272 where every section header's trailing glyph already ends. The left
+  group is the kind at 12 px 500, which never truncates, then the identity at
+  11 px, which is the half that gives, with 6.3's ladder installed as a
+  mechanism rather than a patch (min-width 0, ellipsis, the full string in the
+  title). The leading glyph is deleted, and that deletion is what buys the fit:
+  it had five spellings and no rule saying which kind gets which, on three
+  boards it was the register's pin verb drawn non-interactively in the same row
+  as the real Pin as A, on 32 it was the top bar's own inspector rect drawn grey
+  and unclickable 900 px from the blue one, and it cost the 22 px that make all
+  40 name pairs fit. The trailing cluster is three slots in one order -- Copy
+  reading, Pin as A, Toggle inspector (D), with Close (Esc) instead of the third
+  on the iPad overlay -- and nothing else is ever in that row: no overflow
+  kebab, because four icons is 108 px of cluster and 139 px of name, and no
+  Coming tag, because one tag belongs to one control and a surface header is not
+  one. Three name bands remain (167, 195, 223), each decided by the row's own
+  state, and 0 of 40 clip. Copy reading moved up into the title row on nine
+  boards and was added new to seven, Pin as A was added to the data table
+  drawer, Toggle inspector to the multi-selection board, and one verb drawing --
+  the 12 px closed disclosure caret the row actually uses, against the register's
+  rect -- is registered as its own row, one verb in two positions on one
+  binding. Four residuals are recorded, including the two title-row questions
+  that belong to the vocabulary and to the result shape rather than to this row.
+  Section 12 gains one risk and loses none of its questions, since this revision
+  answers none of them, and it closes 1.7's risk that two spec numbers were
+  doing similar work. 21 changes.
 - 1.8 (2026-09-07): two changes, applied against revision 1.7. (1) The pop-over
   decisions. 6.11 gains a governing test that decides a single control rather
   than a surface and is applied before the three questions -- a control goes

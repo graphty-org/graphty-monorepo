@@ -34,8 +34,34 @@
   eight-section order; the inspector action block caps at four rows; the pattern editor moves to the
   panel lane), A4 (Selection statistics stays a section until the third column forces a door), C3 (the
   four-row state block leaves the canvas legend -- 141px to the 80px floor), C6 (legend cap 334 -> 240).
+  REVISION 1.9 (SECTIONS-1.9 D1, D3, D4, D5; work list 5.4 and 5.7): two of this panel's sections were a
+  chevron over nothing, which D1 now calls a defect. Find a pattern LOSES its chevron and keeps its name and
+  its Coming tag (5.7); Neighborhood expansion KEEPS its chevron, which stops being permanent and is now
+  recorded as opening onto the Hops "2 steps" and type-filter "3 types" pair, with direction, the max-nodes
+  cap and the per-type list behind its gear (5.4). D4 leaves both sections closed, so no new row is drawn
+  and Neighborhood expansion keeps its "2 steps, 3 types" mark. The 11px section name that 1.8 invented for
+  that row is NOT retired here and the reason is measured: at 12px/500 the name is 149.7px against the
+  143.2px the 255 band leaves beside the 87.8px mark, so it would clip by 6.5px, and D5 retires the 11px
+  only when the two fields are drawn -- which D4 forbids on a section drawn closed. MEASURED, the panel:
+  571px of rows in the 800px scroll region before this pass and 571px after, because neither edit changes a
+  height. No overflow, and the resting row count is unchanged at 20.
   Palette: canvas #161b22, panels #1f2428, inputs #2a3035, hover #374047, border #48525c,
   text #d5d7da, dimmed #7a828e, accent #4a7ee8, selected #28364e. See VOCAB.md.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Neighborhood expansion and Find a pattern take the set's one unbuilt spelling: no chevron, an empty 16px
+  leading slot, the name at 12px 500 in #5f6873, the Coming tag in the trailing slot. D1 and 5.7's
+  corollary give an unshipped section no chevron, and the MEASURED consequence is the one this board's own
+  comment wanted: with the mark out of the slot the 11px name is retired and the band carries name plus tag
+  at 228 of 255. The mark "2 steps, 3 types" keeps the row's title.
+  Selection statistics gains its GEAR. The section is drawn open here and 5.10 puts the comparison machinery
+  behind a gear -- the third column against a pinned A, the "inside the selection" split, the per-attribute
+  means and Export CSV -- so an open header without one was the only Selection statistics in the set drawn
+  as a section with no addition. It takes A6's dimmed ink, because nothing is pinned on this board.
+  The empty library sections lose the chevron they could not open: Filters, Sets, Views and Notes. RT-8's empty form is a
+  dimmed name, its resident "+" and an EMPTY 16px leading slot, and D1 turns that snippet into a rule -- a
+  chevron renders only where it opens onto resident rows. The chevron returns with the first saved filter, set, view or note.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -432,9 +458,7 @@
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Filters</span>
                   <div title="Saved filters: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
@@ -450,9 +474,7 @@
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Sets</span>
                   <div title="Selection sets: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
@@ -468,9 +490,7 @@
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Views</span>
                   <div title="View bookmarks: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
@@ -492,15 +512,23 @@
                  shell-boundary gap, VOCAB 14.8 -- top 549 on the row's own top 549, right edge 696. It stands
                  17px clear of the opener's right edge, inside the 32px past which 6.11 stops calling a surface
                  anchored and sends it to the centred form. Its 6px caret sits on the LEFT edge, pointing back at
-                 the panel (VOCAB 14.2, the activity-panel spelling), at the row's vertical centre, y 565. -->
+                 the panel (VOCAB 14.2, the activity-panel spelling), at the row's vertical centre, y 565.
+                 REVISION 1.9 (5.7): the CHEVRON COMES OFF. D1 forbids a chevron that opens onto nothing, and
+                 this section has nothing to open until the capability ships, so 5.7 fixes the unshipped state
+                 as "the Coming tag in the trailing slot and no chevron" on FLOOR-1.9 2.3's corollary -- an
+                 unshipped control keeps its text AND its tag. The 16px leading slot stays, empty, so the name
+                 column holds against the sections above and below (RT-8's empty-section form), and the row
+                 drops cursor: pointer because there is now nothing to press. When it ships the chevron comes
+                 back over two resident rows -- the saved-pattern field, and the Find row with its live match
+                 count -- with induced versus non-induced, whether direction is followed, and the result cap
+                 behind the section's gear. None of that is drawn here: 5.7 is marked PLAUSIBLE because the
+                 contents do not exist yet, and the pop-out geometry measured above is untouched. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Find a pattern (subgraph search). Coming" style="display: flex; align-items: center; gap: 6px; height: 32px; cursor: pointer;">
-                <div style="display: flex; align-items: center; flex: 1 1 auto; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
-                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; padding-left: 4px;">Find a pattern</span>
+              <div title="Find a pattern (subgraph search). Coming" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: default;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                  <span style="min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Find a pattern</span>
                 </div>
                 <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
               </div>
@@ -527,24 +555,37 @@
                  wins, because a live-looking door on an unbuilt capability promises a pop-over that does not
                  open, and Main and this board's Find a pattern row above are both dim. The chevron is this
                  board's own collapsed-section drawing rather than 14.1's snippet path, so the set has one
-                 right-pointing chevron and not two. -->
+                 right-pointing chevron and not two.
+                 REVISION 1.9 (5.4, D1/D3/D4/D5). The first sentence of this comment is STRUCK: there is no
+                 permanently-closed chevron and no section that is only a door. The chevron stays and now opens
+                 onto real rows -- an RT-1 pair, a Hops field reading "2 steps" and a type-filter field reading
+                 "3 types", which are exactly the two facts this mark prints, drawn at their remembered values
+                 under D3 -- with direction (followed / ignored / reversed), the max-nodes cap and the per-type
+                 checkbox list the "3 types" field summarises behind the section's gear. D4 leaves the section
+                 CLOSED here, so neither row is drawn and the mark stays: D5 deletes a mark only once the rows
+                 repeat it.
+                 MEASURED, and the 11px name SURVIVES on this board. D5 retires it "when the Hops and type-filter
+                 fields are drawn", and on a closed section they are not. In the 255 band, "Neighborhood expansion"
+                 at the section-header 12px/500 measures 149.7 and the mark 87.8, so 16 + 4 + name + 4 + 87.8
+                 leaves the name 143.2 and clips it by 6.5px to "Neighborhood expansi..."; at 11px it is 137.2 in
+                 the same 143.2 and nothing clips. The mark is floor item 4 -- what the expand will do before it
+                 is pressed -- and does not give way to a type size. The deviation is retired on whichever board
+                 draws this section OPEN, where the mark goes and the whole band is the name's. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Neighborhood expansion. 2 steps, 3 types. Coming" style="display: flex; align-items: center; gap: 4px; height: 32px; cursor: pointer;">
-                <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+              <div title="Neighborhood expansion. 2 steps, 3 types. Coming" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: default;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                  <span style="min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Neighborhood expansion</span>
                 </div>
-                <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Neighborhood expansion</span>
-                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">2 steps, 3 types</span>
+                <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
               </div>
             </div>
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; padding-left: 4px;">Notes</span>
                 </div>
                 <div title="Note (N)" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
@@ -828,12 +869,15 @@
                  buys none of the three and stays a section. MultiSelection draws the pinned state. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
-                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px;">
+                <div title="Collapse Selection statistics" style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;">
                   <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Selection statistics</span>
+                </div>
+                <div title="Selection statistics detail. Comparison with a pinned card, per-attribute means, links inside the selection, Export CSV" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
                 </div>
               </div>
               <div style="display: flex; flex-direction: column;">

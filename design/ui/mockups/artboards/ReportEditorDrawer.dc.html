@@ -45,7 +45,8 @@
      itself: 8 px of vertical gap to the opener row (bottom 664 against a row top of 672) and a shared column edge
      on the other axis (left 340 on 340, offset 0), with the required caret centred on the opener.
 
-  ROW TYPES. Panel, eleven resident rows: RT-8 x 4 (Export image, Export data, Export video as a door, Reports),
+  ROW TYPES. Panel, eleven resident rows: RT-8 x 4 (Export image, Export data, Export video as a collapsed
+  section from 1.9, Reports),
   RT-1 x 2 pairs, RT-7 x 2, RT-6 x 3 (the last export filename and the two saved report names), plus the two
   20 px cost lines the floor keeps beside the verbs that spend them. Drawer: RT-6 (the pinned rows, the title, the two prose blocks), RT-5 (the
   sections checklist), RT-1 (the Title field), RT-7 (the footer). Pop-out: RT-5 x 4. Inspector: RT-10, RT-8 x 5,
@@ -94,6 +95,41 @@
   are the set's own: accounts #4a7ee8, devices #33bfd7, phone numbers #61d095, merchants #f7b731.
   The graph drawing is the fraud ring at 1:1 from the shared force-directed positions, cropped to the 832 x 576
   the dock leaves; the selection rings come off, because nothing is selected here.
+
+  REVISION 1.9 (SECTIONS-1.9.md, VOCAB section 15). A panel always expands, and a gear is an addition rather than
+  the section itself. Two work-list sections are drawn on this board and NEITHER MOVES A PIXEL, because D4 leaves
+  a section's resting state alone and both are drawn closed here.
+    - 5.13 Export video, in the panel. The door becomes a live collapsed SECTION: D1 withdraws the permanently-
+      closed chevron form, so the chevron opens onto rows in place and the 280 pop-out leaves the set. Closed, the
+      row is unchanged, and "10 s, Orbit once, WebM" is exactly the closed-state MARK 5.13 names -- it was already
+      floor item 4 here, listed in the floor audit above as "the video's 10 s / Orbit once / WebM". Open, it draws
+      the Duration | Camera RT-1 pair, the Video format field and the estimate-plus-Record row, three resident
+      rows and NO GEAR, since the video twin of the Image quality group does not ship. PresentCompact draws that
+      state; KeepAdvancedOpen has drawn the same three rows since the hatch was written.
+    - 5.8 Schema, the stub, in the inspector. The permanent door becomes a live collapsed section; D4 keeps it
+      closed and "4 node types, 3 edge types" is already the closed mark, so nothing moved. The width argument
+      that made it a door survives in a smaller role: under D7 the edges-by-type-pair matrix keeps its 480, but it
+      keeps it BEHIND A GEAR on an expanded section rather than by being the section. The type rows themselves --
+      four node types and three edge types with their counts, capped at five with an "N more" row -- are what the
+      chevron now opens onto, which is D6.
+  EXPORT IMAGE IS THE MODEL AND IS UNTOUCHED. SECTIONS-1.9 section 4 names it first among the exemplars this
+  revision copies: an open chevron, resident rows, one gear in the trailing slot that is an addition rather than
+  the section, A6's two inks on that gear, and the departure line resident under the section that caused it. Not
+  one row of it changed in this pass, and Export video has been brought to that shape minus the gear it has
+  nothing to put in.
+  TWO DESCRIPTIVE LINES ABOVE WERE CORRECTED IN PLACE rather than left mislabelling the drawing: the ROW TYPES
+  paragraph called Export video "a door", and the panel's own header comment listed "the Export video door". Both
+  now say collapsed section. Nothing else in the 1.8 record was touched.
+  MEASURED AFTER 1.9, in the browser at 1440 x 900. Panel column y 76 to y 475 = 399 px in an 800 px content
+  area, so it does not scroll and no scrollbar affordance returns. Inspector column 531 px in the same 800, also
+  clear. Drawer and its dock-lane pop-out unchanged. Nothing on this board grew in this pass -- both work-list
+  sections stayed closed -- so the 399 is what the board already drew.
+  ONE PRE-EXISTING NUMBER IS CORRECTED BY THAT MEASUREMENT, and it is not this pass's doing: the 1.8 panel
+  comment above states "The column measures 379 px against the 795 it filled in 1.7". Measured it is 399. The
+  20 px is one of the two cost lines the floor keeps beside the verbs that spend them, which the 1.8 arithmetic
+  counted once and drew twice. The claim is left standing as written and this is the correction.
+  Opened, Export video would add three 32 px rows plus the section's 8 px pad = 104 px for a column of 503 px,
+  still 297 px inside the region, so the open state fits this board too if a later pass wants it drawn here.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -226,8 +262,8 @@
              10, because the two gears were already drawn and nothing had gone behind them. The ten, in order:
              Export image header with its gear; the Format | Scale pair that feeds the estimate; the estimate;
              the two image verbs; the last export filename; Export data header with its gear and recipe overflow;
-             the Format | Scope pair; the two data verbs with the size beside them; the Export video door; and the
-             Reports library section, whose rows are the door this board draws open. -->
+             the Format | Scope pair; the two data verbs with the size beside them; the Export video section,
+             closed; and the Reports library section, whose rows are the door this board draws open. -->
         <div style="flex: 0 0 280px; width: 280px; display: flex; flex-direction: column; background: #1f2428; border-right: 1px solid #48525c; box-sizing: border-box; overflow: hidden;">
 
           <div style="flex: 0 0 36px; height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
@@ -338,8 +374,18 @@
               </div>
             </div>
 
-            <!-- 10. RT-8 Export video, a door. Its chevron keeps the closed form and its trailing slot carries the
-                 written shape of the file it will make (floor 4). Dimmed, because nothing behind it deviates. -->
+            <!-- 10. RT-8 Export video, a live collapsed SECTION and no longer a door (SECTIONS-1.9 D1, 5.13).
+                 1.9 withdraws the licence for a section that is only a door, so this chevron opens ONTO ROWS in
+                 place and the 280 pop-out it used to open leaves the set. D4 keeps the section CLOSED here, so
+                 the row itself does not move: closed chevron, name at value ink, and the written shape of the
+                 file it will make in the trailing slot (floor 4), which 5.13 keeps as the closed-state MARK.
+                 Dimmed, because nothing behind it deviates.
+                 BEHIND THE CHEVRON, drawn on PresentCompact and long since drawn inline on KeepAdvancedOpen: the
+                 Duration | Camera RT-1 pair, the Video format field, and the estimate-plus-Record row. Three
+                 resident rows and NO GEAR -- the video twin of the Image quality group (scope, background,
+                 resolution, frame rate) does not ship, and 5.13 says a section with nothing to hide carries none,
+                 because a gear is an ADDITION to a section that already draws content, never an obligation.
+                 Rule 8 deletes the mark the moment those rows are drawn (D5), since the rows repeat it. -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Export video. 10 s, Orbit once, WebM" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
@@ -996,8 +1042,15 @@
               </div>
             </div>
 
-            <!-- Schema, a door: the type-pair matrix cannot be drawn honestly at 256, which is 6.11's own
-                 width-driven case. Its chevron keeps the closed form and its trailing slot carries the state mark. -->
+            <!-- Schema, a live collapsed SECTION (SECTIONS-1.9 D1, 5.8), no longer a door. The type-pair matrix
+                 still cannot be drawn honestly at 256 -- that was always true and D7 keeps it a 480 -- but under
+                 D1 a matrix that cannot fit is a reason for a GEAR, not a reason for the whole section to leave.
+                 D4 keeps this one CLOSED, so the row is unchanged: closed chevron, and "4 node types, 3 edge
+                 types" in the trailing slot as the state mark 5.8 specifies for the fraud graph.
+                 Open it draws the four node-type rows with their counts and the three edge-type rows with theirs,
+                 capped at five with an "N more" row, plus Filter to type / Select all of type. That is D6 -- of
+                 the readers who open Schema, the type names and their counts are what they came for -- and the
+                 gear takes per-type completeness and the edges-by-type-pair matrix at 480. -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Schema. 4 node types, 3 edge types" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">

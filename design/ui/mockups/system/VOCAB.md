@@ -2333,9 +2333,12 @@ Overrides of earlier sections:
 - Section 11 "The ten row types": unchanged, and still closed. A pop-out is a
   **surface**, not an eleventh shape -- its rows are RT-1 through RT-10, exactly
   as a panel's, an inspector's, a dialog's or a drawer's are. The stub a
-  departing section leaves behind is an RT-8 section header whose chevron stays
-  in the closed right-pointing form permanently and whose trailing slot carries
-  the one fact that says what is behind the door.
+  gear's contents leave behind is an ordinary RT-8 section header that still
+  opens onto its own resident rows; its trailing slot carries the one fact that
+  says what is behind the gear when the section is closed. **Withdrawn by
+  `SECTIONS-1.9.md` D1:** the clause that let that chevron stay in the closed
+  right-pointing form permanently. There is no permanently-closed form, and a
+  chevron that reveals nothing is a defect.
 - Section 4 "Tooltip / popover background": the `#2a3035` bubble is for tooltips
   and info circles only. A **pop-out** takes the panel background `#1f2428`,
   because it holds panel rows whose fields are `#2a3035` and those fields would
@@ -2422,32 +2425,97 @@ Inside a pop-out the actions are **resident**, not hover-revealed. That is a
 deliberate local override of RT-7's hover split: at 360 there is room, and floor
 item 4 wants their full text.
 
-The stub the pop-out leaves behind is an ordinary RT-8 header. Its chevron is the
-closed form and never opens; its trailing slot carries the door's state mark --
-here the highest severity's glyph and the count:
+The header the pop-out is opened FROM is an ordinary RT-8 section header, and it
+**opens**. A section expands in place, a chevron renders only where it opens onto
+resident rows, and a pop-out is an addition to a section that already draws
+content -- never the section itself (`SECTIONS-1.9.md` D1). So this 360 is not
+the Validation report; it is what the Validation report's gear holds. The header
+carries its state mark while the section is CLOSED -- here the highest severity's
+glyph and the count -- and its rows plus that gear once it is OPEN (D5). Closed,
+with the mark:
 
 ```html
 <div style="display: flex; flex-direction: column;">
   <div style="height: 1px; background: #495057;"></div>
-  <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;" title="Validation report. 4 issues">
+  <div title="Validation report. 4 types" style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
     <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
       <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
       </div>
       <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Validation report</span>
     </div>
-    <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+    <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto; padding-right: 8px;">
       <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #f7b731;">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
       </div>
-      <span style="font-size: 11px; line-height: 1; color: #7a828e;">4</span>
+      <span style="font-size: 11px; line-height: 1; color: #7a828e; white-space: nowrap;">4 types</span>
     </div>
   </div>
 </div>
 ```
 
-While its pop-out is open the stub row carries the selected-row background
-`#28364e`, so the door is visibly the thing the pop-out belongs to.
+Open, the mark goes and the rows say it (Rule 8). The report expanded, in the
+256px band, at four rows: three amber issue rows, one line each -- the severity
+glyph, the name with its count, and that issue's one primary verb -- and the
+green line for the warning a cleaning step already closed. The reduction from
+each card's four verbs to one is what buys the line: `Preview`, `Show rows`,
+`Change` and `Ignore` go behind the gear with the consequence sentences, the
+example ids and `Show more`, the remaining amber type, the `Info (3)` group and
+`Re-ran after step 2`. The gear draws in the primary ink because a fourth amber
+type is behind it, and its title names what the rows do not -- the stub
+obligation applied to the gear rather than to the header (14.1, A6).
+
+```html
+<div style="display: flex; flex-direction: column;">
+  <div style="height: 1px; background: #495057;"></div>
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 32px;">
+    <div style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;" title="Collapse Validation report">
+      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+      </div>
+      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Validation report</span>
+    </div>
+    <div title="Validation report detail. 1 more issue, 3 info, re-ran after step 2" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #d5d7da; cursor: pointer; box-sizing: border-box;">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; padding-bottom: 8px;">
+    <div style="display: flex; align-items: center; gap: 4px; height: 28px;" title="14 edges have no amount. Analyze uses weight 1. Median is 240.">
+      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
+      </div>
+      <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">No amount, 14 edges</span>
+      <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Auto-fix</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 4px; height: 28px;" title="6 opened values are not dates. The time slider skips them.">
+      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
+      </div>
+      <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Not dates, 6 opened values</span>
+      <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Show rows</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 4px; height: 28px;" title="5 repeated pairs. 617 rows collapsed into 612 edges, weights summed.">
+      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
+      </div>
+      <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Repeated pairs, 5</span>
+      <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Show rows</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 4px; height: 28px;" title="8 mixed-form ids were made consistent by cleaning step 2.">
+      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #61d095;">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline></svg>
+      </div>
+      <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">8 mixed-form ids. Fixed by step 2</span>
+    </div>
+  </div>
+</div>
+```
+
+While its pop-out is open the gear's owning row carries the selected-row
+background `#28364e`, so the pop-out is visibly the thing that row opened. The
+clause is unchanged; only its subject is, from a section that was a door to the
+header row whose gear the pop-out belongs to.
 
 ### Canvas toolbar (5.6, 5.1)
 
@@ -2883,18 +2951,37 @@ it renders at every density. Two spellings of the same 24px trailing slot.
 </div>
 ```
 
-The RT-8 form of the same thing: a section that has become a door keeps its
-chevron permanently in the closed right-pointing form, and its trailing slot
-carries the one fact that says what is behind it -- a count, a severity glyph,
-an On switch, a progress string, or, new in 1.8, the active member's own name.
+The RT-8 form is not a section that has become a door -- there is no such thing,
+and no permanently-closed chevron (`SECTIONS-1.9.md` D1). It is the
+**trailing-slot rule**: a section header carries a **state mark when it is
+closed** and its **verbs and its gear when it is open** (D5). The closed mark is
+the one fact that says what is inside without opening it -- a count, a severity
+glyph, an On switch, a progress string, or, new in 1.8, the active member's own
+name. Closed, with its mark:
 
 ```html
-<div style="display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 8px 0 16px; box-sizing: border-box;">
-  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="6,3.5 11,8 6,12.5"></polyline></svg>
-  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; font-weight: 500; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Styles</span>
-  <span style="flex: 0 0 auto; font-size: 11px; color: #7a828e; white-space: nowrap;">Publication</span>
+<div style="display: flex; flex-direction: column;">
+  <div style="height: 1px; background: #495057;"></div>
+  <div title="Styles. Publication" style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+    <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+      </div>
+      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Styles</span>
+    </div>
+    <span style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px;">Publication</span>
+  </div>
 </div>
 ```
+
+Open, the same header draws the down chevron, the same name, and in that slot the
+section's verbs and its 24px gear on the 28px pitch RT-8 specifies, ending at
+`x = 272`; the mark itself is deleted the moment the resident rows repeat it
+(Rule 8), and survives only when it says something the rows do not -- a progress
+string while anything is still computing, or a master On switch that is the
+section's own control. And because a closed section draws no gear, A6's two inks
+above move to its chevron: `#d5d7da` when anything behind the gear deviates,
+`#7a828e` when nothing does.
 
 ### 14.2 The pop-out caret
 
@@ -3048,3 +3135,154 @@ anything that floats in the canvas overlay layer, matching the legend (right
 edge 1148 against a canvas right of 1160), the minimap (left 340 against a
 canvas left of 328) and the toolbar (bottom 864 against a canvas bottom of
 876). A panel or inspector pop-out that has slid over the canvas takes 12.
+
+## 15. 1.9 additions: a section expands in place
+
+Owned by `SECTIONS-1.9.md`. **Every section expands in place. A chevron renders
+only where it opens onto resident rows. No section's content lives entirely
+behind a door, and a gear is an ADDITION to a section that already draws
+content, never a section's only content.** A gear is optional; a section may be
+entirely resident and carry none. A chevron over nothing is a defect.
+
+The door test keeps its shape and changes one word. Clause (a)'s denominator is
+now **local**: of the readers who open THIS section, is this among the two or
+three things they commonly adjust or consult? Yes: resident. No: behind that
+section's gear. Clause (b) -- what is left behind must still report whether this
+instance left the default -- is unchanged, the two still conjoin, and A2's veto
+still overrides both. "Commonly adjusted" reads as "commonly adjusted or
+commonly consulted", so a section made of readouts resolves on what a reader
+came to read (D6).
+
+Two consequences that show up in the drawing:
+
+- **Locally common rows render whether or not they deviate.** Rule 7a still
+  governs gear contents and every row that is not locally common; it no longer
+  reaches the two or three rows that are. `Edge length 30`, `Window 30 days` and
+  `Transitions 300 ms` are drawn at their shipped defaults, with the value in
+  the field and no reset `x`, and they gain the `x` the moment they deviate (D3).
+  A row the DATA cannot support still does not render at all (Rule 7c).
+- **Nothing here opens a section that was closed.** "A panel always expands" is
+  about capability, not resting state (D4). Eight collapsed sections are still
+  `8 x 33 = 264` px and still never scroll; what changed is only what is behind
+  the chevron, and its cost is paid only by a reader who opened it.
+
+Two snippets, one section in both of its states. Section 12's Validation report
+is the same shape drawn on a section made of readouts; 14.1 is the closed
+header's mark and the gear's two inks.
+
+### 15.1 An expanded section: resident rows and a gear
+
+The layout `Parameters` block, which is the product owner's own example -- "a
+layout panel would show a couple common parameters and have an advanced gear for
+the rest". An open chevron; the section name at the value ink `#d5d7da` because
+the section holds values; the RT-1 pair `Edge length 30` and `Pull to centre
+-1.2`; the bound `Edge weight` attribute field; and one gear in the trailing
+slot at the dimmed ink, because everything behind it sits at its default.
+
+Behind that gear go the six engine internals the door was built for: `Start from
+current arrangement`, `Stiffness (springCoefficient)`, `Speed vs accuracy
+(theta)`, `Damping (dragCoefficient)`, `Time step (timeStep)` and `Random seed
+(seed)`. Three rows resident, six behind the gear.
+
+All three resident rows sit at their shipped defaults -- `NGraphLayoutEngine.ts`
+declares `springLength .default(30)` and `gravity .default(-1.2)`, and Edge
+weight defaults to the import `Weight` column -- and they are drawn anyway, which
+is D3. Nobody opens the Layout section to do nothing.
+
+Field slots: `Edge length` takes the register **width** glyph, an extent, which
+is the same reuse TimeSlider already makes for `Window size`. `Pull to centre`
+has no register entry, and a 108px half-field cannot hold the words `Pull to
+centre` plus a value, so this is the one new **field glyph** in 1.9 -- four
+chevrons pointing inward at a centre dot -- and it is owed to `REGISTER-1.5.md`
+section 1 on the same terms as the field glyphs in section 11. It is not the
+`locate` glyph (concentric circles with ticks) and not `zoom to fit` (four corner
+brackets, pointing outward). Every field keeps a `title` equal to the word its
+glyph replaced.
+
+The rows keep an empty 24px trailing slot so the grid holds: `16 + 108 + 8 + 108
++ 8 + 24 + 8 = 280`. The section rhythm is the usual `1px divider / 32px header /
+32n content / 8px pad`, so three rows is `1 + 32 + 96 + 8 = 137` px.
+
+```html
+<div style="display: flex; flex-direction: column;">
+  <div style="height: 1px; background: #495057;"></div>
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 32px;">
+    <div style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;" title="Collapse Parameters">
+      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
+      </div>
+      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Parameters</span>
+    </div>
+    <div title="Layout parameters" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; padding-bottom: 8px;">
+    <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+      <div title="Edge length: 30" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;">
+        <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2.5" y1="8" x2="13.5" y2="8"></line><polyline points="5,5.5 2.5,8 5,10.5"></polyline><polyline points="11,5.5 13.5,8 11,10.5"></polyline></svg>
+        </div>
+        <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">30</span>
+      </div>
+      <div title="Pull to centre: -1.2" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;">
+        <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="1.5"></circle><polyline points="6,3 8,5 10,3"></polyline><polyline points="6,13 8,11 10,13"></polyline><polyline points="3,6 5,8 3,10"></polyline><polyline points="13,6 11,8 13,10"></polyline></svg>
+        </div>
+        <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-1.2</span>
+      </div>
+      <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+      <div title="Edge weight attribute" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
+        <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.2V3.5a1 1 0 0 1 1-1h3.7l6.3 6.3-4.7 4.7z" fill="currentColor" stroke="none"></path><circle cx="5.5" cy="5.5" r="0.75" fill="#2a3035" stroke="none"></circle></svg>
+        </div>
+        <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">value</span>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+      </div>
+      <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
+    </div>
+  </div>
+</div>
+```
+
+The gear turns primary `#d5d7da` the moment one of the six deviates, and its
+title names the deviation after a full stop -- `Layout parameters. Random seed
+set to 7` (14.1, A6). With `Settings > Appearance > Keep advanced sections open`
+turned on, the same six render as inline rows in this section, in the same order
+at the same 32px pitch, and the panel is then allowed to scroll (D10, E4). Both
+states are legal and both still start closed.
+
+### 15.2 The same section, closed
+
+The state a reader arrives at. The chevron is the closed right-pointing form
+because the section is closed, not because it cannot open; the gear is not drawn,
+because the trailing slot belongs to the mark; and the mark is the layout name
+and its state, exactly as the layout chip already prints it. `Force directed -
+settled` is 11px dimmed and truncates with an ellipsis before it can push the
+name.
+
+```html
+<div style="display: flex; flex-direction: column;">
+  <div style="height: 1px; background: #495057;"></div>
+  <div title="Parameters. Force directed (ngraph) - settled" style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+    <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+      </div>
+      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Parameters</span>
+    </div>
+    <span style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px;">Force directed - settled</span>
+  </div>
+</div>
+```
+
+One row, 33px with its divider, and that is the whole cost of the section at
+rest. Open it and the mark goes, because the header above it already says
+`Force directed` and the three rows below say the rest (Rule 8); the gear takes
+the slot the mark had. Where the closed mark says something the rows do NOT --
+`Computing 3 of 7` while any statistic is still running, or a master On switch --
+it stays in the slot beside the gear.

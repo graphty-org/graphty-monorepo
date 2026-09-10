@@ -117,6 +117,37 @@
   duplicates to the Cleaning steps header overflow, the same two verbs DataPanelLoaded loses; 16 resident
   panel rows become 14. Legend: the compact form is now one subtraction from the reading legend rather than
   a third component; its two lines and its box are unchanged.
+
+  REVISION 1.9 (SECTIONS-1.9.md), and it re-founds this board's premise. Work-list item 5.14, Validation
+  report, plus D11's re-scoping: a board whose only premise was a door drawn open is not retired, it becomes
+  the drawing of the EXPANDED SECTION with its gear pop-out beside it. So THE PANEL and THE POP-OUT
+  paragraphs above are superseded on one point each and are kept as the record of 1.7. The panel's
+  Validation report is no longer a 32px stub with a permanently closed chevron: it is an expanded section --
+  open chevron, three amber issue rows one line each (severity glyph, the name with its count, that issue's
+  single primary verb), the green "8 mixed-form ids. Fixed by step 2" line, and a 24px gear in the trailing
+  slot drawn in the primary ink because a fourth amber type sits behind it. The 360 is no longer the report;
+  it is that gear's contents, and it is titled "Validation report detail". The state mark "4 types" is
+  deleted here and only here, because the rows repeat it the moment they are visible (D5, Rule 8) --
+  DataPanelLoaded keeps it, because there the section is closed, and the two boards therefore no longer draw
+  one section in two shapes. ImportAddToGraph and TableJoin already drew the live collapsed section and are
+  the target this board and DataPanelLoaded were brought to (5.8's board divergence, settled).
+  MOVED, not deleted, in both directions: the consequence sentences, the example ids with Show more, the
+  remaining verbs, the fourth amber type (2 self-loops) and the Info 3 group stay behind the gear; the green
+  fixed line leaves the pop-out for its resident row, so it is not drawn twice on one screen.
+  MEASURED after the edit, at the 256px band and against the 800px panel scroll region: the section is
+  1 + 32 + 4 x 28 + 8 = 153.00px, up from 33.00px, and the panel content stack is 586.00px of 800
+  (104 / 165 / 33 / 33 / 153 / 98). No overflow, 214px of headroom. The inspector is 477.00px and is
+  untouched. The pop-out's own body holds 407.00px of content in its 254.00px scroll region -- it scrolls
+  internally, which 6.11 requires of a capped pop-out, and it is 29px lighter than the 436.00px it held
+  before the green line moved out. The anchor arithmetic is unchanged and was re-measured rather than
+  assumed: the opener row is still [64,420 255x32], because the new rows are added BELOW the header; the
+  pop-out is still [336,164 360x288]; the shared edge line is still bottom-to-bottom, 452 on 452; the 6px
+  caret is still at top 264. What changed is only which control in that row is the opener -- the gear, not
+  the row.
+  NOT DONE HERE, and named so it is not read as an omission: 5.8 Schema. This board is one of the
+  twenty-one that draw the inspector Schema row as a permanent door, and Schema was not assigned to this
+  pass -- the row is untouched and still owes its resident type rows, its five-row cap and its 480 matrix
+  gear.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -426,39 +457,83 @@
               </div>
             </div>
 
-            <!-- SECTION Validation report (POP-3). The door, not the report: VOCAB 12 "The stub the
-                 pop-out leaves behind", copied verbatim and given the open-door fill. RT-8, and there is
-                 still no eleventh row type -- a pop-out is a surface, its rows are the same ten.
-                 The chevron is permanently in the closed right-pointing form and never renders the open
-                 form; the name stays primary because issues are open and dims only once all are fixed or
-                 ignored; the trailing slot carries the highest severity's glyph and the count, which is
-                 the door's state mark under 6.11. Measured: 33.00 px including the divider, against about
-                 282 px for the open section on DataPanelLoaded.
-                 THE COUNT'S UNIT, settled here and on DataPanelLoaded, which must say the same thing.
-                 This dataset has 4 issue TYPES holding 27 issue INSTANCES (14 + 6 + 5 + 2, the four open
-                 warnings in the pop-out below). The stub's 4 is the type count, because 5.3 Data says the
-                 report groups issues by type and the door reports the report's own state. The bare numeral
-                 the earlier draft drew, under a title reading "4 issues", asserted the wrong unit: it named
-                 27's unit over 4's value. So the numeral carries its unit in ink -- "4 types" -- and the
-                 title spells both counts in the status chip's exact words, "4 issue types, 27 issues"
-                 (5.1, VOCAB 1753). Ink and title now agree, and neither can be read as "four issues".
-                 The 27 in the title is not a second rendering of the status bar's fact: a title is the
-                 control's accessible description, not a region, and it is what makes 4's unit legible
-                 without opening the door. -->
+            <!-- SECTION Validation report, EXPANDED (SECTIONS-1.9 D1, D5 and 5.14; VOCAB 12's open
+                 snippet, copied). This is what this board is now for: the section that used to be a door
+                 drawn open, with the 360 pop-out beside it holding what the gear hides (D11).
+                 RT-8, and there is still no eleventh row type -- a pop-out is a surface, its rows are the
+                 same ten. The chevron is the OPEN down form. There is no permanently-closed form and no
+                 chevron over nothing: this one opens onto four rows.
+                 RESIDENT, one line each at 28px -- the severity glyph, the name with its count, and that
+                 issue's ONE primary verb: "No amount, 14 edges / Auto-fix", "Not dates, 6 opened values /
+                 Show rows", "Repeated pairs, 5 / Show rows", then the green "8 mixed-form ids. Fixed by
+                 step 2" for the warning cleaning step 2 already closed. Each row's title is its whole
+                 consequence sentence, so nothing on the floor is lost by shortening the line.
+                 BEHIND THE GEAR, in the pop-out drawn to the right: the per-card consequence sentences,
+                 the example ids with "Show more", the remaining verbs (Preview, Show rows, Change,
+                 Ignore), the fourth amber type (2 self-loops -- the one issue with no resident row), the
+                 collapsed Info 3 group and "Re-ran after step 2". The gear draws in the PRIMARY ink
+                 #d5d7da because a fourth amber type sits behind it, and its title names what the rows do
+                 not (14.1, A6): "Validation report detail. 1 more issue, 3 info, re-ran after step 2".
+                 THE MARK IS GONE, and that is D5 with Rule 8: "4 types" belongs to the CLOSED state, and
+                 the moment the rows are visible they repeat it, so the trailing slot goes to the gear.
+                 DataPanelLoaded still draws the mark, because there the section is closed. The count's
+                 unit is settled on that board and unchanged: 4 issue TYPES over 27 issue INSTANCES
+                 (14 + 6 + 5 + 2), which is why its ink reads "4 types" and never a bare 4. Neither
+                 number is lost by opening the section: the three resident rows print 14, 6 and 5 as
+                 their own counts, and the remaining 2 are what the gear's "1 more issue" names, so the
+                 aggregate that a closed header had to summarise is drawn instead of summarised.
+                 THE FULL-TEXT VERB. VOCAB 12 draws the resident verb as "Auto-fix"; the floor's
+                 "Auto-fix: set them to 1" is not deleted, it is two feet away in the pop-out card this
+                 row's gear opened, at 360 where floor 4 has the room for it.
+                 THE FILL. This header row keeps #28364e because its gear's pop-out is open (VOCAB 12: the
+                 gear's owning row is lit, so the pop-out is visibly the thing that row opened). The
+                 resident issue rows are deliberately NOT lit: the worked issue -- the one whose Show rows
+                 filtered the drawer -- is marked on its pop-out card and in the drawer, and a second fill
+                 directly under a lit header would read as one block rather than two states. That is the
+                 one adjustment to this board's 1.7 choice (3), and the two surfaces still agree.
+                 Measured at the 256px band: 1 + 32 + 4 x 28 + 8 = 153.00px, against the 33.00px this
+                 section cost as a door. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; border-radius: 4px; background: #28364e; cursor: pointer;" title="Validation report. 4 issue types, 27 issues">
-                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; border-radius: 4px; background: #28364e;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;" title="Collapse Validation report">
                   <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Validation report</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
-                  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #f7b731;">
+                <div title="Validation report detail. 1 more issue, 3 info, re-ran after step 2" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #d5d7da; cursor: pointer; box-sizing: border-box;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+                </div>
+              </div>
+
+              <div style="display: flex; flex-direction: column; padding-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 4px; height: 28px;" title="14 edges have no amount. Analyze uses weight 1. Median is 240.">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
                   </div>
-                  <span style="font-size: 11px; line-height: 1; color: #7a828e;">4 types</span>
+                  <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">No amount, 14 edges</span>
+                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Auto-fix</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px; height: 28px;" title="6 opened values are not dates. The time slider skips them.">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
+                  </div>
+                  <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Not dates, 6 opened values</span>
+                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Show rows</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px; height: 28px;" title="5 repeated pairs. 617 rows collapsed into 612 edges, weights summed.">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
+                  </div>
+                  <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Repeated pairs, 5</span>
+                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Show rows</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px; height: 28px;" title="8 mixed-form ids were made consistent by cleaning step 2.">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #61d095;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline></svg>
+                  </div>
+                  <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">8 mixed-form ids. Fixed by step 2</span>
                 </div>
               </div>
             </div>
@@ -961,7 +1036,22 @@
             </div>
           </div>
 
-          <!-- VALIDATION REPORT POP-OUT (POP-3, 6.11, tier 3a). VOCAB 12 "Pop-out container, anchored form",
+          <!-- VALIDATION REPORT DETAIL POP-OUT (6.11, tier 3a).
+               1.9, D1 and 5.14, WHICH CHANGE WHAT THIS SURFACE IS: it is no longer the Validation report.
+               The report is the section in the panel, expanded, with four resident rows; this 360 is what
+               that section's GEAR holds -- the report detail and its policy. So the header names the
+               surface it actually is, "Validation report detail", and the gear that opens it carries the
+               same words in its title with the stub obligation attached ("1 more issue, 3 info, re-ran
+               after step 2"). Its opener is that gear, on the section header row, which is the row that
+               was the door before: same row, same shared edge line, same caret, so every anchor number
+               below still holds and none of them is re-derived. What it holds, and why each thing is here
+               rather than on a resident row: the per-card consequence sentences (a 256px row cannot carry
+               "Analyze uses weight 1. Median is 240." without cutting it), the example ids with Show more
+               (floor 7 wants a scan surface, not an ellipsis), the remaining verbs, the FOURTH amber type
+               (2 self-loops -- the only issue with no resident row, which is what the gear's title reports
+               as "1 more issue"), and the collapsed Info 3 group. The green "Fixed by step 2" line left
+               this surface for its resident row (Rule 8).
+               VOCAB 12 "Pop-out container, anchored form",
                360 wide, panel background #1f2428 rather than the #2a3035 tooltip bubble, because it holds
                panel rows whose fields are #2a3035 and those fields would vanish on a #2a3035 ground.
                No scrim, no focus trap, one per region: the canvas keeps pointer and keyboard, the selection
@@ -981,7 +1071,10 @@
                full text -- RESIDENT, not hover-revealed, which is the one deliberate local override of RT-7's
                hover split, because at 360 there is room and floor 4 wants their words.
                The first block carries the selected fill because its Show rows is what filtered the drawer;
-               three surfaces -- the stub, this block and the drawer -- agree about which issue is being worked.
+               1.9 revises the count, not the mark: the surfaces that agree about which issue is being
+               worked are this block and the drawer, and the section header's own fill now says something
+               else -- that this pop-out is the thing its gear opened (VOCAB 12). The resident issue row is
+               left unlit so two adjacent fills do not read as one block.
                1.8, B1 and ANC-1, which supersede the two paragraphs above about clearing the toolbar: a
                transient surface never chooses its own position, it inherits one from its opener on both
                axes. The lane is right -- left edge shell 336, 8 px clear of the panel's 328 edge (VOCAB
@@ -1017,7 +1110,7 @@
               <div style="position: absolute; left: 3px; top: 1px; width: 10px; height: 10px; transform: rotate(45deg); background: #1f2428; border-left: 1px solid #48525c; border-bottom: 1px solid #48525c; box-sizing: border-box;"></div>
             </div>
             <div style="display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 4px 0 12px; flex: 0 0 auto; box-sizing: border-box;">
-              <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Validation report</span>
+              <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Validation report detail</span>
               <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Re-ran after step 2</span>
               <div style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Close (Esc)">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
@@ -1083,13 +1176,9 @@
                   <span style="font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Ignore</span>
                 </div>
               </div>
-              <div style="height: 1px; background: #495057;"></div>
-              <div style="display: flex; align-items: center; gap: 4px; height: 28px; padding: 0 8px;">
-                <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #61d095;">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline></svg>
-                </div>
-                <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #7a828e;">8 mixed-form ids. Fixed by step 2</span>
-              </div>
+              <!-- 1.9, Rule 8: the green "8 mixed-form ids. Fixed by step 2" line is DELETED from this
+                   surface, because 5.14 makes it a resident row of the section this gear belongs to and it
+                   is now visible on the same screen, 100px to the left. It is not lost, it moved out. -->
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; gap: 4px; height: 28px; padding: 0 8px; cursor: pointer;">
                 <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">

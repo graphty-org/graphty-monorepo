@@ -26,6 +26,19 @@
   no Insights strip, uniform node size, 20 labels so far.
   Inspector: the shortened loading reading, Counts drawn in its remembered-open state with Loading... rows.
   Rail fully enabled (6.1 Loading: rail as Loaded).
+  REVISION 1.9 (SECTIONS-1.9 D1, D4, D5, D6, D7; work list 5.8). The inspector's Schema section stops being a
+  permanent door and goes back to being a live collapsed section, so the chevron opens onto the node-type and
+  edge-type rows with their counts (capped at five with an "N more" row) plus Filter to type / Select all of
+  type, with per-type completeness and the 480 edges-by-type-pair matrix behind its gear. D4 leaves it CLOSED
+  here, so nothing is drawn that was not drawn before: this board is unchanged to the pixel, and its
+  "measuring..." mark is exactly the closed mark 5.8 specifies for a schema that has not finished computing.
+  MEASURED: the inspector holds 564px of rows in its 792px scroll region and the panel 257px of 792, both
+  unchanged by this pass. No overflow.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  The Schema row's title takes the mark verbatim, "Schema. measuring...", the way every other Schema title
+  in the set mirrors the mark it draws.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -3016,10 +3029,29 @@
                  numbers come from SchemaExtractor and are not always ready and a door must not hide the fact that
                  the data is not there; the existing dimmed "so far" says the same thing on the same row, and Rule 8
                  and Rule 9 forbid saying it twice. "measuring..." is the more precise of the two and wins; "so far"
-                 goes. Nothing is lost from the floor -- the load state is still named, resident, in words. -->
+                 goes. Nothing is lost from the floor -- the load state is still named, resident, in words.
+                 REVISION 1.9 (5.8, D1/D4/D5/D6/D7). POP-6's "keeps it permanently" is STRUCK: there is no
+                 permanently-closed chevron, and no section whose whole content lives behind a door. Schema is an
+                 ordinary live collapsed section again, which is how five boards in the set already drew it and
+                 which 5.8 makes the rule. NOT ONE PIXEL of this row changes -- the chevron is the closed form
+                 because the section is closed (D4), and the mark it carries is the one 5.8 names for exactly this
+                 state, "measuring..." while SchemaExtractor is still running, which on this board is the true
+                 state and the reason the counts are not printed.
+                 What the chevron opens onto, once the numbers land: the node-type rows with their counts -- on
+                 this dataset process 27,900, host 9,400, user 6,200, ip 4,500 -- and the edge-type rows with
+                 theirs, as short two-column tables capped at five with an "N more" row, plus the RT-7 verb row
+                 Filter to type / Select all of type. That is D6: of the readers who open Schema, the type names
+                 and their counts are what they came to read, so they are resident and not gear contents. Behind
+                 the gear go per-type completeness and the edges-by-type-pair MATRIX, which keeps its 480 under D7
+                 because a two-dimensional relationship cannot be drawn honestly in a 256px band; Export schema
+                 JSON stays in the trailing slot. So the four type rows this comment sent behind the door come
+                 back to the section, and only the matrix stays behind a gear -- which is D1's whole point: the
+                 gear is an addition to a section that draws content, never the section itself. The "-96px in this
+                 column" this comment claimed is therefore repaid when a reader opens the section, and not at rest
+                 (D4): closed, the section is still one 32px row on its 1px divider. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Schema. Measuring..." style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+              <div title="Schema. measuring..." style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
                   <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>

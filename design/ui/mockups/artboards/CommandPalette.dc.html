@@ -119,6 +119,27 @@
   The match highlight is now weight 600 instead of #5b8ff9. It was the only accent-coloured query match in the set, and on this
   screen the accent also draws the Insights strip's "Try it" links, the inspector's "More in Analyze" link, the chosen action
   and the focused row; with the match out of it, blue means the chosen thing and nothing else.
+
+  REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8). One section changes and no drawn pixel moves. The
+  inspector's Schema row stops being a permanent door and becomes an ordinary collapsed section: the chevron
+  opens IN PLACE onto the node-type and edge-type rows with their counts, capped at five with an "N more" row,
+  and the RT-7 verb row Filter to type / Select all of type, with only per-type completeness and the
+  edges-by-type-pair matrix left behind a gear that keeps its 480 (D7). Closed is the state this board draws,
+  so the header keeps its D5 mark "3 node types, 7 edge types" and its Export schema JSON verb exactly as
+  drawn.
+  The palette index paragraph above is unaffected and gains no row. E4's obligation is to index a hidden
+  destination by name; 1.9 changes what several of those destinations ARE -- a gear on an expanded section
+  rather than a section-shaped pop-out -- without changing that each is indexed by name, and this board's query
+  is "bridge", so none of them is drawn here.
+  Measured after the edit: the inspector's 800px content region uses 528px, 272px of headroom, and no clipped
+  region on this board overflows.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Schema is drawn CLOSED here, so its trailing slot belongs to its state mark alone and "Export schema
+  JSON" is deleted from this header. D5 gives a closed section's slot to its mark and an open one's to its
+  verbs and its gear; the set drew the verb on ten closed Schema headers and left it off fifteen. Main draws
+  the open form with the verb in the slot, so nothing became unreachable, and no row changes height.
 -->
 <div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -655,7 +676,21 @@
                  The door opens a 480 pop-out with node types and counts, edge types and counts, per-type
                  completeness and the type-pair matrix; before SchemaExtractor finishes, the mark reads
                  "measuring..." in its place, so the stub never hides the fact that the numbers are not there yet.
-                 Not drawn open here: the palette is this board's subject and POP-6's shell is drawn on Main. -->
+                 Not drawn open here: the palette is this board's subject.
+                 REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8). The permanent-door licence is WITHDRAWN
+                 and every sentence above that asserts it is struck -- there is no permanently-closed chevron, and
+                 a chevron that reveals nothing is a defect. This is an ordinary collapsed section. It is closed
+                 here because the section is closed, and it opens IN PLACE onto the node-type rows with their
+                 counts (cat 17, human 2, dog 1) and the edge-type rows with their counts, capped at five with an
+                 "N more" row, plus the RT-7 verb row Filter to type / Select all of type. What leaves is a gear
+                 on the open section holding per-type completeness and the edges-by-type-pair matrix, and that
+                 gear keeps the 480 (D7) because a two-dimensional table cannot be drawn honestly in the 256px
+                 band. 5.8 settles the board divergence toward the five boards that already draw the live
+                 collapsed section, and this row is already in that form, so no drawn pixel moves.
+                 The mark is now the D5 CLOSED-state mark rather than a door stub, and the 151-against-156
+                 arithmetic above still holds. It is deleted the moment the section is open and the type rows
+                 repeat it (Rule 8), and it still reads "measuring..." before SchemaExtractor finishes. Export
+                 schema JSON stays in the trailing slot. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Schema. 3 node types, 7 edge types" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
@@ -665,11 +700,6 @@
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Schema</span>
                   <span style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">3 node types, 7 edge types</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
-                  <div title="Export schema JSON" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
-                  </div>
                 </div>
               </div>
             </div>
@@ -812,7 +842,6 @@
           <span style="white-space: nowrap;">Run all node rankings</span>
           <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">All centralities</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;"></div>
       </div>
 
       <!-- Bridges, focused: two-line row with the remembered parameters. DEF-2: no cost word, and under 2 s no estimate at all.
@@ -844,7 +873,6 @@
           <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">Edge betweenness</span>
           <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
         </div>
-        <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;"></div>
       </div>
 
       <!-- Find a path: matched through its docs text; parameterized, so Enter opens its card in Analyze. F-35: its typeable
@@ -888,7 +916,6 @@
             <div style="display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: 3px; color: #a3a8b1; font-size: 11px; line-height: 1; cursor: pointer; box-sizing: border-box;">Show in table</div>
           </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;"></div>
       </div>
 
       <!-- file attribute, not the row the pointer or the keyboard is on: no action line, and an empty trailing cell (F-35) -->
@@ -898,7 +925,6 @@
           <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">flag</span>
           <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">true or false</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;"></div>
       </div>
 
       <!-- the cap: two of the four matching attributes are drawn here, so the last row carries the rest -->
@@ -919,7 +945,6 @@
           <span style="white-space: nowrap;">What is a <span style="font-weight: 600;">bridge</span>?</span>
           <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">Open docs</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;"></div>
       </div>
     </div>
 

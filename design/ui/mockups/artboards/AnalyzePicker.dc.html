@@ -50,6 +50,19 @@
   this screen replaces the panel content of. Analyze stays the active rail item and the top bar does not change: this
   is a takeover of one 280px column, not a new place.
 
+  Revision 1.9 (SECTIONS-1.9 D1, D4, D5, D6, D7; work list 5.8). One section on this board is touched, and it is in
+  the inspector: Schema stops being a permanent door and becomes an ordinary collapsed section. Nothing in the
+  drawing moves. That is D4 doing exactly what it promises -- a section's default open-or-closed state is unchanged,
+  Schema defaults CLOSED, and on a closed section the change is invisible: the chevron was already the closed
+  right-pointing form, and what is withdrawn is the sentence saying it could never take the open one. Opened, it
+  draws the node-type and edge-type rows with their counts capped at five plus an "N more" row, and Filter to type /
+  Select all of type, with the type-pair matrix and per-type completeness behind a 480 gear (D7).
+  The picker itself is untouched, and 6 of SECTIONS-1.9 says why in as many words: a picker is not a section with a
+  chevron, and D1 does not reach one. The "+ Analysis" catalogue keeps the panel-scale drill-down D3 gave it.
+  MEASURED: the panel body's picker content still runs y 76 to 841 -- 765px of the 800px region, so it still does
+  not scroll -- and the inspector body still runs y 76 to 531 in its own 800, because this pass added and removed no
+  row on this board.
+
   Why this board exists. Decision A moved the 26-method catalogue out of the Analyze panel's resting state and left it
   "one click behind + Analysis" -- a picker that had no artboard, so the panel pointed at nothing. This is that picker,
   and it is where the 3,060px of card list went.
@@ -1010,14 +1023,21 @@
               </div>
             </div>
 
-            <!-- SECTION: Schema, a POP-6 door (6.11, RT-8). The section is consulted rather than operated, so it never
-                 renders open: the chevron stays in its closed right-pointing form permanently and the trailing slot
-                 carries the one fact behind the door. The node type names (cat 17, human 2, dog 1), the seven edge
-                 type names, the per-type completeness (100%) and the three type pairs are in the 480 pop-out, which
-                 is drawn once, on Main; the three verbs -- Filter to type, Select all of type, Export schema JSON --
-                 travel with them as that pop-out's one RT-7 row, because a verb may not be separated from the list
-                 it acts on (6.10). Nothing here was deleted: 96 px of clipped, ellipsised type lists became a door
-                 that names its own contents. -->
+            <!-- SECTION: Schema, a live collapsed section (RT-8). REVISION 1.9, SECTIONS-1.9 5.8: the permanent door
+                 is withdrawn with every other one (D1). A chevron that reveals nothing is a defect, and the five
+                 boards that already drew Schema as an ordinary collapsed section are the target the other
+                 twenty-one -- this one among them -- move to.
+                 WHAT THE CHEVRON OPENS ONTO: the node-type rows with their counts (cat 17, human 2, dog 1) and the
+                 edge-type rows with their counts, as the short two-column tables Main already draws, capped at five
+                 with an "N more" row, plus the RT-7 verb row Filter to type / Select all of type. Of the readers who
+                 open Schema, the type names and their counts are what they came for (D6), and the verbs still travel
+                 with the list they act on (6.10).
+                 BEHIND THE GEAR, at 480 (D7): per-type completeness and the edges-by-type-pair matrix, the one part
+                 that cannot be drawn honestly in the 256px band because it is two-dimensional. Export schema JSON
+                 stays in the trailing slot.
+                 D4 keeps the section CLOSED at rest, so this board draws exactly what it drew before -- the closed
+                 chevron and the closed mark "3 node types, 7 edge types" (D5), which is deleted the moment the rows
+                 are drawn, because the rows say it. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Schema. 3 node types, 7 edge types" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">

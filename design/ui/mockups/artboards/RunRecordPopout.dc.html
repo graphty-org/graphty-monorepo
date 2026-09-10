@@ -141,6 +141,22 @@
   minimap and toolbar copied from ExplorerAfterCard; the inspector's Graph summary column from Main, with
   Main's Schema row returned to its unlit form because Main's Schema pop-out is not open here and no artboard
   may show two transients open at once.
+
+  REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8). One section, one measured pixel move. Schema stops
+  being a permanent door and becomes an ordinary collapsed section: the chevron opens IN PLACE onto the
+  node-type rows with their counts (cat 17, human 2, dog 1) and the edge-type rows with theirs, capped at five
+  with an "N more" row, plus the RT-7 verb row Filter to type / Select all of type. Only per-type completeness
+  and the edges-by-type-pair matrix stay behind a gear on the open section, which keeps the 480 (D7). It is
+  still drawn SHUT here, for the multiplicity reason the section's own comment gives and for no other: D4 opens
+  nothing that was closed.
+  The drawn change is uniformity. 5.8 settles the board-to-board divergence toward the five boards that already
+  draw this as a live collapsed section, and all five pack the mark immediately after the section name, so the
+  mark leaves this board's right edge and joins the name. Rule 7b is untouched -- every header on this column
+  still draws at REST, the trailing slot stays empty, and Export schema JSON is still one hover away -- and the
+  mark still reads in full: 16 chevron + 4 + 48 "Schema" + 4 leaves 184px inside the 256px band for 151px of
+  text, where the old right-aligned slot gave it 236.
+  Measured after the edit: the inspector's 800px content region uses 536px, 264px of headroom; the run-record
+  pop-out, the panel behind it and the canvas are untouched, and no clipped region on this board overflows.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -839,17 +855,35 @@
                  gives cat 17, human 2, dog 1, and interactionType gives exactly 7 edge types).
                   The reading, the counts, the degree
                  distribution and every id stay in the inspector column; what moves is a table that never had
-                 anywhere to render. -->
+                 anywhere to render.
+                 REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8). The permanent-door licence is WITHDRAWN
+                 and the POP-13b sentence above is struck: there is no permanently-closed chevron, and a chevron
+                 that reveals nothing is a defect. This is an ordinary collapsed section, drawn shut here for the
+                 multiplicity reason above and no other, and it opens IN PLACE onto the node-type rows with their
+                 counts (cat 17, human 2, dog 1) and the edge-type rows with their counts, capped at five with an
+                 "N more" row, plus the RT-7 verb row Filter to type / Select all of type. What leaves is a gear
+                 on the open section holding per-type completeness and the edges-by-type-pair matrix, and that
+                 gear keeps the 480 (D7) -- the table that never had anywhere to render is the MATRIX, not the
+                 section.
+                 One drawn change, and it is the uniformity 5.8 asks for. The mark leaves the right edge and
+                 packs immediately after the section name, which is how the five compliant boards draw the same
+                 closed header. Rule 7b is untouched: this column still draws every header at REST, so the
+                 trailing slot stays empty and Export schema JSON is still one hover, one Tab stop, the section
+                 overflow and a palette row away. Measured after the move: the leading group spends 16 chevron +
+                 4 + 48 "Schema" + 4, so the mark's 151px sits in the 184px the empty slot leaves free inside the
+                 256px band, and it still reads in full. The mark is the D5 CLOSED-state mark now, deleted the
+                 moment the section is open and the type rows repeat it (Rule 8). -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Schema. 3 node types, 7 edge types" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
-                <div style="display: flex; align-items: center; min-width: 0;">
+                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
                   <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
                   </div>
-                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap; padding-left: 4px;">Schema</span>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Schema</span>
+                  <span style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">3 node types, 7 edge types</span>
                 </div>
-                <span style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">3 node types, 7 edge types</span>
+                <div style="display: flex; gap: 4px; flex: 0 0 auto;"></div>
               </div>
             </div>
 

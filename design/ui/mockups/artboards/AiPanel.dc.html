@@ -27,6 +27,45 @@
   pin; the three run-record pop-outs lose theirs), B3 / VOCAB 14.2 (carets on the step pop-outs), C3 / C6 (the four
   group counts leave the canvas legend unconditionally; cap 334 -> 240), E4 (Provider, Console and Voice input join
   the palette index by both names).
+
+  REVISION 1.9 (SECTIONS-1.9 D1, D3, D4, D5, A6 as amended by VOCAB 14.1 and 15.2; work list 5.16 Provider and
+  5.17 Console). Both tier 2 rows stop being DOORS and become SECTIONS that expand in place: D1 withdraws the
+  licence for a section whose whole content lives behind a door, so there is no permanently-closed chevron any
+  more, only a chevron that is closed. NOTHING OPENS ON THIS BOARD. D4 freezes the resting state, both sections
+  are drawn closed here exactly as 1.8 drew them, and the whole of this revision therefore lands on the two
+  header rows and their marks. What changed is what is BEHIND the chevron: Provider now opens onto the RT-1
+  model field and the RT-5 Voice input switch, with the provider select, the API key and the Base URL / max
+  tokens / temperature trio behind its gear -- and that gear points at Settings > AI, which already files the
+  trio under an Advanced row in its provider accordion, so there is one destination and not a second copy
+  (5.16, Rule 9). Console opens onto the last two transcript lines and the one-line input with its completion
+  hint and Run script, with clear transcript, copy transcript, transcript length and the completion-hint toggle
+  behind its gear (5.17). AiPanelCompact draws both of those expanded; this board is the state a reader arrives
+  in.
+  TWO DRAWN CHANGES, both on the Provider header. (1) The green Connected dot is restored beside the model name
+  in the trailing slot. D5 keeps a mark that is the section's own state, and 5.16 says in as many words that the
+  status bar's "AI: Anthropic ready" is a different region's copy of a different fact, so 1.8's deletion of the
+  dot is overturned. Its deletion of the WORD "connected" is not: the dot carries the word in its title only.
+  (2) The chevron goes from the primary ink to the dimmed one. Under 14.1 as amended, a closed section draws no
+  gear and its chevron takes A6's two inks, reading on the GEAR's contents alone -- and Voice input, which was
+  1.8's whole justification for the primary ink here, is now a resident row of this section rather than
+  something behind a door. Nothing behind the Provider gear deviates: Anthropic is the default provider, the
+  saved key is reported resident by the dot beside the mark, and the trio sits at its shipped values.
+  Console is unchanged in pixels, which is the honest result rather than a skipped item: its closed mark is
+  already 5.17's -- the count "3 commands" after the name, the Coming tag in the trailing slot -- and its
+  chevron is already dimmed, which is what "nothing behind the gear deviates" now means for console preferences.
+  MEASURED. The column is untouched -- 84 + 672 + 6 + 33 + 6 + 33 + 6 + 24 = 864 -- because no section opened
+  and no row was added, so no region overflows and the panel still does not scroll. The Provider header row
+  grows by the 6 px dot and its 6 px gap: rendered and measured, its two groups are 69.4 px and 101 px, so the
+  row uses 170.4 px of the 255 px band against 158.4 px before, and 1.8's comment reached 165 for the same row
+  by counting the minimum 8 px gap between the groups. Voice input is named in full in the switch's own title
+  behind the closed chevron and in the palette index by both names (E4), and it is drawn on AiPanelCompact.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Console's header is re-ordered to the set's one arrangement: the Coming tag rides with the NAME and the
+  state mark "3 commands" takes the TRAILING SLOT, which is where D5 puts a closed section's mark and where
+  Policies and Neighborhood expansion already put theirs. AiPanelCompact takes the same edit in its open
+  state. Nothing else moves and the row keeps its height.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -195,7 +234,13 @@
                Groups and of Bridges in this surface (Decision B); the node ids; the model string, which is now
                the Provider stub's trailing fact; "Listening..." as resident state of a live microphone.
                "Run script" and "Voice input" are named in full behind their doors and in the palette index by
-               both names (E4); neither capability's plain name is deleted, only relocated. -->
+               both names (E4); neither capability's plain name is deleted, only relocated.
+               REVISION 1.9: the row-type line above is corrected in one word. The Provider and Console rows are
+               RT-8 SECTION HEADERS drawn in their CLOSED state, not doors -- there is no permanently-closed
+               chevron in the set any more (D1) -- and each carries a state mark in its trailing slot because it
+               is closed, not because it can never open (D5). Resident row count is unchanged at 9, because D4
+               opens nothing here; the four rows the two chevrons now hide (model, Voice input, the transcript
+               tail, the console input) are drawn on AiPanelCompact and cost this board nothing at rest. -->
           <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px 8px 12px 16px; overflow: hidden; box-sizing: border-box;">
 
             <!-- Tier 1: message history. Anchored to the TOP of its space (justify-content: flex-start), reversing
@@ -376,17 +421,43 @@
                  could take the switch into its trailing slot -- is RETIRED with the row it defended, not reworded:
                  the switch no longer competes for a trailing slot in a 255px band.
                  The header gear above is not a second door on the same thing: it opens Settings > AI, which is
-                 tier 3, and this door opens tier 2. Two destinations. -->
+                 tier 3, and this door opens tier 2. Two destinations.
+                 REVISION 1.9 (5.16). THIS IS A SECTION, CLOSED -- not a door. D1 withdraws the licence for a
+                 section that is only a door, so the chevron above is the closed form because the section is
+                 closed, and it opens IN PLACE onto two resident rows: the RT-1 model field reading
+                 "claude-sonnet-5", and the RT-5 Voice input switch with its full title, "Voice input. Also used
+                 for push-to-talk in VR and AR." Both are drawn on AiPanelCompact, which draws this section
+                 expanded. Behind the section's gear, which is an ADDITION to those rows and not the section:
+                 the provider select, the API key, and the Base URL / max tokens / temperature trio. THE GEAR
+                 HAS ONE DESTINATION -- Settings > AI, whose provider accordion already files the trio under an
+                 Advanced row -- so the trio does not acquire a second home in the panel (Rule 9). Note for the
+                 panel's owner, outside this work list: that makes the section gear and the panel title row's
+                 Settings gear two routes to one pane, which 1.8 defended as "two destinations" and 1.9 no
+                 longer can; one of the two is now redundant and the panel header row is not this pass's to cut.
+                 TWO EDITS ON THIS ROW. The mark gains the green Connected dot in front of "claude-sonnet-5":
+                 D5 keeps a mark that is the section's own state, and 5.16 overturns 1.8's Rule 8 deletion of it
+                 because the status bar's "AI: Anthropic ready" is a different region's copy of a different
+                 fact. The word "connected" stays deleted and rides in the dot's title. And the chevron drops
+                 from the primary ink to the dimmed one: 14.1 as amended reads the two inks on the GEAR's
+                 contents, and Voice input -- 1.8's reason for the primary ink -- is a resident row of this
+                 section now, not something behind a door. Nothing behind the gear deviates.
+                 Measured in the browser at 1440 by 900: the name group (16 px chevron holder + 4 + the 49.4 px
+                 name) is 69.4 px and the mark group (a 6 px dot, a 6 px gap and the 89 px model name) is 101 px,
+                 so the row uses 170.4 px of the 255 px band and ends at x 320 -- 12 px more than the same row
+                 without the dot, and 84.6 px of clear space between the two groups. -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Provider. Anthropic, claude-sonnet-5. Voice input is on" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
+              <div title="Provider. Anthropic, claude-sonnet-5, connected. Voice input is on" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #d5d7da;">
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Provider</span>
                 </div>
-                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">claude-sonnet-5</span>
+                <div style="display: flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0;">
+                  <div title="Connected" style="width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: #61d095;"></div>
+                  <span style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">claude-sonnet-5</span>
+                </div>
               </div>
             </div>
 
@@ -424,7 +495,20 @@
                  one 32px row exactly as the Styles header does: name, active style, then the tag on the right.
                  BEHIND THE DOOR: the transcript, the one-line input with its completion hint and Run script, in a
                  280 pop-out in the panel lane at left 336, 8px clear of the panel's 328 boundary (B2), anchored
-                 top-to-top on this row. -->
+                 top-to-top on this row.
+                 REVISION 1.9 (5.17). THIS IS A SECTION, CLOSED. The pop-out named above is withdrawn: under D1
+                 the console's contents come inline as the section's resident rows -- the last two transcript
+                 lines and the one-line input with its completion hint and Run script -- and only console
+                 preferences (clear transcript, copy transcript, transcript length, the completion-hint toggle)
+                 sit behind the section's gear. AiPanelCompact draws that expanded form and its comment carries
+                 the withdrawn pop-out's anchor arithmetic as the measured record of what 1.9 removes.
+                 NOTHING ON THIS ROW MOVES. Its closed mark is already the one 5.17 specifies -- the count
+                 "3 commands" at 11 px after the name, and the Coming tag in the trailing slot while the
+                 capability is unshipped -- and its chevron is already dimmed, which is now read on the console
+                 preferences behind the gear rather than on a door with nothing behind it. The pin stays with
+                 the section (E2's closed set of four) and Shift+backtick still opens and focuses it, so the
+                 keyboard obligation is still met by a binding that exists; the pin is drawn on the expanded
+                 form, where there is a trailing slot to draw it in. -->
             <div style="display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Console. 3 commands run in this session" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
@@ -433,9 +517,9 @@
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Console</span>
-                  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">3 commands</span>
+                  <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
                 </div>
-                <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
+                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">3 commands</span>
               </div>
             </div>
 

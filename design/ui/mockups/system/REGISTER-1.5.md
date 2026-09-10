@@ -160,6 +160,68 @@ VOCAB 10 names paste, eye-off, lock, unlock and tag as additions to section 5;
 only lock is drawn anywhere, so only lock is registered above. The other four
 stay text until a path is added to this table.
 
+### 1.7 Field glyphs (an in-field label, not a verb)
+
+Appended by section 17, which carries the argument. These are the glyphs
+COMPACTION-1.6 Rule 3 puts in a field's 16px slot in place of a label line, and
+VOCAB section 11 draws them under the field atom. VOCAB has called them
+"additions to the closed register [that] must be copied from `REGISTER-1.5.md`
+once appended there" since 1.6; they were never appended, so until this table
+existed every field in the set failed Rule 4's first test on a missing copy
+rather than on merit. Nothing outside this table may be drawn in a field slot.
+
+A field glyph is not a verb, so section 1's rule reads here as **one concept,
+one drawing, one word**. The word is the field's own `title` -- the label the
+glyph replaced -- and where the field shows the value as well, the title is
+`<word>: <value>`, the form `Size by attribute: Age (ageYears)` and
+`Window size: 30 days` already carry. The wrapper is section 1's 14px wrapper
+unchanged, drawn inside a 16px slot at `#7a828e`; the slot is the scrub handle,
+`cursor: ew-resize`, which is what Rule 4's second test asks of a field. A
+concept with no entry keeps its word, in the field, as its own scrub handle --
+the `Granularity` form, VOCAB 12 -- and never gets an approximate drawing.
+
+| Slot label | 14px stroke glyph (inner SVG) | Title |
+|---|---|---|
+| size, smallest | `<circle cx="5" cy="11" r="2.5"></circle><circle cx="10.5" cy="6.5" r="4"></circle>` | `Smallest node size` |
+| size, largest | `<circle cx="4.5" cy="11.5" r="1.75"></circle><circle cx="10" cy="6" r="5"></circle>` | `Largest node size` |
+| width (any extent) | `<line x1="2.5" y1="8" x2="13.5" y2="8"></line><polyline points="5,5.5 2.5,8 5,10.5"></polyline><polyline points="11,5.5 13.5,8 11,10.5"></polyline>` | the extent it measures, never a bare `Width`: `Outline width` (StyleLibrary, StylePanel), `Window size` (TimeSlider), `Edge length` (VOCAB 15.1). Section 17.3 |
+| opacity | `<circle cx="8" cy="8" r="5.5"></circle><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor" stroke="none"></path>` | `Opacity`, plus the object where the field does not sit on it (`Node opacity`, `Edge opacity`). Where an RT-2 box holds the swatch and the number together the box carries `Node color and opacity`, which is the compound's title and not this glyph's |
+| attribute binding | `<path d="M2.5 7.2V3.5a1 1 0 0 1 1-1h3.7l6.3 6.3-4.7 4.7z"></path><circle cx="5.5" cy="5.5" r="0.75"></circle>` | the property it binds: `Size by attribute`, `Color by attribute`, `Outline by attribute`, `Edge weight attribute`. Bound, it appends the attribute: `Size by attribute: Age (ageYears)` |
+| scale, square root | `<path d="M2.5 13.5C4.5 5 8 2.5 13.5 2.5"></path>` | `Square root scale` |
+| scale, linear | `<line x1="2.5" y1="13.5" x2="13.5" y2="2.5"></line>` | `Linear scale`; in a field whose value names the transform, the field form `Scale: linear` (RampPopout) |
+| scale, log | `<path d="M2.5 13.5C8 13.5 11.5 11 13.5 2.5"></path>` | `Log scale`, or the named transform where the ramp draws one (`-log10 scale`, StyleDiverging) |
+| colour | no SVG: the 14px swatch is the glyph | the thing it paints, in the drawn forms `Node color`, `Outline color`, `Canvas background color`, `Selected stop color`, `Missing value color`; bound, it appends the reading (`Node color: Groups (communities, Louvain), 4 groups`) |
+| pull to centre | `<circle cx="8" cy="8" r="1.5"></circle><polyline points="6,3 8,5 10,3"></polyline><polyline points="6,13 8,11 10,13"></polyline><polyline points="3,6 5,8 3,10"></polyline><polyline points="13,6 11,8 13,10"></polyline>` | `Pull to center`; with the value, `Pull to center: -1.2`. Section 17.4 |
+
+The three scale curves have a second home, and one title rule covers both. In a
+field slot the field is the scale select and the title takes the field form
+(`Scale: linear`). In an RT-4 trailing slot the glyph is a button that opens the
+RT-3 group of three, and the title is the scale's name, which is also which of
+the three is drawn (`Square root scale`, `-log10 scale`). Where that same
+trailing slot is the ramp's **door** rather than its scale control, 14.1's door
+form governs instead and the title is `Ramp options. <state>` -- StylePanel's
+`Ramp options. Square root scale` and StyleDiverging's
+`Ramp options. 3 options changed` are one form, not two.
+
+Three state rules ride with the table, and no others:
+
+- **Bound to an attribute.** The binding glyph is drawn filled and the value is
+  an attribute chip (Rule 6). The filled form is
+  `<path d="M2.5 7.2V3.5a1 1 0 0 1 1-1h3.7l6.3 6.3-4.7 4.7z" fill="currentColor" stroke="none"></path><circle cx="5.5" cy="5.5" r="0.75" fill="#2a3035" stroke="none"></circle>`.
+  Its knockout circle carries the field background `#2a3035` literally rather
+  than `currentColor`, so a filled binding glyph drawn on any other ground is
+  wrong.
+- **Set earlier but not in effect**: a 4px `#4a7ee8` square in the slot's
+  lower-left corner. **Placeholder**: value ink `#5f6873`. Neither touches the
+  glyph.
+- **Rule 11's labels preference on**: the word returns beside the field and the
+  glyph stays in the slot. A pair degrades to two singles; the glyph is never
+  deleted to make room for its own word.
+
+The closed set of letters VOCAB 11 admits in a slot in place of a glyph -- `N`
+nodes, `E` edges, `W` weight, `D` depth, `K` k, at 11px `#7a828e` -- is type,
+not a drawing, and is not registered here. It is unchanged.
+
 ## 2. Status bar layout chip
 
 One visible string, one tooltip, on all 30 artboards that draw the chip (SettingsPerformance documents it in a comment only).
@@ -1032,3 +1094,249 @@ The other three verbs this row can draw were already registered and are
 unchanged: `Copy reading` (1.2 copy, 10.1), `Pin as A` (1.2 pin, 10.2) and
 `Close (Esc)` (1.1 close). The row's full inventory, order and state gates live
 in INSPECTOR-TITLE-1.9.md.
+
+## 17. The field glyphs enter the register (VOCAB 11 and 15.1)
+
+VOCAB section 11 has said since the 1.6 compaction that its field glyphs "are
+additions to the closed register and must be copied from `REGISTER-1.5.md` once
+appended there". They were never appended. VOCAB 15.1 then drew one more -- four
+chevrons pointing inward at a centre dot, for the layout `Parameters` block's
+`Pull to center` field -- and declared it owed on the same terms rather than
+adding it. This section pays all of it. Section 1.7 above is the table; what
+follows is why each row is admitted, which is the argument the rest of section 1
+runs on.
+
+Section 1.1 to 1.6 are unchanged. No verb gains a glyph here, no verb loses one,
+no title in sections 1 to 16 changes, and no artboard is changed by this section.
+
+### 17.1 What was missing: the whole table, and one drawing VOCAB does not list
+
+Checked against this file before the append: **none of the eight rows in VOCAB
+section 11's field-glyph table was in the register.** Not one of the eight paths
+appears anywhere in this document, and the words "field glyph" appeared nowhere
+in it either. The debt was never the one new glyph. It was the whole table,
+three revisions old, and with it Rule 4's first test, which had been circular
+since 1.6: a field glyph is legal only if it is in `REGISTER-1.5.md`, and none
+of them was.
+
+A ninth drawing came out of the check. VOCAB's table has eight rows -- size
+smallest, width, opacity, attribute binding, the three scale curves, colour --
+but its own RT-1 pair snippet draws a **second size glyph** for the
+`Largest node size` field,
+`<circle cx="4.5" cy="11.5" r="1.75"></circle><circle cx="10" cy="6" r="5"></circle>`,
+which is in no row. It is drawn, it is distinct from the smallest form in both
+circles, and a table that omits a drawing it uses in its own worked example is
+not the closed list it claims to be. It is registered above as `size, largest`,
+and VOCAB section 11's table should gain the row.
+
+What the set draws today. Counts are per board rather than as a fraction of the
+set, because `design/ui/mockups/artboards` now holds 62 `.dc.html` files against
+section 11's stated 48:
+
+| Entry | Drawn on |
+|---|---|
+| attribute binding | 17 fields over 6 boards: StyleLibrary 6, StylePanel 5, StyleDiverging 2, RampPopout 2, StyleFromAnalysis 1, TimeSlider 1 |
+| width | 3 fields over 3 boards: `Outline width` on StyleLibrary and StylePanel, `Window size: 30 days` on TimeSlider |
+| scale, square root | 2: StyleLibrary, StylePanel |
+| scale, linear | 1: RampPopout, `Scale: linear` |
+| scale, log | 1: StyleDiverging, `-log10 scale` |
+| colour | the swatch, across the Style boards |
+| size smallest, size largest, opacity | nowhere yet. VOCAB draws all three, and 15.1's grid needs them the moment a Size or an Effects section is drawn open |
+| pull to centre | nowhere yet. VOCAB 15.1 is its first drawing |
+
+Being undrawn is not a bar. Section 1.3 registered `Merge selected nodes...`
+before any board drew it, for the reason this register exists: so that the first
+board to draw a thing copies it instead of inventing it.
+
+### 17.2 Why they are admitted: Rule 4, both tests, one row at a time
+
+COMPACTION-1.6 Rule 4 admits an in-field glyph only if **both** hold: (i) the
+glyph is in this file, and (ii) the control is draggable, a field whose glyph
+scrubs, or a verb, a button whose title names it. Test (i) is what this section
+supplies, and it supplies nothing else -- a glyph is not admitted here because
+it is already drawn somewhere. Test (ii) holds for every row: a field slot
+scrubs at `cursor: ew-resize`, and the two rows that can sit in an RT-4 trailing
+slot rather than a field, the scale curves, are buttons that open the RT-3 group
+of three and carry their own title.
+
+Rule 4's veto is the half that decides the table: "A concept ... never becomes a
+glyph, because an arbitrary symbol is learnable only by someone who already
+knows the concept." VOCAB spends that veto on granularity, resolution, damping
+and tolerance, and keeps all four as words. Every row admitted above draws what
+the value **does to the picture**, not what the value is called:
+
+- **size, smallest** and **size, largest** -- two circles, the small one lit in
+  the first and the large one in the second. A reader sees which end of the
+  range the field sets.
+- **width** -- a span between two arrowheads. It is an extent, and it is the one
+  row that serves more than one word (17.3).
+- **opacity** -- a circle with half its ink gone, which is what the number does
+  to the thing.
+- **attribute binding** -- a tag. It is the only row that draws a mechanism
+  rather than an effect, and it earns that because it is the drawing the whole
+  `Fixed | By attribute` segmented control collapsed into under Rule 6: hollow
+  is a literal, filled is data, and the two states are read against each other
+  on the same board, five times over on StylePanel.
+- **the three scale curves** -- the transform's own shape, drawn. A reader who
+  does not know the words "square root" still sees one curve bend early, one run
+  straight and one bend late.
+- **colour** -- the swatch is the value. There is no symbol to learn.
+
+None of these is a concept in the sense the veto means. Betweenness has no
+picture, and neither has damping; a half-filled circle is a picture of half.
+
+The weakest drawing in the table is **scale, linear**, a bare diagonal line and
+the least distinctive mark in this register. It is admitted because it is never
+read alone -- it is one of three curves in an RT-3 group, or the slot glyph of a
+field whose value reads `linear` -- and because retiring it would leave the other
+two curves with no third member to be read against. The collision it does have
+is 17.5 B, and it is not with another field glyph.
+
+### 17.3 The one reuse: `width` is every extent
+
+Section 8 is the closed list of glyphs serving more than one **verb**, and it is
+unchanged: nothing in 1.7 is a verb, so nothing in 1.7 enters it. The
+field-glyph analogue is one row, and this is it.
+
+The width glyph serves three slot labels: `Outline width` on StyleLibrary and
+StylePanel, `Window size` on TimeSlider, and `Edge length` from VOCAB 15.1. That
+is section 8's condition, met the same way it is met there. The drawing means
+one thing -- an extent between two ends -- and the three never share a row: an
+outline width sits in a Style effects field, a window size sits on the time
+slider, an edge length sits in the layout `Parameters` block. Each field's title
+carries the extent's own word, and no title is a bare `Width`. VOCAB 15.1
+licenses the third use in exactly these terms and cites the second as its
+precedent.
+
+The attribute-binding glyph looks like a second reuse and is not one. It says
+one thing -- this property is bound to an attribute -- and the title names which
+property: `Size by attribute`, `Color by attribute`, `Outline by attribute`,
+`Edge weight attribute`. A property name is the object of one concept, not a
+second concept, the same way `Delete layer` and `Delete set` are one verb in
+section 1.2.
+
+### 17.4 `Pull to center` is admitted, and here is what it is not
+
+The new row. VOCAB 15.1 draws it in the layout `Parameters` block, in the left
+half of an RT-1 pair, on the `gravity` parameter whose plain name VOCAB section 9
+fixes as `Pull to center`.
+
+**Why a glyph at all: the word does not fit.** The half-field is 108px. After
+the 16px slot, 8px of padding at each edge and the 4px gap, 76px of text room is
+left, and `Pull to center` plus its value is 98px -- StylePanel's own R2-M27 note
+measures it. The alternatives are all worse. Abbreviating repeats the mistake
+11.1 named, where an abbreviation "bought nothing and cost the set one string per
+board". Giving the row the full 224px body span spends a whole 32px row on a
+parameter sitting at its shipped default. Dropping the row breaks D3, which is
+the decision that put these three rows back on the panel. So the field is 108px,
+and a 108px field labels itself with a glyph or not at all.
+
+**Rule 4, both tests.** (i) is satisfied by section 1.7 above and by nothing
+else -- this entry is what makes every board that draws the field legal. (ii)
+holds on the first of its two branches: `gravity` is a continuous number, the
+field is draggable, and the slot is the scrub handle at `cursor: ew-resize`,
+which is the case Rule 4 names first. The glyph is not a verb and nothing
+happens when it is clicked, so the second branch is not needed and is not
+claimed.
+
+**The veto does not reach it.** Pull to center is a spatial relation, not a
+rate: every node moves toward one point. Four chevrons whose apexes point at a
+centre dot is a picture of that motion, which is exactly why it is admissible
+where `Damping` and `Granularity` are not -- a rate has no picture, and VOCAB
+keeps damping a word two rows away, behind the same gear.
+
+**What it must not be confused with.** Three drawings in this register put marks
+around a centre, and the new one is none of them:
+
+- **`locate` (1.2)**,
+  `<circle cx="8" cy="8" r="4.5"></circle><circle cx="8" cy="8" r="1.5"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2"></path>`.
+  A crosshair: an **outer ring** around the dot, and four **straight ticks**
+  standing outside that ring, pointing nowhere. It says "here is the thing, on
+  the canvas". The new glyph has no ring at all, and its four marks are chevrons
+  aimed at the dot. Ring or no ring is the tell and it survives 14px.
+- **`zoom to fit` (1.1)**, four corner brackets on the **diagonals**, opening
+  **outward**, with no centre dot. It says "make the frame hold everything" --
+  the opposite motion, drawn in the opposite direction, with nothing in the
+  middle.
+- **`zoom to selection` (1.1)**, those same four corner brackets plus
+  `<circle cx="8" cy="8" r="2"></circle>`. This is the closest thing in the
+  register, because it too is four marks arranged around a centre. Two facts
+  separate them: a bracket is a right angle sitting on a diagonal and opening
+  away from the centre, a chevron is a V sitting on an orthogonal axis and
+  closing on the centre; and the circle there is a hollow r=2 that reads as the
+  selection, against an r=1.5 dot that reads as the point being pulled to.
+
+Home settles whatever the drawing leaves. All three of those are verbs: a click
+moves the camera or the selection, and each is drawn as an icon button in the
+top bar or the canvas toolbar, never inside a field. The new glyph is only ever
+drawn in a 16px field slot with its number beside it in the same 108px box, at
+`cursor: ew-resize`, and it does nothing when clicked. That is section 8's own
+test -- position and neighbours tell them apart -- satisfied without being
+needed, since these are four different drawings rather than one reused.
+
+One more adjacency, because 15.1 draws it. The **settings gear** sits 32px
+above this field, in the same section's header, and it is also a dot inside
+marks arranged radially. The gear is two concentric rings with eight straight
+spokes; the new glyph has no ring, four marks, and they are chevrons. The pair
+is legible as drawn, but a drafter who shortens the chevrons toward the dot
+drifts toward the gear, so the four polylines keep VOCAB 15.1's coordinates
+verbatim and are not "tidied".
+
+**The title.** `Pull to center`, and where the field shows the number too, as it
+does in 15.1, `Pull to center: -1.2`. Not `Gravity`, and not
+`Pull to center (gravity)`: the field atom's rule is a title equal to **the word
+the glyph replaced**, and the word the field would otherwise have carried is the
+plain half. VOCAB section 9 makes `gravity` the technical half of that pair, and
+where the pair is wanted it rides on the row or the section that has room for it,
+under 6.3 -- whose open case question is 11.4 B and is not touched here.
+
+### 17.5 Three findings the check turned up, and none is settled here
+
+Recorded so the next pass does not rediscover them. Nothing below is admitted
+above, and nothing below changes a board.
+
+**A. The spelling is `center`, and VOCAB 15.1 writes `centre` inside a drawn
+string.** VOCAB section 9's plain/technical table -- the naming authority for
+this parameter -- reads `Pull to center | gravity`, and every other citation
+follows it: SHELL-DELTAS-1.3 S5, ARTBOARD-CHANGES-1.5, three times in
+ARTBOARD-CHANGES-1.8, and nine artboard comments -- five on StylePanel, three on
+StyleLibrary, one on StyleFromAnalysis. The set's convention is sharper than a
+majority. Drafting prose is British and drawn strings are American: `colour`
+appears 130 times in the artboards and **all 130 are inside HTML comments, none
+outside one**, while `color` appears in 21 drawn `title` attributes. `Pull to
+centre` is that same British form, but in VOCAB 15.1 it sits inside a `title`
+attribute, which makes it a drawn string in the wrong dialect. Two residuals, both in files this
+register does not own:
+
+- `VOCAB.md` section 15.1: the snippet's `title="Pull to centre: -1.2"`, and the
+  two prose mentions above it, should read `center`.
+- `SECTIONS-1.9.md` section 5.1: `**Pull to centre -1.2**` in the Resident line.
+
+Section 1.7 carries `Pull to center`. A board that draws `centre` is drifted, and
+none does yet.
+
+**B. `Unpin all` draws a glyph that has no register entry, and the linear scale
+is one of its strokes.** Checking the linear curve turned up
+`<path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line><line x1="2.5" y1="13.5" x2="13.5" y2="2.5"></line>`
+on StylePanel, StyleLibrary, StyleDiverging, StyleFromAnalysis and RampPopout,
+titled `Unpin all`: the register pushpin with a strike through it. Section 1.2
+lists `Unpin all` among the pushpin's titles, which says the drawing is the plain
+pushpin, and five boards draw a struck one instead. That is one verb with two
+drawings, the defect section 16 closed for the inspector title row's caret, and
+it wants the same treatment -- register the struck pin or correct the five
+boards. It also means the strike is the `scale, linear` glyph stroke for stroke,
+so StylePanel and StyleLibrary each draw that line twice in two unrelated senses.
+Neither use is wrong on its own, one being a whole glyph and the other one stroke
+of a compound, but whoever moves either should know about the other.
+
+**C. ExplorerExpert's size wedge is a third two-circle drawing.** ExplorerExpert
+draws `<circle cx="4" cy="11.5" r="1.5"></circle><circle cx="10.5" cy="6.5" r="4"></circle>`
+at 14px in an RT-7 left slot, titled
+`Node size: Bridges, 0 to 0.41, square root scale`, directly under a comment
+reading "Every glyph carries its register title". It matches neither registered
+size form: the small circle is a third radius at a third position. Either it is
+`size, smallest` mis-drawn, in which case the board copies 1.7's path, or it is a
+fourth concept -- the size **channel**, rather than the smallest or the largest
+value on it -- in which case it needs its own row and its own argument. It is not
+settled here because the answer changes the title as well as the path, and this
+section's remit is the field-glyph debt.

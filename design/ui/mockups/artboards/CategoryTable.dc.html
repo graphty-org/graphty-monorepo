@@ -75,6 +75,30 @@
   none of them moved.
   Palette index (E4 measure 1): Categories table, Run record, Group profile. Each one click from the row or
   chip that owns it.
+
+  REVISION 1.9 (SECTIONS-1.9). One work-list item, 5.11 Categories, and it re-scopes this board under D11.
+  D1 withdraws the licence for a section that is only a door, so the Categories chevron now opens in place and
+  the 360 pop-out it used to be is DELETED, caret and all. D7 is why nothing replaces it at 360: the record
+  names exactly two artefacts in the set that keep a wide pop-out -- the schema matrix and the sweep's NMI
+  agreement block -- and says of this one that a four-column table reduces honestly. D11 says where the full
+  table lives now: the Data table drawer.
+  RESIDENT: the top three categories by adjusted p as two-column rows -- DNA damage response 2.1e-9, p53
+  signaling pathway 8.4e-8, Intrinsic apoptosis 3.0e-6 -- with source and the member count demoted into each
+  row's own title where they already were, under a "category | adjusted p" caption, plus the footer that opens
+  the full table. BEHIND THE GEAR: the table's parameters, which the pinned More menu already enumerates in
+  full text -- which adjusted p column, which members column, sort by members, the Jaccard 0.5 redundancy
+  threshold, the source filter and Export categories (CSV). The gear is dimmed because every one is at its
+  default (A6). The "41 rows" mark is deleted while the rows are drawn, because the footer says it (D5,
+  Rule 8), and the #28364e opener fill and the ". Open" clause in the row's title go with the pop-out.
+  ONE DEVIATION FROM THE WORK LIST, DECLARED. 5.11 quotes the existing footer string "6 of 41 rows". Six was
+  what the pop-out drew; three rows are resident here, and floor 2's subset-drawn clause -- the clause that put
+  that footer on the board -- makes the count report what is on screen, so it reads "3 of 41 rows". Drawing six
+  would contradict 5.11's own "top three" and the four-rows-when-open budget in section 7's table.
+  MEASURED after 1.9, in the DOM at 1440x900: the Categories section is 165px (1px divider, 32px header, 124px
+  of rows, 8px pad) where the door row was 33px. The inspector's rows go 375px -> 507px and the flexible spacer
+  above the pinned action block absorbs all 132 of it, 375px -> 243px, so the column still measures 750px in
+  its 800px region: NO OVERFLOW, and the action block stays pinned to the bottom edge. Analyze panel content
+  289px in its 727px region, unchanged. Canvas, legend, minimap, toolbar and status bar untouched.
 -->
 <div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -974,7 +998,9 @@
                block, so the cut removes nothing here and a later pass need not look for it.
                C6, THE CAP. max-height is 240, not 334. Measured after the two cuts this legend is still 201,
                because the row count did not change, so it sits 39px under the cap with its top edge at y 663
-               and nothing on screen moves. The Categories pop-out's bottom is 560, 103px clear of it.
+                and nothing on screen moves. There is no Categories pop-out to clear any more (REVISION 1.9):
+                that surface is gone and the section is drawn expanded in the inspector, so this legend's only
+                neighbours are the toolbar and the minimap.
                TWO OBLIGATIONS (6.10 item 5, as split by DECISIONS-1.8 C2). EXPORT, ABSOLUTE: every exported image
                carries a legend composed from the encoding model -- every channel with its word, attribute, endpoints,
                median or midpoint and scale; twelve categories with counts and the coverage footer; every departure
@@ -1196,42 +1222,75 @@
               </div>
             </div>
 
-            <!-- The four-column table left this 256px band for a 360 pop-out (6.11), which is drawn open to
-                 the left of this inspector. The arithmetic is the whole reason. Once the source column is wide
-                 enough for "Reactome" (56px, it was cut to "Rea...") and the numeric column is headed
-                 "adjusted p" rather than "score" (65px with its sort caret), the three fixed columns spend 156
-                 of the 252px a 256 band leaves after its own padding, 9px more go to the gaps, and the category
-                 column is 87 -- sixteen characters, against a real GO:BP term of 50 to 70. 6.11's ladder sends
-                 "a three- or four-column numeric table" to 360 for exactly this reason, and GroupProfilePopout
-                 writes the same argument down for the same shape.
-                 6.11's stub obligation: whatever leaves leaves a resident RT-8 row that names it and reports
-                 its state, so this door carries the section name and the count behind it. Its chevron keeps the
-                 closed right-pointing form permanently (POP-13b). The #28364e fill is the tether that says its
-                 pop-out is open, which is the form GroupProfilePopout's Group 1 row uses for the same state.
-                 6.10's second clause is why the pop-out is drawn OPEN rather than shut: the reading, the
-                 departure line and the run record stay 8px from the table they qualify instead of being
-                 separated from it. At most one pop-out per region, so opening this one closes the run record's
-                 Details pop-out, and the other way round.
-                 A4, WHY THIS IS A DOOR AND NOT A COLLAPSED SECTION. A4's discriminator confirms it: a
-                 four-column sortable table of 41 rows cannot be drawn honestly in the 256px band, so the door
-                 buys width, and it leaves the rows below operable while it is open. Two of the three clauses,
-                 where one is enough.
-                 A6 and VOCAB 14.1, this stub reports the state of what it hides: the trailing slot carries the
-                 one fact behind the door, the 41 rows, and the row's ink follows VOCAB 14.1's two spellings --
-                 dimmed while everything behind it is at its default, primary the moment anything is not. An
-                 opener takes the selected-row fill only while its pop-out is open (POP-13b), which is why
-                 #28364e is drawn here and why the title ends in "Open", and the chevron keeps the closed
-                 right-pointing form permanently. -->
+            <!-- SECTION Categories, an EXPANDED SECTION with a gear (SECTIONS-1.9 D1, D6, D7, D11, 5.11). It
+                 was a door: a 32px row whose chevron never opened, with the whole four-column table in a 360
+                 pop-out. Three decisions take that apart. D1 forbids a section that is only a door. D7 names the
+                 exactly two artefacts in the set that keep a pop-out for width -- the schema matrix and the
+                 sweep's NMI block -- and says of this one that it reduces honestly. D11 re-scopes this board to
+                 the expanded section, with the full table in the Data table drawer.
+                 THE WIDTH ARGUMENT, ANSWERED RATHER THAN REPEATED. The comment this replaces was right that a
+                 FOUR-column sortable table does not fit 256: source needs 58, the adjusted p header with its
+                 sort caret 66, genes 32, and 87 is left for a GO:BP term of 50 to 70 characters. What is
+                 resident is a TWO-column table. Source and the member count are demoted into each row's own
+                 title, where they already were, and the category name gets 174 of the 256 band -- twice what the
+                 four-column form left it. Sorting, and the columns that were dropped, are what the gear is for.
+                 RESIDENT (5.11): the top three categories by adjusted p, and the footer that opens the full
+                 table. This is the shape every other ranked inspector section already uses -- Most connected
+                 draws five rows plus a chart in this same band on about twenty boards -- and D6 is what makes a
+                 readout eligible: of the readers who open Categories, which categories came out on top is what
+                 they came for.
+                 THE FOOTER COUNT, AND A DEVIATION FROM THE WORK LIST, NAMED. 5.11 quotes the existing string
+                 "6 of 41 rows". Six was the number the 360 pop-out drew; three are drawn here, and floor 2's
+                 subset-drawn clause -- the clause that put the footer there in the first place -- makes the
+                 count say what is on screen. So it reads "3 of 41 rows". Drawing six rows instead would
+                 contradict 5.11's own "top three" and its four-rows-when-open budget; keeping "6" over three
+                 rows would be a number the board cannot support. The 41 is unchanged and is the same 41 the run
+                 record's "212 categories tested, 41 kept" reports.
+                 BEHIND THE GEAR (5.11): the table's parameters, which the pinned More menu below already
+                 enumerates in full text -- which adjusted p column, which members column, sort by members, the
+                 Jaccard >= 0.5 redundancy threshold, the source filter, and Export categories (CSV). The gear
+                 draws DIMMED under A6 because every one of them is at its default: sorted by adjusted p low to
+                 high, padj as the column, genes as the members, no source filter. The "Hide redundant
+                 categories" switch one row above is NOT swept into the gear -- what 5.11 sends there is the
+                 rule's threshold, and the switch is a resident control with its own state, which the checkbox
+                 and its info circle already report.
+                 THE TRAILING SLOT (D5): closed, this header carries the mark "41 rows"; open, Rule 8 deletes it
+                 because the footer says it, and the slot carries the gear. The #28364e opener fill and the
+                 ". Open" clause in the title go with the pop-out that is no longer there.
+                 MEASURED: the section is 1 + 32 + 124 + 8 = 165px where the door row was 33px. The inspector's
+                 rows go 375px -> 507px, and the flexible spacer above the pinned action block absorbs all of it
+                 (375px -> 243px), so this column still measures 750px in its 800px region and nothing scrolls. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Categories. 41 rows. Open" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; padding: 0 6px 0 0; border-radius: 4px; background: #28364e; cursor: pointer; box-sizing: border-box;">
-                <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px;">
+                <div title="Collapse Categories" style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;">
                   <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Categories</span>
                 </div>
-                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">41 rows</span>
+                <div title="Category table parameters. Adjusted p column, members column, sort by members, the Jaccard 0.5 redundancy threshold, source filter, Export categories (CSV)" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; padding-bottom: 8px;">
+                <div style="display: grid; grid-template-columns: minmax(0, 1fr) 66px; align-items: center; gap: 6px; height: 20px; font-size: 11px; line-height: 1.2; color: #7a828e;">
+                  <div style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">category</div>
+                  <div title="Benjamini-Hochberg adjusted p (padj) from the joined table: lower is stronger. Sorted low to high." style="text-align: right; white-space: nowrap;">adjusted p</div>
+                </div>
+                <div title="DNA damage response, GO:BP, adjusted p 2.1e-9, 21 genes" style="display: grid; grid-template-columns: minmax(0, 1fr) 66px; align-items: center; gap: 6px; height: 28px; font-size: 12px; line-height: 1.2; color: #d5d7da; cursor: pointer;">
+                  <div style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">DNA damage response</div>
+                  <div style="text-align: right; font-variant-numeric: tabular-nums;">2.1e-9</div>
+                </div>
+                <div title="p53 signaling pathway, KEGG, adjusted p 8.4e-8, 14 genes" style="display: grid; grid-template-columns: minmax(0, 1fr) 66px; align-items: center; gap: 6px; height: 28px; font-size: 12px; line-height: 1.2; color: #d5d7da; cursor: pointer;">
+                  <div style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">p53 signaling pathway</div>
+                  <div style="text-align: right; font-variant-numeric: tabular-nums;">8.4e-8</div>
+                </div>
+                <div title="Intrinsic apoptosis, GO:BP, adjusted p 3.0e-6, 12 genes" style="display: grid; grid-template-columns: minmax(0, 1fr) 66px; align-items: center; gap: 6px; height: 28px; font-size: 12px; line-height: 1.2; color: #d5d7da; cursor: pointer;">
+                  <div style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Intrinsic apoptosis</div>
+                  <div style="text-align: right; font-variant-numeric: tabular-nums;">3.0e-6</div>
+                </div>
+                <div title="Show all 41 categories in the data table (Shift+T)" style="display: flex; align-items: center; height: 20px; font-size: 11px; line-height: 1.2; color: #7a828e; cursor: pointer;">3 of 41 rows</div>
               </div>
             </div>
 
@@ -1333,107 +1392,16 @@
     <div style="display: none; align-items: center; gap: 8px;"></div>
   </div>
 
-  <!-- ==========================================================================================
-       THE CATEGORIES POP-OUT (6.11, 6.2 tier 3a). The VOCAB section 12 "Pop-out container, anchored
-       form" shell at 360, opening LEFT out of the inspector: right edge 1152, 8px clear of the
-       inspector's 1160 edge, so left = 792. Top is the top edge of the "Categories" door row it was
-       opened from, measured on the rendered board.
-       B5 records this board as one of the five already correct -- top 300 on the Categories door row's 300,
-       right edge 1152, 8px clear of the inspector's 1160 -- and cites it by pixel in 6.11's Anchor paragraph.
-       B3 and VOCAB 14.2: the shell's 6px caret is drawn as this surface's sibling on the pop-out's RIGHT
-       edge, the edge nearest the inspector it came out of, at top 316 -- the pop-out's 300 plus VOCAB 14.2's
-       own 16.
-       E2, THE PIN CAME OFF. A sortable table of one result's categories is not one of E2's four comparative
-       surfaces, and its content does not survive a selection change in any useful way -- change the result
-       and the table is a different table, so there is nothing to hold still. E2 closes the set at four: the
-       colour and gradient picker, Selection statistics with a pin active, the group profile, and the AI
-       console. This pop-out is none of them, so the 32px header now carries the close X alone.
-       B1's SECOND HEIGHT CAP: max-height is 418, half the inspector's 836px region, which is the smaller of
-       the two caps (the other is the region height less 32) and so the one that binds. The drawn body is
-       260, so nothing clips and nothing on screen moves.
-       Header, 32px (6.11): the surface's own name, the technical name dimmed beside it (6.3), and the
-       register's close X. Body row types, both from the closed set:
-       the 20px column caption row, which carries the repeated units so no row spells them (Rule 9),
-       and RT-6 for the table itself -- the user's own strings, the one place a left-hand text label
-       column is correct. RT-6's 28px pitch is a floor for a one-line string, not a licence to cut
-       one: Rule 0 gives floor 7 the veto, so a name longer than its column takes the second line it
-       needs and the row grows. Five of the six read whole on one line here; the sixth wraps.
-       Columns, against the 322px a 360 pop-out leaves after its padding: 58 for source, which is what
-       "Reactome" measures plus two; 66 for the adjusted p header and its sort caret; 32 for genes;
-       18 of gaps; and the remaining 148 for the user's own category names, against 87 at 280.
-       The footer count is floor 2's subset-drawn clause. The pop-out scrolls and six of the 41 rows
-       are drawn, so the count says so rather than leaving the reader to wonder why the door says 41
-       and the surface shows six. The board's old table had neither the count nor the footer.
-       ========================================================================================== -->
-  <div style="position: absolute; left: 792px; top: 300px; width: 360px; max-height: 418px; display: flex; flex-direction: column; background: #1f2428; border: 1px solid #48525c; border-radius: 4px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; overflow: hidden; z-index: 8;">
-
-    <div style="flex: 0 0 32px; display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 4px 0 12px; box-sizing: border-box;">
-      <span style="flex: 0 0 auto; font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Categories</span>
-      <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Category table</span>
-      <div title="Close (Esc)" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
-      </div>
-    </div>
-
-    <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px 12px; box-sizing: border-box;">
-
-      <div style="display: grid; grid-template-columns: minmax(0, 1fr) 58px 66px 32px; align-items: center; gap: 6px; height: 20px; padding: 0 6px; border-bottom: 1px solid #48525c; font-size: 10px; font-weight: 500; line-height: 1; color: #7a828e; box-sizing: border-box;">
-        <div style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;">category</div>
-        <div style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;">source</div>
-        <div title="Benjamini-Hochberg adjusted p (padj) from the joined table: lower is stronger. Sorted low to high." style="display: flex; align-items: center; justify-content: flex-end; gap: 2px; color: #d5d7da; cursor: pointer;"><span style="white-space: nowrap;">adjusted p</span><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,10 8,6 12,10"></polyline></svg></div>
-        <div style="min-width: 0; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;">genes</div>
-      </div>
-
-      <div title="DNA damage response, GO:BP, adjusted p 2.1e-9, 21 genes" style="display: grid; grid-template-columns: minmax(0, 1fr) 58px 66px 32px; align-items: baseline; gap: 6px; min-height: 24px; padding: 4px 6px; border-radius: 4px; font-size: 11px; line-height: 1.4; color: #d5d7da; box-sizing: border-box; cursor: pointer;">
-        <div style="min-width: 0;">DNA damage response</div>
-        <div style="min-width: 0; color: #a3a8b1; white-space: nowrap;">GO:BP</div>
-        <div style="text-align: right; font-variant-numeric: tabular-nums;">2.1e-9</div>
-        <div style="text-align: right; font-variant-numeric: tabular-nums;">21</div>
-      </div>
-      <div title="p53 signaling pathway, KEGG, adjusted p 8.4e-8, 14 genes" style="display: grid; grid-template-columns: minmax(0, 1fr) 58px 66px 32px; align-items: baseline; gap: 6px; min-height: 24px; padding: 4px 6px; border-radius: 4px; font-size: 11px; line-height: 1.4; color: #d5d7da; box-sizing: border-box; cursor: pointer;">
-        <div style="min-width: 0;">p53 signaling pathway</div>
-        <div style="min-width: 0; color: #a3a8b1; white-space: nowrap;">KEGG</div>
-        <div style="text-align: right; font-variant-numeric: tabular-nums;">8.4e-8</div>
-        <div style="text-align: right; font-variant-numeric: tabular-nums;">14</div>
-      </div>
-      <div title="Intrinsic apoptosis, GO:BP, adjusted p 3.0e-6, 12 genes" style="display: grid; grid-template-columns: minmax(0, 1fr) 58px 66px 32px; align-items: baseline; gap: 6px; min-height: 24px; padding: 4px 6px; border-radius: 4px; font-size: 11px; line-height: 1.4; color: #d5d7da; box-sizing: border-box; cursor: pointer;">
-        <div style="min-width: 0;">Intrinsic apoptosis</div>
-        <div style="min-width: 0; color: #a3a8b1; white-space: nowrap;">GO:BP</div>
-        <div style="text-align: right; font-variant-numeric: tabular-nums;">3.0e-6</div>
-        <div style="text-align: right; font-variant-numeric: tabular-nums;">12</div>
-      </div>
-      <div title="Cell cycle arrest, GO:BP, adjusted p 1.7e-5, 11 genes" style="display: grid; grid-template-columns: minmax(0, 1fr) 58px 66px 32px; align-items: baseline; gap: 6px; min-height: 24px; padding: 4px 6px; border-radius: 4px; font-size: 11px; line-height: 1.4; color: #d5d7da; box-sizing: border-box; cursor: pointer;">
-        <div style="min-width: 0;">Cell cycle arrest</div>
-        <div style="min-width: 0; color: #a3a8b1; white-space: nowrap;">GO:BP</div>
-        <div style="text-align: right; font-variant-numeric: tabular-nums;">1.7e-5</div>
-        <div style="text-align: right; font-variant-numeric: tabular-nums;">11</div>
-      </div>
-      <div title="TP53 regulates transcription of cell cycle genes, Reactome, adjusted p 4.2e-5, 9 genes" style="display: grid; grid-template-columns: minmax(0, 1fr) 58px 66px 32px; align-items: baseline; gap: 6px; min-height: 24px; padding: 4px 6px; border-radius: 4px; font-size: 11px; line-height: 1.4; color: #d5d7da; box-sizing: border-box; cursor: pointer;">
-        <div style="min-width: 0;">TP53 regulates transcription of cell cycle genes</div>
-        <div style="min-width: 0; color: #a3a8b1; white-space: nowrap;">Reactome</div>
-        <div style="text-align: right; font-variant-numeric: tabular-nums;">4.2e-5</div>
-        <div style="text-align: right; font-variant-numeric: tabular-nums;">9</div>
-      </div>
-      <div title="Response to hypoxia, GO:BP, adjusted p 6.8e-4, 7 genes" style="display: grid; grid-template-columns: minmax(0, 1fr) 58px 66px 32px; align-items: baseline; gap: 6px; min-height: 24px; padding: 4px 6px; border-radius: 4px; font-size: 11px; line-height: 1.4; color: #d5d7da; box-sizing: border-box; cursor: pointer;">
-        <div style="min-width: 0;">Response to hypoxia</div>
-        <div style="min-width: 0; color: #a3a8b1; white-space: nowrap;">GO:BP</div>
-        <div style="text-align: right; font-variant-numeric: tabular-nums;">6.8e-4</div>
-        <div style="text-align: right; font-variant-numeric: tabular-nums;">7</div>
-      </div>
-
-      <div style="display: flex; align-items: center; height: 20px; padding: 4px 6px 0; font-size: 11px; line-height: 1.2; color: #7a828e; box-sizing: border-box;">6 of 41 rows</div>
-
-    </div>
-  </div>
-
-  <!-- B3, VOCAB 14.2: the pop-out caret, mirrored for an inspector pop-out that opens LEFT, so it sits on
-       the pop-out's RIGHT edge at x 1152 and points back at the Categories row it came out of. Top 316 is
-       the pop-out's 300 plus VOCAB 14.2's own 16, which is inside the 12px clamp from the shell's corners.
-       It ships with the shell, not per case, and it is dropped for 14.3's return strip once the opener has
-       scrolled out of the inspector. -->
-  <div style="position: absolute; left: 1152px; top: 316px; width: 6px; height: 12px; overflow: hidden; z-index: 9;">
-    <div style="position: absolute; right: 3px; top: 1px; width: 10px; height: 10px; transform: rotate(45deg); background: #1f2428; border-right: 1px solid #48525c; border-top: 1px solid #48525c; box-sizing: border-box;"></div>
-  </div>
+  <!-- THE CATEGORIES POP-OUT IS GONE (SECTIONS-1.9 D1, D7, D11, 5.11). It was a 360 four-column sortable
+       table opened from a chevron that never opened, which is the one shape 1.9 forbids: a section whose whole
+       content lives behind a door. D7 refuses this table the width argument on the same page it grants one to
+       the schema matrix and the sweep's NMI block -- "Categories' four-column table ... reduce[s] honestly" --
+       and D11 re-scopes this board rather than retiring it: the section is drawn EXPANDED in the inspector with
+       its top three rows and its footer, and the full 41-row table's home is the Data table drawer, which
+       DataTableDrawer.dc.html draws. Nothing else took this surface's place: the section's gear holds field
+       rows, not a table, so no 360 is owed here and none is drawn.
+       What went with it: the shell, the 6px caret at [1152,316 6x12], and the 8px clearance argument to the
+       inspector. The legend's own comment above no longer has a pop-out to clear and says so. -->
 </div>
 </x-dc>
 </body>

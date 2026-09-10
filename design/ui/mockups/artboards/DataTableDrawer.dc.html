@@ -87,7 +87,31 @@
     Info bubble: re-anchored to its own info circle at x 848 and flipped above the header row, with an 8px caret on its bottom
     edge. Nothing else moved. No control left a resident row on this board: the resident count is the same before and after --
     the drawer toolbar keeps its six controls and the inspector keeps its rows -- because Columns was already one chip and only
-    changed class. -->
+    changed class.
+  REVISION 1.9 (SECTIONS-1.9.md). One item lands here, from D12's stub-silent sweep: the Columns chip. It survives D1 -- it opens a
+    280 pop-over from a toolbar control, not a section, so "a panel always expands" does not reach it -- and it failed the other
+    half of 6.11 instead: it printed the word "Columns" and no state at all, so a reader could not see that anything was hidden,
+    which is the only reason to open it. It now carries its count in the dimmed ink beside the name, "Columns 8 of 12", and the
+    title spells it as a sentence.
+    THE NUMBER, and the one place this board departs from the work list's literal string. D12 writes the mark as "9 of 12". This
+    board draws EIGHT columns -- id, type, opened, risk score, degree, betweenness, pagerank, group -- so a 9 could be disproved
+    by counting, which is exactly the failure the stub obligation exists to prevent. The denominator is this dataset's own and is
+    kept: DataPanelLoaded prints "Columns 12" and ImportAddToGraph prints "8 node, 4 edge". Only the numerator is corrected, to
+    what is drawn. If a later pass wants the metric columns counted in the denominator too, that is a change to the number on
+    every board that prints it, not a change to this chip alone.
+    MEASURED: the chip goes 75.86 -> 118.45px wide, its left edge stays at x 408 so the pop-over's shared edge line is unmoved,
+    and the toolbar still has 454.33px of spacer between Agreement and the copy control -- 1112.00px of content in a 1112.00px
+    client, no overflow, nothing reflowed. The drawer, the table grid, the inspector and the canvas are untouched.
+    5.10 SELECTION STATISTICS is already right here and was not edited: this board is the exemplar SECTIONS-1.9 section 4 cites,
+    four resident rows in the 256px band, and D8 brings MultiSelection's inspector to it rather than the other way round. 
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Selection statistics gains its GEAR (5.10, A6). The section is drawn open here, and 5.10 puts the
+  comparison machinery behind a gear; three of the four boards that draw the section open had none. Dimmed,
+  because nothing is pinned. The "selection / graph" column key stays in the header rather than becoming a
+  caption row: this drawer's value columns are 38px and cannot hold the words, which is the reason this
+  board carries the key up there and the other three carry it as a row.
+-->
 
 
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
@@ -699,7 +723,18 @@
                 </div>
               </div>
               <div style="width: 1px; height: 16px; background: #48525c;"></div>
-              <div title="Columns. Search, show and hide, drag to reorder, Show all, Hide all, Add column..." style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer;">Columns<svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,6 8,11 13,6"></polyline></svg></div>
+              <!-- 1.9, D12, the stub-silent sweep. This chip survives D1 -- it opens a 280 pop-over from a
+                   toolbar control, not a section, and D1 does not reach it -- but it failed 6.11's stub
+                   obligation: it printed the word "Columns" and nothing else, so a reader could not tell
+                   that anything was hidden, which is the whole reason to open it. It now carries its count
+                   in the dimmed ink beside the name. THE NUMBER, and the one place this board departs from
+                   the work list's literal string: SECTIONS-1.9 D12 writes the mark as "9 of 12". This
+                   board draws EIGHT columns -- id, type, opened, risk score, degree, betweenness,
+                   pagerank, group -- so a 9 here would be a count a reader can disprove by counting, which
+                   is the failure the stub obligation exists to prevent. The denominator is kept because it
+                   is this dataset's own, printed on DataPanelLoaded ("Columns 12") and on ImportAddToGraph
+                   ("8 node, 4 edge"); only the numerator is corrected to what is drawn. -->
+              <div title="Columns. 8 of 12 shown. Search, show and hide, drag to reorder, Show all, Hide all, Add column..." style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer;">Columns<span style="font-weight: 400; color: #7a828e;">8 of 12</span><svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,6 8,11 13,6"></polyline></svg></div>
               <div title="Top N by each metric" style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 4px; background: #28364e; color: #4a7ee8; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer;">Agreement</div>
               <div style="flex: 1 1 auto;"></div>
               <!-- IK-5: one copy control, not two text buttons. Its menu carries the full labels Copy as TSV and Copy member ids; the icon repeats the last-used copy on click. -->
@@ -972,7 +1007,12 @@
                   <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Selection statistics</span>
                 </div>
-                <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">selection / graph</span>
+                <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">selection / graph</span>
+                  <div title="Selection statistics detail. Comparison with a pinned card, per-attribute means, links inside the selection, Export CSV" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+                  </div>
+                </div>
               </div>
             </div>
               <div style="display: flex; flex-direction: column;">

@@ -89,6 +89,49 @@
   106px to 72px and the Sweep summary card from 283px to 215px. 1.7's "548px" and "272px" were estimates and
   are corrected here by measurement, not by a change to what 1.7 drew.
   Nothing put behind a door on this board is a floor item.
+
+  REVISION 1.9 (SECTIONS-1.9 D1, D5, D6, D7, D8; work list 5.12). ONE ITEM LANDS HERE, in two regions: the Sweep
+  runs door stops being a door and becomes an expanded section, in the panel result card and in the inspector both.
+  D1 withdraws the licence for a section that is only a door -- a chevron that reveals nothing is a defect -- and
+  what comes back is exactly what the two comments below list under "WHAT WAS HERE": the caption row
+  "resolution | groups" and three RT-6 rows, 0.5 / 4, 1.0 / 7 carrying the applied mark, 1.5 / 11. It is a
+  restoration, not a new drawing, and it puts back the paintbrush that says which of the three runs the canvas is
+  painted with.
+  WHAT STAYS BEHIND THE GEAR, at 480 (D7): the "Agreement between runs (NMI)" block with its three micro-bar rows
+  (0.5 vs 1.0 0.81, 1.0 vs 1.5 0.64, 0.5 vs 1.5 0.72), the sparkline of group count over the swept value, and
+  Compare / Export CSV. A pairwise comparison of three runs and a plot are what the 480 rung exists for, and A4's
+  first clause is satisfied by both. What changed is only where they are opened FROM: a gear on a section that
+  already draws content, which is D1's permitted shape, instead of the section itself.
+  MIN-6 STILL HOLDS AND D3 OF 1.8 IS NOT REOPENED. One result body renders: the panel card's table and the
+  inspector's are two SCOPES of one run set (A5), and D8 requires them to take the same shape rather than letting
+  one keep a door. The third rendering -- the agreement block -- is gear contents in one place and is drawn in
+  neither region. The modularity column stays off both tables and rides in each row's title with that run's own
+  record (0.58 / 14 ms, 0.62 / 31 ms, 0.55 / 16 ms, FIXTURES 2.5): 1.8 was right that the dropped column announced
+  the squeeze, and the fix is one shape in two regions, not a third table.
+  THE MARK, closed and open (D5, Rule 8): closed the header reads "Runs 3"; open the count is deleted because three
+  rows say it, and the trailing slot carries the gear, dimmed (A6) because what is behind it is a report and
+  nothing behind it can deviate from a default.
+  MEASURED, in the browser, after the pass. The Sweep summary card goes 215px to 321px and the Runs block inside it
+  32px to 138px (32 header, 20 caption, 3 x 28 rows on a 1px gap). Resident panel rows 12 to 16, and by the same sum
+  the lines above use, 457px to 563px. Nothing scrolls: the Run tab's flexible spacer absorbs the whole of it and
+  falls from 335px to 229px, so the pinned Results block and the pinned weight and direction row do not move. In
+  the inspector the section goes 33px to 139px, the body content ends at y 402 in a region that runs y 76 to 775,
+  and the pinned action block does not move.
+  THE ANCHORS MOVE WITH THEIR OPENERS, and the geometry lines above are superseded for Sweep runs only. The 480
+  surface is now opened by the gear in each Runs header, and the anchor box is still that header ROW, top to top:
+  from the panel card, row [73,620 237x32] with the gear at x 286..310, so the pop-out opens right at left: 336 with
+  its top edge on 620 -- the row rose 106px because the Results block is pinned to the foot of the panel and the
+  card grew upward from it. From the inspector, row [1177,264 255x32] with the gear at x 1408..1432, so it opens
+  left with its right edge on 1152, left: 672, top edge 264, which is unchanged because the section sits above the
+  rows it gained. B4 still decides the lane by which opener was used, and the palette route still opens it in the
+  inspector's lane. The Advanced parameters and Run record anchors are untouched.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  The card's Advanced parameters gear takes A6's PRIMARY ink at #d5d7da rather than #4a7ee8. VOCAB 14.1
+  spells the two inks #7a828e and #d5d7da, and every other deviating gear in the set draws #d5d7da
+  (ImageOptionsPopout, ReportEditorDrawer, MultiSelection, ValidationPopout). #4a7ee8 is the accent, which
+  a gear uses only with the #28364e background of an opener that is currently open.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -316,7 +359,7 @@
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
                   </div>
                   <div style="flex: 1 1 auto;"></div>
-                  <div title="Advanced parameters. Run as sweep is on" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #4a7ee8; cursor: pointer;">
+                  <div title="Advanced parameters. Run as sweep is on" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #d5d7da; cursor: pointer; box-sizing: border-box;">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
                   </div>
                 </div>
@@ -387,7 +430,14 @@
                    marked the 1.0 row went behind the Sweep runs door with that row in 1.8; the resident state
                    mark saying which run the layer reads is now the applied state row's "Groups (resolution
                    1.0)", with the canvas result chip printing it a second time. The canvas and the result chip
-                   are untouched by 1.7 and by 1.8; the legend lost its counts and two rows to C3. -->
+                   are untouched by 1.7 and by 1.8; the legend lost its counts and two rows to C3.
+                   REVISION 1.9, what this comment no longer describes. Two sentences above are superseded: the
+                   three runs do NOT sit behind a Sweep runs door any more -- SECTIONS-1.9 D1 withdraws that door
+                   with every other section-shaped one, and the rows are drawn in this card again -- and the brush
+                   that marks which run the canvas reads is back on the 1.0 row with them (5.12). The applied state
+                   row keeps its swatch, its layer name and Change encoding: that row is the style layer's face
+                   (STY-1, STY-5) and the route into Style, and the brush is the per-row mark inside the table.
+                   Everything else above still describes what is drawn. -->
               <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 4px; background: #28364e; border: 1px solid #4a7ee8; box-sizing: border-box;">
                 <!-- The card title. 1.7 parked the scope clause here, beside the name; the 1.7 sweep puts it
                      back on the record line below, because 6.10 item 3 names the ONE line that carries method,
@@ -430,37 +480,81 @@
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
                   </div>
                 </div>
-                <!-- RT-8 DOOR, new in 1.8 (D3). WHAT WAS HERE: a caption row reading "resolution | groups"
-                     and three RT-6 rows -- 0.5 / 4, 1.0 / 7 with the paintbrush state glyph, and 1.5 / 11 --
-                     a squeezed table that had already dropped the modularity column to fit, which is how a
-                     table announces it is in the wrong band. This board rendered one result body three times
-                     (this table, the inspector's fuller table with its sparkline, and the agreement bars),
-                     which breaks "One result body renders on screen at a time" (MIN-6). The table now renders
-                     once, in the 480 pop-out 6.11's worked-examples table already gives it.
-                     THE STUB REPORTS WHAT IT HIDES: "Runs" with the trailing count 3, and the title "Sweep
-                     runs. 3 runs, 4 to 11 groups", which carries the range the three deleted rows carried.
-                     The chevron stays permanently in the closed right-pointing form (POP-13b).
-                     Behind it: the three runs with Resolution, Groups and Modularity, the sparkline of group
-                     count over the swept value, then the pairwise agreement block (0.5 vs 1.0 0.81, 1.0 vs
-                     1.5 0.64, 0.5 vs 1.5 0.72), with Keep per row, Compare and Export CSV.
-                     The paintbrush that marked which run the canvas reads does not vanish: the applied state
-                     row below already names "Groups (resolution 1.0)" and the canvas result chip prints it
-                     again.
-                     A6 and VOCAB 14.1: the chevron is dimmed #7a828e because what is behind it is a report
-                     and not a parameter block, so nothing behind it can deviate from a default.
-                     A3, the depth: one click from the card that owns the runs, with the card present, and
-                     this door sits behind no other door.
-                     B4, the multi-opener rule: A pop-out reachable from more than one opener is anchored to
-                     the opener that was used, and its lane follows that opener's region (B4): from the panel
-                     card it opens right at `left: 336px`; from the inspector it opens left at `left: 672px`
-                     at the 480 rung. The palette route, which has no on-screen opener, opens it in the
-                     inspector's lane and lights that row.
-                     THE ANCHOR (B2) for this opener, measured: left edge 336, 8px clear of the panel's 328px
-                     edge, top edge shared with this stub row's anchor box. It is not drawn open here. -->
-                <div title="Sweep runs. 3 runs, 4 to 11 groups" style="display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 8px 0 0; box-sizing: border-box; cursor: pointer;">
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="6,3.5 11,8 6,12.5"></polyline></svg>
-                  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; font-weight: 500; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Runs</span>
-                  <span style="flex: 0 0 auto; font-size: 11px; color: #7a828e; white-space: nowrap;">3</span>
+                <!-- RUNS, AN EXPANDED SECTION. REVISION 1.9, SECTIONS-1.9 5.12, D1, D5, D6, D8. 1.8 made this a
+                     32px door over a 480 pop-out; D1 withdraws the licence for a section that is only a door, and
+                     what 1.8's own comment listed under "WHAT WAS HERE" is what comes back, so this is a
+                     restoration rather than a new drawing: the caption row "resolution | groups" and three RT-6
+                     rows -- 0.5 / 4, 1.0 / 7 carrying the applied mark, 1.5 / 11.
+                     D6 DECIDES IT, because this section is read and not operated: of the readers who open Runs, the
+                     swept value and the group count it produced are what they came for. Three rows, and a gear for
+                     the apparatus that compares them.
+                     BEHIND THE GEAR, at 480 (D7): the "Agreement between runs (NMI)" block with its three micro-bar
+                     rows (0.5 vs 1.0 0.81, 1.0 vs 1.5 0.64, 0.5 vs 1.5 0.72), the sparkline of group count over the
+                     swept value, and Compare / Export CSV. A pairwise comparison of three runs cannot be drawn
+                     honestly in a 237px card and a sparkline is a plot, which is what 6.11's 480 rung is for. What
+                     changes is only where it is opened FROM: it is the gear on a section that already draws content
+                     now, which is D1's permitted shape, and not the section itself.
+                     THE GEAR IS DIMMED (A6, VOCAB 14.1) for the reason the chevron was: what is behind it is a
+                     report, not a parameter block, so nothing behind it can deviate from a default.
+                     MIN-6 IS NOT BREACHED. One result body renders on screen: this table and the inspector's twin
+                     are two SCOPES of one run set, which A5 licenses and D8 requires -- "a section drawn in two
+                     regions takes the resident form in both", because the alternative is one section with two
+                     shapes on one screen. The third rendering, the agreement block, is gear contents in one place
+                     and is drawn in neither region.
+                     THE MODULARITY COLUMN STAYS OFF THE TABLE, and this is where 1.8 was right: at 237px a third
+                     numeric column is what announced the squeeze. It rides in each row's title with that run's own
+                     record -- 0.58, 0.62 and 0.55, with the durations (FIXTURES 2.5) -- and the two regions draw
+                     one shape rather than two.
+                     THE MARK GOES WHEN THE ROWS COME (D5, Rule 8): closed, this header reads "Runs 3"; open, the
+                     count is deleted the moment three rows say it, and the trailing slot belongs to the gear.
+                     THE APPLIED MARK IS BACK ON THE 1.0 ROW, which is the sentence 5.12 uses: the restoration
+                     "puts back the paintbrush that said which run the canvas is reading". It sits in a 16px slot at
+                     the end of every row so the group-count column stays aligned, and it is drawn on the one run
+                     the canvas reads. The applied state row below keeps its swatch, its layer name and Change
+                     encoding: that row is the STYLE LAYER's face (STY-1, STY-5) and the route to the encoding, and
+                     this glyph is the per-row mark inside the table. One fact at two scales, which A5 licenses;
+                     what One fact, one region forbids is a second copy of the TABLE, and there is none. -->
+                <div style="display: flex; flex-direction: column;">
+                  <div title="Runs. 3 runs, 4 to 11 groups" style="display: flex; align-items: center; gap: 4px; height: 32px; box-sizing: border-box; cursor: pointer;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
+                    <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; font-weight: 500; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Runs</span>
+                    <div title="Run comparison" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+                    </div>
+                  </div>
+                  <!-- RT-6: the column captions carry the repeated unit words, never the rows (VOCAB 11). -->
+                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 20px; padding: 0 8px; box-sizing: border-box;">
+                    <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">resolution</span>
+                    <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                      <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">groups</span>
+                      <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                    </div>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 1px;">
+                    <div title="Resolution 0.5: 4 groups, modularity 0.58, 14 ms. Sizes 61 / 58 / 47 / 34" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                      <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">0.5</span>
+                      <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                        <span style="font-size: 11px; color: #a3a8b1;">4</span>
+                        <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                      </div>
+                    </div>
+                    <div title="Resolution 1.0: 7 groups, modularity 0.62, 31 ms. The canvas is painted with this run" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                      <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">1.0</span>
+                      <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                        <span style="font-size: 11px; color: #a3a8b1;">7</span>
+                        <div title="The canvas is painted with this run" style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #d5d7da;">
+                          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 2.5l-6 6"></path><path d="M7.5 8.5c-1.5 0-2.5 1-2.5 2.5s-1 2-2.5 2c1.5 1 4.5 1 5.5-1 .5-1 .5-2-.5-3.5z"></path></svg>
+                        </div>
+                      </div>
+                    </div>
+                    <div title="Resolution 1.5: 11 groups, modularity 0.55, 16 ms. 22 nodes land in a different group than in the 0.5 run" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                      <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">1.5</span>
+                      <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                        <span style="font-size: 11px; color: #a3a8b1;">11</span>
+                        <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <!-- STY-5, the applied form. STY-1 makes the run and its style layer two faces of one object,
                      so the card carries the state that face owns and nothing more: the resident three-stripe
@@ -1064,39 +1158,72 @@
               </div>
             </div>
 
-            <!-- RT-8 DOOR, new in 1.8 (D3). WHAT WAS HERE: the three-column runs table (Resolution | Groups |
-                 Modularity, with the Modularity info circle and three rows) and, beside it, the 40 by 78
-                 sparkline of group count over the swept value; and immediately below it the whole
-                 "Agreement between runs (NMI)" block, three 32px micro-bar rows reading 0.5 vs 1.0 0.81,
-                 1.0 vs 1.5 0.64 and 0.5 vs 1.5 0.72. All of it is gone. It was the second and third
-                 rendering of one result body and broke "One result body renders on screen at a time"
-                 (MIN-6).
-                 POP-12c IS REVERSED, and it must be said so: the 1.7 audit called this "neutral, an audit
-                 and not a change" and left both resident; D3 overturns it, on the room test and on MIN-6.
-                 THE STUB REPORTS WHAT IT HIDES: "Runs" with the trailing count 3, and the title "Sweep runs.
-                 3 runs, 4 to 11 groups". The chevron stays permanently in the closed right-pointing form
-                 (POP-13b).
-                 Behind it, in the 480 inspector pop-out 6.11's worked-examples table already specifies: the
-                 three runs with Resolution, Groups and Modularity and the sparkline, then the pairwise
-                 agreement block, with Keep per row, Compare and Export CSV.
-                 THE ANCHOR (B2), measured: a 480 pop-out opening left has its right edge at 1152, 8px clear
-                 of the inspector's 1160px edge, so left: 672px, and it shares its top edge with this stub
-                 row's anchor box. It is NOT drawn open on this board.
-                 A6 and VOCAB 14.1: the chevron is dimmed #7a828e because what is behind it is a report and
-                 not a parameter block, so nothing behind it can deviate from a default.
-                 A3, the depth: one click from the section row that owns the runs, with the result present,
-                 and this door sits behind no other door.
-                 B4, the multi-opener rule: A pop-out reachable from more than one opener is anchored to the
-                 opener that was used, and its lane follows that opener's region (B4): from the panel card it
-                 opens right at `left: 336px`; from the inspector it opens left at `left: 672px` at the 480
-                 rung. The palette route, which has no on-screen opener, opens it in the inspector's lane and
-                 lights that row. -->
+            <!-- RUNS, AN EXPANDED SECTION. REVISION 1.9, SECTIONS-1.9 5.12, D1, D5, D6, D7, D8. WHAT WAS HERE
+                 through 1.7 and comes back now: the caption row and the three run rows. What does NOT come back is
+                 the third rendering of the result body -- the sparkline and the whole "Agreement between runs (NMI)"
+                 block, three 32px micro-bar rows reading 0.5 vs 1.0 0.81, 1.0 vs 1.5 0.64 and 0.5 vs 1.5 0.72 --
+                 which is now this section's gear contents at 480 and is drawn in neither region at rest. MIN-6 held
+                 and still holds: two scopes of one run set is what A5 licenses, three renderings is what it does
+                 not, and D8 requires the two to take the SAME shape rather than one keeping a door.
+                 D8 IS WHY THIS TABLE IS TWO COLUMNS AND NOT THREE. The panel card's copy dropped Modularity at
+                 237px, which is how a table announces it is in the wrong band; the fix 1.9 takes is not to widen one
+                 copy but to draw one shape in both regions, with modularity and each run's duration riding in the
+                 row's own title (0.58 / 14 ms, 0.62 / 31 ms, 0.55 / 16 ms, FIXTURES 2.5) where the run record
+                 already lives.
+                 THE APPLIED MARK: the paintbrush on the 1.0 row, in a 16px slot every row carries so the group
+                 column stays aligned. It is the one state mark this region has for which run the canvas reads --
+                 the inspector has no applied state row, the panel card does -- and 5.12 names its restoration.
+                 THE GEAR IS DIMMED (A6, VOCAB 14.1): what is behind it is a report and not a parameter block, so
+                 nothing behind it can deviate from a default.
+                 THE MARK GOES WHEN THE ROWS COME (D5, Rule 8): closed, this header reads "Runs 3"; open, three rows
+                 say it and the trailing slot belongs to the gear.
+                 THE ANCHOR (B2), unchanged and measured: a 480 pop-out opening left has its right edge at 1152, 8px
+                 clear of the inspector's 1160px edge, so left: 672px, and it shares its top edge with the row its
+                 opener sits in. It is NOT drawn open on this board. B4 still decides the lane: from the panel card
+                 the same contents open right at left: 336px, from here they open left at left: 672px, and the
+                 palette route, which has no on-screen opener, opens them in the inspector's lane and lights the row.
+                 A3, the depth: one click from the section that owns the runs, with the result present, and this gear
+                 sits behind no other door. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
-              <div title="Sweep runs. 3 runs, 4 to 11 groups" style="display: flex; align-items: center; gap: 4px; height: 32px; box-sizing: border-box; cursor: pointer;">
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="6,3.5 11,8 6,12.5"></polyline></svg>
+              <div title="Runs. 3 runs, 4 to 11 groups" style="display: flex; align-items: center; gap: 4px; height: 32px; box-sizing: border-box; cursor: pointer;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
                 <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; font-weight: 500; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Runs</span>
-                <span style="flex: 0 0 auto; font-size: 11px; color: #7a828e; white-space: nowrap;">3</span>
+                <div title="Run comparison" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 20px; padding: 0 8px; box-sizing: border-box;">
+                <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">resolution</span>
+                <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                  <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">groups</span>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 1px;">
+                <div title="Resolution 0.5: 4 groups, modularity 0.58, 14 ms. Sizes 61 / 58 / 47 / 34" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                  <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">0.5</span>
+                  <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                    <span style="font-size: 11px; color: #a3a8b1;">4</span>
+                    <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                  </div>
+                </div>
+                <div title="Resolution 1.0: 7 groups, modularity 0.62, 31 ms. The canvas is painted with this run" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                  <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">1.0</span>
+                  <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                    <span style="font-size: 11px; color: #a3a8b1;">7</span>
+                    <div title="The canvas is painted with this run" style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #d5d7da;">
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 2.5l-6 6"></path><path d="M7.5 8.5c-1.5 0-2.5 1-2.5 2.5s-1 2-2.5 2c1.5 1 4.5 1 5.5-1 .5-1 .5-2-.5-3.5z"></path></svg>
+                    </div>
+                  </div>
+                </div>
+                <div title="Resolution 1.5: 11 groups, modularity 0.55, 16 ms. 22 nodes land in a different group than in the 0.5 run" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
+                  <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">1.5</span>
+                  <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+                    <span style="font-size: 11px; color: #a3a8b1;">11</span>
+                    <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

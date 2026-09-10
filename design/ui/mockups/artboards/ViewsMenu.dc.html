@@ -35,6 +35,19 @@
   nothing is cut and only the cap moves, max-height 334 -> 240. The door test (6.11) was re-run over this
   board and moved nothing: the Schema door stays a door and keeps its counts, and the inspector keeps all
   12 of its nothing-selected rows. No row, key chip, Coming tag, count or word changes.
+  Revision 1.9 on this board (SECTIONS-1.9 D1, D5, D7, work-list 5.8), one section and one measured pixel move.
+  Schema stops being a permanent door and becomes an ordinary collapsed section: the chevron opens IN PLACE
+  onto the node-type rows with their counts (cat 17, human 2, dog 1) and the edge-type rows with theirs, capped
+  at five with an "N more" row, plus the RT-7 verb row Filter to type / Select all of type. Only per-type
+  completeness and the edges-by-type-pair matrix stay behind a gear on the open section, which keeps the 480
+  (D7). The 1.8 line above keeps its second half and loses its first: it does not stay a door, and it does keep
+  its counts. The row count is unchanged -- the inspector still draws all 12 of its nothing-selected rows,
+  because D4 opens nothing that was closed.
+  The drawn change is uniformity, not content: the mark packs immediately after the section name, which is how
+  the five compliant boards draw the same closed header, and the trailing slot is left empty because this
+  header is not the hovered one. The mark's 151px sits in the 184px the empty slot leaves free inside the 256px
+  band, so it still reads in full. Measured after the edit: the inspector's 800px content region uses 536px,
+  264px of headroom, and no clipped region on this board overflows.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -704,7 +717,25 @@
                  7 edge types". It stays a door and it keeps its counts.
                  Floor check (6.10): POP-6 puts no floor item behind this door. The reading, the counts, the
                  degree distribution, the legend and every id stay resident in this column; what moves is a
-                 two-dimensional table that never had anywhere to render in a 256px band. -->
+                 two-dimensional table that never had anywhere to render in a 256px band.
+                 REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8). The permanent-door licence is WITHDRAWN
+                 and the POP-13(b) paragraph above is struck: there is no permanently-closed chevron, and a
+                 chevron that reveals nothing is a defect. This is an ordinary collapsed section, closed because
+                 the section is closed, and it opens IN PLACE onto the node-type rows with their counts (cat 17,
+                 human 2, dog 1) and the edge-type rows with their counts, capped at five with an "N more" row,
+                 plus the RT-7 verb row Filter to type / Select all of type. The last sentence of the floor check
+                 is now the whole of what leaves: the two-dimensional table, plus per-type completeness, behind a
+                 gear on the open section that keeps the 480 (D7). The re-run door test above holds with one word
+                 changed -- it is the MATRIX that buys width beyond the band, not the section.
+                 The A6 paragraph above is untouched and still explains the mark: a report has no default to
+                 deviate from, so the header carries a count and not an ink state. What changes is only the
+                 mark's name and its place. It is the D5 CLOSED-state mark now, deleted the moment the section is
+                 open and the type rows repeat it (Rule 8); and it packs immediately after the section name,
+                 which is how the five compliant boards draw the same closed header (5.8). The trailing slot
+                 stays empty because this header is not the hovered one on this board -- Most connected is -- so
+                 Export schema JSON is one hover away, exactly as before. Measured after the move: 16 chevron + 4
+                 + 48 "Schema" + 4 leaves 184px inside the 256px band for the mark's 151px, so it still reads in
+                 full. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Schema. 3 node types, 7 edge types" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
@@ -712,9 +743,10 @@
                   <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
                   </div>
-                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Schema</span>
+                  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Schema</span>
+                  <span style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">3 node types, 7 edge types</span>
                 </div>
-                <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">3 node types, 7 edge types</span>
+                <div style="display: flex; gap: 4px; flex: 0 0 auto;"></div>
               </div>
             </div>
 

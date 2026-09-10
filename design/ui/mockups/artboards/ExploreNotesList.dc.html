@@ -18,6 +18,25 @@
   Explore panel open with the Notes section expanded; note markers on the noted nodes. The status bar notes chip is hidden in
   exactly this state -- Explore open with Notes expanded -- because the panel's own Notes header owns the number (MIN-8).
   Canvas drawing lifted from ExplorerExpert.dc.html (same layout and node ids) without the path highlight.
+  REVISION 1.9 (SECTIONS-1.9 D1, D4, D5; work list 5.4, 5.7, 5.8). Every chevron on this board now opens onto
+  something. In the panel, the five dimmed unbuilt section rows -- Filter builder, Views, Find a pattern,
+  Neighborhood expansion, Step through time -- lose the chevron they could not open and keep their name and the
+  run's Coming tag, which is 5.7's spelling of the unshipped state and FLOOR-1.9 2.3's corollary intact. Two of
+  the five are this pass's (5.7, 5.4); the other three take the same edit because they share the run and the tag,
+  and are named here so their owner can see it. In the inspector, Schema is no longer "a permanent door": it is
+  the live collapsed section it was already drawn as, so the row is unchanged to the pixel, and 5.8's resident
+  form -- node-type and edge-type rows with counts, capped at five, plus Filter to type / Select all of type,
+  with per-type completeness and the 480 type-pair matrix behind the gear (D6, D7) -- is recorded on it.
+  MEASURED. The panel was 792px of rows in its 800px scroll region before this pass and is 792px after: no row
+  gains or loses height, only the 12px chevron leaves five leading slots, and the slots stay 16px so the name
+  column holds. No overflow, here or in the inspector, which stands at 498px of 800. The Notes list keeps its own
+  356px scroll region with 937px of notes in it, as before.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  The empty library sections lose the chevron they could not open: Filters and Sets. RT-8's empty form is a
+  dimmed name, its resident "+" and an EMPTY 16px leading slot, and D1 turns that snippet into a rule -- a
+  chevron renders only where it opens onto resident rows. The chevron returns with the first saved filter or set.
 -->
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -254,7 +273,26 @@
                  NEIGHBORHOOD EXPANSION, built, is one RT-8 door row whose trailing state mark names the
                  remembered depth and type filter ("2 steps, 3 types"), which is where 5.4's "uses the last node
                  and edge type filter" becomes readable before it acts. Dimmed, it carries no switch, no gear,
-                 no state mark and no key chip. Do not add a gear to a dimmed row. -->
+                 no state mark and no key chip. Do not add a gear to a dimmed row.
+                 REVISION 1.9 (SECTIONS-1.9 D1, work list 5.7 and 5.4). THE CHEVRON COMES OFF EVERY DIMMED ROW IN
+                 THESE TWO RUNS -- Filter builder above, and Views, Find a pattern, Neighborhood expansion and Step
+                 through time below. D1: a chevron renders only where it opens onto resident rows, and an unbuilt
+                 section has none, so it takes RT-8's empty-section shape -- an empty 16px leading slot, the name at
+                 the unbuilt ink, and the run's Coming tag where the trailing slot would be. 5.7 spells this out for
+                 Find a pattern ("the Coming tag in the trailing slot and no chevron ... a chevron appears with the
+                 rows"), and FLOOR-1.9 2.3's corollary is unbroken: the row keeps its TEXT and its TAG, which is
+                 what a reader needs; it loses only an affordance that opens nothing. The two rows this pass owns
+                 are Find a pattern (5.7) and Neighborhood expansion (5.4); the other three take the same edit
+                 because they sit in the same run under the same tag and a half-chevroned run of four would read as
+                 a bug rather than a rule. Nothing else on these rows moves: no plus is added (an unbuilt section
+                 has nothing to add), no state mark is added, and the 32px pitch and the group tag are untouched.
+                 What each row gains WHEN IT SHIPS is recorded so the chevron comes back over content and not over
+                 nothing: Find a pattern, the saved-pattern field and the Find row with its live match count, with
+                 the matching options behind a gear (5.7); Neighborhood expansion, the RT-1 pair Hops "2 steps" and
+                 the type filter "3 types" with its "2 steps, 3 types" closed mark, and direction, the max-nodes cap
+                 and the per-type list behind a gear (5.4); Step through time, the Window | Step pair and the
+                 Cumulative | Sliding track under its own On switch (5.5, whose boards are MultiSelection and
+                 TimeSlider, not this one). -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
               <div style="height: 1px; background: #495057;"></div>
 
@@ -269,9 +307,7 @@
 
               <div title="Filter builder. Not built yet" style="display: flex; align-items: center; gap: 4px; height: 32px; cursor: default;">
                 <div style="display: flex; align-items: center; gap: 4px; flex: 1 1 auto; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #5f6873;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Filter builder</span>
                 </div>
                 <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
@@ -282,9 +318,7 @@
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Filters</span>
                   <div title="Saved filters: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
@@ -300,9 +334,7 @@
               <div style="height: 1px; background: #495057;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-                  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                  </div>
+                  <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e; white-space: nowrap;">Sets</span>
                   <div title="Selection sets: saved in this browser on this computer. Export a file to move it." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
@@ -321,30 +353,22 @@
               </div>
 
               <div title="Views. Not built yet" style="display: flex; align-items: center; gap: 4px; height: 32px; cursor: default;">
-                <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #5f6873;">
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                </div>
+                <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                 <span style="min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Views</span>
               </div>
 
               <div title="Find a pattern (subgraph search). Not built yet" style="display: flex; align-items: center; gap: 4px; height: 32px; cursor: default;">
-                <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #5f6873;">
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                </div>
+                <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                 <span style="min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Find a pattern</span>
               </div>
 
               <div title="Neighborhood expansion. Not built yet" style="display: flex; align-items: center; gap: 4px; height: 32px; cursor: default;">
-                <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #5f6873;">
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                </div>
+                <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                 <span style="min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Neighborhood expansion</span>
               </div>
 
               <div title="Step through time (temporal navigation), by opened. Not built yet" style="display: flex; align-items: center; gap: 4px; height: 32px; cursor: default;">
-                <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #5f6873;">
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-                </div>
+                <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
                 <span style="min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Step through time</span>
               </div>
             </div>
@@ -1486,7 +1510,19 @@
                  state. While the pop-out is open the row carries the selected-row background #28364e.
                  Floor check: POP-6 puts no floor item behind this door. The reading, the counts, the degree
                  distribution and every id stay resident in this column; what moves is a table that never had
-                 anywhere to render. -->
+                 anywhere to render.
+                 REVISION 1.9 (5.8, D1/D4/D5/D6/D7). POP-13b IS STRUCK: there is no permanently-closed chevron and no
+                 section whose whole content lives behind a door. Schema is an ordinary live collapsed section again --
+                 this board is one of the five that already drew it that way and 5.8 makes the other twenty-one come
+                 to us, so NOT ONE PIXEL of this row changes. What changes is what the chevron opens onto. Open, the
+                 section is resident: the node-type rows with their counts and the edge-type rows with their counts,
+                 as short two-column tables capped at five with an "N more" row, plus the RT-7 verb row Filter to type
+                 / Select all of type. That is D6 -- of the readers who open Schema, the type names and counts are
+                 what they came to read. Behind the gear go per-type completeness and the edges-by-type-pair matrix,
+                 which keeps its 480 under D7 because a two-dimensional relationship still cannot be drawn honestly in
+                 a 256px band; Export schema JSON stays in the trailing slot. Closed, which is how D4 leaves it here,
+                 the mark is unchanged: "4 node types, 3 edge types" on this fixture, or "measuring..." while
+                 SchemaExtractor is still running. D5 deletes that mark only when the type rows are drawn. -->
             <div style="flex: 0 0 auto; display: flex; flex-direction: column; padding-top: 8px;">
               <div style="height: 1px; background: #495057;"></div>
               <div title="Schema. 4 node types, 3 edge types" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">

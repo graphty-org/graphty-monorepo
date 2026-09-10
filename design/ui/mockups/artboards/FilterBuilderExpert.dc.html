@@ -76,6 +76,22 @@
   exist yet is charged to 6.1 and not to A3's depth obligation.
   Palette: canvas #161b22, panels #1f2428, inputs #2a3035, hover #374047, border #48525c,
   text #d5d7da, dimmed #7a828e, accent #4a7ee8, selected #28364e. See VOCAB.md.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Selection statistics: the Export CSV button in the header is replaced by the section's GEAR. 5.10 files
+  Export CSV behind that gear with the rest of the comparison machinery, so the header was drawing one of
+  the gear's own contents beside the slot where the gear belongs. Dimmed, because nothing is pinned here.
+
+  REVISION 1.9, SET-WIDE CONSISTENCY PASS (ARTBOARD-CHANGES-1.9.md). One rule per section, applied once
+  across every board that draws it.
+  Selection statistics: the Export CSV button in the header is replaced by the section's GEAR. 5.10 files
+  Export CSV behind that gear with the rest of the comparison machinery, so the header was drawing one of the
+  gear's own contents beside the slot where the gear belongs. Dimmed, because nothing is pinned here.
+  Filter builder LOSES ITS COMING TAG. This board draws ten working rules and the live expression door that
+  5.6 cites as the compliant form, and FilterExpression draws that expression editor open with a valid
+  expression in it. A Coming tag on a section drawn operating is the contradiction this pass exists to
+  remove, and ExplorePanel and Main, the section's other live boards, draw none.
 -->
 <div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -304,7 +320,6 @@
                   <div title="Expression: the same filter written as JMESPath. The builder stays available while the expression can be shown as rules." style="width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
                   </div>
-                  <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 2px; flex: 0 0 auto;">
                   <div title="Edit as an expression (JMESPath)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #d5d7da; box-shadow: 0 0 0 1px #5b8ff9; cursor: pointer;">
@@ -1523,8 +1538,8 @@
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
                   </div>
                 </div>
-                <div title="Export CSV" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
+                <div title="Selection statistics detail. Comparison with a pinned card, per-attribute means, links inside the selection, Export CSV" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
                 </div>
               </div>
               <div style="display: flex; flex-direction: column; gap: 2px; padding-bottom: 8px;">

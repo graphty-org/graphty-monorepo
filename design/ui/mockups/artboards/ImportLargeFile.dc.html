@@ -103,6 +103,32 @@
     line and the ceiling it names; the Load header with "Default set in Settings > Performance"; every
     Load option with its own arithmetic and its own cost figure; the scope sentence; the Columns header
     with "2 guessed" and Review; the bipartite row; Cancel and Import in full text.
+
+  REVISION 1.9 (SECTIONS-1.9.md). Two D12 items land here, both from the stub-silent sweep, and no
+  section on this board changes state.
+  IMPORT SETTINGS, on the panel's Open file header: DELETED. It reported nothing at all -- no count, no
+  state, no departure -- which fails 6.11's stub obligation outright, and it duplicated the one general
+  import door 1.8 D5 fixed on the Loaded data header as "Import options". Welcome.dc.html deleted it
+  first; ImportOptions and ColumnRolePopout delete it in the same pass, so all four boards that carried
+  it now draw one name-only header.
+  THE PARSING GEAR, on the interpretation row: it survives D1 -- it is RT-1's 24px trailing door on a
+  row that already draws content, and D1 leaves those alone -- but it owed a stub and printed none. It
+  now draws its mark in ink, "Comma, header row": the separator and the header-row state, which are the
+  two of its five values that decide whether the preview below is the right table at all. The other
+  three (quote character, encoding, list separator) stay in the title, so nothing is lost. It also gains
+  the keyboard route it did not have -- the mark and the glyph are one control rather than an icon-only
+  target, so it enters the dialog's tab order and opens on Enter, and the title says so. No binding is
+  invented: a control may not print one it does not own.
+  MEASURED after both edits: the mark plus its glyph is 139.84px of the row's 686.00px, so the compound
+  interpretation field goes 654.00 -> 538.16 and its three sub-fields 217.33 -> 178.72 each, with value
+  spans of 132.27 / 144.72 / 144.72 and no ellipsis anywhere -- each had about 60px of slack. The row is
+  still 32.00px, the dialog body still holds 516.53px of content in its 537.00px client (20.47px of
+  headroom, no overflow) and the panel's 800.00px content region does not overflow.
+  5.15 POLICIES DOES NOT REACH THIS BOARD, said so it is not read as an omission: 1.8 deleted the three
+  policy rows AND their section here, because no count of repeats, unknown nodes or self-links can be
+  known before 3.2 GB is parsed and only its first 256 KB has been read. That is Rule 7c, which D3
+  leaves untouched -- what D1 forbids is a chevron over nothing, and this board draws no chevron. The
+  section returns with the counts, on the boards that have them.
 -->
 <div style="position: relative; width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden; font-size: 12px; line-height: 1.4;">
 
@@ -242,8 +268,14 @@
                already says it). What is left is a four-line inventory of where data comes from. -->
           <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 8px 8px 16px 16px; overflow: hidden; box-sizing: border-box;">
 
-            <!-- SECTION Open file. RT-8 header, live ink, the gear is the Import settings door.
-                 No divider above the first section: the title row's border already draws it. -->
+            <!-- SECTION Open file. RT-8 header, live ink, name only.
+                 No divider above the first section: the title row's border already draws it.
+                 1.9, D12: the "Import settings" gear is DELETED from this header. It printed no count, no
+                 state and no departure, so it failed 6.11's stub obligation outright; it duplicated the one
+                 general import door that 1.8 D5 fixed on the Loaded data header as "Import options"; and
+                 with nothing loaded it reached nothing at all. Welcome.dc.html deleted it first, and
+                 ImportOptions and ColumnRolePopout delete it in the same pass, so the four boards that
+                 carried it now draw one header. No row changes height and the section rhythm is untouched. -->
             <div style="display: flex; flex-direction: column;">
               <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
                 <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
@@ -251,9 +283,6 @@
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
                   </div>
                   <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Open file</span>
-                </div>
-                <div title="Import settings" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
                 </div>
               </div>
               <!-- RT-7: three verbs the register keeps in words (1.6 "verbs with no glyph": open, paste).
@@ -518,9 +547,29 @@
                and in the primary ink when anything behind it is not. Every value in this door's title is
                a detected or default value, so it draws dimmed (#7a828e). If a later state changes a
                separator or an encoding by hand, this glyph takes the primary ink #d5d7da and the
-               departure renders resident under the row that owns the door. -->
-          <div title="Parsing: separator comma, quote double, first row is a header, UTF-8, list separator vertical bar" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+               departure renders resident under the row that owns the door.
+               1.9, D12, the stub-silent sweep. This door survives D1 -- it is RT-1's 24px trailing door on
+               a ROW that already draws content, not a section that is a door, and D1 leaves those alone --
+               but it failed 6.11's stub obligation: all five of its values lived in a title, so a reader
+               with a pointer somewhere else could not see how the file is being split at all. It now
+               PRINTS its mark, in the two values that decide whether the preview below is even the right
+               table: the separator and the header-row state, "Comma, header row". The other three (quote
+               character, encoding, list separator) stay in the title, which keeps all five; the mark is
+               the two a reader checks. It also gains the KEYBOARD ROUTE it did not have: the mark and the
+               glyph are one control rather than an icon-only target, so it sits in the dialog's tab order
+               and opens on Enter, and the title says so. No new binding is claimed -- a control may not
+               print a binding it does not own, and this one owns none.
+               MEASURED in the browser, not estimated: the mark plus its glyph is 139.84px of the row's
+               686.00px (111.84 of text, a 4px gap, the 24px glyph), so the compound field goes 654.00 ->
+               538.16 and each of its three sub-fields 217.33 -> 178.72. Their value spans then measure
+               132.27, 144.72 and 144.72 with no ellipsis, because each was carrying about 60px of slack:
+               the widest content in the box is "CSV, comma" with its "98%" suffix. Nothing is clipped,
+               the row is still 32px, and no other row on the board moves. -->
+          <div title="Parsing: separator comma, quote double, first row is a header, UTF-8, list separator vertical bar. In the tab order; Enter opens it." style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto; height: 24px; cursor: pointer;">
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e; white-space: nowrap;">Comma, header row</span>
+            <div style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
+            </div>
           </div>
         </div>
 

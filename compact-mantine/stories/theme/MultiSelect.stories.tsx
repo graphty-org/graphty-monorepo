@@ -2,7 +2,7 @@ import { MultiSelect } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof MultiSelect> = {
-    title: "Theme/MultiSelect",
+    title: "Compact Theme/Mantine Components/MultiSelect",
     component: MultiSelect,
     args: {
         size: "compact",

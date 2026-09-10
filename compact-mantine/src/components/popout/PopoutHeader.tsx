@@ -1,23 +1,32 @@
-import { ActionIcon, CloseButton, Group, SegmentedControl, Text } from "@mantine/core";
+import { ActionIcon, CloseButton, Group, SegmentedControl, Text, VisuallyHidden } from "@mantine/core";
 import type { JSX } from "react";
 
+import { useLabels } from "../../i18n";
 import type { PopoutHeaderProps } from "../../types/popout";
 
+// Accessibility: the tab strip is the APG "Radio Group" pattern rather than the
+// "Tabs" pattern, because that is what Mantine's SegmentedControl builds --
+// real radio inputs in a group, with arrow-key movement and checked state
+// exposed natively, and arrow keys that already follow the reading direction.
+// The header itself is the dialog's title bar: its title element is what the
+// panel points aria-labelledby at.
+
 /**
- * Header component for the popout panel.
- * Supports two variants:
- * - "title": Simple text header with title
- * - "tabs": Tabbed interface with multiple tabs
- * Tab state is controlled by PopoutPanel for proper reset-on-reopen behavior.
+ * The bar across the top of a pop-out panel: its title or tab strip, any action
+ * buttons, and the close button.
+ *
+ * The whole bar is the panel's drag handle. Which tab is selected is decided by
+ * the panel rather than here, so that reopening a panel starts from its first
+ * tab again.
  * @param props - Component props
- * @param props.config - Header configuration with variant and title/tabs
- * @param props.onClose - Callback when close button is clicked
- * @param props.dragTriggerProps - Props to apply to the drag handle area
- * @param props.actions - Optional action buttons to display
- * @param props.activeTab - Currently active tab ID (controlled)
- * @param props.onTabChange - Callback when active tab changes (controlled)
- * @param props.titleId - ID for the title element (for aria-labelledby)
- * @returns The PopoutHeader component
+ * @param props.config - Header configuration with variant and title or tabs
+ * @param props.onClose - Called when the close button is activated
+ * @param props.dragTriggerProps - Props that make the bar a drag handle
+ * @param props.actions - Optional action buttons, shown before the close button
+ * @param props.activeTab - Currently selected tab
+ * @param props.onTabChange - Called when a different tab is selected, with its id first
+ * @param props.titleId - ID given to the title element, which names the panel
+ * @returns The pop-out panel's header bar
  */
 export function PopoutHeader({
     config,
@@ -28,6 +37,8 @@ export function PopoutHeader({
     onTabChange,
     titleId,
 }: PopoutHeaderProps): JSX.Element {
+    const labels = useLabels();
+
     // Extract style from dragTriggerProps to merge with Group's style
     const { style: dragStyle, ...restDragProps } = dragTriggerProps as {
         style?: React.CSSProperties;
@@ -46,6 +57,7 @@ export function PopoutHeader({
 
     return (
         <Group
+            data-testid="popout-header"
             justify="space-between"
             px="sm"
             py="xs"
@@ -56,18 +68,24 @@ export function PopoutHeader({
         >
             {/* Left side: Title or Segmented Control */}
             {config.variant === "title" ? (
-                <Text id={titleId} size="sm" fw={500}>
+                <Text id={titleId} data-testid="popout-header-title" size="sm" fw={500}>
                     {config.title}
                 </Text>
             ) : (
                 <>
-                    {/* Visually hidden title for aria-labelledby when using tabs */}
-                    <span id={titleId} style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0, 0, 0, 0)" }}>
-                        {tabsConfig?.tabs[0]?.label ?? "Settings"}
-                    </span>
+                    {/* A tab strip is not a title, so the panel is named by a
+                        hidden one rather than by whichever tab is selected. */}
+                    <VisuallyHidden id={titleId}>
+                        {tabsConfig?.tabs[0]?.label ?? labels.settings}
+                    </VisuallyHidden>
                     <SegmentedControl
+                        data-testid="popout-header-tabs"
                         data={segmentedData}
                         value={activeTab}
+                        // Mantine's SegmentedControl reports the value it
+                        // changed to and not the event that changed it. The
+                        // event is optional on every change handler in this
+                        // package for exactly this case.
                         onChange={(value) => onTabChange?.(value)}
                         size="xs"
                     />
@@ -86,7 +104,12 @@ export function PopoutHeader({
                         {action.icon}
                     </ActionIcon>
                 ))}
-                <CloseButton size="sm" onClick={onClose} aria-label="Close panel" />
+                <CloseButton
+                    size="sm"
+                    data-testid="popout-header-close"
+                    onClick={onClose}
+                    aria-label={labels.closePanel}
+                />
             </Group>
         </Group>
     );

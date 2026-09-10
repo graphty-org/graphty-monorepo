@@ -1,5 +1,6 @@
 import { createTheme, DEFAULT_THEME, mergeMantineTheme } from "@mantine/core";
 
+import { PANEL_GRID } from "../constants/panel";
 import { compactColors } from "./colors";
 import {
     buttonComponentExtensions,
@@ -11,6 +12,25 @@ import {
     overlayComponentExtensions,
 } from "./components";
 import { compactFontSizes, compactRadius, compactSpacing } from "./tokens";
+
+declare module "@mantine/core" {
+    /**
+     * The values this package puts on `theme.other`.
+     *
+     * Everything here is optional: a consumer who writes their own
+     * `createTheme({ other: {...} })` is not required to carry the panel grid,
+     * and reading `theme.other.panelGrid` is therefore a narrowed read.
+     */
+    interface MantineThemeOther {
+        /**
+         * The pixel grid every panel row is measured against, so a consumer
+         * theming this library can read the geometry -- the 280px width, the
+         * 224px body span, the 108px field, the 24px trailing slot -- from the
+         * theme instead of retyping it.
+         */
+        panelGrid?: typeof PANEL_GRID;
+    }
+}
 
 /**
  * Partial theme override with compact sizing for dense UIs.
@@ -25,9 +45,18 @@ export const compactThemeOverride = createTheme({
     fontSizes: compactFontSizes,
     spacing: compactSpacing,
     radius: compactRadius,
-    // Disable focus ring outlines globally for a cleaner UI
-    // This is appropriate for dense/professional interfaces like design tools
-    focusRing: "never",
+    // Keyboard focus is always visible; pointer focus is not. `auto` resolves to
+    // Mantine's `:focus-visible` rule, so a mouse click on a control leaves the
+    // dense surface unmarked while Tab paints a 2px ring -- WCAG 2.4.7 without
+    // giving up the design-tool look. Do not set this to "never": that resolves
+    // to `outline: none` on every control in the library at once.
+    focusRing: "auto",
+    // The panel grid, published on the theme so a consumer theming this
+    // library reads the geometry rather than retyping it. It is the same
+    // object as the exported PANEL_GRID constant.
+    other: {
+        panelGrid: PANEL_GRID,
+    },
     // Spread all component extensions into the theme
     // Each extension object provides compact size support for a category of components
     components: {
@@ -51,7 +80,7 @@ export const compactThemeOverride = createTheme({
  * All components default to size="sm" automatically with compact styling:
  * - Input height: 24px
  * - Font size: 11px
- * - No borders
+ * - Borderless at rest, with a visible focus indicator on keyboard focus
  * - Semantic color backgrounds
  *
  * Global token overrides:

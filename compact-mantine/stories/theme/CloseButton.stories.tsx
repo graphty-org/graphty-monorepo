@@ -2,7 +2,7 @@ import { CloseButton } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof CloseButton> = {
-    title: "Theme/CloseButton",
+    title: "Compact Theme/Mantine Components/CloseButton",
     component: CloseButton,
     args: {
         size: "compact",

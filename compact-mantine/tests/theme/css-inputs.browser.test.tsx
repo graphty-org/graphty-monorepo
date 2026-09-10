@@ -69,10 +69,10 @@ describe("TextInput - All CSS Values (Browser)", () => {
             expect(bgVar).toBeTruthy();
         });
 
-        it("--input-bd is none", () => {
+        it("--input-bd is transparent", () => {
             const { container } = renderWithTheme(<TextInput label="Test" />);
             const wrapper = container.querySelector(".mantine-TextInput-wrapper");
-            expect(getCssVar(wrapper, "--input-bd")).toBe("none");
+            expect(getCssVar(wrapper, "--input-bd")).toBe("transparent");
         });
     });
 
@@ -105,12 +105,14 @@ describe("TextInput - All CSS Values (Browser)", () => {
             expect(style?.paddingRight).toBe("8px");
         });
 
-        it("border is none", () => {
+        it("border is a transparent hairline, not none", () => {
             const { container } = renderWithTheme(<TextInput label="Test" />);
             const input = container.querySelector(".mantine-TextInput-input");
             const style = input ? getComputedStyle(input) : null;
-            // Border style 'none' results in various representations
-            expect(style?.borderStyle).toBe("none");
+            // The field still reads as borderless, but the 1px box exists so
+            // that focus can recolour it.
+            expect(style?.borderStyle).toBe("solid");
+            expect(style?.borderTopColor).toBe("rgba(0, 0, 0, 0)");
         });
 
         it("borderRadius is 4px (from theme radius.sm)", () => {
@@ -315,10 +317,10 @@ describe("Textarea - All CSS Values (Browser)", () => {
             expect(bgVar).toBeTruthy();
         });
 
-        it("--input-bd is none", () => {
+        it("--input-bd is transparent", () => {
             const { container } = renderWithTheme(<Textarea label="Test" />);
             const wrapper = container.querySelector(".mantine-Textarea-wrapper");
-            expect(getCssVar(wrapper, "--input-bd")).toBe("none");
+            expect(getCssVar(wrapper, "--input-bd")).toBe("transparent");
         });
 
         it("does NOT have fixed --input-height (variable height)", () => {

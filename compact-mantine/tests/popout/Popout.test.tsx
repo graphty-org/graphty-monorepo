@@ -515,8 +515,12 @@ describe("Popout panel sizing", () => {
         const panel = screen.getByRole("dialog");
         // Panel uses minWidth, allowing it to expand for wider content
         expect(panel.style.minWidth).toBe("200px");
-        // Panel should NOT have a fixed width that would constrain content
-        expect(panel.style.width).toBe("");
+        // Panel should NOT have a fixed pixel width that would constrain
+        // content. It sizes to min-content above that minimum, so a child too
+        // wide to fit still widens the panel while prose wraps at the declared
+        // width instead of running out to one long line.
+        expect(panel.style.width).toBe("min-content");
+        expect(panel.style.width).not.toMatch(/\d+px/);
     });
 
     it("panel expands to fit content wider than minWidth without overflow", async () => {

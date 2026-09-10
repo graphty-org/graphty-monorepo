@@ -2,7 +2,7 @@ import { PasswordInput } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof PasswordInput> = {
-    title: "Theme/PasswordInput",
+    title: "Compact Theme/Mantine Components/PasswordInput",
     component: PasswordInput,
 };
 

@@ -1,313 +1,376 @@
-import { MantineProvider } from "@mantine/core";
+import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import React, { type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { compactTheme, StyleNumberInput } from "../../src";
+import { LabelsProvider } from "../../src/i18n";
+
+function renderInput(children: ReactNode, dir: "ltr" | "rtl" = "ltr") {
+    return render(
+        <DirectionProvider initialDirection={dir} detectDirection={false}>
+            <MantineProvider theme={compactTheme}>{children}</MantineProvider>
+        </DirectionProvider>,
+    );
+}
 
 describe("StyleNumberInput", () => {
     it("shows default value when value is undefined", () => {
-        render(
-            <MantineProvider theme={compactTheme}>
-                <StyleNumberInput label="Size" value={undefined} defaultValue={10} onChange={vi.fn()} />
-            </MantineProvider>,
-        );
-        const input = screen.getByRole("textbox");
-        expect(input).toHaveValue("10");
+        renderInput(<StyleNumberInput label="Size" value={undefined} defaultValue={10} onChange={vi.fn()} />);
+        expect(screen.getByRole("textbox")).toHaveValue("10");
     });
 
     it("shows explicit value when provided", () => {
-        render(
-            <MantineProvider theme={compactTheme}>
-                <StyleNumberInput label="Size" value={20} defaultValue={10} onChange={vi.fn()} />
-            </MantineProvider>,
-        );
-        const input = screen.getByRole("textbox");
-        expect(input).toHaveValue("20");
+        renderInput(<StyleNumberInput label="Size" value={20} defaultValue={10} onChange={vi.fn()} />);
+        expect(screen.getByRole("textbox")).toHaveValue("20");
     });
 
     it("shows italic styling for default value", () => {
-        render(
-            <MantineProvider theme={compactTheme}>
-                <StyleNumberInput label="Size" value={undefined} defaultValue={10} onChange={vi.fn()} />
-            </MantineProvider>,
-        );
-        const input = screen.getByRole("textbox");
-        expect(getComputedStyle(input).fontStyle).toBe("italic");
+        renderInput(<StyleNumberInput label="Size" value={undefined} defaultValue={10} onChange={vi.fn()} />);
+        expect(getComputedStyle(screen.getByRole("textbox")).fontStyle).toBe("italic");
     });
 
     it("hides reset button when using default", () => {
-        render(
-            <MantineProvider theme={compactTheme}>
-                <StyleNumberInput label="Size" value={undefined} defaultValue={10} onChange={vi.fn()} />
-            </MantineProvider>,
-        );
+        renderInput(<StyleNumberInput label="Size" value={undefined} defaultValue={10} onChange={vi.fn()} />);
         expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
     });
 
     it("shows reset button when explicit value set", () => {
-        render(
-            <MantineProvider theme={compactTheme}>
-                <StyleNumberInput label="Size" value={20} defaultValue={10} onChange={vi.fn()} />
-            </MantineProvider>,
-        );
+        renderInput(<StyleNumberInput label="Size" value={20} defaultValue={10} onChange={vi.fn()} />);
         expect(screen.getByRole("button", { name: /reset/i })).toBeInTheDocument();
     });
 
     it("calls onChange with undefined when reset clicked", async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
-        render(
-            <MantineProvider theme={compactTheme}>
-                <StyleNumberInput label="Size" value={20} defaultValue={10} onChange={onChange} />
-            </MantineProvider>,
-        );
+        renderInput(<StyleNumberInput label="Size" value={20} defaultValue={10} onChange={onChange} />);
 
         await user.click(screen.getByRole("button", { name: /reset/i }));
-        expect(onChange).toHaveBeenCalledWith(undefined);
+
+        expect(onChange).toHaveBeenCalledTimes(1);
+        expect(onChange.mock.calls[0][0]).toBeUndefined();
     });
 
     it("has data-is-default attribute when using default", () => {
-        render(
-            <MantineProvider theme={compactTheme}>
-                <StyleNumberInput label="Size" value={undefined} defaultValue={10} onChange={vi.fn()} />
-            </MantineProvider>,
-        );
+        renderInput(<StyleNumberInput label="Size" value={undefined} defaultValue={10} onChange={vi.fn()} />);
         const inputWrapper = screen.getByRole("textbox").closest("[data-is-default]");
         expect(inputWrapper).toHaveAttribute("data-is-default", "true");
     });
 
     it("has data-is-default=false when using explicit value", () => {
-        render(
-            <MantineProvider theme={compactTheme}>
-                <StyleNumberInput label="Size" value={20} defaultValue={10} onChange={vi.fn()} />
-            </MantineProvider>,
-        );
+        renderInput(<StyleNumberInput label="Size" value={20} defaultValue={10} onChange={vi.fn()} />);
         const inputWrapper = screen.getByRole("textbox").closest("[data-is-default]");
         expect(inputWrapper).toHaveAttribute("data-is-default", "false");
     });
 
     it("respects min and max constraints by clamping values", () => {
-        // min/max are handled by the NumberInput component internally
-        // We verify that the component renders with min/max props
-        const { container } = render(
-            <MantineProvider theme={compactTheme}>
-                <StyleNumberInput label="Size" value={5} defaultValue={10} min={0} max={100} onChange={vi.fn()} />
-            </MantineProvider>,
+        const { container } = renderInput(
+            <StyleNumberInput label="Size" value={5} defaultValue={10} min={0} max={100} onChange={vi.fn()} />,
         );
-        // The wrapper div exists with the NumberInput
         expect(container.querySelector(".mantine-NumberInput-root")).toBeInTheDocument();
     });
 
     it("displays suffix when provided", () => {
-        render(
-            <MantineProvider theme={compactTheme}>
-                <StyleNumberInput label="Size" value={50} defaultValue={10} suffix="%" onChange={vi.fn()} />
-            </MantineProvider>,
-        );
-        const input = screen.getByRole("textbox");
-        expect(input).toHaveValue("50%");
+        renderInput(<StyleNumberInput label="Size" value={50} defaultValue={10} suffix="%" onChange={vi.fn()} />);
+        expect(screen.getByRole("textbox")).toHaveValue("50%");
+    });
+
+    describe("accessible name", () => {
+        // The control used to carry both a visible <label> and an aria-label
+        // repeating it, which replaces name-from-content rather than adding to
+        // it. The visible label is now the only source of the name.
+        it("takes its name from the visible label rather than an aria-label", () => {
+            renderInput(<StyleNumberInput label="Size" defaultValue={10} onChange={vi.fn()} />);
+            const input = screen.getByRole("textbox", { name: "Size" });
+            expect(input).not.toHaveAttribute("aria-label");
+        });
+
+        it("names the reset button from the labels", () => {
+            renderInput(<StyleNumberInput label="Size" value={20} defaultValue={10} onChange={vi.fn()} />);
+            expect(screen.getByRole("button", { name: "Reset Size to default" })).toBeInTheDocument();
+        });
+
+        it("takes the reset button's name from a LabelsProvider override", () => {
+            renderInput(
+                <LabelsProvider labels={{ resetToDefault: (label) => `${label} zurucksetzen` }}>
+                    <StyleNumberInput label="Grosse" value={20} defaultValue={10} onChange={vi.fn()} />
+                </LabelsProvider>,
+            );
+            expect(screen.getByRole("button", { name: "Grosse zurucksetzen" })).toBeInTheDocument();
+        });
     });
 
     describe("clamping and constraints", () => {
         it("clamps value to max on blur when input exceeds max", async () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
-            render(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput label="Angle" defaultValue={0} min={0} max={360} onChange={onChange} />
-                </MantineProvider>,
-            );
+            renderInput(<StyleNumberInput label="Angle" defaultValue={0} min={0} max={360} onChange={onChange} />);
 
             const input = screen.getByRole("textbox");
             await user.clear(input);
             await user.type(input, "500");
-            await user.tab(); // blur
+            await user.tab();
 
-            expect(onChange).toHaveBeenCalledWith(360);
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange.mock.calls[0][0]).toBe(360);
         });
 
         it("clamps value to min on blur when input is below min", async () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
-            render(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput label="Size" defaultValue={50} min={10} max={100} onChange={onChange} />
-                </MantineProvider>,
-            );
+            renderInput(<StyleNumberInput label="Size" defaultValue={50} min={10} max={100} onChange={onChange} />);
 
             const input = screen.getByRole("textbox");
             await user.clear(input);
             await user.type(input, "5");
-            await user.tab(); // blur
+            await user.tab();
 
-            expect(onChange).toHaveBeenCalledWith(10);
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange.mock.calls[0][0]).toBe(10);
+        });
+
+        it("redraws the box at the value that was kept", async () => {
+            const user = userEvent.setup();
+            renderInput(<StyleNumberInput label="Angle" defaultValue={0} min={0} max={360} onChange={vi.fn()} />);
+
+            const input = screen.getByRole("textbox");
+            await user.clear(input);
+            await user.type(input, "500");
+            await user.tab();
+
+            expect(input).toHaveValue("360");
         });
 
         it("does not call onChange when value is unchanged after clamping", async () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
-            render(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput label="Size" value={50} defaultValue={0} min={0} max={100} onChange={onChange} />
-                </MantineProvider>,
+            renderInput(
+                <StyleNumberInput label="Size" value={50} defaultValue={0} min={0} max={100} onChange={onChange} />,
             );
 
             const input = screen.getByRole("textbox");
             await user.clear(input);
             await user.type(input, "50");
-            await user.tab(); // blur
+            await user.tab();
 
-            // Value didn't change (still 50), so onChange should not be called
             expect(onChange).not.toHaveBeenCalled();
         });
 
         it("resets to previous value when invalid input is entered", async () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
-            render(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput label="Size" defaultValue={50} onChange={onChange} />
-                </MantineProvider>,
-            );
+            renderInput(<StyleNumberInput label="Size" defaultValue={50} onChange={onChange} />);
 
             const input = screen.getByRole("textbox");
             await user.clear(input);
             await user.type(input, "abc");
-            await user.tab(); // blur
+            await user.tab();
 
-            // Should reset to default value since no valid number was entered
             expect(input).toHaveValue("50");
             expect(onChange).not.toHaveBeenCalled();
         });
     });
 
-    describe("spinner controls", () => {
-        it("hides spinner controls by default (hideControls=true)", () => {
-            const { container } = render(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput label="Size" defaultValue={10} onChange={vi.fn()} />
-                </MantineProvider>,
+    describe("locale-aware reading of what was typed", () => {
+        // parseFloat understands only a period and only ASCII digits, so it
+        // read the German 3,5 as 3. The number is now read with the active
+        // locale's own conventions.
+        it("reads a comma decimal separator when the locale uses one", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            renderInput(
+                <LabelsProvider locale="de-DE">
+                    <StyleNumberInput label="Grosse" defaultValue={0} decimalScale={2} onChange={onChange} />
+                </LabelsProvider>,
             );
 
-            // Controls should not be in the DOM when hideControls is true (default)
-            const controls = container.querySelector(".mantine-NumberInput-controls");
-            expect(controls).not.toBeInTheDocument();
+            const input = screen.getByRole("textbox");
+            await user.clear(input);
+            await user.type(input, "3,5");
+            await user.tab();
+
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange.mock.calls[0][0]).toBe(3.5);
+        });
+
+        it("still reads a period decimal separator in English", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            renderInput(
+                <LabelsProvider locale="en-US">
+                    <StyleNumberInput label="Size" defaultValue={0} decimalScale={2} onChange={onChange} />
+                </LabelsProvider>,
+            );
+
+            const input = screen.getByRole("textbox");
+            await user.clear(input);
+            await user.type(input, "3.5");
+            await user.tab();
+
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange.mock.calls[0][0]).toBe(3.5);
+        });
+    });
+
+    describe("event model", () => {
+        it("hands the blur that committed the number to onChange", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            renderInput(<StyleNumberInput label="Size" defaultValue={0} onChange={onChange} />);
+
+            const input = screen.getByRole("textbox");
+            await user.clear(input);
+            await user.type(input, "12");
+            await user.tab();
+
+            const event = onChange.mock.calls[0][1];
+            expect(event).toBeDefined();
+            expect(event.type).toBe("blur");
+        });
+
+        it("hands the reset click's event to onChange", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            renderInput(<StyleNumberInput label="Size" value={20} defaultValue={10} onChange={onChange} />);
+
+            await user.click(screen.getByRole("button", { name: /reset/i }));
+
+            const event = onChange.mock.calls[0][1];
+            expect(event).toBeDefined();
+            expect(event.type).toBe("click");
+        });
+
+        // Contract 1.5: focus and blur are forwarded, never swallowed for
+        // internal state, even though blur is what commits the number.
+        it("forwards focus and blur", async () => {
+            const user = userEvent.setup();
+            const onFocus = vi.fn();
+            const onBlur = vi.fn();
+            renderInput(
+                <StyleNumberInput label="Size" defaultValue={10} onFocus={onFocus} onBlur={onBlur} />,
+            );
+
+            const input = screen.getByRole("textbox");
+            await user.click(input);
+            expect(onFocus).toHaveBeenCalledTimes(1);
+
+            await user.tab();
+            expect(onBlur).toHaveBeenCalledTimes(1);
+        });
+
+        it("forwards blur even when nothing was committed", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            const onBlur = vi.fn();
+            renderInput(
+                <StyleNumberInput label="Size" defaultValue={10} onChange={onChange} onBlur={onBlur} />,
+            );
+
+            const input = screen.getByRole("textbox");
+            await user.clear(input);
+            await user.type(input, "abc");
+            await user.tab();
+
+            expect(onChange).not.toHaveBeenCalled();
+            expect(onBlur).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe("spinner controls", () => {
+        it("hides spinner controls by default (hideControls=true)", () => {
+            const { container } = renderInput(
+                <StyleNumberInput label="Size" defaultValue={10} onChange={vi.fn()} />,
+            );
+            expect(container.querySelector(".mantine-NumberInput-controls")).not.toBeInTheDocument();
         });
 
         it("shows spinner controls when hideControls=false", () => {
-            const { container } = render(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput label="Size" defaultValue={10} hideControls={false} onChange={vi.fn()} />
-                </MantineProvider>,
+            const { container } = renderInput(
+                <StyleNumberInput label="Size" defaultValue={10} hideControls={false} onChange={vi.fn()} />,
             );
-
-            // Controls should be present when hideControls is false
-            const controls = container.querySelector(".mantine-NumberInput-controls");
-            expect(controls).toBeInTheDocument();
+            expect(container.querySelector(".mantine-NumberInput-controls")).toBeInTheDocument();
         });
 
         it("increments by step value when up control is clicked", async () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
-            const { container } = render(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput
-                        label="Angle"
-                        defaultValue={0}
-                        step={15}
-                        hideControls={false}
-                        onChange={onChange}
-                    />
-                </MantineProvider>,
+            const { container } = renderInput(
+                <StyleNumberInput label="Angle" defaultValue={0} step={15} hideControls={false} onChange={onChange} />,
             );
 
             const upButton = container.querySelector('[data-direction="up"]');
             expect(upButton).toBeInTheDocument();
             await user.click(upButton!);
-            // Blur to commit the value (component uses blur-to-commit pattern)
             await user.tab();
 
-            // After clicking up and blurring, value should be 0 + 15 = 15
-            expect(onChange).toHaveBeenCalledWith(15);
+            expect(onChange.mock.calls[0][0]).toBe(15);
         });
 
         it("decrements by step value when down control is clicked", async () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
-            const { container } = render(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput
-                        label="Angle"
-                        value={30}
-                        defaultValue={0}
-                        step={15}
-                        hideControls={false}
-                        onChange={onChange}
-                    />
-                </MantineProvider>,
+            const { container } = renderInput(
+                <StyleNumberInput
+                    label="Angle"
+                    value={30}
+                    defaultValue={0}
+                    step={15}
+                    hideControls={false}
+                    onChange={onChange}
+                />,
             );
 
             const downButton = container.querySelector('[data-direction="down"]');
             expect(downButton).toBeInTheDocument();
             await user.click(downButton!);
-            // Blur to commit the value (component uses blur-to-commit pattern)
             await user.tab();
 
-            // After clicking down and blurring, value should be 30 - 15 = 15
-            expect(onChange).toHaveBeenCalledWith(15);
+            expect(onChange.mock.calls[0][0]).toBe(15);
         });
 
         it("disables up control when at max value", () => {
-            const { container } = render(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput
-                        label="Angle"
-                        value={360}
-                        defaultValue={0}
-                        max={360}
-                        hideControls={false}
-                        onChange={vi.fn()}
-                    />
-                </MantineProvider>,
+            const { container } = renderInput(
+                <StyleNumberInput
+                    label="Angle"
+                    value={360}
+                    defaultValue={0}
+                    max={360}
+                    hideControls={false}
+                    onChange={vi.fn()}
+                />,
             );
-
-            const upButton = container.querySelector('[data-direction="up"]');
-            expect(upButton).toBeDisabled();
+            expect(container.querySelector('[data-direction="up"]')).toBeDisabled();
         });
 
         it("disables down control when at min value", () => {
-            const { container } = render(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput
-                        label="Angle"
-                        value={0}
-                        defaultValue={0}
-                        min={0}
-                        hideControls={false}
-                        onChange={vi.fn()}
-                    />
-                </MantineProvider>,
+            const { container } = renderInput(
+                <StyleNumberInput
+                    label="Angle"
+                    value={0}
+                    defaultValue={0}
+                    min={0}
+                    hideControls={false}
+                    onChange={vi.fn()}
+                />,
             );
-
-            const downButton = container.querySelector('[data-direction="down"]');
-            expect(downButton).toBeDisabled();
+            expect(container.querySelector('[data-direction="down"]')).toBeDisabled();
         });
     });
 
-    describe("state sync (Issue #7)", () => {
+    describe("state sync", () => {
         it("syncs external value changes correctly", () => {
-            const { rerender } = render(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput label="Size" value={10} defaultValue={0} onChange={vi.fn()} />
-                </MantineProvider>,
+            const { rerender } = renderInput(
+                <StyleNumberInput label="Size" value={10} defaultValue={0} onChange={vi.fn()} />,
             );
             expect(screen.getByRole("textbox")).toHaveValue("10");
 
             rerender(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput label="Size" value={20} defaultValue={0} onChange={vi.fn()} />
-                </MantineProvider>,
+                <DirectionProvider initialDirection="ltr" detectDirection={false}>
+                    <MantineProvider theme={compactTheme}>
+                        <StyleNumberInput label="Size" value={20} defaultValue={0} onChange={vi.fn()} />
+                    </MantineProvider>
+                </DirectionProvider>,
             );
             expect(screen.getByRole("textbox")).toHaveValue("20");
         });
@@ -315,94 +378,111 @@ describe("StyleNumberInput", () => {
         it("maintains local value during typing without premature sync", async () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
-            render(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput label="Size" value={100} defaultValue={0} onChange={onChange} />
-                </MantineProvider>,
-            );
+            renderInput(<StyleNumberInput label="Size" value={100} defaultValue={0} onChange={onChange} />);
 
             const input = screen.getByRole("textbox");
 
-            // Clear and start typing a new value
             await user.clear(input);
             await user.type(input, "5");
-
-            // During typing, the local value should show what user typed (not reset to 100)
             expect(input).toHaveValue("5");
 
-            // Continue typing
             await user.type(input, "0");
             expect(input).toHaveValue("50");
 
-            // Value should be committed on blur
             await user.tab();
-            expect(onChange).toHaveBeenCalledWith(50);
+            expect(onChange.mock.calls[0][0]).toBe(50);
         });
 
-        it("handles rapid value changes from external source", async () => {
-            const { rerender } = render(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput label="Size" value={10} defaultValue={0} onChange={vi.fn()} />
-                </MantineProvider>,
+        it("handles rapid value changes from external source", () => {
+            const { rerender } = renderInput(
+                <StyleNumberInput label="Size" value={10} defaultValue={0} onChange={vi.fn()} />,
             );
 
-            // Simulate rapid external value changes
-            for (let i = 20; i <= 50; i += 10) {
+            for (let next = 20; next <= 50; next += 10) {
                 rerender(
-                    <MantineProvider theme={compactTheme}>
-                        <StyleNumberInput label="Size" value={i} defaultValue={0} onChange={vi.fn()} />
-                    </MantineProvider>,
+                    <DirectionProvider initialDirection="ltr" detectDirection={false}>
+                        <MantineProvider theme={compactTheme}>
+                            <StyleNumberInput label="Size" value={next} defaultValue={0} onChange={vi.fn()} />
+                        </MantineProvider>
+                    </DirectionProvider>,
                 );
-                expect(screen.getByRole("textbox")).toHaveValue(String(i));
+                expect(screen.getByRole("textbox")).toHaveValue(String(next));
             }
         });
 
         it("preserves user input when external value matches what user typed", async () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
-            const { rerender } = render(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput label="Size" value={10} defaultValue={0} onChange={onChange} />
-                </MantineProvider>,
+            const { rerender } = renderInput(
+                <StyleNumberInput label="Size" value={10} defaultValue={0} onChange={onChange} />,
             );
 
             const input = screen.getByRole("textbox");
-
-            // User types a new value
             await user.clear(input);
             await user.type(input, "25");
             expect(input).toHaveValue("25");
 
-            // External value changes to the same value the user typed
-            // This shouldn't cause any flickering or reset
             rerender(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput label="Size" value={25} defaultValue={0} onChange={onChange} />
-                </MantineProvider>,
+                <DirectionProvider initialDirection="ltr" detectDirection={false}>
+                    <MantineProvider theme={compactTheme}>
+                        <StyleNumberInput label="Size" value={25} defaultValue={0} onChange={onChange} />
+                    </MantineProvider>
+                </DirectionProvider>,
             );
 
             expect(input).toHaveValue("25");
         });
 
-        it("updates to undefined correctly (revert to default)", async () => {
-            const user = userEvent.setup();
-            const onChange = vi.fn();
-            const { rerender } = render(
-                <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput label="Size" value={50} defaultValue={10} onChange={onChange} />
-                </MantineProvider>,
+        it("updates to undefined correctly (revert to default)", () => {
+            const { rerender } = renderInput(
+                <StyleNumberInput label="Size" value={50} defaultValue={10} onChange={vi.fn()} />,
             );
-
             expect(screen.getByRole("textbox")).toHaveValue("50");
 
-            // External value changes to undefined (using default)
             rerender(
+                <DirectionProvider initialDirection="ltr" detectDirection={false}>
+                    <MantineProvider theme={compactTheme}>
+                        <StyleNumberInput label="Size" value={undefined} defaultValue={10} onChange={vi.fn()} />
+                    </MantineProvider>
+                </DirectionProvider>,
+            );
+            expect(screen.getByRole("textbox")).toHaveValue("10");
+        });
+    });
+
+    describe("target size and direction", () => {
+        // WCAG 2.2 (2.5.8) asks for a 24px target; the reset used to be an
+        // 18px "xs" ActionIcon.
+        it("draws the reset button at the 24px target size", () => {
+            renderInput(<StyleNumberInput label="Size" value={20} defaultValue={10} onChange={vi.fn()} />);
+            const reset = screen.getByRole("button", { name: /reset/i });
+            expect(reset.style.getPropertyValue("--ai-size")).toContain("24");
+        });
+
+        it("offsets the reset button along the block axis, not a physical one", () => {
+            renderInput(<StyleNumberInput label="Size" value={20} defaultValue={10} onChange={vi.fn()} />);
+            const reset = screen.getByRole("button", { name: /reset/i });
+            expect(reset.style.getPropertyValue("margin-block-end")).toBe("2px");
+            expect(reset.style.getPropertyValue("margin-bottom")).toBe("");
+        });
+
+        it("renders under a right-to-left direction provider", () => {
+            renderInput(<StyleNumberInput label="Size" value={20} defaultValue={10} onChange={vi.fn()} />, "rtl");
+            expect(screen.getByRole("textbox", { name: "Size" })).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: /reset/i })).toBeInTheDocument();
+        });
+    });
+
+    describe("disabled", () => {
+        it("refuses the number box and its reset together", () => {
+            render(
                 <MantineProvider theme={compactTheme}>
-                    <StyleNumberInput label="Size" value={undefined} defaultValue={10} onChange={onChange} />
+                    <StyleNumberInput label="Width" defaultValue={1} value={4} disabled />
                 </MantineProvider>,
             );
 
-            expect(screen.getByRole("textbox")).toHaveValue("10");
+            expect(screen.getByRole("textbox", { name: "Width" })).toBeDisabled();
+            expect(screen.getByTestId("style-number-input-reset")).toBeDisabled();
         });
     });
 });

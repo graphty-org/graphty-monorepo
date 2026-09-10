@@ -2,7 +2,7 @@ import { Badge, Group } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Badge> = {
-    title: "Theme/Badge",
+    title: "Compact Theme/Mantine Components/Badge",
     component: Badge,
 };
 

@@ -2,7 +2,7 @@ import { Group, Pill } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Pill> = {
-    title: "Theme/Pill",
+    title: "Compact Theme/Mantine Components/Pill",
     component: Pill,
 };
 

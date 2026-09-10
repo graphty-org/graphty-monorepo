@@ -2,7 +2,7 @@ import { SegmentedControl } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof SegmentedControl> = {
-    title: "Theme/SegmentedControl",
+    title: "Compact Theme/Mantine Components/SegmentedControl",
     component: SegmentedControl,
 };
 

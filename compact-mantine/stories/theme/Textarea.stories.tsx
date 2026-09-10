@@ -2,7 +2,7 @@ import { Textarea } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Textarea> = {
-    title: "Theme/Textarea",
+    title: "Compact Theme/Mantine Components/Textarea",
     component: Textarea,
 };
 

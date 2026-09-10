@@ -17,6 +17,7 @@ import { displayComponentExtensions } from "../../src/theme/components/display";
 import { feedbackComponentExtensions } from "../../src/theme/components/feedback";
 import { navigationComponentExtensions } from "../../src/theme/components/navigation";
 import { overlayComponentExtensions } from "../../src/theme/components/overlays";
+import { PANEL_INK } from "../../src/constants/panel";
 import { FLOATING_UI_Z_INDEX } from "../../src/constants/popout";
 
 /**
@@ -30,7 +31,7 @@ import { FLOATING_UI_Z_INDEX } from "../../src/constants/popout";
  * - --input-size: 24px (input height)
  * - --input-fz: 11px (font size)
  * - --input-bg: var(--mantine-color-default) (semantic background)
- * - --input-bd: none (no border)
+ * - --input-bd: transparent (borderless at rest, primary on focus)
  */
 describe("CSS Variable Regression Tests", () => {
     describe("compactInputVars", () => {
@@ -46,8 +47,12 @@ describe("CSS Variable Regression Tests", () => {
             expect(compactInputVars["--input-bg"]).toBe("var(--mantine-color-default)");
         });
 
-        it("has no border", () => {
-            expect(compactInputVars["--input-bd"]).toBe("none");
+        // `none` would make Mantine's `border: 1px solid var(--input-bd)`
+        // invalid, so its focus rule -- which only swaps this variable -- could
+        // never paint. Transparent keeps the field borderless and keeps focus
+        // paintable. This assertion fails if `none` ever comes back.
+        it("has a transparent border so the focus border can paint", () => {
+            expect(compactInputVars["--input-bd"]).toBe("transparent");
         });
     });
 
@@ -64,8 +69,8 @@ describe("CSS Variable Regression Tests", () => {
             expect(compactInputVarsNoHeight["--input-bg"]).toBe("var(--mantine-color-default)");
         });
 
-        it("has no border", () => {
-            expect(compactInputVarsNoHeight["--input-bd"]).toBe("none");
+        it("has a transparent border so the focus border can paint", () => {
+            expect(compactInputVarsNoHeight["--input-bd"]).toBe("transparent");
         });
     });
 
@@ -74,8 +79,8 @@ describe("CSS Variable Regression Tests", () => {
             expect(compactLabelStyles.fontSize).toBe(11);
         });
 
-        it("has dimmed color", () => {
-            expect(compactLabelStyles.color).toBe("var(--mantine-color-dimmed)");
+        it("has the secondary ink colour", () => {
+            expect(compactLabelStyles.color).toBe(PANEL_INK.CHROME);
         });
 
         it("has correct margin bottom", () => {
@@ -88,13 +93,20 @@ describe("CSS Variable Regression Tests", () => {
     });
 
     describe("compactInputElementStyles", () => {
-        it("has correct padding", () => {
-            expect(compactInputElementStyles.paddingLeft).toBe(8);
-            expect(compactInputElementStyles.paddingRight).toBe(8);
+        // Logical rather than physical, so an input pads the edge its own text
+        // starts from under dir="rtl".
+        it("has correct padding, written in logical properties", () => {
+            expect(compactInputElementStyles.paddingInlineStart).toBe(8);
+            expect(compactInputElementStyles.paddingInlineEnd).toBe(8);
+            expect(compactInputElementStyles).not.toHaveProperty("paddingLeft");
+            expect(compactInputElementStyles).not.toHaveProperty("paddingRight");
         });
 
-        it("has no border", () => {
-            expect(compactInputElementStyles.border).toBe("none");
+        // An inline border would win over Mantine's focus rule, which shows
+        // focus by recolouring the input's border. This assertion fails if an
+        // inline border comes back.
+        it("sets no inline border, leaving the focus border free to paint", () => {
+            expect(compactInputElementStyles).not.toHaveProperty("border");
         });
 
         it("has semantic background", () => {
@@ -107,17 +119,17 @@ describe("CSS Variable Regression Tests", () => {
             expect(compactInputStyles.label.fontSize).toBe(11);
         });
 
-        it("label has dimmed color", () => {
-            expect(compactInputStyles.label.color).toBe("var(--mantine-color-dimmed)");
+        it("label has the secondary ink colour", () => {
+            expect(compactInputStyles.label.color).toBe(PANEL_INK.CHROME);
         });
 
-        it("input has correct padding", () => {
-            expect(compactInputStyles.input.paddingLeft).toBe(8);
-            expect(compactInputStyles.input.paddingRight).toBe(8);
+        it("input has correct padding, written in logical properties", () => {
+            expect(compactInputStyles.input.paddingInlineStart).toBe(8);
+            expect(compactInputStyles.input.paddingInlineEnd).toBe(8);
         });
 
-        it("input has no border", () => {
-            expect(compactInputStyles.input.border).toBe("none");
+        it("input sets no inline border", () => {
+            expect(compactInputStyles.input).not.toHaveProperty("border");
         });
     });
 
@@ -217,10 +229,10 @@ describe("CSS Variable Regression Tests", () => {
                 expect(vars.wrapper).toHaveProperty("--input-size", "24px");
             });
 
-            it("has innerInput padding in styles", () => {
+            it("has innerInput padding in styles, written in logical properties", () => {
                 const styles = inputComponentExtensions.PasswordInput.styles as Record<string, unknown>;
-                expect(styles.innerInput).toHaveProperty("paddingLeft", 8);
-                expect(styles.innerInput).toHaveProperty("paddingRight", 8);
+                expect(styles.innerInput).toHaveProperty("paddingInlineStart", 8);
+                expect(styles.innerInput).toHaveProperty("paddingInlineEnd", 8);
             });
         });
 

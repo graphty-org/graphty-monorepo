@@ -1,8 +1,19 @@
 import type { StorybookConfig } from "@storybook/react-vite";
 
 const config: StorybookConfig = {
-    stories: ["../stories/**/*.stories.@(js|jsx|ts|tsx|mdx)", "../src/**/*.stories.@(js|jsx|ts|tsx|mdx)"],
-    addons: ["@storybook/addon-essentials", "@chromatic-com/storybook"],
+    // The first entry picks up the written documentation pages -- the
+    // introduction and each section's overview. Without it only files named
+    // `*.stories.*` are indexed, which is why those pages had never appeared in
+    // the sidebar.
+    stories: [
+        "../stories/**/*.mdx",
+        "../stories/**/*.stories.@(js|jsx|ts|tsx)",
+        "../src/**/*.stories.@(js|jsx|ts|tsx)",
+    ],
+    // addon-a11y runs axe-core against every story and reports violations in the
+    // Accessibility panel, which is what catches a missing name, a bad role or a
+    // contrast failure before it is published.
+    addons: ["@storybook/addon-essentials", "@storybook/addon-a11y", "@chromatic-com/storybook"],
     framework: {
         name: "@storybook/react-vite",
         options: {},

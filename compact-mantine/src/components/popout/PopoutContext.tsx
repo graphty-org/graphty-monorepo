@@ -1,7 +1,9 @@
+import { useUncontrolled } from "@mantine/hooks";
 import {
     createContext,
     type JSX,
     type ReactNode,
+    type SyntheticEvent,
     useCallback,
     useContext,
     useEffect,
@@ -12,6 +14,7 @@ import {
 } from "react";
 
 import { POPOUT_Z_INDEX_BASE } from "../../constants/popout";
+import type { OpenChangeHandler } from "../../types/events";
 import type { PopoutContextValue, PopoutManagerContextValue } from "../../types/popout";
 import { useClickOutside } from "./hooks/useClickOutside";
 import { useEscapeKey } from "./hooks/useEscapeKey";
@@ -62,45 +65,120 @@ export function usePopoutManagerContext(): PopoutManagerContextValue {
 }
 
 /**
+ * Hook to check whether a PopoutManager is present, without throwing.
+ *
+ * Used by components that carry their own manager when they are not already
+ * inside one, so that they work standalone and still join the page's single
+ * floating layer when there is one.
+ * @returns The PopoutManagerContext value if inside a PopoutManager, or null otherwise
+ */
+export function useOptionalPopoutManagerContext(): PopoutManagerContextValue | null {
+    return useContext(PopoutManagerContext);
+}
+
+/**
  * Props for PopoutProvider.
  */
 interface PopoutProviderProps {
     children: ReactNode;
     /** ID of the parent popout (if nested) */
     parentId?: string | null;
+    /** Whether the pop-out is open, when the consumer drives it from their own state */
+    opened?: boolean;
+    /** Whether the pop-out starts open, when it keeps its own state */
+    defaultOpened?: boolean;
+    /** Called when the pop-out opens or closes */
+    onOpenChange?: OpenChangeHandler;
 }
 
 /**
  * Provider for individual Popout instance state.
  * Manages open/close state and trigger ref for a single popout.
  * Tracks parent ID for hierarchy management when nested.
+ *
+ * The open state is controlled when `opened` is supplied and self-managed
+ * otherwise, and every change is reported to `onOpenChange` either way.
  * @param props - Component props
  * @param props.children - Child components wrapped by the provider
  * @param props.parentId - ID of the parent popout if this is a nested popout
+ * @param props.opened - Whether the pop-out is open, when driven from the consumer's state
+ * @param props.defaultOpened - Whether the pop-out starts open, when it keeps its own state
+ * @param props.onOpenChange - Called when the pop-out opens or closes
  * @returns The PopoutProvider component
  */
-export function PopoutProvider({ children, parentId = null }: PopoutProviderProps): JSX.Element {
+export function PopoutProvider({
+    children,
+    parentId = null,
+    opened,
+    defaultOpened,
+    onOpenChange,
+}: PopoutProviderProps): JSX.Element {
     const id = useId();
-    const [isOpen, setIsOpen] = useState(false);
     const triggerRef = useRef<HTMLElement | null>(null);
+
+    const [isOpen, setIsOpen] = useUncontrolled<boolean>({
+        value: opened,
+        defaultValue: defaultOpened,
+        finalValue: false,
+        onChange: onOpenChange,
+    });
+
+    // useUncontrolled hands back a new setter on every render. Reading it
+    // through a ref is what keeps open, close and toggle stable, so the context
+    // value changes only when the pop-out actually opens or closes. Without
+    // that, everything inside a pop-out re-renders on every keystroke elsewhere
+    // -- and the panel's registration effect, which depends on close, tore its
+    // own registration down and built it again on every render.
+    const setIsOpenRef = useRef(setIsOpen);
+    useEffect(() => {
+        setIsOpenRef.current = setIsOpen;
+    });
+
+    // A change made in code carries no event, and onOpenChange is then called
+    // with the new state alone rather than with an explicit undefined.
+    const setOpenState = useCallback(
+        (next: boolean, event?: SyntheticEvent) => {
+            if (event) {
+                setIsOpenRef.current(next, event);
+                return;
+            }
+            setIsOpenRef.current(next);
+        },
+        [],
+    );
+
+    const open = useCallback(
+        (event?: SyntheticEvent) => {
+            setOpenState(true, event);
+        },
+        [setOpenState],
+    );
+
+    const close = useCallback(
+        (event?: SyntheticEvent) => {
+            setOpenState(false, event);
+        },
+        [setOpenState],
+    );
+
+    const toggle = useCallback(
+        (event?: SyntheticEvent) => {
+            setOpenState(!isOpen, event);
+        },
+        [isOpen, setOpenState],
+    );
 
     const value = useMemo<PopoutContextValue>(
         () => ({
             id,
             isOpen,
-            open: () => {
-                setIsOpen(true);
-            },
-            close: () => {
-                setIsOpen(false);
-            },
-            toggle: () => {
-                setIsOpen((prev) => !prev);
-            },
+            open,
+            close,
+            toggle,
             triggerRef,
             parentId,
         }),
-        [id, isOpen, parentId],
+        [id, isOpen, open, close, toggle, parentId],
     );
 
     return <PopoutContext.Provider value={value}>{children}</PopoutContext.Provider>;
@@ -117,7 +195,8 @@ interface PopoutManagerProviderProps {
  * Provider for PopoutManager coordination.
  * Manages z-index, registration of multiple popouts, and portal container.
  * Handles global escape key and click-outside behavior.
- * Tracks parent-child hierarchy for cascading close behavior (Phase 6).
+ * Tracks which pop-out was opened from which, so that closing one closes
+ * everything opened from it and Escape closes the innermost one first.
  * @param props - Component props
  * @param props.children - Child components wrapped by the provider
  * @returns The PopoutManagerProvider component
@@ -205,8 +284,12 @@ export function PopoutManagerProvider({ children }: PopoutManagerProviderProps):
     }, [getDepth]);
 
     const register = useCallback((popoutId: string, closeCallback: () => void, parentId?: string | null) => {
-        // Skip if already registered
         if (zIndexStackRef.current.includes(popoutId)) {
+            // Already in the stack: keep the close callback fresh -- a pop-out
+            // whose consumer drives it hands over a new one on every render --
+            // without disturbing the stacking order, and without publishing a
+            // new version, which would re-render every panel on the page.
+            closeCallbacksRef.current.set(popoutId, closeCallback);
             return;
         }
 
@@ -237,6 +320,16 @@ export function PopoutManagerProvider({ children }: PopoutManagerProviderProps):
     }, [findSiblings, findDescendantsInRegister, closePopoutsDepthFirst]);
 
     const unregister = useCallback((popoutId: string) => {
+        if (!zIndexStackRef.current.includes(popoutId)) {
+            // Nothing to remove. Publishing a version anyway would re-render
+            // every panel, which re-runs this effect, which publishes again:
+            // a closed pop-out inside an open panel used to spin forever that
+            // way.
+            closeCallbacksRef.current.delete(popoutId);
+            parentMapRef.current.delete(popoutId);
+            return;
+        }
+
         zIndexStackRef.current = zIndexStackRef.current.filter((id) => id !== popoutId);
         closeCallbacksRef.current.delete(popoutId);
         parentMapRef.current.delete(popoutId);
@@ -399,7 +492,10 @@ export function PopoutManagerProvider({ children }: PopoutManagerProviderProps):
     return (
         <PopoutManagerContext.Provider value={value}>
             {children}
-            <div ref={setPortalContainer} data-popout-portal-container />
+            {/* The panels inside are position: fixed, so this element only has
+                to exist. display: contents keeps it from taking part in the
+                layout of whatever the manager was placed inside. */}
+            <div ref={setPortalContainer} data-popout-portal-container style={{ display: "contents" }} />
         </PopoutManagerContext.Provider>
     );
 }

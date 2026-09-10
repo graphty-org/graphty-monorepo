@@ -2,7 +2,7 @@ import { Box, Slider } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Slider> = {
-    title: "Theme/Slider",
+    title: "Compact Theme/Mantine Components/Slider",
     component: Slider,
     decorators: [
         (Story) => (

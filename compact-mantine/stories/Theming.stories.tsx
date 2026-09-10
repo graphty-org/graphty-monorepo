@@ -1,10 +1,8 @@
 import {
-    ActionIcon,
     Box,
     Button,
     Checkbox,
     Code,
-    DEFAULT_THEME,
     Group,
     MantineProvider,
     NumberInput,
@@ -19,7 +17,6 @@ import {
     mergeMantineTheme,
 } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { ExternalLink, Palette, Settings, Sliders } from "lucide-react";
 import { useRef } from "react";
 
 import {
@@ -31,6 +28,7 @@ import {
     PopoutManager,
     StyleNumberInput,
     ToggleWithContent,
+    UiGlyph,
     compactTheme,
 } from "../src";
 
@@ -41,7 +39,7 @@ import {
  * These stories demonstrate how to customize and use the theme.
  */
 const meta: Meta = {
-    title: "Theming",
+    title: "Compact Theme/Showcase",
     decorators: [
         (Story) => (
             <PopoutManager>
@@ -382,7 +380,7 @@ export const SidebarPattern: Story = {
                                     actions={
                                         <Popout.Trigger>
                                             <PopoutButton
-                                                icon={<ExternalLink size={12} />}
+                                                icon={<UiGlyph name="gear" size={12} />}
                                                 aria-label="Open label settings"
                                             />
                                         </Popout.Trigger>
@@ -482,7 +480,7 @@ export const PopoutPanelPattern: Story = {
                                     <Text size="sm">General Settings</Text>
                                     <Popout.Trigger>
                                         <PopoutButton
-                                            icon={<Settings size={14} />}
+                                            icon={<UiGlyph name="gear" size={14} />}
                                             aria-label="Open general settings"
                                         />
                                     </Popout.Trigger>
@@ -509,7 +507,7 @@ export const PopoutPanelPattern: Story = {
                                     <Text size="sm">Appearance</Text>
                                     <Popout.Trigger>
                                         <PopoutButton
-                                            icon={<Palette size={14} />}
+                                            icon={<UiGlyph name="eye" size={14} />}
                                             aria-label="Open appearance settings"
                                         />
                                     </Popout.Trigger>
@@ -546,7 +544,7 @@ export const PopoutPanelPattern: Story = {
                                     <Text size="sm">Advanced</Text>
                                     <Popout.Trigger>
                                         <PopoutButton
-                                            icon={<Sliders size={14} />}
+                                            icon={<UiGlyph name="gear" size={14} />}
                                             aria-label="Open advanced settings"
                                         />
                                     </Popout.Trigger>

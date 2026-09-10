@@ -2,7 +2,7 @@ import { Pagination } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Pagination> = {
-    title: "Theme/Pagination",
+    title: "Compact Theme/Mantine Components/Pagination",
     component: Pagination,
     args: {
         total: 10,

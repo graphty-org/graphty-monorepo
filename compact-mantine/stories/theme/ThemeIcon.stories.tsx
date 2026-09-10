@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { Home } from "lucide-react";
 
 const meta: Meta<typeof ThemeIcon> = {
-    title: "Theme/ThemeIcon",
+    title: "Compact Theme/Mantine Components/ThemeIcon",
     component: ThemeIcon,
 };
 

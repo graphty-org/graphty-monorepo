@@ -1,12 +1,18 @@
 import { Box, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, within } from "@storybook/test";
-import { ExternalLink, Palette, Settings, Sliders } from "lucide-react";
 
-import { ControlGroup } from "../ControlGroup";
-import { Popout } from "./Popout";
-import { PopoutButton } from "./PopoutButton";
-import { PopoutManager } from "./PopoutManager";
+import { ControlGroup, Popout, PopoutButton, PopoutManager, UiGlyph } from "../../index";
+
+// Imported from "../../index", the package's published entry point, so a story
+// stops compiling if an export is dropped.
+
+// Demo stories carry no play function: Storybook runs one as soon as a story
+// loads, so a demo that drove itself opened and closed its own panel on every
+// visit. The assertions live on the stories tagged INTERACTION_TEST_TAGS, which
+// are hidden from the sidebar and the docs page and still carry the inherited
+// "test" tag for the test runner.
+const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
 
 /**
  * A button component designed to be used as a Popout trigger.
@@ -26,7 +32,7 @@ import { PopoutManager } from "./PopoutManager";
  * - Must be used within a Popout component (inside Popout.Trigger)
  */
 const meta: Meta<typeof PopoutButton> = {
-    title: "Components/PopoutButton",
+    title: "Floating Panels/PopoutButton",
     component: PopoutButton,
     tags: ["autodocs"],
     parameters: {
@@ -55,7 +61,7 @@ export const Default: Story = {
                 <Popout>
                     <Popout.Trigger>
                         <PopoutButton
-                            icon={<Settings size={14} />}
+                            icon={<UiGlyph name="gear" size={14} />}
                             aria-label="Open settings"
                         />
                     </Popout.Trigger>
@@ -73,6 +79,15 @@ export const Default: Story = {
             </Box>
         );
     },
+};
+
+/**
+ * The assertions for the basic button, kept off the demo so that opening the
+ * demo does not run them.
+ */
+export const DefaultInteractions: Story = {
+    ...Default,
+    tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
@@ -127,7 +142,7 @@ export const InControlGroup: Story = {
                             actions={
                                 <Popout.Trigger>
                                     <PopoutButton
-                                        icon={<ExternalLink size={12} />}
+                                        icon={<UiGlyph name="gear" size={12} />}
                                         aria-label="Open appearance settings"
                                     />
                                 </Popout.Trigger>
@@ -182,7 +197,7 @@ export const MultipleButtons: Story = {
                                 actions={
                                     <Popout.Trigger>
                                         <PopoutButton
-                                            icon={<Settings size={12} />}
+                                            icon={<UiGlyph name="gear" size={12} />}
                                             aria-label="Open settings"
                                         />
                                     </Popout.Trigger>
@@ -210,7 +225,7 @@ export const MultipleButtons: Story = {
                                 actions={
                                     <Popout.Trigger>
                                         <PopoutButton
-                                            icon={<Palette size={12} />}
+                                            icon={<UiGlyph name="eye" size={12} />}
                                             aria-label="Open appearance"
                                         />
                                     </Popout.Trigger>
@@ -238,7 +253,7 @@ export const MultipleButtons: Story = {
                                 actions={
                                     <Popout.Trigger>
                                         <PopoutButton
-                                            icon={<Sliders size={12} />}
+                                            icon={<UiGlyph name="refresh" size={12} />}
                                             aria-label="Open advanced"
                                         />
                                     </Popout.Trigger>
@@ -263,6 +278,14 @@ export const MultipleButtons: Story = {
             </Popout.Anchor>
         );
     },
+};
+
+/**
+ * The assertions for several buttons on one sidebar.
+ */
+export const MultipleButtonsInteractions: Story = {
+    ...MultipleButtons,
+    tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
@@ -332,7 +355,7 @@ export const WithAndWithoutAnchor: Story = {
                                 actions={
                                     <Popout.Trigger>
                                         <PopoutButton
-                                            icon={<Settings size={12} />}
+                                            icon={<UiGlyph name="gear" size={12} />}
                                             aria-label="Open settings without anchor"
                                         />
                                     </Popout.Trigger>
@@ -380,7 +403,7 @@ export const WithAndWithoutAnchor: Story = {
                                     actions={
                                         <Popout.Trigger>
                                             <PopoutButton
-                                                icon={<Settings size={12} />}
+                                                icon={<UiGlyph name="gear" size={12} />}
                                                 aria-label="Open settings with anchor"
                                             />
                                         </Popout.Trigger>

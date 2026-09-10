@@ -1,0 +1,97 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Editing a Value/Overview" />
+
+# Editing a value
+
+Everything the reader can change. All of it fits on a 24px control, and all of
+it works controlled or uncontrolled.
+
+- **`PanelField`** -- a value is typed, picked from a list, or dragged. The control a dense panel is mostly made of.
+- **`CompoundRow`** -- two or three values are one thing seen several ways, and must read as one control.
+- **`IconGroupRow`** -- two to six mutually exclusive options whose difference can be drawn.
+- **`ToggleRow`** -- a setting is a plain yes or no that no picture could stand for.
+- **`ToggleRowGroup`** -- you have two or more of those.
+- **`RampRow`** -- a range is better drawn than described: a size wedge or a colour ramp.
+- **`CompactColorInput`** -- a colour and its opacity, with a picker in a pop-out.
+- **`GradientEditor`** -- a multi-stop linear gradient: colours, positions, angle.
+- **`StyleNumberInput`** -- a number with a sensible default, where the panel should show whether the reader has overridden it.
+- **`StyleSelect`** -- the same idea for a dropdown.
+- **`ToggleWithContent`** -- a feature is a yes or no that brings its own settings with it.
+
+## Which control for which value
+
+- **A number or a string** -- `PanelField`, with `kind="number"` or the default
+  `kind="text"`.
+- **One of a short, drawable list** -- `IconGroupRow`. Two to six options. One
+  option is a statement rather than a choice; more than six stop reading as a
+  set of pictures.
+- **One of a long or undrawable list** -- `PanelField` with `kind="select"`.
+- **A yes or no** -- `ToggleRow`, but see the rule below.
+- **A yes or no that reveals settings** -- `ToggleWithContent`.
+- **A range** -- `RampRow`, which draws the mapping between the two ends instead
+  of describing it in a sentence.
+- **A colour** -- `CompactColorInput`, or `GradientEditor` for several.
+
+## A lone boolean is not a row
+
+A single checkbox between other rows is a horizontal rule made of one word: it
+interrupts the rhythm of the panel to say one bit. So a lone boolean becomes the
+24px trailing slot of the row it modifies, or one tile of an `IconGroupRow`. Two
+or more booleans that belong together earn rows of their own, inside a
+`ToggleRowGroup`, which warns in development when it is given only one child.
+
+## Delete the verb from a label
+
+The control already says the verb. `Show labels` is written `Labels`, `Animate
+transitions` is written `Transitions`, `Enable clustering` is written
+`Clustering`. A row has one word of space and spending it on a word the checkbox
+has already said is a waste of the row.
+
+## Two states worth knowing about
+
+`PanelField` has two states that are easy to miss and hard to live without.
+
+- **`mixed`** -- the current selection disagrees, so the field shows "Mixed"
+  rather than picking one item's value and pretending it is everyone's. The word
+  itself is translatable.
+- **`bound`** -- the value comes from data rather than from a fixed number. The
+  glyph fills in to say so.
+
+`StyleNumberInput` and `StyleSelect` add a third idea: `undefined` means "the
+reader has chosen nothing here". The control shows the default in italics and
+offers no reset until something of the reader's own is set, so a panel built
+from them reads at a glance as a list of what has been customised.
+
+## Controlled, uncontrolled, and events
+
+Every component here takes `value` (or `checked`) with `onChange` to be driven
+from your own state, or `defaultValue` to remember its own.
+
+A value change hands you the value first and the event second, and the event is
+optional -- so a change made in code is `onChange(next)` with nothing to
+fabricate:
+
+```tsx
+<ToggleRow label="Labels" onChange={(checked, event) => setLabels(checked)} />
+```
+
+A drag reports its start, its changes and its end, so one gesture can be one
+undo entry:
+
+```tsx
+<PanelField
+    label="Radius"
+    glyph="width"
+    kind="number"
+    onScrubStart={() => beginUndo()}
+    onScrub={(delta) => setRadius((r) => r + delta)}
+    onScrubEnd={() => commitUndo()}
+/>
+```
+
+## Two of these need a PopoutManager
+
+`CompactColorInput` and `GradientEditor` open a pop-out, so they need a
+`PopoutManager` somewhere above them. Without one they throw on first render.
+See **Floating Panels > Overview**.

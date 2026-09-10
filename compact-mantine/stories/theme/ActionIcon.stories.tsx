@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { Heart, Settings, Star, Trash, Zap } from "lucide-react";
 
 const meta: Meta<typeof ActionIcon> = {
-    title: "Theme/ActionIcon",
+    title: "Compact Theme/Mantine Components/ActionIcon",
     component: ActionIcon,
 };
 

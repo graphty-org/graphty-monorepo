@@ -2,7 +2,7 @@ import { Stepper } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Stepper> = {
-    title: "Theme/Stepper",
+    title: "Compact Theme/Mantine Components/Stepper",
     component: Stepper,
     args: {
         active: 1,

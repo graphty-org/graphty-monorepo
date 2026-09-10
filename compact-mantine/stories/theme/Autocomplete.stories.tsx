@@ -2,7 +2,7 @@ import { Autocomplete } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Autocomplete> = {
-    title: "Theme/Autocomplete",
+    title: "Compact Theme/Mantine Components/Autocomplete",
     component: Autocomplete,
     args: {
         data: ["Pizza", "Tacos", "Sushi", "Burgers", "Pasta"],

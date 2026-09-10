@@ -2,7 +2,7 @@ import { NumberInput } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof NumberInput> = {
-    title: "Theme/NumberInput",
+    title: "Compact Theme/Mantine Components/NumberInput",
     component: NumberInput,
 };
 

@@ -1,0 +1,97 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Showing Data/Overview" />
+
+# Showing data
+
+Everything the reader looks at rather than changes: lists of their own strings,
+charts, readings, and a table for when there are thousands of rows.
+
+- **`DataRow`** -- one of the reader's own strings, with a number beside it.
+- **`DataRowHeader`** -- a run of data rows needs a caption, and optionally a sort control.
+- **`RankChip`** -- a rank belongs beside a row: `#6`, not a sentence.
+- **`MetricRow`** -- one reading has a percentile and a rank.
+- **`HistogramRow`** -- a distribution would otherwise be four summary numbers.
+- **`SparklineRow`** -- a series is going somewhere and you want to see which way.
+- **`ProseBlock`** -- the panel has to say something in words.
+- **`ActionRow`** -- a row reports a state and offers verbs.
+- **`DataTable`** -- you have columns rather than rows, and thousands of them.
+- **`StatRow`** -- superseded by `DataRow`. Still works; prefer `DataRow` in new code.
+
+## Data is the one thing that keeps its label
+
+Every other component in this library exists to replace a text label with a
+drawing. `DataRow` is the exception, and the reason is worth stating: an
+identifier, a node label, an attribute name or a filename is *data*, and data
+cannot be drawn. There is no picture of `Mr_Whiskers`. So the string stays at
+the leading edge, and the number that describes it rides at the trailing edge in
+a smaller, quieter colour.
+
+The number is bare. When three or more rows measure the same thing, put the unit
+in a `DataRowHeader` above them once -- "links" -- so each row prints `4` rather
+than `4 links`, and the column of numbers becomes something a reader can compare
+down instead of a ragged phrase they have to re-read each time.
+
+## A picture instead of four numbers
+
+`Links per node: min 2, median 3, max 4, standard deviation 0.62` is four
+numbers standing in for a shape. A chart draws the shape in the same space and
+answers what the four numbers cannot: is it bimodal, does it have a long tail,
+is this one hub and nineteen leaves.
+
+- `HistogramRow` is 64px tall and takes bins. Use it for a distribution.
+- `SparklineRow` is 32px tall and takes a series. Use it for a trend.
+- `MetricRow` is one row: a name, a bar filled to a percentile, the number, and
+  a rank chip.
+
+Never for two or three values -- those belong on a row of their own. Both charts
+always draw the value at each end of their axis, because that is what lets the
+picture be read as the table it replaced.
+
+**Give every chart a `label`.** It becomes the accessible name of the drawing
+and the caption of a visually hidden table listing every underlying value, so a
+screen reader announces one named image and can then read the numbers. Without
+it the drawing is hidden from assistive technology and only the table remains.
+
+## Results that arrive late
+
+Charts and readings in this library are usually filled in by a background
+computation. Every one of them is a live region, and every one takes `busy`:
+
+```tsx
+<MetricRow name="Bridges" percentile={98} value="0.31" busy={stillComputing} />
+```
+
+`busy` holds the announcement back while the computation runs, so a screen
+reader hears the result once instead of hearing every intermediate frame of it.
+
+## When words are unavoidable
+
+`ProseBlock` is the one component allowed to be several sentences, in three
+fixed shapes:
+
+- `reading` -- what a result says, in plain language.
+- `departure` -- one line saying how the result falls short of exact: that it
+  was approximated, or run over part of the data rather than all of it.
+- `runRecord` -- what was run and when, with a chevron to the full record.
+
+## State on the left, verbs on the right
+
+`ActionRow` splits a row in two, and the split is the whole component. Anything
+that *reports a state* is always drawn, because a state that only appears on
+hover is a state nobody can scan a column for. Anything that *acts* -- Run,
+Recompute, Copy, an advanced settings button -- is hidden until the row is
+reached, because a panel of resident verbs is a panel of noise.
+
+Three things keep that usable rather than merely tidy, and all three are
+handled for you: a touch screen has no hover, so there every control is drawn;
+hidden controls are faded rather than removed, so they keep their names and
+their place in the tab order; and Tab reveals exactly what hover reveals.
+
+## When a panel row is not enough
+
+`DataTable` is for columns: sortable headers with multi-column support, a search
+across every column, column visibility and order, row selection with the usual
+modifier keys, and only the visible rows in the document, so fifty thousand rows
+cost the same as fifty. It is keyboard-operable end to end and follows the ARIA
+grid pattern.

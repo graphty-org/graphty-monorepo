@@ -17,7 +17,10 @@ export const FLOATING_UI_Z_INDEX = 1100;
 export const POPOUT_GAP = 8;
 
 /**
- * Gap in pixels between parent and child panels for nested popouts.
- * Used in Phase 6 for nested popout hierarchies.
+ * Gap in pixels between a pop-out panel and the panel it opened from.
+ *
+ * A panel opened from inside another panel uses this as its default `gap`, so
+ * every level of a nested stack steps out by the same amount and the stack
+ * reads as a stack rather than as several panels that happen to overlap.
  */
 export const POPOUT_NESTED_GAP = 4;

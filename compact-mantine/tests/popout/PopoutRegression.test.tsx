@@ -7,9 +7,19 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { Popout, PopoutManager } from "../../src/components/popout";
+import { Popout, PopoutAnchor, PopoutManager } from "../../src/components/popout";
 import { FLOATING_UI_Z_INDEX, POPOUT_Z_INDEX_BASE } from "../../src/constants/popout";
 import { compactTheme } from "../../src/theme";
+
+/**
+ * jsdom has no PointerEvent, and fireEvent's fallback drops the coordinates, so
+ * a drag has to be dispatched with the coordinates attached by hand.
+ */
+function firePointer(element: Element, type: string, clientX: number, clientY: number): void {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.assign(event, { clientX, clientY, pointerId: 1, pointerType: "mouse" });
+    fireEvent(element, event);
+}
 
 /**
  * Helper to render Popout components with required providers
@@ -945,6 +955,12 @@ describe("Popout Regression Tests", () => {
      * and cause overflow issues in components like CompactColorInput.
      *
      * Requirement: Popout panels MUST use minWidth for flexible sizing.
+     *
+     * The second test guards the other half of the same requirement: while the
+     * panel is free to grow, its position is measured from the box it renders
+     * at. Positioning from the declared width instead let a 280px panel that
+     * rendered 337px wide grow 57px over the sidebar it was anchored to and
+     * cover the row that opened it.
      */
     describe("Issue: Popout panel must use minWidth for flexible sizing", () => {
         it("popout panel uses minWidth style, NOT fixed width", async () => {
@@ -979,6 +995,141 @@ describe("Popout Regression Tests", () => {
             expect(inlineStyle).toContain("min-width: 280px");
             // Should NOT have explicit width that would constrain content
             expect(inlineStyle).not.toMatch(/(?<!min-)width: \d+px/);
+        });
+
+        it("positions a panel that grew past its width from the box it renders at", async () => {
+            const user = userEvent.setup();
+            const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+
+            // A panel whose content forces it to 337px, anchored to a sidebar
+            // whose left edge is at 800.
+            Element.prototype.getBoundingClientRect = function (this: Element): DOMRect {
+                if (this.getAttribute("role") === "dialog") {
+                    return {
+                        x: 0, y: 0, left: 0, top: 0, right: 337, bottom: 200,
+                        width: 337, height: 200, toJSON: () => ({}),
+                    } as DOMRect;
+                }
+                if (this.getAttribute("data-testid") === "sidebar") {
+                    return {
+                        x: 800, y: 0, left: 800, top: 0, right: 1000, bottom: 600,
+                        width: 200, height: 600, toJSON: () => ({}),
+                    } as DOMRect;
+                }
+                return {
+                    x: 0, y: 0, left: 0, top: 0, right: 0, bottom: 0,
+                    width: 0, height: 0, toJSON: () => ({}),
+                } as DOMRect;
+            };
+
+            try {
+                renderPopout(
+                    <PopoutAnchor>
+                        <div data-testid="sidebar">
+                            <Popout>
+                                <Popout.Trigger>
+                                    <button>Open Panel</button>
+                                </Popout.Trigger>
+                                <Popout.Panel width={280} header={{ variant: "title", title: "Wide" }}>
+                                    <Popout.Content>
+                                        <span data-testid="panel-content">Content</span>
+                                    </Popout.Content>
+                                </Popout.Panel>
+                            </Popout>
+                        </div>
+                    </PopoutAnchor>,
+                );
+
+                await user.click(screen.getByRole("button", { name: "Open Panel" }));
+                await waitFor(() => {
+                    expect(screen.getByTestId("panel-content")).toBeInTheDocument();
+                });
+
+                const panel = screen.getByRole("dialog");
+                // 800 - 337 rather than 800 - 280: the right edge of the rendered
+                // box meets the sidebar instead of overlapping it by 57px.
+                expect(panel.style.left).toBe("463px");
+                // And the panel is still free to grow: the declared width is a
+                // minimum and the panel sizes to its content above it.
+                expect(panel.style.minWidth).toBe("280px");
+                expect(panel.style.width).toBe("min-content");
+            } finally {
+                Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+            }
+        });
+    });
+
+    /**
+     * Regression test for: dragging a panel closed its children
+     *
+     * Issue: the pointer release that ends a drag also produces a click, and
+     * the panel's click handler treats a click on itself as a click outside
+     * everything it opened. Dragging a parent therefore closed its children.
+     *
+     * Fix: the drag hook records that the gesture moved, and the click handler
+     * ignores that one click.
+     */
+    describe("Issue: dragging a panel must not close what it opened", () => {
+        it("keeps a child open when its parent is dragged", async () => {
+            const user = userEvent.setup();
+
+            renderPopout(
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open Parent</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={200} header={{ variant: "title", title: "Parent" }}>
+                        <Popout.Content>
+                            <span data-testid="parent-content">Parent Content</span>
+                            <Popout>
+                                <Popout.Trigger>
+                                    <button>Open Child</button>
+                                </Popout.Trigger>
+                                <Popout.Panel width={180} header={{ variant: "title", title: "Child" }}>
+                                    <Popout.Content>
+                                        <span data-testid="child-content">Child Content</span>
+                                    </Popout.Content>
+                                </Popout.Panel>
+                            </Popout>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>,
+            );
+
+            await user.click(screen.getByRole("button", { name: "Open Parent" }));
+            await waitFor(() => {
+                expect(screen.getByTestId("parent-content")).toBeInTheDocument();
+            });
+            await user.click(screen.getByRole("button", { name: "Open Child" }));
+            await waitFor(() => {
+                expect(screen.getByTestId("child-content")).toBeInTheDocument();
+            });
+            expect(screen.getAllByRole("dialog")).toHaveLength(2);
+
+            const parentPanel = screen
+                .getAllByRole("dialog")
+                .find((p) => p.querySelector('[data-testid="parent-content"]'));
+            const dragTrigger = parentPanel!.querySelector("[data-drag-trigger]")!;
+
+            // Drag the parent's header, then let the browser's click follow the
+            // release the way a real one does.
+            firePointer(dragTrigger, "pointerdown", 100, 100);
+            firePointer(dragTrigger, "pointermove", 160, 130);
+            firePointer(dragTrigger, "pointerup", 160, 130);
+            fireEvent.click(dragTrigger);
+
+            // The child is still open, and the parent has moved by the drag.
+            expect(screen.getAllByRole("dialog")).toHaveLength(2);
+            expect(screen.getByTestId("child-content")).toBeInTheDocument();
+            expect(parentPanel!.style.left).toBe("-140px");
+            expect(parentPanel!.style.top).toBe("30px");
+
+            // A click that is not the end of a drag still closes the child.
+            fireEvent.click(dragTrigger);
+            await waitFor(() => {
+                expect(screen.queryByTestId("child-content")).not.toBeInTheDocument();
+            });
+            expect(screen.getByTestId("parent-content")).toBeInTheDocument();
         });
     });
 

@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { Heart } from "lucide-react";
 
 const meta: Meta<typeof Button> = {
-    title: "Theme/Button",
+    title: "Compact Theme/Mantine Components/Button",
     component: Button,
 };
 

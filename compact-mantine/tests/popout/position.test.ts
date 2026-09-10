@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { calculatePopoutPosition } from "../../src/components/popout/utils/position";
-import { POPOUT_GAP } from "../../src/constants/popout";
+import { calculatePopoutPosition, resolvePlacement } from "../../src/components/popout/utils/position";
+import { POPOUT_GAP, POPOUT_NESTED_GAP } from "../../src/constants/popout";
 
 // Common test fixtures
 const createAnchorRect = (overrides: Partial<DOMRect> = {}): DOMRect =>
@@ -269,7 +269,7 @@ describe("calculatePopoutPosition", () => {
         });
     });
 
-    describe("nested panels (Phase 6)", () => {
+    describe("nested panels", () => {
         it("uses 4px gap for nested panels", () => {
             const parentPanelRect = createAnchorRect({
                 left: 400,
@@ -280,7 +280,7 @@ describe("calculatePopoutPosition", () => {
                 height: 200,
             });
             const nestedPanelWidth = 200;
-            const nestedGap = 4; // POPOUT_NESTED_GAP
+            const nestedGap = POPOUT_NESTED_GAP;
 
             const position = calculatePopoutPosition(parentPanelRect, nestedPanelWidth, nestedGap, {
                 placement: "left",
@@ -303,7 +303,7 @@ describe("calculatePopoutPosition", () => {
                 height: 200,
             });
             const nestedPanelWidth = 180;
-            const nestedGap = 4;
+            const nestedGap = POPOUT_NESTED_GAP;
 
             const position = calculatePopoutPosition(parentPanelRect, nestedPanelWidth, nestedGap, {
                 placement: "left",
@@ -324,7 +324,7 @@ describe("calculatePopoutPosition", () => {
                 height: 200,
             });
             const nestedPanelWidth = 180;
-            const nestedGap = 4;
+            const nestedGap = POPOUT_NESTED_GAP;
 
             const position = calculatePopoutPosition(parentPanelRect, nestedPanelWidth, nestedGap, {
                 placement: "right",
@@ -346,7 +346,7 @@ describe("calculatePopoutPosition", () => {
             });
             const nestedPanelWidth = 200;
             const nestedPanelHeight = 150;
-            const nestedGap = 4;
+            const nestedGap = POPOUT_NESTED_GAP;
 
             const position = calculatePopoutPosition(parentPanelRect, nestedPanelWidth, nestedGap, {
                 placement: "left",
@@ -357,6 +357,142 @@ describe("calculatePopoutPosition", () => {
             // Parent center Y = 100 + 200/2 = 200
             // Nested panel top = 200 - 150/2 = 125
             expect(position.top).toBe(125);
+        });
+    });
+
+    describe("two anchors, one per axis", () => {
+        it("takes the inline edge from the anchor and the top from the cross anchor", () => {
+            // A sidebar down the right of the viewport, and a trigger row part
+            // way down it: the panel meets the sidebar and opens level with the
+            // row.
+            const sidebar = createAnchorRect({
+                left: 800, top: 0, right: 1000, bottom: 600, width: 200, height: 600,
+            });
+            const triggerRow = createAnchorRect({
+                left: 960, top: 240, right: 980, bottom: 260, width: 20, height: 20,
+            });
+
+            const position = calculatePopoutPosition(sidebar, panelWidth, 0, {
+                placement: "left",
+                alignment: "start",
+                crossAnchorRect: triggerRow,
+            });
+
+            expect(position.left).toBe(800 - 280);
+            expect(position.top).toBe(240);
+        });
+
+        it("takes the vertical placement from the anchor and the inline edge from the cross anchor", () => {
+            const triggerRow = createAnchorRect({
+                left: 400, top: 100, right: 420, bottom: 120, width: 20, height: 20,
+            });
+            const sidebar = createAnchorRect({
+                left: 300, top: 0, right: 500, bottom: 600, width: 200, height: 600,
+            });
+
+            const position = calculatePopoutPosition(triggerRow, panelWidth, 4, {
+                placement: "bottom",
+                alignment: "start",
+                crossAnchorRect: sidebar,
+            });
+
+            // Vertically below the row it opened from...
+            expect(position.top).toBe(124);
+            // ...and lined up with the sidebar's inline edge.
+            expect(position.left).toBe(300);
+        });
+
+        it("uses the same rectangle for both axes when no cross anchor is given", () => {
+            const anchorRect = createAnchorRect();
+
+            expect(calculatePopoutPosition(anchorRect, panelWidth, POPOUT_GAP, { placement: "left" }))
+                .toEqual(
+                    calculatePopoutPosition(anchorRect, panelWidth, POPOUT_GAP, {
+                        placement: "left",
+                        crossAnchorRect: anchorRect,
+                    }),
+                );
+        });
+    });
+
+    describe("reading direction", () => {
+        it("aligns the start of a panel below its anchor to the anchor's right edge in RTL", () => {
+            const anchorRect = createAnchorRect();
+
+            const position = calculatePopoutPosition(anchorRect, panelWidth, POPOUT_GAP, {
+                placement: "bottom",
+                alignment: "start",
+                direction: "rtl",
+            });
+
+            // Start means the side text begins on: the right edge, minus the
+            // panel's own width. 340 - 280 = 60.
+            expect(position.left).toBe(60);
+        });
+
+        it("aligns the end of a panel below its anchor to the anchor's left edge in RTL", () => {
+            const anchorRect = createAnchorRect();
+
+            const position = calculatePopoutPosition(anchorRect, panelWidth, POPOUT_GAP, {
+                placement: "bottom",
+                alignment: "end",
+                direction: "rtl",
+            });
+
+            expect(position.left).toBe(300);
+        });
+
+        it("leaves centring alone, which reads the same either way", () => {
+            const anchorRect = createAnchorRect();
+
+            const ltr = calculatePopoutPosition(anchorRect, panelWidth, POPOUT_GAP, {
+                placement: "bottom",
+                alignment: "center",
+                direction: "ltr",
+            });
+            const rtl = calculatePopoutPosition(anchorRect, panelWidth, POPOUT_GAP, {
+                placement: "bottom",
+                alignment: "center",
+                direction: "rtl",
+            });
+
+            expect(rtl.left).toBe(ltr.left);
+        });
+
+        it("leaves the vertical axis alone, which has no reading direction", () => {
+            const anchorRect = createAnchorRect();
+
+            const rtl = calculatePopoutPosition(anchorRect, panelWidth, POPOUT_GAP, {
+                placement: "left",
+                alignment: "start",
+                direction: "rtl",
+            });
+
+            expect(rtl.top).toBe(100);
+        });
+    });
+
+    describe("resolvePlacement", () => {
+        it("puts a start-placed panel on the left where text runs left to right", () => {
+            expect(resolvePlacement("start", "ltr")).toBe("left");
+        });
+
+        it("puts a start-placed panel on the right where text runs right to left", () => {
+            expect(resolvePlacement("start", "rtl")).toBe("right");
+        });
+
+        it("puts an end-placed panel on the opposite side in each direction", () => {
+            expect(resolvePlacement("end", "ltr")).toBe("right");
+            expect(resolvePlacement("end", "rtl")).toBe("left");
+        });
+
+        it("leaves a physical placement alone in both directions", () => {
+            for (const direction of ["ltr", "rtl"] as const) {
+                expect(resolvePlacement("left", direction)).toBe("left");
+                expect(resolvePlacement("right", direction)).toBe("right");
+                expect(resolvePlacement("top", direction)).toBe("top");
+                expect(resolvePlacement("bottom", direction)).toBe("bottom");
+            }
         });
     });
 });

@@ -1,33 +1,36 @@
 import { ActionIcon, Box, Button, Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { ChevronRight, MoreHorizontal,Settings } from "lucide-react";
 
-import { ControlGroup } from "../ControlGroup";
-import { Popout } from "./Popout";
+import { ControlGroup, Popout, PopoutButton, PopoutManager, UiGlyph } from "../../index";
 import { PopoutAnchor } from "./PopoutAnchor";
-import { PopoutButton } from "./PopoutButton";
-import { PopoutManager } from "./PopoutManager";
+
+// Everything but PopoutAnchor comes from "../../index", the package's published
+// entry point. The anchor is reached as `Popout.Anchor` rather than as a named
+// export, so this file imports it from its own module to name it in the story.
 
 /**
- * `Popout.Anchor` provides an anchor element for descendant Popout panels to align to.
+ * `Popout.Anchor` marks the container that pop-outs inside it line their edge up
+ * with.
  *
- * **Purpose:** When you want popout panels to align to a container (like a sidebar)
- * rather than just appearing next to the trigger button, wrap the container with
- * `Popout.Anchor`.
+ * **Purpose:** So that a column of triggers opens one tidy stack of panels
+ * against the container's edge, rather than a staircase following the buttons.
  *
- * **Key behaviors:**
- * - Panel aligns to the anchor element's edge based on `placement`
- * - Panel border is removed on the side that touches the anchor (flush appearance)
- * - Border radius is flattened on the snapping side
- * - Multiple popouts inside the same anchor all align to that anchor
+ * **Key behaviours:**
+ * - The container decides the horizontal edge; each panel still opens level with
+ *   the row that opened it
+ * - A panel opened from inside another panel lines up with that panel instead,
+ *   so nested stacks step out one level at a time
+ * - Every pop-out inside the same anchor uses it, with no per-panel wiring
+ * - Panels keep their full border and rounded corners either way; the anchor
+ *   changes where a panel opens, not how it is drawn
  *
  * **When to use:**
- * - Sidebars with multiple popout triggers
- * - Control panels where popouts should extend from the panel edge
- * - Any container where you want consistent popout alignment
+ * - Sidebars with several pop-out triggers
+ * - Control panels whose pop-outs should extend from the panel edge
+ * - Any container that wants one consistent opening edge
  */
 const meta: Meta<typeof PopoutAnchor> = {
-    title: "Components/PopoutAnchor",
+    title: "Floating Panels/Popout.Anchor",
     component: PopoutAnchor,
     tags: ["autodocs"],
     parameters: {
@@ -46,15 +49,10 @@ export default meta;
 type Story = StoryObj<typeof PopoutAnchor>;
 
 /**
- * Anchor to a sidebar/panel container.
+ * Anchor to a sidebar.
  *
- * This is the most common use case: a sidebar with multiple controls that can
- * open popout panels. The panels align flush with the sidebar edge.
- *
- * Notice how the panel:
- * - Aligns to the left edge of the sidebar (not just the button)
- * - Has no border on the right side (flush with sidebar)
- * - Has flattened corners on the snapping side
+ * The common case: a sidebar with several controls, each opening a panel. Every
+ * panel meets the sidebar's edge, and each one opens level with its own row.
  */
 export const AnchorToPanel: Story = {
     render: function AnchorToPanelRender() {
@@ -80,7 +78,7 @@ export const AnchorToPanel: Story = {
                                 actions={
                                     <Popout.Trigger>
                                         <PopoutButton
-                                            icon={<Settings size={12} />}
+                                            icon={<UiGlyph name="gear" size={12} />}
                                             aria-label="Open display settings"
                                         />
                                     </Popout.Trigger>
@@ -98,10 +96,10 @@ export const AnchorToPanel: Story = {
                                 <Popout.Content>
                                     <Stack gap="xs" p="sm">
                                         <Text size="sm">
-                                            Panel aligns flush with the sidebar edge.
+                                            The panel meets the sidebar edge.
                                         </Text>
                                         <Text size="xs" c="dimmed">
-                                            Notice the seamless border connection.
+                                            It opens level with the row it came from.
                                         </Text>
                                     </Stack>
                                 </Popout.Content>
@@ -114,7 +112,7 @@ export const AnchorToPanel: Story = {
                                 actions={
                                     <Popout.Trigger>
                                         <PopoutButton
-                                            icon={<ChevronRight size={12} />}
+                                            icon={<UiGlyph name="chevronRight" size={12} />}
                                             aria-label="Open advanced settings"
                                         />
                                     </Popout.Trigger>
@@ -170,7 +168,7 @@ export const AnchorToButton: Story = {
                     <Popout.Anchor>
                         <Button
                             variant="light"
-                            rightSection={<ChevronRight size={14} />}
+                            rightSection={<UiGlyph name="chevronRight" size={14} />}
                         >
                             <Popout>
                                 <Popout.Trigger>
@@ -220,7 +218,7 @@ export const AnchorToButton: Story = {
                                             cursor: "pointer",
                                         }}
                                     >
-                                        <MoreHorizontal size={18} />
+                                        <UiGlyph name="chevronDown" size={18} />
                                     </Box>
                                 </Popout.Trigger>
                                 <Popout.Panel
@@ -249,10 +247,10 @@ export const AnchorToButton: Story = {
 /**
  * Comparison: With and without anchor.
  *
- * This story shows the visual difference between using `Popout.Anchor` and not.
+ * This story shows the difference between using `Popout.Anchor` and not.
  *
- * **Without anchor:** Panel appears near the trigger with a gap and full borders.
- * **With anchor:** Panel aligns flush with the container, creating a seamless appearance.
+ * **Without anchor:** the panel opens beside the trigger, offset by the gap.
+ * **With anchor:** the panel opens against the container's edge instead.
  */
 export const Comparison: Story = {
     render: function ComparisonRender() {
@@ -277,7 +275,7 @@ export const Comparison: Story = {
                                 <Text size="xs">Settings</Text>
                                 <Popout.Trigger>
                                     <PopoutButton
-                                        icon={<Settings size={12} />}
+                                        icon={<UiGlyph name="gear" size={12} />}
                                         aria-label="Open without anchor"
                                     />
                                 </Popout.Trigger>
@@ -318,7 +316,7 @@ export const Comparison: Story = {
                                     <Text size="xs">Settings</Text>
                                     <Popout.Trigger>
                                         <PopoutButton
-                                            icon={<Settings size={12} />}
+                                            icon={<UiGlyph name="gear" size={12} />}
                                             aria-label="Open with anchor"
                                         />
                                     </Popout.Trigger>

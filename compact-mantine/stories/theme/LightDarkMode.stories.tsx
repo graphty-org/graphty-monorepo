@@ -11,7 +11,7 @@ import { compactTheme, ControlGroup, ControlSection } from "../../src";
  * All components should be readable and visually appropriate in both modes.
  */
 const meta: Meta = {
-    title: "Theme/Light-Dark Mode",
+    title: "Compact Theme/Mantine Components/Light-Dark Mode",
 };
 
 export default meta;

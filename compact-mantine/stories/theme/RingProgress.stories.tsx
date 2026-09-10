@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from "@storybook/react";
  * Use size={48} for compact-equivalent sizing.
  */
 const meta: Meta<typeof RingProgress> = {
-    title: "Theme/RingProgress",
+    title: "Compact Theme/Mantine Components/RingProgress",
     component: RingProgress,
     args: {
         size: 48,

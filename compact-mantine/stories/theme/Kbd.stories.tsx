@@ -2,7 +2,7 @@ import { Kbd } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Kbd> = {
-    title: "Theme/Kbd",
+    title: "Compact Theme/Mantine Components/Kbd",
     component: Kbd,
 };
 

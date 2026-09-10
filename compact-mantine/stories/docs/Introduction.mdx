@@ -1,0 +1,104 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Getting Started/Introduction" />
+
+# compact-mantine
+
+Compact components and a compact theme for [Mantine 8](https://mantine.dev), for
+interfaces where screen space is the scarce resource: property panels,
+inspectors, sidebars, editors and dashboards.
+
+The package gives you two things, and you can take either one on its own.
+
+**A theme.** Put `compactTheme` into your `MantineProvider` and 41 Mantine
+components render dense -- 24px controls, 11px text, tighter spacing -- with no
+`size` prop anywhere in your code.
+
+**A component library.** About thirty components built for a narrow column:
+rows that fit a value and its label on one 32px line, charts the height of a
+line of text, a virtualized data table, and a floating-panel system for the
+settings that do not fit.
+
+## Install
+
+```bash
+npm install @graphty/compact-mantine @mantine/core @mantine/hooks
+```
+
+Mantine, React and React DOM are peer dependencies, so you choose their
+versions. React 18 or later, Mantine 8 or later.
+
+## Five-minute start
+
+Import Mantine's stylesheet, hand `MantineProvider` the compact theme, and you
+are done. Everything else is optional.
+
+```tsx
+import "@mantine/core/styles.css";
+
+import { Button, MantineProvider, TextInput } from "@mantine/core";
+import { compactTheme, ControlSection, FieldRow, PanelField, ToggleRow } from "@graphty/compact-mantine";
+
+export function App() {
+    return (
+        <MantineProvider theme={compactTheme}>
+            <TextInput label="Project name" />
+            <Button>Save</Button>
+
+            <div style={{width: 280}}>
+                <ControlSection label="Node size">
+                    <FieldRow>
+                        <PanelField label="Smallest" glyph="sizeSmallest" defaultValue="1.0" />
+                        <PanelField label="Largest" glyph="sizeLargest" defaultValue="4.0" />
+                    </FieldRow>
+                    <ToggleRow label="Scale with zoom" defaultChecked />
+                </ControlSection>
+            </div>
+        </MantineProvider>
+    );
+}
+```
+
+## How this Storybook is organised
+
+Each section below is a job rather than a category, and each one opens with an
+overview page explaining when to reach for what is inside it.
+
+- **Building a Panel** -- The containers and the row layout: sections, groups, the field row, the trailing slot, the advanced settings button.
+- **Editing a Value** -- Everything the reader can change: fields, toggles, segmented pictures, colours, gradients, ranges.
+- **Showing Data** -- Everything the reader can only read: list rows, charts, readings, a virtualized table.
+- **Floating Panels** -- Pop-outs: panels that open beside a control, can be dragged, and can nest.
+- **Glyphs** -- Every drawing the library uses, with its name and its meaning.
+- **Compact Theme** -- What the theme does to each of the 41 Mantine components it restyles.
+
+Use the toolbar above any story to switch between the light and dark schemes.
+Every component is built for both.
+
+## The ideas worth knowing before you start
+
+**A caption can be a drawing.** Stacking a label above an input costs a line.
+Putting a small picture *inside* the input costs nothing, and halves the height
+of a panel. That is what `PanelField` does, and the fixed set of pictures it may
+use is in the **Glyphs** section.
+
+**Rows agree on a grid.** Every row measures itself from one exported object,
+`PANEL_GRID`, which spends a 280px column as
+`16 + 108 + 8 + 108 + 8 + 24 + 8`: padding, two fields with a gutter between
+them, a gap, a 24px trailing slot, padding. That is why a column of unrelated
+rows still lines up, and why the trailing slot is drawn even when it is empty.
+
+**Colour comes from a map, never a hex.** `PANEL_INK` names one colour per role
+-- primary text, secondary text, surface, accent, border, selected, disabled --
+and every entry is a Mantine CSS variable. Paint your own rows from it and they
+follow the light scheme, the dark scheme and your own primary colour without
+further work.
+
+**Nothing is required beyond the theme.** Two providers exist and both are
+opt-in: `PopoutManager`, needed once near the root if you use pop-outs, and
+`LabelsProvider`, if you want to translate the library or format numbers for a
+locale.
+
+## Also worth reading
+
+The README in the package covers the same ground in one page and adds the
+TypeScript and accessibility notes.

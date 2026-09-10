@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import pkg from "../../package.json";
 import { compactColors, compactDarkColors, compactTheme, VERSION } from "../../src";
 
 describe("compactTheme", () => {
@@ -97,7 +98,7 @@ describe("compactColors exports", () => {
 });
 
 describe("VERSION", () => {
-    it("exports a version string", () => {
-        expect(VERSION).toBe("0.1.0");
+    it("matches the version this package publishes under", () => {
+        expect(VERSION).toBe(pkg.version);
     });
 });

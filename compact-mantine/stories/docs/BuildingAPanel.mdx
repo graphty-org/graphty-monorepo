@@ -1,0 +1,84 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Building a Panel/Overview" />
+
+# Building a panel
+
+The containers and the layout pieces. Everything here holds other things: it
+decides where a control sits, not what the control does.
+
+- **`ControlSection`** -- a run of controls needs a name, a rule above it, and a chevron that folds it away. The workhorse container.
+- **`ControlGroup`** -- the same, but it must never fold, or its rule has to reach the edges of a padded container such as a pop-out.
+- **`ControlSubGroup`** -- a handful of rarely-opened settings belong under a section you already have. Quieter than a section.
+- **`FieldRow`** -- one or two fields share a line. It owns the widths and the gaps.
+- **`TrailingSlot`** -- you are laying out a row by hand and need the fixed 24px slot every row ends with.
+- **`AdvancedButton`** -- a row or a section has settings most people never change, and they belong behind a gear.
+
+## The grid these components keep
+
+A panel is a 280px column, and it is spent like this:
+
+```
+16  +  108  +  8  +  108  +  8  +  24  +  8  =  280
+pad    field  gut   field   gap  trail  pad
+```
+
+`PANEL_GRID` names every number in it, so your own rows can match without
+retyping them. Three consequences are worth knowing:
+
+- **A field is 108px, or 224px if it is alone.** Those are the only two widths,
+  which is what makes a column of rows line up.
+- **The 24px trailing slot is always drawn**, even when it is empty. Dropping it
+  when there is nothing to put in it is what makes one row end 32px short of the
+  row above it.
+- **A row is 32px tall**, except toggle rows, which pack at 24px, and data rows,
+  which pack at 28px.
+
+## Choosing between a section and a group
+
+Both draw a rule, a name and some controls. The difference is one question: does
+it fold?
+
+- **`ControlSection` folds.** It also has a chevron, a keyboard-operable header,
+  a dot for "something in here is not the default", an empty state, an
+  explanation bubble, and buttons of its own in the header. It lines up on the
+  panel's own 16px and 8px padding.
+- **`ControlGroup` does not fold.** Everything it holds is on screen at once.
+  Its `bleed` prop pulls its rule out through the padding of whatever contains
+  it, which is what a group nested inside a pop-out needs.
+
+If you find yourself passing `opened` and never changing it, you wanted a group.
+
+## The rule a section enforces
+
+**A section always expands.** A chevron that reveals nothing is a defect, so
+`ControlSection` is built to make one hard to write: it draws a chevron only
+when there is something to expand, and it warns in development if you give it
+neither children nor an empty state.
+
+The controls a section shows without being opened are the ones commonly adjusted
+*for that section's own job* -- not the ones commonly adjusted across the whole
+application. Everything rarer goes behind an `AdvancedButton` in the section's
+`actions`, which opens a pop-out holding the rest.
+
+**An advanced button is always an addition to a section that already shows
+something**, never a section's only content. A section whose sole content is a
+gear hides everything it does and leaves the reader nothing to read.
+
+## Showing a word beside every drawing
+
+An icon-first panel needs a way out for readers who do not yet know the
+drawings. `PanelLabelsProvider` carries one preference -- off by default -- to
+every component below it, and each one degrades in its own way: a field grows
+its label word beside its glyph, and a row holding a pair of fields becomes two
+single rows, each with its word in a 76px column. A pair never becomes a
+two-line stack.
+
+```tsx
+<PanelLabelsProvider showLabels={settings.showLabelsOnControls}>
+    <NodeSizeSection />
+</PanelLabelsProvider>
+```
+
+Read the preference in your own components with `usePanelLabels()`. Offering it
+as a user setting is recommended; nothing in the library requires it.

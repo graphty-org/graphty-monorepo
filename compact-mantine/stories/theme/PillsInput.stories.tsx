@@ -2,7 +2,7 @@ import { Pill, PillsInput } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof PillsInput> = {
-    title: "Theme/PillsInput",
+    title: "Compact Theme/Mantine Components/PillsInput",
     component: PillsInput,
     args: {
         w: 200,

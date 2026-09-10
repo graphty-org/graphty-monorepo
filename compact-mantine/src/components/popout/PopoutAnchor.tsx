@@ -12,56 +12,62 @@ import {
 } from "react";
 
 /**
- * Context value for PopoutAnchor.
+ * What a marked container publishes to the pop-outs opened inside it.
  */
 interface PopoutAnchorContextValue {
-    /** Ref to the anchor element */
+    /** The container element, which a panel inside it measures its edge against. */
     anchorRef: RefObject<HTMLElement | null>;
 }
 
-/**
- * Context for providing an anchor element to descendant Popouts.
- */
+// The container is published as context rather than passed down, so that a
+// pop-out at any depth inside it finds the edge to line up with without every
+// layer in between having to forward a ref.
 const PopoutAnchorContext = createContext<PopoutAnchorContextValue | null>(null);
 
 /**
- * Hook to optionally access the PopoutAnchorContext.
- * Returns null if not inside a PopoutAnchor.
- * @returns The anchor context value or null
+ * Reads the marked container a pop-out should line its edge up with.
+ * @returns The container, or null when there is no `Popout.Anchor` above
  */
 export function usePopoutAnchorContext(): PopoutAnchorContextValue | null {
     return useContext(PopoutAnchorContext);
 }
 
 /**
- * Props for PopoutAnchor.
+ * Props for the PopoutAnchor component.
  */
-interface PopoutAnchorProps {
-    /** The container element to use as anchor. Must accept a ref. */
+export interface PopoutAnchorProps {
+    /**
+     * The container the pop-outs inside it line up with. Pass exactly one
+     * element, and one that accepts a ref: the anchor measures it.
+     */
     children: ReactNode;
 }
 
 /**
- * Provides an anchor element for descendant Popout panels to align to.
+ * Marks a container that pop-outs opened inside it line their edge up with.
  *
- * When a Popout.Panel is inside a PopoutAnchor and doesn't have an explicit
- * `anchorRef` prop, it will automatically align to the anchor element.
+ * Wrap a sidebar or a control panel in it and every pop-out inside opens flush
+ * with that container's edge instead of with its own trigger, which is what
+ * makes a column of triggers open one tidy stack of panels rather than a
+ * staircase. Panels keep opening level with the row that opened them: the
+ * container decides the horizontal edge only.
  *
- * This is useful for sidebars, control panels, or any container where you
- * want popouts to align to the container edge rather than just the trigger.
+ * A panel opened from inside another panel lines up with that panel instead, so
+ * that a nested stack still steps out one level at a time. Name `anchorX` on
+ * the panel to override either choice.
  * @param props - Component props
- * @param props.children - The container element (must accept a ref)
- * @returns The PopoutAnchor component
+ * @param props.children - The container element, which must accept a ref
+ * @returns The container, with its position published to the pop-outs inside it
  * @example
  * ```tsx
  * <Popout.Anchor>
- *     <Box style={{ width: 240, borderLeft: '1px solid gray' }}>
+ *     <Box style={{width: 240, borderInlineStart: "1px solid gray"}}>
  *         <Popout>
  *             <Popout.Trigger>
- *                 <PopoutButton icon={<Settings />} aria-label="Settings" />
+ *                 <PopoutButton icon={<UiGlyph name="gear" />} aria-label="Settings" />
  *             </Popout.Trigger>
- *             <Popout.Panel width={280} header={{ variant: "title", title: "Settings" }}>
- *                 <Popout.Content>Content aligns to sidebar edge</Popout.Content>
+ *             <Popout.Panel width={280} header={{variant: "title", title: "Settings"}}>
+ *                 <Popout.Content>Opens flush with the sidebar edge</Popout.Content>
  *             </Popout.Panel>
  *         </Popout>
  *     </Box>

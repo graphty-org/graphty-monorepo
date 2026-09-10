@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { Home } from "lucide-react";
 
 const meta: Meta<typeof NavLink> = {
-    title: "Theme/NavLink",
+    title: "Compact Theme/Mantine Components/NavLink",
     component: NavLink,
 };
 

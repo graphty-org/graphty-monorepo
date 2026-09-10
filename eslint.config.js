@@ -4,6 +4,7 @@
 
 import eslint from "@eslint/js";
 import jsdoc from "eslint-plugin-jsdoc";
+import jsxA11y from "eslint-plugin-jsx-a11y";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
 import globals from "globals";
 import tseslint from "typescript-eslint";
@@ -198,6 +199,22 @@ export default tseslint.config(
     },
 
     // ============================================
+    // ACCESSIBILITY RULES FOR compact-mantine JSX
+    // ============================================
+    // Scoped to compact-mantine, which publishes React components that have to
+    // meet WCAG 2.2 AA. The other packages are unaffected: graphty's JSX is an
+    // application, and algorithms, layout and graphty-element ship no JSX.
+    {
+        files: ["compact-mantine/**/*.tsx"],
+        plugins: {
+            "jsx-a11y": jsxA11y,
+        },
+        rules: {
+            ...jsxA11y.flatConfigs.recommended.rules,
+        },
+    },
+
+    // ============================================
     // RELAXED RULES FOR TEST FILES
     // ============================================
     {
@@ -255,6 +272,23 @@ export default tseslint.config(
             "jsdoc/check-param-names": "off",
             "jsdoc/check-tag-names": "off",
             "jsdoc/tag-lines": "off",
+        },
+    },
+
+    // ============================================
+    // BARREL FILES MAY RE-EXPORT DEPRECATED NAMES
+    // ============================================
+    // A published package keeps a renamed export working under its old name so
+    // that upgrading does not break a consumer. The alias has to be re-exported
+    // from the entry point to be reachable at all, and no-deprecated fires on
+    // the re-export itself. Turning the rule off for entry points only is what
+    // lets a deprecation be honest: the tag stays on the declaration, every
+    // ordinary call site is still flagged, and only the one place that has to
+    // name it is exempt. Same reasoning as the test-file exemption above.
+    {
+        files: ["**/src/index.ts", "**/src/types/index.ts", "**/src/components/**/index.ts"],
+        rules: {
+            "@typescript-eslint/no-deprecated": "off",
         },
     },
 

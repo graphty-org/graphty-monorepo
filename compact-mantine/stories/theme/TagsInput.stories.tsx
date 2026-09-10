@@ -2,7 +2,7 @@ import { TagsInput } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TagsInput> = {
-    title: "Theme/TagsInput",
+    title: "Compact Theme/Mantine Components/TagsInput",
     component: TagsInput,
     args: {
         size: "compact",

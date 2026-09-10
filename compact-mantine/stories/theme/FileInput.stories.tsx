@@ -2,7 +2,7 @@ import { FileInput } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof FileInput> = {
-    title: "Theme/FileInput",
+    title: "Compact Theme/Mantine Components/FileInput",
     component: FileInput,
     args: {
         size: "compact",

@@ -18,7 +18,7 @@ function renderPopout(ui: React.ReactElement) {
 }
 
 describe("PopoutManagerProvider", () => {
-    describe("register function refactoring (Issue #6)", () => {
+    describe("closing behaviour when several pop-outs are open", () => {
         it("closes sibling popouts when opening new one", async () => {
             const user = userEvent.setup();
 

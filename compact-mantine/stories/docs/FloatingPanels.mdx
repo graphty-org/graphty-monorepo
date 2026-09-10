@@ -1,0 +1,108 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Floating Panels/Overview" />
+
+# Floating panels
+
+A pop-out is a panel that opens beside a control, can be dragged, and can
+contain pop-outs of its own. It is where the settings go that a 280px column has
+no room for.
+
+- **`PopoutManager`** -- The shared floating layer. Required, once, near the root.
+- **`Popout`** -- One pop-out: its trigger and its panel.
+- **`Popout.Trigger`** -- Wraps the single element that opens the panel.
+- **`Popout.Panel`** -- The panel: a width, an optional header or tab strip, its content.
+- **`Popout.Content`** -- Padding and layout for what goes inside a panel.
+- **`Popout.Anchor`** -- Wraps a sidebar so panels line up with its edge, not with each button.
+- **`PopoutButton`** -- An icon button that stays lit while its panel is open.
+- **`InfoCircle`** -- A circled "i" that reveals an explanation on hover, focus or tap.
+
+## Start with the manager
+
+**Put one `PopoutManager` high in your tree, above anything that opens a
+pop-out.** It owns the stacking order, the portal the panels render into, and
+the dismissal rules they all obey.
+
+Without one, anything that opens a pop-out throws
+`usePopoutManagerContext must be used within a PopoutManager` on its first
+render. That includes `CompactColorInput` and `GradientEditor`, which use a
+pop-out internally. `InfoCircle` is the one exception: it supplies a manager for
+itself when there is none above it.
+
+```tsx
+import { Popout, PopoutButton, PopoutManager, UiGlyph } from "@graphty/compact-mantine";
+
+<PopoutManager>
+    <aside>
+        <Popout>
+            <Popout.Trigger>
+                <PopoutButton icon={<UiGlyph name="gear" />} aria-label="Display settings" />
+            </Popout.Trigger>
+            <Popout.Panel width={280} header={{variant: "title", title: "Display settings"}}>
+                <Popout.Content>Anything at all</Popout.Content>
+            </Popout.Panel>
+        </Popout>
+    </aside>
+</PopoutManager>;
+```
+
+## What the manager decides for you
+
+- **Escape** closes the innermost open panel.
+- **A click outside** closes everything.
+- **Opening a panel closes its siblings**, so one column of buttons produces one
+  panel rather than a pile.
+- **Closing a panel closes everything opened from it.**
+- **Focus returns to the trigger** when a panel closes.
+
+## Where a panel opens
+
+Two independent props on `Popout.Panel` decide it, which is what lets a panel
+meet a sidebar's edge while still opening level with the row that was clicked.
+
+- `anchorX` -- which edge the panel lines up with: `"panel"` (the containing
+  `Popout.Anchor`), `"trigger"`, `"parent"` (the pop-out this one was opened
+  from), or a ref of your own.
+- `anchorY` -- how far down it opens, from the same set of choices.
+
+The defaults are the arrangement most sidebars want: flush with the anchored
+panel's edge, level with the trigger's own row. A pop-out opened from inside
+another pop-out steps out from its parent, so a nested stack reads one level at
+a time.
+
+Panels follow what they are anchored to: they reposition when it moves, is
+resized, or when the window is. A panel the reader has deliberately dragged
+stays where they put it.
+
+## Controlled panels
+
+Pass `opened` and `onOpenChange` to drive a pop-out from your own state -- to
+restore it on load, open it from a menu elsewhere, or close every panel at once.
+Leave both out and it remembers its own.
+
+```tsx
+<Popout opened={settingsOpen} onOpenChange={setSettingsOpen}>
+    ...
+</Popout>
+```
+
+## Use this, not Mantine's Popover
+
+`InfoCircle` and the pop-outs share one floating layer and one set of dismissal
+rules. A Mantine `Popover` opened alongside them has its own, which is how a
+page ends up with two overlays that disagree about what Escape does. Reach for
+`InfoCircle` for an explanation bubble and for `Popout` for anything larger.
+
+Mantine's own floating components -- `Select`, `Menu`, `Tooltip` and the rest --
+work normally *inside* a pop-out panel; their dropdowns render above it and do
+not dismiss it.
+
+## Accessibility notes
+
+- Give `Popout.Trigger` a real button. It attaches the click handler and the
+  ARIA wiring but adds no keyboard handling of its own, so a `div` would leave
+  the panel unreachable from the keyboard.
+- Give `PopoutButton` an `aria-label`. An icon on its own has no accessible
+  name.
+- Give `Popout.Panel` a `label` when it has no visible title, so the panel is
+  announced by name.

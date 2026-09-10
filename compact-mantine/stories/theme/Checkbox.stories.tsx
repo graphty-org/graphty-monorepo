@@ -2,7 +2,7 @@ import { Checkbox } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Checkbox> = {
-    title: "Theme/Checkbox",
+    title: "Compact Theme/Mantine Components/Checkbox",
     component: Checkbox,
 };
 

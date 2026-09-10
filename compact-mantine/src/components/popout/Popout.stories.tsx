@@ -5,6 +5,7 @@ import {
     Button,
     Checkbox,
     ColorInput,
+    Group,
     Menu,
     MultiSelect,
     NumberInput,
@@ -16,38 +17,56 @@ import {
 } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, within } from "@storybook/test";
-import { ChevronRight, ExternalLink, Layers, MoreVertical, Palette, Settings, Sliders } from "lucide-react";
 import { useRef, useState } from "react";
 
-import { CompactColorInput } from "../CompactColorInput";
-import { ControlGroup } from "../ControlGroup";
-import { GradientEditor } from "../GradientEditor";
-import { StyleNumberInput } from "../StyleNumberInput";
-import { StyleSelect } from "../StyleSelect";
-import { ToggleWithContent } from "../ToggleWithContent";
+import {
+    CompactColorInput,
+    ControlGroup,
+    GradientEditor,
+    Popout,
+    PopoutButton,
+    PopoutManager,
+    StyleNumberInput,
+    StyleSelect,
+    ToggleWithContent,
+    UiGlyph,
+} from "../../index";
 import { LabelSettingsPopout } from "./examples/LabelSettingsPopout";
-import { Popout } from "./Popout";
-import { PopoutButton } from "./PopoutButton";
-import { PopoutManager } from "./PopoutManager";
+
+// Everything the stories use is imported from "../../index", the package's
+// published entry point, so a story stops compiling if an export is dropped.
+// LabelSettingsPopout is the exception: it is an example in this folder rather
+// than part of the public surface.
+
+// Demo stories carry no play function. Storybook runs a play function as soon
+// as a story loads, so a demo that drove itself opened and closed its own panel
+// on every visit, which read as a flicker. The assertions live on the stories
+// below tagged INTERACTION_TEST_TAGS instead: those are hidden from the sidebar
+// and the docs page, and still carry the inherited "test" tag, so a test runner
+// picks them up while nobody watches them play out by hand.
+const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
 
 /**
- * A floating pop-out panel component that opens from a trigger element.
+ * A floating pop-out panel that opens from a trigger element.
  *
- * **Purpose:** Provides a non-modal, draggable panel for displaying contextual
- * settings or information without blocking the rest of the UI.
+ * **Purpose:** A non-modal, draggable panel for settings that belong to
+ * something on screen, shown without covering the thing they belong to.
  *
  * **When to use:**
- * - For property panels that need to float over the canvas
- * - For contextual settings that shouldn't block the main interface
- * - When users need to interact with both the panel and the underlying content
+ * - For property panels that float over a canvas
+ * - For settings that should not block the rest of the interface
+ * - When people need to work in the panel and the page at the same time
  *
  * **Key features:**
- * - Opens to the left of the trigger
- * - Non-modal (doesn't block interaction with background)
- * - Compound component API (Popout.Trigger, Popout.Panel, Popout.Content)
+ * - Two anchors: `anchorX` picks the edge the panel lines up with, `anchorY`
+ *   how far down it opens, so a panel can be flush with a sidebar and still
+ *   open level with the row that opened it
+ * - Panels opened from inside a panel step out from it, one level at a time
+ * - Non-modal: the page behind stays live
+ * - Compound API: `Popout.Trigger`, `Popout.Panel`, `Popout.Content`
  */
 const meta: Meta<typeof Popout> = {
-    title: "Components/Popout",
+    title: "Floating Panels/Popout",
     component: Popout,
     tags: ["autodocs"],
     parameters: {
@@ -66,10 +85,11 @@ export default meta;
 type Story = StoryObj<typeof Popout>;
 
 /**
- * Basic popout panel with a sidebar layout similar to Graphty.
- * Shows a right-side sidebar with a control section header and popout trigger.
- * The panel snaps to the left edge of the sidebar when opened.
- * Click the popout button to open, drag the header to move, click X to close.
+ * A sidebar with one pop-out, the arrangement most panels use.
+ *
+ * The panel lines its right edge up with the sidebar's left edge, and opens
+ * level with the row that opened it. Click the button to open, drag the header
+ * to move it, click the close button to dismiss.
  */
 export const Basic: Story = {
     render: function BasicRender() {
@@ -97,7 +117,7 @@ export const Basic: Story = {
                     style={{
                         width: 240,
                         backgroundColor: "var(--mantine-color-body)",
-                        borderLeft: "1px solid var(--mantine-color-gray-3)",
+                        borderInlineStart: "1px solid var(--mantine-color-gray-3)",
                         display: "flex",
                         flexDirection: "column",
                     }}
@@ -105,11 +125,11 @@ export const Basic: Story = {
                     {/* Control group with popout action */}
                     <Popout>
                         <ControlGroup
-                            label="Test →"
+                            label="Test"
                             actions={
                                 <Popout.Trigger>
                                     <PopoutButton
-                                        icon={<ExternalLink size={12} />}
+                                        icon={<UiGlyph name="gear" size={12} />}
                                         aria-label="Open settings"
                                     />
                                 </Popout.Trigger>
@@ -124,7 +144,7 @@ export const Basic: Story = {
                         <Popout.Panel
                             width={280}
                             header={{ variant: "title", title: "Settings" }}
-                            anchorRef={sidebarRef}
+                            anchorX={sidebarRef}
                             placement="left"
                             alignment="start"
                             gap={-1}
@@ -138,6 +158,15 @@ export const Basic: Story = {
             </Box>
         );
     },
+};
+
+/**
+ * The assertions for the basic pop-out, kept off the demo so that opening the
+ * demo does not run them.
+ */
+export const BasicInteractions: Story = {
+    ...Basic,
+    tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
@@ -158,14 +187,14 @@ export const Basic: Story = {
         await expect(canvas.getByText("Settings")).toBeVisible();
         await expect(canvas.getByText("Panel content goes here")).toBeVisible();
 
-        // Phase 7: Verify accessibility attributes
+        // Accessibility attributes
         await expect(panel).toHaveAttribute("aria-modal", "false");
         await expect(panel).toHaveAttribute("aria-labelledby");
         await expect(panel).toHaveAttribute("id");
         await expect(trigger).toHaveAttribute("aria-expanded", "true");
         await expect(trigger).toHaveAttribute("aria-controls", panel.id);
 
-        // Verify drag trigger is present in header (Phase 2)
+        // The header is the drag handle
         const dragTrigger = panel.querySelector("[data-drag-trigger]");
         await expect(dragTrigger).toBeInTheDocument();
 
@@ -182,7 +211,7 @@ export const Basic: Story = {
         // Verify trigger aria-expanded updated
         await expect(trigger).toHaveAttribute("aria-expanded", "false");
 
-        // Reopen and verify position is reset (Phase 2 requirement)
+        // Reopen and verify the panel comes back where it started
         await userEvent.click(canvas.getByLabelText("Open settings"));
         const reopenedPanel = await canvas.findByRole("dialog");
         await expect(reopenedPanel.style.left).toBe(initialLeft);
@@ -194,10 +223,218 @@ export const Basic: Story = {
 };
 
 /**
- * Tabbed popout panel demonstrating the tabs header variant.
- * Each tab has its own content that displays when the tab is active.
- * Tab state resets to the first tab when the panel reopens.
- * Uses compact components from @graphty/compact-mantine.
+ * The two anchors, side by side.
+ *
+ * Each button opens a panel anchored differently on the horizontal axis, and
+ * every one of them opens level with its own row:
+ * - **panel**: flush with the sidebar's edge, whichever row opened it
+ * - **trigger**: beside the button itself
+ * - **parent**: a panel opened from inside a panel steps out from that panel
+ */
+export const AnchorAxes: Story = {
+    render: function AnchorAxesRender() {
+        return (
+            <Popout.Anchor>
+                <Box
+                    style={{
+                        marginInlineStart: "auto",
+                        width: 240,
+                        height: "100vh",
+                        padding: 8,
+                        backgroundColor: "var(--mantine-color-body)",
+                        borderInlineStart: "1px solid var(--mantine-color-gray-3)",
+                    }}
+                >
+                    <Stack gap="xs">
+                        <Text size="xs" c="dimmed">
+                            Each row opens a panel level with itself.
+                        </Text>
+
+                        <Popout>
+                            <Group justify="space-between">
+                                <Text size="xs">Flush with the sidebar</Text>
+                                <Popout.Trigger>
+                                    <PopoutButton
+                                        icon={<UiGlyph name="gear" size={12} />}
+                                        aria-label="Open panel-anchored settings"
+                                    />
+                                </Popout.Trigger>
+                            </Group>
+                            <Popout.Panel
+                                width={240}
+                                header={{ variant: "title", title: "Anchored to the sidebar" }}
+                                anchorX="panel"
+                                gap={-1}
+                            >
+                                <Popout.Content>
+                                    <Text size="xs">
+                                        The default inside a Popout.Anchor: the panel meets the
+                                        sidebar edge, level with the row that opened it.
+                                    </Text>
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+
+                        <Popout>
+                            <Group justify="space-between">
+                                <Text size="xs">Beside the button</Text>
+                                <Popout.Trigger>
+                                    <PopoutButton
+                                        icon={<UiGlyph name="pin" size={12} />}
+                                        aria-label="Open trigger-anchored settings"
+                                    />
+                                </Popout.Trigger>
+                            </Group>
+                            <Popout.Panel
+                                width={240}
+                                header={{ variant: "title", title: "Anchored to the button" }}
+                                anchorX="trigger"
+                                gap={8}
+                            >
+                                <Popout.Content>
+                                    <Text size="xs">
+                                        anchorX=&quot;trigger&quot; ignores the sidebar and opens
+                                        beside the button instead.
+                                    </Text>
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+
+                        <Popout>
+                            <Group justify="space-between">
+                                <Text size="xs">Nested stack</Text>
+                                <Popout.Trigger>
+                                    <PopoutButton
+                                        icon={<UiGlyph name="copy" size={12} />}
+                                        aria-label="Open nested stack"
+                                    />
+                                </Popout.Trigger>
+                            </Group>
+                            <Popout.Panel
+                                width={240}
+                                header={{ variant: "title", title: "Level one" }}
+                                gap={-1}
+                            >
+                                <Popout.Content>
+                                    <Stack gap="xs">
+                                        <Text size="xs">
+                                            Open the next level: it steps out from this panel, not
+                                            from the sidebar.
+                                        </Text>
+                                        <Popout>
+                                            <Popout.Trigger>
+                                                <Button
+                                                    size="compact-sm"
+                                                    variant="light"
+                                                    rightSection={<UiGlyph name="chevronRight" size={14} />}
+                                                    aria-label="Open level two"
+                                                >
+                                                    Level two
+                                                </Button>
+                                            </Popout.Trigger>
+                                            <Popout.Panel
+                                                width={220}
+                                                header={{ variant: "title", title: "Level two" }}
+                                            >
+                                                <Popout.Content>
+                                                    <Stack gap="xs">
+                                                        <Text size="xs">
+                                                            And again, one level further out.
+                                                        </Text>
+                                                        <Popout>
+                                                            <Popout.Trigger>
+                                                                <Button
+                                                                    size="compact-sm"
+                                                                    variant="light"
+                                                                    rightSection={
+                                                                        <UiGlyph name="chevronRight" size={14} />
+                                                                    }
+                                                                    aria-label="Open level three"
+                                                                >
+                                                                    Level three
+                                                                </Button>
+                                                            </Popout.Trigger>
+                                                            <Popout.Panel
+                                                                width={200}
+                                                                header={{
+                                                                    variant: "title",
+                                                                    title: "Level three",
+                                                                }}
+                                                            >
+                                                                <Popout.Content>
+                                                                    <Text size="xs">
+                                                                        Each level lines up with the
+                                                                        one it opened from.
+                                                                    </Text>
+                                                                </Popout.Content>
+                                                            </Popout.Panel>
+                                                        </Popout>
+                                                    </Stack>
+                                                </Popout.Content>
+                                            </Popout.Panel>
+                                        </Popout>
+                                    </Stack>
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+                    </Stack>
+                </Box>
+            </Popout.Anchor>
+        );
+    },
+};
+
+/**
+ * The assertions for the two anchors: each panel meets the edge it names, and
+ * each opens level with its own trigger.
+ */
+export const AnchorAxesInteractions: Story = {
+    ...AnchorAxes,
+    tags: INTERACTION_TEST_TAGS,
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const sidebar = canvasElement.querySelector("div[style*='100vh']");
+        await expect(sidebar).toBeTruthy();
+        const sidebarRect = (sidebar as HTMLElement).getBoundingClientRect();
+
+        // Anchored to the sidebar: the panel's right edge meets the sidebar's
+        // left edge, and its top meets its own trigger's top.
+        const panelTrigger = canvas.getByLabelText("Open panel-anchored settings");
+        await userEvent.click(panelTrigger);
+        const anchoredPanel = await canvas.findByRole("dialog");
+        const anchoredRect = anchoredPanel.getBoundingClientRect();
+        await expect(Math.round(anchoredRect.right)).toBe(Math.round(sidebarRect.left) + 1);
+        await expect(Math.round(anchoredRect.top)).toBe(
+            Math.round(panelTrigger.getBoundingClientRect().top),
+        );
+
+        // Anchored to its own trigger: the panel sits beside the button.
+        const triggerAnchored = canvas.getByLabelText("Open trigger-anchored settings");
+        await userEvent.click(triggerAnchored);
+        const besidePanel = await canvas.findByRole("dialog");
+        const besideRect = besidePanel.getBoundingClientRect();
+        const buttonRect = triggerAnchored.getBoundingClientRect();
+        await expect(Math.round(besideRect.right)).toBe(Math.round(buttonRect.left) - 8);
+        await expect(Math.round(besideRect.top)).toBe(Math.round(buttonRect.top));
+
+        // Nested: each level steps out from the panel it opened from.
+        await userEvent.click(canvas.getByLabelText("Open nested stack"));
+        const levelOne = await canvas.findByRole("dialog");
+        const levelOneRect = levelOne.getBoundingClientRect();
+
+        await userEvent.click(canvas.getByLabelText("Open level two"));
+        const levelTwo = canvas.getAllByRole("dialog").find((panel) => panel !== levelOne);
+        await expect(levelTwo).toBeTruthy();
+        const levelTwoRect = (levelTwo as HTMLElement).getBoundingClientRect();
+        await expect(Math.round(levelTwoRect.right)).toBe(Math.round(levelOneRect.left) - 4);
+    },
+};
+
+/**
+ * A tabbed pop-out panel.
+ *
+ * Each tab has its own content. Reopening the panel starts from the first tab
+ * again.
  */
 export const Tabbed: Story = {
     render: function TabbedRender() {
@@ -225,7 +462,7 @@ export const Tabbed: Story = {
                     style={{
                         width: 240,
                         backgroundColor: "var(--mantine-color-body)",
-                        borderLeft: "1px solid var(--mantine-color-gray-3)",
+                        borderInlineStart: "1px solid var(--mantine-color-gray-3)",
                         display: "flex",
                         flexDirection: "column",
                     }}
@@ -237,7 +474,7 @@ export const Tabbed: Story = {
                             actions={
                                 <Popout.Trigger>
                                     <PopoutButton
-                                        icon={<ExternalLink size={12} />}
+                                        icon={<UiGlyph name="gear" size={12} />}
                                         aria-label="Open tabbed settings"
                                     />
                                 </Popout.Trigger>
@@ -251,7 +488,7 @@ export const Tabbed: Story = {
                         </ControlGroup>
                         <Popout.Panel
                             width={300}
-                            anchorRef={sidebarRef}
+                            anchorX={sidebarRef}
                             placement="left"
                             alignment="start"
                             gap={-1}
@@ -307,9 +544,6 @@ export const Tabbed: Story = {
                                                 <Text size="xs" c="dimmed">
                                                     Version 1.0.0
                                                 </Text>
-                                                <Text size="xs" c="dimmed">
-                                                    © 2026 Graphty
-                                                </Text>
                                             </Popout.Content>
                                         ),
                                     },
@@ -321,6 +555,14 @@ export const Tabbed: Story = {
             </Box>
         );
     },
+};
+
+/**
+ * The assertions for the tabbed pop-out.
+ */
+export const TabbedInteractions: Story = {
+    ...Tabbed,
+    tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
@@ -339,14 +581,14 @@ export const Tabbed: Story = {
         const panel = await canvas.findByRole("dialog");
         await expect(panel).toBeVisible();
 
-        // Phase 7: Verify accessibility attributes
+        // Accessibility attributes
         await expect(panel).toHaveAttribute("aria-modal", "false");
         await expect(panel).toHaveAttribute("aria-labelledby");
         await expect(panel).toHaveAttribute("id");
         await expect(trigger).toHaveAttribute("aria-expanded", "true");
         await expect(trigger).toHaveAttribute("aria-controls", panel.id);
 
-        // Should have three options in segmented control
+        // Should have three options in the tab strip
         await expect(canvas.getByRole("radio", { name: "General" })).toBeInTheDocument();
         await expect(canvas.getByRole("radio", { name: "Advanced" })).toBeInTheDocument();
         await expect(canvas.getByRole("radio", { name: "About" })).toBeInTheDocument();
@@ -355,14 +597,23 @@ export const Tabbed: Story = {
         const generalOption = canvas.getByRole("radio", { name: "General" });
         await expect(generalOption).toBeChecked();
 
-        // Leave panel open for user to interact with
+        // Switching tabs and reopening returns to the first tab
+        await userEvent.click(canvas.getByRole("radio", { name: "About" }));
+        await expect(canvas.getByRole("radio", { name: "About" })).toBeChecked();
+        await userEvent.click(canvas.getByLabelText("Close panel"));
+        await userEvent.click(trigger);
+        await expect(await canvas.findByRole("radio", { name: "General" })).toBeChecked();
+
+        await userEvent.click(canvas.getByLabelText("Close panel"));
     },
 };
 
 /**
- * Multiple Popouts: Demonstrates z-index and bring-to-front behavior with multiple panels.
- * Shows how clicking on a panel brings it to the front.
- * This story demonstrates Phase 4 functionality (multiple panels, z-index management).
+ * Several pop-outs on one sidebar.
+ *
+ * Opening one closes the others at the same level, and clicking a panel raises
+ * it above the rest. The last row opens a panel that itself contains a pop-out,
+ * which is not a sibling and so stays open beside its parent.
  */
 export const MultiplePopouts: Story = {
     render: function MultiplePopoutsRender() {
@@ -384,7 +635,7 @@ export const MultiplePopouts: Story = {
                 >
                     <Text c="dimmed">Open both panels, then click to bring one to front</Text>
                     <Text size="xs" c="dimmed">
-                        The clicked panel will move to the top of the z-index stack
+                        The clicked panel will move to the top of the stack
                     </Text>
                 </Box>
 
@@ -395,7 +646,7 @@ export const MultiplePopouts: Story = {
                     style={{
                         width: 240,
                         backgroundColor: "var(--mantine-color-body)",
-                        borderLeft: "1px solid var(--mantine-color-gray-3)",
+                        borderInlineStart: "1px solid var(--mantine-color-gray-3)",
                         display: "flex",
                         flexDirection: "column",
                         gap: 8,
@@ -408,7 +659,7 @@ export const MultiplePopouts: Story = {
                             actions={
                                 <Popout.Trigger>
                                     <PopoutButton
-                                        icon={<Settings size={12} />}
+                                        icon={<UiGlyph name="gear" size={12} />}
                                         aria-label="Open Panel A"
                                     />
                                 </Popout.Trigger>
@@ -423,7 +674,7 @@ export const MultiplePopouts: Story = {
                         <Popout.Panel
                             width={280}
                             header={{ variant: "title", title: "Panel A - Settings" }}
-                            anchorRef={sidebarRef}
+                            anchorX={sidebarRef}
                             placement="left"
                             alignment="start"
                             gap={-1}
@@ -448,7 +699,7 @@ export const MultiplePopouts: Story = {
                             actions={
                                 <Popout.Trigger>
                                     <PopoutButton
-                                        icon={<Palette size={12} />}
+                                        icon={<UiGlyph name="eye" size={12} />}
                                         aria-label="Open Panel B"
                                     />
                                 </Popout.Trigger>
@@ -463,7 +714,7 @@ export const MultiplePopouts: Story = {
                         <Popout.Panel
                             width={280}
                             header={{ variant: "title", title: "Panel B - Appearance" }}
-                            anchorRef={sidebarRef}
+                            anchorX={sidebarRef}
                             placement="left"
                             alignment="start"
                             gap={-1}
@@ -487,14 +738,14 @@ export const MultiplePopouts: Story = {
                         </Popout.Panel>
                     </Popout>
 
-                    {/* Panel C - Advanced (demonstrates 3+ panels) */}
+                    {/* Panel C - Advanced */}
                     <Popout>
                         <ControlGroup
                             label="Advanced"
                             actions={
                                 <Popout.Trigger>
                                     <PopoutButton
-                                        icon={<Sliders size={12} />}
+                                        icon={<UiGlyph name="refresh" size={12} />}
                                         aria-label="Open Panel C"
                                     />
                                 </Popout.Trigger>
@@ -509,15 +760,15 @@ export const MultiplePopouts: Story = {
                         <Popout.Panel
                             width={280}
                             header={{ variant: "title", title: "Panel C - Advanced" }}
-                            anchorRef={sidebarRef}
+                            anchorX={sidebarRef}
                             placement="left"
                             alignment="start"
                             gap={-1}
                         >
                             <Popout.Content>
                                 <Text size="xs" data-testid="panel-c-content">
-                                    This is Panel C. A third panel to demonstrate z-index
-                                    management with multiple panels.
+                                    This is Panel C. A third panel, to show the stacking order with
+                                    several panels.
                                 </Text>
                                 <Box mt="md">
                                     <NumberInput
@@ -531,14 +782,14 @@ export const MultiplePopouts: Story = {
                         </Popout.Panel>
                     </Popout>
 
-                    {/* Panel D - Nested Demo (Phase 6: demonstrates nested popouts) */}
+                    {/* Panel D - a panel that itself contains a pop-out */}
                     <Popout>
                         <ControlGroup
                             label="Nested Demo"
                             actions={
                                 <Popout.Trigger>
                                     <PopoutButton
-                                        icon={<Layers size={12} />}
+                                        icon={<UiGlyph name="copy" size={12} />}
                                         aria-label="Open Nested Demo"
                                     />
                                 </Popout.Trigger>
@@ -546,22 +797,22 @@ export const MultiplePopouts: Story = {
                         >
                             <Box p="sm">
                                 <Text size="xs" c="dimmed">
-                                    Panel D - Nested popout demo
+                                    Panel D - nested pop-out demo
                                 </Text>
                             </Box>
                         </ControlGroup>
                         <Popout.Panel
                             width={280}
                             header={{ variant: "title", title: "Panel D - Parent" }}
-                            anchorRef={sidebarRef}
+                            anchorX={sidebarRef}
                             placement="left"
                             alignment="start"
                             gap={-1}
                         >
                             <Popout.Content>
                                 <Text size="xs" data-testid="panel-d-content">
-                                    This panel demonstrates nested popouts. Click the button
-                                    below to open a child popout.
+                                    This panel contains a pop-out of its own. Open it with the
+                                    button below.
                                 </Text>
                                 <Box mt="md">
                                     {/* Nested child popout */}
@@ -570,7 +821,7 @@ export const MultiplePopouts: Story = {
                                             <Button
                                                 size="compact-sm"
                                                 variant="light"
-                                                rightSection={<ChevronRight size={14} />}
+                                                rightSection={<UiGlyph name="chevronRight" size={14} />}
                                                 aria-label="Open Child Panel"
                                             >
                                                 Open Child
@@ -580,20 +831,16 @@ export const MultiplePopouts: Story = {
                                             width={220}
                                             header={{ variant: "title", title: "Child Panel" }}
                                             placement="left"
-                                            gap={0}
                                         >
                                             <Popout.Content>
                                                 <Text size="xs" data-testid="child-panel-content">
-                                                    This is a nested child popout! Press Escape to
-                                                    close only this panel. Closing the parent will
-                                                    also close this panel.
+                                                    A pop-out opened from inside a panel. Escape
+                                                    closes this one first; closing the panel it came
+                                                    from closes it too.
                                                 </Text>
                                                 <Box mt="md">
                                                     <Checkbox label="Child option 1" />
-                                                    <Checkbox
-                                                        label="Child option 2"
-                                                        mt="xs"
-                                                    />
+                                                    <Checkbox label="Child option 2" mt="xs" />
                                                 </Box>
                                             </Popout.Content>
                                         </Popout.Panel>
@@ -606,51 +853,51 @@ export const MultiplePopouts: Story = {
             </Box>
         );
     },
+};
+
+/**
+ * The assertions for several pop-outs at once: exclusive siblings, dismissal,
+ * and nesting.
+ */
+export const MultiplePopoutsInteractions: Story = {
+    ...MultiplePopouts,
+    tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
         // Initially no panels should be visible
         await expect(canvas.queryAllByRole("dialog")).toHaveLength(0);
 
-        // --- Test: Exclusive siblings behavior (Phase 6) ---
-        // Open Panel A
+        // --- Exclusive siblings ---
         await userEvent.click(canvas.getByLabelText("Open Panel A"));
         await expect(await canvas.findByText("Panel A - Settings")).toBeVisible();
         await expect(canvas.getAllByRole("dialog")).toHaveLength(1);
 
-        // Open Panel B - should close Panel A (exclusive siblings)
+        // Open Panel B - should close Panel A
         await userEvent.click(canvas.getByLabelText("Open Panel B"));
         await expect(await canvas.findByText("Panel B - Appearance")).toBeVisible();
-        // Only Panel B should be open (Panel A was closed)
         await expect(canvas.getAllByRole("dialog")).toHaveLength(1);
         await expect(canvas.queryByTestId("panel-a-content")).not.toBeInTheDocument();
         await expect(canvas.getByTestId("panel-b-content")).toBeInTheDocument();
 
-        // --- Test: Escape key behavior ---
+        // --- Escape ---
         await userEvent.keyboard("{Escape}");
-
-        // Panel B should be closed
         await expect(canvas.queryAllByRole("dialog")).toHaveLength(0);
 
-        // --- Test: Click-outside behavior ---
+        // --- Click outside ---
         await userEvent.click(canvas.getByLabelText("Open Panel A"));
         await expect(await canvas.findByText("Panel A - Settings")).toBeVisible();
         await expect(canvas.getAllByRole("dialog")).toHaveLength(1);
 
-        // Click outside (on the main content area)
         const mainContentArea = canvas.getByText("Open both panels, then click to bring one to front");
         await userEvent.click(mainContentArea);
-
-        // Panel should be closed
         await expect(canvas.queryAllByRole("dialog")).toHaveLength(0);
 
-        // --- Test: Nested popout behavior (Phase 6) ---
-        // Open the nested demo panel (Panel D)
+        // --- Nesting ---
         await userEvent.click(canvas.getByLabelText("Open Nested Demo"));
         await expect(await canvas.findByText("Panel D - Parent")).toBeVisible();
         await expect(canvas.getByTestId("panel-d-content")).toBeInTheDocument();
 
-        // Open the child popout
         await userEvent.click(canvas.getByLabelText("Open Child Panel"));
         await expect(await canvas.findByText("Child Panel")).toBeVisible();
         await expect(canvas.getByTestId("child-panel-content")).toBeInTheDocument();
@@ -658,13 +905,13 @@ export const MultiplePopouts: Story = {
         // Both panels should be open (parent and child, not siblings)
         await expect(canvas.getAllByRole("dialog")).toHaveLength(2);
 
-        // The child panel should have a data-parent-id attribute
+        // The child panel records which panel it opened from
         const childPanel = canvas.getAllByRole("dialog").find((p) =>
             p.querySelector('[data-testid="child-panel-content"]'),
         );
         await expect(childPanel).toHaveAttribute("data-parent-id");
 
-        // Press Escape - should only close the child
+        // Escape closes only the child
         await userEvent.keyboard("{Escape}");
         await expect(canvas.getAllByRole("dialog")).toHaveLength(1);
         await expect(canvas.getByTestId("panel-d-content")).toBeInTheDocument();
@@ -675,34 +922,113 @@ export const MultiplePopouts: Story = {
         await expect(await canvas.findByText("Child Panel")).toBeVisible();
         await expect(canvas.getAllByRole("dialog")).toHaveLength(2);
 
-        // Close the parent via X button - should close both parent and child
+        // Closing the parent closes the child with it
         const parentPanel = canvas.getAllByRole("dialog").find((p) =>
             p.querySelector('[data-testid="panel-d-content"]'),
         );
         const closeButton = parentPanel?.querySelector('[aria-label="Close panel"]') as HTMLElement;
         await userEvent.click(closeButton);
 
-        // All panels should be closed
         await expect(canvas.queryAllByRole("dialog")).toHaveLength(0);
     },
 };
 
 /**
- * Demo: A comprehensive example showing Popout features.
+ * A pop-out driven from the page's own state.
  *
- * This demonstrates how to use the Popout component in a production scenario.
- * The LabelSettingsPopout component is a complete, reusable settings panel
- * that showcases:
- * - Tabbed interface for organizing settings
- * - Form controls (inputs, checkboxes, sliders, selects)
- * - Nested child popout (in Advanced tab)
- * - Proper accessibility attributes
- * - Integration with anchor element for positioning
+ * Pass `opened` and `onOpenChange` to decide when the panel is open -- to
+ * restore it on load, to open it from a menu somewhere else, or to close every
+ * panel at once.
+ */
+export const Controlled: Story = {
+    render: function ControlledRender() {
+        const [opened, setOpened] = useState(false);
+
+        return (
+            <Box p="md">
+                <Stack gap="sm" w={240}>
+                    <Group gap="xs">
+                        <Button size="compact-sm" onClick={() => {
+                            setOpened(true);
+                        }}>
+                            Open from here
+                        </Button>
+                        <Button size="compact-sm" variant="default" onClick={() => {
+                            setOpened(false);
+                        }}>
+                            Close from here
+                        </Button>
+                    </Group>
+                    <Text size="xs" c="dimmed">
+                        The panel is {opened ? "open" : "closed"}.
+                    </Text>
+                    <Popout opened={opened} onOpenChange={setOpened}>
+                        <Group justify="space-between">
+                            <Text size="xs">Controlled pop-out</Text>
+                            <Popout.Trigger>
+                                <PopoutButton
+                                    icon={<UiGlyph name="gear" size={12} />}
+                                    aria-label="Toggle controlled panel"
+                                />
+                            </Popout.Trigger>
+                        </Group>
+                        <Popout.Panel
+                            width={220}
+                            header={{ variant: "title", title: "Controlled" }}
+                            placement="right"
+                            gap={8}
+                        >
+                            <Popout.Content>
+                                <Text size="xs">
+                                    Every open and close is reported to onOpenChange, including
+                                    Escape and clicks outside.
+                                </Text>
+                            </Popout.Content>
+                        </Popout.Panel>
+                    </Popout>
+                </Stack>
+            </Box>
+        );
+    },
+};
+
+/**
+ * The assertions for the controlled pop-out.
+ */
+export const ControlledInteractions: Story = {
+    ...Controlled,
+    tags: INTERACTION_TEST_TAGS,
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        await expect(canvas.getByText("The panel is closed.")).toBeInTheDocument();
+
+        // Opened from outside the pop-out
+        await userEvent.click(canvas.getByRole("button", { name: "Open from here" }));
+        await expect(await canvas.findByRole("dialog")).toBeVisible();
+        await expect(canvas.getByText("The panel is open.")).toBeInTheDocument();
+
+        // Closed from outside the pop-out
+        await userEvent.click(canvas.getByRole("button", { name: "Close from here" }));
+        await expect(canvas.queryByRole("dialog")).not.toBeInTheDocument();
+
+        // The trigger reports through the same handler
+        await userEvent.click(canvas.getByLabelText("Toggle controlled panel"));
+        await expect(await canvas.findByRole("dialog")).toBeVisible();
+        await expect(canvas.getByText("The panel is open.")).toBeInTheDocument();
+
+        // Escape reports too
+        await userEvent.keyboard("{Escape}");
+        await expect(canvas.getByText("The panel is closed.")).toBeInTheDocument();
+    },
+};
+
+/**
+ * A worked example: a complete settings panel with tabs, form controls and a
+ * pop-out of its own in the General tab.
  *
- * This story also demonstrates keyboard accessibility:
- * - Tab: Navigate through interactive elements
- * - Escape: Close the panel (child first, then parent)
- * - Focus management: Focus moves to panel on open, returns to trigger on close
+ * Keyboard: Tab moves through the controls, Escape closes the innermost panel,
+ * and focus returns to the trigger when a panel closes.
  */
 export const Demo: Story = {
     render: function DemoRender() {
@@ -720,7 +1046,7 @@ export const Demo: Story = {
                         justifyContent: "center",
                     }}
                 >
-                    <Text c="dimmed">Demo: Label Settings with Nested Popout</Text>
+                    <Text c="dimmed">Demo: Label Settings with a nested pop-out</Text>
                 </Box>
 
                 {/* Right sidebar */}
@@ -730,15 +1056,14 @@ export const Demo: Story = {
                     style={{
                         width: 240,
                         backgroundColor: "var(--mantine-color-body)",
-                        borderLeft: "1px solid var(--mantine-color-gray-3)",
+                        borderInlineStart: "1px solid var(--mantine-color-gray-3)",
                         display: "flex",
                         flexDirection: "column",
                     }}
                 >
-                    {/* Control group with LabelSettingsPopout */}
                     <ControlGroup
                         label="Label Settings"
-                        actions={<LabelSettingsPopout anchorRef={sidebarRef} />}
+                        actions={<LabelSettingsPopout anchorX={sidebarRef} />}
                     >
                         <Box p="sm">
                             <Text size="xs" c="dimmed">
@@ -750,6 +1075,14 @@ export const Demo: Story = {
             </Box>
         );
     },
+};
+
+/**
+ * The assertions for the worked example.
+ */
+export const DemoInteractions: Story = {
+    ...Demo,
+    tags: INTERACTION_TEST_TAGS,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
@@ -763,7 +1096,6 @@ export const Demo: Story = {
         const panel = await canvas.findByRole("dialog");
         await expect(panel).toBeVisible();
 
-        // Verify accessibility attributes
         // 1. Panel has role=dialog and aria-modal=false (non-modal)
         await expect(panel).toHaveAttribute("role", "dialog");
         await expect(panel).toHaveAttribute("aria-modal", "false");
@@ -771,7 +1103,7 @@ export const Demo: Story = {
         // 2. Panel has aria-labelledby pointing to a title element
         await expect(panel).toHaveAttribute("aria-labelledby");
 
-        // 3. Panel has an ID that matches trigger's aria-controls
+        // 3. Panel has an ID that matches the trigger's aria-controls
         await expect(panel).toHaveAttribute("id");
 
         // 4. Trigger has correct ARIA attributes
@@ -780,7 +1112,7 @@ export const Demo: Story = {
         await expect(trigger).toHaveAttribute("aria-controls", panel.id);
         await expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
 
-        // Verify segmented control options are present
+        // The tab strip is present
         await expect(canvas.getByRole("radio", { name: "General" })).toBeInTheDocument();
         await expect(canvas.getByRole("radio", { name: "Advanced" })).toBeInTheDocument();
         await expect(canvas.getByRole("radio", { name: "About" })).toBeInTheDocument();
@@ -793,7 +1125,7 @@ export const Demo: Story = {
         await userEvent.click(canvas.getByRole("radio", { name: "About" }));
         await expect(canvas.getByText("Part of @graphty/compact-mantine")).toBeVisible();
 
-        // Test keyboard navigation - press Escape to close
+        // Escape closes the panel
         await userEvent.keyboard("{Escape}");
         await expect(canvas.queryByRole("dialog")).not.toBeInTheDocument();
 
@@ -805,7 +1137,7 @@ export const Demo: Story = {
         const reopenedPanel = await canvas.findByRole("dialog");
         await expect(reopenedPanel).toBeVisible();
 
-        // Close button should have aria-label
+        // Close button should have an accessible name
         await expect(canvas.getByLabelText("Close panel")).toBeInTheDocument();
 
         // Close via close button
@@ -815,15 +1147,10 @@ export const Demo: Story = {
 };
 
 /**
- * Component compatibility test story for Popout panels.
+ * Compatibility check for components with floating parts of their own.
  *
- * This story tests that all Mantine and custom components with floating UI
- * (dropdowns, menus, tooltips, popovers) work correctly inside a Popout:
- * 1. Their dropdowns appear ABOVE the Popout panel (z-index)
- * 2. Clicking on dropdown options does NOT close the Popout (click-outside handling)
- * 3. Components are styled with the compact theme
- *
- * Organized into tabs by component category:
+ * Every dropdown, menu and tooltip in here has to appear above the pop-out and
+ * has to be usable without dismissing it. Organised into tabs by category:
  * - Form Inputs: Select, Autocomplete, MultiSelect, TagsInput, ColorInput
  * - Overlays: Menu, Tooltip
  * - Custom: CompactColorInput, StyleSelect, GradientEditor
@@ -867,7 +1194,7 @@ export const ComponentCompatibility: Story = {
                     style={{
                         width: 240,
                         backgroundColor: "var(--mantine-color-body)",
-                        borderLeft: "1px solid var(--mantine-color-gray-3)",
+                        borderInlineStart: "1px solid var(--mantine-color-gray-3)",
                         display: "flex",
                         flexDirection: "column",
                     }}
@@ -878,7 +1205,7 @@ export const ComponentCompatibility: Story = {
                             actions={
                                 <Popout.Trigger>
                                     <PopoutButton
-                                        icon={<ExternalLink size={12} />}
+                                        icon={<UiGlyph name="gear" size={12} />}
                                         aria-label="Open component compatibility test"
                                     />
                                 </Popout.Trigger>
@@ -892,7 +1219,7 @@ export const ComponentCompatibility: Story = {
                         </ControlGroup>
                         <Popout.Panel
                             width={320}
-                            anchorRef={sidebarRef}
+                            anchorX={sidebarRef}
                             placement="left"
                             alignment="start"
                             gap={-1}
@@ -988,7 +1315,7 @@ export const ComponentCompatibility: Story = {
                                                                     aria-label="Open menu"
                                                                     data-testid="test-menu-trigger"
                                                                 >
-                                                                    <MoreVertical size={14} />
+                                                                    <UiGlyph name="chevronDown" size={14} />
                                                                 </ActionIcon>
                                                             </Menu.Target>
                                                             <Menu.Dropdown>
@@ -1094,6 +1421,6 @@ export const ComponentCompatibility: Story = {
             </Box>
         );
     },
-    // Note: This story is primarily for manual testing and visual inspection.
-    // Automated tests are in tests/popout/PopoutRegression.test.tsx
+    // Kept for visual inspection. The automated checks for floating components
+    // inside a pop-out are in tests/popout/PopoutRegression.test.tsx.
 };

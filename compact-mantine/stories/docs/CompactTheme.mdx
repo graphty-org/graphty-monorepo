@@ -1,0 +1,120 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Compact Theme/Overview" />
+
+# The compact theme
+
+`compactTheme` is a complete Mantine theme. It changes three global tokens and
+sets default props and styles on 41 Mantine components, so a component you
+already know renders small without being told to.
+
+```tsx
+import "@mantine/core/styles.css";
+
+import { MantineProvider } from "@mantine/core";
+import { compactTheme } from "@graphty/compact-mantine";
+
+<MantineProvider theme={compactTheme}>
+    <App />
+</MantineProvider>;
+```
+
+The pages under **Mantine Components** show each restyled component at its new
+default beside `size="md"` and `size="lg"`, so you can see exactly what changes.
+
+## What it changes
+
+- **`fontSizes`** -- xs 10px, sm 11px, md 13px, lg 14px, xl 16px
+- **`spacing`** -- xs 4px, sm 6px, md 8px, lg 12px, xl 16px
+- **`radius`** -- xs 2px, sm 4px, md 6px, lg 8px, xl 12px
+
+Components default to `size="sm"`, which in this theme means a 24px control on
+an 11px face. Inputs are drawn without a border at rest, so a column of them
+reads as a list of values rather than a grid of boxes. Keyboard focus still
+paints a visible ring; a mouse click does not, so the surface stays quiet under
+the pointer.
+
+Pass `size="md"` or `size="lg"` anywhere and you get Mantine's usual sizes back.
+
+## The 41 components
+
+**Inputs (12)** TextInput, NumberInput, Select, Textarea, PasswordInput,
+Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput,
+InputClearButton
+
+**Buttons (3)** Button, ActionIcon, CloseButton
+
+**Controls (6)** Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl
+
+**Display (7)** Badge, Text, Avatar, ThemeIcon, Indicator, Kbd, Pill
+
+**Navigation (6)** Tabs, NavLink, Pagination, Stepper, Anchor, Burger
+
+**Feedback (3)** Loader, Progress, RingProgress
+
+**Overlays (4)** Menu, Tooltip, Popover, HoverCard
+
+Anything not on this list is untouched and renders at Mantine's own default.
+
+## Making it your own
+
+`compactTheme` is already merged with Mantine's default theme, so merge yours on
+top of it:
+
+```tsx
+import { createTheme, mergeMantineTheme } from "@mantine/core";
+import { compactTheme } from "@graphty/compact-mantine";
+
+const theme = mergeMantineTheme(compactTheme, createTheme({
+    primaryColor: "teal",
+    fontFamily: "Inter, sans-serif",
+}));
+```
+
+If you build your theme from several overrides instead, take
+`compactThemeOverride`. It is the raw `createTheme()` result and goes straight
+into `mergeThemeOverrides()`.
+
+## A compact region inside a normal-sized app
+
+`MantineProvider` nests, so an application can stay at its usual size and make
+one region dense -- which is what a sidebar or an inspector usually wants.
+
+```tsx
+<MantineProvider>
+    <TextInput label="Normal size" />
+
+    <MantineProvider theme={compactTheme}>
+        <aside style={{width: 280}}>
+            <TextInput label="Compact" />
+        </aside>
+    </MantineProvider>
+</MantineProvider>
+```
+
+## Colour
+
+The theme adds a palette, exported as `compactColors` with its dark scale as
+`compactDarkColors`.
+
+For your own dense rows, reach for `PANEL_INK` rather than a hex. It names one
+colour per role -- `VALUE` for primary text, `CHROME` for secondary,
+`SURFACE`, `RAISED`, `SELECTED`, `ON_SELECTED`, `BORDER`, `ACCENT`,
+`DISABLED`, and a few more -- and every entry is a Mantine CSS variable, so it
+follows the light scheme, the dark scheme and your own primary colour without
+further work.
+
+```tsx
+import { PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
+
+<div style={{height: PANEL_GRID.ROW_PITCH, color: PANEL_INK.CHROME}}>Custom row</div>;
+```
+
+The panel geometry is published on the theme too, as `theme.other.panelGrid`, so
+code that already has the theme does not need a second import.
+
+## Both schemes, every story
+
+Use the theme control in the toolbar above any story to switch between light and
+dark. Every component in this package is built for both, and both are checked
+for contrast.

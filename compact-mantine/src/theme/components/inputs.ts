@@ -35,7 +35,7 @@ import {
  * - --input-size: 24px (height)
  * - --input-fz: 11px (font size)
  * - --input-bg: semantic background
- * - --input-bd: none (no border)
+ * - --input-bd: transparent (borderless at rest, primary colour on focus)
  */
 export const inputComponentExtensions = {
     TextInput: TextInput.extend({
@@ -114,8 +114,10 @@ export const inputComponentExtensions = {
         styles: {
             ...compactInputStyles,
             innerInput: {
-                paddingLeft: 8,
-                paddingRight: 8,
+                // Logical, so a password field pads its own leading edge under
+                // dir="rtl" rather than always the left one.
+                paddingInlineStart: 8,
+                paddingInlineEnd: 8,
             },
         },
     }),

@@ -2,7 +2,7 @@ import { Box, Progress, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Progress> = {
-    title: "Theme/Progress",
+    title: "Compact Theme/Mantine Components/Progress",
     component: Progress,
     args: {
         value: 65,

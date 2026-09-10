@@ -2,7 +2,7 @@ import { Avatar, Indicator } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Indicator> = {
-    title: "Theme/Indicator",
+    title: "Compact Theme/Mantine Components/Indicator",
     component: Indicator,
 };
 

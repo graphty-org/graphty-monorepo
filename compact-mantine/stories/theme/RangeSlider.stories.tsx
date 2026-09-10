@@ -2,7 +2,7 @@ import { Box, RangeSlider } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof RangeSlider> = {
-    title: "Theme/RangeSlider",
+    title: "Compact Theme/Mantine Components/RangeSlider",
     component: RangeSlider,
     args: {
         size: "compact",

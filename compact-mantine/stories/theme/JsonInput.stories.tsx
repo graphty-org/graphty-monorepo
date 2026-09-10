@@ -2,7 +2,7 @@ import { JsonInput } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof JsonInput> = {
-    title: "Theme/JsonInput",
+    title: "Compact Theme/Mantine Components/JsonInput",
     component: JsonInput,
     args: {
         size: "compact",

@@ -2,7 +2,7 @@ import { NativeSelect, Select } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Select> = {
-    title: "Theme/Select",
+    title: "Compact Theme/Mantine Components/Select",
     component: Select,
     args: {
         data: ["Sleepy", "Hungry", "Chaotic", "Zoomies"],

@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { Mail, Settings, User } from "lucide-react";
 
 const meta: Meta<typeof Tabs> = {
-    title: "Theme/Tabs",
+    title: "Compact Theme/Mantine Components/Tabs",
     component: Tabs,
     args: {
         defaultValue: "general",

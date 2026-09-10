@@ -70,7 +70,7 @@ const EXPECTED_CSS_VARS = {
     "--input-size": "24px",
     "--input-fz": "11px",
     "--input-bg": "#2a3035",
-    "--input-bd": "none",
+    "--input-bd": "transparent",
 };
 
 /**

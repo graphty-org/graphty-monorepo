@@ -2,7 +2,7 @@ import { Switch } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Switch> = {
-    title: "Theme/Switch",
+    title: "Compact Theme/Mantine Components/Switch",
     component: Switch,
 };
 

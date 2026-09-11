@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { compactTheme } from "../../../src";
 import { DataRow, DataRowHeader, RankChip } from "../../../src/components/rows/DataRow";
-import { DoorButton } from "../../../src/components/rows/TrailingSlot";
+import { AdvancedButton } from "../../../src/components/rows/TrailingSlot";
 import { PANEL_INK } from "../../../src/constants/panel";
 import { LabelsProvider } from "../../../src/i18n";
 import { FieldGlyph } from "../../../src/icons";
@@ -422,7 +422,7 @@ describe("DataRow", () => {
                     name="Force directed"
                     onClick={vi.fn()}
                     onContextMenu={onContextMenu}
-                    trailing={<DoorButton label="Force directed options" onClick={vi.fn()} />}
+                    trailing={<AdvancedButton label="Force directed options" onClick={vi.fn()} />}
                 />,
             );
 
@@ -522,13 +522,13 @@ describe("DataRow", () => {
             expect(screen.queryByTestId("trailing-slot")).toBeNull();
         });
 
-        it("is not drawn for a conditional door that did not render", () => {
-            const showDoor = false;
+        it("is not drawn for a conditional trailing button that did not render", () => {
+            const showAdvanced = false;
 
             renderRow(
                 <DataRow
                     name="Force directed"
-                    trailing={showDoor && <DoorButton label="Force directed options" onClick={vi.fn()} />}
+                    trailing={showAdvanced && <AdvancedButton label="Force directed options" onClick={vi.fn()} />}
                 />,
             );
 
@@ -539,7 +539,7 @@ describe("DataRow", () => {
             renderRow(
                 <DataRow
                     name="Force directed"
-                    trailing={<DoorButton label="Force directed options" onClick={vi.fn()} />}
+                    trailing={<AdvancedButton label="Force directed options" onClick={vi.fn()} />}
                 />,
             );
 
@@ -550,12 +550,12 @@ describe("DataRow", () => {
             renderRow(
                 <DataRow
                     name="Hierarchical"
-                    trailing={<DoorButton label="Hierarchical options" onClick={vi.fn()} />}
+                    trailing={<AdvancedButton label="Hierarchical options" onClick={vi.fn()} />}
                 />,
             );
 
-            const door = screen.getByRole("button", { name: "Hierarchical options" });
-            expect(door).toHaveAttribute("title", "Hierarchical options");
+            const advanced = screen.getByRole("button", { name: "Hierarchical options" });
+            expect(advanced).toHaveAttribute("title", "Hierarchical options");
         });
 
         it("keeps the slot out of the row's own button, so it is separately reachable", async () => {
@@ -566,7 +566,7 @@ describe("DataRow", () => {
                 <DataRow
                     name="Radial"
                     onClick={select}
-                    trailing={<DoorButton label="Radial options" onClick={open} />}
+                    trailing={<AdvancedButton label="Radial options" onClick={open} />}
                 />,
             );
 

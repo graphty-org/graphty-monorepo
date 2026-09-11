@@ -4,11 +4,7 @@ import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { compactTheme, RampRow } from "../../../src";
-// AdvancedButton is the trailing control a caller reaches for; it is imported
-// from its own module because the package entry point is owned by a later pass
-// and still exports it only under its former name.
-import { AdvancedButton } from "../../../src/components/rows/TrailingSlot";
+import { AdvancedButton, compactTheme, RampRow } from "../../../src";
 import { PANEL_INK } from "../../../src/constants/panel";
 import { LabelsProvider } from "../../../src/i18n";
 import {

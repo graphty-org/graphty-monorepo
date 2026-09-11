@@ -85,13 +85,6 @@ export interface ActionRowProps {
      */
     live?: LiveSetting;
     /**
-     * How urgently a screen reader announces the reading when it changes.
-     * @deprecated Renamed to `live`, the spelling every announcing component in
-     * this library shares. This name still works, and `live` wins if you pass
-     * both.
-     */
-    stateLive?: LiveSetting;
-    /**
      * Controls that act: Run, Recompute, Copy, a button that opens the advanced
      * settings.
      *
@@ -242,7 +235,6 @@ function readingText(state: React.ReactNode): string | undefined {
  * @param props.stateTitle - The complete reading, for when `state` is markup or an abbreviation of what the row means
  * @param props.busy - Whether the reading is still being worked out by something that finishes later
  * @param props.live - How urgently a screen reader announces the reading when it changes on its own
- * @param props.stateLive - Superseded by `live`, and means the same thing
  * @param props.actions - Controls that act, hidden until the row is hovered or focused, and always drawn where the pointer cannot hover
  * @param props.residentActions - Controls that report a state, which are never hidden
  * @param props.actionsVisible - Forces the hidden controls shown or hidden instead of letting hover and focus decide
@@ -254,7 +246,7 @@ function readingText(state: React.ReactNode): string | undefined {
  * ```tsx
  * <ActionRow
  *     state="Running, 40%"
- *     stateLive="polite"
+ *     live="polite"
  *     actions={<Button onClick={cancel}>Cancel</Button>}
  *     residentActions={<ActionIcon aria-label="Pinned to the panel"><UiGlyph name="pin" /></ActionIcon>}
  *     onClick={(event, meta) => { select(id, {extend: event.shiftKey, source: meta.source}); }}
@@ -265,12 +257,7 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
     const { state, stateTitle, busy, live, actions, residentActions, actionsVisible, onClick, onFocus, onBlur } =
         props;
 
-    // The superseded `stateLive` still works. It is read through a plain object
-    // type rather than destructured by name, so that keeping it alive here does
-    // not itself count as using a deprecated API -- the same way AdvancedButton
-    // keeps `deviates` and ControlSection keeps `defaultOpen`.
-    const { stateLive } = props as { stateLive?: LiveSetting };
-    const announcement = liveRegionProps(live ?? stateLive, busy);
+    const announcement = liveRegionProps(live, busy);
 
     // No stylesheet ships with this package, so hover is a hook, not a `:hover`.
     // The hook attaches its own native listeners to the row, so it neither sees

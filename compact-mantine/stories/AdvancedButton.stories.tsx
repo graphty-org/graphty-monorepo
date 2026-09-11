@@ -1,10 +1,9 @@
-import { Box, DirectionProvider, Group, Stack, Text } from "@mantine/core";
+import { Box, DirectionProvider, Group, Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import React from "react";
 
 import {
     AdvancedButton,
-    DoorButton,
     LabelsProvider,
     PANEL_GRID,
     PanelField,
@@ -141,7 +140,14 @@ export const Loading: Story = {
 export const InARow: Story = {
     render: (): React.JSX.Element => (
         <Group gap={PANEL_GRID.TRAIL_GAP} wrap="nowrap" h={PANEL_GRID.ROW_PITCH}>
-            <PanelField label="Size by attribute" glyph="attribute" value="Age" bound select width={PANEL_GRID.BODY} />
+            <PanelField
+                label="Size by attribute"
+                glyph="attribute"
+                value="Age"
+                bound
+                kind="select"
+                width={PANEL_GRID.BODY}
+            />
             <TrailingSlot>
                 <AdvancedButton label="Range and scale" changed onClick={() => undefined} />
             </TrailingSlot>
@@ -210,25 +216,5 @@ export const TranslatedLabels: Story = {
                 <AdvancedButton label="Exportation d'image" changed onClick={() => undefined} />
             </Group>
         </LabelsProvider>
-    ),
-};
-
-/**
- * The component used to be called `DoorButton`, and its `changed` flag used to
- * be called `deviates`. Both still work and mean exactly what they always did,
- * so nothing has to be rewritten to upgrade; new code should use
- * `AdvancedButton` and `changed`.
- */
-export const FormerName: Story = {
-    render: (): React.JSX.Element => (
-        <Stack gap={PANEL_GRID.GUTTER}>
-            <Text size="xs" c="dimmed">
-                {"<DoorButton deviates /> still renders the changed button."}
-            </Text>
-            <Group gap={PANEL_GRID.TRIPLE_GAP}>
-                <DoorButton label="Image export options" onClick={() => undefined} />
-                <DoorButton label="Selection style" deviates onClick={() => undefined} />
-            </Group>
-        </Stack>
     ),
 };

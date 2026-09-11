@@ -6,10 +6,6 @@
 // `ColorStop` is the exception: it is a data shape rather than a component's
 // props, and is shared by `GradientEditor` and the color-stop helpers, so it has
 // no single component to live beside.
-//
-// This file is one of the entry points the shared ESLint config exempts from
-// no-deprecated, because a superseded name has to be re-exported from an entry
-// point to stay reachable at all.
 
 /**
  * One stop of a gradient: a colour, and where along the ramp it sits.
@@ -68,7 +64,6 @@ export type { ControlSectionProps } from "../components/ControlSection";
 export type { ControlSubGroupProps } from "../components/ControlSubGroup";
 export type { GradientEditorProps } from "../components/GradientEditor";
 export type { InfoCircleProps } from "../components/InfoCircle";
-export type { StatRowProps } from "../components/StatRow";
 export type { StyleNumberInputProps } from "../components/StyleNumberInput";
 export type { StyleSelectOption, StyleSelectProps } from "../components/StyleSelect";
 export type { ToggleWithContentProps } from "../components/ToggleWithContent";
@@ -90,11 +85,11 @@ export type {
 // Panel rows, and the two atoms every row is built from.
 export type {
     ActionRowProps,
+    AdvancedButtonProps,
     CompoundRowProps,
     CompoundSegment,
     DataRowHeaderProps,
     DataRowProps,
-    DoorButtonProps,
     FieldRowProps,
     HistogramBin,
     HistogramRowProps,
@@ -111,10 +106,9 @@ export type {
     TrailingSlotProps,
 } from "../components/rows";
 // Named from the modules themselves, because the rows barrel does not re-export
-// these four and a consumer cannot annotate a variable without them.
+// these three and a consumer cannot annotate a variable without them.
 export type { DataRowRole, DataRowSortDirection } from "../components/rows/DataRow";
 export type { PanelFieldKind } from "../components/rows/PanelField";
-export type { AdvancedButtonProps } from "../components/rows/TrailingSlot";
 
 // Providers, translation and text direction.
 export type { PanelLabelsProviderProps } from "../context/PanelLabelsContext";

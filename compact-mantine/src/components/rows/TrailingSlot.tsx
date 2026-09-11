@@ -111,12 +111,6 @@ export interface AdvancedButtonProps
      */
     changed?: boolean;
     /**
-     * Whether any setting behind the button has been changed from its default.
-     * @deprecated Renamed to `changed`. Passing it still works and still means
-     * exactly the same thing; `changed` wins if you pass both.
-     */
-    deviates?: boolean;
-    /**
      * The glyph drawn on the button.
      * @default a gear
      */
@@ -147,15 +141,6 @@ export interface AdvancedButtonProps
      * @default false
      */
     loading?: boolean;
-}
-
-// The superseded `deviates` prop, spelled once without its deprecation notice.
-// The implementation reads the old prop through this type so that supporting it
-// is not itself flagged as using a deprecated API, which is what the alternative
-// -- an eslint-disable in the middle of the component -- would have taken. The
-// notice stays where it belongs: on the public prop, in a consumer's editor.
-interface LegacyChangedProp {
-    deviates?: boolean;
 }
 
 // Accessibility: the APG "Button" pattern -- a plain command button, not a
@@ -208,7 +193,6 @@ interface LegacyChangedProp {
  * @param props - Component props
  * @param props.label - Names the settings the button opens, and becomes its tooltip and accessible name
  * @param props.changed - Whether anything behind the button has been changed from its default
- * @param props.deviates - Superseded by `changed`, and means the same thing
  * @param props.icon - The glyph to draw, which defaults to a gear
  * @param props.onClick - Called when the button is activated, with the event that activated it
  * @param props.disabled - Whether the button cannot be used
@@ -228,29 +212,21 @@ interface LegacyChangedProp {
  */
 export const AdvancedButton = forwardRef<HTMLButtonElement, AdvancedButtonProps>(
     function AdvancedButton(props, ref): React.JSX.Element {
-        // Destructuring the old name also keeps it out of `rest`, and so off
-        // the <button>, where React would warn about an unknown attribute.
         const {
             label,
-            changed,
-            deviates: legacyChanged,
+            changed = false,
             icon,
             onClick,
             disabled = false,
             loading = false,
             style,
             ...rest
-        } = props as LegacyChangedProp & Omit<AdvancedButtonProps, "deviates">;
+        } = props;
 
         const labels = useLabels();
 
-        // Both spellings of the same flag. `changed` wins when a caller passes
-        // both, so a consumer migrating one call site at a time never gets a
-        // stale `deviates` overriding the value they just moved to.
-        const isChanged = changed ?? legacyChanged ?? false;
-
-        const name = isChanged ? labels.sectionHasConfiguredValues(label) : label;
-        const ink = isChanged ? PANEL_INK.VALUE : PANEL_INK.CHROME;
+        const name = changed ? labels.sectionHasConfiguredValues(label) : label;
+        const ink = changed ? PANEL_INK.VALUE : PANEL_INK.CHROME;
 
         return (
             <ActionIcon
@@ -274,13 +250,9 @@ export const AdvancedButton = forwardRef<HTMLButtonElement, AdvancedButtonProps>
                 disabled={disabled}
                 loading={loading}
                 // The test hook is the component's own name in kebab case,
-                // which is the rule every component in this package follows. It
-                // was `door-button` up to 0.5.1, under the button's former
-                // name; a test that looked for that has to be updated with the
-                // rename.
+                // which is the rule every component in this package follows.
                 data-testid="advanced-button"
-                data-changed={isChanged ? "true" : "false"}
-                data-deviates={isChanged ? "true" : "false"}
+                data-changed={changed ? "true" : "false"}
                 onClick={onClick}
                 style={{ flex: "0 0 auto", ...style }}
             >
@@ -289,17 +261,3 @@ export const AdvancedButton = forwardRef<HTMLButtonElement, AdvancedButtonProps>
         );
     },
 );
-
-/**
- * Props for the advanced settings button, under its former name.
- * @deprecated Renamed to {@link AdvancedButtonProps}.
- */
-export type DoorButtonProps = AdvancedButtonProps;
-
-/**
- * A small button that opens the advanced settings for a row or a section,
- * under its former name.
- * @deprecated Renamed to {@link AdvancedButton}, which is the same component
- * with the same behaviour. Its `deviates` prop is now `changed`.
- */
-export const DoorButton = AdvancedButton;

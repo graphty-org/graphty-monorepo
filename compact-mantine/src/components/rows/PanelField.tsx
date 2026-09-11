@@ -199,12 +199,6 @@ export interface PanelFieldProps
      */
     placeholder?: boolean | string;
     /**
-     * Whether the field draws a drop-down chevron.
-     * @deprecated Pass `kind="select"` instead, which does the same thing and
-     * says what the field is rather than what it draws.
-     */
-    select?: boolean;
-    /**
      * Whether the value has been set but has not taken effect yet -- a layout
      * that only runs when the graph is re-laid out, say.
      *
@@ -279,11 +273,6 @@ export interface PanelFieldProps
     pendingDescription?: string;
 }
 
-// The same props with no deprecation marker on `select`, so that reading the
-// prop inside the component is not itself reported as deprecated usage. The
-// marker stays on the public interface, which is where a consumer sees it.
-type PanelFieldInternalProps = Omit<PanelFieldProps, "select"> & { select?: boolean };
-
 /**
  * A compact field for one changeable value, with a glyph in place of a caption.
  *
@@ -326,10 +315,9 @@ type PanelFieldInternalProps = Omit<PanelFieldProps, "select"> & { select?: bool
  * ```
  */
 export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function PanelField(
-    outerProps,
+    props,
     ref,
 ): React.JSX.Element {
-    const props: PanelFieldInternalProps = outerProps;
     const {
         label,
         glyph,
@@ -343,7 +331,6 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
         bound = false,
         mixed = false,
         placeholder,
-        select: legacySelect = false,
         pending = false,
         min,
         max,
@@ -377,7 +364,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
         onChange,
     });
 
-    const kind: PanelFieldKind = kindProp ?? (legacySelect || data !== undefined ? "select" : "text");
+    const kind: PanelFieldKind = kindProp ?? (data !== undefined ? "select" : "text");
     const showsChevron = kind === "select";
     const offersChoices = kind === "select" && data !== undefined;
 
@@ -780,7 +767,6 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(function
             "data-bound": bound ? "true" : undefined,
             "data-mixed": mixed ? "true" : undefined,
             "data-pending": pending ? "true" : undefined,
-            "data-select": showsChevron ? "true" : undefined,
             "data-disabled": disabled ? "true" : undefined,
         },
         style: {

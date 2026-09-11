@@ -41,7 +41,6 @@ import type {
     DataTableValue,
     Direction,
     DisclosureProps,
-    DoorButtonProps,
     FieldGlyphName,
     FieldGlyphProps,
     FieldLetter,
@@ -82,7 +81,6 @@ import type {
     RampRowProps,
     RankChipProps,
     SparklineRowProps,
-    StatRowProps,
     StyleNumberInputProps,
     StyleSelectOption,
     StyleSelectProps,
@@ -144,7 +142,6 @@ type PublicTypeSurface = {
     dataTableValue: DataTableValue;
     direction: Direction;
     disclosure: DisclosureProps;
-    doorButton: DoorButtonProps;
     fieldGlyph: FieldGlyphProps;
     fieldGlyphName: FieldGlyphName;
     fieldLetter: FieldLetter;
@@ -185,7 +182,6 @@ type PublicTypeSurface = {
     rampRow: RampRowProps;
     rankChip: RankChipProps;
     sparklineRow: SparklineRowProps;
-    statRow: StatRowProps;
     styleNumberInput: StyleNumberInputProps;
     styleSelect: StyleSelectProps;
     styleSelectOption: StyleSelectOption;
@@ -299,10 +295,6 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "parseAlphaFromHexa",
     "parseHexaColor",
     "toHexaColor",
-
-    // Superseded names, kept working
-    "DoorButton",
-    "StatRow",
 
     // The released version
     "VERSION",
@@ -504,18 +496,6 @@ describe("Package exports", () => {
             });
         });
 
-        describe("Superseded exports", () => {
-            it("keeps DoorButton working as the former name of AdvancedButton", () => {
-                expect(mainExports.DoorButton).toBeDefined();
-                expect(mainExports.DoorButton).toBe(mainExports.AdvancedButton);
-            });
-
-            it("keeps StatRow working now that DataRow replaces it", () => {
-                expect(mainExports.StatRow).toBeDefined();
-                expect(mainExports.StatRow).not.toBe(mainExports.DataRow);
-            });
-        });
-
         describe("Icon exports", () => {
             it("exports FieldGlyph and UiGlyph", () => {
                 expect(mainExports.FieldGlyph).toBeDefined();
@@ -608,8 +588,11 @@ describe("Package exports", () => {
             it("names every published type", () => {
                 // The assertion that matters is PublicTypeSurface above, which is
                 // checked by the compiler. This one keeps the list honest at run
-                // time: 78 named types, none of them written twice, matching the
-                // 78 names in the type block of src/index.ts.
+                // time: 76 named types, none of them written twice. It is a
+                // subset of the type block in src/index.ts rather than the whole
+                // of it: four published names (liveSetting, popoutAnchor,
+                // popoutButton and popoutManager) have never been listed here,
+                // and closing that gap is a separate job from this one.
                 const names: (keyof PublicTypeSurface)[] = [
                     "actionRow",
                     "activationEvent",
@@ -642,7 +625,6 @@ describe("Package exports", () => {
                     "dataTableValue",
                     "direction",
                     "disclosure",
-                    "doorButton",
                     "fieldGlyph",
                     "fieldGlyphName",
                     "fieldLetter",
@@ -679,7 +661,6 @@ describe("Package exports", () => {
                     "rampRow",
                     "rankChip",
                     "sparklineRow",
-                    "statRow",
                     "styleNumberInput",
                     "styleSelect",
                     "styleSelectOption",
@@ -691,7 +672,7 @@ describe("Package exports", () => {
                     "uiGlyphName",
                 ];
 
-                expect(names).toHaveLength(78);
+                expect(names).toHaveLength(76);
                 expect(new Set(names).size).toBe(names.length);
             });
         });

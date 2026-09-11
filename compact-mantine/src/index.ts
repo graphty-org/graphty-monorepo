@@ -3,11 +3,6 @@
 // package.json declares one export condition ("."), so this file is the whole
 // public surface. A name that is not here cannot be reached by a consumer, and
 // tests/exports.test.ts fails when a component is added and never listed.
-//
-// This file is one of the entry points the shared ESLint config exempts from
-// no-deprecated. A superseded name has to be re-exported from an entry point to
-// stay reachable, and the rule fires on the re-export itself; the @deprecated
-// tag stays on the declaration, so every ordinary call site is still flagged.
 
 // Theme exports
 export { compactColors, compactDarkColors, compactTheme, compactThemeOverride } from "./theme";
@@ -29,6 +24,7 @@ export { ToggleWithContent } from "./components/ToggleWithContent";
 // two atoms they are built out of.
 export {
     ActionRow,
+    AdvancedButton,
     CompoundRow,
     DataRow,
     DataRowHeader,
@@ -45,9 +41,6 @@ export {
     ToggleRowGroup,
     TrailingSlot,
 } from "./components/rows";
-// Named from its own module, because the rows barrel still publishes only the
-// superseded `DoorButton` spelling of it.
-export { AdvancedButton } from "./components/rows/TrailingSlot";
 
 // Icon exports: the closed glyph register, plus the guards that read it
 export {
@@ -111,15 +104,6 @@ export {
 } from "./utils";
 export { isRtl } from "./utils/rtl";
 
-// Superseded names, kept working so that upgrading breaks nothing. Each one's
-// own declaration carries the @deprecated tag and a one-line pointer to its
-// replacement, so a consumer sees the warning in their editor and in the
-// published type definitions:
-//   DoorButton -> AdvancedButton, the same component under a plain name
-//   StatRow    -> DataRow, which draws the same pair and can also be selected
-export { DoorButton } from "./components/rows";
-export { StatRow } from "./components/StatRow";
-
 // Type exports
 export type {
     ActionRowProps,
@@ -153,7 +137,6 @@ export type {
     DataTableValue,
     Direction,
     DisclosureProps,
-    DoorButtonProps,
     FieldGlyphName,
     FieldGlyphProps,
     FieldLetter,
@@ -194,7 +177,6 @@ export type {
     RampRowProps,
     RankChipProps,
     SparklineRowProps,
-    StatRowProps,
     StyleNumberInputProps,
     StyleSelectOption,
     StyleSelectProps,

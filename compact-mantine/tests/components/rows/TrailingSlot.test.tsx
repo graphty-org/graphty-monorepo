@@ -7,7 +7,6 @@ import { describe, expect, it, vi } from "vitest";
 import { compactTheme } from "../../../src";
 import {
     AdvancedButton,
-    DoorButton,
     holdsSomething,
     TrailingSlot,
 } from "../../../src/components/rows/TrailingSlot";
@@ -174,38 +173,6 @@ describe("AdvancedButton", () => {
 
             const button = screen.getByTestId("advanced-button");
             expect(button.getAttribute("aria-label")).toContain("has configured values");
-        });
-    });
-
-    describe("deviates -- the superseded spelling of changed", () => {
-        it("still means what it always meant", () => {
-            renderSlot(<AdvancedButton label="Image export options" deviates onClick={vi.fn()} />);
-
-            const button = screen.getByTestId("advanced-button");
-            expect(button).toHaveAttribute("data-deviates", "true");
-            expect(button).toHaveAttribute("data-changed", "true");
-            expect(button.style.getPropertyValue("--ai-color")).toBe(PANEL_INK.VALUE);
-            expect(button.getAttribute("aria-label")).toContain("has configured values");
-        });
-
-        it("keeps reporting the state under its old data attribute", () => {
-            renderSlot(<AdvancedButton label="Image export options" onClick={vi.fn()} />);
-
-            expect(screen.getByTestId("advanced-button")).toHaveAttribute("data-deviates", "false");
-        });
-
-        it("loses to changed when both are passed", () => {
-            renderSlot(<AdvancedButton label="Options" changed={false} deviates onClick={vi.fn()} />);
-
-            const button = screen.getByTestId("advanced-button");
-            expect(button).toHaveAttribute("data-changed", "false");
-            expect(button.style.getPropertyValue("--ai-color")).toBe(PANEL_INK.CHROME);
-        });
-
-        it("never reaches the DOM as an attribute", () => {
-            renderSlot(<AdvancedButton label="Options" deviates onClick={vi.fn()} />);
-
-            expect(screen.getByTestId("advanced-button").hasAttribute("deviates")).toBe(false);
         });
     });
 
@@ -417,27 +384,5 @@ describe("AdvancedButton", () => {
             expect(button.tagName).toBe("BUTTON");
             expect(button).toHaveAttribute("type", "button");
         });
-    });
-});
-
-describe("DoorButton -- the former name", () => {
-    it("is the same component", () => {
-        expect(DoorButton).toBe(AdvancedButton);
-    });
-
-    it("still works exactly as it did", async () => {
-        const onClick = vi.fn();
-        const user = userEvent.setup();
-        renderSlot(
-            <TrailingSlot>
-                <DoorButton label="Image export options" deviates onClick={onClick} />
-            </TrailingSlot>,
-        );
-
-        const button = screen.getByRole("button", { name: "Image export options has configured values" });
-        expect(button).toHaveAttribute("data-deviates", "true");
-
-        await user.click(button);
-        expect(onClick).toHaveBeenCalledTimes(1);
     });
 });

@@ -60,13 +60,6 @@ export interface ControlSubGroupProps extends DisclosureProps {
      * the region the header opens.
      */
     label: string;
-    /**
-     * Whether the sub-group starts open when it keeps its own open state.
-     * Defaults to `false`.
-     * @deprecated Use `defaultOpened`, the spelling every collapsible component
-     * in this library shares. This name still works.
-     */
-    defaultOpen?: boolean;
     /** The controls the sub-group holds, stacked in the order you write them. */
     children: React.ReactNode;
 }
@@ -93,7 +86,6 @@ export interface ControlSubGroupProps extends DisclosureProps {
  * @param props.label - The sub-group's name, drawn beside its chevron
  * @param props.opened - Whether the sub-group is open, when you drive it from your own state
  * @param props.defaultOpened - Whether it starts open when it keeps its own state, defaulting to false
- * @param props.defaultOpen - Deprecated spelling of `defaultOpened`
  * @param props.onOpenChange - Called when it opens or closes, with the new state first and the event second
  * @param props.children - The controls the sub-group holds
  * @returns The sub-group, its header and its controls
@@ -111,12 +103,6 @@ export interface ControlSubGroupProps extends DisclosureProps {
 export function ControlSubGroup(props: ControlSubGroupProps): React.JSX.Element {
     const { label, opened, defaultOpened, onOpenChange, children } = props;
 
-    // The superseded `defaultOpen` still works. It is read through a plain
-    // object type rather than destructured by name, so that keeping it alive
-    // here does not itself count as using a deprecated API -- the same way
-    // ControlSection keeps its own `defaultOpen` alive.
-    const { defaultOpen } = props as { defaultOpen?: boolean };
-
     const labels = useLabels();
     const direction = useDirection();
 
@@ -130,7 +116,7 @@ export function ControlSubGroup(props: ControlSubGroupProps): React.JSX.Element 
 
     const [isOpen, setOpen] = useUncontrolled<boolean>({
         value: opened,
-        defaultValue: defaultOpened ?? defaultOpen,
+        defaultValue: defaultOpened,
         finalValue: false,
         onChange: onOpenChange,
     });

@@ -3,9 +3,9 @@ import type { Meta, StoryObj } from "@storybook/react";
 import React, { useMemo, useRef, useState } from "react";
 
 import {
+    AdvancedButton,
     DataRow,
     DataRowHeader,
-    DoorButton,
     FieldGlyph,
     LabelsProvider,
     PANEL_GRID,
@@ -490,9 +490,9 @@ export const WithTrailing: Story = {
                         name={layout}
                         selected={layout === applied}
                         trailing={
-                            <DoorButton
+                            <AdvancedButton
                                 label={`${layout} options`}
-                                deviates={layout === "Force directed"}
+                                changed={layout === "Force directed"}
                                 icon={<UiGlyph name="gear" />}
                                 onClick={(): void => {
                                     // Opens the layout's parameters.
@@ -584,7 +584,7 @@ export const RightToLeft: Story = {
                             name="بيسكويت"
                             value="٢"
                             trailing={
-                                <DoorButton
+                                <AdvancedButton
                                     label="خيارات"
                                     icon={<UiGlyph name="gear" />}
                                     onClick={(): void => {

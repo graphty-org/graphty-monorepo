@@ -148,7 +148,7 @@ export const PairWithReset: Story = {
 export const SingleWithAdvancedSettings: Story = {
     args: {
         trailing: <AdvancedButton label="Range and scale" onClick={() => undefined} />,
-        children: <PanelField label="Size by attribute" glyph="attribute" value="Betweenness" bound select />,
+        children: <PanelField label="Size by attribute" glyph="attribute" value="Betweenness" bound kind="select" />,
     },
 };
 
@@ -159,7 +159,7 @@ export const SingleWithAdvancedSettings: Story = {
  */
 export const SingleAlone: Story = {
     args: {
-        children: <PanelField label="Layout" value="Force directed" select />,
+        children: <PanelField label="Layout" value="Force directed" kind="select" />,
     },
 };
 
@@ -191,7 +191,7 @@ export const Rhythm: Story = {
     render: (): React.JSX.Element => (
         <>
             <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={() => undefined} />}>
-                <PanelField label="Size by attribute" glyph="attribute" value="Age" bound select />
+                <PanelField label="Size by attribute" glyph="attribute" value="Age" bound kind="select" />
             </FieldRow>
             <FieldRow groupLabel="Node size range">
                 <PanelField label="Smallest node size" glyph="sizeSmallest" value="1.0" />
@@ -273,14 +273,14 @@ export const RightToLeft: Story = {
         <DirectionProvider initialDirection="rtl" detectDirection={false}>
             <div dir="rtl">
                 <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={() => undefined} />}>
-                    <PanelField label="Size by attribute" glyph="attribute" value="Age" bound select />
+                    <PanelField label="Size by attribute" glyph="attribute" value="Age" bound kind="select" />
                 </FieldRow>
                 <FieldRow groupLabel="Node size range">
                     <PanelField label="Smallest node size" glyph="sizeSmallest" value="1.0" />
                     <PanelField label="Largest node size" glyph="sizeLargest" value="4.0" />
                 </FieldRow>
                 <FieldRow>
-                    <PanelField label="Layout" value="Force directed" select />
+                    <PanelField label="Layout" value="Force directed" kind="select" />
                 </FieldRow>
             </div>
         </DirectionProvider>
@@ -325,7 +325,7 @@ export const SingleWithLabels: Story = {
     render: (): React.JSX.Element => (
         <PanelLabelsProvider showLabels>
             <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={() => undefined} />}>
-                <PanelField label="Layout" value="Hierarchical" select />
+                <PanelField label="Layout" value="Hierarchical" kind="select" />
             </FieldRow>
         </PanelLabelsProvider>
     ),

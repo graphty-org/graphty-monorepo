@@ -347,13 +347,6 @@ describe("PanelField", () => {
             renderField(<PanelField label="Layout" value="Force directed" kind="select" />);
 
             expect(screen.getByTestId("panel-field-chevron")).toBeInTheDocument();
-            expect(screen.getByTestId("panel-field")).toHaveAttribute("data-select", "true");
-        });
-
-        it("still draws a chevron for the superseded select prop", () => {
-            renderField(<PanelField label="Layout" value="Force directed" select />);
-
-            expect(screen.getByTestId("panel-field-chevron")).toBeInTheDocument();
             expect(screen.getByTestId("panel-field")).toHaveAttribute("data-kind", "select");
         });
 

@@ -1,6 +1,6 @@
 import { ActionIcon, Box, Collapse, Divider, Stack, UnstyledButton } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
-import React, { useCallback, useId } from "react";
+import React, { useId } from "react";
 
 import { PANEL_GRID, PANEL_INK } from "../constants/panel";
 import { useLabels } from "../i18n";
@@ -52,19 +52,6 @@ const NAME_LINE_HEIGHT = 1.2;
 export interface ControlSectionProps extends DisclosureProps {
     /** The section's name, drawn in its header. One to three words, sentence case. */
     label: string;
-    /**
-     * Whether the section starts expanded when it keeps its own open state.
-     * Defaults to `true`.
-     * @deprecated Use `defaultOpened`, the spelling every collapsible component
-     * in this library shares. This name still works.
-     */
-    defaultOpen?: boolean;
-    /**
-     * Called with the new open state whenever the header is activated.
-     * @deprecated Use `onOpenChange`, which also hands you the event that caused
-     * the change. This name still works and is still called.
-     */
-    onOpenedChange?: (opened: boolean) => void;
     /**
      * Whether the section holds settings the reader changed from their
      * defaults. A 6px accent dot follows the name, announced to a screen reader
@@ -156,9 +143,7 @@ export interface ControlSectionProps extends DisclosureProps {
  * @param props.label - The section's name, drawn in its header
  * @param props.opened - Whether the section is expanded, when you drive it from your own state
  * @param props.defaultOpened - Whether the section starts expanded when it keeps its own state, defaulting to true
- * @param props.defaultOpen - Deprecated spelling of `defaultOpened`
  * @param props.onOpenChange - Called when the section expands or collapses, with the new state first and the event second
- * @param props.onOpenedChange - Deprecated spelling of `onOpenChange`, called with the new state alone
  * @param props.hasConfiguredValues - Whether the section holds settings changed from their defaults, which adds an accent dot after the name
  * @param props.empty - Whether the section is set up at all: a dimmed name, no chevron, one "+", and no content
  * @param props.onAdd - Sets the section up, from the "+" an empty section carries
@@ -200,40 +185,19 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
         children,
     } = props;
 
-    // The superseded `defaultOpen` and `onOpenedChange` still work. They are
-    // read through a plain object type rather than destructured by name, so
-    // that supporting them here does not itself count as using a deprecated
-    // API -- the same way `AdvancedButton` keeps `deviates` alive.
-    const { defaultOpen, onOpenedChange } = props as {
-        defaultOpen?: boolean;
-        onOpenedChange?: (opened: boolean) => void;
-    };
-
     const labels = useLabels();
     const direction = useDirection();
     const nameId = useId();
     const contentId = useId();
     const infoId = useId();
 
-    // Both handlers fire on every change. onOpenChange is the current one;
-    // onOpenedChange is the 0.5.x name, kept working because the package is
-    // published (contract 1.5).
-    const handleOpenChange = useCallback(
-        (next: boolean, event?: React.SyntheticEvent): void => {
-            onOpenChange?.(next, event);
-            onOpenedChange?.(next);
-        },
-        [onOpenChange, onOpenedChange],
-    );
-
     // Controlled and uncontrolled, the way every state-holding component in
-    // this package works. The uncontrolled default is open, and the deprecated
-    // defaultOpen stands in when defaultOpened is not given.
+    // this package works. The uncontrolled default is open.
     const [isOpen, setOpen] = useUncontrolled<boolean>({
         value: opened,
-        defaultValue: defaultOpened ?? defaultOpen,
+        defaultValue: defaultOpened,
         finalValue: true,
-        onChange: handleOpenChange,
+        onChange: onOpenChange,
     });
 
     // An empty section renders no children at all. `toArray` is what tells a

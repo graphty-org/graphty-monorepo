@@ -2,7 +2,7 @@ import { Box, DirectionProvider, Stack, UnstyledButton } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import React from "react";
 
-import { CompoundRow, DoorButton, PANEL_GRID, PANEL_INK, PanelLabelsProvider, UiGlyph } from "../src";
+import { AdvancedButton, CompoundRow, PANEL_GRID, PANEL_INK, PanelLabelsProvider, UiGlyph } from "../src";
 
 // Imported from "../src", the package's published entry point, so the stories
 // exercise exactly what a consumer gets from `@graphty/compact-mantine` rather
@@ -109,7 +109,7 @@ export const Default: Story = {
             { value: "100", unit: "%" },
         ],
         trailing: (
-            <DoorButton
+            <AdvancedButton
                 label="Show node colour on canvas"
                 icon={<UiGlyph name="eye" />}
                 onClick={() => {
@@ -149,7 +149,7 @@ export const WithChangedSettings: Story = {
             { value: "85", unit: "%" },
         ],
         trailing: (
-            <DoorButton
+            <AdvancedButton
                 label="Selection colour options"
                 changed
                 onClick={() => {
@@ -189,7 +189,7 @@ export const GraphSize: Story = {
             { glyph: "E", value: "34" },
         ],
         trailing: (
-            <DoorButton
+            <AdvancedButton
                 label="Dataset details"
                 onClick={() => {
                     // Story only: the real button opens the dataset settings.
@@ -252,7 +252,7 @@ export const Interactive: Story = {
                         setLastActivation(`segment ${index}${modifiers === "" ? "" : `, ${modifiers}`}`);
                     }}
                     trailing={
-                        <DoorButton
+                        <AdvancedButton
                             label="Node colour options"
                             onClick={() => {
                                 // Story only: the real button opens the colour settings.
@@ -362,7 +362,7 @@ export const InAPanel: Story = {
                     { value: "100", unit: "%" },
                 ]}
                 trailing={
-                    <DoorButton
+                    <AdvancedButton
                         label="Node colour options"
                         onClick={() => {
                             // Story only.
@@ -443,7 +443,7 @@ export const RightToLeft: Story = {
                             { value: "100", unit: "%" },
                         ]}
                         trailing={
-                            <DoorButton
+                            <AdvancedButton
                                 label="Node colour options"
                                 onClick={() => {
                                     // Story only.

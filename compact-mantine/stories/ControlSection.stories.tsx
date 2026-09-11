@@ -87,7 +87,14 @@ function SizeRow(): React.JSX.Element {
 function AttributeRow(): React.JSX.Element {
     return (
         <Group gap={PANEL_GRID.TRAIL_GAP} wrap="nowrap" h={PANEL_GRID.ROW_PITCH}>
-            <PanelField label="Size by attribute" glyph="attribute" value="Age" bound select width={PANEL_GRID.BODY} />
+            <PanelField
+                label="Size by attribute"
+                glyph="attribute"
+                value="Age"
+                bound
+                kind="select"
+                width={PANEL_GRID.BODY}
+            />
             <TrailingSlot>
                 <AdvancedButton label="Range and scale" onClick={() => undefined} />
             </TrailingSlot>
@@ -209,7 +216,7 @@ export const WithActions: Story = {
         children: (
             <>
                 <Group gap={PANEL_GRID.TRAIL_GAP} wrap="nowrap" h={PANEL_GRID.ROW_PITCH}>
-                    <PanelField label="Layout" value="Force directed" select width={PANEL_GRID.BODY} />
+                    <PanelField label="Layout" value="Force directed" kind="select" width={PANEL_GRID.BODY} />
                     <TrailingSlot />
                 </Group>
                 <Group gap={PANEL_GRID.GUTTER} wrap="nowrap" h={PANEL_GRID.ROW_PITCH}>
@@ -262,7 +269,7 @@ export const Controlled: Story = {
                             glyph="attribute"
                             value="Bridges"
                             bound
-                            select
+                            kind="select"
                             width={PANEL_GRID.BODY}
                         />
                         <TrailingSlot />
@@ -296,7 +303,7 @@ export const APanelOfSections: Story = {
                         glyph="attribute"
                         value="Betweenness"
                         bound
-                        select
+                        kind="select"
                         width={PANEL_GRID.BODY}
                     />
                     <TrailingSlot>

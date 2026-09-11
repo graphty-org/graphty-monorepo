@@ -156,14 +156,6 @@ const config: KnipConfig = {
         "**/docs/**",
     ],
 
-    rules: {
-        // compact-mantine keeps a superseded name working alongside its
-        // replacement (DoorButton beside AdvancedButton), which is one symbol
-        // exported twice from one file on purpose. Reported, not fatal: a
-        // genuinely accidental double export still shows up here.
-        duplicates: "warn",
-    },
-
     // Ignore unlisted binaries that are shell built-ins or CI tools
     ignoreBinaries: [
         "wait", // Shell built-in used in npm scripts

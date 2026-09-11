@@ -2,7 +2,7 @@ import type React from "react";
 
 // One answer, for the whole package, to "this content arrives later". Before
 // this module there were five: ProseBlock took a politeness level called
-// `live`, ActionRow took the same three values under the name `stateLive` and
+// `live`, ActionRow took the same three values under a name of its own and
 // wrote `aria-live="off"` into the document rather than leaving it out, the
 // three chart rows were announced always and could not be quietened, and
 // CompoundRow and RampRow opted in through the presence of `busy`.

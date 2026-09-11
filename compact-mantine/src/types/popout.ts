@@ -183,12 +183,6 @@ export interface PopoutPanelProps {
      */
     children?: ReactNode;
     /**
-     * The element the panel lines up with, on both axes at once.
-     * @deprecated Use `anchorX` and `anchorY`, which set the two axes
-     * separately. Passing a ref here still aligns both axes to that element.
-     */
-    anchorRef?: RefObject<HTMLElement | null>;
-    /**
      * What the panel's horizontal position lines up with.
      *
      * Defaults to the pop-out this one opened from, then to the container

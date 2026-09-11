@@ -2,7 +2,6 @@ import { Box, Paper } from "@mantine/core";
 import { useIsomorphicEffect } from "@mantine/hooks";
 import {
     type ReactPortal,
-    type RefObject,
     type SyntheticEvent,
     useCallback,
     useEffect,
@@ -54,7 +53,6 @@ import { calculatePopoutPosition, resolvePlacement } from "./utils/position";
  * @param props.header - The panel's title or tab strip, which is also its drag handle
  * @param props.label - The panel's accessible name, used when it has no header
  * @param props.children - Content to display in the panel
- * @param props.anchorRef - Superseded by anchorX and anchorY; aligns both axes to one element
  * @param props.anchorX - What the panel's horizontal position lines up with
  * @param props.anchorY - What the panel's vertical position lines up with
  * @param props.placement - Which side of the anchor the panel sits on
@@ -85,12 +83,6 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         onDrag,
         onDragEnd,
     } = props;
-
-    // The superseded anchorRef still works and still aligns both axes to one
-    // element. It is read through a plain object type rather than destructured
-    // by name, so that supporting it here does not itself count as using a
-    // deprecated API.
-    const legacyAnchorRef = (props as { anchorRef?: RefObject<HTMLElement | null> }).anchorRef;
 
     const {
         isOpen, close, triggerRef, id, parentId,
@@ -220,14 +212,13 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             trigger: triggerRef.current,
             parent: findPanelElement(parentId),
             panel: anchorContext?.anchorRef.current ?? null,
-            explicit: legacyAnchorRef?.current ?? null,
         };
 
         return {
             inline: resolveAnchorElement(anchorX, "x", elements),
             block: resolveAnchorElement(anchorY, "y", elements),
         };
-    }, [triggerRef, parentId, anchorContext, legacyAnchorRef, anchorX, anchorY]);
+    }, [triggerRef, parentId, anchorContext, anchorX, anchorY]);
 
     const updatePosition = useCallback((): void => {
         const { inline, block } = resolveAnchors();

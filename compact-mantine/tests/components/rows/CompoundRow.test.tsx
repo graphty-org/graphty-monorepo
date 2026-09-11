@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { compactTheme } from "../../../src";
 import { CompoundRow } from "../../../src/components/rows/CompoundRow";
-import { DoorButton } from "../../../src/components/rows/TrailingSlot";
+import { AdvancedButton } from "../../../src/components/rows/TrailingSlot";
 import { PANEL_INK } from "../../../src/constants/panel";
 import { PanelLabelsProvider } from "../../../src/context/PanelLabelsContext";
 import { UiGlyph } from "../../../src/icons";
@@ -563,7 +563,7 @@ describe("CompoundRow", () => {
                     label="Node colour and opacity"
                     segments={colourAndOpacity()}
                     onClick={vi.fn()}
-                    trailing={<DoorButton label="Node colour options" onClick={vi.fn()} />}
+                    trailing={<AdvancedButton label="Node colour options" onClick={vi.fn()} />}
                 />,
             );
 
@@ -585,7 +585,7 @@ describe("CompoundRow", () => {
                     onClick={vi.fn()}
                     onFocus={onFocus}
                     onBlur={onBlur}
-                    trailing={<DoorButton label="Node colour options" onClick={vi.fn()} />}
+                    trailing={<AdvancedButton label="Node colour options" onClick={vi.fn()} />}
                 />,
             );
 
@@ -675,7 +675,7 @@ describe("CompoundRow", () => {
                     label="Node colour and opacity"
                     segments={colourAndOpacity()}
                     trailing={
-                        <DoorButton
+                        <AdvancedButton
                             label="Show node colour on canvas"
                             icon={<UiGlyph name="eye" />}
                             onClick={vi.fn()}
@@ -684,8 +684,8 @@ describe("CompoundRow", () => {
                 />,
             );
 
-            const door = screen.getByRole("button", { name: "Show node colour on canvas" });
-            expect(door).toHaveAttribute("title", "Show node colour on canvas");
+            const advanced = screen.getByRole("button", { name: "Show node colour on canvas" });
+            expect(advanced).toHaveAttribute("title", "Show node colour on canvas");
         });
 
         it("opens the settings on click", async () => {
@@ -695,7 +695,7 @@ describe("CompoundRow", () => {
                 <CompoundRow
                     label="Node colour and opacity"
                     segments={colourAndOpacity()}
-                    trailing={<DoorButton label="Node colour options" onClick={onClick} />}
+                    trailing={<AdvancedButton label="Node colour options" onClick={onClick} />}
                 />,
             );
 
@@ -711,7 +711,7 @@ describe("CompoundRow", () => {
                 <CompoundRow
                     label="Node colour and opacity"
                     segments={colourAndOpacity()}
-                    trailing={<DoorButton label="Node colour options" onClick={onClick} />}
+                    trailing={<AdvancedButton label="Node colour options" onClick={onClick} />}
                 />,
             );
 

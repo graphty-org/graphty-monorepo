@@ -419,56 +419,6 @@ describe("ControlSection", () => {
             expect(onOpenChange.mock.calls[0][1]).toMatchObject({ shiftKey: true });
         });
 
-        it("still calls the superseded onOpenedChange, with the state alone", async () => {
-            const user = userEvent.setup();
-            const onOpenedChange = vi.fn();
-            renderSection(
-                <ControlSection label="Size" onOpenedChange={onOpenedChange}>
-                    <div>Smallest node size</div>
-                </ControlSection>,
-            );
-
-            await user.click(screen.getByText("Size"));
-
-            expect(onOpenedChange).toHaveBeenCalledWith(false);
-        });
-
-        it("calls both handlers when a consumer has migrated only halfway", async () => {
-            const user = userEvent.setup();
-            const onOpenChange = vi.fn();
-            const onOpenedChange = vi.fn();
-            renderSection(
-                <ControlSection label="Size" onOpenChange={onOpenChange} onOpenedChange={onOpenedChange}>
-                    <div>Smallest node size</div>
-                </ControlSection>,
-            );
-
-            await user.click(screen.getByText("Size"));
-
-            expect(onOpenChange).toHaveBeenCalledTimes(1);
-            expect(onOpenedChange).toHaveBeenCalledTimes(1);
-        });
-
-        it("still honours the superseded defaultOpen", () => {
-            renderSection(
-                <ControlSection label="Size" defaultOpen={false}>
-                    <div>Smallest node size</div>
-                </ControlSection>,
-            );
-
-            expect(screen.getByText("Smallest node size")).not.toBeVisible();
-        });
-
-        it("lets defaultOpened win when both spellings are passed", () => {
-            renderSection(
-                <ControlSection label="Size" defaultOpened defaultOpen={false}>
-                    <div>Smallest node size</div>
-                </ControlSection>,
-            );
-
-            expect(screen.getByText("Smallest node size")).toBeVisible();
-        });
-
         it("hands the activating event to onAdd", async () => {
             const user = userEvent.setup();
             const onAdd = vi.fn();

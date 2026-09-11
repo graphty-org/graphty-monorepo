@@ -16,7 +16,7 @@ import React from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { FieldRow, PanelField, PANEL_GRID, PanelLabelsProvider } from "../../../src";
-import { DoorButton } from "../../../src/components/rows/TrailingSlot";
+import { AdvancedButton } from "../../../src/components/rows/TrailingSlot";
 
 /** The two directions every measurement is repeated in. */
 const DIRECTIONS = ["ltr", "rtl"] as const;
@@ -111,7 +111,7 @@ afterEach(() => {
 describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
     it("spends its band as 108 + 8 + 108 + 8 + 24", () => {
         renderInBand(
-            <FieldRow trailing={<DoorButton label="Range and scale" onClick={() => undefined} />}>
+            <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={() => undefined} />}>
                 <PanelField label="Smallest node size" glyph="sizeSmallest" value="1.0" />
                 <PanelField label="Largest node size" glyph="sizeLargest" value="4.0" />
             </FieldRow>,
@@ -142,7 +142,7 @@ describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
 
     it("puts the trail gap between the pair and the trailing slot", () => {
         renderInBand(
-            <FieldRow trailing={<DoorButton label="Range and scale" onClick={() => undefined} />}>
+            <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={() => undefined} />}>
                 <PanelField label="Smallest node size" glyph="sizeSmallest" value="1.0" />
                 <PanelField label="Largest node size" glyph="sizeLargest" value="4.0" />
             </FieldRow>,
@@ -167,8 +167,8 @@ describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
 
     it("spends its band as 224 + 8 + 24 for one field beside a trailing control", () => {
         renderInBand(
-            <FieldRow trailing={<DoorButton label="Range and scale" onClick={() => undefined} />}>
-                <PanelField label="Size by attribute" glyph="attribute" value="Betweenness" bound select />
+            <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={() => undefined} />}>
+                <PanelField label="Size by attribute" glyph="attribute" value="Betweenness" bound kind="select" />
             </FieldRow>,
             dir,
         );
@@ -181,7 +181,7 @@ describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
     it("gives the trail gap to a field that is alone, which spans 232", () => {
         renderInBand(
             <FieldRow>
-                <PanelField label="Layout" value="Force directed" select />
+                <PanelField label="Layout" value="Force directed" kind="select" />
             </FieldRow>,
             dir,
         );
@@ -195,7 +195,7 @@ describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
     it("draws the field itself edge to edge in its slot", () => {
         renderInBand(
             <FieldRow>
-                <PanelField label="Layout" value="Force directed" select />
+                <PanelField label="Layout" value="Force directed" kind="select" />
             </FieldRow>,
             dir,
         );
@@ -209,7 +209,7 @@ describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
     it("spends its band as 76 + 8 + 140 + 8 + 24 once the labels preference splits the pair", () => {
         renderInBand(
             <PanelLabelsProvider showLabels>
-                <FieldRow trailing={<DoorButton label="Range and scale" onClick={() => undefined} />}>
+                <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={() => undefined} />}>
                     <PanelField label="Smallest" glyph="sizeSmallest" value="1.0" />
                     <PanelField label="Largest" glyph="sizeLargest" value="4.0" />
                 </FieldRow>
@@ -251,7 +251,7 @@ describe.each(DIRECTIONS)("a field row under dir=%s", (dir) => {
 describe("a field row measured against itself", () => {
     it("draws the mirror image of the layout it draws left to right", () => {
         const row = (
-            <FieldRow trailing={<DoorButton label="Range and scale" onClick={() => undefined} />}>
+            <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={() => undefined} />}>
                 <PanelField label="Smallest node size" glyph="sizeSmallest" value="1.0" />
                 <PanelField label="Largest node size" glyph="sizeLargest" value="4.0" />
             </FieldRow>

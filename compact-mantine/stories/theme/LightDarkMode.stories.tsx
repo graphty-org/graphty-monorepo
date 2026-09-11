@@ -206,19 +206,19 @@ export const ControlSectionColors: Story = {
                         borderRadius: 8,
                     }}
                 >
-                    <ControlSection label="Node Settings" defaultOpen>
+                    <ControlSection label="Node Settings" defaultOpened>
                         <Box p="xs">
                             <Text size="xs">Node configuration options</Text>
                         </Box>
                     </ControlSection>
 
-                    <ControlSection label="Edge Settings" defaultOpen={false}>
+                    <ControlSection label="Edge Settings" defaultOpened={false}>
                         <Box p="xs">
                             <Text size="xs">Edge configuration options</Text>
                         </Box>
                     </ControlSection>
 
-                    <ControlSection label="Label Settings" defaultOpen>
+                    <ControlSection label="Label Settings" defaultOpened>
                         <Box p="xs">
                             <Text size="xs">Label configuration options</Text>
                         </Box>

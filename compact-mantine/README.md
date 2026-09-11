@@ -192,7 +192,7 @@ examples, and every prop is documented in your editor.
 | `ControlSubGroup` | a handful of rarely-opened settings belong under a section you already have. Quieter than a section: no rule, a smaller chevron. |
 | `FieldRow` | one or two fields share a line. It owns the widths and the gaps, so a column of rows lines up. |
 | `TrailingSlot` | you are laying out a row by hand and need the fixed 24px slot every row ends with, so that rows with a trailing control end level with rows without one. |
-| `AdvancedButton` | a row or a section has settings most people never change. The gear opens them in a pop-out, and marks itself when something behind it is no longer default. Its former name, `DoorButton`, still works. |
+| `AdvancedButton` | a row or a section has settings most people never change. The gear opens them in a pop-out, and marks itself when something behind it is no longer default. |
 
 ### Editing a value
 
@@ -223,7 +223,6 @@ examples, and every prop is documented in your editor.
 | `ProseBlock` | the panel has to say something in words: a plain-language reading, a caveat about how a result falls short, or a record of the last run. |
 | `ActionRow` | a row reports a state and offers verbs. The state is always visible; the verbs appear on hover, on focus, and always on a touch screen. |
 | `DataTable` | you have columns rather than rows: thousands of them, sortable, searchable, selectable, with only the visible rows in the document. |
-| `StatRow` | superseded by `DataRow`; see [Which one should I use?](#which-one-should-i-use) |
 
 ### Floating panels
 
@@ -484,7 +483,7 @@ thing everywhere.
 | Prop | What it always means |
 |------|----------------------|
 | `label` | What the thing is called. It is always the accessible name; whether it is also drawn depends on the component and on the [`showLabels` preference](#showing-a-word-beside-every-drawing). `ChartRow`'s label is never drawn, `PanelField`'s is drawn only with the preference on, `ControlSection`'s always is. |
-| `value` / `defaultValue` / `onChange` | The state a control holds. Supply `value` with `onChange` to drive it yourself, or `defaultValue` to let it remember. On the display-only rows -- `DataRow`, `MetricRow`, `StatRow` -- `value` is the reading drawn on the row and there is no `onChange`. |
+| `value` / `defaultValue` / `onChange` | The state a control holds. Supply `value` with `onChange` to drive it yourself, or `defaultValue` to let it remember. On the display-only rows -- `DataRow` and `MetricRow` -- `value` is the reading drawn on the row and there is no `onChange`. |
 | `trailing` | The row's occasional control, in the fixed 24px slot every row ends with. Always a node, always the last thing in the row. |
 | `actions` | Buttons that belong to a container rather than to a row: a section header's, a pop-out panel's, an action row's cluster. |
 | `disabled` | The control is present but cannot be used: dimmed, skipped by Tab, announced as unavailable. |
@@ -619,36 +618,31 @@ unknown string to them), `DataTableColumn<TRow>` describes a table column, and
 
 ## Which one should I use?
 
-Some components overlap. Where one supersedes another, the older one still
-works, is marked `@deprecated` in your editor, and will keep working -- this is
-a published package and nothing is being removed.
+Some components overlap, and a few sit beside a Mantine component that looks
+as though it would do. This table names the one to reach for, and what it is
+being chosen over where that choice is not obvious.
 
 | If you have | Use | Instead of |
 |-------------|-----|------------|
-| A label and a reading on one line | `DataRow` | `StatRow`, which cannot be selected, activated or given a trailing control |
-| A gear that opens advanced settings | `AdvancedButton`, with `changed` | `DoorButton`, its former name, with `deviates` |
+| A label and a reading on one line | `DataRow`, with the reading already formatted | -- it draws `value` verbatim and gives the pair no accessible name, so run a number through `useNumberFormatter().format(n)` yourself, and name the pair yourself where a reader has to hear the two together |
+| A gear that opens advanced settings | `AdvancedButton`, with `changed` | -- |
 | A group of controls that folds away | `ControlSection` | -- |
 | A group of controls that must not fold, or whose rule has to bleed to the edges of a padded container | `ControlGroup` | -- |
 | A checkbox on its own line | `ToggleRow` inside a `ToggleRowGroup` | -- |
 | A checkbox that reveals the settings it turns on | `ToggleWithContent` | -- |
-| A dropdown in a panel row | `PanelField` with `kind="select"` | `PanelField` with `select`, the former spelling |
+| A dropdown in a panel row | `PanelField` with `kind="select"` | -- |
 | A dropdown with a default the reader can override | `StyleSelect` | -- |
 | Two to six drawable options in a panel row | `IconGroupRow` | a bare Mantine `SegmentedControl`, which `IconGroupRow` is built on and adds the panel grid, the glyphs and the `showLabels` preference to |
 | An icon button that opens a pop-out | `PopoutButton`, inside `Popout.Trigger` | `AdvancedButton`, which is for a row's or a section's advanced settings and does not light up while a panel is open |
-| Anything that opens and closes | `opened`, `defaultOpened` and `onOpenChange` | `defaultOpen` and `onOpenedChange`, the former spellings on `ControlSection` and `ControlSubGroup` |
-| A row that announces a reading filled in by a background job | `busy`, and `live` to change the politeness | `stateLive` on `ActionRow`, the former spelling |
-| A pop-out lined up with something | `anchorX` and `anchorY`, one per axis | `anchorRef`, which could only align both axes to one element |
 | An explanation bubble | `InfoCircle` | a Mantine `Popover`, which does not share this library's dismissal rules |
 
 A lone boolean is not a row: put it in the trailing slot of the row it modifies,
 or make it one tile of an `IconGroupRow`. `ToggleRowGroup` warns in development
 when given only one child, for exactly this reason.
 
-**One thing does change rather than being kept.** Every component puts its own
-name, in kebab case, on a root `data-testid` -- `advanced-button`, `metric-row`,
-`popout-panel` -- so a test can find any of them the same way. The advanced
-settings button carried `door-button` up to 0.5.1, under its former name; a test
-that looked for that has to be updated along with the rename.
+Every component puts its own name, in kebab case, on a root `data-testid` --
+`advanced-button`, `metric-row`, `popout-panel` -- so a test can find any of
+them the same way.
 
 ## Contributing
 

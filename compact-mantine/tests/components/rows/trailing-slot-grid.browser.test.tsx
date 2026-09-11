@@ -26,7 +26,7 @@ import { IconGroupRow } from "../../../src/components/rows/IconGroupRow";
 import { PanelField } from "../../../src/components/rows/PanelField";
 import { RampRow } from "../../../src/components/rows/RampRow";
 import { ToggleRow } from "../../../src/components/rows/ToggleRow";
-import { DoorButton } from "../../../src/components/rows/TrailingSlot";
+import { AdvancedButton } from "../../../src/components/rows/TrailingSlot";
 import { FieldGlyph } from "../../../src/icons";
 
 /** Where the trailing slot begins: 280 less the 8px right pad and the 24px slot. */
@@ -65,13 +65,13 @@ function slotBox(): { x: number; width: number } {
     return { x: slot.left - panel.left, width: slot.width };
 }
 
-/** The door every row type is measured with. */
-const door = <DoorButton label="Options" onClick={() => undefined} />;
+/** The advanced-settings button every row type is measured with. */
+const advanced = <AdvancedButton label="Options" onClick={() => undefined} />;
 
 describe("the trailing slot", () => {
     it("is 24px at x 248 on a field row's pair", () => {
         renderInPanel(
-            <FieldRow trailing={door}>
+            <FieldRow trailing={advanced}>
                 <PanelField label="Smallest node size" glyph="sizeSmallest" value="1.0" />
                 <PanelField label="Largest node size" glyph="sizeLargest" value="4.0" />
             </FieldRow>,
@@ -82,7 +82,7 @@ describe("the trailing slot", () => {
 
     it("is 24px at x 248 on a field row's body-span field", () => {
         renderInPanel(
-            <FieldRow trailing={door}>
+            <FieldRow trailing={advanced}>
                 <PanelField label="Smallest node size" glyph="sizeSmallest" value="1.0" />
             </FieldRow>,
         );
@@ -101,25 +101,25 @@ describe("the trailing slot", () => {
     });
 
     it("is 24px at x 248 on a toggle row, whose body is one word", () => {
-        renderInPanel(<ToggleRow label="Labels" trailing={door} />);
+        renderInPanel(<ToggleRow label="Labels" trailing={advanced} />);
 
         expect(slotBox()).toEqual({ x: SLOT_X, width: PANEL_GRID.TRAIL });
     });
 
     it("is 24px at x 248 on an icon group row with a 108px track", () => {
-        renderInPanel(<IconGroupRow options={SHAPES} trailing={door} />);
+        renderInPanel(<IconGroupRow options={SHAPES} trailing={advanced} />);
 
         expect(slotBox()).toEqual({ x: SLOT_X, width: PANEL_GRID.TRAIL });
     });
 
     it("is 24px at x 248 on an icon group row with a 224px track", () => {
-        renderInPanel(<IconGroupRow options={SHAPES} width={PANEL_GRID.BODY} trailing={door} />);
+        renderInPanel(<IconGroupRow options={SHAPES} width={PANEL_GRID.BODY} trailing={advanced} />);
 
         expect(slotBox()).toEqual({ x: SLOT_X, width: PANEL_GRID.TRAIL });
     });
 
     it("is 24px at x 248 on an icon group row that fills the body", () => {
-        renderInPanel(<IconGroupRow options={SHAPES} width="fill" trailing={door} />);
+        renderInPanel(<IconGroupRow options={SHAPES} width="fill" trailing={advanced} />);
 
         expect(slotBox()).toEqual({ x: SLOT_X, width: PANEL_GRID.TRAIL });
     });
@@ -132,7 +132,7 @@ describe("the trailing slot", () => {
                     { glyph: "sizeSmallest", value: "1.0", grow: true },
                     { value: "4.0" },
                 ]}
-                trailing={door}
+                trailing={advanced}
             />,
         );
 
@@ -148,7 +148,7 @@ describe("the trailing slot", () => {
                     { glyph: "sizeSmallest", value: "1.0", grow: true },
                     { value: "4.0" },
                 ]}
-                trailing={door}
+                trailing={advanced}
             />,
         );
 
@@ -162,7 +162,7 @@ describe("the trailing slot", () => {
     });
 
     it("is 24px at x 248 on a one-pitch chart row", () => {
-        renderInPanel(<SparklineRow values={[1, 4, 2, 8]} minLabel="1" maxLabel="8" trailing={door} />);
+        renderInPanel(<SparklineRow values={[1, 4, 2, 8]} minLabel="1" maxLabel="8" trailing={advanced} />);
 
         expect(slotBox()).toEqual({ x: SLOT_X, width: PANEL_GRID.TRAIL });
     });
@@ -176,7 +176,7 @@ describe("the trailing slot", () => {
                 ]}
                 minLabel="2"
                 maxLabel="4"
-                trailing={door}
+                trailing={advanced}
             />,
         );
 
@@ -184,7 +184,7 @@ describe("the trailing slot", () => {
     });
 
     it("rides 8px in on a data row, which is a list row rather than a grid row", () => {
-        renderInPanel(<DataRow name="Mr_Whiskers" value="4" trailing={door} />);
+        renderInPanel(<DataRow name="Mr_Whiskers" value="4" trailing={advanced} />);
 
         // RT-6 is the documented exception: VOCAB section 3 gives a list row
         // "padding 0 8px, radius 4px" so its selected tint is inset from the

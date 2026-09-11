@@ -18,8 +18,6 @@ export interface PopoutAnchorElements {
     parent: HTMLElement | null;
     /** The container marked with `Popout.Anchor`, such as a sidebar. */
     panel: HTMLElement | null;
-    /** The element named by the deprecated `anchorRef` prop, if any. */
-    explicit: HTMLElement | null;
 }
 
 /**
@@ -56,9 +54,7 @@ export function resolveAnchorElement(
     axis: "x" | "y",
     elements: PopoutAnchorElements,
 ): HTMLElement | null {
-    const {
-        trigger, parent, panel, explicit,
-    } = elements;
+    const { trigger, parent, panel } = elements;
 
     if (target !== undefined) {
         if (typeof target === "object") {
@@ -76,12 +72,6 @@ export function resolveAnchorElement(
                 throw new Error(`Unknown anchor target: ${String(_exhaustive)}`);
             }
         }
-    }
-
-    // An explicitly named element governs both axes, which is what the
-    // superseded anchorRef prop meant.
-    if (explicit) {
-        return explicit;
     }
 
     if (axis === "x") {

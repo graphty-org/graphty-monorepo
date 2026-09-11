@@ -159,7 +159,7 @@ describe("FieldRow", () => {
         it("renders one field at the body span beside a trailing control", () => {
             renderRow(
                 <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={vi.fn()} />}>
-                    <PanelField label="Size by attribute" glyph="attribute" value="Betweenness" bound select />
+                    <PanelField label="Size by attribute" glyph="attribute" value="Betweenness" bound kind="select" />
                 </FieldRow>,
             );
 
@@ -171,7 +171,7 @@ describe("FieldRow", () => {
         it("spans 232 when one field is alone, so the row still reaches the end of the panel", () => {
             renderRow(
                 <FieldRow>
-                    <PanelField label="Layout" value="Force directed" select />
+                    <PanelField label="Layout" value="Force directed" kind="select" />
                 </FieldRow>,
             );
 
@@ -186,7 +186,7 @@ describe("FieldRow", () => {
 
             renderRow(
                 <FieldRow trailing={showAdvanced && <AdvancedButton label="Range and scale" onClick={vi.fn()} />}>
-                    <PanelField label="Layout" value="Force directed" select />
+                    <PanelField label="Layout" value="Force directed" kind="select" />
                 </FieldRow>,
             );
 
@@ -196,7 +196,7 @@ describe("FieldRow", () => {
         it("treats a trailing slot given null as empty", () => {
             renderRow(
                 <FieldRow trailing={null}>
-                    <PanelField label="Layout" value="Force directed" select />
+                    <PanelField label="Layout" value="Force directed" kind="select" />
                 </FieldRow>,
             );
 
@@ -363,7 +363,7 @@ describe("FieldRow", () => {
         it("says nothing about one field", () => {
             renderRow(
                 <FieldRow>
-                    <PanelField label="Layout" value="Force directed" select />
+                    <PanelField label="Layout" value="Force directed" kind="select" />
                 </FieldRow>,
             );
 
@@ -381,7 +381,7 @@ describe("FieldRow", () => {
         it("makes a field fill the slot the row computed", () => {
             renderRow(
                 <FieldRow>
-                    <PanelField label="Layout" value="Force directed" select />
+                    <PanelField label="Layout" value="Force directed" kind="select" />
                 </FieldRow>,
             );
 
@@ -493,7 +493,7 @@ describe("FieldRow", () => {
             const user = userEvent.setup();
             renderRow(
                 <FieldRow onFocus={onFocus} onBlur={onBlur}>
-                    <PanelField label="Size by attribute" glyph="attribute" value="Age" bound select onClick={vi.fn()} />
+                    <PanelField label="Size by attribute" glyph="attribute" value="Age" bound kind="select" onClick={vi.fn()} />
                 </FieldRow>,
             );
 
@@ -680,7 +680,7 @@ describe("FieldRow", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
                     <FieldRow>
-                        <PanelField label="Layout" value="Hierarchical" select />
+                        <PanelField label="Layout" value="Hierarchical" kind="select" />
                     </FieldRow>
                 </PanelLabelsProvider>,
             );
@@ -694,7 +694,7 @@ describe("FieldRow", () => {
             renderRow(
                 <PanelLabelsProvider showLabels>
                     <FieldRow>
-                        <PanelField label="Layout" value="Radial" select />
+                        <PanelField label="Layout" value="Radial" kind="select" />
                         <div data-testid="not-a-field">Mrs_Henderson</div>
                     </FieldRow>
                 </PanelLabelsProvider>,
@@ -711,7 +711,7 @@ describe("FieldRow", () => {
         it("gives the trailing button an accessible name equal to its title", () => {
             renderRow(
                 <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={vi.fn()} />}>
-                    <PanelField label="Size by attribute" glyph="attribute" value="Age" bound select />
+                    <PanelField label="Size by attribute" glyph="attribute" value="Age" bound kind="select" />
                 </FieldRow>,
             );
 
@@ -724,7 +724,7 @@ describe("FieldRow", () => {
             const user = userEvent.setup();
             renderRow(
                 <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={onClick} />}>
-                    <PanelField label="Size by attribute" glyph="attribute" value="Age" bound select />
+                    <PanelField label="Size by attribute" glyph="attribute" value="Age" bound kind="select" />
                 </FieldRow>,
             );
 
@@ -743,7 +743,7 @@ describe("FieldRow", () => {
             const user = userEvent.setup();
             renderRow(
                 <FieldRow trailing={<AdvancedButton label="Range and scale" onClick={onTrailing} />}>
-                    <PanelField label="Size by attribute" glyph="attribute" value="Age" bound select onClick={onField} />
+                    <PanelField label="Size by attribute" glyph="attribute" value="Age" bound kind="select" onClick={onField} />
                 </FieldRow>,
             );
 

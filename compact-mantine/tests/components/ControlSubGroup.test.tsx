@@ -189,26 +189,6 @@ describe("ControlSubGroup", () => {
             expect(screen.getByText("Outline")).toBeVisible();
         });
 
-        it("still honours the superseded defaultOpen spelling", () => {
-            renderSubGroup(
-                <ControlSubGroup label="Text effects" defaultOpen>
-                    <div>Outline</div>
-                </ControlSubGroup>,
-            );
-
-            expect(screen.getByTestId("control-sub-group-control")).toHaveAttribute("aria-expanded", "true");
-        });
-
-        it("lets defaultOpened win over the superseded defaultOpen", () => {
-            renderSubGroup(
-                <ControlSubGroup label="Text effects" defaultOpen defaultOpened={false}>
-                    <div>Outline</div>
-                </ControlSubGroup>,
-            );
-
-            expect(screen.getByTestId("control-sub-group-control")).toHaveAttribute("aria-expanded", "false");
-        });
-
         it("opens and closes when the header is clicked", async () => {
             const user = userEvent.setup();
             renderSubGroup(

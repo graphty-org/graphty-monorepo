@@ -67,7 +67,15 @@ export type DataRowRole = "button" | "option";
 export interface DataRowProps {
     /** The reader's own string: an identifier, a node label, an attribute name, a filename. */
     name: string;
-    /** The trailing value, drawn small in the secondary text colour. Bare: the repeated unit word belongs on `DataRowHeader`. */
+    /**
+     * The trailing value, drawn small in the secondary text colour. Bare: the
+     * repeated unit word belongs on `DataRowHeader`.
+     *
+     * It is drawn exactly as given. A number is not formatted for you, so pass
+     * it through `useNumberFormatter().format(n)` first; handed the raw number
+     * the row draws `1284` in every locale, rather than `1,284` for a reader in
+     * en-US and `1.284` for one in de-DE.
+     */
     value?: React.ReactNode;
     /** A 16px leading icon, worth drawing only when the rows differ in type. */
     icon?: React.ReactNode;

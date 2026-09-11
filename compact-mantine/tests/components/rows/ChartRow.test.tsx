@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { compactTheme, DoorButton, HistogramRow, MetricRow, SparklineRow } from "../../../src";
+import { AdvancedButton, compactTheme, HistogramRow, MetricRow, SparklineRow } from "../../../src";
 import { PANEL_INK } from "../../../src/constants/panel";
 import { LabelsProvider } from "../../../src/i18n";
 
@@ -351,7 +351,7 @@ describe("HistogramRow", () => {
                     bins={DEGREES}
                     minLabel="2"
                     maxLabel="4"
-                    trailing={showSettings && <DoorButton label="Degree distribution options" onClick={vi.fn()} />}
+                    trailing={showSettings && <AdvancedButton label="Degree distribution options" onClick={vi.fn()} />}
                 />,
             );
 
@@ -364,7 +364,7 @@ describe("HistogramRow", () => {
                     bins={DEGREES}
                     minLabel="2"
                     maxLabel="4"
-                    trailing={<DoorButton label="Degree distribution options" onClick={vi.fn()} />}
+                    trailing={<AdvancedButton label="Degree distribution options" onClick={vi.fn()} />}
                 />,
             );
 
@@ -549,7 +549,7 @@ describe("SparklineRow", () => {
                     values={SETTLING}
                     minLabel="Tick 1"
                     maxLabel="Tick 20"
-                    trailing={showSettings && <DoorButton label="Layout settling options" onClick={vi.fn()} />}
+                    trailing={showSettings && <AdvancedButton label="Layout settling options" onClick={vi.fn()} />}
                 />,
             );
 
@@ -562,7 +562,7 @@ describe("SparklineRow", () => {
                     values={SETTLING}
                     minLabel="Tick 1"
                     maxLabel="Tick 20"
-                    trailing={<DoorButton label="Layout settling options" onClick={vi.fn()} />}
+                    trailing={<AdvancedButton label="Layout settling options" onClick={vi.fn()} />}
                 />,
             );
 

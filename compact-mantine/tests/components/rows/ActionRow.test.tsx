@@ -317,12 +317,6 @@ describe("ActionRow", () => {
             expect(reading).toHaveAttribute("aria-busy", "false");
         });
 
-        it("still answers to the superseded stateLive spelling", () => {
-            renderRow(<ActionRow state="Running, 40%" stateLive="assertive" />);
-
-            expect(screen.getByTestId("action-row-state")).toHaveAttribute("aria-live", "assertive");
-        });
-
         it("announces politely when asked to", () => {
             renderRow(<ActionRow state="Running, 40%" live="polite" />);
 

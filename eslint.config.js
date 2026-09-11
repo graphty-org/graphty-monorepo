@@ -276,23 +276,6 @@ export default tseslint.config(
     },
 
     // ============================================
-    // BARREL FILES MAY RE-EXPORT DEPRECATED NAMES
-    // ============================================
-    // A published package keeps a renamed export working under its old name so
-    // that upgrading does not break a consumer. The alias has to be re-exported
-    // from the entry point to be reachable at all, and no-deprecated fires on
-    // the re-export itself. Turning the rule off for entry points only is what
-    // lets a deprecation be honest: the tag stays on the declaration, every
-    // ordinary call site is still flagged, and only the one place that has to
-    // name it is exempt. Same reasoning as the test-file exemption above.
-    {
-        files: ["**/src/index.ts", "**/src/types/index.ts", "**/src/components/**/index.ts"],
-        rules: {
-            "@typescript-eslint/no-deprecated": "off",
-        },
-    },
-
-    // ============================================
     // RELAXED RULES FOR JAVASCRIPT FILES
     // ============================================
     {

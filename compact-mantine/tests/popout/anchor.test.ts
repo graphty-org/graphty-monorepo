@@ -14,7 +14,6 @@ function candidates(present: Partial<PopoutAnchorElements>): PopoutAnchorElement
         trigger: null,
         parent: null,
         panel: null,
-        explicit: null,
         ...present,
     };
 }
@@ -22,7 +21,6 @@ function candidates(present: Partial<PopoutAnchorElements>): PopoutAnchorElement
 const trigger = document.createElement("button");
 const parent = document.createElement("div");
 const panel = document.createElement("aside");
-const explicit = document.createElement("section");
 const named = document.createElement("p");
 
 describe("resolveAnchorElement", () => {
@@ -56,15 +54,6 @@ describe("resolveAnchorElement", () => {
         it("falls back to the parent panel for the vertical axis when there is no trigger", () => {
             expect(resolveAnchorElement(undefined, "y", candidates({ parent, panel }))).toBe(parent);
         });
-
-        it("gives an explicitly named element both axes, which is what anchorRef meant", () => {
-            const elements = candidates({
-                trigger, parent, panel, explicit,
-            });
-
-            expect(resolveAnchorElement(undefined, "x", elements)).toBe(explicit);
-            expect(resolveAnchorElement(undefined, "y", elements)).toBe(explicit);
-        });
     });
 
     describe("with a target named", () => {
@@ -97,14 +86,6 @@ describe("resolveAnchorElement", () => {
         it("resolves \"trigger\" to the trigger, ignoring both the parent and the container", () => {
             expect(resolveAnchorElement("trigger", "x", candidates({ trigger, parent, panel })))
                 .toBe(trigger);
-        });
-
-        it("beats an explicitly named element, so one axis can be overridden", () => {
-            const elements = candidates({
-                trigger, parent, panel, explicit,
-            });
-
-            expect(resolveAnchorElement("trigger", "y", elements)).toBe(trigger);
         });
     });
 });

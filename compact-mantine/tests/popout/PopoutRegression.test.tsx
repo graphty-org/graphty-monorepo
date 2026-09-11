@@ -757,7 +757,7 @@ describe("Popout Regression Tests", () => {
             expect(childInlineStyle).not.toContain("border-bottom-right-radius: 0");
         });
 
-        it("root popout without anchorRef or parentId uses Mantine Paper default radius", async () => {
+        it("root popout without an anchor or parentId uses Mantine Paper default radius", async () => {
             const user = userEvent.setup();
 
             renderPopout(
@@ -782,7 +782,7 @@ describe("Popout Regression Tests", () => {
             // Get panel
             const panel = screen.getByRole("dialog");
 
-            // Root panel without anchorRef should NOT have data-parent-id
+            // Root panel without an anchor should NOT have data-parent-id
             expect(panel.getAttribute("data-parent-id")).toBeNull();
 
             // Root panel should have data-popout-id
@@ -825,7 +825,7 @@ describe("Popout Regression Tests", () => {
             const panel = screen.getByRole("dialog");
             const inlineStyle = panel.getAttribute("style") ?? "";
 
-            // Root panel without anchorRef or parentId should NOT have any border-radius overrides
+            // Root panel without an anchor or parentId should NOT have any border-radius overrides
             // in inline style. The radius should come from Mantine Paper's radius={8} prop.
             // If the bug regresses, we'd see flattened corners (0) in the inline style.
             expect(inlineStyle).not.toContain("border-top-left-radius: 0");

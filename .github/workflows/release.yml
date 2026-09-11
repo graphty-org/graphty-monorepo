@@ -127,6 +127,24 @@ jobs:
                   echo "npm version: $(npm --version)"
                   echo "node version: $(node --version)"
                   pnpm exec nx release --yes --verbose
+
+                  # `nx release` publishes only when it versioned something in
+                  # the same run:
+                  #
+                  #   shouldPublish = !!args.yes && !args.skipPublish && hasNewVersion
+                  #
+                  # so a release whose publish step fails can never be retried.
+                  # The tags are already pushed, so the next run resolves the
+                  # current version from them, finds no new conventional commits,
+                  # reports "No changes were detected" and skips publishing. The
+                  # packages stay tagged and unpublished for good. That is exactly
+                  # what happened when npm 12 broke the publish command.
+                  #
+                  # Publishing explicitly afterwards closes that hole and is
+                  # idempotent: nx queries the registry per package and skips any
+                  # version that is already there, so this is a no-op on a normal
+                  # release that published above.
+                  pnpm exec nx release publish
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   # OIDC trusted publishing - npm will use the GitHub Actions OIDC token

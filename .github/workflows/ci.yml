@@ -87,7 +87,7 @@ jobs:
             # Master: Build then lint (build first for type dependencies)
             # graphty build needs Sentry env vars for error tracking
             - name: Build all (master)
-              if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
               run: pnpm exec nx run-many -t build --parallel=3
               env:
                   NODE_OPTIONS: "--max-old-space-size=8192"
@@ -98,7 +98,7 @@ jobs:
                   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
             - name: Lint all (master)
-              if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
               run: pnpm exec nx run-many -t lint --parallel=3
 
             - name: Build Storybook (graphty-element)
@@ -118,15 +118,15 @@ jobs:
 
             # Build unified documentation (only on master, for deploy-pages)
             - name: Build docs
-              if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
               run: npm run docs:build
 
             - name: Build algorithms gh-pages
-              if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
               run: pnpm exec nx run algorithms:build:gh-pages
 
             - name: Build layout gh-pages
-              if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
               run: pnpm exec nx run layout:build:gh-pages
 
             - name: Upload algorithms build
@@ -208,7 +208,7 @@ jobs:
 
             # Upload documentation artifacts (only on master)
             - name: Upload unified docs
-              if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
               uses: actions/upload-artifact@v4
               with:
                   name: build-docs
@@ -216,7 +216,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload algorithms gh-pages
-              if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
               uses: actions/upload-artifact@v4
               with:
                   name: build-ghpages-algorithms
@@ -224,7 +224,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload layout gh-pages
-              if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
               uses: actions/upload-artifact@v4
               with:
                   name: build-ghpages-layout
@@ -657,7 +657,7 @@ jobs:
     performance:
         name: Performance Tests
         needs: test
-        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4

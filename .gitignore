@@ -127,3 +127,6 @@ layout/log/*
 
 # Husky (managed by monorepo root)
 */.husky/
+
+# Claude Code session archive (synced by claude-history-sync.sh; see CLAUDE.md)
+.claudehistory/

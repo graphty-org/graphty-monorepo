@@ -4,6 +4,12 @@ on:
     push:
         branches: [master]
     pull_request:
+    # Manual trigger. GitHub twice declined to queue a run for a push to master
+    # (4ca5f8a and 756117b both reached the remote with zero runs created for
+    # their SHA, while every workflow showed state=active). Without a dispatch
+    # trigger the only way to recover is an empty commit, which puts noise in
+    # the history to work around a scheduling hiccup.
+    workflow_dispatch:
 
 # Note: We use local Nx caching only (no Nx Cloud)
 # Cache is stored in .nx/cache and persisted via actions/cache

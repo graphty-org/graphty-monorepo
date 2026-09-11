@@ -36,10 +36,21 @@ jobs:
                   node-version: 22.x
                   cache: "pnpm"
 
-            # Upgrade npm to 11.5.1+ for OIDC trusted publishing support
+            # Upgrade npm to 11.5.1+ for OIDC trusted publishing support.
+            #
+            # Pinned to 11 rather than latest. nx builds its pnpm publish command
+            # as `pnpm publish ... --no-git-checks`, and pnpm forwards that flag
+            # to npm even though pnpm owns it. npm read unknown config as a
+            # warning through 11.x and made it fatal in 12.0.0 (2026-07-08), so
+            # `npm@latest` now fails every publish with
+            # EUNKNOWNCONFIG: Unknown cli flag: --git-checks.
+            #
+            # 11.x still satisfies the 11.5.1+ this step exists for, and is the
+            # line that published every current version on the registry. Drop the
+            # pin once pnpm stops forwarding the flag or nx stops passing it.
             - name: Upgrade npm for trusted publishing
               run: |
-                  npm install -g npm@latest
+                  npm install -g npm@11
                   npm --version
 
             - name: Install dependencies

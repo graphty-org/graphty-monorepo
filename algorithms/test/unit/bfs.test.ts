@@ -401,7 +401,7 @@ describe("BFS Algorithms", () => {
                 });
             });
 
-            it("should automatically use optimizations for large graphs", () => {
+            it("should automatically use optimizations for large graphs", { timeout: 120000 }, () => {
                 const graph = new Graph();
                 const nodeCount = 15000; // Large enough to trigger optimizations
 

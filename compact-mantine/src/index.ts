@@ -190,5 +190,11 @@ export type {
 
 // Keep in step with the version field of package.json; a test asserts the two
 // are equal, because this constant had drifted four minor versions behind.
+//
+// `nx release` bumps package.json in CI and commits it with [skip ci], so no CI
+// run happens against that commit and the drift is invisible until the next
+// push, which is then the one that fails. Bump this in the same push that
+// follows a release, or automate it -- a constant a human has to remember will
+// drift again.
 /** The released version of this package. */
-export const VERSION = "0.5.1";
+export const VERSION = "0.6.0";

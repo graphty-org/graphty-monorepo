@@ -226,14 +226,23 @@ export const PANEL_INK = {
     BORDER: "light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2))",
     /** the 1px rule above a section header, at the weight of `BORDER` */
     DIVIDER: "light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2))",
-    /** accent: a checked box, the highlighted bin, a filled micro-bar, the Run button (#4a7ee8) */
+    /**
+     * accent: a checked box, the highlighted bin, a filled micro-bar, the Run
+     * button (#1971c2 in the dark scheme, #228be6 in the light one).
+     *
+     * This token and `ON_ACCENT` follow a consumer's own `primaryColor`;
+     * `WARNING`, `SUCCESS` and `DANGER` are stock Mantine yellow, green and
+     * red. The theme replaces only the `dark` ramp and sets no `primaryColor`,
+     * so none of the five is overridden here, and a consumer who sets one gets
+     * it throughout.
+     */
     ACCENT: "var(--mantine-primary-color-filled)",
     /** text and glyphs drawn on the accent (#ffffff) */
     ON_ACCENT: "var(--mantine-primary-color-contrast)",
-    /** the warning glyph on a departure line (#f7b731) */
+    /** the warning glyph on a departure line (#fab005) */
     WARNING: "var(--mantine-color-yellow-6)",
-    /** success (#61d095) */
+    /** success (#40c057) */
     SUCCESS: "var(--mantine-color-green-6)",
-    /** danger (#eb4949) */
+    /** danger (#fa5252) */
     DANGER: "var(--mantine-color-red-6)",
 } as const;

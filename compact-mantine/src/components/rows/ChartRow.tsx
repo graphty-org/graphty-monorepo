@@ -986,12 +986,14 @@ export function MetricRow({
                     borderRadius: MICRO_BAR_RADIUS,
                     // The track is the field surface rather than the raised one.
                     // Measured against this library's own palette, the accent
-                    // fill reads 3.75:1 (dark) and 3.20:1 (light) on the field
-                    // surface, past the 3:1 WCAG 2.2 (1.4.11) asks of a shape
-                    // that carries meaning; on the raised surface it reads only
-                    // 2.97:1 and 2.73:1. PANEL_INK.RAISED records the same
-                    // finding and says it has to be settled where the bar is
-                    // drawn, which is here.
+                    // fill reads 2.66:1 (dark) and 3.20:1 (light) on the field
+                    // surface, against the 3:1 that WCAG 2.2 (1.4.11) asks of a
+                    // shape carrying meaning; on the raised surface it reads
+                    // 2.11:1 and 2.73:1. So the move clears the clause outright
+                    // in the light scheme and improves the dark one without
+                    // clearing it. PANEL_INK.RAISED records the same finding and
+                    // says it has to be settled where the bar is drawn, which is
+                    // here.
                     background: PANEL_INK.SURFACE,
                 }}
             >

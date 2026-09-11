@@ -93,6 +93,10 @@ those in the mockups; use `#4a7ee8`.
 | input focus | `1px solid #5b8ff9` (designloom focus_ring) |
 | overlay shadow (iPad panel and inspector overlays, command palette, popovers) | `0 8px 24px rgba(0, 0, 0, 0.45)` **chosen** |
 
+Some of the roles above are painted differently by `compact-mantine`, the
+shipped component library, and deliberately so. Keep drawing these values;
+section 16 says which roles diverge and why.
+
 ## 2. Typography
 
 Font family (Mantine default; theme.ts sets none). Put this on `body` in the
@@ -117,7 +121,7 @@ implemented). No letter-spacing anywhere.
 | input value | 11px | 400 | `#d5d7da` | 24px box | theme.ts `--input-fz: 11px` |
 | checkbox / switch label | 11px | 400 | `#d5d7da` | 1.2 | theme.ts, CompactCheckbox |
 | button text (compact) | 11px | 500 | varies | 24px box | theme.ts Button compact |
-| stat row label / value | 11px | 400 / 500 | `#7a828e` / `#d5d7da` | 1.2 | StatRow |
+| stat row label / value | 11px | 400 / 500 | `#7a828e` / `#d5d7da` | 1.2 | **chosen** (the library draws the pair with `DataRow`, at its own metrics) |
 | rail label, status bar, tooltip, kbd chip, technical name | 11px | 400 | `#7a828e` | 1.2 | **chosen** |
 | section header (ControlSection) | 12px | 500 | `#d5d7da` | 1.2 | ControlSection `Text size="xs" fw={500}` |
 | sub-group header (ControlSubGroup) | 12px | 400 | `#7a828e` | 1.2 | ControlSubGroup |
@@ -3286,3 +3290,59 @@ rest. Open it and the mark goes, because the header above it already says
 the slot the mark had. Where the closed mark says something the rows do NOT --
 `Computing 3 of 7` while any statistic is still running, or a master On switch --
 it stays in the slot beside the gear.
+
+## 16. The contrast divergence: where the shipped library deliberately differs
+
+Owned by `CONTRAST-DIVERGENCE.md`. **The palette in section 1 is what the
+artboards paint, and it is not to be reconciled with `compact-mantine`. The
+library's `PANEL_INK` is what ships, and it is not to be reconciled with section
+1. Five colour roles disagree on purpose; every other colour is the same colour
+in both, and a sixth disagreement is a bug in one of them, not a sixth
+divergence.**
+
+`compact-mantine` was made WCAG 2.2 AA compliant in a hardening pass and the
+boards were not. Both artefacts stand. On the colour a shipped control paints,
+the library governs and a board is a picture of an earlier decision; on layout,
+composition, density and register, this directory governs and the library is a
+consumer of it. Keep drawing section 1's values. The reasoning, the arithmetic
+that forces each move, the refused alternatives and the library's own twelve
+remaining failures are in `CONTRAST-DIVERGENCE.md`; nothing below restates them.
+
+### 16.1 The four divergences, in one table
+
+Mockup ratios are dark-scheme, the only scheme the boards draw. Library ratios
+name their scheme.
+
+| Role | What a board paints | What the library ships | Why |
+|---|---|---|---|
+| selected ground | `#374047` on a `#2a3035` track, or `#28364e` on the `#1f2428` panel, contents in the primary ink `#d5d7da`. No separate on-selected ink exists. Segment vs track = **1.26:1**, row vs panel = **1.29:1** | Three tokens. `RAISED` keeps `#374047` for chips and tracks; `SELECTED` inverts to `#a3a8b1` dark / `#495057` light at **5.59:1** / 7.35:1 against the track; `ON_SELECTED` punches the label out in `#1f2428` / `#ffffff` at 6.56:1 / 8.18:1 | 1.4.11 asks 3:1 of the boundary that shows a control's state. The library resolves in two schemes and a selected patch can only separate by inverting; the boards draw one scheme and have no such obligation |
+| the ink ladder | Four live ranks -- `#d5d7da`, `#a3a8b1`, `#7a828e`, `#5f6873` -- with the fourth doing both the disabled and the placeholder job. On a field: 9.26:1, 5.59:1, **3.44:1**, **2.36:1** | Two live ranks. `VALUE` `#d5d7da` / `#000000`; `CHROME`, `PROSE` and `PLACEHOLDER` all `#a3a8b1` / `#495057` at 5.59:1 / 7.35:1 on a field. `#7a828e` survives as `BORDER` and `DIVIDER` only; `#5f6873` survives as an exempt `DISABLED` | 1.4.3 asks 4.5:1 of text and gives placeholder text no exemption, so nothing dimmer than `#a3a8b1` can sit in a `#2a3035` field. `#7a828e` stayed in the palette by changing clause: as a border it answers to 1.4.11's 3:1 |
+| the field boundary | A borderless fill, `#2a3035` on `#1f2428` at **1.17:1**, with a line only on focus (`box-shadow: 0 0 0 1px #5b8ff9`) | The same value. `SURFACE` is `#2a3035` in dark, still **1.17:1** -- recorded as failing rather than fixed. Only the mechanism changed: `--input-bd` is `transparent`, not `none`, so the focus border can paint | 1.4.11's 3:1, refused by arithmetic: a fill bright enough to clear it leaves no room for an ink dimmer than white inside it. Do not add a resting border to a board -- the compliant hairline exists and the library declines it, because it would drop the focus indicator from 4.46:1 to 1.30:1 |
+| borders and dividers | A panel edge at `#48525c` and a section divider at `#495057` (section 1, *Borders and dividers*), measuring **1.97:1** and **1.91:1** on the `#1f2428` panel | One token for both. `BORDER` and `DIVIDER` are the identical light-dark(gray-6, dark-2) -> `#868e96` light / `#7a828e` dark, **3.32:1** / **4.03:1** on the panel | 1.4.11's 3:1 for a shape that carries meaning. The token that paints a seam also paints a chart bar and the chart baseline, so the seam's weight is set by the bar. `panel.ts:218-226` records the lift from `#48525c` by name. Keep drawing `#48525c` and `#495057`: at this register a seam is found, not seen |
+
+### 16.2 The accent is a fifth, and a different kind
+
+`compact-mantine` sets no `primaryColor` and no `primaryShade`, so its accent
+and status colours are stock Mantine -- `#1971c2` dark / `#228be6` light,
+`#fab005`, `#40c057`, `#fa5252` -- and not the values in section 1. Keep drawing
+`#4a7ee8` and the designloom status set; the instruction at the end of `###
+Accent` stands, and the mockup accent in fact measures better on every ground it
+is drawn on (4.06:1 on the panel against the library's 3.12:1). This is the one
+divergence a reader sees as a different hue rather than a different shade, which
+is why it is named here. Neither side moves: the library keeps stock Mantine and
+the boards keep `#4a7ee8`. That is settled in `CONTRAST-DIVERGENCE.md` 4.4, not
+left open.
+
+The hexes in the JSDoc on `panel.ts`'s `ACCENT`, `WARNING`, `SUCCESS` and
+`DANGER` still quote section 1's values. They are stale comments, not the
+shipped colours.
+
+### 16.3 An unlisted disagreement is a bug, not a divergence
+
+The five roles above are the whole list. If a board and a running panel disagree
+about any other colour, one of them has drifted and it is to be traced and
+fixed, not added to the list. A board that paints a hex found neither in section
+1 nor in the shared `dark[]` ramp is the defect regardless of what the library
+does -- the palette is closed. Extending the list is a decision made the way the
+others in this directory are made: clause named, both ratios measured in their
+schemes, counter-argument recorded, in `CONTRAST-DIVERGENCE.md`.

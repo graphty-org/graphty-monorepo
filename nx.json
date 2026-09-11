@@ -28,6 +28,7 @@
         "git": {
             "commit": true,
             "tag": true,
+            "push": true,
             "commitMessage": "chore(release): publish {projectName} v{version} [skip ci]",
             "commitArgs": "--no-verify"
         }

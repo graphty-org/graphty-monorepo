@@ -1,3 +1,58 @@
+## 1.6.2 (2026-09-11)
+
+This was a version bump only for layout to align it with other projects, there were no code changes.
+
+## 0.5.4 (2026-09-11)
+
+### 🩹 Fixes
+
+- **workspace:** declare storybook so peer resolution cannot pick a major ([72b21de](https://github.com/graphty-org/graphty-monorepo/commit/72b21de))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 1.9.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.7.2 (2026-09-11)
+
+### 🩹 Fixes
+
+- **algorithms:** give the large-graph BFS test the timeout its sibling has ([50338c5](https://github.com/graphty-org/graphty-monorepo/commit/50338c5))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.9.4 (2026-09-11)
+
+### 🩹 Fixes
+
+- **workspace:** declare storybook so peer resolution cannot pick a major ([72b21de](https://github.com/graphty-org/graphty-monorepo/commit/72b21de))
+
+### 🧱 Updated Dependencies
+
+- Updated @graphty/remote-logger to 1.3.0
+- Updated algorithms to 1.7.2
+- Updated layout to 1.6.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.0 (2026-09-11)
+
+### 🚀 Features
+
+- **compact-mantine:** remove the backwards-compatibility layer ([ca4c9ec](https://github.com/graphty-org/graphty-monorepo/commit/ca4c9ec))
+- **compact-mantine:** panel rows, data table, and a hardening pass ([08b9c19](https://github.com/graphty-org/graphty-monorepo/commit/08b9c19))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.5.3 (2026-01-12)
 
 ### 🧱 Updated Dependencies

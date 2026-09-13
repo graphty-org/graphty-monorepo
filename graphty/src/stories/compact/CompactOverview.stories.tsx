@@ -39,6 +39,13 @@ import { CompactComponentsDemo } from "../../components/demo/CompactComponentsDe
  * | ActionIcon | 24px | - |
  * | Badge | 14px | 9px |
  * | Pill | 16px | 10px |
+ *
+ * `size="compact"` is the legacy alias of sm: compact-mantine anchors every scale's
+ * compact entry at the sm token (`compactSize: "sm"` in
+ * compact-mantine/src/theme/styles/), so the values above are what both `size="compact"`
+ * and `size="sm"` render, while xs, md, lg and xl differ. The Size Comparison stories in
+ * Compact/Buttons and Compact/Controls label their compact row as that alias for the
+ * same reason.
  */
 const meta: Meta = {
     title: "Compact/Overview",
@@ -56,6 +63,17 @@ const meta: Meta = {
 
 export default meta;
 type Story = StoryObj;
+
+/**
+ * What the values below apply to.
+ *
+ * Every scale in compact-mantine/src/theme/styles/ declares `compactSize: "sm"`, so
+ * `size="compact"` and `size="sm"` resolve to the same entry and the variables listed
+ * here are that entry. The other tokens differ -- see the Size Comparison stories in
+ * Compact/Buttons and Compact/Controls, which label the alias row for the same reason.
+ */
+const COMPACT_ALIAS_CAPTION =
+    'These are the compact entry of each scale, which size="compact" and size="sm" share. xs, md, lg and xl resolve to different values.';
 
 export const Introduction: Story = {
     render: () => (
@@ -121,6 +139,10 @@ export const SizeSpecifications: Story = {
     render: () => (
         <Stack gap="lg">
             <Title order={3}>CSS Variable Specifications</Title>
+
+            <Text size="xs" c="dimmed">
+                {COMPACT_ALIAS_CAPTION}
+            </Text>
 
             <Box
                 p="md"

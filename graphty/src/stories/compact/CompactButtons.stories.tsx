@@ -7,6 +7,14 @@ import { AlignLeft, ChevronDown, Copy, Hash, Palette, Plus, Settings, Trash, Typ
  *
  * These stories demonstrate Button and ActionIcon components
  * styled with `size="compact"` for dense UI layouts.
+ *
+ * Every group whose heading names a variant passes that variant explicitly. The
+ * compact theme sets `defaultProps: {variant: "subtle"}` on ActionIcon
+ * (compact-mantine/src/theme/components/buttons.ts), so an ActionIcon with no
+ * variant renders subtle rather than Mantine's stock filled -- a "Filled" heading
+ * over variant-less icons is what the product owner reported on 2026-09-13
+ * ("filled icons aren't filled", Compact/Buttons "ActionIcon - Colors"). The
+ * theme default stays; the stories say what they demonstrate.
  */
 const meta: Meta = {
     title: "Compact/Buttons",
@@ -25,6 +33,49 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
+/**
+ * Caption carried by every size comparison in this file.
+ *
+ * `size="compact"` is this app's legacy size name, and compact-mantine resolves it
+ * to the same scale entry as `size="sm"` -- `compactSize: "sm"` in
+ * compact-mantine/src/theme/styles/buttons.ts. The two rows are therefore meant to
+ * match, and saying so keeps the comparison from reading as the flattened size axis
+ * it exists to disprove.
+ */
+const COMPACT_ALIAS_CAPTION =
+    'size="compact" is the legacy alias of sm: both resolve to the same entry of the compact scale, so those two rows match by design. xs and md show the axis varying.';
+
+/** The note the compact row of a size comparison carries under its token. */
+const COMPACT_ALIAS_NOTE = "legacy alias of sm";
+
+interface SizeLabelProps {
+    /** The size token the row renders. */
+    readonly token: string;
+    /** Why the row may match its neighbour; omitted for rows that stand alone. */
+    readonly note?: string;
+}
+
+/**
+ * The left-hand label of one size-comparison row.
+ *
+ * Duplicated in CompactControls.stories.tsx rather than shared: a module exported
+ * from a `.stories.tsx` file is picked up by Storybook as a story of its own.
+ */
+function SizeLabel({ token, note }: SizeLabelProps): React.JSX.Element {
+    return (
+        <Box w={140}>
+            <Text size="xs" c="dimmed">
+                {token}
+            </Text>
+            {note === undefined ? null : (
+                <Text size="xs" c="dimmed" fs="italic">
+                    {note}
+                </Text>
+            )}
+        </Box>
+    );
+}
+
 // Button Stories
 export const ButtonVariants: Story = {
     name: "Button - Variants",
@@ -35,7 +86,9 @@ export const ButtonVariants: Story = {
                     Variants
                 </Text>
                 <Group gap="xs">
-                    <Button size="compact">Filled</Button>
+                    <Button size="compact" variant="filled">
+                        Filled
+                    </Button>
                     <Button size="compact" variant="light">
                         Light
                     </Button>
@@ -97,19 +150,19 @@ export const ButtonColors: Story = {
                     Filled
                 </Text>
                 <Group gap="xs">
-                    <Button size="compact" color="blue">
+                    <Button size="compact" variant="filled" color="blue">
                         Blue
                     </Button>
-                    <Button size="compact" color="green">
+                    <Button size="compact" variant="filled" color="green">
                         Green
                     </Button>
-                    <Button size="compact" color="red">
+                    <Button size="compact" variant="filled" color="red">
                         Red
                     </Button>
-                    <Button size="compact" color="yellow">
+                    <Button size="compact" variant="filled" color="yellow">
                         Yellow
                     </Button>
-                    <Button size="compact" color="gray">
+                    <Button size="compact" variant="filled" color="gray">
                         Gray
                     </Button>
                 </Group>
@@ -144,36 +197,23 @@ export const ButtonSizeComparison: Story = {
     name: "Button - Size Comparison",
     render: () => (
         <Stack gap="xs">
+            <Text size="xs" c="dimmed">
+                {COMPACT_ALIAS_CAPTION}
+            </Text>
             <Group gap="md" align="center">
-                <Box w={80}>
-                    <Text size="xs" c="dimmed">
-                        xs
-                    </Text>
-                </Box>
+                <SizeLabel token="xs" />
                 <Button size="xs">Size xs</Button>
             </Group>
             <Group gap="md" align="center">
-                <Box w={80}>
-                    <Text size="xs" c="dimmed">
-                        compact
-                    </Text>
-                </Box>
-                <Button size="compact">Size compact</Button>
-            </Group>
-            <Group gap="md" align="center">
-                <Box w={80}>
-                    <Text size="xs" c="dimmed">
-                        sm
-                    </Text>
-                </Box>
+                <SizeLabel token="sm" />
                 <Button size="sm">Size sm</Button>
             </Group>
             <Group gap="md" align="center">
-                <Box w={80}>
-                    <Text size="xs" c="dimmed">
-                        md
-                    </Text>
-                </Box>
+                <SizeLabel token="compact" note={COMPACT_ALIAS_NOTE} />
+                <Button size="compact">Size compact</Button>
+            </Group>
+            <Group gap="md" align="center">
+                <SizeLabel token="md" />
                 <Button size="md">Size md</Button>
             </Group>
         </Stack>
@@ -220,19 +260,19 @@ export const ActionIconColors: Story = {
                     Filled
                 </Text>
                 <Group gap="xs">
-                    <ActionIcon size="compact" color="blue">
+                    <ActionIcon size="compact" variant="filled" color="blue">
                         <Plus size={14} />
                     </ActionIcon>
-                    <ActionIcon size="compact" color="green">
+                    <ActionIcon size="compact" variant="filled" color="green">
                         <Plus size={14} />
                     </ActionIcon>
-                    <ActionIcon size="compact" color="red">
+                    <ActionIcon size="compact" variant="filled" color="red">
                         <Trash size={14} />
                     </ActionIcon>
-                    <ActionIcon size="compact" color="yellow">
+                    <ActionIcon size="compact" variant="filled" color="yellow">
                         <Settings size={14} />
                     </ActionIcon>
-                    <ActionIcon size="compact" color="gray">
+                    <ActionIcon size="compact" variant="filled" color="gray">
                         <Settings size={14} />
                     </ActionIcon>
                 </Group>
@@ -301,42 +341,29 @@ export const ActionIconSizeComparison: Story = {
     name: "ActionIcon - Size Comparison",
     render: () => (
         <Stack gap="xs">
+            <Text size="xs" c="dimmed">
+                {COMPACT_ALIAS_CAPTION}
+            </Text>
             <Group gap="md" align="center">
-                <Box w={80}>
-                    <Text size="xs" c="dimmed">
-                        xs
-                    </Text>
-                </Box>
+                <SizeLabel token="xs" />
                 <ActionIcon size="xs">
                     <Plus size={12} />
                 </ActionIcon>
             </Group>
             <Group gap="md" align="center">
-                <Box w={80}>
-                    <Text size="xs" c="dimmed">
-                        compact
-                    </Text>
-                </Box>
-                <ActionIcon size="compact">
-                    <Plus size={14} />
-                </ActionIcon>
-            </Group>
-            <Group gap="md" align="center">
-                <Box w={80}>
-                    <Text size="xs" c="dimmed">
-                        sm
-                    </Text>
-                </Box>
+                <SizeLabel token="sm" />
                 <ActionIcon size="sm">
                     <Plus size={16} />
                 </ActionIcon>
             </Group>
             <Group gap="md" align="center">
-                <Box w={80}>
-                    <Text size="xs" c="dimmed">
-                        md
-                    </Text>
-                </Box>
+                <SizeLabel token="compact" note={COMPACT_ALIAS_NOTE} />
+                <ActionIcon size="compact">
+                    <Plus size={14} />
+                </ActionIcon>
+            </Group>
+            <Group gap="md" align="center">
+                <SizeLabel token="md" />
                 <ActionIcon size="md">
                     <Plus size={18} />
                 </ActionIcon>
@@ -355,7 +382,9 @@ export const AllButtons: Story = {
                     Button Variants
                 </Text>
                 <Group gap="xs">
-                    <Button size="compact">Filled</Button>
+                    <Button size="compact" variant="filled">
+                        Filled
+                    </Button>
                     <Button size="compact" variant="light">
                         Light
                     </Button>

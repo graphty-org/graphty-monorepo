@@ -48,13 +48,18 @@ describe("Compact Phase 3 Style Regression", () => {
 
     describe("PasswordInput compact styles", () => {
         it("PasswordInput has correct compact height", () => {
-            render(<PasswordInput label="Test password" aria-label="Test password" size="compact" />);
+            const { container } = render(
+                <PasswordInput label="Test password" aria-label="Test password" size="compact" />,
+            );
 
-            const input = screen.getByLabelText("Test password");
-            const computed = window.getComputedStyle(input);
+            const field = container.querySelector(".mantine-PasswordInput-input");
+            const inner = screen.getByLabelText("Test password");
 
-            // PasswordInput inner input is 24px (no border per design spec)
-            expect(computed.height).toBe("24px");
+            // The field is 24px. Its inner input is that less the two 1px edges of the
+            // transparent border a compact input reserves so its focus border can paint
+            // at all (build spec 04 section 11.2: "prefer the library's `transparent`").
+            expect(field === null ? "" : window.getComputedStyle(field).height).toBe("24px");
+            expect(window.getComputedStyle(inner).height).toBe("22px");
         });
 
         it("PasswordInput has correct compact font size", () => {

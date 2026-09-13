@@ -24,9 +24,13 @@ describe("theme compliance", () => {
         });
 
         it("should use semantic color variables instead of hardcoded dark colors", () => {
-            const themeStr = JSON.stringify(theme);
-            // Theme should use semantic variables like --mantine-color-default or --mantine-color-dimmed
-            // instead of specific dark-N colors that only work in dark mode
+            // The rule is "no colour that only works in dark mode". A `dark-N` PAIRED
+            // inside `light-dark(light, dark)` is not that -- it is the correct way to
+            // write both modes at once, and it is how `@graphty/compact-mantine`'s
+            // PANEL_INK is written -- so the pairs are removed before the check and
+            // what is left is the dark-only usage this guards against.
+            const themeStr = JSON.stringify(theme).replace(/light-dark\((?:[^()]|\([^()]*\))*\)/g, "");
+
             expect(themeStr).not.toMatch(/--mantine-color-dark-[0-9]/);
         });
     });

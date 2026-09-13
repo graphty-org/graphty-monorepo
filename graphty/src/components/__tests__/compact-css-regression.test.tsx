@@ -89,7 +89,7 @@ describe("Compact CSS Regression Tests", () => {
                 expect(computed.fontSize).toBe("11px");
             });
 
-            it("has no border (0px)", () => {
+            it("is borderless at rest, with the 1px the focus border needs reserved", () => {
                 render(
                     <ThemeWrapper>
                         <TextInput label="Test" aria-label="Test" size="compact" />
@@ -97,7 +97,14 @@ describe("Compact CSS Regression Tests", () => {
                 );
                 const input = screen.getByLabelText("Test");
                 const computed = window.getComputedStyle(input);
-                expect(computed.borderWidth).toBe("0px");
+                // A compact input is borderless at REST, and that is a transparent
+                // 1px border rather than `border: none`: Mantine draws the border as
+                // `1px solid var(--input-bd)` and shows focus by swapping that one
+                // variable to `--input-bd-focus`, so `none` made the whole declaration
+                // invalid and no focus border could ever paint. Build spec 04 section
+                // 11.2: "prefer the library's `transparent`".
+                expect(computed.borderWidth).toBe("1px");
+                expect(computed.borderTopColor).toBe("rgba(0, 0, 0, 0)");
             });
 
             it("has correct background color (#2a3035)", () => {
@@ -157,7 +164,7 @@ describe("Compact CSS Regression Tests", () => {
                     expect(computed.fontSize).toBe("11px");
                 });
 
-                it("has correct dimmed color", () => {
+                it("has the secondary panel ink", () => {
                     render(
                         <ThemeWrapper>
                             <TextInput label="Test Label" aria-label="Test" size="compact" />
@@ -165,8 +172,13 @@ describe("Compact CSS Regression Tests", () => {
                     );
                     const label = getElement(".mantine-TextInput-label");
                     const computed = window.getComputedStyle(label);
-                    // Dimmed color: #7a828e = rgb(122, 130, 142)
-                    expect(computed.color).toBe("rgb(122, 130, 142)");
+                    // PANEL_INK.CHROME, which is dark-1 (#a3a8b1 = rgb(163, 168, 177)) in
+                    // dark mode -- NOT the dimmed dark-2 (#7a828e) this asserted before the
+                    // library's input extensions came back. At 11px, #7a828e measures
+                    // 4.03:1 on the panel and 3.44:1 on a field, under the 4.5:1 WCAG AA
+                    // requirement for text; #a3a8b1 is the dimmest step that meets AA on
+                    // both grounds in both colour schemes.
+                    expect(computed.color).toBe("rgb(163, 168, 177)");
                 });
 
                 it("has correct margin-bottom (1px)", () => {
@@ -217,7 +229,7 @@ describe("Compact CSS Regression Tests", () => {
                 expect(computed.fontSize).toBe("11px");
             });
 
-            it("has no border (0px)", () => {
+            it("is borderless at rest, with the 1px the focus border needs reserved", () => {
                 render(
                     <ThemeWrapper>
                         <NumberInput label="Test" aria-label="Test" size="compact" />
@@ -225,7 +237,14 @@ describe("Compact CSS Regression Tests", () => {
                 );
                 const input = screen.getByLabelText("Test");
                 const computed = window.getComputedStyle(input);
-                expect(computed.borderWidth).toBe("0px");
+                // A compact input is borderless at REST, and that is a transparent
+                // 1px border rather than `border: none`: Mantine draws the border as
+                // `1px solid var(--input-bd)` and shows focus by swapping that one
+                // variable to `--input-bd-focus`, so `none` made the whole declaration
+                // invalid and no focus border could ever paint. Build spec 04 section
+                // 11.2: "prefer the library's `transparent`".
+                expect(computed.borderWidth).toBe("1px");
+                expect(computed.borderTopColor).toBe("rgba(0, 0, 0, 0)");
             });
         });
 
@@ -252,7 +271,7 @@ describe("Compact CSS Regression Tests", () => {
                 expect(computed.fontSize).toBe("11px");
             });
 
-            it("has no border (0px)", () => {
+            it("is borderless at rest, with the 1px the focus border needs reserved", () => {
                 render(
                     <ThemeWrapper>
                         <NativeSelect label="Test" aria-label="Test" size="compact" data={["A", "B"]} />
@@ -260,7 +279,14 @@ describe("Compact CSS Regression Tests", () => {
                 );
                 const input = screen.getByLabelText("Test");
                 const computed = window.getComputedStyle(input);
-                expect(computed.borderWidth).toBe("0px");
+                // A compact input is borderless at REST, and that is a transparent
+                // 1px border rather than `border: none`: Mantine draws the border as
+                // `1px solid var(--input-bd)` and shows focus by swapping that one
+                // variable to `--input-bd-focus`, so `none` made the whole declaration
+                // invalid and no focus border could ever paint. Build spec 04 section
+                // 11.2: "prefer the library's `transparent`".
+                expect(computed.borderWidth).toBe("1px");
+                expect(computed.borderTopColor).toBe("rgba(0, 0, 0, 0)");
             });
         });
 
@@ -287,7 +313,7 @@ describe("Compact CSS Regression Tests", () => {
                 expect(computed.fontSize).toBe("11px");
             });
 
-            it("has no border (0px)", () => {
+            it("is borderless at rest, with the 1px the focus border needs reserved", () => {
                 render(
                     <ThemeWrapper>
                         <ColorInput label="Test" aria-label="Test" size="compact" />
@@ -295,7 +321,14 @@ describe("Compact CSS Regression Tests", () => {
                 );
                 const input = screen.getByLabelText("Test");
                 const computed = window.getComputedStyle(input);
-                expect(computed.borderWidth).toBe("0px");
+                // A compact input is borderless at REST, and that is a transparent
+                // 1px border rather than `border: none`: Mantine draws the border as
+                // `1px solid var(--input-bd)` and shows focus by swapping that one
+                // variable to `--input-bd-focus`, so `none` made the whole declaration
+                // invalid and no focus border could ever paint. Build spec 04 section
+                // 11.2: "prefer the library's `transparent`".
+                expect(computed.borderWidth).toBe("1px");
+                expect(computed.borderTopColor).toBe("rgba(0, 0, 0, 0)");
             });
         });
 
@@ -311,7 +344,7 @@ describe("Compact CSS Regression Tests", () => {
                 expect(computed.fontSize).toBe("11px");
             });
 
-            it("has no border (0px)", () => {
+            it("is borderless at rest, with the 1px the focus border needs reserved", () => {
                 render(
                     <ThemeWrapper>
                         <Textarea label="Test" aria-label="Test" size="compact" />
@@ -319,7 +352,14 @@ describe("Compact CSS Regression Tests", () => {
                 );
                 const input = screen.getByLabelText("Test");
                 const computed = window.getComputedStyle(input);
-                expect(computed.borderWidth).toBe("0px");
+                // A compact input is borderless at REST, and that is a transparent
+                // 1px border rather than `border: none`: Mantine draws the border as
+                // `1px solid var(--input-bd)` and shows focus by swapping that one
+                // variable to `--input-bd-focus`, so `none` made the whole declaration
+                // invalid and no focus border could ever paint. Build spec 04 section
+                // 11.2: "prefer the library's `transparent`".
+                expect(computed.borderWidth).toBe("1px");
+                expect(computed.borderTopColor).toBe("rgba(0, 0, 0, 0)");
             });
 
             it("has correct background color (#2a3035)", () => {
@@ -369,7 +409,7 @@ describe("Compact CSS Regression Tests", () => {
                 expect(computed.fontSize).toBe("11px");
             });
 
-            it("has no border (0px)", () => {
+            it("is borderless at rest, with the 1px the focus border needs reserved", () => {
                 render(
                     <ThemeWrapper>
                         <Select label="Test" aria-label="Test" size="compact" data={["A", "B"]} />
@@ -377,7 +417,14 @@ describe("Compact CSS Regression Tests", () => {
                 );
                 const input = getElement(".mantine-Select-input");
                 const computed = window.getComputedStyle(input);
-                expect(computed.borderWidth).toBe("0px");
+                // A compact input is borderless at REST, and that is a transparent
+                // 1px border rather than `border: none`: Mantine draws the border as
+                // `1px solid var(--input-bd)` and shows focus by swapping that one
+                // variable to `--input-bd-focus`, so `none` made the whole declaration
+                // invalid and no focus border could ever paint. Build spec 04 section
+                // 11.2: "prefer the library's `transparent`".
+                expect(computed.borderWidth).toBe("1px");
+                expect(computed.borderTopColor).toBe("rgba(0, 0, 0, 0)");
             });
 
             it("has correct background color (#2a3035)", () => {
@@ -393,15 +440,20 @@ describe("Compact CSS Regression Tests", () => {
         });
 
         describe("PasswordInput", () => {
-            it("has correct compact height (24px)", () => {
-                render(
+            it("has correct compact height (24px on the field, 22px inside its border)", () => {
+                const { container } = render(
                     <ThemeWrapper>
                         <PasswordInput label="Test" aria-label="Test" size="compact" />
                     </ThemeWrapper>,
                 );
-                const input = screen.getByLabelText("Test");
-                const computed = window.getComputedStyle(input);
-                expect(computed.height).toBe("24px");
+                const field = container.querySelector(".mantine-PasswordInput-input");
+                const inner = screen.getByLabelText("Test");
+
+                // The FIELD is 24. Its inner input is the 24 less the two 1px edges of
+                // the transparent border that reserves room for the focus ring (see the
+                // border assertions above), which is the library's own behaviour.
+                expect(field === null ? "" : window.getComputedStyle(field).height).toBe("24px");
+                expect(window.getComputedStyle(inner).height).toBe("22px");
             });
 
             it("has correct compact font size (11px)", () => {
@@ -415,15 +467,19 @@ describe("Compact CSS Regression Tests", () => {
                 expect(computed.fontSize).toBe("11px");
             });
 
-            it("has no border (0px)", () => {
-                render(
+            it("draws the border on the field, never on the inner input", () => {
+                const { container } = render(
                     <ThemeWrapper>
                         <PasswordInput label="Test" aria-label="Test" size="compact" />
                     </ThemeWrapper>,
                 );
-                const input = screen.getByLabelText("Test");
-                const computed = window.getComputedStyle(input);
-                expect(computed.borderWidth).toBe("0px");
+                const field = container.querySelector(".mantine-PasswordInput-input");
+                const inner = screen.getByLabelText("Test");
+
+                // The field reserves the 1px the focus border paints in (see TextInput
+                // above); the inner input sits inside it and has no border of its own.
+                expect(field === null ? "" : window.getComputedStyle(field).borderWidth).toBe("1px");
+                expect(window.getComputedStyle(inner).borderWidth).toBe("0px");
             });
 
             it("has correct innerInput padding (8px left and right)", () => {
@@ -463,7 +519,7 @@ describe("Compact CSS Regression Tests", () => {
                 expect(computed.fontSize).toBe("11px");
             });
 
-            it("has no border (0px)", () => {
+            it("is borderless at rest, with the 1px the focus border needs reserved", () => {
                 render(
                     <ThemeWrapper>
                         <Autocomplete label="Test" aria-label="Test" size="compact" data={["A", "B"]} />
@@ -471,7 +527,14 @@ describe("Compact CSS Regression Tests", () => {
                 );
                 const input = getElement(".mantine-Autocomplete-input");
                 const computed = window.getComputedStyle(input);
-                expect(computed.borderWidth).toBe("0px");
+                // A compact input is borderless at REST, and that is a transparent
+                // 1px border rather than `border: none`: Mantine draws the border as
+                // `1px solid var(--input-bd)` and shows focus by swapping that one
+                // variable to `--input-bd-focus`, so `none` made the whole declaration
+                // invalid and no focus border could ever paint. Build spec 04 section
+                // 11.2: "prefer the library's `transparent`".
+                expect(computed.borderWidth).toBe("1px");
+                expect(computed.borderTopColor).toBe("rgba(0, 0, 0, 0)");
             });
 
             it("has correct background color (#2a3035)", () => {
@@ -638,7 +701,7 @@ describe("Compact CSS Regression Tests", () => {
                 expect(computed.fontSize).toBe("11px");
             });
 
-            it("has correct label padding-left (12px)", () => {
+            it("has correct label padding-left (the compact spacing scale's sm)", () => {
                 render(
                     <ThemeWrapper>
                         <Checkbox label="Test" aria-label="Test" size="compact" />
@@ -646,7 +709,10 @@ describe("Compact CSS Regression Tests", () => {
                 );
                 const label = getElement(".mantine-Checkbox-label");
                 const computed = window.getComputedStyle(label);
-                expect(computed.paddingLeft).toBe("12px");
+                // `--checkbox-label-padding` resolves to `--mantine-spacing-sm`, and the
+                // merged theme takes that scale from `@graphty/compact-mantine`, which
+                // owns what a shipped control paints (CONTRAST-DIVERGENCE section 5).
+                expect(computed.paddingLeft).toBe("6px");
             });
         });
 
@@ -1168,7 +1234,7 @@ describe("Compact CSS Regression Tests", () => {
             expect(computed.borderRadius).toBe("4px");
         });
 
-        it("Slider thumb has correct border-radius (32px)", () => {
+        it("Slider thumb has correct border-radius (the compact radius scale)", () => {
             render(
                 <ThemeWrapper>
                     <Slider size="compact" aria-label="Test" />
@@ -1176,7 +1242,85 @@ describe("Compact CSS Regression Tests", () => {
             );
             const thumb = getElement(".mantine-Slider-thumb");
             const computed = window.getComputedStyle(thumb);
-            expect(computed.borderRadius).toBe("32px");
+            // The radius scale is the library's in the merged theme, as above.
+            expect(computed.borderRadius).toBe("12px");
+        });
+    });
+
+    describe("Default size (no size prop)", () => {
+        // The size the shell actually draws at, and the case this file had none of --
+        // which is how a theme merge that deleted @graphty/compact-mantine's input
+        // `vars`, leaving every default-size field at Mantine's stock 36px, shipped
+        // green. The library's row types deliberately pass no `size`, so a control takes
+        // the library theme's defaultProps `size="sm"`, and under that theme "sm" MEANS
+        // the 24px compact box (VOCAB section 11: control height 24px, 11px value ink).
+        //
+        // min-height is asserted beside height because Mantine reads `height` from
+        // `--input-size` but `min-height` from `--input-height`: a theme that sets only
+        // one of the two leaves the other resolving against a variable that does not
+        // exist, and min-height silently falls back to `auto`.
+        it("Select draws at 24px", () => {
+            render(
+                <ThemeWrapper>
+                    <Select label="Test" aria-label="Test" data={["A", "B"]} />
+                </ThemeWrapper>,
+            );
+            const computed = window.getComputedStyle(getElement(".mantine-Select-input"));
+
+            expect(computed.height).toBe("24px");
+            expect(computed.minHeight).toBe("24px");
+            expect(computed.fontSize).toBe("11px");
+        });
+
+        it("TextInput draws at 24px", () => {
+            render(
+                <ThemeWrapper>
+                    <TextInput label="Test" aria-label="Test" />
+                </ThemeWrapper>,
+            );
+            const computed = window.getComputedStyle(getElement(".mantine-TextInput-input"));
+
+            expect(computed.height).toBe("24px");
+            expect(computed.minHeight).toBe("24px");
+            expect(computed.fontSize).toBe("11px");
+        });
+
+        it("NumberInput draws at 24px", () => {
+            render(
+                <ThemeWrapper>
+                    <NumberInput label="Test" aria-label="Test" />
+                </ThemeWrapper>,
+            );
+            const computed = window.getComputedStyle(getElement(".mantine-NumberInput-input"));
+
+            expect(computed.height).toBe("24px");
+            expect(computed.minHeight).toBe("24px");
+            expect(computed.fontSize).toBe("11px");
+        });
+
+        it("NativeSelect draws at 24px", () => {
+            render(
+                <ThemeWrapper>
+                    <NativeSelect label="Test" aria-label="Test" data={["A", "B"]} />
+                </ThemeWrapper>,
+            );
+            const computed = window.getComputedStyle(getElement(".mantine-NativeSelect-input"));
+
+            expect(computed.height).toBe("24px");
+            expect(computed.minHeight).toBe("24px");
+            expect(computed.fontSize).toBe("11px");
+        });
+
+        it("Switch draws its 28x16 track", () => {
+            render(
+                <ThemeWrapper>
+                    <Switch label="Test" aria-label="Test" />
+                </ThemeWrapper>,
+            );
+            const computed = window.getComputedStyle(getElement(".mantine-Switch-track"));
+
+            expect(computed.width).toBe("28px");
+            expect(computed.height).toBe("16px");
         });
     });
 
@@ -1202,21 +1346,27 @@ describe("Compact CSS Regression Tests", () => {
             expect(bgColors[0]).toBe("rgb(42, 48, 53)");
         });
 
-        it("all compact input labels use the same dimmed color (#7a828e)", () => {
+        it("all compact input labels use the same secondary ink (#a3a8b1)", () => {
             render(
                 <ThemeWrapper>
                     <TextInput label="Text Label" aria-label="Text" size="compact" />
                     <NumberInput label="Number Label" aria-label="Number" size="compact" />
+                    <NativeSelect label="Native Label" aria-label="Native" size="compact" data={["A", "B"]} />
                 </ThemeWrapper>,
             );
             const textLabel = getElement(".mantine-TextInput-label");
             const numberLabel = getElement(".mantine-NumberInput-label");
+            const nativeLabel = getElement(".mantine-NativeSelect-label");
 
-            const colors = [textLabel, numberLabel].map((el) => window.getComputedStyle(el).color);
+            const colors = [textLabel, numberLabel, nativeLabel].map((el) => window.getComputedStyle(el).color);
 
-            // All should have the same dimmed color
+            // NativeSelect is in this list on purpose: it is one of the two inputs the
+            // app still extends itself (the library publishes no extension for it), so
+            // it is the case that proves the app's own label ink still agrees with the
+            // library's. PANEL_INK.CHROME = dark-1 = rgb(163, 168, 177); the former
+            // dimmed dark-2 (#7a828e) failed WCAG AA at 11px.
             expect(new Set(colors).size).toBe(1);
-            expect(colors[0]).toBe("rgb(122, 130, 142)");
+            expect(colors[0]).toBe("rgb(163, 168, 177)");
         });
     });
 });

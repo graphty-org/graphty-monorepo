@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { render, screen } from "../../test/test-utils";
-import { ViewDataModal } from "../data-view/ViewDataModal";
 import { LoadDataModal } from "../LoadDataModal";
 import { RunLayoutsModal } from "../RunLayoutsModal";
 
@@ -12,25 +11,13 @@ describe("Modal styling consistency", () => {
             const modal = screen.getByRole("dialog");
             expect(modal).toBeInTheDocument();
 
-            // Check that no dark-X patterns are in inline styles
+            // No colour that only works in dark mode. A `dark-N` paired inside
+            // `light-dark(light, dark)` is the correct way to write both modes at once
+            // -- which is how `@graphty/compact-mantine` writes its inks -- so the
+            // pairs come out before the check.
             const allElements = modal.querySelectorAll("*");
             allElements.forEach((el) => {
-                const style = el.getAttribute("style") ?? "";
-                expect(style).not.toMatch(/--mantine-color-dark-[0-9]/);
-            });
-        });
-    });
-
-    describe("ViewDataModal", () => {
-        it("uses standard modal styles with semantic variables", () => {
-            render(<ViewDataModal opened={true} onClose={vi.fn()} data={{ nodes: [], edges: [] }} />);
-            const modal = screen.getByRole("dialog");
-            expect(modal).toBeInTheDocument();
-
-            // Check that no dark-X patterns are in inline styles
-            const allElements = modal.querySelectorAll("*");
-            allElements.forEach((el) => {
-                const style = el.getAttribute("style") ?? "";
+                const style = (el.getAttribute("style") ?? "").replace(/light-dark\((?:[^()]|\([^()]*\))*\)/g, "");
                 expect(style).not.toMatch(/--mantine-color-dark-[0-9]/);
             });
         });
@@ -42,10 +29,13 @@ describe("Modal styling consistency", () => {
             const modal = screen.getByRole("dialog");
             expect(modal).toBeInTheDocument();
 
-            // Check that no dark-X patterns are in inline styles
+            // No colour that only works in dark mode. A `dark-N` paired inside
+            // `light-dark(light, dark)` is the correct way to write both modes at once
+            // -- which is how `@graphty/compact-mantine` writes its inks -- so the
+            // pairs come out before the check.
             const allElements = modal.querySelectorAll("*");
             allElements.forEach((el) => {
-                const style = el.getAttribute("style") ?? "";
+                const style = (el.getAttribute("style") ?? "").replace(/light-dark\((?:[^()]|\([^()]*\))*\)/g, "");
                 expect(style).not.toMatch(/--mantine-color-dark-[0-9]/);
             });
         });

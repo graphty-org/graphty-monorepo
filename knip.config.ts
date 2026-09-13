@@ -147,14 +147,23 @@ const config: KnipConfig = {
         },
     },
 
+    // `ignoreExportsUsedInFile` is deliberately NOT set here.
+    //
+    // It would silence a real class of false positive -- a component's `*Props` interface
+    // referenced only by the `function X(props: XProps)` below it, and a spec constant
+    // quoted from a design document and read by the one drawing in its own module -- but
+    // knip accepts the key only at the root, so switching it on applies it to every
+    // package at once. That would permanently hide any export that IS dead yet happens to
+    // be referenced once inside its own file, in all six workspaces.
+    //
+    // The narrower mechanism is per symbol: knip skips any export whose JSDoc block
+    // carries a `@public` tag (knip 5 honours `@public` with no `tags` entry needed), so a
+    // deliberate public surface states that intent at the declaration and everything else
+    // stays under dead-code detection. Add `@public` -- with a clause saying why -- rather
+    // than reaching for a blanket setting or an ignore pattern.
+
     // Global ignore patterns
-    ignore: [
-        "**/dist/**",
-        "**/coverage/**",
-        "**/node_modules/**",
-        "**/.nx/**",
-        "**/docs/**",
-    ],
+    ignore: ["**/dist/**", "**/coverage/**", "**/node_modules/**", "**/.nx/**", "**/docs/**"],
 
     // Ignore unlisted binaries that are shell built-ins or CI tools
     ignoreBinaries: [

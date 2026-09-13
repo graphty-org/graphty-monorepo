@@ -1,22 +1,35 @@
 import { Checkbox, Radio, RangeSlider, SegmentedControl, Slider, Switch } from "@mantine/core";
 
 import {
-    compactCheckboxVars,
+    compactCheckboxScale,
     compactControlLabelStyles,
-    compactRadioVars,
+    compactRadioScale,
     compactSegmentedControlIndicatorStyles,
     compactSegmentedControlRootStyles,
-    compactSegmentedControlVars,
+    compactSegmentedControlScale,
     compactSliderMarkLabelStyles,
-    compactSliderVars,
-    compactSwitchVars,
+    compactSliderScale,
+    compactSwitchScale,
 } from "../styles/controls";
+import { compactVarsForSize } from "../styles/size-scale";
 
 /**
  * Theme extensions for control components with compact sizing by default.
  *
- * All control components default to size="sm" for a compact appearance.
- * CSS variables are applied via `vars` functions to override Mantine's defaults:
+ * All control components default to size="sm", which every scale in
+ * ../styles/controls.ts answers with the compact values this package has always
+ * shipped. Each `vars` resolver reads `props.size` and looks that size up in the
+ * component's scale, so an explicitly sized control differs from its neighbours
+ * instead of collapsing onto the compact value. Before 2026-09-13 these
+ * resolvers took no arguments and returned one frozen object, so xs through xl
+ * all rendered identically -- see ../styles/size-scale.ts for the mechanism and
+ * the product owner's report.
+ *
+ * `props?.size` is read with optional chaining on purpose: the theme regression
+ * suites invoke `extension.vars!()` with no arguments at all, and
+ * compactVarsForSize maps an absent size onto the compact entry.
+ *
+ * The compact (size="sm") values:
  * - Switch: --switch-height: 16px, --switch-width: 28px
  * - Checkbox: --checkbox-size: 16px
  * - Radio: --radio-size: 16px
@@ -29,8 +42,8 @@ export const controlComponentExtensions = {
             size: "sm",
             withItemsBorders: false,
         },
-        vars: () => ({
-            root: compactSegmentedControlVars,
+        vars: (_theme, props) => ({
+            root: compactVarsForSize(compactSegmentedControlScale, props?.size),
         }),
         styles: {
             root: compactSegmentedControlRootStyles,
@@ -42,8 +55,8 @@ export const controlComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: () => ({
-            root: compactCheckboxVars,
+        vars: (_theme, props) => ({
+            root: compactVarsForSize(compactCheckboxScale, props?.size),
         }),
         styles: {
             label: compactControlLabelStyles,
@@ -54,8 +67,8 @@ export const controlComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: () => ({
-            root: compactSwitchVars,
+        vars: (_theme, props) => ({
+            root: compactVarsForSize(compactSwitchScale, props?.size),
         }),
         styles: {
             label: compactControlLabelStyles,
@@ -66,8 +79,8 @@ export const controlComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: () => ({
-            root: compactSliderVars,
+        vars: (_theme, props) => ({
+            root: compactVarsForSize(compactSliderScale, props?.size),
         }),
         styles: {
             markLabel: compactSliderMarkLabelStyles,
@@ -78,8 +91,8 @@ export const controlComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: () => ({
-            root: compactRadioVars,
+        vars: (_theme, props) => ({
+            root: compactVarsForSize(compactRadioScale, props?.size),
         }),
         styles: {
             label: compactControlLabelStyles,
@@ -90,8 +103,8 @@ export const controlComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: () => ({
-            root: compactSliderVars,
+        vars: (_theme, props) => ({
+            root: compactVarsForSize(compactSliderScale, props?.size),
         }),
         styles: {
             markLabel: compactSliderMarkLabelStyles,

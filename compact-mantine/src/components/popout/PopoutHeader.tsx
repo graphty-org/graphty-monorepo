@@ -104,8 +104,13 @@ export function PopoutHeader({
                         {action.icon}
                     </ActionIcon>
                 ))}
+                {/* No explicit size: the compact theme's own CloseButton default is "xs",
+                    which is the 16x16 box with a 12px glyph this chrome is drawn to. The
+                    explicit "sm" here was written when every size resolved to the same
+                    values, so it read as a no-op; once the scale became size-aware on
+                    2026-09-13 it started asking for the 20x20 step and the popout's close
+                    button silently grew. */}
                 <CloseButton
-                    size="sm"
                     data-testid="popout-header-close"
                     onClick={onClose}
                     aria-label={labels.closePanel}

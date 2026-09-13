@@ -14,6 +14,12 @@
 /**
  * CSS variables for compact Menu component.
  * Menu supports custom CSS variables via its vars API.
+ *
+ * One object for every render rather than a CompactSizeScale like the rest of
+ * this theme: Menu has no size prop to key a scale on. MenuProps in
+ * node_modules/@mantine/core/lib/components/Menu/Menu.d.ts declares none, so a
+ * resolver could only ever read `undefined` and a scale would be five entries of
+ * which four were unreachable.
  */
 export const compactMenuVars = {
     "--menu-item-fz": "11px",

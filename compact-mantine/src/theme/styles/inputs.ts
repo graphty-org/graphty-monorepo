@@ -1,13 +1,22 @@
 import { PANEL_INK } from "../../constants/panel";
+import type { CompactSizeScale, CompactVars } from "./size-scale";
 
 /**
- * Static visual styles for compact-sized inputs.
+ * Static visual styles and per-size CSS variables for compact-sized inputs.
  *
  * These styles are applied via the `styles` prop on component extensions,
  * providing borderless inputs with semantic background colors and compact typography.
  *
  * IMPORTANT: CSS custom properties are set via `vars` functions to override
  * Mantine's default size-based variables. Static styles cannot override vars.
+ *
+ * Each `*Scale` below is a CompactSizeScale: one variable set per Mantine size
+ * token, which the `vars` resolvers in ../components/inputs.ts look the rendered
+ * size up in. The sm entry of every scale IS the object this package shipped
+ * while those resolvers took no arguments and answered every size with one
+ * frozen object, so the compact default is unchanged and only the other tokens
+ * move. See ./size-scale.ts for the mechanism and the product owner's
+ * 2026-09-13 report, "sizes aren't varying anymore".
  */
 
 /**
@@ -170,5 +179,128 @@ export const compactMultiValueStyles = {
     pill: {
         // Only set margin, not padding. Pill component controls its own height/centering.
         margin: 0,
+    },
+};
+
+/**
+ * The compact input variables at one field height and one text size.
+ *
+ * Every size token shares the same chrome -- the field's ground, its transparent
+ * resting border and INPUT_FOCUS_BORDER -- and differs only in those two
+ * metrics, so each entry is compactInputVars with the two swapped. That keeps
+ * the chrome, and the compact values every other entry is built from, in one
+ * place.
+ * @param height - the field height; Mantine reads it as --input-height, and some
+ *   input components as --input-size, so both are set
+ * @param fontSize - the size the field's own text is set in
+ * @returns the wrapper variables for a fixed-height field at that size
+ */
+function compactInputVarsAt(height: string, fontSize: string): CompactVars {
+    return {
+        ...compactInputVars,
+        "--input-height": height,
+        "--input-size": height,
+        "--input-fz": fontSize,
+    };
+}
+
+/**
+ * The compact input variables at one text size, for the fields that size
+ * themselves to their content.
+ *
+ * No height variable at any size, for the reason compactInputVarsNoHeight gives
+ * -- a fixed height would clip a second line -- and
+ * tests/theme/css-baseline-regression.test.ts asserts the absence.
+ * @param fontSize - the size the field's own text is set in
+ * @returns the wrapper variables for a variable-height field at that size
+ */
+function compactInputVarsNoHeightAt(fontSize: string): CompactVars {
+    return {
+        ...compactInputVarsNoHeight,
+        "--input-fz": fontSize,
+    };
+}
+
+/**
+ * Per-size wrapper variables for the fixed-height compact inputs: TextInput,
+ * Select, PasswordInput, Autocomplete and FileInput.
+ *
+ * The heights follow compactButtonScale's ramp (20/24/30/36/44) so a field and a
+ * button asked for the same size still line up beside each other in a row.
+ */
+export const compactInputScale: CompactSizeScale = {
+    compactSize: "sm",
+    sizes: {
+        xs: compactInputVarsAt("20px", "10px"),
+        // The shipped compact object itself, not a copy of its numbers.
+        sm: compactInputVars,
+        md: compactInputVarsAt("30px", "13px"),
+        lg: compactInputVarsAt("36px", "15px"),
+        xl: compactInputVarsAt("44px", "17px"),
+    },
+};
+
+/**
+ * Per-size wrapper variables for the compact inputs that size themselves to
+ * their content: Textarea, TagsInput, PillsInput and JsonInput.
+ */
+export const compactInputNoHeightScale: CompactSizeScale = {
+    compactSize: "sm",
+    sizes: {
+        xs: compactInputVarsNoHeightAt("10px"),
+        sm: compactInputVarsNoHeight,
+        md: compactInputVarsNoHeightAt("13px"),
+        lg: compactInputVarsNoHeightAt("15px"),
+        xl: compactInputVarsNoHeightAt("17px"),
+    },
+};
+
+/**
+ * Per-size wrapper variables for the compact NumberInput.
+ *
+ * compactInputScale's fields plus --input-right-section-width, the width
+ * reserved for the increment/decrement stack. It equals the field height at
+ * every size, which is what the shipped compact pair already was (24px in a 24px
+ * field), so the stack stays square as the field grows.
+ */
+export const compactNumberInputScale: CompactSizeScale = {
+    compactSize: "sm",
+    sizes: {
+        xs: { ...compactInputVarsAt("20px", "10px"), "--input-right-section-width": "20px" },
+        sm: { ...compactInputVars, "--input-right-section-width": "24px" },
+        md: { ...compactInputVarsAt("30px", "13px"), "--input-right-section-width": "30px" },
+        lg: { ...compactInputVarsAt("36px", "15px"), "--input-right-section-width": "36px" },
+        xl: { ...compactInputVarsAt("44px", "17px"), "--input-right-section-width": "44px" },
+    },
+};
+
+/**
+ * Per-size variables for the compact NumberInput's controls section: the size of
+ * the chevron glyph inside the increment and decrement buttons.
+ */
+export const compactNumberInputControlsScale: CompactSizeScale = {
+    compactSize: "sm",
+    sizes: {
+        xs: { "--ni-chevron-size": "8px" },
+        sm: { "--ni-chevron-size": "10px" },
+        md: { "--ni-chevron-size": "12px" },
+        lg: { "--ni-chevron-size": "14px" },
+        xl: { "--ni-chevron-size": "16px" },
+    },
+};
+
+/**
+ * Per-size wrapper variables for the compact MultiSelect: compactInputScale's
+ * fields plus the combobox chevron, which Mantine sizes from its own variable
+ * rather than from the field's font size.
+ */
+export const compactMultiSelectScale: CompactSizeScale = {
+    compactSize: "sm",
+    sizes: {
+        xs: { ...compactInputVarsAt("20px", "10px"), "--combobox-chevron-size": "10px" },
+        sm: { ...compactInputVars, "--combobox-chevron-size": "12px" },
+        md: { ...compactInputVarsAt("30px", "13px"), "--combobox-chevron-size": "14px" },
+        lg: { ...compactInputVarsAt("36px", "15px"), "--combobox-chevron-size": "16px" },
+        xl: { ...compactInputVarsAt("44px", "17px"), "--combobox-chevron-size": "18px" },
     },
 };

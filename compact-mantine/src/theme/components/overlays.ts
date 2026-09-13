@@ -25,6 +25,11 @@ import {
  * - Tooltip: styles (fontSize: 11, padding: 4px 8px)
  * - Popover: styles (dropdown padding: 8px)
  * - HoverCard: styles (dropdown padding: 8px)
+ *
+ * None of the four takes a size prop, so none of them got the per-size scale the
+ * rest of the theme grew on 2026-09-13 (product owner: "sizes aren't varying
+ * anymore"). Menu's resolver stays argument-less deliberately -- see
+ * compactMenuVars in ../styles/overlays.ts.
  */
 export const overlayComponentExtensions: MantineThemeComponents = {
     Menu: Menu.extend({

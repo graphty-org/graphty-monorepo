@@ -1,21 +1,34 @@
 import { Avatar, Badge, Indicator, Kbd, Pill, Text, ThemeIcon } from "@mantine/core";
 
 import {
-    compactAvatarVars,
-    compactBadgeVars,
-    compactIndicatorVars,
-    compactKbdVars,
-    compactPillVars,
-    compactThemeIconVars,
+    compactAvatarScale,
+    compactBadgeScale,
+    compactIndicatorScale,
+    compactKbdScale,
+    compactPillScale,
+    compactThemeIconScale,
 } from "../styles/display";
+import { compactVarsForSize } from "../styles/size-scale";
 
 /**
  * Theme extensions for display components with compact sizing by default.
  *
- * All sized display components default to size="sm" for a compact appearance.
- * CSS variables are applied via `vars` functions to override Mantine's defaults:
+ * All sized display components default to size="sm", which every scale in
+ * ../styles/display.ts answers with the compact values this package has always
+ * shipped. Each `vars` resolver reads `props.size` and looks that size up in the
+ * component's scale, so an explicitly sized badge, avatar or pill differs from
+ * its neighbours instead of collapsing onto the compact value. Before 2026-09-13
+ * these resolvers took no arguments and returned one frozen object, so xs
+ * through xl all rendered identically -- see ../styles/size-scale.ts for the
+ * mechanism and the product owner's report.
+ *
+ * `props?.size` is read with optional chaining on purpose: the theme regression
+ * suites invoke `extension.vars!()` with no arguments at all, and
+ * compactVarsForSize maps an absent size onto the compact entry.
+ *
+ * The compact (size="sm") values:
  * - Badge: --badge-height: 14px, --badge-fz: 9px
- * - Text: Uses global fontSizes from theme (no vars override)
+ * - Text: uses the theme's global compactFontSizes (no vars override)
  * - Avatar: --avatar-size: 24px
  * - ThemeIcon: --ti-size: 24px
  * - Indicator: --indicator-size: 8px
@@ -33,8 +46,8 @@ export const displayComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: () => ({
-            root: compactBadgeVars,
+        vars: (_theme, props) => ({
+            root: compactVarsForSize(compactBadgeScale, props?.size),
         }),
     }),
 
@@ -42,8 +55,8 @@ export const displayComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: () => ({
-            root: compactPillVars,
+        vars: (_theme, props) => ({
+            root: compactVarsForSize(compactPillScale, props?.size),
         }),
     }),
 
@@ -51,8 +64,8 @@ export const displayComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: () => ({
-            root: compactAvatarVars,
+        vars: (_theme, props) => ({
+            root: compactVarsForSize(compactAvatarScale, props?.size),
         }),
     }),
 
@@ -60,8 +73,8 @@ export const displayComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: () => ({
-            root: compactThemeIconVars,
+        vars: (_theme, props) => ({
+            root: compactVarsForSize(compactThemeIconScale, props?.size),
         }),
     }),
 
@@ -69,8 +82,8 @@ export const displayComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: () => ({
-            root: compactIndicatorVars,
+        vars: (_theme, props) => ({
+            root: compactVarsForSize(compactIndicatorScale, props?.size),
         }),
     }),
 
@@ -78,8 +91,8 @@ export const displayComponentExtensions = {
         defaultProps: {
             size: "sm",
         },
-        vars: () => ({
-            root: compactKbdVars,
+        vars: (_theme, props) => ({
+            root: compactVarsForSize(compactKbdScale, props?.size),
         }),
     }),
 };

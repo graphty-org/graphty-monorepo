@@ -1,8 +1,32 @@
+import { PANEL_INK } from "@graphty/compact-mantine";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { fireEvent, render, screen } from "../../../../test/test-utils";
 import { InspectorHeader } from "../InspectorHeader";
+
+/**
+ * Resolves a `PANEL_INK` token to the `rgb(...)` this browser paints for it.
+ *
+ * The tokens are CSS variables behind `light-dark()`, so the only honest way to read one
+ * is to let the browser resolve it. These boards run in real Chromium, so they can. The
+ * activity panel's own header boards carry the same probe, which is what makes the two
+ * rows comparable: `PanelHeader.test.tsx`.
+ * @param token - the token to resolve.
+ * @returns the resolved colour, as the computed-style string.
+ */
+function resolveColor(token: string): string {
+    const probe = document.createElement("div");
+
+    probe.style.color = token;
+    document.body.append(probe);
+
+    const resolved = window.getComputedStyle(probe).color;
+
+    probe.remove();
+
+    return resolved;
+}
 
 const defaultProps = {
     kindLabel: "Graph summary",
@@ -71,6 +95,98 @@ describe("InspectorHeader", () => {
 
             expect(latch.querySelector('[data-glyph="keepOpen"]')).not.toBeNull();
             expect(pin.querySelector('[data-glyph="pin"]')).not.toBeNull();
+        });
+
+        it("draws the latched state with a ground of its own, so the state is not aria-pressed alone", () => {
+            /* 2026-09-13: the latched and unlatched renderings were byte for byte
+               identical -- `pressed` reached `aria-pressed` and nothing else -- so a
+               sighted reader had no way to tell a locked column from an unlocked one.
+               Latched now takes the shell's own pressed treatment: a tinted ground and an
+               accent glyph, the same as the top bar's active control. */
+            const { rerender } = render(<InspectorHeader {...defaultProps} keptOpen={false} />);
+
+            const unlatched = screen.getByRole("button", { name: "Keep open" });
+            const unlatchedGround = window.getComputedStyle(unlatched).backgroundColor;
+
+            expect(unlatched).toHaveAttribute("data-variant", "subtle");
+            expect(unlatchedGround).toBe("rgba(0, 0, 0, 0)");
+
+            rerender(<InspectorHeader {...defaultProps} keptOpen />);
+
+            const latched = screen.getByRole("button", { name: "Keep open" });
+
+            expect(latched).toHaveAttribute("data-variant", "light");
+            expect(window.getComputedStyle(latched).backgroundColor).not.toBe(unlatchedGround);
+            expect(latched).toHaveAccessibleName("Keep open");
+            expect(latched.querySelector('[data-glyph="keepOpen"]')).not.toBeNull();
+        });
+
+        it("rests every control in the register's own secondary ink, the one the panel's header uses", () => {
+            /* 2026-09-13, second pass: this row inked its resting controls with Mantine's
+               `color="gray"`, which resolved to rgb(222,226,230), while the activity
+               panel's header row two hundred pixels to the left inked its own with
+               `PANEL_INK.CHROME` at rgb(163,168,177). One control, drawn twice, read as
+               two greys. */
+            render(<InspectorHeader {...defaultProps} kindLabel="Node" showPin onPin={vi.fn()} keptOpen={false} />);
+
+            const chrome = resolveColor(PANEL_INK.CHROME);
+
+            for (const name of ["Copy reading", "Pin as A", "Keep open", "Toggle inspector"]) {
+                expect(window.getComputedStyle(screen.getByRole("button", { name })).color).toBe(chrome);
+            }
+        });
+
+        it("draws the same accent ring on a latched control as the panel's latch does", () => {
+            // The ring, not the tint, is what meets WCAG 1.4.11's 3:1 for a state
+            // boundary; the ratio itself is measured once, on the panel's board, against
+            // the ground both rows sit on.
+            const { rerender } = render(<InspectorHeader {...defaultProps} keptOpen={false} />);
+
+            expect(window.getComputedStyle(screen.getByTestId("inspector-keep-open")).boxShadow).not.toContain("inset");
+
+            rerender(<InspectorHeader {...defaultProps} keptOpen />);
+
+            expect(window.getComputedStyle(screen.getByTestId("inspector-keep-open")).boxShadow).toContain("inset");
+        });
+
+        it("draws a held pin exactly as it draws a latch, which is the defect it had", () => {
+            /* 2026-09-13, second pass: `Pin as A` passed `pressed` and no `active`, so a
+               held pin rendered identically to an empty one -- the same defect the product
+               owner reported for the latch, two slots away in this row. */
+            const { rerender } = render(
+                <InspectorHeader {...defaultProps} kindLabel="Node" showPin onPin={vi.fn()} pinned={false} />,
+            );
+
+            const empty = screen.getByTestId("inspector-pin");
+            const emptyGround = window.getComputedStyle(empty).backgroundColor;
+
+            expect(empty).toHaveAttribute("data-variant", "subtle");
+            expect(empty).toHaveAttribute("aria-pressed", "false");
+            expect(window.getComputedStyle(empty).boxShadow).not.toContain("inset");
+
+            rerender(<InspectorHeader {...defaultProps} kindLabel="Node" showPin onPin={vi.fn()} pinned />);
+
+            const held = screen.getByTestId("inspector-pin");
+
+            expect(held).toHaveAttribute("data-variant", "light");
+            expect(held).toHaveAttribute("aria-pressed", "true");
+            expect(window.getComputedStyle(held).backgroundColor).not.toBe(emptyGround);
+            expect(window.getComputedStyle(held).boxShadow).toContain("inset");
+            expect(held).toHaveAccessibleName("Pin as A");
+            expect(held.querySelector('[data-glyph="pin"]')).not.toBeNull();
+        });
+
+        it("tints only the latch, never the toggle, which is pressed in every state", () => {
+            // The toggle passes `pressed` hardcoded true -- the column is open whenever
+            // this header is drawn -- so the tint is keyed off its own `active` prop and
+            // not off `pressed`, or that chevron would be lit for ever.
+            render(<InspectorHeader {...defaultProps} keptOpen />);
+
+            const toggle = screen.getByRole("button", { name: "Toggle inspector" });
+
+            expect(toggle).toHaveAttribute("aria-pressed", "true");
+            expect(toggle).toHaveAttribute("data-variant", "subtle");
+            expect(window.getComputedStyle(toggle).backgroundColor).toBe("rgba(0, 0, 0, 0)");
         });
 
         it("draws no latch where the region supplies none", () => {

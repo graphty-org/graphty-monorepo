@@ -22,6 +22,7 @@ import React from "react";
 
 import { keyChipFor } from "../bindings";
 import { PANEL_HEADER_HEIGHT, TOOLTIP_DELAY_MS } from "../constants";
+import { activeRingStyle } from "../panel/PanelHeader";
 import {
     INSPECTOR_CLUSTER_GAP,
     INSPECTOR_HEADER_CLUSTER_WIDTH,
@@ -43,12 +44,16 @@ export interface InspectorHeaderProps {
     readonly identityLabel?: string;
     /** Whether `Pin as A` is drawn: a node, edge, selection or result, and nothing else. */
     readonly showPin: boolean;
-    /** Whether a pin is currently held, which the pin control reports as its pressed state. */
+    /**
+     * Whether a pin is currently held, which the pin control draws as an accent ring over
+     * a tinted ground and reports as its pressed state.
+     */
     readonly pinned?: boolean;
     /**
-     * Whether the column is latched open, which `Keep open` reports as its pressed
-     * state. This is not {@link InspectorHeaderProps.pinned}: that is the comparison
-     * pin, which freezes the content; this holds the column on screen (6.12).
+     * Whether the column is latched open, which `Keep open` draws as an accent ring over a
+     * tinted ground and reports as its pressed state. This is not
+     * {@link InspectorHeaderProps.pinned}: that is the comparison pin, which freezes the
+     * content; this holds the column on screen (6.12).
      */
     readonly keptOpen?: boolean;
     /**
@@ -74,6 +79,15 @@ interface HeaderIconProps {
     readonly chip: string | null;
     readonly glyph: React.ReactNode;
     readonly pressed?: boolean;
+    /**
+     * Whether the control draws ACTIVE: an accent ring over a tinted ground, with an
+     * accent glyph -- the shell's own pressed treatment (topbar/topBarControls.tsx) plus
+     * the boundary WCAG 1.4.11 asks for, which is {@link activeRingStyle}. It is
+     * deliberately not {@link HeaderIconProps.pressed}: the row's last control passes
+     * `pressed` hardcoded true -- the column is open whenever this header is drawn -- so a
+     * treatment keyed off `pressed` would light that chevron for ever.
+     */
+    readonly active?: boolean;
     readonly testId: string;
     readonly onClick: () => void;
 }
@@ -84,7 +98,7 @@ interface HeaderIconProps {
  * @returns the icon button and its tooltip.
  */
 function HeaderIcon(props: HeaderIconProps): React.JSX.Element {
-    const { words, chip, glyph, pressed, testId, onClick } = props;
+    const { active = false, words, chip, glyph, pressed, testId, onClick } = props;
 
     const label =
         chip === null ? (
@@ -96,19 +110,26 @@ function HeaderIcon(props: HeaderIconProps): React.JSX.Element {
             </Box>
         );
 
+    /*
+     * A RESTING control inks itself with `PANEL_INK.CHROME`, the register's own secondary
+     * ink and the one the activity panel's header row uses, rather than with the
+     * `color="gray"` this row carried until 2026-09-13: the two resolved to two different
+     * greys -- rgb(163,168,177) in the panel against rgb(222,226,230) here -- so one
+     * control read as two greys in two headers that sit side by side.
+     */
     return (
         <Tooltip label={label} openDelay={TOOLTIP_DELAY_MS} position="bottom" withinPortal>
             <ActionIcon
                 type="button"
-                variant="subtle"
-                color="gray"
+                variant={active ? "light" : "subtle"}
                 size={PANEL_GRID.TRAIL}
                 radius="sm"
+                c={active ? undefined : PANEL_INK.CHROME}
                 aria-label={words}
                 aria-pressed={pressed}
                 data-testid={testId}
                 onClick={onClick}
-                style={{ flex: "0 0 auto" }}
+                style={{ flex: "0 0 auto", ...activeRingStyle(active) }}
             >
                 {glyph}
             </ActionIcon>
@@ -206,11 +227,18 @@ export function InspectorHeader(props: InspectorHeaderProps): React.JSX.Element 
                     onClick={onCopyReading}
                 />
 
+                {/* The pin takes the SAME treatment as the latch two slots along
+                    (2026-09-13, second pass): until then it passed `pressed` and no
+                    `active`, so a held pin rendered identically to an empty one -- the
+                    exact defect reported against the latch, in the same header row. A pin
+                    that is held and a pin that is not are two states of one control, and
+                    1.4.11 asks the same 3:1 boundary of this one as of that one. */}
                 {showPin && onPin !== undefined && (
                     <HeaderIcon
                         words={INSPECTOR_HEADER_LABELS.pinAsA}
                         chip={null}
                         glyph={<UiGlyph name="pin" size={PANEL_GRID.GLYPH} />}
+                        active={pinned ?? false}
                         pressed={pinned ?? false}
                         testId="inspector-pin"
                         onClick={onPin}
@@ -218,12 +246,20 @@ export function InspectorHeader(props: InspectorHeaderProps): React.JSX.Element 
                 )}
 
                 {/* The latch, immediately left of the control that dismisses the column,
-                    so the pair reads as keep-open against dismiss. */}
+                    so the pair reads as keep-open against dismiss. It draws its latched
+                    state as an accent ring over a tinted ground, with an accent glyph
+                    (2026-09-13: until then the two states rendered byte for byte
+                    identically -- `pressed` reached `aria-pressed` and nothing else -- and
+                    the product owner could not tell a locked column from an unlocked one;
+                    the ring is the second pass, because the ground alone measured 1.20:1
+                    where 1.4.11 asks 3:1). The word and the padlock are the same in both
+                    states (6.8; REGISTER-1.5 10.2). */}
                 {onKeepOpenChange !== undefined && (
                     <HeaderIcon
                         words={INSPECTOR_HEADER_LABELS.keepOpen}
                         chip={null}
                         glyph={<UiGlyph name="keepOpen" size={PANEL_GRID.GLYPH} />}
+                        active={keptOpen ?? false}
                         pressed={keptOpen ?? false}
                         testId="inspector-keep-open"
                         onClick={() => {

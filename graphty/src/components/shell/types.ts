@@ -158,10 +158,15 @@ export interface PersistedShellLayout {
     /**
      * 6.12 "The latch", panel side. It describes how the reader works rather than what
      * the graph holds, so it survives a reload and a dataset boundary alike.
+     *
+     * OPTIONAL, and the absence is meaningful: it says the reader has never chosen a
+     * latch state, so the width-aware first-visit default still applies. Writing an
+     * unchosen `false` made a narrow first visit look like a deliberate unlatch and
+     * suppressed the default on every later visit (2026-09-13).
      */
-    readonly panelKeptOpen: boolean;
-    /** 6.12 "The latch", inspector side. */
-    readonly inspectorKeptOpen: boolean;
+    readonly panelKeptOpen?: boolean;
+    /** 6.12 "The latch", inspector side, absent under the same rule. */
+    readonly inspectorKeptOpen?: boolean;
 }
 
 /**
@@ -189,11 +194,13 @@ export interface ShellContextValue extends ShellLayoutState {
     /** Shows or hides the inspector column. */
     readonly setInspectorOpen: (open: boolean) => void;
     /**
-     * Latches or unlatches the activity panel (6.12, "The latch"). Below 1280 px
-     * latching one surface unlatches the other, so at most one is ever latched there.
+     * Latches or unlatches the activity panel (6.12, "The latch"). Both surfaces may be
+     * latched at every width: 6.12's narrow exclusivity was dropped on 2026-09-13 at the
+     * product owner's direction, and the reason is recorded at the setter in
+     * `ShellContext`.
      */
     readonly setPanelKeptOpen: (kept: boolean) => void;
-    /** Latches or unlatches the inspector, under the same narrow exclusivity. */
+    /** Latches or unlatches the inspector. Independent of the panel's latch, at any width. */
     readonly setInspectorKeptOpen: (kept: boolean) => void;
     /** Toggles the inspector column. The D binding and both chevrons land here. */
     readonly toggleInspector: () => void;

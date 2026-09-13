@@ -207,7 +207,7 @@ describe("ShellContext", () => {
             expect(result.current.narrowOverlay).toBe("inspector");
         });
 
-        it("latches at most one surface below 1280, so latching one releases the other", () => {
+        it("latches both surfaces below 1280 too, because latching one may not release the other", () => {
             const { result } = renderShell(1024);
 
             act(() => {
@@ -217,8 +217,62 @@ describe("ShellContext", () => {
                 result.current.setInspectorKeptOpen(true);
             });
 
+            /* 6.12's narrow exclusivity, dropped on 2026-09-13: it released the other
+               surface's latch silently, so the first surface stayed on screen unlatched
+               and then died on the next incidental tap. */
+            expect(result.current.panelKeptOpen).toBe(true);
             expect(result.current.inspectorKeptOpen).toBe(true);
-            expect(result.current.panelKeptOpen).toBe(false);
+        });
+
+        it("keeps the first-locked surface through the whole lock, open, lock sequence below 1280", () => {
+            // The product owner's report, step for step: "if I lock one panel, open the
+            // other, lock the other, the first one closes" (2026-09-13). The close was
+            // delivered one gesture later, by the canvas tap, once the first surface's
+            // latch had been stripped.
+            const { result } = renderShell(1024);
+            let closed = true;
+
+            act(() => {
+                result.current.selectActivity("explore");
+            });
+            act(() => {
+                result.current.setPanelKeptOpen(true);
+            });
+            act(() => {
+                result.current.setInspectorOpen(true);
+            });
+            act(() => {
+                result.current.setInspectorKeptOpen(true);
+            });
+
+            expect(result.current.panelKeptOpen).toBe(true);
+            expect(result.current.activeActivity).toBe("explore");
+            expect(result.current.inspectorOpen).toBe(true);
+
+            // The tap that used to take the panel away.
+            act(() => {
+                closed = result.current.closeNarrowOverlay();
+            });
+
+            expect(closed).toBe(false);
+            expect(result.current.activeActivity).toBe("explore");
+            expect(result.current.inspectorOpen).toBe(true);
+        });
+
+        it("keeps both latches when the viewport arrives at the narrow breakpoint", () => {
+            // The resize twin of the same rule: arriving below 1280 used to strip the
+            // panel's latch, so a both-latched record written on a desktop came back with
+            // one latch gone.
+            const { result } = renderShell(1024);
+
+            act(() => {
+                result.current.setPanelKeptOpen(true);
+                result.current.setInspectorKeptOpen(true);
+            });
+
+            expect(result.current.breakpoint).toBe("narrow");
+            expect(result.current.panelKeptOpen).toBe(true);
+            expect(result.current.inspectorKeptOpen).toBe(true);
         });
 
         it("latches both surfaces on desktop, where neither is an overlay", () => {
@@ -369,12 +423,16 @@ describe("ShellContext", () => {
             const raw = window.localStorage.getItem(SHELL_LAYOUT_STORAGE_KEY) ?? "{}";
             const stored: unknown = JSON.parse(raw);
 
+            /* The two latches are ABSENT here, and that is the contract: this reader has
+               changed a width, an activity and a section but has never touched a latch, so
+               nothing is written down about how they want their sidebars kept. Writing an
+               unchosen value made a narrow first visit look like a deliberate unlatch and
+               suppressed the locked-open default on every later visit (2026-09-13). The
+               test below covers the case where the reader HAS chosen. */
             expect(Object.keys(stored as Record<string, unknown>).sort()).toEqual([
                 "activeActivity",
-                "inspectorKeptOpen",
                 "inspectorOpen",
                 "inspectorWidth",
-                "panelKeptOpen",
                 "panelWidth",
                 "sectionOpen",
             ]);
@@ -439,7 +497,7 @@ describe("ShellContext", () => {
             });
         });
 
-        it("reads a record written before the latches existed, without a new key", () => {
+        it("reads a record that names no latch, and the absent latches take the first-visit default", () => {
             window.localStorage.setItem(
                 SHELL_LAYOUT_STORAGE_KEY,
                 JSON.stringify({ activeActivity: "style", panelWidth: 360 }),
@@ -451,8 +509,11 @@ describe("ShellContext", () => {
 
             const { result } = renderShell(1440, true);
 
-            expect(result.current.panelKeptOpen).toBe(false);
-            expect(result.current.inspectorKeptOpen).toBe(false);
+            // The record decides what it names; the first-visit layout decides the rest
+            // (2026-09-13).
+            expect(result.current.activeActivity).toBe("style");
+            expect(result.current.panelKeptOpen).toBe(true);
+            expect(result.current.inspectorKeptOpen).toBe(true);
         });
 
         it("remembers a latch across a mount, because it describes the reader and not the graph", () => {
@@ -476,9 +537,152 @@ describe("ShellContext", () => {
 
             const { result } = renderShell(1440, true);
 
-            expect(result.current.activeActivity).toBeNull();
+            // The untrusted field is dropped, so the activity falls all the way back to
+            // the first visit's Data and never to the overlay that was stored.
+            expect(result.current.activeActivity).not.toBe("settings");
+            expect(result.current.activeActivity).toBe("data");
         });
 
+        describe("the first visit (2026-09-13)", () => {
+            it("opens both sidebars latched at a desktop width when nothing is remembered", () => {
+                const { result } = renderShell(1440, true);
+
+                expect(result.current.activeActivity).toBe("data");
+                expect(result.current.inspectorOpen).toBe(true);
+                expect(result.current.panelKeptOpen).toBe(true);
+                expect(result.current.inspectorKeptOpen).toBe(true);
+            });
+
+            it("lets a remembered unlatch win, so a reader who unlocked a panel does not find it locked", () => {
+                window.localStorage.setItem(
+                    SHELL_LAYOUT_STORAGE_KEY,
+                    JSON.stringify({ panelKeptOpen: false, inspectorKeptOpen: false, inspectorOpen: false }),
+                );
+
+                const { result } = renderShell(1440, true);
+
+                expect(result.current.panelKeptOpen).toBe(false);
+                expect(result.current.inspectorKeptOpen).toBe(false);
+                expect(result.current.inspectorOpen).toBe(false);
+            });
+
+            it("lets a remembered closed panel win, because null is a value the record may hold", () => {
+                window.localStorage.setItem(SHELL_LAYOUT_STORAGE_KEY, JSON.stringify({ activeActivity: null }));
+
+                const { result } = renderShell(1440, true);
+
+                expect(result.current.activeActivity).toBeNull();
+            });
+
+            it("writes both latches down as soon as the reader chooses one", () => {
+            const { result } = renderShell(1440, true);
+
+            act(() => {
+                result.current.setPanelKeptOpen(false);
+            });
+
+            const stored: unknown = JSON.parse(window.localStorage.getItem(SHELL_LAYOUT_STORAGE_KEY) ?? "{}");
+
+            expect(Object.keys(stored as Record<string, unknown>).sort()).toContain("panelKeptOpen");
+            expect(stored).toMatchObject({ panelKeptOpen: false, inspectorKeptOpen: true });
+        });
+
+        /* Found in review, 2026-09-13. The narrow first visit wrote `panelKeptOpen: false`
+           immediately -- a value nobody chose -- so the same browser opened later on a wide
+           screen read it as a deliberate unlatch and showed neither sidebar. That is the
+           product owner's original complaint, reachable by anyone whose first visit was
+           narrow. */
+        it("does not let a narrow first visit suppress the locked-open default on a later wide visit", () => {
+            const narrowVisit = renderShell(1024, true);
+
+            expect(narrowVisit.result.current.panelKeptOpen).toBe(false);
+            narrowVisit.unmount();
+
+            const wideVisit = renderShell(1600, true);
+
+            /* Both halves matter. The latches were the first cause and the other five
+               fields were the second: a narrow first visit also stored
+               `activeActivity: null` and `inspectorOpen: false`, so even with the latches
+               absent the wide visit opened no sidebars at all. Asserting only the latches
+               passed while the reader still saw an empty shell. */
+            expect(wideVisit.result.current.panelKeptOpen).toBe(true);
+            expect(wideVisit.result.current.inspectorKeptOpen).toBe(true);
+            expect(wideVisit.result.current.activeActivity).toBe("data");
+            expect(wideVisit.result.current.inspectorOpen).toBe(true);
+        });
+
+        it("survives a reader's own unlatch across a mount", () => {
+                const first = renderShell(1440, true);
+
+                act(() => {
+                    first.result.current.setPanelKeptOpen(false);
+                });
+
+                first.unmount();
+
+                const second = renderShell(1440, true);
+
+                expect(second.result.current.panelKeptOpen).toBe(false);
+            });
+
+            /* The regression this block exists for: the first-visit layout latched BOTH
+               surfaces at EVERY width, and below 1280 both are 280 px overlays over a
+               canvas that is never resized under them. With both latched
+               `closeNarrowOverlay` can only refuse, so neither a canvas tap nor Escape
+               reclaimed any canvas. Measured on genuine first visits at 1024x900: the
+               panel took [48,328] and the inspector [744,1024] while the Welcome sheet
+               spanned [219,853], so its heading read "aph to get started"; at 375 there
+               was no canvas at all. Below the breakpoint the first visit now opens
+               nothing. */
+            it.each([1024, 768, 375])(
+                "opens neither surface at %i, so Welcome has the whole canvas and nothing needs dismissing",
+                (width) => {
+                    const { result } = renderShell(width, true);
+
+                    expect(result.current.breakpoint).toBe("narrow");
+                    expect(result.current.activeActivity).toBeNull();
+                    expect(result.current.inspectorOpen).toBe(false);
+                    expect(result.current.panelKeptOpen).toBe(false);
+                    expect(result.current.inspectorKeptOpen).toBe(false);
+                    expect(result.current.narrowOverlay).toBe("none");
+                },
+            );
+
+            it("leaves a surface the reader opens below 1280 dismissable, which is the trap it was", () => {
+                const { result } = renderShell(1024, true);
+
+                act(() => {
+                    result.current.selectActivity("data");
+                });
+
+                expect(result.current.narrowOverlay).toBe("panel");
+
+                let closed = false;
+
+                act(() => {
+                    closed = result.current.closeNarrowOverlay();
+                });
+
+                expect(closed).toBe(true);
+                expect(result.current.activeActivity).toBeNull();
+            });
+
+            it.each([1280, 1600])("still locks both sidebars open at %i, which is what was asked for", (width) => {
+                const { result } = renderShell(width, true);
+
+                // 1280 is the breakpoint itself and is a DESKTOP width: `isNarrowViewport`
+                // is strictly less than.
+                expect(result.current.breakpoint).toBe("desktop");
+                expect(result.current.activeActivity).toBe("data");
+                expect(result.current.inspectorOpen).toBe(true);
+                expect(result.current.panelKeptOpen).toBe(true);
+                expect(result.current.inspectorKeptOpen).toBe(true);
+            });
+        });
+
+        /* A provider with persistence off has no memory of the reader at all, so it takes
+           no first-visit layout either: it is the bare store the region tests and the
+           isolated stories ask for (2026-09-13). */
         it("starts clean when persistence is off", () => {
             window.localStorage.setItem(SHELL_LAYOUT_STORAGE_KEY, JSON.stringify({ activeActivity: "style" }));
 

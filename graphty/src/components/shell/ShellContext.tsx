@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import {
     ACTIVITY_PANEL_WIDTH_DEFAULT,
@@ -23,10 +23,20 @@ import type {
  * change becomes a missing key rather than a corrupt read.
  *
  * The two latches (6.12) were added to the record on 2026-09-12 and the key did NOT
- * move to v2: `readPersistedShellLayout` validates every field on its own, so an old
+ * move to v2 then: `readPersistedShellLayout` validates every field on its own, so an old
  * record is simply a record with no latches and a new one costs an old reader nothing.
+ *
+ * It DOES move to v2 on 2026-09-13, and not for a shape change. The product owner asked
+ * for both sidebars to start latched open, and the write effect below runs on mount, so
+ * every reader who has ever opened the app already holds a v1 record carrying the OLD
+ * defaults -- `inspectorOpen: false`, `panelKeptOpen: false`, `inspectorKeptOpen: false`.
+ * A stored value must keep winning, because a reader who unlatched a panel last week may
+ * not find it latched again; but those three are indistinguishable from a deliberate
+ * unlatch, so under v1 the new first-visit default would reach nobody who has ever opened
+ * the app. A new key is the only way it reaches them, and it costs an old reader only the
+ * widths and section states, which are re-earned by the first drag.
  */
-export const SHELL_LAYOUT_STORAGE_KEY = "graphty.shell.layout.v1";
+export const SHELL_LAYOUT_STORAGE_KEY = "graphty.shell.layout.v2";
 
 const PRIMARY_ACTIVITY_IDS: readonly string[] = ["data", "explore", "analyze", "style", "present", "ai"];
 
@@ -148,6 +158,82 @@ function measureViewportWidth(fallback: number): number {
     return window.innerWidth;
 }
 
+/**
+ * The width the provider lays its FIRST render out at, measured synchronously wherever
+ * the provider measures at all.
+ *
+ * {@link firstVisitLayout} has to know the breakpoint and is consumed in a `useState`
+ * initialiser, so the measurement effect below -- which lands after the first paint --
+ * is too late to decide what the shell opens with. Reading `window.innerWidth` from the
+ * initialiser is the only moment the real width is knowable in time. A provider with
+ * measurement off is unchanged: `initialShellWidth` alone decides its breakpoint, which
+ * is what the tests and the isolated stories pin.
+ * @param initialShellWidth - the width to start from when the window cannot be read.
+ * @param measureViewport - whether this provider measures the window at all.
+ * @returns the width the first render uses.
+ */
+function firstPaintWidth(initialShellWidth: number, measureViewport: boolean): number {
+    return measureViewport ? measureViewportWidth(initialShellWidth) : initialShellWidth;
+}
+
+/**
+ * What a FIRST VISIT starts from: the layout a reader gets when the store remembers
+ * nothing about them at all.
+ *
+ * DESKTOP, a DEPARTURE from 6.12 at the product owner's direction on 2026-09-13 ("the
+ * sidebars should be locked open by default"). 6.12 says "an UNKEPT surface behaves
+ * exactly as it did before this section existed", and before it the shell opened with no
+ * panel and a collapsed inspector. At or above {@link NARROW_BREAKPOINT} it now opens
+ * with the Data panel and the inspector both on screen and both LATCHED, so a first
+ * reader is shown the shape of the tool rather than a bare canvas, and nothing incidental
+ * takes either surface away again. Data is the activity because it is the only one Empty
+ * enables (ACTIVITIES_REQUIRING_DATA, constants.ts); the first data load still moves the
+ * panel to Explore (spec 02 section 1.5).
+ *
+ * NARROW, below the breakpoint, it opens NEITHER surface, and this is what the width
+ * argument exists for (2026-09-13, second pass). Below 1280 both surfaces are 280 px
+ * OVERLAYS over a canvas that is never resized under them, and a latch vetoes every close
+ * the shell performs as a side effect -- `closeNarrowOverlay` refuses a latched overlay,
+ * which is both the canvas tap and the Escape ladder's third rung. A first visit that
+ * latched both therefore arrived in a state the reader could not leave by any gesture the
+ * Welcome screen teaches. Measured on genuine first visits with the store cleared: at
+ * 1024x900 the panel took [48,328] and the inspector [744,1024] while the Welcome sheet
+ * spanned [219,853], so 109 px of the sheet sat under each overlay and its heading read
+ * "aph to get started"; at 600 and at 375 there was no canvas and no Welcome content at
+ * all. Design 6.12 and 5.2 allow at most ONE kept surface below 1280; the reader may
+ * still latch both there with two deliberate clicks (the 2026-09-13 departure recorded at
+ * `setPanelKeptOpen`), but a DEFAULT spends no latch the reader did not ask for, so below
+ * the breakpoint the first visit is the pre-6.12 opening and the Welcome sheet gets the
+ * whole canvas.
+ *
+ * Every field here is ONLY a fallback. It is spread UNDER the persisted record, so any
+ * field that record holds wins -- `panelKeptOpen: false` included. Only the absent case
+ * changes. The cost of the narrow branch is the one this record always pays: the write
+ * effect runs on mount, so a reader whose first visit was narrow holds a stored
+ * `panelKeptOpen: false`, which is indistinguishable from a deliberate unlatch (see the
+ * note on {@link SHELL_LAYOUT_STORAGE_KEY}) and so wins on a later wide visit in the same
+ * browser. A latch the reader never asked for is the cheaper thing to lose.
+ * @param shellWidth - the width the first render lays itself out at.
+ * @returns the fallback layout for that width.
+ */
+function firstVisitLayout(shellWidth: number): Partial<PersistedShellLayout> {
+    if (isNarrowViewport(shellWidth)) {
+        return {
+            activeActivity: null,
+            inspectorOpen: false,
+            panelKeptOpen: false,
+            inspectorKeptOpen: false,
+        };
+    }
+
+    return {
+        activeActivity: "data",
+        inspectorOpen: true,
+        panelKeptOpen: true,
+        inspectorKeptOpen: true,
+    };
+}
+
 const ShellContext = createContext<ShellContextValue | null>(null);
 
 /**
@@ -198,7 +284,56 @@ export function ShellProvider(props: ShellProviderProps): React.JSX.Element {
         persist = true,
     } = props;
 
-    const [restored] = useState<Partial<PersistedShellLayout>>(() => (persist ? readPersistedShellLayout() : {}));
+    /*
+     * The width comes FIRST, because the first-visit layout below is keyed off the
+     * breakpoint and both initialisers run in this order on the first render. Measuring
+     * here rather than in the effect is what lets a narrow first visit open narrow
+     * (2026-09-13, second pass); the effect still owns every later width.
+     */
+    const [shellWidth, setShellWidth] = useState<number>(() => firstPaintWidth(initialShellWidth, measureViewport));
+
+    /*
+     * The first-visit layout sits UNDER the persisted record, so a stored field always
+     * wins and only an ABSENT field takes a default (2026-09-13). A provider with
+     * persistence off is a store with no memory of the reader at all -- what the tests
+     * and the isolated stories ask for -- so it takes no first-visit layout either, and
+     * the `??` fallbacks below are what it starts from.
+     */
+    const [restored] = useState<Partial<PersistedShellLayout>>(() =>
+        persist ? { ...firstVisitLayout(shellWidth), ...readPersistedShellLayout() } : {},
+    );
+
+    /*
+     * Whether the READER has ever chosen a latch state, as opposed to being handed one.
+     *
+     * The latches are written down only once this is true, and that is what keeps a first
+     * visit from poisoning the next one. Without it, a narrow first visit stored
+     * `panelKeptOpen: false` immediately -- a value nobody chose, and indistinguishable
+     * from a deliberate unlatch -- so the same browser opened later on a wide screen found
+     * a record saying "unlatched" and showed neither sidebar. That is the product owner's
+     * original complaint, reachable by anyone whose first visit happened to be narrow
+     * (found in review, 2026-09-13).
+     *
+     * A record written before this change carries the latch fields already, so it seeds
+     * true and keeps winning: an existing reader's deliberate unlatch is not re-opened.
+     */
+    const latchChosen = useRef(
+        (() => {
+            if (!persist) {
+                return false;
+            }
+
+            const stored = readPersistedShellLayout();
+
+            return stored.panelKeptOpen !== undefined || stored.inspectorKeptOpen !== undefined;
+        })(),
+    );
+
+    /** The record this mount first painted, used to tell a default from a choice. */
+    const firstPaintRecord = useRef<string | null>(null);
+
+    /** Whether this mount began with nothing remembered, i.e. whether it is a first visit. */
+    const storeWasEmpty = useRef(persist && Object.keys(readPersistedShellLayout()).length === 0);
 
     const [activeActivity, setActiveActivity] = useState<ActivityId | null>(() => restored.activeActivity ?? null);
     const [requestedPanelWidth, setRequestedPanelWidth] = useState<number>(
@@ -214,7 +349,6 @@ export function ShellProvider(props: ShellProviderProps): React.JSX.Element {
     );
     const [sectionOpen, setSectionOpenState] = useState<SectionOpenMap>(() => restored.sectionOpen ?? {});
     const [stateAxis, setStateAxis] = useState<ShellStateAxis>(initialStateAxis);
-    const [shellWidth, setShellWidth] = useState<number>(initialShellWidth);
     const [narrowOverlay, setNarrowOverlay] = useState<NarrowOverlay>("none");
 
     // Measurement is a side effect, so it happens after paint and never in render.
@@ -256,17 +390,6 @@ export function ShellProvider(props: ShellProviderProps): React.JSX.Element {
             setNarrowOverlay("none");
         }
     }, [narrow]);
-
-    /* Arriving at the narrow breakpoint with both surfaces latched -- from a resize, or
-       from a record written on a desktop, where both latches are allowed -- would leave
-       48 + 280 + 280 of chrome with nothing a tap may dismiss. One has to yield, and it
-       is the panel's: the inspector is the surface a selection fills and the one the
-       latch exists to protect, and the panel is one rail click away (6.12). */
-    useEffect(() => {
-        if (narrow) {
-            setPanelKeptOpenState((kept) => (kept && inspectorKeptOpen ? false : kept));
-        }
-    }, [inspectorKeptOpen, narrow]);
 
     const openActivity = useCallback(
         (activity: ActivityId) => {
@@ -342,41 +465,40 @@ export function ShellProvider(props: ShellProviderProps): React.JSX.Element {
     }, [inspectorOpen, setInspectorOpen]);
 
     /*
-     * The two latches. Below 1280 px at most one surface may be latched, so latching one
-     * unlatches the other: without that rule rail 48 + panel 280 + inspector 280 leaves
-     * a 1200 px window no graph to read, and 5.2's one-overlay guarantee has nothing
-     * left to guarantee. On desktop both may be latched, because neither is an overlay.
+     * The two latches: plain setters, and deliberately nothing else. Each latch is
+     * changed by its own control and by nothing in the shell.
      *
-     * Latching also hands the dismissible slot to the OTHER surface when that one is
-     * open, because the un-latched surface is the only one a canvas tap may close.
+     * DEPARTURE from 6.12 ("Below 1280 px at most ONE surface may be kept, and latching
+     * one releases the other") and from 5.2's "at most one surface may be kept open below
+     * 1280 px", at the product owner's direction on 2026-09-13: "there's a bug with the
+     * panel lock state: if I lock one panel, open the other, lock the other, the first one
+     * closes."
+     *
+     * What the old rule was protecting: below 1280 both surfaces are 280 px overlays over
+     * a canvas that is never resized under them (`liveCanvasWidth`), so two latched
+     * surfaces cover 560 px of graph with nothing a tap may dismiss. At 1200 px that
+     * leaves a 592 px strip of graph, which still clears CANVAS_MIN_WIDTH (520); at
+     * 1024 px it leaves 416 px, which does not. That is the honest cost of the departure,
+     * and it is bought by the reader's own two deliberate clicks.
+     *
+     * What went wrong instead, and why it read as a close: releasing the other surface's
+     * latch was SILENT. The first surface stayed on screen with its latch stripped, and
+     * then died one unrelated gesture later, on the next canvas tap, when
+     * `closeNarrowOverlay` found no latch to veto.
+     *
+     * What happens now: both surfaces may be latched at every width. `closeNarrowOverlay`
+     * needs no change -- with both latched it already refuses and lets the Escape ladder
+     * fall through to its next rung.
      */
-    const setPanelKeptOpen = useCallback(
-        (kept: boolean) => {
-            setPanelKeptOpenState(kept);
+    const setPanelKeptOpen = useCallback((kept: boolean) => {
+        latchChosen.current = true;
+        setPanelKeptOpenState(kept);
+    }, []);
 
-            if (!kept || !narrow) {
-                return;
-            }
-
-            setInspectorKeptOpenState(false);
-            setNarrowOverlay((current) => (current === "panel" && inspectorOpen ? "inspector" : current));
-        },
-        [inspectorOpen, narrow],
-    );
-
-    const setInspectorKeptOpen = useCallback(
-        (kept: boolean) => {
-            setInspectorKeptOpenState(kept);
-
-            if (!kept || !narrow) {
-                return;
-            }
-
-            setPanelKeptOpenState(false);
-            setNarrowOverlay((current) => (current === "inspector" && activeActivity !== null ? "panel" : current));
-        },
-        [activeActivity, narrow],
-    );
+    const setInspectorKeptOpen = useCallback((kept: boolean) => {
+        latchChosen.current = true;
+        setInspectorKeptOpenState(kept);
+    }, []);
 
     const isSectionOpen = useCallback(
         (sectionId: string, defaultOpen?: boolean) => sectionOpen[sectionId] ?? defaultOpen ?? false,
@@ -440,15 +562,33 @@ export function ShellProvider(props: ShellProviderProps): React.JSX.Element {
             return;
         }
 
-        writePersistedShellLayout({
+        /* The latches are omitted until the reader has chosen one, so an unchosen
+           default is never mistaken for a deliberate unlatch on the next visit. */
+        const record: PersistedShellLayout = {
             activeActivity,
             panelWidth: requestedPanelWidth,
             inspectorWidth: requestedInspectorWidth,
             inspectorOpen,
             sectionOpen,
-            panelKeptOpen,
-            inspectorKeptOpen,
-        });
+            ...(latchChosen.current ? { panelKeptOpen, inspectorKeptOpen } : {}),
+        };
+        const serialised = JSON.stringify(record);
+
+        firstPaintRecord.current ??= serialised;
+
+        /* Nothing is written until something actually differs from the first paint.
+           Without this the effect wrote the DEFAULTS on mount, before the reader had done
+           anything -- so a narrow first visit stored `activeActivity: null` and
+           `inspectorOpen: false`, and the same browser opened later on a wide screen read
+           those back as the reader's own choices and showed no sidebars. The latch fields
+           had the same problem and are handled above; this covers the other five
+           (2026-09-13, second review). */
+        if (storeWasEmpty.current && serialised === firstPaintRecord.current) {
+            return;
+        }
+
+        storeWasEmpty.current = false;
+        writePersistedShellLayout(record);
     }, [
         activeActivity,
         inspectorKeptOpen,

@@ -11,13 +11,13 @@ import type {
     RichTextStyle,
     ShapeConfig,
 } from "../../../types/style-layer";
+import { elementToEditorRichTextStyle } from "../../../utils/richTextStyleBridge";
 import {
     DEFAULT_ARROW_HEAD,
     DEFAULT_ARROW_TAIL,
     DEFAULT_COLOR,
     DEFAULT_EDGE_LINE,
     DEFAULT_NODE_EFFECTS,
-    DEFAULT_RICH_TEXT_STYLE,
     DEFAULT_SHAPE,
 } from "../../../utils/style-defaults";
 import type { LayerItem } from "../../layout/LeftSidebar";
@@ -92,6 +92,7 @@ function colorConfigToStyle(colorConfig: ColorConfig): NodeStyle {
     return { color: colorConfig };
 }
 
+
 /**
  * Panel for editing style layer properties including node and edge styles.
  * @param root0 - Component props
@@ -119,17 +120,16 @@ export function StyleLayerPropertiesPanel({
     const colorConfig = getColorConfig(currentStyle);
     const effectsConfig: NodeEffectsConfig =
         (currentStyle.effects as NodeEffectsConfig | undefined) ?? DEFAULT_NODE_EFFECTS;
-    const nodeLabelConfig: RichTextStyle = (currentStyle.label as RichTextStyle | undefined) ?? DEFAULT_RICH_TEXT_STYLE;
-    const nodeTooltipConfig: RichTextStyle =
-        (currentStyle.tooltip as RichTextStyle | undefined) ?? DEFAULT_RICH_TEXT_STYLE;
+    const nodeLabelConfig: RichTextStyle = elementToEditorRichTextStyle(currentStyle.label);
+    const nodeTooltipConfig: RichTextStyle = elementToEditorRichTextStyle(currentStyle.tooltip);
 
     // Edge style extraction
     const currentEdgeStyle: EdgeStyle = (layer.styleLayer.edge?.style as EdgeStyle | undefined) ?? {};
     const edgeLineConfig: EdgeLineConfig = currentEdgeStyle.line ?? DEFAULT_EDGE_LINE;
     const arrowHeadConfig: ArrowConfig = currentEdgeStyle.arrowHead ?? DEFAULT_ARROW_HEAD;
     const arrowTailConfig: ArrowConfig = currentEdgeStyle.arrowTail ?? DEFAULT_ARROW_TAIL;
-    const edgeLabelConfig: RichTextStyle = currentEdgeStyle.label ?? DEFAULT_RICH_TEXT_STYLE;
-    const edgeTooltipConfig: RichTextStyle = currentEdgeStyle.tooltip ?? DEFAULT_RICH_TEXT_STYLE;
+    const edgeLabelConfig: RichTextStyle = elementToEditorRichTextStyle(currentEdgeStyle.label);
+    const edgeTooltipConfig: RichTextStyle = elementToEditorRichTextStyle(currentEdgeStyle.tooltip);
 
     const handleSelectorBlur = (): void => {
         if (onUpdate) {

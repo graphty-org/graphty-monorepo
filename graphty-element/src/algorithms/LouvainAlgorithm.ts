@@ -132,6 +132,13 @@ export class LouvainAlgorithm extends Algorithm<LouvainOptions> {
      * Executes the Louvain algorithm on the graph
      *
      * Detects communities by optimizing modularity in a hierarchical manner.
+     *
+     * Besides the per-node community id, the run publishes two graph-level results,
+     * groupCount and modularity. App shell spec line 5841 ("Community readings are
+     * method-independent and require group count and modularity from every grouping
+     * method") and line 2324 (the Community result shape "declares its required result
+     * fields ... group id per node, group count, modularity") both require them, and
+     * before this the modularity the algorithm already computed was discarded.
      */
     async run(): Promise<void> {
         const g = this.graph;
@@ -169,6 +176,12 @@ export class LouvainAlgorithm extends Algorithm<LouvainOptions> {
             const communityId = communityMap.get(nodeId) ?? 0;
             this.addNodeResult(nodeId, "communityId", communityId);
         }
+
+        // Store graph-level results: the two fields the Community result shape requires
+        // besides the per-node group id.
+        const groupCount = result.communities.filter((community) => community.length > 0).length;
+        this.addGraphResult("groupCount", groupCount);
+        this.addGraphResult("modularity", result.modularity);
     }
 }
 

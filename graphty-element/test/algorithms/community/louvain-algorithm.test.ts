@@ -2,6 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { LouvainAlgorithm } from "../../../src/algorithms/LouvainAlgorithm";
+import { createMockGraph, getGraphResult } from "../../helpers/mockGraph";
 
 describe("LouvainAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -118,6 +119,59 @@ describe("LouvainAlgorithm", () => {
 
             const { output } = layer.node.calculatedStyle;
             assert.strictEqual(output, "style.texture.color");
+        });
+    });
+
+    describe("Graph Results", () => {
+        /* `louvain()` returns {communities, modularity}, and the run used to keep only the
+           per-node communityId and throw the rest away. A plain-language community reading
+           needs the group count and the modularity, and design 7.5 makes that a
+           requirement of EVERY grouping method, so the run publishes both as graph
+           results. These two boards are what stop them being dropped again. */
+        it("publishes the group count as a graph result", async () => {
+            const graph = await createMockGraph({ dataPath: "./data4.json" });
+            const algo = new LouvainAlgorithm(graph);
+
+            await algo.run();
+
+            const groupCount = getGraphResult(graph, "graphty", "louvain", "groupCount");
+
+            assert.isNumber(groupCount);
+            assert.isAtLeast(groupCount, 1);
+        });
+
+        it("publishes the modularity the method reported, not a recomputed one", async () => {
+            const graph = await createMockGraph({ dataPath: "./data4.json" });
+            const algo = new LouvainAlgorithm(graph);
+
+            await algo.run();
+
+            const modularity = getGraphResult(graph, "graphty", "louvain", "modularity");
+
+            assert.isNumber(modularity);
+            assert.isTrue(Number.isFinite(modularity));
+            // Modularity is bounded on [-0.5, 1] for any partition of any graph.
+            assert.isAtLeast(modularity, -0.5);
+            assert.isAtMost(modularity, 1);
+        });
+
+        it("counts the groups it actually assigned nodes to", async () => {
+            const graph = await createMockGraph({ dataPath: "./data4.json" });
+            const algo = new LouvainAlgorithm(graph);
+
+            await algo.run();
+
+            const groupCount = getGraphResult(graph, "graphty", "louvain", "groupCount");
+            const assigned = new Set<unknown>();
+
+            for (const node of graph.getDataManager().nodes.values()) {
+                const results = (node as { algorithmResults?: Record<string, Record<string, Record<string, unknown>>> })
+                    .algorithmResults;
+
+                assigned.add(results?.graphty?.louvain?.communityId);
+            }
+
+            assert.strictEqual(groupCount, assigned.size);
         });
     });
 

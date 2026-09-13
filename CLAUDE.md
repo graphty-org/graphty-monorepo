@@ -42,6 +42,8 @@ graphty-monorepo/
 ├── tools/                # Build scripts
 │   ├── merge-coverage.sh # Coverage report merging
 │   ├── run-tests.sh      # Unified test runner
+│   ├── prepush.sh        # Pre-push gate (build, lint, knip, fast tests)
+│   ├── commit-changes.sh # Conventional-commit runner (--dry-run stages nothing)
 │   └── validate-outputs.cjs  # Build output validation
 ├── design/               # Architecture and design documents
 ├── .github/workflows/    # CI/CD workflows
@@ -133,6 +135,8 @@ The `tools/` directory contains build scripts:
 | `merge-coverage.sh` | Merges coverage from all packages, supports CI artifacts |
 | `run-tests.sh` | Runs all tests with minimal output, parallel execution |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
+| `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast` |
+| `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 
 ### Port Assignments
 

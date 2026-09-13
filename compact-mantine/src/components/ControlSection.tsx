@@ -53,6 +53,16 @@ export interface ControlSectionProps extends DisclosureProps {
     /** The section's name, drawn in its header. One to three words, sentence case. */
     label: string;
     /**
+     * The technical name for the same thing, WITHOUT its parentheses -- `"Layout"`
+     * beside `"Arrangement"`, `"Node and edge table"` beside `"Data table"`.
+     *
+     * One drawing only: plain name, space, technical name in parentheses in the
+     * secondary ink, inside this one label. It joins the header's tooltip and the
+     * group's accessible name as well, so the pair is never something only a pointer
+     * can reach.
+     */
+    technicalName?: string;
+    /**
      * Whether the section holds settings the reader changed from their
      * defaults. A 6px accent dot follows the name, announced to a screen reader
      * as well as drawn.
@@ -141,6 +151,7 @@ export interface ControlSectionProps extends DisclosureProps {
  * section is correct in either direction with nothing to configure.
  * @param props - Component props
  * @param props.label - The section's name, drawn in its header
+ * @param props.technicalName - The technical half of the 6.3 pair, drawn in the secondary ink inside the same label
  * @param props.opened - Whether the section is expanded, when you drive it from your own state
  * @param props.defaultOpened - Whether the section starts expanded when it keeps its own state, defaulting to true
  * @param props.onOpenChange - Called when the section expands or collapses, with the new state first and the event second
@@ -174,6 +185,7 @@ export interface ControlSectionProps extends DisclosureProps {
 export function ControlSection(props: ControlSectionProps): React.JSX.Element {
     const {
         label,
+        technicalName,
         opened,
         defaultOpened,
         onOpenChange,
@@ -264,11 +276,14 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
     // full text within reach of a pointer when the column is too narrow for it.
     // A screen reader is not relying on the title: CSS ellipsis does not
     // truncate the text it reads, and the expand button repeats the whole name.
+    // The plain-then-technical pair of 6.3, as one label. `fullName` is what a pointer
+    // and a screen reader get; the drawn halves differ only in weight and ink.
+    const fullName = technicalName === undefined ? label : `${label} (${technicalName})`;
     const name = (
         <Box
             component="span"
             id={nameId}
-            title={label}
+            title={fullName}
             data-testid="control-section-name"
             style={{
                 minWidth: 0,
@@ -288,6 +303,15 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
             }}
         >
             {label}
+            {technicalName === undefined ? null : (
+                <Box
+                    component="span"
+                    data-testid="control-section-technical-name"
+                    style={{ fontWeight: 400, color: PANEL_INK.CHROME }}
+                >
+                    {` (${technicalName})`}
+                </Box>
+            )}
         </Box>
     );
 

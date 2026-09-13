@@ -85,7 +85,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
     } = props;
 
     const {
-        isOpen, close, triggerRef, id, parentId,
+        isOpen, close, triggerRef, id, parentId, region,
     } = usePopoutContext();
     // Including zIndexVersion in destructuring ensures re-render when z-index stack changes
     const {
@@ -194,7 +194,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
     // Register/unregister panel with manager when open state changes
     useEffect(() => {
         if (isOpen) {
-            register(id, closeForManager, parentId);
+            register(id, closeForManager, parentId, region);
         } else {
             unregister(id);
         }
@@ -203,7 +203,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             // Cleanup on unmount
             unregister(id);
         };
-    }, [isOpen, id, register, unregister, closeForManager, parentId]);
+    }, [isOpen, id, register, unregister, closeForManager, parentId, region]);
 
     // Which elements the two axes line up with, resolved fresh on every
     // measurement because a parent panel only exists in the DOM while it is open.

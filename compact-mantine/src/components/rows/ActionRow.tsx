@@ -103,6 +103,18 @@ export interface ActionRowProps {
      */
     residentActions?: React.ReactNode;
     /**
+     * Whether this row cannot act, and says so by being drawn dimmer.
+     *
+     * It is the row half of the "not built yet" group form: where three or more
+     * contiguous rows share that status the tag rises once to the group header and the
+     * rows below are "dimmed and disabled instead of tagged individually". The reading
+     * then takes the disabled ink -- a different token from the ordinary muted one --
+     * and the row is announced as unavailable, so nothing about the state depends on
+     * telling two greys apart.
+     * @default false
+     */
+    disabled?: boolean;
+    /**
      * Forces `actions` to be drawn, or forces them hidden, instead of letting
      * the row decide from hover and focus.
      *
@@ -238,6 +250,7 @@ function readingText(state: React.ReactNode): string | undefined {
  * @param props.actions - Controls that act, hidden until the row is hovered or focused, and always drawn where the pointer cannot hover
  * @param props.residentActions - Controls that report a state, which are never hidden
  * @param props.actionsVisible - Forces the hidden controls shown or hidden instead of letting hover and focus decide
+ * @param props.disabled - Whether the row cannot act, which draws its reading at the disabled ink and announces it as unavailable
  * @param props.onClick - Called when the row's own reading is activated, with the event and the activation source
  * @param props.onFocus - Called when focus enters the row or moves between its controls
  * @param props.onBlur - Called when focus leaves a control in the row
@@ -254,8 +267,19 @@ function readingText(state: React.ReactNode): string | undefined {
  * ```
  */
 export function ActionRow(props: ActionRowProps): React.JSX.Element {
-    const { state, stateTitle, busy, live, actions, residentActions, actionsVisible, onClick, onFocus, onBlur } =
-        props;
+    const {
+        state,
+        stateTitle,
+        busy,
+        live,
+        actions,
+        residentActions,
+        actionsVisible,
+        disabled = false,
+        onClick,
+        onFocus,
+        onBlur,
+    } = props;
 
     const announcement = liveRegionProps(live, busy);
 
@@ -341,6 +365,10 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
      * @param event - The click, which a browser also synthesises from Enter and Space
      */
     const handleActivate = (event: React.MouseEvent<HTMLButtonElement>): void => {
+        if (disabled) {
+            return;
+        }
+
         onClick?.(event, getActivationMeta(event));
     };
 
@@ -350,7 +378,7 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
         minWidth: 0,
         fontSize: "var(--mantine-font-size-sm)",
         lineHeight: 1.2,
-        color: PANEL_INK.CHROME,
+        color: disabled ? PANEL_INK.DISABLED : PANEL_INK.CHROME,
         overflow: "hidden",
         textOverflow: "ellipsis",
         whiteSpace: "nowrap",
@@ -377,6 +405,8 @@ export function ActionRow(props: ActionRowProps): React.JSX.Element {
             data-testid="action-row"
             role={isGroup ? "group" : undefined}
             aria-labelledby={isGroup ? readingId : undefined}
+            aria-disabled={disabled || undefined}
+            data-disabled={disabled || undefined}
             onFocus={handleFocus}
             onBlur={handleBlur}
             style={{

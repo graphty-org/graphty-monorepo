@@ -18,6 +18,7 @@ import type { OpenChangeHandler } from "../../types/events";
 import type { PopoutContextValue, PopoutManagerContextValue } from "../../types/popout";
 import { useClickOutside } from "./hooks/useClickOutside";
 import { useEscapeKey } from "./hooks/useEscapeKey";
+import { usePopoutRegion } from "./PopoutRegion";
 
 /**
  * Context for individual Popout instance state.
@@ -115,6 +116,10 @@ export function PopoutProvider({
 }: PopoutProviderProps): JSX.Element {
     const id = useId();
     const triggerRef = useRef<HTMLElement | null>(null);
+    // The region this pop-out was OPENED in, which is where its trigger sits and
+    // not where the panel ends up on screen. It decides which other pop-outs it
+    // competes with; see PopoutRegion.
+    const region = usePopoutRegion();
 
     const [isOpen, setIsOpen] = useUncontrolled<boolean>({
         value: opened,
@@ -177,8 +182,9 @@ export function PopoutProvider({
             toggle,
             triggerRef,
             parentId,
+            region,
         }),
-        [id, isOpen, open, close, toggle, parentId],
+        [id, isOpen, open, close, toggle, parentId, region],
     );
 
     return <PopoutContext.Provider value={value}>{children}</PopoutContext.Provider>;
@@ -211,24 +217,46 @@ export function PopoutManagerProvider({ children }: PopoutManagerProviderProps):
     const closeCallbacksRef = useRef<Map<string, () => void>>(new Map());
     // Map of popout IDs to their parent IDs (for hierarchy tracking)
     const parentMapRef = useRef<Map<string, string | null>>(new Map());
+    // Map of popout IDs to the region they were opened in, which decides which
+    // root-level pop-outs compete with each other (PopoutRegion)
+    const regionMapRef = useRef<Map<string, string | null>>(new Map());
     // Counter that changes when z-index stack changes, for triggering re-renders in consumers
     const [zIndexVersion, setZIndexVersion] = useState(0);
 
     /**
-     * Find all sibling popouts (popouts with the same parent)
+     * Find all sibling popouts: the ones that compete with this one for the
+     * single open slot.
+     *
+     * A nested pop-out competes with the others opened from the same parent. A
+     * root-level one competes only within its own region, so a panel pop-out and
+     * an inspector pop-out can both be open while two panel pop-outs cannot.
+     * With no region in the tree every root-level pop-out shares one group,
+     * which is the whole-page rule this layer had before regions existed.
      * @param targetParentId - The parent ID to match (null for root-level popouts)
+     * @param targetRegion - The region to match, for root-level popouts
      * @returns Array of sibling popout IDs
      */
-    const findSiblings = useCallback((targetParentId: string | null): string[] => {
-        const siblings: string[] = [];
-        for (const id of zIndexStackRef.current) {
-            const idParent = parentMapRef.current.get(id) ?? null;
-            if (idParent === targetParentId) {
-                siblings.push(id);
+    const isSibling = useCallback(
+        (candidateId: string, targetParentId: string | null, targetRegion: string | null): boolean => {
+            if ((parentMapRef.current.get(candidateId) ?? null) !== targetParentId) {
+                return false;
             }
-        }
-        return siblings;
-    }, []);
+
+            // Region separates root-level pop-outs only. Below the root the
+            // parent has already done the separating, and two children of one
+            // parent are siblings whatever region they inherited.
+            if (targetParentId !== null) {
+                return true;
+            }
+
+            return (regionMapRef.current.get(candidateId) ?? null) === targetRegion;
+        },
+        [],
+    );
+
+    const findSiblings = useCallback((targetParentId: string | null, targetRegion: string | null): string[] => {
+        return zIndexStackRef.current.filter((id) => isSibling(id, targetParentId, targetRegion));
+    }, [isSibling]);
 
     /**
      * Find all descendants of a popout using the parent map
@@ -283,7 +311,12 @@ export function PopoutManagerProvider({ children }: PopoutManagerProviderProps):
         }
     }, [getDepth]);
 
-    const register = useCallback((popoutId: string, closeCallback: () => void, parentId?: string | null) => {
+    const register = useCallback((
+        popoutId: string,
+        closeCallback: () => void,
+        parentId?: string | null,
+        region?: string | null,
+    ) => {
         if (zIndexStackRef.current.includes(popoutId)) {
             // Already in the stack: keep the close callback fresh -- a pop-out
             // whose consumer drives it hands over a new one on every render --
@@ -294,9 +327,10 @@ export function PopoutManagerProvider({ children }: PopoutManagerProviderProps):
         }
 
         const normalizedParentId = parentId ?? null;
+        const normalizedRegion = region ?? null;
 
         // Find sibling popouts (exclusive behavior: only one sibling can be open)
-        const siblings = findSiblings(normalizedParentId);
+        const siblings = findSiblings(normalizedParentId, normalizedRegion);
 
         // Collect all IDs to close (siblings and their descendants)
         const idsToClose: string[] = [];
@@ -316,6 +350,7 @@ export function PopoutManagerProvider({ children }: PopoutManagerProviderProps):
         zIndexStackRef.current.push(popoutId);
         closeCallbacksRef.current.set(popoutId, closeCallback);
         parentMapRef.current.set(popoutId, normalizedParentId);
+        regionMapRef.current.set(popoutId, normalizedRegion);
         setZIndexVersion((v) => v + 1);
     }, [findSiblings, findDescendantsInRegister, closePopoutsDepthFirst]);
 
@@ -327,12 +362,14 @@ export function PopoutManagerProvider({ children }: PopoutManagerProviderProps):
             // way.
             closeCallbacksRef.current.delete(popoutId);
             parentMapRef.current.delete(popoutId);
+            regionMapRef.current.delete(popoutId);
             return;
         }
 
         zIndexStackRef.current = zIndexStackRef.current.filter((id) => id !== popoutId);
         closeCallbacksRef.current.delete(popoutId);
         parentMapRef.current.delete(popoutId);
+        regionMapRef.current.delete(popoutId);
         setZIndexVersion((v) => v + 1);
     }, []);
 
@@ -414,18 +451,21 @@ export function PopoutManagerProvider({ children }: PopoutManagerProviderProps):
     }, [closeDescendants]);
 
     const closeSiblings = useCallback((popoutId: string, parentId: string | null) => {
-        // Find all siblings (popouts with the same parent)
-        const stack = zIndexStackRef.current;
-        for (const id of stack) {
+        // Siblings are decided by the same predicate `register` uses, and the
+        // region comes from the registry rather than from the caller: this is
+        // the one public entry point that could otherwise reach across regions
+        // and close a pop-out that never competed with this one.
+        const region = regionMapRef.current.get(popoutId) ?? null;
+
+        for (const id of zIndexStackRef.current) {
             if (id === popoutId) {continue;} // Don't close self
-            const otherParent = parentMapRef.current.get(id);
-            // Same parent (or both root-level with null parent)
-            if (otherParent === parentId) {
+
+            if (isSibling(id, parentId, region)) {
                 // Close sibling and its descendants
                 closeWithDescendants(id);
             }
         }
-    }, [closeWithDescendants]);
+    }, [closeWithDescendants, isSibling]);
 
     const closeFocused = useCallback(() => {
         const stack = zIndexStackRef.current;

@@ -41,7 +41,7 @@ export type {
 
 // The pop-out family: the panel, its parts, its placement vocabulary and the
 // context values its hooks hand back.
-export type { PopoutAnchorProps, PopoutButtonProps, PopoutManagerProps } from "../components/popout";
+export type { PopoutAnchorProps, PopoutButtonProps, PopoutManagerProps, PopoutRegionProps } from "../components/popout";
 export type {
     PopoutAlignment,
     PopoutAnchorTarget,

@@ -76,6 +76,7 @@ import type {
     PopoutPlacement,
     PopoutPosition,
     PopoutProps,
+    PopoutRegionProps,
     PopoutTriggerProps,
     ProseBlockProps,
     RampRowProps,
@@ -173,6 +174,7 @@ type PublicTypeSurface = {
     popoutHeader: PopoutHeaderProps;
     popoutHeaderConfig: PopoutHeaderConfig;
     popoutManager: PopoutManagerProps;
+    popoutRegion: PopoutRegionProps;
     popoutManagerContextValue: PopoutManagerContextValue;
     popoutPanel: PopoutPanelProps;
     popoutPlacement: PopoutPlacement;
@@ -223,6 +225,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "Popout",
     "PopoutButton",
     "PopoutManager",
+    "PopoutRegion",
     "StyleNumberInput",
     "StyleSelect",
     "ToggleWithContent",
@@ -271,6 +274,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "useActualColorScheme",
     "useDirection",
     "usePanelLabels",
+    "usePopoutRegion",
 
     // Constants
     "COMPACT_SIZING",
@@ -505,7 +509,7 @@ describe("Package exports", () => {
             it("exports the closed glyph registers", () => {
                 expect(mainExports.FIELD_GLYPH_NAMES).toHaveLength(8);
                 expect(mainExports.FIELD_LETTERS).toEqual(["N", "E", "W", "D", "K"]);
-                expect(mainExports.UI_GLYPH_NAMES).toHaveLength(15);
+                expect(mainExports.UI_GLYPH_NAMES).toHaveLength(16);
             });
 
             it("exports the guards that read the registers", () => {

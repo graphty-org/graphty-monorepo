@@ -44,6 +44,7 @@ export type UiGlyphName =
     | "refresh"
     | "copy"
     | "pin"
+    | "keepOpen"
     | "info"
     | "reset";
 
@@ -83,6 +84,7 @@ export const UI_GLYPH_NAMES: readonly UiGlyphName[] = [
     "refresh",
     "copy",
     "pin",
+    "keepOpen",
     "info",
     "reset",
 ];
@@ -181,7 +183,8 @@ const FIELD_GLYPH_SHAPES: Record<FieldGlyphName, (filled: boolean) => React.JSX.
 };
 
 // Copied verbatim from the design vocabulary: the row-type snippets of section
-// 11, plus the gear of 14.1, the pin of 12 and the circled i of 6.7.
+// 11, plus the gear of REGISTER-1.5 section 1.1, the pin of 12 and the circled i
+// of 6.7.
 //
 // Three are not verbatim, and all three are deliberate:
 //
@@ -192,6 +195,11 @@ const FIELD_GLYPH_SHAPES: Record<FieldGlyphName, (filled: boolean) => React.JSX.
 //   title, not by their drawing.
 // - `minus` is the horizontal bar of `plus`, so that a control which adds and
 //   a control which removes are drawn at one weight.
+//
+// `keepOpen` is the one entry added after the register closed, recorded in
+// REGISTER-1.5 section 1.1 with its date: it is a padlock, and it is NOT the
+// pushpin, because the pushpin already carries three pin verbs and the
+// inspector's own title row draws one of them (`Pin as A`) beside this control.
 
 /**
  * The inner shapes of each shared UI glyph.
@@ -213,9 +221,14 @@ const UI_GLYPH_SHAPES: Record<UiGlyphName, React.JSX.Element> = {
         </>
     ),
     minus: <line x1="3" y1="8" x2="13" y2="8" />,
+    // Two circles, not one: REGISTER-1.5 section 1.1 ("settings") and VOCAB section
+    // 11 both draw the hub AND the body ring. The single-circle form this entry once
+    // carried came from the gear of VOCAB 14.1, which is a drifted copy of the same
+    // verb; the register is closed, so the register's drawing is the one.
     gear: (
         <>
             <circle cx="8" cy="8" r="2.25" />
+            <circle cx="8" cy="8" r="4.75" />
             <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4" />
         </>
     ),
@@ -249,6 +262,14 @@ const UI_GLYPH_SHAPES: Record<UiGlyphName, React.JSX.Element> = {
         <>
             <path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z" />
             <line x1="8" y1="8.5" x2="8" y2="13.5" />
+        </>
+    ),
+    // A padlock: the shackle is a half-round arch over a closed body, drawn in
+    // the same 16px box at the same 1.5 stroke as every other entry.
+    keepOpen: (
+        <>
+            <rect x="3.5" y="7" width="9" height="6.5" rx="1" />
+            <path d="M5.75 7V5.25a2.25 2.25 0 0 1 4.5 0V7" />
         </>
     ),
     info: (

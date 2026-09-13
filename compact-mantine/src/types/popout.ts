@@ -362,6 +362,15 @@ export interface PopoutContextValue {
      * everything opened from it.
      */
     parentId: string | null;
+    /**
+     * The region this pop-out was opened in, or null when it sits in no region.
+     *
+     * Root-level pop-outs compete for one open slot per region, so a pop-out
+     * opened in a panel and one opened in an inspector can both be open while
+     * two opened in the same panel cannot. It is the opener's region, not the
+     * panel's screen position.
+     */
+    region: string | null;
 }
 
 /**
@@ -373,8 +382,11 @@ export interface PopoutContextValue {
  * out of `Popout` never needs it.
  */
 export interface PopoutManagerContextValue {
-    /** Adds a pop-out to the layer, with the callback that closes it and the pop-out it was opened from. */
-    register: (id: string, closeCallback: () => void, parentId?: string | null) => void;
+    /**
+     * Adds a pop-out to the layer, with the callback that closes it, the pop-out
+     * it was opened from, and the region it was opened in.
+     */
+    register: (id: string, closeCallback: () => void, parentId?: string | null, region?: string | null) => void;
     /** Takes a pop-out out of the layer, when it leaves the page. */
     unregister: (id: string) => void;
     /** The stacking order a pop-out currently draws at. */

@@ -15,7 +15,7 @@ export { ControlSubGroup } from "./components/ControlSubGroup";
 export { DataTable } from "./components/DataTable";
 export { GradientEditor } from "./components/GradientEditor";
 export { InfoCircle } from "./components/InfoCircle";
-export { Popout, PopoutButton, PopoutManager } from "./components/popout";
+export { Popout, PopoutButton, PopoutManager, PopoutRegion, usePopoutRegion } from "./components/popout";
 export { StyleNumberInput } from "./components/StyleNumberInput";
 export { StyleSelect } from "./components/StyleSelect";
 export { ToggleWithContent } from "./components/ToggleWithContent";
@@ -172,6 +172,7 @@ export type {
     PopoutPlacement,
     PopoutPosition,
     PopoutProps,
+    PopoutRegionProps,
     PopoutTriggerProps,
     ProseBlockProps,
     RampRowProps,

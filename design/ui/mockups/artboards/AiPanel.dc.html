@@ -530,7 +530,12 @@
             <!-- Tier 1: chat input; the microphone at the right (speech recognition available) is in its listening state.
                  Cancel appears on the in-flight message and Retry on a failed one; neither applies here, the answer is complete.
                  NAV-9: backtick focuses the assistant input when a provider is configured and the console otherwise;
-                 Shift+backtick always focuses the console. -->
+                 Shift+backtick always focuses the console.
+
+                 SEND GESTURE, 2026-09-12, from the product owner: Cmd/Ctrl+Enter sends and Enter opens a new
+                 line. This board drew `Send (Enter)`; the tooltip below is amended, and 5.6 now carries an AI
+                 row so the chip comes from the one binding table. The field is one line that grows to four,
+                 and a field whose Enter sends cannot be typed into. -->
             <div style="display: flex; align-items: center; gap: 4px;">
               <div title="Ask the assistant (`)" style="flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-shadow: 0 0 0 1px #5b8ff9; font-size: 11px; color: #7a828e; box-sizing: border-box; white-space: nowrap; overflow: hidden;">
                 <div style="width: 6px; height: 6px; border-radius: 50%; background: #eb4949;"></div>
@@ -539,7 +544,7 @@
               <div title="Stop listening" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #28364e; color: #4a7ee8; cursor: pointer;">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="4" height="7" rx="2"></rect><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0"></path><line x1="8" y1="12" x2="8" y2="14"></line><line x1="5.5" y1="14" x2="10.5" y2="14"></line></svg>
               </div>
-              <div title="Send (Enter)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #4a7ee8; color: #ffffff; cursor: pointer;">
+              <div title="Send (Cmd+Enter)" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #4a7ee8; color: #ffffff; cursor: pointer;">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2L2 6.5l5.5 2 2 5.5z"></path><line x1="14" y1="2" x2="7.5" y2="8.5"></line></svg>
               </div>
             </div>

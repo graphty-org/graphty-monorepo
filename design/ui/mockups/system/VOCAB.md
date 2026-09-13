@@ -140,7 +140,7 @@ implemented). No letter-spacing anywhere.
 | activity rail | width 48px, full height between top of frame and status bar |
 | top bar | height 40px, spans everything right of the rail |
 | activity panel | width 280px |
-| inspector | width 280px (spec; the current RightSidebar is 260px, use 280) |
+| inspector | width 280px (spec; the superseded RightSidebar was 260px -- use 280. That component was deleted 2026-09-12; 280 remains the value) |
 | status bar | height 24px, spans the full 1440px width |
 | canvas at 1440x900 | 832px wide by 836px tall |
 | canvas at 1180x820 (iPad, no docked panels) | 1132px wide by 756px tall |

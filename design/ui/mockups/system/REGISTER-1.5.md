@@ -40,6 +40,8 @@ one reason, after a full stop.
 | close (dialog, overlay, palette, strip) | `<line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line>` | `Close (Esc)` |
 | close panel | `<line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line>` | `Close the panel (Cmd+B)` |
 | toggle inspector | `<rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="10" y1="2.5" x2="10" y2="13.5"></line>` | `Toggle inspector (D)` |
+| toggle panel (added 2026-09-12, section 18) | `<rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="6" y1="2.5" x2="6" y2="13.5"></line>` | `Toggle panel (Cmd+B)` |
+| keep open (added 2026-09-12, section 18) | `<rect x="3.5" y="7" width="9" height="6.5" rx="1"></rect><path d="M5.75 7V5.25a2.25 2.25 0 0 1 4.5 0V7"></path>` | `Keep open` |
 | collapse inspector (the inspector title row's own control, drawn at 12px) | `<polyline points="6,4 10,8 6,12"></polyline>` | `Toggle inspector (D)` -- see section 16 |
 | compare | `<rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="8" y1="2.5" x2="8" y2="13.5"></line>` | `Compare two views` / disabled `Compare two views. Load data first` |
 | undo | `<path d="M4 6h6.5a3 3 0 0 1 0 6H7"></path><polyline points="6.5,3.5 4,6 6.5,8.5"></polyline>` | `Undo (Cmd+Z)` / disabled `Undo (Cmd+Z). Nothing to undo yet` |
@@ -1340,3 +1342,39 @@ fourth concept -- the size **channel**, rather than the smallest or the largest
 value on it -- in which case it needs its own row and its own argument. It is not
 settled here because the answer changes the title as well as the path, and this
 section's remit is the field-glyph debt.
+
+## 18. Two entries added after the register closed (2026-09-12)
+
+The register is closed, so an addition is an event and is dated. Both of these
+come from the product owner, through design 5.1 and 6.12 revision 1.11, and
+both are already drawn in the build -- `toggle panel` in the top bar's glyph
+table, `keep open` in `@graphty/compact-mantine`'s `UiGlyph` register, where it
+is the first entry added since that module was transcribed. A register audit
+that finds either drawing and not this section should read it as drift; with
+this section it is an amendment.
+
+**`toggle panel`, the second region switch.** 1.1 already registers `toggle
+inspector` as a rect with its divider on the right edge. The panel's switch is
+the exact mirror -- the same rect, the divider on the LEFT -- because the two
+say the same thing about opposite sides of the canvas and the only fact that
+separates them is which side the column is drawn on. They are always drawn as a
+pair, panel then inspector, in the order the regions sit on screen. The title
+takes the binding the panel header's X already carries, `Cmd+B` on an Apple
+platform and `Ctrl+B` elsewhere, and it never renames itself when it is on
+(section 10.2). This does not disturb the note under section 8 about `Toggle
+inspector` carrying two drawings: the top bar's rect and the title row's caret
+are still the pair that section leaves open, and this is a third verb, not a
+third drawing of that one.
+
+**`keep open`, a padlock, and why it is not the pushpin.** The activity panel
+and the inspector each gained one latch control titled `Keep open`, which holds
+its surface on screen against every close the shell performs on its own (design
+6.12, "The latch"). Section 8 already assigns the pushpin three verbs and rules
+that "the three never share a row"; one of those three is a keep-open, `Pin this
+open` in a pop-out header. A fourth pushpin verb would have had to share a row
+with `Pin as A` in the inspector's own title row, which is exactly what section
+8 forbids and exactly what a reader could not tell apart. So the latch spends
+one new drawing instead of one more reuse: a padlock at the register's 16px box
+and 1.5 stroke, a body and a shackle, drawn at 14px in both title rows. One
+verb, one word, one drawing, in two regions. The pushpin's three verbs and its
+`never share a row` rule are unchanged.

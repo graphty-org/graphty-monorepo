@@ -110,7 +110,8 @@ and any string one word longer landed on a different board each time.
 
     <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 4px;">
 
-Three slots, always in this order, and **nothing else is ever in this row**:
+Three slots, always in this order, and **nothing else is ever in this row** --
+see the 2026-09-12 override at the end of this section, which adds a fourth:
 
 | # | verb | glyph (REGISTER) | drawn when |
 |---|---|---|---|
@@ -166,6 +167,44 @@ Cluster widths, and the name band each leaves:
 Band = 279 (280 less the 1px border) - 16 left pad - 8 right pad - 8 row gap -
 cluster. Three bands, and each one is decided by the row's own state rather than
 by which glyph and padding the board happened to carry.
+
+### Override, 2026-09-12: a fourth slot, `Keep open`
+
+The product owner asked for a latch on both the activity panel and the inspector
+("panels should have a pin to keep them open / in manual mode"), and design 6.12
+"The latch" grants it. It is drawn in this row, and it is a fourth 24px control,
+so the refusal above is overridden rather than reinterpreted. Recording it here
+is the point: a later audit that finds four icons in this row and not this note
+should read it as the drift this pass existed to remove.
+
+The order becomes `Copy reading`, `Pin as A` when the selection takes it,
+`Keep open`, `Toggle inspector (D)` -- the latch immediately left of the control
+that dismisses the column, so the pair reads as keep-open against dismiss, the
+same relationship the pop-out header already has (REGISTER-1.5 section 8).
+`Keep open` is drawn with the new `keepOpen` padlock and never with the pushpin,
+because `Pin as A` is in the same row and the two are different objects: one
+freezes the content, one holds the surface.
+
+What it costs, measured against the table above rather than asserted:
+
+| row state | cluster | band | change |
+|---|---|---|---|
+| Copy + Keep open + close | 3 x 24 + 2 x 4 = 80 | **167** | was Copy + close at 52 / 195 |
+| Copy + Pin + Keep open + close | 4 x 24 + 3 x 4 = 108 | **139** | was Copy + Pin + close at 80 / 167 |
+
+So the always-drawn cluster takes the 80 / 167 numbers the three-icon state
+already had, and the pinned state takes the 108 / 139 this section refused: in
+that one state a name longer than 139px ellipsizes into its own title, and the
+example the refusal named, `Categories for group 3`, is one of them. The 153px
+`Selection  7 nodes, 4 edges` of MultiSelection still fits at 167 and truncates
+at 139, which is the state it is drawn in. That is the accepted cost.
+
+What was NOT done, and why: `Pin as A` was not moved out of the row to pay for
+the latch. Its delta machinery -- the pinned card, the per-row "against A"
+readings and the shell state behind them -- reads from this position, and moving
+a working comparison to save 28px would have risked the feature to protect a
+band. The row is four icons wide in one state, by decision, and the two
+measurements above are what that decision costs.
 
 ## 5. The register entry this pass adds
 

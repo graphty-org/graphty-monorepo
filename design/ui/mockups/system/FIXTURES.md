@@ -18,7 +18,7 @@ them, and nothing else.
 | | cat social network | fraud ring | ovarian STRING |
 |---|---|---|---|
 | File on screen | `cat-social-network.json` | `fraud-ring-synthetic.json` | `ovarian_de_string.tsv` |
-| Source of truth | REAL: `TEST_GRAPH_DATA` in `graphty/src/components/layout/AppLayout.tsx` | INVENTED | INVENTED |
+| Source of truth | REAL: `CAT_SOCIAL_NETWORK` in `graphty/src/data/sampleGraphs.ts` | INVENTED | INVENTED |
 | Nodes | 20 | 200 | 318 |
 | Edges | 29 | 612 | 1,104 |
 | Direction | undirected | directed | undirected |
@@ -33,10 +33,16 @@ carried a verified contradiction: `security-events-120k.csv`.
 
 ---
 
-## 1. Cat social network -- COMPUTED from AppLayout.tsx
+## 1. Cat social network -- COMPUTED from sampleGraphs.ts
 
-Extracted from the literal `TEST_GRAPH_DATA` object. Every number in this
+Extracted from the literal `CAT_SOCIAL_NETWORK` object. Every number in this
 section was computed from that object, not chosen.
+
+2026-09-12, at the product owner's request: the superseded `AppLayout` shell was
+deleted, and with it the `TEST_GRAPH_DATA` alias this section used to name. The
+fixture itself did not move or change -- `AppLayout.tsx` only aliased the object
+that has always lived in `graphty/src/data/sampleGraphs.ts` -- so every number
+below stands as computed and only the pointer was repaired.
 
 ### 1.1 Counts
 

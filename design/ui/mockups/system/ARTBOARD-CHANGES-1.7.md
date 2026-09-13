@@ -1592,9 +1592,10 @@ is the one every other board copies (SHELL-SKELETON inherits it under POP-0).
      edge-type table with the seven interactionType values and their counts,
      `social 8`, `play 5`, `territorial 4`, `medical 4`, `feeding 4`,
      `romantic 2`, `hunting 2` (these are the real values in
-     `graphty/src/components/layout/AppLayout.tsx` TEST_GRAPH_DATA, which is
-     where every other cat string on this board comes from -- read them there,
-     do not invent); then **the type-pair list drawn as a matrix**, node types on
+     `graphty/src/data/sampleGraphs.ts` `CAT_SOCIAL_NETWORK`, which is where
+     every other cat string on this board comes from -- read them there, do not
+     invent; this cited `AppLayout.tsx` TEST_GRAPH_DATA until that shell was
+     deleted 2026-09-12, which only aliased this same object); then **the type-pair list drawn as a matrix**, node types on
      both axes, edge counts in the cells: cat-cat 19, cat-human 8, cat-dog 2,
      and 0 in the human-human, human-dog and dog-dog cells (29 total, computed
      from the same file); then one RT-7 row carrying `Filter to type`,

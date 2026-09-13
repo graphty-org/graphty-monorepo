@@ -1,7 +1,7 @@
 # Graphty App Shell and Progressive Disclosure Design
 
-Status: draft 1.9, validated, the always-expands section rule applied
-Date: 2026-09-08
+Status: draft 1.11, validated, three changes taken directly from the product owner
+Date: 2026-09-12
 Scope: the graphty React application (`graphty/`), not graphty-element
 
 ## 1. Purpose
@@ -35,11 +35,19 @@ six-field rule for placing any new capability.
   compact Mantine).
 - Existing shell: `graphty/src/components/layout/` (TopMenuBar, LeftSidebar,
   RightSidebar, BottomToolbar, AppLayout) and `graphty/src/components/sidebar/`
-  (style layer controls).
+  (style layer controls). REMOVED 2026-09-12 at the product owner's request:
+  TopMenuBar, RightSidebar, BottomToolbar and AppLayout are deleted, along with
+  the `?legacy` route that reached them, so the shell in this document is now
+  the only shell. `LeftSidebar` survives as the Style panel's layer list, and
+  `components/sidebar/` survives as the style layer controls. This bullet is
+  kept as a record of what the design was drawn from.
 - Existing data view: `graphty/src/components/data-view/` (ViewDataModal,
   DataGrid, DataAccordion, pathUtils) and
   `design/ui/data-view-feature-design.md`. The Data table and the inspector
-  attributes table build on these components. Schema inference:
+  attributes table build on these components. `ViewDataModal` was deleted
+  2026-09-12 with the rest of the old shell -- the Data table drawer supersedes
+  it; `DataGrid`, `DataAccordion` and `pathUtils` survive and are still what the
+  inspector's attributes table is built on. Schema inference:
   `graphty-element/src/ai/schema/` (SchemaExtractor, SchemaManager).
 - Prior research: `design/ui/progressive-disclosure-design.md`,
   `design/ui/figma-style-sidebar.md`, `design/ui/compact-ui-design.md`.
@@ -54,7 +62,7 @@ six-field rule for placing any new capability.
 | AI role | Power feature. Placed in the shell, but the novice path works without it. |
 | Platform | Desktop first. Must work on an iPad with Magic Keyboard (about 1180 by 820 points). Touch is secondary; controls keep desktop density. |
 | Component library | Mantine, with the compact sizing already in the app. |
-| Sample data for mockups | The cat social network dataset already in `AppLayout.tsx` (20 nodes, 29 edges). |
+| Sample data for mockups | The cat social network dataset in `graphty/src/data/sampleGraphs.ts` (20 nodes, 29 edges). Cited as `AppLayout.tsx` until that shell was deleted 2026-09-12; the data is the same object, which `AppLayout.tsx` only aliased. |
 | Report Builder view | Folded into the Present panel. Not a separate screen. |
 | Onboarding wizard | Dropped. Replaced by the Insights strip and plain-language readings. |
 | Project save | Not in this pass. The top bar carries no dirty indicator, and adding save verbs to the individual saved things (5.3, Saved things) does not add one: a style template is how to draw a graph, a project file is the graph. See sections 11 and 12. |
@@ -98,18 +106,20 @@ six-field rule for placing any new capability.
 
 ```
 Desktop (>= 1280 px wide)
++---------------------------------------------------------------------+
+|  top bar: dataset name | undo redo | cmd-K | export v | compare | share | panel | inspector |
 +----+----------------+------------------------------+----------------+
-| R  |  top bar: dataset name | undo redo | cmd-K | export v | compare | share |
-| A  +----------------+------------------------------+----------------+
-| I  |  Activity      |                              |  Inspector     |
-| L  |  panel         |         canvas               |                |
-|    |  (one of Data, |                              |  (selection-   |
-| D  |   Explore,     |   [insights strip]           |   driven)      |
-| E  |   Analyze,     |                              |                |
-| A  |   Style,       |                              |                |
-| S  |   Present,     | [minimap] [toolbar] [legend] |                |
-| P  |   AI)          |   [time slider, if timed]    |                |
-| AI |                |   [data table drawer, if on] |                |
+| R  |  Activity      |                              |  Inspector     |
+| A  |  panel         |         canvas               |                |
+| I  |  (one of Data, |                              |  (selection-   |
+| L  |   Explore,     |   [insights strip]           |   driven)      |
+|    |   Analyze,     |                              |                |
+| D  |   Style,       |                              |                |
+| E  |   Present,     | [minimap] [toolbar] [legend] |                |
+| A  |   AI)          |   [time slider, if timed]    |                |
+| S  |                |   [data table drawer, if on] |                |
+| P  |                |                              |                |
+| AI |                |                              |                |
 | .. |                |                              |                |
 | *  |                |                              |                |
 | ?  |                |                              |                |
@@ -118,9 +128,25 @@ Desktop (>= 1280 px wide)
 +---------------------------------------------------------------------+
 ```
 
+Amendment 2026-09-12, at the product owner's direction ("make the top bar go
+all the way across the top, not stop at the mode selector on the left"): the
+top bar spans the FULL shell width above the rail, and the rail begins below
+it. Both bars now cross the shell; the rail spans neither. Until this revision
+the frame put the top bar to the RIGHT of the rail and ran the rail from the
+very top of the window, and that is still what the 59 artboards drawing shell
+chrome show -- they were deliberately left alone in this pass, so where a board
+and this section disagree about the bar, this section wins and the board is the
+thing to correct. Nothing measured moved with the change: the rail keeps its 48
+px column to the left of panel, canvas and inspector, so the body row, the
+canvas rect and the canvas toolbar's centring are identical to the pixel. What
+did change, and is visible: the dataset name now starts at the window's own 12
+px padding rather than 12 px inside the rail, and the centre group centres on
+the window rather than on the canvas.
+
 Regions:
 
-- Activity rail. Fixed 48 px column on the left edge. Icons top to bottom:
+- Activity rail. Fixed 48 px column on the left edge, starting below the top
+  bar. Icons top to bottom:
   Data, Explore, Analyze, Style, Present, AI. Pinned at the bottom: Settings,
   Help. One activity is active at a time. Clicking the active icon closes its
   panel. The Data icon carries an unnumbered warning dot when the validation
@@ -278,7 +304,15 @@ Regions:
   toggle (enters Compare mode, section 5.3, Analyze), a Share button that
   opens a menu (Export data with a CX2 or GraphML preset, Copy image, both
   landing in Present; its tooltip names NDEx upload as a later phase, section
-  11; the button is never drawn without this menu), inspector toggle.
+  11; the button is never drawn without this menu), then the two region
+  switches: panel toggle, inspector toggle.
+  The panel's switch is an amendment of 2026-09-12, at the product owner's
+  direction ("the right panel has an open / close button, but the left
+  doesn't"): the two switches are a PAIR, drawn the same and lit the same, in
+  the order the regions sit on screen, and the panel's runs the same Cmd+B the
+  panel header's X already advertises. Before it, the panel could be closed
+  from its own X and reopened only from the rail, whose icons choose an
+  activity rather than show or hide the column.
   There is no saved or unsaved indicator, because there is no project save in
   this pass. The hamburger menu in the current TopMenuBar is removed. File
   actions move to the Data panel, view toggles to the canvas toolbar
@@ -405,12 +439,24 @@ Breakpoint: below 1280 px.
 - The rail and canvas are always visible.
 - The activity panel overlays the canvas from the left. The inspector overlays
   from the right. Only one overlay is open at a time. Opening one closes the
-  other. The Data table drawer overlays the canvas from the bottom, coexists
+  other, unless the other is KEPT OPEN (6.12), in which case the newly opened
+  surface takes the dismissible slot and the kept one stays; at most one
+  surface may be kept open below 1280 px, so the rule still leaves a graph to
+  read. The Data table drawer overlays the canvas from the bottom, coexists
   with the inspector, and closes the activity panel.
 - Overlays close on Escape, on tapping the canvas, or on clicking the active
-  rail icon. Tapping the canvas toolbar is not tapping the canvas: the toolbar
-  is drawn inside the canvas element, and without this clause a tap on Zoom to
-  fit would dismiss the panel the user is working in.
+  rail icon -- and a kept-open overlay closes on none of those three, only on
+  its own close control (6.12). Tapping the canvas toolbar is not tapping the
+  canvas: the toolbar is drawn inside the canvas element, and without this
+  clause a tap on Zoom to fit would dismiss the panel the user is working in.
+  Neither is a tap that SELECTS a node or an edge: that tap is the one that
+  fills the inspector, and dismissing the inspector on it makes a selection
+  impossible to explore -- which is what it did until this clause was written
+  on 2026-09-12, at the product owner's direction ("when I click to select a
+  node in the graph it closes the right panel"). A tap that selects is told
+  from a tap on empty space by what the pick produced, which the element
+  reports before the tap is handled; a tap that clears the selection is a tap
+  on the canvas and dismisses as before.
 - A pop-out (6.11) is a second sheet over its panel at full panel width with a
   back chevron in its header, so the one-overlay-at-a-time rule holds. The
   anchor rule of 6.11 does not apply below 1280 px and is not approximated: a
@@ -3000,22 +3046,25 @@ verb, which are floor item 4.
 
 AI
 
-- Tier 1: Chat input, message history, per-step list showing each tool call
-  and the panel it belongs to; a microphone button at the right of the
-  input, shown only when speech recognition is available, with a listening
-  state (in an XR session it becomes push-to-talk, held rather than toggled,
-  5.9); Cancel on the in-flight message; Retry on a failed message. Tool
-  results shown in the step list and returned to the assistant are
-  summaries, never lists: a result summary carries the same fields as the
-  result card reading (top 10 with scores, count, mean and median, group
-  count and largest sizes, sample size, duration); node lookups are capped
-  at 100 with "and N more"; canvas highlighting of affected nodes is capped
-  at 1,000. Each step row carries a second muted line with scope and method
-  ("on 100,000 nodes, 100 sampled sources, 38 s"), matching the card's
-  scope line. The step row's title is a link: it opens the step's home panel,
-  scrolls to the control or result the step produced and highlights it for two
-  seconds, and never re-runs anything (7.4). A step taken by voice in a headset
-  carries "by voice, in VR" on that second line (5.9). Style-application steps show the restyle progress row. During
+- Tier 1: Chat input -- one line that grows to at most four, where Enter opens
+  a new line and the platform key plus Enter sends (5.6; moved off Enter on
+  2026-09-12 at the product owner's request) -- message history, per-step
+  list showing each tool call and the panel it belongs to; a microphone
+  button at the right of the input, shown only when speech recognition is
+  available, with a listening state (in an XR session it becomes
+  push-to-talk, held rather than toggled, 5.9); Cancel on the in-flight
+  message; Retry on a failed message. Tool results shown in the step list
+  and returned to the assistant are summaries, never lists: a result summary
+  carries the same fields as the result card reading (top 10 with scores,
+  count, mean and median, group count and largest sizes, sample size,
+  duration); node lookups are capped at 100 with "and N more"; canvas
+  highlighting of affected nodes is capped at 1,000. Each step row carries a
+  second muted line with scope and method ("on 100,000 nodes, 100 sampled
+  sources, 38 s"), matching the card's scope line. The step row's title is a
+  link: it opens the step's home panel, scrolls to the control or result the
+  step produced and highlights it for two seconds, and never re-runs anything
+  (7.4). A step taken by voice in a headset carries "by voice, in VR" on that
+  second line (5.9). Style-application steps show the restyle progress row. During
   Loading the input is enabled but every step and reading carries "Partial
   data (24% loaded)". The assistant receives the graph-level note and up to
   50 most recent open notes as context, can search notes with a findNotes
@@ -3354,6 +3403,14 @@ live content; the live content continues to follow the selection and its
 numeric rows show a delta against A. One pin at a time; unpin from the card
 or on data reload. Below 1280 px the pinned card is a second tab of the
 inspector overlay.
+
+What this pin is NOT: it is not the "Keep open" latch that sits beside it in
+the same header. The pin holds the CONTENT -- a frozen reading to compare the
+live one against -- and the latch holds the SURFACE on screen. They are two
+objects with two words and two drawings (the pushpin and a padlock), and
+6.12's "The latch" owns the second; this section owns only the first. The
+inspector is otherwise a pure function of the selection, and the latch is the
+one thing that decides whether the column is drawn at all.
 
 | Selection | Inspector shows |
 |---|---|
@@ -3708,6 +3765,16 @@ Browser shortcuts are never overridden.
 | In a panel | Enter; Cmd/Ctrl+Enter | Run the focused card with current parameters; open its parameters |
 | In a panel | Tab | Follows tier order |
 | Inspector notes | Cmd/Ctrl+Enter; Escape | Save the note; cancel |
+| AI | Cmd/Ctrl+Enter | Send the message. Enter opens a new line |
+
+2026-09-12, from the product owner: the AI composer's send gesture MOVED
+from Enter to Cmd/Ctrl+Enter, and Enter now opens a new line. The reason is
+the composer's own shape -- one line that grows to four -- and a field whose
+Enter sends cannot be typed into; the gesture is now identical to Inspector
+notes, which 5.4 already describes as one line that grows. The AI row above
+is new: this section previously had no row for the composer at all, which is
+how its Send tooltip came to print a chip no table owned. Both AI artboards
+drew that tooltip as `Send (Enter)` and are amended to `Send (Cmd+Enter)`.
 
 Rail activities have no hotkeys: no digit modifier is collision-free
 (section 12); the palette is the keyboard path to a panel. Never bound: Cmd
@@ -5228,9 +5295,9 @@ pop-out and keeps the originals. A pinned pop-out that survives a selection
 change is a second inspector, which is the panel this section exists to
 split.
 
-Multiplicity. At most one per region, and the regions are five: the activity
+Multiplicity. At most one per region, and the regions are six: the activity
 panel, the inspector, the canvas overlay, a dialog for as long as it is open,
-and a dock. Opening a second in the same region closes the first, which is
+a dock, and Settings, which 6.12 adds and argues. Opening a second in the same region closes the first, which is
 correct where both describe the same object and is recorded here because it is
 otherwise discovered by frustration. Two clauses make the limit non-arbitrary
 rather than merely restrictive. The region is the OPENER's region, not the
@@ -5384,6 +5451,170 @@ stays in the band.
 | The "+ Analysis" catalogue | the one panel-scale drill-down, refused | Not one member and not a report read once; and every rung of the width ladder collides with the preview's fixed centred home, measured (preview x 604 to 884; a 360 pop-out at 336 runs to 696, a 280 one to 616) |
 | The Recipes library, the Styles library | collapsed sections, refused | Both fail question 4 on all three counts. A closed section and a door cost the same row; the RT-8 trailing slot carries the recipe count or the active style's own name |
 | A cost estimate, a cap warning, a destructive confirm | pop-out, 280, two verbs, no close X | It is a governed surface, not a floating card. A cost gate, which is not a confirm, stays inline on the control that spends the cost |
+
+### 6.12 Surface lifecycle
+
+This section owns when a surface opens, when it closes, what survives its
+closing, and where focus goes when it is gone. It exists because those rules
+were being decided in five places -- 5.1 for the panel and the inspector, 5.2
+for the narrow breakpoint, 5.6 for the Escape ladder, 6.5 for what is
+remembered, 6.11 for pop-outs -- and a rule with five homes is a rule with no
+owner. What it does is put one front door on them and rule on the questions
+none of them answered, each of which was reached by a reader before it was
+reached by a drafter.
+
+Until 2026-09-12 this section moved no decision those sections had already
+made. It moves one now: the latch below is a user-controlled veto on the
+closes 5.2 performs, added at the product owner's direction, and 5.2 is
+amended to say so.
+
+Where the settled rules live, so that this section is the only place a reader
+has to start:
+
+| Question | Owned by |
+|---|---|
+| One activity at a time; the active rail icon closes its panel | 5.1 |
+| Panels never float; docks resize the canvas and overlays do not | 5.1 |
+| One overlay at a time below 1280 px, and what the drawer closes there | 5.2 |
+| Escape's six rungs, and that Escape never closes the desktop panel | 5.6 |
+| What survives a reload, per user | 6.5 |
+| One pop-out per region; a pop-out closes when its opener's section collapses or its region changes activity | 6.11 |
+| Which closes a reader may refuse, and how that is remembered | 6.12, The latch |
+
+#### The latch
+
+Added 2026-09-12, at the product owner's direction: "panels should have a pin
+to keep them open / in manual mode, and should only close if the pin isn't
+selected."
+
+The activity panel and the inspector each carry one control in their own title
+row, titled `Keep open`, drawn as a padlock, reporting its state as a pressed
+toggle and never renaming itself. It is NOT a pin and is deliberately not drawn
+with the pushpin: the inspector already draws `Pin as A` (5.4), which freezes a
+copy of the content for comparison, and two pushpins in one 36 px row would
+read as one idea drawn twice. One holds content, the other holds the surface.
+
+What the latch does, in one sentence: a KEPT surface is never closed by the
+shell, only by the reader. Applied, a kept surface is not closed by
+
+- the narrow one-overlay-at-a-time rule of 5.2, when the other surface opens,
+- the Data table drawer opening below 1280 px, which 5.2 otherwise closes the
+  panel for -- and which costs the drawer nothing, since 5.2 already says the
+  drawer never covers the panel,
+- a tap on the canvas, including a tap on empty canvas,
+- Escape's third rung, which passes over it to the next rung, or
+- a selection change, which never closed a surface and now cannot start to.
+
+and IS closed by the controls that mean close and nothing else: the header X or
+collapse control, the top bar's switch for that region, the binding behind that
+switch (Cmd+B, D), and the rail's click on the already-active activity. Those
+are the reader's own gestures; the latch exists to refuse the shell's, not the
+reader's. An UNKEPT surface behaves exactly as it did before this section
+existed, which is what keeps 5.2 true for everyone who never touches the
+control.
+
+Below 1280 px at most ONE surface may be kept, and latching one releases the
+other. Without that rule a 1200 px window spends 48 + 280 + 280 on chrome and
+leaves the reader nothing to annotate, and 5.2's one-overlay guarantee has
+nothing left to guarantee. On desktop both may be kept, because neither is an
+overlay there. Where one surface is kept and the other is open, the UNKEPT one
+holds the dismissible slot, because it is the only one a tap may close.
+
+It is remembered per 6.5, as two booleans beside the inspector's collapsed
+state, and it SURVIVES the dataset boundary below on that section's own test:
+what a reader keeps open is true of the reader, not of the graph. It is not the
+comparison pin, which does not survive; getting those two the wrong way round
+makes the latch forget itself on every file open, which is the complaint it was
+added to answer.
+
+#### The dataset boundary
+
+Two events cross it: Close dataset (5.3 Data, technical: New session), and a
+load that replaces the dataset rather than adding to it. They are one rule
+because the second is the first with a load on the end, and writing them
+separately is how they would come to disagree.
+
+The principle that decides every case, and it is 6.5's own: memory is per USER,
+and a dataset's facts are not memory. A surface survives the boundary when what
+it holds is true of the person, and does not when what it holds is true of the
+graph that has gone. Applied:
+
+Survives, because it describes the user's working habits and the next dataset
+inherits them: panel and inspector widths, the inspector's collapsed state,
+both `Keep open` latches (The latch, above), tier 2 section open states, the
+last active activity, the canvas toolbar, minimap and legend visibility,
+density, label order, decimal places, and both switches of 6.9 Rule 11. A user who closes one file and opens another has not
+changed their mind about how they work, and a shell that resets to defaults at
+every boundary makes them say so again on every file.
+
+Does not survive, because its subject no longer exists: the selection and the
+selected style layer, a pinned inspector card -- the COMPARISON pin of 5.4,
+which already says this and it is the general case of that clause, and not the
+latch above, which does survive -- every open pop-out, the context menu, the
+command palette, active filters and the time window, algorithm results and
+their run records, and the Data table drawer, which closes because a drawer
+with no rows is the empty surface 6.2 forbids -- its remembered open state and
+height survive under 6.5, so the next load restores it rather than reopening
+the argument.
+
+The rail and the active activity. Closing a dataset returns the state axis to
+Empty, and Empty disables Explore, Analyze, Style and Present (6.1). If the
+active activity is one of those four it moves to Data, which is where a reader
+goes to get a dataset and therefore the only destination that is not arbitrary;
+if it is not one of the four it does not move, because Data, AI, Settings and
+Help all still have something to show. The move does NOT write the remembered
+last-active activity. This is the whole of the clause and the reason it is
+worth a sentence: a display consequence of the state axis must not overwrite a
+memory, or closing a file silently forgets where the user was working and the
+next load opens somewhere they did not leave.
+
+The first-load rule of 5.1 does not fire again. It is the session's first load,
+not the dataset's, and a reader who has already been moved to Explore once and
+has since chosen otherwise is not moved a second time.
+
+A load that ADDS to the dataset crosses no boundary and nothing here applies:
+the selection, the filters and the open surfaces are all still about a graph
+that still exists.
+
+#### Focus when a surface disappears
+
+A surface that holds focus and then closes must hand focus somewhere, and the
+one answer that is always wrong is the document body: focus on the body makes
+the next Tab start at the top of the page and makes F6 (5.6) begin its ring
+from nowhere, so a keyboard reader who closes a pop-out loses their place in
+the shell rather than in the pop-out.
+
+The ladder, first match wins: the control that opened the surface, if it is
+still on screen; otherwise the region that owned it; otherwise the canvas.
+
+Three cases are worth naming because each is reached by a different route. 5.6
+already returns focus to the opener on Escape, and that is this ladder's first
+rung rather than a separate rule. Closing the activity panel from the rail
+leaves focus on the rail icon that closed it, which is where the reader already
+is. Collapsing the inspector while focus is inside it leaves focus on the
+inspector toggle in the top bar, which is the control that will bring it back.
+And at a dataset boundary, where the openers are going too, focus lands on the
+canvas.
+
+#### Settings, Help, and the surfaces that are not activities
+
+Settings is a full-panel overlay and Help is a rail-anchored menu (5.3). Neither
+is an activity, and the distinction is not cosmetic: opening either must not
+move the rail's active marker off the panel the reader has open, and closing it
+must return them to that panel rather than to a remembered activity. A reader
+who opens Settings from Style and closes it has not navigated anywhere.
+
+Settings is a region for 6.11's multiplicity rule, which makes the regions six
+rather than five. It earns one on the same ground as the other five: its rows
+open pop-outs, and it covers the activity panel while it is open, so a pop-out
+of its own and a panel pop-out behind it can never both be reached. Naming it
+costs nothing and leaves no case where two surfaces from different owners share
+one slot. The 6.11 list is amended to: the activity panel, the inspector, the
+canvas overlay, a dialog, a dock, and Settings.
+
+Help takes no region, because a menu hosts no pop-outs. It is a transient on
+rung 2 of the Escape ladder, as the command palette and the keyboard shortcuts
+overlay are, and it closes on everything that closes a menu.
 
 ## 7. Novice path
 
@@ -6272,6 +6503,54 @@ row that is itself resident, so there is one mechanism at one scale and nothing
 left to drift.
 
 ## 13. Revision history
+
+- 1.11 (2026-09-12): three changes, applied against revision 1.10. All three
+  come from the product owner directly, and each one reverses or amends a rule
+  this document had already settled, so each is dated in place where it is
+  stated. (1) The frame. The top bar spans the full shell width above the rail
+  rather than sitting to its right, and the rail begins below it; 5.1's diagram
+  and its rail bullet are redrawn. No geometry moved with it -- the rail keeps
+  its 48 px column, so the body row, the canvas rect and the toolbar's centring
+  are identical -- and the 59 artboards that draw the older frame were
+  deliberately left alone, with 5.1 winning where they disagree. (2) The panel's
+  own switch in the top bar, mirroring the inspector's, on the binding
+  (Cmd+B) that already shipped and that the panel header's X already
+  advertised: the panel had a way out and no way back except the rail, whose
+  icons choose an activity rather than show a column. (3) The latch, `Keep
+  open`, new in 6.12 and referenced from 5.2 and 5.4: one control per surface
+  that refuses every close the SHELL performs -- the narrow one-overlay rule, a
+  canvas tap, Escape's third rung -- and refuses none the reader performs. At
+  most one surface may be latched below 1280 px, or the chrome leaves no graph.
+  It is not the comparison pin of 5.4: it holds the surface, the pin holds the
+  content, and it takes its own word and its own drawing so the two can never be
+  read as one. Alongside (3), and independent of it, 5.2's canvas-tap carve-out
+  grows to cover a tap that SELECTS: the tap that fills the inspector was also
+  the tap that dismissed it, which made a selection impossible to explore below
+  1280 px. INSPECTOR-TITLE-1.9 section 4's refusal of a fourth icon in the
+  inspector title row is overridden by (3) and the override is recorded there,
+  with its measured cost to the name band.
+
+- 1.10 (2026-09-11): one change, applied against revision 1.9. Surface
+  lifecycle is given an owner. 6.12 is new. It moves no decision that 5.1, 5.2,
+  5.6, 6.5 or 6.11 had already made -- it indexes them, so that a reader asking
+  when a surface opens or closes has one place to start instead of five -- and
+  it rules on the three questions none of those sections answered. (1) The
+  dataset boundary, crossed by Close dataset and by a replacing load, which are
+  one rule because the second is the first with a load on the end. What survives
+  it is what 6.5 already says is true of the user; what does not is what was
+  true of the graph that has gone. Its one non-obvious clause: where the state
+  axis forces the active activity to move, because Empty disables four of them,
+  the move does not write the remembered activity, or closing a file silently
+  forgets where the reader was working. (2) Focus when a surface disappears, as
+  a three-rung ladder -- the opener, then the region, then the canvas -- because
+  the one answer that is always wrong is the document body, which makes the next
+  Tab start at the top of the page and F6 begin its ring from nowhere. (3)
+  Settings and Help, which are surfaces rather than activities: opening either
+  must not move the rail's active marker, and closing it returns to the panel
+  that was open. Settings becomes a region for 6.11's multiplicity rule, making
+  the regions six rather than five, on the ground that its rows open pop-outs
+  and it covers the panel while it is open; Help takes none, because a menu
+  hosts no pop-outs. 6.11's region list is amended in place to name Settings.
 
 - 1.9 (2026-09-08): three changes, applied against revision 1.8. (1) A section
   always expands. The rule, stated once: every section expands in place, a

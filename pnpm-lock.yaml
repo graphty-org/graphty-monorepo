@@ -397,6 +397,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.3)
+      '@graphty/compact-mantine':
+        specifier: workspace:*
+        version: link:../compact-mantine
       '@graphty/graphty-element':
         specifier: workspace:*
         version: link:../graphty-element

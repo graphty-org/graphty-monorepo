@@ -63,6 +63,51 @@ describe("LeftSidebar", () => {
         });
     });
 
+    describe("embedded in a panel section", () => {
+        it("draws no header of its own, so the section's 32px one is the only one", () => {
+            // Spec 6.9 / VOCAB RT-8: a section header is 32px with `0 8px 0 16px` padding
+            // and a 12px/500 name (StylePanel.dc.html:353-388). The hand-built band here
+            // measures 55px, so embedded it is not drawn at all and `ControlSection` draws
+            // the real one.
+            render(<LeftSidebar {...defaultProps} embedded layers={[createLayer("1", "Layer 1")]} />);
+
+            expect(screen.queryByText("Layers")).toBeNull();
+        });
+
+        it("leaves the add verb to the section header", () => {
+            render(<LeftSidebar {...defaultProps} embedded layers={[createLayer("1", "Layer 1")]} />);
+
+            // The panel's plus is `SectionAddButton` with the register's own verb, so a
+            // second "Add layer" here would be two pluses for one section.
+            expect(screen.queryByRole("button", { name: /add layer/i })).toBeNull();
+        });
+
+        it("still draws the rows, which is the whole of what it contributes", () => {
+            const layers = [createLayer("1", "Layer 1"), createLayer("2", "Layer 2")];
+            render(<LeftSidebar {...defaultProps} embedded layers={layers} />);
+
+            expect(screen.getByText("Layer 1")).toBeInTheDocument();
+            expect(screen.getByText("Layer 2")).toBeInTheDocument();
+        });
+
+        it("nests no second complementary landmark inside the panel's region", () => {
+            const { container } = render(<LeftSidebar {...defaultProps} embedded layers={[createLayer("1", "L")]} />);
+
+            expect(container.querySelector("aside")).toBeNull();
+        });
+
+        it("pads nothing itself, because the section's band already does", () => {
+            const { container } = render(<LeftSidebar {...defaultProps} embedded layers={[createLayer("1", "L")]} />);
+
+            // ControlSection pads 16 leading, 8 trailing, 8 below (ControlSection.tsx:455-463).
+            // A 16px band here is the doubled padding the defect reports.
+            const bands = [...container.querySelectorAll<HTMLElement>("div")].filter(
+                (node) => node.style.padding === "16px",
+            );
+            expect(bands).toHaveLength(0);
+        });
+    });
+
     describe("layer selection", () => {
         it("calls onLayerSelect when layer is clicked", () => {
             const onLayerSelect = vi.fn();
@@ -209,13 +254,54 @@ describe("LeftSidebar", () => {
         });
     });
 
+    describe("the editor's seed", () => {
+        it("re-opens on the committed name, never on text the app did not accept", async () => {
+            // The row survives a rename -- its React key is `layer.id`, which a rename does
+            // not change -- so a seed taken once at mount would let the box keep showing
+            // text that never reached the app. That is the half of the rename defect a user
+            // reads as "double-click it again and the new name IS in the box".
+            const layers = [createLayer("1", "Original")];
+            render(<LeftSidebar {...defaultProps} layers={layers} onLayersChange={vi.fn()} />);
+
+            fireEvent.doubleClick(screen.getByText("Original"));
+
+            await waitFor(() => {
+                const input = screen.getByRole("textbox");
+                fireEvent.change(input, { target: { value: "Typed" } });
+                fireEvent.blur(input);
+            });
+
+            // The parent kept the old name, so the row must too, in the row AND in the box.
+            expect(screen.getByText("Original")).toBeInTheDocument();
+
+            fireEvent.doubleClick(screen.getByText("Original"));
+
+            await waitFor(() => {
+                expect(screen.getByRole("textbox")).toHaveValue("Original");
+            });
+        });
+
+        it("re-seeds when the committed name changes under a closed editor", async () => {
+            const { rerender } = render(<LeftSidebar {...defaultProps} layers={[createLayer("1", "Original")]} />);
+
+            rerender(<LeftSidebar {...defaultProps} layers={[createLayer("1", "Committed")]} />);
+
+            fireEvent.doubleClick(screen.getByText("Committed"));
+
+            await waitFor(() => {
+                expect(screen.getByRole("textbox")).toHaveValue("Committed");
+            });
+        });
+    });
+
     describe("drag handle", () => {
         it("shows drag handle for each layer", () => {
             const layers = [createLayer("1", "Layer 1")];
             render(<LeftSidebar {...defaultProps} layers={layers} />);
 
-            // The drag handle shows "⋮⋮"
-            expect(screen.getByText("⋮⋮")).toBeInTheDocument();
+            // The handle is a drawn grip with no text, so it is found by its
+            // accessible name rather than by the character it used to print.
+            expect(screen.getByLabelText("Reorder this layer")).toBeInTheDocument();
         });
     });
 

@@ -294,11 +294,41 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Removes every node and edge, and lets a later data source load.
+     *
+     * The guard below is per LOAD, not per element lifetime. Latching it for the
+     * element's whole life refused every dataset after the first: a second
+     * `dataSource` / `dataSourceConfig` assignment set both properties and started no
+     * load, so a host that loaded a second file saw the element report the new source
+     * while the old graph stayed on screen. Clearing the data is the statement that the
+     * previous load is over, so it is where the guard resets.
+     *
+     * The two properties are reset with it, and deliberately through the private fields
+     * rather than the setters: a setter would call `#tryInitializeDataSource` again, and
+     * leaving the old pair in place would let the next half-assignment load the NEW
+     * source against the OLD config.
+     */
+    clearData(): void {
+        const oldDataSource = this.#dataSource;
+        const oldDataSourceConfig = this.#dataSourceConfig;
+
+        this.#graph.getDataManager().clear();
+        this.#dataSourceInitialized = false;
+        this.#dataSource = undefined;
+        this.#dataSourceConfig = undefined;
+
+        this.requestUpdate("dataSource", oldDataSource);
+        this.requestUpdate("dataSourceConfig", oldDataSourceConfig);
+    }
+
+    /**
      * Helper method to initialize data source only when both properties are set
      */
     #dataSourceInitialized = false;
     #tryInitializeDataSource(): void {
-        // Only initialize once, and only if both dataSource and dataSourceConfig are set
+        // Only initialize once per load -- see `clearData` -- and only if both
+        // dataSource and dataSourceConfig are set. Both setters call this, so the guard
+        // is what stops one assignment of the pair from starting two loads.
         if (!this.#dataSourceInitialized && this.#dataSource && this.#dataSourceConfig) {
             this.#dataSourceInitialized = true;
             void this.#graph.addDataFromSource(this.#dataSource, this.#dataSourceConfig);

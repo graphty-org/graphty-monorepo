@@ -8,9 +8,6 @@ import {
     type ProviderType,
 } from "../types/ai";
 
-// Re-export ExecutionResult from types
-export type { ExecutionResult };
-
 interface UseAiManagerOptions {
     /** Graph instance to use for AI operations (undefined when graph not yet available) */
     graph?: unknown;

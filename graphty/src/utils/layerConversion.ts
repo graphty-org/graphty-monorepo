@@ -59,37 +59,6 @@ export function styleLayersToLayerItems(layers: StyleLayer[]): IndexedLayerItem[
 }
 
 /**
- * Convert a LayerItem back to a StyleLayer for graphty-element.
- * @param item - The LayerItem from the UI
- * @returns The StyleLayer for graphty-element
- */
-export function layerItemToStyleLayer(item: LayerItem): StyleLayer {
-    // Pass through full metadata, updating name if changed
-    const metadata: Record<string, unknown> = {
-        ...item.metadata,
-        name: item.name,
-    };
-
-    return {
-        metadata,
-        node: item.styleLayer.node
-            ? {
-                  selector: item.styleLayer.node.selector,
-                  style: item.styleLayer.node.style,
-                  calculatedStyle: item.styleLayer.node.calculatedStyle,
-              }
-            : undefined,
-        edge: item.styleLayer.edge
-            ? {
-                  selector: item.styleLayer.edge.selector,
-                  style: item.styleLayer.edge.style,
-                  calculatedStyle: item.styleLayer.edge.calculatedStyle,
-              }
-            : undefined,
-    };
-}
-
-/**
  * Create a new empty StyleLayer with default values.
  * @param name - Name for the new layer
  * @returns A new StyleLayer

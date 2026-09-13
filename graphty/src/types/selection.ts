@@ -22,7 +22,7 @@ export interface GraphTypeConfig {
 
 /**
  * Information about the current graph state.
- * Used by the GraphPropertiesPanel to display graph-level information.
+ * Used by the shell's Graph summary to display graph-level information.
  */
 export interface GraphInfo {
     /** Number of nodes in the graph */

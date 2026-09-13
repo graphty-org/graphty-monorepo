@@ -20,7 +20,6 @@ export const DEFAULT_PROVIDER_KEY = "@graphty-ai-default-provider";
 /** Dialog dimensions */
 export const DIALOG_WIDTH = 400;
 export const DIALOG_HEIGHT = 500;
-export const DIALOG_MIN_HEIGHT = 300;
 
 /**
  * Get saved dialog position from localStorage.

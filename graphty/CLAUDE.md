@@ -18,21 +18,21 @@ graphty is a React application that wraps `<graphty-element>` with a full-featur
 ```
 graphty/
 ├── src/
-│   ├── App.tsx               # Main application component
+│   ├── App.tsx               # Main application component (routes ?demo; otherwise the shell)
 │   ├── main.tsx              # Entry point
 │   ├── theme.ts              # Mantine theme configuration
 │   ├── components/
 │   │   ├── Graphty.tsx       # Main wrapper for graphty-element
-│   │   ├── ai/               # AI chat and settings components
+│   │   ├── ai/               # AI message bubble, provider settings modal
 │   │   ├── data-view/        # Data grid and accordion views
-│   │   ├── layout/           # TopMenuBar, modals
+│   │   ├── layout/           # LeftSidebar (style layer list, used by the shell)
 │   │   ├── layout-options/   # Layout configuration UI
-│   │   ├── sidebar/          # Right sidebar panels
+│   │   ├── sidebar/          # Style layer control panels
 │   │   │   ├── controls/     # Reusable control components
 │   │   │   ├── node-controls/ # Node styling controls
 │   │   │   ├── edge-controls/ # Edge styling controls
 │   │   │   └── panels/       # Sidebar panel components
-│   │   └── demo/             # Demo components
+│   │   └── demo/             # Demo components (?demo gallery)
 │   ├── hooks/                # React hooks
 │   ├── lib/                  # Utilities (Sentry integration)
 │   ├── types/                # TypeScript type definitions
@@ -83,7 +83,8 @@ When testing from mobile devices:
 ## Component Patterns
 
 ### Sidebar Controls
-Controls in `src/components/sidebar/controls/` are reusable across different panels:
+Controls in `src/components/sidebar/controls/` are reusable across different panels
+and are shared with the app shell's Style panel:
 - `StyleColorInput` - Color picker with label
 - `StyleNumberInput` - Number input with constraints
 - `StyleSelect` - Dropdown selection

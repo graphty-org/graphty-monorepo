@@ -1,7 +1,7 @@
 # Graphty App Shell and Progressive Disclosure Design
 
-Status: draft 1.11, validated, three changes taken directly from the product owner
-Date: 2026-09-12
+Status: draft 1.12, validated, four clauses amended at the product owner's direction
+Date: 2026-09-13
 Scope: the graphty React application (`graphty/`), not graphty-element
 
 ## 1. Purpose
@@ -5520,6 +5520,44 @@ nothing left to guarantee. On desktop both may be kept, because neither is an
 overlay there. Where one surface is kept and the other is open, the UNKEPT one
 holds the dismissible slot, because it is the only one a tap may close.
 
+Amendment 2026-09-13, at the product owner's direction, in two parts. The
+paragraph above is OVERRIDDEN, not reworded: it said what it meant, and it was
+overruled.
+
+(1) The exclusivity is withdrawn for READER-DRIVEN latching. The product
+owner: "there's a bug with the lock: if I lock one panel, open the other, lock
+the other, the first one closes". That was this clause working exactly as
+written -- the sequence latches the panel, opens the inspector, latches the
+inspector, and "latching one releases the other" then unlatches the panel,
+after which 5.2's one-overlay rule closes it, because an unkept surface has no
+veto. Both surfaces may now be latched at every width, by two deliberate
+clicks. The departure is recorded in `ShellContext.tsx` at `setPanelKeptOpen`
+and `setInspectorKeptOpen`, and the cost this paragraph names is real and is
+accepted: a reader who latches both at 1200 px leaves themselves 592 px of
+canvas and may unlatch either to get it back.
+
+(2) The DEFAULT keeps the rule. "An UNKEPT surface behaves exactly as it did
+before this section existed" was no panel and a collapsed inspector; the
+product owner's "the sidebars should be locked open by default" overrides that
+too, but only where there is room for it. At or above 1280 px a first visit
+opens the Data panel and the inspector and latches both. Below 1280 px a first
+visit opens NEITHER and latches neither, because a default that latched both
+produced a screen the reader could not leave: both surfaces are 280 px
+overlays over a canvas that is never resized under them (5.2), and a latch
+vetoes the canvas tap and Escape's third rung alike, so the shell's own
+narrow-overlay close could only ever refuse. Measured on genuine first visits
+while it was so -- at 1024 x 900 the panel took [48, 328], the inspector [744,
+1024] and the Welcome sheet [219, 853], putting 109 px of the sheet under each
+overlay and rendering its heading as "aph to get started"; at 600 x 900 the two
+overlays took [48, 328] and [320, 600] against a canvas of [48, 600], and at
+375 x 812 [48, 328] and [95, 375] against [48, 375], covering the canvas end to
+end and overlapping each other, so nothing of the sheet under them showed at
+all. So the rule stated above
+still governs what the SHELL spends on the reader's behalf, and what changed
+is that the reader may now spend more than it on their own. `firstVisitLayout`
+in `ShellContext.tsx` holds the branch, and UAT-14 of `design/ui/UAT.md` is
+its acceptance test.
+
 It is remembered per 6.5, as two booleans beside the inspector's collapsed
 state, and it SURVIVES the dataset boundary below on that section's own test:
 what a reader keeps open is true of the reader, not of the graph. It is not the
@@ -5622,6 +5660,14 @@ overlay are, and it closes on everything that closes a menu.
 
 Centered in the canvas area, maximum width 600 px:
 
+Amendment 2026-09-13, at the product owner's direction: the 600 px is the
+CONTENT band, and that band is now wrapped in a sheet of its own, so the
+block's OUTER measure is 634 px -- 600 plus 2 x 16 px of padding plus two 1 px
+hairlines -- and it shrinks with the canvas below that width (measured 552 px
+in a 600 px viewport and 327 px in a 375 px one). Nothing inside the band
+changed. The sheet is new, and the amendment under this section's closing line
+records what it is and why it was required.
+
 1. Drop zone with an Open File button, copy "Drop a graph file (or a nodes
    file and an edges file) here". Accepted formats listed under it ("JSON,
    CSV or TSV, GraphML, GEXF, GML, DOT, Pajek, SIF, CX2"), and a one-line
@@ -5663,6 +5709,30 @@ Centered in the canvas area, maximum width 600 px:
 No tour, no wizard, no modal. The rail is visible so the shape of the tool is
 learned by seeing it.
 
+Amendment 2026-09-13, at the product owner's direction ("welcome screen should
+be on its own surface -- it's currently light text on a white background"):
+Welcome carries its own opaque ground. This clause is NOT relaxed. What ships
+is a modal SURFACE and not a modal dialog, and every property that would make
+it a modal is still forbidden and still absent: no scrim and no `<Overlay>`,
+no `role="dialog"` and no `aria-modal`, no focus trap, no shell `modalOpen`,
+and no full-bleed layer over the canvas. The rail, the top bar and the status
+bar stay live, and the sheet is geometrically incapable of covering them
+because it renders inside the canvas region. What changed is the ground under
+the text and nothing else. ART-WEL draws Welcome over a #161B22 canvas, but
+the real canvas is graphty-element's Babylon clear colour -- measured #F5F5F5,
+near-white, and a user-editable style field the shell does not own -- so the
+artboard's ink on the real canvas measured about 1.15:1. The sheet is PANEL
+material (the panel's own ground, a PANEL_INK.BORDER hairline, an elevation)
+and the heading on it measures 10.86:1. Border AND shadow are both required
+rather than either: in the light scheme the sheet's ground and the canvas
+clear are about 1.09:1 apart, so the border is the sheet's only WCAG 1.4.11
+boundary and the shadow its only separation. The scene's clear colour is NOT
+touched, which would only be depending on the graph background again at a
+different value, and it belongs to graphty-element under the authority split
+of `design/ui/mockups/system/CONTRAST-DIVERGENCE.md` section 5. Recorded in
+`graphty/src/components/shell/canvas/WelcomeState.tsx`; UAT-01, UAT-02 and
+UAT-14 of `design/ui/UAT.md` are its acceptance tests.
+
 ### 7.2 Defaults on load
 
 Below the large-graph threshold: force-directed layout (ngraph), node size
@@ -5671,6 +5741,26 @@ size, labels on the top clamp(round(sqrt(n)), 5, 50) nodes by degree using
 the label top-N style helper, a single neutral node color. Nothing else
 runs, except the Run on load list in Settings > Defaults when the user has
 set one.
+
+Amendment 2026-09-13, at the product owner's direction: two of the four
+defaults this paragraph names are WITHDRAWN, and the paragraph is overridden
+rather than reworded. "Node size by degree on a square-root scale" and "a
+single neutral node color" are no longer applied; the layout and the label
+budget still are. Both withdrawn layers overrode graphty-element's own
+`default` layer, whose node and edge values were tuned by hand over a long
+stretch, from the first frame. The size layer was the worse of the two: it
+normalised `degree / maxDegree`, so on a graph whose smallest degree is half
+its largest -- the cat fixture, degrees 2 to 4 -- every node landed between
+3.12x and 4.00x the base. That is this paragraph's 4x ceiling honoured and its
+point missed, because the spread a reader could actually see was 1.28x while
+the whole graph grew three-fold. Re-proposing either layer means fixing the
+normalisation first, against the observed degree RANGE rather than the maximum
+alone. One consequence is recorded with it: colour is then the only channel
+the shell encodes, so section 9's legend names colour alone, an unencoded size
+channel being absent rather than listed as uniform. Labels stay, because a
+label ADDS a channel instead of overriding a tuned value. Recorded in
+`graphty/src/components/shell/AppShell.tsx` at the load-defaults effect;
+UAT-06 of `design/ui/UAT.md` asserts what actually ships.
 
 Above the threshold (Settings > Performance): the Fixed layout when the file
 carries positions for every node, otherwise Quick grid (connected parts
@@ -6503,6 +6593,39 @@ row that is itself resident, so there is one mechanism at one scale and nothing
 left to drift.
 
 ## 13. Revision history
+
+- 1.12 (2026-09-13): four amendments, applied against revision 1.11. All four
+  come from the product owner directly, all four contradict a rule this document
+  had already settled, and each is dated in place at the clause it overrides.
+  None of them softens what the clause said; each records that it was overruled,
+  by whom and why. (1) 7.1's closing "No tour, no wizard, no modal" stands as
+  written, and is now explicitly a rule about modal BEHAVIOUR: Welcome carries
+  its own opaque ground as a modal SURFACE, with no scrim, no dialog role, no
+  focus trap and no full-bleed layer, because the real canvas is
+  graphty-element's near-white Babylon clear colour and the artboard's ink on it
+  measured about 1.15:1 where the sheet measures 10.86:1. (2) 7.1's opening
+  "maximum width 600 px" becomes the CONTENT band: the sheet's outer measure is
+  634 px, being 600 plus its padding and its two hairlines, and it shrinks with
+  the canvas below that. (3) 6.12's "below 1280 px at most ONE surface may be
+  kept, and latching one releases the other" is withdrawn for READER-DRIVEN
+  latching -- the sequence the product owner reported as a bug was that clause
+  working as written -- and is KEPT for the DEFAULT, against 6.12's own "an
+  unkept surface behaves exactly as it did before this section existed": at or
+  above 1280 px a first visit latches both surfaces, and below it a first visit
+  opens neither, because a default that latched both left no canvas and no
+  gesture able to reclaim one (measured at 1024 x 900: 109 px of the Welcome
+  sheet under each overlay; at 600 and at 375 the two overlays covered the canvas
+  end to end and nothing of the sheet showed). (4) 7.2's "node
+  size by degree on a square-root scale" and "a single neutral node color" are
+  withdrawn in favour of graphty-element's hand-tuned `default` layer, the
+  layout and the label budget staying; the size layer normalised against the
+  maximum degree rather than the observed range, so the cat fixture drew every
+  node between 3.12x and 4.00x the base -- the 4x ceiling honoured, the point
+  missed -- and re-proposing it means fixing the normalisation first. Sections
+  6.12, 7.1 and 7.2 carry the amendments in place. `design/ui/UAT.md` is new
+  with this revision (item 7 of the same seven) and is the acceptance suite;
+  UAT-01, UAT-02, UAT-06, UAT-11, UAT-12 and UAT-14 are the scenarios that pin
+  these four.
 
 - 1.11 (2026-09-12): three changes, applied against revision 1.10. All three
   come from the product owner directly, and each one reverses or amends a rule

@@ -37,6 +37,8 @@ interface GraphtyElementType extends HTMLElement {
     styleTemplate?: unknown;
     dataSource?: string;
     dataSourceConfig?: Record<string, unknown>;
+    /** Clears the graph AND resets the element's per-load data-source guard. */
+    clearData?: () => void;
     graph?: Graph;
 }
 
@@ -618,7 +620,11 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
                 graphtyRef.current.dataSourceConfig = config;
             },
             clearData: () => {
-                graphtyRef.current?.graph?.dataManager.clear();
+                // The element's own method, not `graph.dataManager.clear()`: clearing the
+                // data has to reset the element's per-load data-source guard as well, and
+                // only the element can reach it. Reaching past it left a second load
+                // setting the new source without ever starting it.
+                graphtyRef.current?.clearData?.();
             },
             get graph() {
                 return graphtyRef.current?.graph ?? null;

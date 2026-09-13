@@ -18,10 +18,7 @@ describe("DataPanel", () => {
         it("opens the Open file section by name", () => {
             renderPanel("empty");
 
-            expect(screen.getByRole("button", { name: "Collapse Open file" })).toHaveAttribute(
-                "aria-expanded",
-                "true",
-            );
+            expect(screen.getByRole("button", { name: "Collapse Open file" })).toHaveAttribute("aria-expanded", "true");
         });
 
         it("keeps the three open verbs in words", () => {
@@ -116,11 +113,7 @@ describe("DataPanel", () => {
 
             render(
                 <ShellProvider initialShellWidth={1440} measureViewport={false} persist={false}>
-                    <DataPanel
-                        stateAxis="loaded"
-                        onLoad={vi.fn()}
-                        onDataTableOpenChange={onDataTableOpenChange}
-                    />
+                    <DataPanel stateAxis="loaded" onLoad={vi.fn()} onDataTableOpenChange={onDataTableOpenChange} />
                 </ShellProvider>,
             );
 
@@ -142,6 +135,58 @@ describe("DataPanel", () => {
             renderPanel("loaded");
 
             expect(screen.getByRole("button", { name: "Import options" })).toBeInTheDocument();
+        });
+    });
+
+    describe("Sample datasets", () => {
+        it("draws the size string and the tags in the row's one value slot", () => {
+            render(
+                <ShellProvider initialShellWidth={1440} measureViewport={false} persist={false}>
+                    <DataPanel
+                        stateAxis="empty"
+                        onLoad={vi.fn()}
+                        samples={[
+                            {
+                                id: "cat-social-network",
+                                name: "Cat social network",
+                                sizeString: "20 nodes, 29 edges",
+                                tags: ["Weighted"],
+                                source: "graphty samples",
+                                onOpen: vi.fn(),
+                            },
+                        ]}
+                    />
+                </ShellProvider>,
+            );
+
+            /* Spec 5648: "The same size string ("20 nodes, 29 edges") appears in the
+               panel and the canvas", and spec 622 asks this row for its tags as well, so
+               the one trailing slot carries both with the size first. */
+            expect(screen.getByText("20 nodes, 29 edges. Weighted")).toBeInTheDocument();
+        });
+
+        it("draws the size string alone when the sample carries no tags", () => {
+            render(
+                <ShellProvider initialShellWidth={1440} measureViewport={false} persist={false}>
+                    <DataPanel
+                        stateAxis="empty"
+                        onLoad={vi.fn()}
+                        samples={[
+                            {
+                                id: "karate",
+                                name: "Karate Club",
+                                sizeString: "34 nodes, 78 edges",
+                                tags: [],
+                                source: "Zachary 1977",
+                                onOpen: vi.fn(),
+                            },
+                        ]}
+                    />
+                </ShellProvider>,
+            );
+
+            // No empty tag clause trailing the counts: a row draws the facts it has.
+            expect(screen.getByText("34 nodes, 78 edges")).toBeInTheDocument();
         });
     });
 

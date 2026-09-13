@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../../data/sampleGraphs";
+import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../../data/sampleManifest";
 import { act, fireEvent, render, screen, within } from "../../../test/test-utils";
+import { COMMUNITY_NAMESPACE, COMMUNITY_TYPE, DEGREE_NAMESPACE, DEGREE_TYPE } from "../analysis/runs";
 import { AppShell } from "../AppShell";
 import { ACTIVITY_RAIL_WIDTH, NARROW_BREAKPOINT, STATUS_BAR_HEIGHT, TOP_BAR_HEIGHT } from "../constants";
 import { SHELL_LAYOUT_STORAGE_KEY } from "../ShellContext";
@@ -118,6 +121,322 @@ function installGraph(container: HTMLElement, layers: FakeStyleLayer[]): FakeSty
     });
 
     return manager;
+}
+
+/* -------------------------------------------------------------------------- */
+/* The novice path's stand-ins (spec 7)                                        */
+/* -------------------------------------------------------------------------- */
+
+/** How many microtask turns a flush walks: enough for the run-then-read-then-paint chain. */
+const FLUSH_TURNS = 10;
+
+/**
+ * Lets the load path's promise chain settle inside `act`.
+ *
+ * The 7.2 defaults are a chain of awaits -- the degree pass, then the layers, then the
+ * suggested run's own pass -- so one turn is not enough and a fixed timer would be a
+ * guess. Walking a handful of microtask turns is what a `.then` chain of that depth
+ * needs and costs nothing when the chain is shorter.
+ */
+async function flushMicrotasks(): Promise<void> {
+    await act(async () => {
+        for (let turn = 0; turn < FLUSH_TURNS; turn += 1) {
+            await Promise.resolve();
+        }
+    });
+}
+
+/**
+ * Reports the load COMPLETE, as graphty-element does when its last chunk is in.
+ *
+ * `DataManager.addDataFromSource` emits `data-added` per chunk and exactly one
+ * `data-loaded` after the loop, and the element forwards every internal event as a DOM
+ * CustomEvent that bubbles and is composed -- which is the event the shell's 7.2 defaults
+ * wait for. A board that loads without reporting completion therefore gets no defaults,
+ * exactly as a load that never completes gets none, so every board below that wants the
+ * defaults says so here.
+ * @param container - the render result's container.
+ */
+async function reportLoadComplete(container: HTMLElement): Promise<void> {
+    const element = container.querySelector("graphty-element");
+
+    expect(element).not.toBeNull();
+
+    await act(async () => {
+        element?.dispatchEvent(new CustomEvent("data-loaded", { bubbles: true, composed: true }));
+
+        for (let turn = 0; turn < FLUSH_TURNS; turn += 1) {
+            await Promise.resolve();
+        }
+    });
+}
+
+/** One `handle.loadData` or `handle.loadFromUrl` call, as the element received it. */
+interface RecordedLoad {
+    /** The data source type the shell named, e.g. "json" or "gml". */
+    readonly dataSource: string | undefined;
+    /** Its config: `{data}` for an inline load, `{url}` for a served one. */
+    readonly config: unknown;
+}
+
+/**
+ * Records what reaches the element's data source, WITHOUT letting the real element load.
+ *
+ * `GraphtyHandle.loadData` and `loadFromUrl` both end by setting `dataSource` and then
+ * `dataSourceConfig` on the element, and the element's own setter kicks off a real load
+ * on its own internal graph the moment both are set. Shadowing the two accessors with own
+ * properties keeps the shell's route intact -- this IS the ordinary load path, observed at
+ * its last step -- while leaving the element itself alone, which is what a shell board
+ * should be testing.
+ * @param container - the render result's container.
+ * @returns the loads, in the order the shell issued them.
+ */
+function captureLoads(container: HTMLElement): readonly RecordedLoad[] {
+    const element = container.querySelector("graphty-element");
+
+    expect(element).not.toBeNull();
+
+    const loads: RecordedLoad[] = [];
+    let dataSource: string | undefined;
+
+    Object.defineProperty(element, "dataSource", {
+        configurable: true,
+        get: () => dataSource,
+        set: (value: string | undefined) => {
+            dataSource = value;
+        },
+    });
+    Object.defineProperty(element, "dataSourceConfig", {
+        configurable: true,
+        get: () => undefined,
+        set: (value: unknown) => {
+            loads.push({ dataSource, config: value });
+        },
+    });
+
+    return loads;
+}
+
+/** One node, as both the element's data manager and its algorithm results spell it. */
+interface StubNode {
+    id: string;
+    data: Record<string, unknown>;
+    algorithmResults: Record<string, unknown>;
+}
+
+/**
+ * How many layers graphty-element owns before the shell adds one: its `default` and its
+ * `selection` layer. Boards count the shell's own layers on top of this rather than from
+ * zero, so a removal that takes the element's layers with it cannot pass.
+ */
+const ELEMENT_OWN_LAYER_COUNT = 2;
+
+/**
+ * The layers the SHELL added, in order, with the element's own left out.
+ *
+ * The shell tags every layer it adds with an `algorithmSource`, which is also how it
+ * retires them, so the tag is what separates its layers from the element's `default` and
+ * `selection`. Boards index this rather than `getLayers()` so they assert on the shell's
+ * own stack and stay correct whatever the element puts underneath it.
+ * @param layers - every layer the style manager holds.
+ * @returns the tagged layers, in stack order.
+ */
+function shellLayers(layers: readonly StubLayer[]): readonly StubLayer[] {
+    return layers.filter((layer) => layer.metadata?.algorithmSource !== undefined);
+}
+
+/** One style layer, as the stub's StyleManager holds it. */
+interface StubLayer {
+    metadata?: Record<string, unknown>;
+    node?: Record<string, unknown>;
+    edge?: Record<string, unknown>;
+}
+
+/** The stub graph's own doors, so a board can assert what the shell asked of it. */
+interface StubGraph {
+    /** Every algorithm run the shell asked for, in order. */
+    readonly runAlgorithm: ReturnType<typeof vi.fn>;
+    /** The layers the shell added, and the two repaint spies. */
+    readonly styleManager: {
+        getLayers: () => StubLayer[];
+        addLayer: ReturnType<typeof vi.fn>;
+        removeLayerByIndex: ReturnType<typeof vi.fn>;
+    };
+    /** The data manager, for its two repaint spies and the clear a replacing load makes. */
+    readonly dataManager: {
+        applyStylesToExistingNodes: ReturnType<typeof vi.fn>;
+        applyStylesToExistingEdges: ReturnType<typeof vi.fn>;
+        clear: ReturnType<typeof vi.fn>;
+    };
+}
+
+/**
+ * What the Data panel's sample row is expected to draw in its trailing value slot.
+ *
+ * Spec 5648 puts the size string on both surfaces and spec 622 asks this row for its
+ * tags as well, so the expectation is the register both share: the size first, then the
+ * tags. It is spelled out here rather than imported so the board states the string it
+ * wants rather than agreeing with whatever the panel built.
+ * @param record - the manifest row.
+ * @returns the value the row should draw.
+ */
+function expectedPanelSampleValue(record: SampleRecord): string {
+    const size = sampleSizeString(record.size);
+
+    return record.tags.length === 0 ? size : `${size}. ${record.tags.join(", ")}`;
+}
+
+/** The group sizes the stub's louvain reports: 7 + 6 + 4 + 3 = the fixture's 20 nodes. */
+const STUB_GROUP_SIZES = [7, 6, 4, 3];
+
+/** The modularity the stub's louvain reports, which bands as "clearly separated". */
+const STUB_MODULARITY = 0.447;
+
+/**
+ * Writes one algorithm's per-node results where the real element writes them.
+ * @param node - the node to write on.
+ * @param type - the algorithm's type, e.g. "degree".
+ * @param values - the named results.
+ */
+function writeNodeResult(node: StubNode, type: string, values: Record<string, number>): void {
+    const namespace = (node.algorithmResults.graphty ?? {}) as Record<string, unknown>;
+
+    namespace[type] = values;
+    node.algorithmResults.graphty = namespace;
+}
+
+/**
+ * Stands a graph on the mounted host that answers the whole novice path.
+ *
+ * It is a stand-in for graphty-element, not for the shell: it holds the cat fixture in
+ * the two Maps `GraphtyHandle.getData` reads, and its `runAlgorithm` writes exactly what
+ * `DegreeAlgorithm` and `LouvainAlgorithm` write -- per-node `degree`/`degreePct` and
+ * `communityId`, plus the two graph results (`groupCount`, `modularity`) the Louvain edit
+ * added. The real numbers are the element's own boards to assert; what these boards test
+ * is that the shell runs the right passes, in the right order, and turns what comes back
+ * into the right sentence.
+ *
+ * The degrees are computed from the fixture's own edges rather than invented, so the
+ * label cut and the Most connected rows are the fixture's real ranking.
+ * @param container - the render result's container.
+ * @returns the stub's doors, to assert the calls the shell made on it.
+ */
+function installNovicePathGraph(container: HTMLElement): StubGraph {
+    const element = container.querySelector("graphty-element");
+
+    expect(element).not.toBeNull();
+
+    const nodes = new Map<string, StubNode>();
+
+    for (const node of CAT_SOCIAL_NETWORK.nodes) {
+        nodes.set(node.id, { id: node.id, data: { ...node }, algorithmResults: {} });
+    }
+
+    const edges = new Map<string, { id: string; srcId: string; dstId: string; data: Record<string, unknown> }>();
+    const degrees = new Map<string, number>();
+
+    CAT_SOCIAL_NETWORK.edges.forEach((edge, index) => {
+        const id = `edge-${String(index)}`;
+
+        edges.set(id, { id, srcId: edge.src, dstId: edge.dst, data: { ...edge } });
+        degrees.set(edge.src, (degrees.get(edge.src) ?? 0) + 1);
+        degrees.set(edge.dst, (degrees.get(edge.dst) ?? 0) + 1);
+    });
+
+    const maxDegree = Math.max(...degrees.values());
+
+    /* The element's OWN layers, present before the shell adds anything.
+       graphty-element opens its stack with a `default` layer carrying
+       `NodeStyle.parse(defaultNodeStyle)` -- every node's shape type (Styles.ts:54-67) --
+       and adds a `selection` layer beside it. Seeding them is what makes a boundary that
+       removes layers by INDEX rather than by tag fail a board: without them the stub had
+       nothing to lose, and a wipe that took the element's shape types with it, and left
+       the next load drawing zero nodes, passed every test. */
+    const layers: StubLayer[] = [{ metadata: { name: "default" } }, { metadata: { name: "selection" } }];
+    const styleManager = {
+        getLayers: () => layers,
+        addLayer: vi.fn((layer: StubLayer) => {
+            layers.push(layer);
+        }),
+        removeLayerByIndex: vi.fn((index: number) => {
+            layers.splice(index, 1);
+
+            return true;
+        }),
+        updateLayerByIndex: vi.fn(() => true),
+        reorderLayers: vi.fn(() => true),
+    };
+    const dataManager = {
+        nodes,
+        edges,
+        graphResults: undefined as unknown,
+        applyStylesToExistingNodes: vi.fn(),
+        applyStylesToExistingEdges: vi.fn(),
+        clear: vi.fn(),
+    };
+
+    const runAlgorithm = vi.fn(async (_namespace: string, type: string) => {
+        await Promise.resolve();
+
+        if (type === "degree") {
+            for (const node of nodes.values()) {
+                const degree = degrees.get(node.id) ?? 0;
+
+                writeNodeResult(node, "degree", { degree, degreePct: degree / maxDegree });
+            }
+
+            return;
+        }
+
+        if (type === "louvain") {
+            const ids = [...nodes.keys()];
+            let cursor = 0;
+
+            STUB_GROUP_SIZES.forEach((size, communityId) => {
+                for (let taken = 0; taken < size; taken += 1) {
+                    const id = ids[cursor];
+
+                    cursor += 1;
+
+                    const node = id === undefined ? undefined : nodes.get(id);
+
+                    if (node !== undefined) {
+                        writeNodeResult(node, "louvain", { communityId });
+                    }
+                }
+            });
+
+            dataManager.graphResults = {
+                graphty: { louvain: { groupCount: STUB_GROUP_SIZES.length, modularity: STUB_MODULARITY } },
+            };
+        }
+    });
+
+    const graph = {
+        dataManager,
+        getDataManager: () => dataManager,
+        getNodes: () => [...nodes.values()],
+        getStyleManager: () => styleManager,
+        getLayers: () => layers,
+        runAlgorithm,
+        addListener: vi.fn(),
+    };
+
+    Object.defineProperty(element, "graph", { configurable: true, value: graph });
+
+    /* The ELEMENT's `clearData`, which is what `GraphtyHandle.clearData` calls: clearing
+       the data has to reset the element's per-load data-source guard, and only the element
+       can reach that, so the handle stopped reaching past it to `graph.dataManager.clear`.
+       The stand-in clears the same records the real one does, so a board sees the graph
+       actually empty rather than only the call recorded. */
+    Object.defineProperty(element, "clearData", {
+        configurable: true,
+        value: () => {
+            dataManager.clear();
+        },
+    });
+
+    return { runAlgorithm, styleManager, dataManager };
 }
 
 describe("AppShell", () => {
@@ -386,6 +705,77 @@ describe("AppShell", () => {
         });
     });
 
+    /* -------------------------------------------------------------------------- */
+    /* The first visit, with the store ON (2026-09-13, second pass)                */
+    /* -------------------------------------------------------------------------- */
+
+    /*
+     * Every other board here passes `persist={false}`, and that is why the first-visit
+     * regression shipped with the suite green: the first-visit layout is taken ONLY when
+     * persistence is on, so no board ever mounted the state a genuine first reader gets.
+     * These mount it -- store on, nothing remembered -- at the widths the two reviewers
+     * measured.
+     */
+    describe("the first visit, with nothing remembered", () => {
+        afterEach(() => {
+            window.localStorage.clear();
+        });
+
+        /**
+         * Renders the shell as a FIRST VISIT reaches it: persistence on, an empty store,
+         * and the measurement flushed so the canvas has a rect.
+         * @param shellWidth - the viewport width the store starts from.
+         * @returns the render result, once the measurement has been applied.
+         */
+        async function renderFirstVisitShell(shellWidth: number) {
+            window.localStorage.clear();
+
+            const result = render(<AppShell initialShellWidth={shellWidth} measureViewport={false} />);
+
+            await act(async () => {
+                await Promise.resolve();
+            });
+
+            return result;
+        }
+
+        it("opens no overlay at 1024, so Welcome is not covered by two surfaces it cannot dismiss", async () => {
+            const { container } = await renderFirstVisitShell(1024);
+
+            expect(screen.queryByRole("region", { name: "Data" })).toBeNull();
+            expect(screen.queryByTestId("inspector")).toBeNull();
+            expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
+        });
+
+        it("lets a canvas tap dismiss the surface the reader opens at 1024", async () => {
+            const { container } = await renderFirstVisitShell(1024);
+
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+
+            // The rail's click OPENS the panel here, because a first visit at this width
+            // no longer arrives with Data already active -- before the fix the same click
+            // was the close-on-active-click and this board never reached the tap.
+            expect(screen.getByRole("region", { name: "Data" })).toBeInTheDocument();
+            expect(screen.getByTestId("panel-header-keep-open")).toHaveAttribute("aria-pressed", "false");
+
+            reportSelection(container, null);
+            fireEvent.click(container.querySelector('[data-shell-region="canvas"]') as HTMLElement);
+
+            // Before the fix the default latch vetoed this close, so the panel stayed and
+            // the reader had no gesture Welcome teaches that reclaimed any canvas.
+            expect(screen.queryByRole("region", { name: "Data" })).toBeNull();
+        });
+
+        it("still locks both sidebars open at 1440, which is what was asked for", async () => {
+            await renderFirstVisitShell(1440);
+
+            expect(screen.getByRole("region", { name: "Data" })).toBeInTheDocument();
+            expect(screen.getByTestId("inspector")).toBeInTheDocument();
+            expect(screen.getByTestId("panel-header-keep-open")).toHaveAttribute("aria-pressed", "true");
+            expect(screen.getByTestId("inspector-keep-open")).toHaveAttribute("aria-pressed", "true");
+        });
+    });
+
     describe("the node-tap carve-out", () => {
         it("dismisses the narrow overlay when the tap hit empty canvas", async () => {
             const { container } = await renderMeasuredShell(NARROW_BREAKPOINT - 1);
@@ -552,6 +942,522 @@ describe("AppShell", () => {
 
             expect(manager.updateLayerByIndex).not.toHaveBeenCalled();
             expect(manager.reorderLayers).not.toHaveBeenCalled();
+        });
+    });
+
+    /* ---------------------------------------------------------------------- */
+    /* The novice path (spec 7)                                                */
+    /* ---------------------------------------------------------------------- */
+
+    describe("the novice path", () => {
+        afterEach(() => {
+            window.localStorage.clear();
+        });
+
+        it("draws Welcome's three sample rows, with the size string each carries", async () => {
+            await renderMeasuredShell();
+
+            for (const record of SAMPLE_MANIFEST) {
+                expect(screen.getByText(record.name)).toBeInTheDocument();
+                expect(screen.getByText(sampleSizeString(record.size))).toBeInTheDocument();
+            }
+
+            expect(SAMPLE_MANIFEST).toHaveLength(3);
+        });
+
+        it("offers the same three samples in the Data panel, from the same manifest", async () => {
+            await renderMeasuredShell();
+
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+
+            const panel = screen.getByRole("region", { name: "Data" });
+
+            for (const record of SAMPLE_MANIFEST) {
+                /* Spec 5648 makes this ONE manifest with two surfaces. The canvas row is
+                   still drawn behind the panel, so each name is on screen twice; finding
+                   it inside the panel is what says the panel's section is filled. */
+                expect(within(panel).getByText(record.name)).toBeInTheDocument();
+            }
+        });
+
+        it("loads an inline sample through the ordinary load path, not around it", async () => {
+            const { container } = await renderMeasuredShell();
+            const loads = captureLoads(container);
+
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+
+            /* The `?test` fixture's own route: the format and the serialised payload reach
+               the element's data source, and the counts are then read from the graph's own
+               data events rather than written here from the fixture's length. */
+            expect(loads).toHaveLength(1);
+            expect(loads[0]?.dataSource).toBe("json");
+            expect(JSON.parse(String((loads[0]?.config as { data?: unknown }).data))).toEqual(CAT_SOCIAL_NETWORK);
+            expect(screen.getByText(CAT_SOCIAL_NETWORK_NAME)).toBeInTheDocument();
+        });
+
+        it("loads a served sample from the URL its manifest row names", async () => {
+            const { container } = await renderMeasuredShell();
+            const loads = captureLoads(container);
+
+            fireEvent.click(container.querySelector('[data-sample-row="karate"]') as HTMLElement);
+            await flushMicrotasks();
+
+            expect(loads[0]?.dataSource).toBe("gml");
+            expect(loads[0]?.config).toEqual({ url: "/samples/karate.gml" });
+            expect(screen.getByText("karate.gml")).toBeInTheDocument();
+        });
+
+        it("reads the graph summary from the records the graph reported", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+            fireEvent.click(screen.getByRole("button", { name: "Toggle inspector" }));
+
+            /* The hand-walk's own sentence. It is the template's, fed only facts one
+               O(n+m) pass measured: no type clause, because no column-role model exists,
+               and no "at most N steps", because a diameter is above the template's
+               O(n+m) ceiling. */
+            expect(
+                screen.getByText("20 nodes, connected by 29 relationships. One connected part holds all 20 nodes."),
+            ).toBeInTheDocument();
+        });
+
+        it("fills Most connected from the degree pass 7.2 runs at import", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+            fireEvent.click(screen.getByRole("button", { name: "Toggle inspector" }));
+
+            const inspector = screen.getByTestId("inspector");
+
+            expect(within(inspector).getByText("Chonky_Boy")).toBeInTheDocument();
+        });
+
+        /* ONE layer, not three. 7.2's neutral-colour and size-by-degree layers were
+           reverted on 2026-09-13 so the element's hand-tuned node and edge defaults stand;
+           only the label layer remains, because it adds a channel rather than overriding a
+           tuned value. This board is what would catch either of them coming back without
+           the normalisation fix the revert note asks for. */
+        it("applies the 7.2 label layer and leaves the tuned node defaults alone", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            const added = shellLayers(graph.styleManager.getLayers());
+
+            expect(added).toHaveLength(1);
+            expect(added[0]?.node).toHaveProperty("style.label.enabled", true);
+            // Nothing the shell adds may set a node colour or a node size any more.
+            for (const layer of added) {
+                expect(layer.node?.style).not.toHaveProperty("texture");
+                expect(layer.node?.calculatedStyle).toBeUndefined();
+            }
+            /* And the repaint that makes an `algorithmResults` selector match at all. */
+            expect(graph.dataManager.applyStylesToExistingNodes).toHaveBeenCalled();
+        });
+
+        it("shows the Insights strip with the cards this build can carry to a reading", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            const strip = container.querySelector('[data-canvas-overlay="insights"]') as HTMLElement;
+
+            expect(strip).not.toBeNull();
+            expect(within(strip).getByText("Find groups")).toBeInTheDocument();
+            expect(within(strip).getByText("Search for something you know")).toBeInTheDocument();
+            /* The rule table produced a degree card too, and it is filtered out rather than
+               drawn: it cannot write a reading in this build, which is the third thing 7.3
+               makes a card click promise. */
+            expect(within(strip).queryByText("Who is most connected")).toBeNull();
+        });
+
+        it("runs Find groups from its card: paints the groups, opens Analyze and writes the reading", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            const strip = container.querySelector('[data-canvas-overlay="insights"]') as HTMLElement;
+
+            fireEvent.click(within(strip).getByText("Find groups"));
+            await flushMicrotasks();
+
+            expect(graph.runAlgorithm).toHaveBeenCalledWith(COMMUNITY_NAMESPACE, COMMUNITY_TYPE);
+            expect(screen.getByRole("region", { name: "Analyze" })).toBeInTheDocument();
+
+            fireEvent.click(screen.getByRole("button", { name: "Toggle inspector" }));
+
+            const inspector = screen.getByTestId("inspector");
+
+            /* Two sentences, which is RT-10's cap (design line 4672) rather than the four
+               7.5's own worked example takes -- see `communityReading`'s doc comment. What
+               the colours mean moved to the legend's channel line, asserted below. */
+            expect(
+                within(inspector).getByText("4 groups found. The groups are clearly separated (modularity 0.447)."),
+            ).toBeInTheDocument();
+            expect(within(inspector).getByText("Louvain, 20 nodes")).toBeInTheDocument();
+
+            /* The legend now names the encoding the reading stopped claiming: design line
+               201's "Color: groups, categorical". Without this the canvas repainted every
+               node and nothing on screen said what the colours meant. */
+            const legend = screen.getByLabelText("Legend");
+
+            expect(within(legend).getByText("Color: Groups")).toBeInTheDocument();
+            expect(within(legend).getByText("Communities, Louvain", { exact: false })).toBeInTheDocument();
+            expect(within(legend).getByText("Group 1")).toBeInTheDocument();
+            /* Eight colours, because the palette cycles past eight -- so eight of the four
+               groups' layers is four, one per group, and each is tagged with the run's own
+               source so Delete layer can take them all away together. */
+            expect(
+                graph.styleManager.getLayers().filter((layer) => layer.metadata?.algorithmSource === "graphty:louvain"),
+            ).toHaveLength(4);
+        });
+
+        it("leaves exactly one undoable history entry for a card click", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            const strip = container.querySelector('[data-canvas-overlay="insights"]') as HTMLElement;
+
+            fireEvent.click(within(strip).getByText("Find groups"));
+            await flushMicrotasks();
+
+            fireEvent.click(screen.getByRole("button", { name: "History" }));
+
+            /* Spec 7.1 item 2: ONE entry. The encoding does not get a second one, because
+               nothing in this build can undo a style layer independently of the result, and
+               a row whose Undo does nothing is worse than no row. */
+            expect(await screen.findByText("1 entry, 0 undone")).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
+        });
+
+        it("loads and runs the suggested card from the sample's own hint, in one interaction", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            fireEvent.click(container.querySelector('[data-sample-hint="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            /* The order is the point: the degree pass and the neutral base land first, so
+               the group colours are painted OVER them rather than under them. */
+            expect(graph.runAlgorithm).toHaveBeenCalledWith(DEGREE_NAMESPACE, DEGREE_TYPE);
+            expect(graph.runAlgorithm.mock.calls.map((call) => call[1])).toEqual([DEGREE_TYPE, COMMUNITY_TYPE]);
+            expect(screen.getByRole("region", { name: "Analyze" })).toBeInTheDocument();
+        });
+
+        it("does not run the suggested card when the row itself was clicked", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            expect(graph.runAlgorithm.mock.calls.map((call) => call[1])).toEqual([DEGREE_TYPE]);
+        });
+
+        it("hides the strip from its own X, and remembers it", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            fireEvent.click(screen.getByRole("button", { name: "Hide suggestions" }));
+
+            expect(container.querySelector('[data-canvas-overlay="insights"]')).toBeNull();
+        });
+
+        it("takes the 7.2 decisions when the load reports COMPLETE, not on its first chunk", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await flushMicrotasks();
+
+            /* The records are on the graph and the shell has read them, which is the
+               state after the FIRST chunk of a chunked load: `DataManager` adds each
+               chunk and emits `data-added` with an await between them. Nothing 7.2
+               decides may be decided here. On a file over about a thousand nodes this is
+               a fraction of the graph, and the layout, the label budget, the size scale,
+               Most connected and the Search example would every one of them be measured
+               over that fraction and never corrected -- so the above-threshold
+               Performance branch could never be selected at all. */
+            expect(graph.runAlgorithm).not.toHaveBeenCalled();
+            expect(graph.styleManager.getLayers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 0);
+
+            await reportLoadComplete(container);
+
+            expect(graph.runAlgorithm.mock.calls.map((call) => call[1])).toEqual([DEGREE_TYPE]);
+            expect(graph.styleManager.getLayers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 1);
+        });
+
+        it("crosses the dataset boundary on a sample load, so a second sample replaces the first", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            expect(graph.styleManager.getLayers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 1);
+
+            /* From the Data panel's Sample datasets section, which is the only place a
+               sample row still exists once the canvas has left the Empty state -- and so
+               the surface the defect was reported from. */
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByText("College football"));
+            await flushMicrotasks();
+
+            /* A sample load is a REPLACING load, so it takes 6.12's boundary by
+               `handleLoad`'s own route: the records go, and the layers that encoded them
+               go with them. Before this the shell renamed the dataset in the top bar
+               while the old graph stayed on the canvas -- asserting a dataset that was
+               never loaded -- and stacked a second set of 7.2 layers on the first. */
+            /* Twice, not once: the load from Welcome took the same route, over a graph
+               that held nothing -- one rule for every replacing load (6.12), and a clear
+               of an empty graph costs nothing. */
+            expect(graph.dataManager.clear).toHaveBeenCalledTimes(2);
+            expect(graph.styleManager.getLayers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 0);
+            expect(screen.getByText("football.gml")).toBeInTheDocument();
+
+            /* And the element's OWN layers are still there. The boundary removes what the
+               shell tagged and nothing else: an earlier version walked the stack by index,
+               which took the `default` layer -- and with it every node's shape type -- so
+               the next load died in mesh building and drew nothing at all. */
+            expect(graph.styleManager.getLayers().map((layer) => layer.metadata?.name)).toEqual([
+                "default",
+                "selection",
+            ]);
+
+            await reportLoadComplete(container);
+
+            // And the new dataset gets its OWN defaults: the one-shot went with the
+            // boundary, so a second load is not a load with no defaults at all.
+            expect(graph.runAlgorithm.mock.calls.map((call) => call[1])).toEqual([DEGREE_TYPE, DEGREE_TYPE]);
+            expect(graph.styleManager.getLayers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 1);
+        });
+
+        it("replaces the community layers on a re-run rather than stacking a second set", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            for (const run of [1, 2]) {
+                const strip = container.querySelector('[data-canvas-overlay="insights"]') as HTMLElement;
+
+                expect(strip).not.toBeNull();
+                fireEvent.click(within(strip).getByText("Find groups"));
+                await flushMicrotasks();
+
+                /* One result owns one set of layers, whichever run produced it: the four
+                   group colours are replaced, not appended, so the graph never carries
+                   two full stacks of community colours for one reading. */
+                expect(
+                    graph.styleManager
+                        .getLayers()
+                        .filter((layer) => layer.metadata?.algorithmSource === "graphty:louvain"),
+                ).toHaveLength(4);
+                expect(graph.styleManager.getLayers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 5);
+                expect(run).toBeGreaterThan(0);
+            }
+        });
+
+        it("counts every ranked node in See all N ranked, not the five rows above it", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+            fireEvent.click(screen.getByRole("button", { name: "Toggle inspector" }));
+
+            /* The degree pass ranked all 20 nodes and Most connected draws the top five.
+               The link opens the table on the ranked LIST, so it says how long that list
+               is; "See all 5 ranked" would be the five rows already on screen. */
+            const inspector = screen.getByTestId("inspector");
+
+            expect(within(inspector).getByText("See all 20 ranked")).toBeInTheDocument();
+        });
+
+        it("draws the degree histogram from the pass, over the axis the degrees span", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+            fireEvent.click(screen.getByRole("button", { name: "Toggle inspector" }));
+
+            const inspector = screen.getByTestId("inspector");
+            const values = within(inspector).getByTestId("histogram-values");
+
+            /* The fixture's own distribution: 5 nodes of degree 2, 12 of degree 3 and 3
+               of degree 4. The row is drawn either way -- `GraphSummary` renders it
+               inside Most connected -- so an empty bin list is not an absent histogram
+               but a 0-to-0 axis with no bar, which claims a distribution of nothing. */
+            expect(inspector.querySelectorAll('[data-testid="histogram-bar"]')).toHaveLength(3);
+            expect(within(values).getByText("2 links: 5 nodes")).toBeInTheDocument();
+            expect(within(values).getByText("3 links: 12 nodes")).toBeInTheDocument();
+            expect(within(values).getByText("4 links: 3 nodes")).toBeInTheDocument();
+
+            const axis = within(inspector).getByTestId("chart-axis");
+
+            expect(axis).toHaveTextContent("2");
+            expect(axis).toHaveTextContent("4");
+        });
+
+        it("says only what it measured in the Counts Type row", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+            fireEvent.click(screen.getByRole("button", { name: "Toggle inspector" }));
+
+            /* No edge record in the JSON fixture carries a `directed` key, so the O(n+m)
+               pass read no direction and the row says so. `graphInfo.graphType.directed`
+               defaults to TRUE and measures nothing, and the row used to print it. */
+            const inspector = screen.getByTestId("inspector");
+
+            expect(within(inspector).getByText("Not stated in the file")).toBeInTheDocument();
+            expect(within(inspector).queryByText("Directed (from file)")).toBeNull();
+        });
+
+        it("retires the suggested card once the sample's hint has run it", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            fireEvent.click(container.querySelector('[data-sample-hint="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            /* Spec 5643-5648: the hint's click ends "one undoable history entry, that
+               card retired". The reader has been taken where the card would have taken
+               them, so the card has done its job -- and Search, which nothing ran, is
+               still offered. */
+            const strip = container.querySelector('[data-canvas-overlay="insights"]') as HTMLElement;
+
+            expect(strip).not.toBeNull();
+            expect(within(strip).queryByText("Find groups")).toBeNull();
+            expect(within(strip).getByText("Search for something you know")).toBeInTheDocument();
+        });
+
+        it("draws the same size string in the Data panel's sample rows as on the canvas", async () => {
+            await renderMeasuredShell();
+
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+
+            const panel = screen.getByRole("region", { name: "Data" });
+
+            /* Spec 5648: "The same size string ("20 nodes, 29 edges") appears in the
+               panel and the canvas." One manifest, one formatter, both surfaces. */
+            for (const record of SAMPLE_MANIFEST) {
+                expect(within(panel).getByText(expectedPanelSampleValue(record))).toBeInTheDocument();
+            }
+
+            expect(within(panel).getByText("20 nodes, 29 edges. Weighted")).toBeInTheDocument();
+        });
+
+        /* The Style panel's layer list has carried `onLayerSelect` and a selected-row
+           highlight since the shell was built, and `InspectorBody` has drawn the
+           style-layer kind for just as long -- but nothing ever CONSTRUCTED that kind, so
+           picking a layer highlighted a row and opened nothing. The layer's own properties
+           were unreachable: the panel could reorder and rename and no more. */
+        it("opens the style-layer surface when a layer is picked in the Style panel", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            /* The element emits `style-changed` when a layer is added, and the shell
+               re-reads its list from it; the stub adds layers without emitting, so the
+               board says so itself rather than asserting against a stale list. */
+            act(() => {
+                container.querySelector("graphty-element")?.dispatchEvent(new CustomEvent("style-changed"));
+            });
+
+            fireEvent.click(screen.getByRole("button", { name: "Style" }));
+
+            const panel = screen.getByRole("region", { name: "Style" });
+
+            fireEvent.click(within(panel).getByText("Top degree labels"));
+            fireEvent.click(screen.getByRole("button", { name: "Toggle inspector" }));
+
+            const inspector = screen.getByTestId("inspector");
+
+            // The header names the surface...
+            expect(within(inspector).getByText("Style layer")).toBeInTheDocument();
+
+            /* ...and the BODY draws it. Asserting only the header passed while the two
+               disagreed: `selectionKind` feeds the title and `inspectorSelection` feeds the
+               body, and the memo was missing `selectedLayerId` from its deps, so the title
+               read "Style layer" over the graph summary's own rows. The graph summary's
+               opening sentence is the sharpest witness that the wrong body is drawn. */
+            expect(within(inspector).queryByText(/connected by 29 relationships/)).toBeNull();
+            expect(within(inspector).queryByText("Most connected")).toBeNull();
+        });
+
+        it("retires a card from Delete on it, without touching the strip", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
+            await reportLoadComplete(container);
+
+            const strip = container.querySelector('[data-canvas-overlay="insights"]') as HTMLElement;
+
+            within(strip).getByText("Find groups").closest("button")?.focus();
+            fireEvent.keyDown(strip, { key: "Delete" });
+
+            const after = container.querySelector('[data-canvas-overlay="insights"]') as HTMLElement;
+
+            expect(after).not.toBeNull();
+            expect(within(after).queryByText("Find groups")).toBeNull();
+            expect(within(after).getByText("Search for something you know")).toBeInTheDocument();
         });
     });
 });

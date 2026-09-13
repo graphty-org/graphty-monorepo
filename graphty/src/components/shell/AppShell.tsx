@@ -65,21 +65,23 @@
  *   graphty-element publishes no drag-cancel call. Rung 4 pauses time slider playback,
  *   and no time slider can be drawn until a Time role can be assigned. Both are
  *   recorded on the `escapeLadder` call below.
- * - **The Insights strip and the filter status strip.** Nothing computes an insight card
- *   or holds an active filter yet, so there is nothing to draw and no control claims
- *   otherwise. The minimap is NOT in this group: its M binding and its Views checkmark
- *   do claim it is shown, which is why it is passed a config.
+ * - **The filter status strip.** Nothing holds an active filter yet, so there is nothing
+ *   to draw and no control claims otherwise. The Insights strip is no longer in this
+ *   group -- the 7.3 rule table computes its cards and the strip is drawn from them --
+ *   and neither is the minimap: its M binding and its Views checkmark do claim it is
+ *   shown, which is why it is passed a config.
  * - **The legend's channels.** With nothing encoded the legend renders nothing by
  *   design (spec 01 section 9), so an empty channel list is the correct state, not a
  *   missing one.
  */
 
-import { type DataTableColumn, PopoutManager, PopoutRegion } from "@graphty/compact-mantine";
+import { type DataTableColumn, type HistogramBin, PopoutManager, PopoutRegion } from "@graphty/compact-mantine";
 import { Box } from "@mantine/core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getLayoutMetadata, LAYOUT_METADATA } from "../../data/layoutMetadata";
 import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../data/sampleGraphs";
+import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../data/sampleManifest";
 import { useAiKeyStorage } from "../../hooks/useAiKeyStorage";
 import { useAiManager } from "../../hooks/useAiManager";
 import { useGraphInfo } from "../../hooks/useGraphInfo";
@@ -91,9 +93,21 @@ import type { GraphtyHandle, SelectionChangedDetail, StyleLayer, StylesChangedDe
 import type { LayerItem } from "../layout/LeftSidebar";
 import type { LoadDataRequest } from "../LoadDataModal";
 import type { AlgorithmStyleLayer } from "../RunAlgorithmModal";
+import {
+    addStyleLayers,
+    asElementGraph,
+    type ElementStyleLayerLike,
+    removeLayersFromSource,
+} from "./analysis/elementBridge";
+import { computeGraphShape, type GraphShape } from "./analysis/graphShape";
+import { COMMUNITY_METHOD_NAME, type DegreeResults, runCommunityDetection, runDegreePass } from "./analysis/runs";
 import { readPersistedCanvasLayout, resolveCanvasLayout, writePersistedCanvasLayout } from "./canvas/canvasMemory";
 import { CanvasRegion, type CanvasRegionOwnProps, useCanvasBottomStack } from "./canvas/CanvasRegion";
 import type { DataDrawerTab } from "./canvas/DataTableDrawer";
+import type { InsightCard } from "./canvas/InsightsStrip";
+import type { LegendChannel } from "./canvas/Legend";
+import { communityColourChannel } from "./canvas/legendChannels";
+import { type WelcomeSample, WelcomeSampleList } from "./canvas/WelcomeSampleList";
 import { CommandPalette, type CommandPaletteItem } from "./CommandPalette";
 import {
     ACTIVITIES_REQUIRING_DATA,
@@ -103,6 +117,16 @@ import {
     STATUS_BAR_HEIGHT,
     TOP_BAR_HEIGHT,
 } from "./constants";
+import { labelDegreeThreshold, LARGE_GRAPH_NODE_THRESHOLD, loadDefaults } from "./defaults/loadDefaults";
+import {
+    COMMUNITY_LAYER_NAME,
+    COMMUNITY_LAYER_SOURCE,
+    COMMUNITY_PALETTE,
+    communityColourLayers,
+    LOAD_DEFAULTS_LAYER_SOURCE,
+    type StyleLayerDescriptor,
+    topDegreeLabelLayer,
+} from "./defaults/styleDescriptors";
 import {
     graphDeselectNode,
     graphDisableBuiltInXrButtons,
@@ -114,10 +138,24 @@ import {
     graphZoomToFit,
     graphZoomToSelection,
 } from "./graphCommands";
+import {
+    readPersistedInsightsMemory,
+    resolveInsightsMemory,
+    withRetiredCapability,
+    writePersistedInsightsMemory,
+} from "./insights/insightsMemory";
+import {
+    insightCandidates,
+    type InsightCapability,
+    type InsightsGraphShape,
+    insightsStripModel,
+    isSliceAvailable,
+} from "./insights/insightsRules";
 import { Inspector } from "./inspector/Inspector";
 import { InspectorBody, type InspectorSelection } from "./inspector/InspectorBody";
-import { INSPECTOR_KIND_LABELS } from "./inspector/inspectorConstants";
+import { COUNTS_ROW_LABELS, INSPECTOR_KIND_LABELS, MOST_CONNECTED_TOP_N } from "./inspector/inspectorConstants";
 import type { NeighborRow } from "./inspector/NodeInspector";
+import type { ResultBodyRow } from "./inspector/ResultInspector";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
 import { ActivityPanel } from "./panel/ActivityPanel";
 import { AiPanel } from "./panel/AiPanel";
@@ -129,6 +167,10 @@ import { SettingsOverlay } from "./panel/SettingsOverlay";
 import { StylePanel } from "./panel/StylePanel";
 import { ActivityRail } from "./rail/ActivityRail";
 import { HelpMenu, type HelpMenuRowId } from "./rail/HelpMenu";
+import { communityReading, communityResultBody } from "./readings/communityReading";
+import { DEFAULT_EDGE_NOUN, GRAPH_SUMMARY_EMPTY_READING, graphSummaryReading } from "./readings/graphSummaryReading";
+import { formatCount } from "./readings/readingFormat";
+import { runRecordLine } from "./readings/runRecord";
 import { ShellProvider, useShell } from "./ShellContext";
 import { formatCountPair, formatCountsTitle } from "./statusbar/formatCounts";
 import { StatusBar } from "./statusbar/StatusBar";
@@ -164,8 +206,16 @@ const PINNED_TITLES: Readonly<Record<"help" | "settings", string>> = {
 /** How many layout engines the quick-pick menus offer. Spec 02 section 5 asks for four. */
 const LAYOUT_PICK_COUNT = 4;
 
-/** The graph host's default layout, the same engine `Graphty` defaults to. */
-const DEFAULT_LAYOUT = "d3";
+/**
+ * The graph host's default layout, the same engine `Graphty` defaults to.
+ *
+ * Spec 7.2 names the force layout by name for a graph below the large-graph threshold,
+ * and the engine it names is ngraph (`NGraphLayoutEngine.ts:86`, `static type =
+ * "ngraph"`), which is also what graphty-element's own `Graph` constructor defaults to.
+ * Only the shell had overridden it to d3. `loadDefaults` decides the layout per load;
+ * this is the value the shell starts from, before anything is loaded.
+ */
+const DEFAULT_LAYOUT = "ngraph";
 
 /** How often the shell retries turning graphty-element's XR buttons off, in ms. */
 const GRAPH_READY_POLL_MS = 250;
@@ -348,6 +398,59 @@ function CanvasToolbarSlot(props: Omit<CanvasToolbarComponentProps, "bottomOffse
 }
 
 /**
+ * Which inspector surface the shell's facts choose, in one rule.
+ *
+ * A selected node outranks a picked style layer, which outranks a result, which outranks
+ * the graph summary. It needs no new machinery: a card click clears the selection before
+ * it sets the result, and the next pick replaces the result surface -- so a stale result
+ * can never outlive a fresh selection, and `ShellStateAxis` stays empty / loaded /
+ * selected.
+ *
+ * It must agree with `inspectorSelection`'s own chain, because this decides the header's
+ * title and that decides the body. A disagreement reads as "Graph summary" drawn over a
+ * style layer's properties.
+ * @param hasSelectedNode - whether a node is selected.
+ * @param hasResult - whether a result is being drawn.
+ * @param hasSelectedLayer - whether a style layer is picked in the Style panel.
+ * @returns the surface kind the inspector draws.
+ */
+function selectedNodeSelectionKind(
+    hasSelectedNode: boolean,
+    hasResult: boolean,
+    hasSelectedLayer = false,
+): SelectionKind {
+    if (hasSelectedNode) {
+        return "node";
+    }
+
+    /* The same precedence `inspectorSelection` uses, and it has to be, or the header
+       names one surface while the body draws another. */
+    if (hasSelectedLayer) {
+        return "style-layer";
+    }
+
+    return hasResult ? "algorithm-result" : "none";
+}
+
+/**
+ * One style-layer descriptor, as the element bridge takes it.
+ *
+ * The two modules meet here and nowhere else: `defaults/styleDescriptors.ts` owns the
+ * descriptor VOCABULARY as named interfaces, and `analysis/elementBridge.ts` takes a
+ * layer as open records, because that is what graphty-element's `StyleManager` accepts.
+ * A named interface carries no index signature, so the two shapes are structurally
+ * compatible in one direction only; spreading each half produces the anonymous object
+ * type the bridge asks for. Nothing is renamed, dropped or nested -- in particular
+ * `calculatedStyle` stays a SIBLING of `style`, which is the one mistake that would make
+ * a calculated value silently vanish.
+ * @param layer - the descriptor a builder in `defaults/` produced.
+ * @returns the same layer, shaped as the bridge takes it.
+ */
+function elementStyleLayer(layer: StyleLayerDescriptor): ElementStyleLayerLike {
+    return { metadata: { ...layer.metadata }, node: { ...layer.node } };
+}
+
+/**
  * The graph data the shell holds on to: what `GraphtyHandle.getData` last reported.
  */
 interface ShellGraphData {
@@ -358,6 +461,99 @@ interface ShellGraphData {
 }
 
 const NO_GRAPH_DATA: ShellGraphData = { nodes: [], edges: [] };
+
+/**
+ * The event graphty-element publishes when a data source has finished loading.
+ *
+ * `DataManager.addDataFromSource` walks its source in chunks with an await between them
+ * and emits `data-added` per chunk (DataManager.ts:480-499), then exactly ONE
+ * `data-loaded` after the last chunk (DataManager.ts:543). The element forwards every
+ * internal graph event as a DOM CustomEvent that bubbles and is composed
+ * (graphty-element.ts:97), so an ancestor of the canvas hears it -- and can stop
+ * hearing it again, which `Graph.addListener` does not allow.
+ */
+const DATA_LOADED_EVENT = "data-loaded";
+
+/** How many bars the degree histogram draws at most. Past that, degrees share a bar. */
+const DEGREE_HISTOGRAM_MAX_BINS = 20;
+
+/** A degree distribution, ready for `GraphSummary`'s histogram row. */
+interface DegreeHistogram {
+    /** One bar per degree, or per band of degrees once there are more than the cap. */
+    readonly bins: readonly HistogramBin[];
+    /** The lowest degree measured, as the axis's left end. */
+    readonly axisMin: string;
+    /** The highest degree measured, as the axis's right end. */
+    readonly axisMax: string;
+}
+
+/** An empty distribution: no bar, and an axis that claims no range. */
+const NO_DEGREE_HISTOGRAM: DegreeHistogram = { bins: [], axisMin: "0", axisMax: "0" };
+
+/**
+ * The degree distribution the graph summary's "Links per node" histogram draws.
+ *
+ * It is measured from the degree pass the load already ran (7.2) and from nothing else:
+ * one bar per distinct degree while that fits under {@link DEGREE_HISTOGRAM_MAX_BINS},
+ * and equal-width bands of degrees once it does not, so a graph whose degrees run to the
+ * thousands draws twenty bars rather than thousands. A band's label names the degrees it
+ * holds, so no bar reports a number the reader cannot place.
+ *
+ * With no pass there is no distribution, and the empty one draws no bar. The section
+ * that holds the histogram is not drawn at all in that state -- `GraphSummary` renders
+ * it inside Most connected, which renders only when there is a ranked row -- so nothing
+ * on screen claims a distribution the shell has not measured.
+ * @param degreesDescending - every node's degree, highest first, from the degree pass.
+ * @returns the bars and the axis ends.
+ */
+function degreeHistogram(degreesDescending: readonly number[]): DegreeHistogram {
+    const highest = degreesDescending[0];
+    const lowest = degreesDescending[degreesDescending.length - 1];
+
+    if (highest === undefined || lowest === undefined) {
+        return NO_DEGREE_HISTOGRAM;
+    }
+
+    const span = highest - lowest + 1;
+    const width = Math.ceil(span / Math.min(span, DEGREE_HISTOGRAM_MAX_BINS));
+    const counts = new Array<number>(Math.ceil(span / width)).fill(0);
+
+    for (const degree of degreesDescending) {
+        const index = Math.min(Math.floor((degree - lowest) / width), counts.length - 1);
+
+        counts[index] += 1;
+    }
+
+    return {
+        bins: counts.map((count, index) => {
+            const from = lowest + index * width;
+            const to = Math.min(from + width - 1, highest);
+            const links = from === to ? formatCount(from) : `${formatCount(from)} to ${formatCount(to)}`;
+
+            return { label: `${links} links: ${formatCount(count)} nodes`, count };
+        }),
+        axisMin: formatCount(lowest),
+        axisMax: formatCount(highest),
+    };
+}
+
+/**
+ * What the Counts "Type" row may say about direction.
+ *
+ * The row's string is a claim plus where the claim was read: "Directed (from file),
+ * weighted (amount), timed (opened)" (inspectorConstants.ts:336), which is spec line 843
+ * -- "Direction (Directed / Undirected, from the file where the format carries it)". A
+ * measured direction therefore keeps its provenance, and where the format carried none
+ * the row says that and claims nothing. It does NOT read
+ * `graphInfo.graphType.directed`, which defaults to true and measures nothing, and there
+ * is no 6.3 pair for a fact nobody read: a plain-language phrase alone is the whole
+ * vocabulary the unknown case has.
+ */
+const COUNTS_TYPE_ROW: Readonly<Record<GraphShape["directedness"], string>> = {
+    directed: "Directed (from file)",
+    undirected: "Undirected (from file)",
+    unknown: "Not stated in the file",
+};
 
 /**
  * Props of {@link AppShell}.
@@ -418,6 +614,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const [dataLoaded, setDataLoaded] = useState(false);
     const [loadedSummary, setLoadedSummary] = useState<LoadedDataSummary | undefined>(undefined);
     const [graphData, setGraphData] = useState<ShellGraphData>(NO_GRAPH_DATA);
+    /* How many loads the element has reported COMPLETE since the last dataset boundary.
+       The 7.2 defaults wait on it rather than on the first data event: a chunked load
+       publishes `data-added` per chunk, and a decision taken on the first one is taken
+       over a partial graph. */
+    const [loadCompletions, setLoadCompletions] = useState(0);
     const [layers, setLayers] = useState<IndexedLayerItem[]>([]);
     const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<CanvasViewMode>("3d");
@@ -429,6 +630,15 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     } | null>(null);
     const layerCounter = useRef(1);
     const firstLoadDone = useRef(false);
+    /* Whether the 7.2 defaults have been applied to the dataset now loaded. They are a
+       per-dataset one-shot: re-applying them would fight a layout or a label budget the
+       user has since changed, and the graph's own data events fire more than once per
+       load. `crossDatasetBoundary` clears it. */
+    const loadDefaultsAppliedRef = useRef(false);
+    /* The card a sample row's closing hint asked for, consumed once the defaults have
+       landed, so the suggested run happens on a graph that already has its neutral base
+       and its degrees (7.1 item 2: one interaction, in the right order). */
+    const pendingSuggestedRef = useRef<InsightCapability | null>(null);
     const frameRef = useRef<HTMLDivElement>(null);
     /* The id the last `selection-changed` reported, or null when that pick hit nothing.
        It is a ref and not state because its one reader is an event handler in the same
@@ -476,6 +686,54 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
         writePersistedCanvasLayout(canvasLayout);
     }, [canvasLayout, persist]);
+
+    /* ---------------------------------------------------------------------- */
+    /* The Insights strip's own memory, and what a load and a run produce      */
+    /* ---------------------------------------------------------------------- */
+
+    /* Card retirement (7.3), in a fourth versioned key of its own. It is separate from
+       the canvas layout's key on purpose: the global "suggestions dismissed" boolean
+       and the per-capability retirement list are two different facts, Help > Show
+       suggestions restores only the first, and one key cannot corrupt the other. */
+    const [insightsMemory, setInsightsMemory] = useState(() =>
+        resolveInsightsMemory(persist ? readPersistedInsightsMemory() : {}),
+    );
+
+    useEffect(() => {
+        if (!persist) {
+            return;
+        }
+
+        writePersistedInsightsMemory(insightsMemory);
+    }, [insightsMemory, persist]);
+
+    /* The degree pass 7.2 runs in the background at import. It feeds node size, the
+       label selector's cut, the inspector's Most connected rows and the Search card's
+       own example, so it is read back once and held rather than re-run per reader. */
+    const [degreeResults, setDegreeResults] = useState<DegreeResults | null>(null);
+
+    /* The result the inspector's Algorithm-result surface is drawing, or null. A
+       selected node still wins over it (see `selectionKind`), so this is kept in state
+       rather than recomputed when a selection clears. */
+    const [activeResult, setActiveResult] = useState<{
+        readonly reading: string;
+        readonly runRecord: string;
+        readonly body: readonly ResultBodyRow[];
+        readonly layerName: string;
+        readonly stateSwatch: string;
+    } | null>(null);
+
+    /*
+     * The colour channel the legend draws, set by whatever painted the canvas.
+     *
+     * It is the home of the sentence the community reading no longer carries. Design line
+     * 201 gives the legend the channel header "Color: groups, categorical", and 5808 has
+     * Copy reading pick up "the legend's channel lines" -- so what the colours MEAN is the
+     * legend's fact, and repeating it as a third sentence in the reading both broke RT-10's
+     * two-sentence budget and said the same thing twice. Null until something encodes
+     * colour, because an unencoded channel is absent rather than empty (spec 4121).
+     */
+    const [colourChannel, setColourChannel] = useState<LegendChannel | null>(null);
 
     /* ---------------------------------------------------------------------- */
     /* The one history store (section 3). Producers are not wired yet, so it   */
@@ -535,6 +793,17 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             aiProvider,
         ],
     );
+
+    /* ---------------------------------------------------------------------- */
+    /* What one O(n+m) pass over the loaded records can honestly say            */
+    /* ---------------------------------------------------------------------- */
+
+    /* Components, isolated nodes, self-loops, parallel edges and the direction the
+       records actually carry -- the facts the graph-summary reading and the 7.3 rule
+       table both read. Nothing above O(n+m) is in here: no diameter, no path lengths,
+       and no direction guessed from `graphInfo.graphType.directed`, which defaults to
+       true and is therefore not a measurement. */
+    const graphShape = useMemo(() => computeGraphShape(graphData), [graphData]);
 
     /* ---------------------------------------------------------------------- */
     /* The 6.1 state axis, derived rather than stored twice                    */
@@ -644,6 +913,29 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         refreshGraphDataRef.current = refreshGraphData;
     }, [refreshGraphData]);
 
+    /*
+     * Counts the loads graphty-element has reported COMPLETE, on the frame the event
+     * bubbles to ({@link DATA_LOADED_EVENT}).
+     *
+     * The counts are refreshed in the same callback, so the completion and the records
+     * it completed reach React in one batch: no reader can see the flag move ahead of
+     * the data it stands for, whatever order the element's own listeners run in.
+     */
+    useEffect(() => {
+        const frame = frameRef.current;
+
+        const onDataLoaded = (): void => {
+            refreshGraphDataRef.current();
+            setLoadCompletions((count) => count + 1);
+        };
+
+        frame?.addEventListener(DATA_LOADED_EVENT, onDataLoaded);
+
+        return () => {
+            frame?.removeEventListener(DATA_LOADED_EVENT, onDataLoaded);
+        };
+    }, []);
+
     /**
      * Everything a dataset boundary clears, whichever event crossed it.
      *
@@ -651,8 +943,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * the first with a load on the end, and two implementations of one rule are how
      * they come to disagree. What goes is what was true of the graph that has gone:
      * the selection, a pinned inspector card (5.4 says this of a reload and this is
-     * the general case), and the transients that describe an object which no longer
-     * exists. What stays is what 6.5 says is true of the user, so nothing here
+     * the general case), the style layers that encoded it, and the transients that
+     * describe an object which no longer exists. What stays is what 6.5 says is true of the user, so nothing here
      * touches widths, section states or the remembered activity.
      *
      * Focus moves to the canvas. At a boundary the openers are going too, so the
@@ -670,6 +962,35 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         setPaletteOpen(false);
         setViewsMenuOpen(false);
         setDrawerMaximised(false);
+
+        /* The 7.2 defaults, the degree pass and any result describe the graph that has
+           gone, so they go with it: the latch is cleared so the next load applies its
+           own defaults, the completion count is zeroed so a completion reported for the
+           load that has gone cannot arm them early, and neither a stale degree ranking
+           nor a stale community reading outlives the data it was measured from. */
+        loadDefaultsAppliedRef.current = false;
+        pendingSuggestedRef.current = null;
+        setLoadCompletions(0);
+        setDegreeResults(null);
+        setActiveResult(null);
+        setColourChannel(null);
+
+        /* The style layers the SHELL added encode the graph that has gone -- every
+           selector in them matches on a node id or on an `algorithmResults` value that
+           left with it -- so they go too. Without this a replacing load stacked a second
+           set of 7.2 layers on top of the first, and every later load one more.
+
+           Scoped by tag, never by index. graphty-element's own stack opens with its
+           `default` layer, which carries every node's shape type (Styles.ts:54-67), and
+           an index walk took that with it: the next load then died in mesh building with
+           "shape with type required to create mesh" and drew nothing at all. The shell
+           removes what the shell added and leaves the element's own layers alone. */
+        const graph = asElementGraph(graphtyRef.current?.graph);
+
+        if (graph !== null) {
+            removeLayersFromSource(graph, LOAD_DEFAULTS_LAYER_SOURCE);
+            removeLayersFromSource(graph, COMMUNITY_LAYER_SOURCE);
+        }
 
         // Focus cannot move here. The same state change empties the canvas, so any
         // element chosen now is about to be unmounted and focus would fall to the
@@ -808,6 +1129,70 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 })
                 .catch((error: unknown) => {
                     console.error("[shell] failed to load data:", error);
+                });
+        },
+        [crossDatasetBoundary, finishLoad],
+    );
+
+    /**
+     * Loads one row of the sample library, and optionally runs its suggested first card.
+     *
+     * It goes through the ordinary load paths rather than around them -- the `?test`
+     * fixture's `loadData` for an inline sample, `handleLoad`'s own `loadFromUrl` for a
+     * served one -- so the counts come from the graph's own data events and the first
+     * load switches the panel to Explore exactly as a file does. It crosses the dataset
+     * boundary first, as `handleLoad` does for a replacing load, because a sample click
+     * IS a replacing load.
+     *
+     * The suggested card is NOT run here. It is recorded on a ref and run by the
+     * load-defaults effect once the 7.2 defaults have landed, so the grouping colours are
+     * painted over the neutral base rather than under it, and the degrees the labels need
+     * are already read back. That is what makes the hint one interaction instead of two.
+     * @param record - the manifest row the reader clicked.
+     * @param runSuggested - whether the row's closing hint was what was clicked.
+     */
+    const loadSample = useCallback(
+        (record: SampleRecord, runSuggested: boolean) => {
+            const handle = graphtyRef.current;
+
+            if (handle === null) {
+                console.error("[shell] the graph is not initialised yet");
+
+                return;
+            }
+
+            /* A sample click is a REPLACING load, so it takes `handleLoad`'s route
+               through the 6.12 boundary rather than merging into whatever is drawn: the
+               old records go, and with them the selection, the stale result, the layers
+               that encoded the old graph and the latch that would otherwise deny the new
+               dataset its own 7.2 defaults. Before this, a sample clicked from the Data
+               panel in the Loaded state renamed the dataset in the top bar while the
+               graph kept the old one's nodes -- the shell asserting a dataset that was
+               never loaded. */
+            handle.clearData();
+            crossDatasetBoundary();
+
+            // After the boundary, which clears it: the pending card belongs to the load
+            // that is starting, not to the dataset that has just gone.
+            pendingSuggestedRef.current = runSuggested ? (record.suggestedCapability ?? null) : null;
+
+            const { source } = record;
+
+            if (source.kind === "inline") {
+                handle.loadData(source.format, { data: JSON.stringify(source.payload) });
+                finishLoad(record.fileName, source.format, { format: source.format, size: undefined });
+
+                return;
+            }
+
+            handle
+                .loadFromUrl(source.url, source.format)
+                .then(() => {
+                    finishLoad(record.fileName, source.format, { format: source.format, size: undefined });
+                })
+                .catch((error: unknown) => {
+                    pendingSuggestedRef.current = null;
+                    console.error("[shell] failed to load the sample:", error);
                 });
         },
         [crossDatasetBoundary, finishLoad],
@@ -1017,6 +1402,197 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         },
         [openActivity],
     );
+
+    /* ---------------------------------------------------------------------- */
+    /* The one capability this slice can run end to end (7.3 item 3)           */
+    /* ---------------------------------------------------------------------- */
+
+    /**
+     * Runs community detection, paints the groups and writes the reading.
+     *
+     * 7.3 asks a card click to do three things at once: run the method with size-aware
+     * defaults, open its home panel, and write the reading into the inspector. Two of the
+     * three are here; the third -- scrolling to the control and highlighting it for two
+     * seconds -- is not built, because nothing in the DOM identifies a panel section (see
+     * the file header's list of what is deliberately absent).
+     *
+     * The order is load-bearing. The run comes first, its results are read back, the
+     * colour layers are built from what came back and only then added, because
+     * graphty-element's own style-changed handler re-evaluates selectors WITHOUT
+     * `algorithmResults` -- a layer added before the run would match nothing. The group
+     * ids are only knowable after the run in any case.
+     *
+     * It leaves exactly ONE history entry (7.1 item 2). The encoding does not get a second
+     * one: nothing in this slice can undo a style layer independently of the result, so a
+     * second row would carry an Undo that does nothing.
+     */
+    const runFindGroups = useCallback(async () => {
+        const graph = asElementGraph(graphtyRef.current?.graph);
+
+        if (graph === null) {
+            console.error("[shell] the graph is not initialised yet");
+
+            return;
+        }
+
+        const stats = await runCommunityDetection(graph);
+        const colourLayers = communityColourLayers(stats.groups);
+
+        /* One result owns one set of layers, so the previous run's colours come off
+           before these go on -- by the same tag and the same helper the inspector's
+           Delete layer uses. Without the removal a second run left two full stacks of
+           community colours on the graph for one result. */
+        removeLayersFromSource(graph, COMMUNITY_LAYER_SOURCE);
+        addStyleLayers(graph, colourLayers.map(elementStyleLayer));
+
+        const statistics = {
+            ...stats,
+            colouredGroupCount: Math.min(stats.groupCount, colourLayers.length),
+            encodingApplied: colourLayers.length > 0,
+        };
+
+        /* A selected node outranks a result on this surface, so the result is only
+           reachable once the selection is cleared -- which is also what 7.3 means by the
+           reading being what the reader sees immediately after the click. */
+        setSelectedNode(null);
+        setActiveResult({
+            reading: communityReading(statistics),
+            runRecord: runRecordLine({
+                method: COMMUNITY_METHOD_NAME,
+                /* No parameter was moved off its default, so none is named, and the run
+                   was exact, complete and unfiltered, so no caveats line is passed at
+                   all -- which is what keeps "Approximate (sample of 200)" loud when one
+                   day there is one (spec 4843). */
+                nonDefaultParameters: [],
+                scope: `${formatCount(stats.nodeCount)} nodes`,
+            }),
+            body: communityResultBody(statistics),
+            layerName: COMMUNITY_LAYER_NAME,
+            stateSwatch: COMMUNITY_PALETTE[0],
+        });
+        setColourChannel(communityColourChannel(statistics));
+        openPanelAt("analyze");
+        undoStore.push({
+            id: `groups-${String(Date.now())}`,
+            category: "algorithmResult",
+            title: "Found groups (Communities, Louvain)",
+            activity: "analyze",
+            activityLabel: ACTIVITY_TITLES.analyze,
+            at: Date.now(),
+            destinationTitle: "Ran Groups (Communities, Louvain). Opens Analyze at its card",
+        });
+    }, [openPanelAt, undoStore]);
+
+    /* ---------------------------------------------------------------------- */
+    /* 7.2: what a load decides, and the degree pass it runs in the background */
+    /* ---------------------------------------------------------------------- */
+
+    /*
+     * The layout, the label budget, the size scale and the one neutral colour, applied
+     * once per dataset from the loaded graph's size alone. Nothing else runs (7.2), and
+     * every number and every hex comes from the defaults module rather than from here.
+     *
+     * The degree pass is awaited because three of the four decisions need it: the size
+     * scale reads `degreePct`, the label selector needs the labelCount-th degree as its
+     * cut, and the Search card's example is the highest-degree node's id.
+     *
+     * It waits for the load to be COMPLETE rather than for its first chunk, which is what
+     * `loadCompletions` counts. graphty-element loads in chunks with an await between
+     * them, so on any file over about a thousand nodes every fact 7.2 branches on -- the
+     * layout, the label budget, the size scale, Most connected, the Search example, and
+     * the above-threshold Performance branch itself -- would otherwise be measured over
+     * whatever arrived first and never corrected. The element says when the last chunk is
+     * in (DATA_LOADED_EVENT), so the one-shot latches on that instead of recomputing per
+     * chunk: the numbers are right the first time, the layers are added once, and the
+     * suggested card of 7.1 item 2 runs once, on the whole graph.
+     */
+    useEffect(() => {
+        if (!dataLoaded || loadCompletions === 0 || loadDefaultsAppliedRef.current) {
+            return;
+        }
+
+        if (graphData.nodes.length === 0) {
+            return;
+        }
+
+        const graph = asElementGraph(graphtyRef.current?.graph);
+
+        if (graph === null) {
+            return;
+        }
+
+        loadDefaultsAppliedRef.current = true;
+
+        const defaults = loadDefaults({ nodeCount: graphShape.nodeCount });
+
+        setLayoutType(defaults.layout.type);
+        setLayoutConfig(defaults.layout.config);
+
+        const apply = async (): Promise<void> => {
+            const degrees = await runDegreePass(graph);
+
+            setDegreeResults(degrees);
+
+            /* NO node colour or size layer, which is a deliberate departure from 7.2's
+               "node size by degree on a square-root scale" and "a single neutral node
+               color".
+
+               The element's own `default` layer carries node and edge values that were
+               tuned by hand over a long stretch, and both of ours overrode them from the
+               first frame. The size layer was the worse of the two: `degreePct` is
+               `degree / maxDegree`, so on a graph whose smallest degree is half its
+               largest -- the cat fixture, degrees 2 to 4 -- every node landed between
+               3.12x and 4.00x the base. That is 7.2's 4x ceiling honoured and its point
+               missed, because the spread a reader could actually see was 1.28x while the
+               whole graph grew three-fold. Restoring the tuned defaults is the product
+               owner's call (2026-09-13); re-proposing either layer means fixing the
+               normalisation first, against the observed degree RANGE rather than the
+               maximum alone. Labels stay: they add a channel rather than overriding a
+               tuned value. */
+            const styleLayers: StyleLayerDescriptor[] = [];
+
+            const degreeThreshold = labelDegreeThreshold(degrees.degreesDescending, defaults.labelCount);
+
+            if (degreeThreshold !== undefined) {
+                // The ids, not just the cut. A degree comparison keeps every node tied at
+                // the cut degree, which on the cat fixture labelled 15 of 20 nodes against
+                // 7.2's budget of 5; naming the nodes spends the budget exactly.
+                // `byDegreeDescending` is already sorted with a stable id tie-break, so
+                // the chosen set is deterministic.
+                styleLayers.push(
+                    topDegreeLabelLayer({
+                        degreeThreshold,
+                        labelNodeIds: degrees.byDegreeDescending
+                            .slice(0, defaults.labelCount)
+                            .map((reading) => reading.id),
+                    }),
+                );
+            }
+
+            // `addStyleLayers` repaints, which is what makes the calculated size and the
+            // `algorithmResults` selector take effect at all.
+            addStyleLayers(graph, styleLayers.map(elementStyleLayer));
+
+            const pending = pendingSuggestedRef.current;
+
+            pendingSuggestedRef.current = null;
+
+            if (pending === "community-detection") {
+                await runFindGroups();
+
+                /* Spec 5643-5648: the hint's click ends "one undoable history entry, that
+                   card retired". The reader has been taken where the card was taking
+                   them, so the card has done its job, and the retirement outlives the
+                   session in the insights key. It happens after the run, not before: a
+                   run that threw has retired nothing. */
+                setInsightsMemory((current) => withRetiredCapability(current, pending));
+            }
+        };
+
+        apply().catch((error: unknown) => {
+            console.error("[shell] could not apply the load defaults:", error);
+        });
+    }, [dataLoaded, graphData.nodes.length, graphShape.nodeCount, loadCompletions, runFindGroups]);
 
     /**
      * Shows or hides the activity panel: the Mod+B binding and the top bar's panel
@@ -1317,8 +1893,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* ---------------------------------------------------------------------- */
 
     const presentation = breakpoint === "narrow" ? "overlay" : "docked";
-    const {nodeCount} = graphInfo;
-    const {edgeCount} = graphInfo;
+    const { nodeCount } = graphInfo;
+    const { edgeCount } = graphInfo;
 
     /* Which activity the 280 px panel is drawing, or null when no panel is on screen.
        Settings and Help are rail destinations that never become a panel (spec 03
@@ -1389,6 +1965,26 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                             that goes in; what it has not measured stays out.
                         */
                         loadedSummary={loadedSummary}
+                        /*
+                            The same manifest Welcome draws, so the two surfaces cannot
+                            drift (spec 5648): "The same size string ("20 nodes, 29
+                            edges") appears in the panel and the canvas", so the row is
+                            fed the string from the ONE formatter the canvas row uses.
+                            The credit is the row's hover title; the size string and the
+                            tags share the row's trailing value, size first, as spec 622
+                            asks ("Small samples show counts alone" plus "each row
+                            carries small tags").
+                        */
+                        samples={SAMPLE_MANIFEST.map((record) => ({
+                            id: record.id,
+                            name: record.name,
+                            sizeString: sampleSizeString(record.size),
+                            tags: record.tags,
+                            source: record.credit,
+                            onOpen: () => {
+                                loadSample(record, false);
+                            },
+                        }))}
                         dataTableOpen={canvasLayout.drawerOpen}
                         onDataTableOpenChange={setDrawerOpen}
                     />
@@ -1408,7 +2004,26 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 // shell itself owns: this panel keeps its own 6.5 key, and a board
                 // rendered with `persist={false}` must not write it.
                 return (
-                    <AnalyzePanel graphtyRef={graphtyRef} onAddLayers={handleAddAlgorithmLayers} persist={persist} />
+                    <AnalyzePanel
+                        graphtyRef={graphtyRef}
+                        onAddLayers={handleAddAlgorithmLayers}
+                        persist={persist}
+                        /*
+                            7.3: a capability run from its OWN panel retires its insight
+                            card, because the reader has already been where the card was
+                            taking them. A click on the card itself does not retire it --
+                            that is the "Done" badge's job, and the strip has no field for
+                            one. Only the Groups card runs anything in this build.
+                        */
+                        onRunSuggested={(id) => {
+                            if (id !== "groups") {
+                                return;
+                            }
+
+                            setInsightsMemory((current) => withRetiredCapability(current, "community-detection"));
+                            void runFindGroups();
+                        }}
+                    />
                 );
             case "style":
                 return (
@@ -1488,8 +2103,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         layoutConfig,
         layoutType,
         loadedSummary,
+        loadSample,
         nodeCount,
         persist,
+        runFindGroups,
         selectedLayerId,
         setDrawerOpen,
         stateAxis,
@@ -1500,7 +2117,17 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* The inspector                                                           */
     /* ---------------------------------------------------------------------- */
 
-    const selectionKind: SelectionKind = selectedNode === null ? "none" : "node";
+    /*
+     * The precedence rule, in one place: a selected node outranks a result, and a result
+     * outranks the graph summary. It is the only rule that needs no new machinery, and it
+     * keeps a stale result from outliving a fresh selection -- the card click clears the
+     * selection first, and the next pick replaces the result surface.
+     */
+    const selectionKind: SelectionKind = selectedNodeSelectionKind(
+        selectedNode !== null,
+        activeResult !== null,
+        selectedLayerId !== null && layers.some((layer) => layer.id === selectedLayerId),
+    );
 
     const neighborsOf = useCallback(
         (nodeId: string): readonly NeighborRow[] => {
@@ -1543,11 +2170,145 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         });
     }, []);
 
+    /*
+     * The graph-summary reading (7.5). It is the template's, not a sentence assembled
+     * here, and it is fed only facts one O(n+m) pass measured.
+     *
+     * Two clauses the spec draws are deliberately absent. The type clause ("17 cats, 1 dog
+     * and 2 humans") needs a node-type ROLE, and no column-role model exists in either
+     * package -- the cat fixture's `breed` carries 17 values with counts of 1 to 3, so the
+     * drawn string is not derivable from the data. The "at most 5 steps" clause needs an
+     * exact diameter, which is above the O(n+m) ceiling spec 5843 sets for a template. The
+     * template accepts `nodeTypes` and `exactDiameter` for the day either lands.
+     */
     const graphReading = dataLoaded
-        ? `This graph holds ${nodeCount.toLocaleString()} nodes and ${edgeCount.toLocaleString()} edges.`
-        : "Nothing is loaded yet. Open a file, a URL or pasted data to see a reading here.";
+        ? graphSummaryReading({
+              nodeCount: graphShape.nodeCount,
+              edgeCount: graphShape.edgeCount,
+              edgeNoun: DEFAULT_EDGE_NOUN,
+              connectedPartCount: graphShape.connectedPartCount,
+              largestPartNodeCount: graphShape.largestPartNodeCount,
+              smallPartsMostlySingleNodes: graphShape.smallPartsMostlySingleNodes,
+          })
+        : GRAPH_SUMMARY_EMPTY_READING;
+
+    /* The distribution the histogram draws, from the same degree pass Most connected
+       reads. Both are absent together: with no pass there are no ranked rows, and
+       `GraphSummary` draws the histogram inside the Most connected section. */
+    const degreeDistribution = useMemo(() => degreeHistogram(degreeResults?.degreesDescending ?? []), [degreeResults]);
+
+    const mostConnected = useMemo(
+        () =>
+            (degreeResults?.byDegreeDescending ?? []).slice(0, MOST_CONNECTED_TOP_N).map((reading) => ({
+                id: reading.id,
+                // The node's id IS its label here: nothing in this build assigns a label
+                // role to an attribute, so a second column would be the same string twice.
+                label: reading.id,
+                value: formatCount(reading.degree),
+            })),
+        [degreeResults],
+    );
 
     const inspectorSelection = useMemo<InspectorSelection>(() => {
+        /* A layer picked in the Style panel opens that layer's surface. It outranks the
+           result and the graph summary because it is the reader's own most recent pick,
+           and it yields to a selected node for the same reason -- a node selection is
+           made on the canvas, later and more deliberately. `InspectorBody` has drawn this
+           kind since the shell was built; nothing ever constructed it, so the properties
+           panel was unreachable and the Style panel could only reorder and rename. */
+        if (selectedNode === null && selectedLayerId !== null) {
+            const picked = layers.find((layer) => layer.id === selectedLayerId);
+
+            if (picked !== undefined) {
+                return {
+                    kind: "style-layer",
+                    layer: {
+                        layer: picked,
+                        onUpdate: (layerId, updates) => {
+                            handleLayersChange(
+                                layers.map((layer) =>
+                                    layer.id === layerId
+                                        ? {
+                                              ...layer,
+                                              styleLayer: {
+                                                  ...layer.styleLayer,
+                                                  /* The half's required fields are restated, not spread
+                                                     from an optional: `styleLayer.node` may be absent on a
+                                                     layer that only styles edges, and spreading `undefined`
+                                                     would leave `selector` missing. */
+                                                  node: {
+                                                      selector: layer.styleLayer.node?.selector ?? "",
+                                                      style: layer.styleLayer.node?.style ?? {},
+                                                      ...(layer.styleLayer.node?.calculatedStyle === undefined
+                                                          ? {}
+                                                          : { calculatedStyle: layer.styleLayer.node.calculatedStyle }),
+                                                      ...updates,
+                                                  },
+                                              },
+                                          }
+                                        : layer,
+                                ),
+                            );
+                        },
+                        onEdgeUpdate: (layerId, updates) => {
+                            handleLayersChange(
+                                layers.map((layer) =>
+                                    layer.id === layerId
+                                        ? {
+                                              ...layer,
+                                              styleLayer: {
+                                                  ...layer.styleLayer,
+                                                  edge: {
+                                                      selector: layer.styleLayer.edge?.selector ?? "",
+                                                      style: layer.styleLayer.edge?.style ?? {},
+                                                      ...(layer.styleLayer.edge?.calculatedStyle === undefined
+                                                          ? {}
+                                                          : { calculatedStyle: layer.styleLayer.edge.calculatedStyle }),
+                                                      ...updates,
+                                                  },
+                                              },
+                                          }
+                                        : layer,
+                                ),
+                            );
+                        },
+                    },
+                };
+            }
+        }
+
+        if (selectedNode === null && activeResult !== null) {
+            return {
+                kind: "algorithm-result",
+                result: {
+                    reading: activeResult.reading,
+                    runRecord: activeResult.runRecord,
+                    body: activeResult.body,
+                    layerName: activeResult.layerName,
+                    stateSwatch: activeResult.stateSwatch,
+                    onChangeEncoding: () => {
+                        openPanelAt("style");
+                    },
+                    onDeleteLayer: () => {
+                        const graph = asElementGraph(graphtyRef.current?.graph);
+
+                        if (graph !== null) {
+                            removeLayersFromSource(graph, COMMUNITY_LAYER_SOURCE);
+                        }
+
+                        setActiveResult(null);
+                        // The colours went with the layers, so the channel naming them goes too.
+                        setColourChannel(null);
+                    },
+                    onRemoveResult: () => {
+                        /* Only the result leaves. The layers stay painted, so the legend
+                           keeps naming the colours that are still on the canvas. */
+                        setActiveResult(null);
+                    },
+                },
+            };
+        }
+
         if (selectedNode === null) {
             return {
                 kind: "none",
@@ -1557,19 +2318,30 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         ? {
                               nodes: nodeCount.toLocaleString(),
                               edges: edgeCount.toLocaleString(),
-                              types: graphInfo.graphType.directed ? "Directed" : "Undirected",
+                              /* What the O(n+m) pass READ off the edge records, never
+                                 `graphInfo.graphType.directed`, which defaults to true
+                                 and measures nothing. */
+                              types: COUNTS_TYPE_ROW[graphShape.directedness],
                               density: graphInfo.density.toFixed(3),
                               densityTitle: graphInfo.density.toExponential(2),
-                              averageDegree:
-                                  nodeCount === 0 ? "0" : ((edgeCount * 2) / nodeCount).toFixed(1),
-                              connectedParts: "Not computed",
+                              averageDegree: nodeCount === 0 ? "0" : ((edgeCount * 2) / nodeCount).toFixed(1),
+                              connectedParts: formatCount(graphShape.connectedPartCount),
+                              // 6.2's zero rule: a count of nothing is not a row.
+                              selfLoops:
+                                  graphShape.selfLoopCount === 0 ? undefined : formatCount(graphShape.selfLoopCount),
+                              parallelEdges:
+                                  graphShape.parallelEdgeCount === 0
+                                      ? undefined
+                                      : formatCount(graphShape.parallelEdgeCount),
                           }
                         : null,
-                    mostConnected: [],
-                    rankedCount: 0,
-                    degreeBins: [],
-                    degreeAxisMin: "0",
-                    degreeAxisMax: "0",
+                    mostConnected,
+                    /* Every node the degree pass ranked, which is what "See all N
+                       ranked" opens the table on -- not the five rows above it. */
+                    rankedCount: degreeResults?.byDegreeDescending.length ?? 0,
+                    degreeBins: degreeDistribution.bins,
+                    degreeAxisMin: degreeDistribution.axisMin,
+                    degreeAxisMax: degreeDistribution.axisMax,
                     schema: { ready: false, summary: "measuring...", nodeTypes: [], edgeTypes: [] },
                     attributes: { nodes: [], edges: [] },
                     caseNoteCount: 0,
@@ -1595,7 +2367,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         }
 
         const neighbors = neighborsOf(selectedNode.id);
-        const {attributes} = selectedNode;
+        const { attributes } = selectedNode;
 
         return {
             kind: "node",
@@ -1639,19 +2411,73 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             },
         };
     }, [
+        activeResult,
         copyReading,
         dataLoaded,
+        degreeDistribution,
+        degreeResults,
         edgeCount,
         graphInfo.density,
         graphInfo.graphType.directed,
         graphReading,
+        graphShape.connectedPartCount,
+        graphShape.directedness,
+        graphShape.parallelEdgeCount,
+        graphShape.selfLoopCount,
+        handleLayersChange,
+        layers,
+        mostConnected,
         neighborsOf,
         nodeCount,
         openDrawerOn,
         openPanelAt,
+        selectedLayerId,
         selectedNode,
         zoomToSelection,
     ]);
+
+    /*
+     * What the header's copy verb puts on the clipboard (spec 5808): the reading, then the
+     * facts the surface is drawing beside it, one per line.
+     *
+     * The legend's channels are part of the spec's list and are NOT here, because nothing
+     * paints a legend channel until an encoding does, and copying an empty channel list
+     * would be copying a claim the screen does not make.
+     */
+    const inspectorReadingForCopy = useMemo(() => {
+        if (inspectorSelection.kind === "algorithm-result") {
+            return [inspectorSelection.result.reading, inspectorSelection.result.runRecord].join("\n");
+        }
+
+        if (inspectorSelection.kind !== "none") {
+            return graphReading;
+        }
+
+        const { counts } = inspectorSelection.summary;
+
+        if (counts === null) {
+            return graphReading;
+        }
+
+        const rows: string[] = [
+            `${COUNTS_ROW_LABELS.nodes}: ${counts.nodes}`,
+            `${COUNTS_ROW_LABELS.edges}: ${counts.edges}`,
+            `${COUNTS_ROW_LABELS.type}: ${counts.types}`,
+            `${COUNTS_ROW_LABELS.density}: ${counts.density}`,
+            `${COUNTS_ROW_LABELS.averageDegree}: ${counts.averageDegree}`,
+            `${COUNTS_ROW_LABELS.connectedParts}: ${counts.connectedParts}`,
+        ];
+
+        if (counts.selfLoops !== undefined) {
+            rows.push(`${COUNTS_ROW_LABELS.selfLoops}: ${counts.selfLoops}`);
+        }
+
+        if (counts.parallelEdges !== undefined) {
+            rows.push(`${COUNTS_ROW_LABELS.parallelEdges}: ${counts.parallelEdges}`);
+        }
+
+        return [graphReading, ...rows].join("\n");
+    }, [graphReading, inspectorSelection]);
 
     /* ---------------------------------------------------------------------- */
     /* The status bar                                                          */
@@ -1891,6 +2717,121 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const drawerRows = drawerTab === "nodes" ? graphData.nodes : graphData.edges;
     const drawerColumnDefs = useMemo(() => drawerColumns(drawerRows), [drawerRows]);
 
+    /* ---------------------------------------------------------------------- */
+    /* The Insights strip (7.3)                                                */
+    /* ---------------------------------------------------------------------- */
+
+    /*
+     * The rule table is implemented in full and is pure; what reaches the strip is
+     * filtered by `isSliceAvailable`, so only the capabilities this build can carry
+     * through to a reading are drawn. On the cat fixture that is Find groups and Search,
+     * which is also the card set Main.dc.html:702 draws minus the degree card that has no
+     * reading yet.
+     *
+     * Two inputs are honestly zero rather than plausibly filled: `hasTimeRole` is false
+     * because no column-role model exists, and `validationIssueTypeCount` is 0 because
+     * `DataManager` hardcodes its warning count to 0 and nothing computes a validation
+     * pass. Rule 1 and rule 6 are therefore implemented and never fire.
+     */
+    const insightCards = useMemo<readonly InsightCard[]>(() => {
+        if (!dataLoaded) {
+            return [];
+        }
+
+        const shape: InsightsGraphShape = {
+            nodeCount: graphShape.nodeCount,
+            edgeCount: graphShape.edgeCount,
+            directedness: graphShape.directedness,
+            hasTimeRole: false,
+            validationIssueTypeCount: 0,
+            searchExample: degreeResults?.byDegreeDescending[0]?.id,
+            largeGraphThreshold: LARGE_GRAPH_NODE_THRESHOLD,
+        };
+
+        /* The cap of four is spent only on cards this build can carry through to a
+           reading. Filtering AFTER the model let an unavailable card eat a slot and draw
+           a strip of two where three were available, so the unavailable capabilities join
+           the retired ones instead: the model already drops those BEFORE it applies the
+           cap, which is the one place a "not this one" decision belongs. */
+        const unavailable = insightCandidates(shape)
+            .filter((candidate) => !isSliceAvailable(candidate.capability))
+            .map((candidate) => candidate.capability);
+
+        return insightsStripModel(shape, [...insightsMemory.retiredCapabilities, ...unavailable]).cards.map((card) => ({
+            id: card.id,
+            title: card.title,
+            technicalName: card.technicalName,
+            body: card.body,
+            actionLabel: card.actionLabel,
+            onActivate: () => {
+                if (card.capability === "community-detection") {
+                    void runFindGroups();
+
+                    return;
+                }
+
+                if (card.capability === "search") {
+                    openPanelAt("explore");
+                    focusWhenMounted('[data-testid="explore-search-input"]');
+                }
+            },
+        }));
+    }, [
+        dataLoaded,
+        degreeResults,
+        graphShape.directedness,
+        graphShape.edgeCount,
+        graphShape.nodeCount,
+        insightsMemory.retiredCapabilities,
+        openPanelAt,
+        runFindGroups,
+    ]);
+
+    /* ---------------------------------------------------------------------- */
+    /* Welcome's sample list (7.1 items 1-2), from the one manifest             */
+    /* ---------------------------------------------------------------------- */
+
+    const welcomeSamples = useMemo<readonly WelcomeSample[]>(
+        () =>
+            SAMPLE_MANIFEST.map((record) => ({
+                id: record.id,
+                name: record.name,
+                tags: record.tags,
+                large: record.large,
+                credit: record.credit,
+                creditHref: record.creditHref,
+                sizeString: sampleSizeString(record.size),
+                blurb: record.blurb,
+                hint: record.hint,
+                onOpen: () => {
+                    loadSample(record, false);
+                },
+                // Bound only where the manifest carries a hint, so a row with no
+                // suggested card cannot grow a link that promises an unbuilt action.
+                onOpenAndRun:
+                    record.hint === undefined
+                        ? undefined
+                        : () => {
+                              loadSample(record, true);
+                          },
+            })),
+        [loadSample],
+    );
+
+    /*
+     * The legend's encoded channels: colour, from whatever painted the canvas last.
+     *
+     * Colour is the only channel the shell encodes now. The 7.2 size-by-degree layer was
+     * reverted with the node defaults, and naming a size channel the canvas does not apply
+     * would be the legend asserting an encoding that is not there. An unencoded channel is
+     * absent rather than empty (spec 4121), so with nothing painted no `legend` config is
+     * passed at all and the legend draws nothing.
+     */
+    const legendChannels = useMemo<readonly LegendChannel[]>(
+        () => (colourChannel === null ? [] : [colourChannel]),
+        [colourChannel],
+    );
+
     const canvasProps: CanvasRegionOwnProps = {
         stateAxis,
         docks: {
@@ -1907,6 +2848,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             insightsStrip: !canvasLayout.insightsDismissed,
         },
         onCanvasTap: handleCanvasTap,
+        ...(legendChannels.length === 0 ? {} : { legend: { channels: legendChannels } }),
         graphRef: graphtyRef,
         /*
          * Spec 01 section 5: the minimap "is never hidden, because ... a hidden minimap
@@ -1951,7 +2893,37 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             onPasteOrOpenFromUrl: () => {
                 openPanelAt("data");
             },
+            onFilesDropped: (files: FileList) => {
+                const file = files.item(0);
+
+                if (file !== null) {
+                    /* A drop on the Empty state's zone has nothing to replace, so it is
+                       not a replacing load and crosses no dataset boundary. */
+                    handleLoad({ inputMethod: "file", file, format: "auto", replaceExisting: false });
+                }
+            },
+            children: <WelcomeSampleList samples={welcomeSamples} />,
         },
+        /*
+         * 7.3: the strip is drawn only when the rule table produced a card this build can
+         * run. Dismissal goes through the canvas layout's own remembered flag, which 6.5
+         * keeps globally across datasets and which Help > Show suggestions and the command
+         * palette both restore; it pushes no history entry, because panel state is not
+         * undoable. Per-card retirement goes to the insights memory instead, and survives
+         * Show suggestions -- a capability that has been run has still been run.
+         */
+        insights:
+            dataLoaded && insightCards.length > 0
+                ? {
+                      cards: insightCards,
+                      onDismiss: () => {
+                          setCanvasLayout((current) => ({ ...current, insightsDismissed: true }));
+                      },
+                      onDismissCard: (id: string) => {
+                          setInsightsMemory((current) => withRetiredCapability(current, id));
+                      },
+                  }
+                : undefined,
     };
 
     const visibleNodeCount = nodeCount;
@@ -2045,8 +3017,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         overflow: "hidden",
                     }}
                 >
-                        {panelActivity !== null && (
-                          <Box data-shell-region="panel" style={{ display: "contents" }}>
+                    {panelActivity !== null && (
+                        <Box data-shell-region="panel" style={{ display: "contents" }}>
                             <PopoutRegion id="panel">
                                 <ActivityPanel
                                     activity={panelActivity}
@@ -2062,56 +3034,56 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                     {panelBody}
                                 </ActivityPanel>
                             </PopoutRegion>
-                          </Box>
-                        )}
+                        </Box>
+                    )}
 
-                        {/* The canvas overlay is one region; the Data table drawer nests
+                    {/* The canvas overlay is one region; the Data table drawer nests
                             its own inside it, because 6.11 makes a dock a region of its own. */}
-                        <PopoutRegion id="canvas">
-                            <CanvasRegion {...canvasProps}>
-                                <CanvasToolbarSlot
-                                    viewMode={viewMode}
-                                    onViewModeChange={setViewMode}
-                                    zoomToSelectionEnabled={selectedNode !== null}
-                                    onZoomOut={zoomOut}
-                                    onZoomIn={zoomIn}
-                                    onZoomToFit={zoomToFit}
-                                    onZoomToSelection={zoomToSelection}
-                                    profileId={canvasToolbarProfile(shell.shellWidth).id}
-                                    viewsMenuOpen={viewsMenuOpen}
-                                    onViewsMenuOpenChange={setViewsMenuOpen}
-                                    views={{
-                                        minimapShown: canvasLayout.minimap,
-                                        legendShown: canvasLayout.legend,
-                                        toolbarShown: canvasLayout.toolbar,
-                                        vrSupported: xrSupport.vr,
-                                        arSupported: xrSupport.ar,
-                                        visibleNodeCount,
-                                        visibleEdgeCount,
-                                        onResetView: resetView,
-                                        onViewPreset: (preset) => {
-                                            graphViewPreset(graphtyRef.current?.graph ?? null, preset);
-                                        },
-                                        onToggleMinimap: () => {
-                                            toggleOverlay("minimap");
-                                        },
-                                        onToggleToolbar: () => {
-                                            toggleOverlay("toolbar");
-                                            setViewsMenuOpen(false);
-                                        },
-                                        onToggleLegend: () => {
-                                            toggleOverlay("legend");
-                                        },
-                                        onEnterVr: () => undefined,
-                                        onEnterAr: () => undefined,
-                                    }}
-                                />
-                            </CanvasRegion>
-                        </PopoutRegion>
+                    <PopoutRegion id="canvas">
+                        <CanvasRegion {...canvasProps}>
+                            <CanvasToolbarSlot
+                                viewMode={viewMode}
+                                onViewModeChange={setViewMode}
+                                zoomToSelectionEnabled={selectedNode !== null}
+                                onZoomOut={zoomOut}
+                                onZoomIn={zoomIn}
+                                onZoomToFit={zoomToFit}
+                                onZoomToSelection={zoomToSelection}
+                                profileId={canvasToolbarProfile(shell.shellWidth).id}
+                                viewsMenuOpen={viewsMenuOpen}
+                                onViewsMenuOpenChange={setViewsMenuOpen}
+                                views={{
+                                    minimapShown: canvasLayout.minimap,
+                                    legendShown: canvasLayout.legend,
+                                    toolbarShown: canvasLayout.toolbar,
+                                    vrSupported: xrSupport.vr,
+                                    arSupported: xrSupport.ar,
+                                    visibleNodeCount,
+                                    visibleEdgeCount,
+                                    onResetView: resetView,
+                                    onViewPreset: (preset) => {
+                                        graphViewPreset(graphtyRef.current?.graph ?? null, preset);
+                                    },
+                                    onToggleMinimap: () => {
+                                        toggleOverlay("minimap");
+                                    },
+                                    onToggleToolbar: () => {
+                                        toggleOverlay("toolbar");
+                                        setViewsMenuOpen(false);
+                                    },
+                                    onToggleLegend: () => {
+                                        toggleOverlay("legend");
+                                    },
+                                    onEnterVr: () => undefined,
+                                    onEnterAr: () => undefined,
+                                }}
+                            />
+                        </CanvasRegion>
+                    </PopoutRegion>
 
-                        <Box data-shell-region="inspector" style={{ display: "contents" }}>
-                            <PopoutRegion id="inspector">
-                                <Inspector
+                    <Box data-shell-region="inspector" style={{ display: "contents" }}>
+                        <PopoutRegion id="inspector">
+                            <Inspector
                                 open={inspectorOpen}
                                 width={inspectorWidth}
                                 presentation={presentation}
@@ -2121,7 +3093,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                 pinned={dataLoaded && inspectorPinned}
                                 keptOpen={inspectorKeptOpen}
                                 onCopyReading={() => {
-                                    copyReading(graphReading);
+                                    copyReading(inspectorReadingForCopy);
                                 }}
                                 onKeepOpenChange={setInspectorKeptOpen}
                                 onPin={() => {
@@ -2131,29 +3103,29 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                 onWidthChange={presentation === "docked" ? setInspectorWidth : undefined}
                             >
                                 <InspectorBody selection={inspectorSelection} />
-                                </Inspector>
-                            </PopoutRegion>
-                        </Box>
-
-                        {/* Settings is a full-panel overlay over the body row, not a
-                            280 px panel and not a route (spec 03 section 2.7). */}
-                        <PopoutRegion id="settings">
-                            <SettingsOverlay
-                                opened={settingsOpen}
-                                section={settingsSection}
-                                aiProviders={aiProviderSettings}
-                                onClose={() => {
-                                    setSettingsOpen(false);
-                                }}
-                            />
+                            </Inspector>
                         </PopoutRegion>
+                    </Box>
 
-                        <KeyboardShortcutsOverlay
-                            opened={shortcutsOpen}
+                    {/* Settings is a full-panel overlay over the body row, not a
+                            280 px panel and not a route (spec 03 section 2.7). */}
+                    <PopoutRegion id="settings">
+                        <SettingsOverlay
+                            opened={settingsOpen}
+                            section={settingsSection}
+                            aiProviders={aiProviderSettings}
                             onClose={() => {
-                                setShortcutsOpen(false);
+                                setSettingsOpen(false);
                             }}
                         />
+                    </PopoutRegion>
+
+                    <KeyboardShortcutsOverlay
+                        opened={shortcutsOpen}
+                        onClose={() => {
+                            setShortcutsOpen(false);
+                        }}
+                    />
                 </Box>
 
                 {/* The Help menu is a sibling of the rail, not a child of it: the rail
@@ -2193,7 +3165,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     setFeedbackOpen(false);
                 }}
             />
-
         </Box>
     );
 }

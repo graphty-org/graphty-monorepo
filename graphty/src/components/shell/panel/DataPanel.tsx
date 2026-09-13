@@ -115,6 +115,31 @@ function loadedSummarySegments(summary: LoadedDataSummary): CompoundSegment[] {
 }
 
 /**
+ * What a sample row draws in its trailing value slot: the size string, then the tags.
+ *
+ * Spec 622 asks this row for both -- "each row carries small tags" and "Small samples
+ * show counts alone" -- and `DataRow` has one trailing slot to put them in, so they are
+ * joined in the register's own order, the leading fact first, as `withChip` joins a verb
+ * to its reason. The size leads because it is the fact spec 5648 requires on both
+ * surfaces. A row with neither draws no value at all rather than an empty string.
+ * @param sample - the row's own facts.
+ * @returns the value, or undefined when the row has neither fact.
+ */
+function sampleRowValue(sample: DataSample): string | undefined {
+    const parts: string[] = [];
+
+    if (sample.sizeString !== undefined) {
+        parts.push(sample.sizeString);
+    }
+
+    if (sample.tags !== undefined && sample.tags.length > 0) {
+        parts.push(sample.tags.join(", "));
+    }
+
+    return parts.length === 0 ? undefined : parts.join(". ");
+}
+
+/**
  * The text of a control's tooltip: the verb, then the key chip when the action
  * has shipped, then any reason it cannot act.
  * @param text - the verb, in the register's own words.
@@ -139,6 +164,14 @@ export interface DataSample {
     readonly id: string;
     /** The dataset's own name -- the user's data, floor item 7. */
     readonly name: string;
+    /**
+     * The one size string the canvas row draws too, e.g. "20 nodes, 29 edges".
+     *
+     * Spec 5648: "The same size string ... appears in the panel and the canvas", so the
+     * caller passes the string rather than the counts and there is one formatter behind
+     * both surfaces. Absent where the caller has no counts to draw.
+     */
+    readonly sizeString?: string;
     /** Its tags, e.g. Directed, Timed, Types, Weighted. */
     readonly tags?: readonly string[];
     /** Who it came from, credited beside it. */
@@ -352,7 +385,7 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
                     <Box key={sample.id} title={sample.source}>
                         <DataRow
                             name={sample.name}
-                            value={sample.tags === undefined ? undefined : sample.tags.join(", ")}
+                            value={sampleRowValue(sample)}
                             onClick={() => {
                                 sample.onOpen();
                             }}

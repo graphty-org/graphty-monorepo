@@ -18,7 +18,7 @@
  * - CloseButton (xs): --cb-size: 16px, --cb-icon-size: 12px
  */
 
-import type { CompactSizeScale } from "./size-scale";
+import type { CompactSizeScale, CompactVars } from "./size-scale";
 
 /**
  * Per-size CSS variables for the compact Button.
@@ -42,6 +42,9 @@ export const compactButtonScale: CompactSizeScale = {
  * variant props in its own varsResolver, and because resolve-vars merges per
  * key those five survive untouched -- which is what lets variant="filled"
  * render filled in its colour at a compact 24px.
+ *
+ * The one variable this component names beyond the size is `--ai-bd`, and it is
+ * named per VARIANT rather than per size: see compactActionIconVariantVars below.
  */
 export const compactActionIconScale: CompactSizeScale = {
     compactSize: "sm",
@@ -53,6 +56,45 @@ export const compactActionIconScale: CompactSizeScale = {
         xl: { "--ai-size": "44px" },
     },
 };
+
+/**
+ * The border an ActionIcon draws for the variant it is rendered with.
+ *
+ * `light` is the treatment a dense toggle draws its ACTIVE state with -- a tinted
+ * ground and an accent glyph -- and the tint alone is not a state boundary.
+ * Composited over the panel ground this library paints
+ * (`PANEL_INK.PANEL`, `var(--mantine-color-body)`) Mantine's light ground measures
+ * 1.21:1 in the dark scheme (rgba(34,139,230,0.15) over #1f2428) and 1.12:1 in the
+ * light one (rgba(34,139,230,0.1) over #ffffff), where WCAG 2.2 (1.4.11) asks 3:1
+ * of the visual boundary that distinguishes a control's state. A one-pixel accent
+ * border is that boundary: drawn in the variant's OWN ink, `--ai-color`, it measures
+ * 7.97:1 against the ground and 6.57:1 against the tint it encloses in the dark
+ * scheme, and 3.56:1 / 3.17:1 in the light one -- past 3:1 on both of its sides, in
+ * both schemes. The filled accent was the other candidate and fails the inner side
+ * at 2.59:1.
+ *
+ * It belongs here rather than at a call site. graphty's shell wrote this boundary
+ * itself as an inset box-shadow on two of its header rows (`activeRingStyle`,
+ * removed 2026-09-13 at the product owner's direction: "the custom lock button was
+ * not necessary ... if the components are wrong, they should be fixed"), which left
+ * those two toggles drawing a state the app's other toggles did not draw.
+ *
+ * `--ai-bd` is the variable Mantine's own ActionIcon reads
+ * (node_modules/@mantine/core/styles/ActionIcon.css: `border: var(--ai-bd, ...)`),
+ * and its variant resolver fills it with `1px solid transparent` for every variant,
+ * so overriding it here neither adds a box nor moves a grid: the 24px control stays
+ * 24px. Reading the colour from `--ai-color` rather than naming the primary keeps a
+ * `color="red" variant="light"` icon bordered in its own red.
+ *
+ * Every other variant is left exactly as Mantine resolved it -- `outline` already
+ * draws a real border, `filled` carries its own ground, and a white or grey border
+ * on either would be a new treatment rather than a fix.
+ * @param variant - the variant prop as Mantine resolved it
+ * @returns the border override for `light`, and nothing at all for anything else
+ */
+export function compactActionIconVariantVars(variant?: string | null): CompactVars {
+    return variant === "light" ? { "--ai-bd": "1px solid var(--ai-color)" } : {};
+}
 
 /**
  * Per-size CSS variables for the compact CloseButton.

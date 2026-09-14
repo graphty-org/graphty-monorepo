@@ -2,6 +2,7 @@ import { ActionIcon, Button, CloseButton } from "@mantine/core";
 
 import {
     compactActionIconScale,
+    compactActionIconVariantVars,
     compactButtonScale,
     compactCloseButtonScale,
 } from "../styles/buttons";
@@ -32,9 +33,16 @@ import { compactVarsForSize } from "../styles/size-scale";
  * treatment -- an icon button in a dense panel carries no ground until it is
  * hovered. It changes what an OMITTED variant means (stock Mantine reads an
  * omitted variant as "filled"), so a call site that wants a filled icon has to
- * say `variant="filled"`; the theme touches only --ai-size and leaves Mantine's
- * --ai-bg / --ai-color / --ai-hover derivation intact, so that renders filled in
- * its colour at the compact size.
+ * say `variant="filled"`; the theme leaves Mantine's --ai-bg / --ai-color /
+ * --ai-hover derivation intact, so that renders filled in its colour at the
+ * compact size.
+ *
+ * ActionIcon's resolver reads props.variant as well as props.size, because the
+ * `light` variant -- the ACTIVE state of every dense toggle -- gets a one-pixel
+ * accent border it does not get from Mantine: its tinted ground alone measures
+ * 1.21:1 against the panel it sits on and WCAG 2.2 (1.4.11) asks 3:1 of a state
+ * boundary. The figures, and why this lives in the shared theme instead of at a
+ * call site, are on compactActionIconVariantVars in ../styles/buttons.ts.
  */
 export const buttonComponentExtensions = {
     Button: Button.extend({
@@ -52,7 +60,10 @@ export const buttonComponentExtensions = {
             variant: "subtle",
         },
         vars: (_theme, props) => ({
-            root: compactVarsForSize(compactActionIconScale, props?.size),
+            root: {
+                ...compactVarsForSize(compactActionIconScale, props?.size),
+                ...compactActionIconVariantVars(props?.variant),
+            },
         }),
     }),
 

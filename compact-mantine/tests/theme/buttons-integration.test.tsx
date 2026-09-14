@@ -177,6 +177,54 @@ describe("Button Components Integration", () => {
             }
         });
 
+        it("gives variant='light' the 1px accent border WCAG 1.4.11 asks of a state boundary", () => {
+            /* 2026-09-13, item 4: `light` is the ACTIVE state of every dense toggle, and
+               its tinted ground measures 1.21:1 against the panel it sits on (dark) and
+               1.12:1 (light) where 1.4.11 asks 3:1. graphty's shell had drawn that
+               boundary itself, on two header rows, as an inset box-shadow; the product
+               owner ruled the bespoke control out, so the shared component draws it and
+               every caller inherits it. The border is Mantine's own --ai-bd, which is
+               `1px solid transparent` in every variant, so the 24px box does not move. */
+            const { container } = render(
+                <MantineProvider theme={compactTheme}>
+                    <ActionIcon variant="light" aria-label="light" />
+                </MantineProvider>,
+            );
+            const root = container.querySelector(".mantine-ActionIcon-root");
+            expect(root).toHaveAttribute("data-variant", "light");
+            expect(cssVar(root, "--ai-bd")).toBe("1px solid var(--ai-color)");
+            expect(cssVar(root, "--ai-bg")).toBe("var(--mantine-color-blue-light)");
+            expect(cssVar(root, "--ai-size")).toBe("24px");
+        });
+
+        it("draws that border in the variant's own ink, so a coloured light icon keeps its colour", () => {
+            // --ai-color is what Mantine resolved for this color + variant, so the
+            // boundary and the glyph inside it are one accent rather than two.
+            const { container } = render(
+                <MantineProvider theme={compactTheme}>
+                    <ActionIcon variant="light" color="red" aria-label="light red" />
+                </MantineProvider>,
+            );
+            const root = container.querySelector(".mantine-ActionIcon-root");
+            expect(cssVar(root, "--ai-bd")).toBe("1px solid var(--ai-color)");
+            expect(cssVar(root, "--ai-color")).toBe("var(--mantine-color-red-light-color)");
+        });
+
+        it("leaves every other variant's border exactly as Mantine resolved it", () => {
+            // A resting control must have a border BOX and no border COLOUR, or the
+            // boundary stops meaning "active"; and an accent border on `filled` or a
+            // second one on `outline` would be a new treatment rather than a fix.
+            for (const variant of ["subtle", "filled", "outline", "transparent", "default"]) {
+                const { container } = render(
+                    <MantineProvider theme={compactTheme}>
+                        <ActionIcon variant={variant} aria-label={`icon ${variant}`} />
+                    </MantineProvider>,
+                );
+                const root = container.querySelector(".mantine-ActionIcon-root");
+                expect(cssVar(root, "--ai-bd"), variant).not.toContain("--ai-color");
+            }
+        });
+
         it("still treats an omitted variant as subtle, the compact chrome's resting state", () => {
             // The theme's defaultProps variant="subtle" changes what an omitted
             // variant means (stock Mantine reads it as filled). A call site that

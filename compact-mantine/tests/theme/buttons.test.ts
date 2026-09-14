@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { buttonComponentExtensions } from "../../src/theme/components/buttons";
-import { compactActionIconScale, compactButtonScale, compactCloseButtonScale } from "../../src/theme/styles/buttons";
+import {
+    compactActionIconScale,
+    compactActionIconVariantVars,
+    compactButtonScale,
+    compactCloseButtonScale,
+} from "../../src/theme/styles/buttons";
 import type { CompactSizeScale } from "../../src/theme/styles/size-scale";
 import { compactVarsForSize } from "../../src/theme/styles/size-scale";
 
@@ -104,7 +109,7 @@ describe("button size scales", () => {
         }
     });
 
-    it("names only --ai-size for ActionIcon, leaving Mantine's variant colours alone", () => {
+    it("names only --ai-size per SIZE for ActionIcon, leaving Mantine's variant colours alone", () => {
         // Item 2, 2026-09-13: variant="filled" must still render filled in its
         // colour. Mantine derives --ai-bg / --ai-color / --ai-hover from color +
         // variant in its own varsResolver, and resolve-vars merges per key, so
@@ -112,5 +117,33 @@ describe("button size scales", () => {
         for (const size of SIZES) {
             expect(Object.keys(compactVarsForSize(compactActionIconScale, size))).toEqual(["--ai-size"]);
         }
+    });
+});
+
+/**
+ * Cover for the product owner's 2026-09-13 item 4, "the custom lock button was not
+ * necessary ... if the components are wrong, they should be fixed". graphty's shell had
+ * written its own inset-box-shadow ring on two header rows because Mantine's `light`
+ * ground -- the ACTIVE state of a dense toggle -- measures 1.21:1 against the panel it
+ * sits on in the dark scheme and 1.12:1 in the light one, where WCAG 2.2 (1.4.11) asks
+ * 3:1 of a state boundary. The boundary is this theme's job, once, for every caller.
+ */
+describe("ActionIcon variant vars", () => {
+    it("gives the light variant a 1px border in the variant's own ink", () => {
+        expect(compactActionIconVariantVars("light")).toEqual({ "--ai-bd": "1px solid var(--ai-color)" });
+    });
+
+    it("names nothing at all for every other variant", () => {
+        // Mantine fills --ai-bd with `1px solid transparent` for these, and that
+        // reserved-but-invisible pixel is what keeps the 24px box from moving between a
+        // resting control and an active one. `outline` already draws a real border.
+        for (const variant of ["subtle", "filled", "outline", "transparent", "white", "default", "gradient", "none"]) {
+            expect(compactActionIconVariantVars(variant), variant).toEqual({});
+        }
+    });
+
+    it("names nothing for an absent variant, which the theme's defaultProps resolve to subtle", () => {
+        expect(compactActionIconVariantVars()).toEqual({});
+        expect(compactActionIconVariantVars(null)).toEqual({});
     });
 });

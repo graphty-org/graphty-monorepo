@@ -296,6 +296,25 @@ Each package has its own CLAUDE.md with package-specific guidance:
   - Dependent packages declare `references` array pointing to dependencies
   - Build order enforced by TypeScript: `algorithms` → `layout` → `graphty-element` → `graphty`
 
+### UI Components
+
+- Use the default components. Never write a bespoke control to work around one
+- If a shared component is wrong, fix the shared component, so every caller gets the fix
+- Example (2026-09-13): the app shell's lock button grew a custom contrast ring because
+  Mantine's `light` active state measured 1.21:1 against the panel header where WCAG 1.4.11
+  asks 3:1. The ring left one control in the app behaving unlike every other toggle. The fix
+  belonged in `compact-mantine`'s ActionIcon theme, and once it was there the local ring was
+  deleted
+
+### Graph Styling
+
+- Node and edge appearance MUST be applied through a style layer, as a layer handed to
+  graphty-element through the StyleManager
+- It MUST NOT be applied manually under any circumstance -- never by mutating a mesh, a
+  material, or a node or edge object
+- The failure mode: styling applied outside the layer system is invisible to the layer list,
+  cannot be reordered, removed or persisted, and is silently lost at a dataset boundary
+
 ### Testing
 
 - Use `assert` instead of `expect` in layout tests

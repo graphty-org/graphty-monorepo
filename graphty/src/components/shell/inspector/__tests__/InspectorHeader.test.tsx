@@ -136,17 +136,29 @@ describe("InspectorHeader", () => {
             }
         });
 
-        it("draws the same accent ring on a latched control as the panel's latch does", () => {
-            // The ring, not the tint, is what meets WCAG 1.4.11's 3:1 for a state
-            // boundary; the ratio itself is measured once, on the panel's board, against
-            // the ground both rows sit on.
+        it("draws the same accent boundary on a latched control as the panel's latch does", () => {
+            /* The 1px accent border, not the tint, is what meets WCAG 1.4.11's 3:1 for a
+               state boundary; the ratio itself is measured once, on the panel's board,
+               against the ground both rows sit on. Neither row draws the border: it comes
+               from `@graphty/compact-mantine`'s ActionIcon theme, which is why the two
+               rows cannot drift apart (2026-09-13, third pass -- until then this row
+               spread a helper exported from the panel's header). */
             const { rerender } = render(<InspectorHeader {...defaultProps} keptOpen={false} />);
 
-            expect(window.getComputedStyle(screen.getByTestId("inspector-keep-open")).boxShadow).not.toContain("inset");
+            expect(window.getComputedStyle(screen.getByTestId("inspector-keep-open")).borderTopColor).toBe(
+                "rgba(0, 0, 0, 0)",
+            );
 
             rerender(<InspectorHeader {...defaultProps} keptOpen />);
 
-            expect(window.getComputedStyle(screen.getByTestId("inspector-keep-open")).boxShadow).toContain("inset");
+            const latched = window.getComputedStyle(screen.getByTestId("inspector-keep-open"));
+
+            expect(latched.borderTopWidth).toBe("1px");
+            expect(latched.borderTopStyle).toBe("solid");
+            expect(latched.borderTopColor).not.toBe("rgba(0, 0, 0, 0)");
+            // The border is drawn in the variant's OWN ink, so it and the accent glyph
+            // inside it read as one treatment rather than as two accents.
+            expect(latched.borderTopColor).toBe(latched.color);
         });
 
         it("draws a held pin exactly as it draws a latch, which is the defect it had", () => {
@@ -162,7 +174,7 @@ describe("InspectorHeader", () => {
 
             expect(empty).toHaveAttribute("data-variant", "subtle");
             expect(empty).toHaveAttribute("aria-pressed", "false");
-            expect(window.getComputedStyle(empty).boxShadow).not.toContain("inset");
+            expect(window.getComputedStyle(empty).borderTopColor).toBe("rgba(0, 0, 0, 0)");
 
             rerender(<InspectorHeader {...defaultProps} kindLabel="Node" showPin onPin={vi.fn()} pinned />);
 
@@ -171,7 +183,7 @@ describe("InspectorHeader", () => {
             expect(held).toHaveAttribute("data-variant", "light");
             expect(held).toHaveAttribute("aria-pressed", "true");
             expect(window.getComputedStyle(held).backgroundColor).not.toBe(emptyGround);
-            expect(window.getComputedStyle(held).boxShadow).toContain("inset");
+            expect(window.getComputedStyle(held).borderTopColor).not.toBe("rgba(0, 0, 0, 0)");
             expect(held).toHaveAccessibleName("Pin as A");
             expect(held.querySelector('[data-glyph="pin"]')).not.toBeNull();
         });

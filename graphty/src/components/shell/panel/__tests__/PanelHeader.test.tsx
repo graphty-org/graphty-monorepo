@@ -268,31 +268,54 @@ describe("PanelHeader", () => {
                header's ground, where 1.4.11 asks 3:1 of the visual boundary that
                distinguishes a control's state, and the file's comment claimed the state
                "does not rest on colour alone" while the ground was the only thing drawing
-               it. The ring is the boundary now, and this board is the measurement rather
-               than the claim: it is taken against BOTH colours the ring sits between --
-               the header ground outside it and the tint it encloses -- which is what
-               ruled out the filled accent, at 2.59:1 on the inner side. */
+               it. The `light` variant's 1px accent border is the boundary, and this board
+               is the measurement rather than the claim: it is taken against BOTH colours
+               the border sits between -- the header ground outside it and the tint it
+               encloses -- which is what ruled out the filled accent, at 2.59:1 on the
+               inner side.
+
+               Third pass, same day: the border arrives from `@graphty/compact-mantine`'s
+               ActionIcon theme rather than from a ring this file drew, so this board now
+               measures what every `light` toggle in the app draws. It stays here because
+               the ratio depends on the GROUND, and this header's ground is the one the
+               spec's controls sit on. */
             render(
                 <PanelHeader title="Explore" glyph={glyph} keptOpen onKeepOpenChange={vi.fn()} onClose={vi.fn()} />,
             );
 
             const latch = screen.getByTestId("panel-header-keep-open");
-            const ring = window.getComputedStyle(latch).boxShadow;
+            const booted = document.documentElement.getAttribute("data-mantine-color-scheme");
 
-            expect(ring).toContain("inset");
+            /* Both schemes, not just the one the shell boots in: the ground flips from
+               #1f2428 to #ffffff and the accent ink flips with it, so a boundary that
+               clears 3:1 in the dark scheme can still fail in the light one. Measured
+               here: 7.97:1 outside / 6.61:1 inside (dark) and 3.56:1 / 3.17:1 (light),
+               where the tint ALONE is 1.21:1 and 1.12:1. */
+            for (const scheme of ["dark", "light"] as const) {
+                document.documentElement.setAttribute("data-mantine-color-scheme", scheme);
 
-            const ringColor = /rgba?\([^)]*\)/.exec(ring)?.[0];
+                const painted = window.getComputedStyle(latch);
+                const ground = resolveColor(PANEL_INK.PANEL);
+                const tint = over(painted.backgroundColor, ground);
+                const boundary = over(painted.borderTopColor, tint);
 
-            expect(ringColor).toBeDefined();
+                expect(painted.borderTopWidth, scheme).toBe("1px");
+                expect(painted.borderTopStyle, scheme).toBe("solid");
+                expect(boundary, scheme).not.toBe(tint);
+                expect(contrastRatio(tint, ground), scheme).toBeLessThan(STATE_BOUNDARY_MIN_CONTRAST);
+                expect(contrastRatio(boundary, ground), scheme).toBeGreaterThanOrEqual(STATE_BOUNDARY_MIN_CONTRAST);
+                expect(contrastRatio(boundary, tint), scheme).toBeGreaterThanOrEqual(STATE_BOUNDARY_MIN_CONTRAST);
+            }
 
-            const ground = resolveColor(PANEL_INK.PANEL);
-            const tint = over(window.getComputedStyle(latch).backgroundColor, ground);
-
-            expect(contrastRatio(ringColor as string, ground)).toBeGreaterThanOrEqual(STATE_BOUNDARY_MIN_CONTRAST);
-            expect(contrastRatio(ringColor as string, tint)).toBeGreaterThanOrEqual(STATE_BOUNDARY_MIN_CONTRAST);
+            // Put the provider's own scheme back, so no later board inherits this one's.
+            if (booted === null) {
+                document.documentElement.removeAttribute("data-mantine-color-scheme");
+            } else {
+                document.documentElement.setAttribute("data-mantine-color-scheme", booted);
+            }
         });
 
-        it("draws no ring at all when it is not latched, so the ring is the state and not the control", () => {
+        it("draws no boundary at all when it is not latched, so the border is the state and not the control", () => {
             render(
                 <PanelHeader
                     title="Explore"
@@ -303,9 +326,13 @@ describe("PanelHeader", () => {
                 />,
             );
 
-            expect(window.getComputedStyle(screen.getByTestId("panel-header-keep-open")).boxShadow).not.toContain(
-                "inset",
-            );
+            const resting = window.getComputedStyle(screen.getByTestId("panel-header-keep-open"));
+
+            // Mantine reserves the 1px in every variant and fills it with `transparent`,
+            // so a resting control has a border BOX and no border COLOUR -- which is also
+            // why the 24px hit box does not move between the two states.
+            expect(resting.borderTopColor).toBe("rgba(0, 0, 0, 0)");
+            expect(resting.boxShadow).not.toContain("inset");
         });
 
         it("rests in the register's own secondary ink, which the inspector's latch also rests in", () => {

@@ -5,21 +5,24 @@ import type {
     ArrowConfig,
     ColorConfig,
     EdgeLineConfig,
-    EdgeStyle,
     NodeEffectsConfig,
-    NodeStyle,
     RichTextStyle,
     ShapeConfig,
 } from "../../../types/style-layer";
-import { elementToEditorRichTextStyle } from "../../../utils/richTextStyleBridge";
+import { editorToElementRichTextStyle, elementToEditorRichTextStyle } from "../../../utils/richTextStyleBridge";
+import { DEFAULT_ARROW_HEAD, DEFAULT_ARROW_TAIL } from "../../../utils/style-defaults";
 import {
-    DEFAULT_ARROW_HEAD,
-    DEFAULT_ARROW_TAIL,
-    DEFAULT_COLOR,
-    DEFAULT_EDGE_LINE,
-    DEFAULT_NODE_EFFECTS,
-    DEFAULT_SHAPE,
-} from "../../../utils/style-defaults";
+    editorToElementArrow,
+    editorToElementColor,
+    editorToElementEdgeLine,
+    editorToElementEffects,
+    editorToElementShape,
+    elementToEditorArrow,
+    elementToEditorColorConfig,
+    elementToEditorEdgeLine,
+    elementToEditorEffects,
+    elementToEditorShape,
+} from "../../../utils/styleBridge";
 import type { LayerItem } from "../../layout/LeftSidebar";
 import { ControlGroup } from "../controls/ControlGroup";
 import { ControlSection } from "../controls/ControlSection";
@@ -42,56 +45,120 @@ interface StyleLayerPropertiesPanelProps {
 type StyleRecord = Record<string, unknown>;
 
 /**
- * Converts legacy color format to new ColorConfig format.
- * @param style - The style object to extract color config from
- * @returns The color configuration
+ * The style with one key gone, which is how a layer says it no longer sets that key.
+ *
+ * Rebuilt rather than deleted from, and never written as a present key with an `undefined`
+ * value: graphty-element merges matching layers with `defaultsDeep`, where an absent key
+ * lets another layer's value through and a present one does not. The two are different
+ * facts, and `undefined` is neither of them.
+ * @param style - the element-shaped style.
+ * @param key - the key to drop.
+ * @returns the same style without that key.
  */
-function getColorConfig(style: StyleRecord): ColorConfig {
-    // Check if new color config exists
-    if (style.color && typeof style.color === "object" && "mode" in style.color) {
-        return style.color as ColorConfig;
-    }
-
-    // Check legacy texture.color format
-    if (style.texture && typeof style.texture === "object") {
-        const texture = style.texture as { color?: string };
-        if (texture.color) {
-            return {
-                mode: "solid",
-                color: texture.color,
-                opacity: 1.0,
-            };
-        }
-    }
-
-    // Check simple color string
-    if (typeof style.color === "string") {
-        return {
-            mode: "solid",
-            color: style.color,
-            opacity: 1.0,
-        };
-    }
-
-    return DEFAULT_COLOR;
+function withoutKey(style: StyleRecord, key: string): StyleRecord {
+    return Object.fromEntries(Object.entries(style).filter(([name]) => name !== key));
 }
 
 /**
- * Converts ColorConfig to a format usable by graphty-element.
- * @param colorConfig - The color configuration to convert
- * @returns The node style object
+ * The live style with one rich-text branch -- the label or the tooltip -- rewritten.
+ *
+ * Every OTHER key is carried across untouched, exactly as the element held it, because a
+ * handler owns one branch and knows nothing about the rest: `style` here is what
+ * graphty-element's `StyleManager` currently holds for this layer, not something the
+ * editors re-derived.
+ *
+ * An empty or disabled editor style has no element form (`editorToElementRichTextStyle`
+ * returns undefined), and that is written by REMOVING the branch rather than by writing a
+ * disabled one. Removing it puts the layer back in the state it was in before anything
+ * styled a label, which is what the app's other writer (`Graphty.tsx`) also does with an
+ * undefined conversion -- and it is the only one of the two options the element's schema
+ * reads unambiguously. Writing `{enabled: false}` instead would be a positive claim that
+ * beats other matching layers through `defaultsDeep`, leaving a reader with no label and
+ * nothing to look at that says which layer turned it off.
+ * @param style - the layer's current node or edge style, element-shaped.
+ * @param key - the branch this handler owns.
+ * @param editorStyle - the style the rich-text control handed back, editor-shaped.
+ * @returns the same style with that one branch written, or with it removed.
  */
-function colorConfigToStyle(colorConfig: ColorConfig): NodeStyle {
-    if (colorConfig.mode === "solid") {
-        return {
-            color: colorConfig,
-            texture: { color: colorConfig.color },
-        };
+function withRichTextBranch(style: StyleRecord, key: "label" | "tooltip", editorStyle: RichTextStyle): StyleRecord {
+    const flat = editorToElementRichTextStyle(editorStyle);
+
+    if (flat === undefined) {
+        return withoutKey(style, key);
     }
 
-    return { color: colorConfig };
+    return { ...style, [key]: flat };
 }
 
+/**
+ * The live style with the colour branch rewritten in ELEMENT shape.
+ *
+ * The element has no `color` key -- `NodeStyle` is a Zod `strictObject` whose colour lives
+ * at `texture.color` -- so the editor's `ColorConfig` goes through the bridge and the
+ * editor-only `color` key is REMOVED. Left behind, it is not merely dead weight: the
+ * element interns styles by deep equality, so a style carrying it can never be
+ * value-equal to the canonical style for the same look, and the pair costs two style ids
+ * and two meshes for one colour.
+ *
+ * `texture`'s other keys -- `image`, `icon` -- are carried across, because this handler
+ * owns the colour and nothing else.
+ * @param style - the layer's current node style, element-shaped.
+ * @param colorConfig - the colour the control handed back, editor-shaped.
+ * @returns the same style with `texture.color` written and `color` gone.
+ */
+function withColorBranch(style: StyleRecord, colorConfig: ColorConfig): StyleRecord {
+    const existing = style.texture;
+    const texture =
+        existing !== null && typeof existing === "object" && !Array.isArray(existing) ? (existing as StyleRecord) : {};
+
+    return {
+        ...withoutKey(style, "color"),
+        texture: { ...texture, color: editorToElementColor(colorConfig) },
+    };
+}
+
+/**
+ * The live style with the effects branch rewritten in ELEMENT shape.
+ *
+ * The element's key is `effect`, SINGULAR, and the editor's plural `effects` is dropped on
+ * the way past. Nothing set means the branch is ABSENT -- `editorToElementEffects` returns
+ * undefined and that is written by removing the key, never as `effect: undefined`, which
+ * `isEqual` reads as a style distinct from one with no `effect` at all.
+ * @param style - the layer's current node style, element-shaped.
+ * @param effects - the effects the control handed back, editor-shaped.
+ * @returns the same style with `effect` written or removed, and `effects` gone.
+ */
+function withEffectBranch(style: StyleRecord, effects: NodeEffectsConfig): StyleRecord {
+    const converted = editorToElementEffects(effects);
+    const base = withoutKey(withoutKey(style, "effects"), "effect");
+
+    if (converted === undefined) {
+        return base;
+    }
+
+    return { ...base, effect: converted };
+}
+
+/**
+ * The live edge style with one arrow branch rewritten in ELEMENT shape.
+ *
+ * An arrow of type "none" has no element form: `editorToElementArrow` returns undefined
+ * and the branch is REMOVED, because an edge with `{type: "none"}` looks exactly like an
+ * edge with no arrow branch and must not intern as a second style.
+ * @param style - the layer's current edge style, element-shaped.
+ * @param key - the branch this handler owns.
+ * @param arrow - the arrow the control handed back, editor-shaped.
+ * @returns the same style with that arrow written or removed.
+ */
+function withArrowBranch(style: StyleRecord, key: "arrowHead" | "arrowTail", arrow: ArrowConfig): StyleRecord {
+    const converted = editorToElementArrow(arrow);
+
+    if (converted === undefined) {
+        return withoutKey(style, key);
+    }
+
+    return { ...style, [key]: converted };
+}
 
 /**
  * Panel for editing style layer properties including node and edge styles.
@@ -115,120 +182,108 @@ export function StyleLayerPropertiesPanel({
         setEdgeSelectorValue(layer.styleLayer.edge?.selector ?? "");
     }, [layer]);
 
+    /* Every branch is read through a bridge, because the layer is ELEMENT-shaped and the
+       controls are editor-shaped: `texture.color` against `ColorConfig`, `effect` against
+       `effects`, the element's shape names against the editor's, 0-1 opacity against
+       0-100. The readers also accept the editor shapes an older panel wrote into these
+       same layers, so a saved layer still opens on the values its author typed. */
     const currentStyle: StyleRecord = layer.styleLayer.node?.style ?? {};
-    const shapeConfig: ShapeConfig = (currentStyle.shape as ShapeConfig | undefined) ?? DEFAULT_SHAPE;
-    const colorConfig = getColorConfig(currentStyle);
-    const effectsConfig: NodeEffectsConfig =
-        (currentStyle.effects as NodeEffectsConfig | undefined) ?? DEFAULT_NODE_EFFECTS;
+    const shapeConfig: ShapeConfig = elementToEditorShape(currentStyle.shape);
+    const colorConfig: ColorConfig = elementToEditorColorConfig(currentStyle);
+    const effectsConfig: NodeEffectsConfig = elementToEditorEffects(currentStyle.effect ?? currentStyle.effects);
     const nodeLabelConfig: RichTextStyle = elementToEditorRichTextStyle(currentStyle.label);
     const nodeTooltipConfig: RichTextStyle = elementToEditorRichTextStyle(currentStyle.tooltip);
 
-    // Edge style extraction
-    const currentEdgeStyle: EdgeStyle = (layer.styleLayer.edge?.style as EdgeStyle | undefined) ?? {};
-    const edgeLineConfig: EdgeLineConfig = currentEdgeStyle.line ?? DEFAULT_EDGE_LINE;
-    const arrowHeadConfig: ArrowConfig = currentEdgeStyle.arrowHead ?? DEFAULT_ARROW_HEAD;
-    const arrowTailConfig: ArrowConfig = currentEdgeStyle.arrowTail ?? DEFAULT_ARROW_TAIL;
+    /* Edge style extraction. Read as an open record, like the node style above it: this is
+       the element's own layer, so its `label` and `tooltip` are FLAT and only the bridge
+       may read them. */
+    const currentEdgeStyle: StyleRecord = layer.styleLayer.edge?.style ?? {};
+    const edgeLineConfig: EdgeLineConfig = elementToEditorEdgeLine(currentEdgeStyle.line);
+    const arrowHeadConfig: ArrowConfig = elementToEditorArrow(currentEdgeStyle.arrowHead, DEFAULT_ARROW_HEAD);
+    const arrowTailConfig: ArrowConfig = elementToEditorArrow(currentEdgeStyle.arrowTail, DEFAULT_ARROW_TAIL);
     const edgeLabelConfig: RichTextStyle = elementToEditorRichTextStyle(currentEdgeStyle.label);
     const edgeTooltipConfig: RichTextStyle = elementToEditorRichTextStyle(currentEdgeStyle.tooltip);
 
+    /* Every handler below PATCHES: it writes the one branch it owns over the style the
+       ELEMENT currently holds, and carries every other key across untouched.
+
+       They each used to restate the whole style from the editors' re-derived models, so
+       editing any one branch rewrote all five with whatever the editors had made of them.
+       For the two rich-text branches that was not merely lossy but breaking:
+       `nodeLabelConfig` is EDITOR-shaped -- nested `font.family`, a `position` object,
+       opt-in groups -- while the element's schema is a flat `strictObject`, so a colour
+       edit wrote a label the element could not parse and the labels rebuilt as blank
+       textures. The rich-text branches now go out through the bridge, in element shape.
+
+       EVERY branch now does. graphty-element interns styles by deep value equality and
+       keys its mesh cache on the id it hands back, so a branch written in the editor's
+       shape rather than the element's is not just unread -- it mints a style id and a mesh
+       of its own for a look the element already had, and `Styles.styleToId`'s scan is
+       linear in the number of styles ever interned. The conversions live in
+       `utils/styleBridge` (and `utils/richTextStyleBridge` for label and tooltip), copied
+       from the writer in `components/Graphty.tsx` so the two cannot drift into two ids for
+       one look. */
     const handleSelectorBlur = (): void => {
         if (onUpdate) {
             onUpdate(layer.id, {
                 selector: selectorValue,
-                style: layer.styleLayer.node?.style ?? {},
+                style: currentStyle,
             });
         }
     };
 
     const handleShapeChange = (shape: ShapeConfig): void => {
         if (onUpdate) {
-            // Include all properties to ensure they're all applied together
-            const colorStyle = colorConfigToStyle(colorConfig);
             onUpdate(layer.id, {
                 selector: layer.styleLayer.node?.selector ?? "",
-                style: {
-                    shape,
-                    ...colorStyle,
-                    effects: effectsConfig,
-                    label: nodeLabelConfig,
-                    tooltip: nodeTooltipConfig,
-                },
+                style: { ...currentStyle, shape: editorToElementShape(shape) },
             });
         }
     };
 
     const handleColorChange = (newColorConfig: ColorConfig): void => {
         if (onUpdate) {
-            // Include all properties to ensure they're all applied together
-            const colorStyle = colorConfigToStyle(newColorConfig);
             onUpdate(layer.id, {
                 selector: layer.styleLayer.node?.selector ?? "",
-                style: {
-                    shape: shapeConfig,
-                    ...colorStyle,
-                    effects: effectsConfig,
-                    label: nodeLabelConfig,
-                    tooltip: nodeTooltipConfig,
-                },
+                style: withColorBranch(currentStyle, newColorConfig),
             });
         }
     };
 
     const handleEffectsChange = (effects: NodeEffectsConfig): void => {
         if (onUpdate) {
-            // Include all properties to ensure effects are applied alongside shape/color
-            const colorStyle = colorConfigToStyle(colorConfig);
             onUpdate(layer.id, {
                 selector: layer.styleLayer.node?.selector ?? "",
-                style: {
-                    shape: shapeConfig,
-                    ...colorStyle,
-                    effects,
-                    label: nodeLabelConfig,
-                    tooltip: nodeTooltipConfig,
-                },
+                style: withEffectBranch(currentStyle, effects),
             });
         }
     };
 
     const handleNodeLabelChange = (label: RichTextStyle): void => {
         if (onUpdate) {
-            const colorStyle = colorConfigToStyle(colorConfig);
             onUpdate(layer.id, {
                 selector: layer.styleLayer.node?.selector ?? "",
-                style: {
-                    shape: shapeConfig,
-                    ...colorStyle,
-                    effects: effectsConfig,
-                    label,
-                    tooltip: nodeTooltipConfig,
-                },
+                style: withRichTextBranch(currentStyle, "label", label),
             });
         }
     };
 
     const handleNodeTooltipChange = (tooltip: RichTextStyle): void => {
         if (onUpdate) {
-            const colorStyle = colorConfigToStyle(colorConfig);
             onUpdate(layer.id, {
                 selector: layer.styleLayer.node?.selector ?? "",
-                style: {
-                    shape: shapeConfig,
-                    ...colorStyle,
-                    effects: effectsConfig,
-                    label: nodeLabelConfig,
-                    tooltip,
-                },
+                style: withRichTextBranch(currentStyle, "tooltip", tooltip),
             });
         }
     };
 
-    // Edge handlers
+    /* The edge handlers patch on the same terms as the node ones above: the live element
+       style, one branch each. */
     const handleEdgeSelectorBlur = (): void => {
         if (onEdgeUpdate) {
             onEdgeUpdate(layer.id, {
                 selector: edgeSelectorValue,
-                style: layer.styleLayer.edge?.style ?? {},
+                style: currentEdgeStyle,
             });
         }
     };
@@ -239,7 +294,7 @@ export function StyleLayerPropertiesPanel({
                 selector: layer.styleLayer.edge?.selector ?? "",
                 style: {
                     ...currentEdgeStyle,
-                    line,
+                    line: editorToElementEdgeLine(line),
                 },
             });
         }
@@ -249,10 +304,7 @@ export function StyleLayerPropertiesPanel({
         if (onEdgeUpdate) {
             onEdgeUpdate(layer.id, {
                 selector: layer.styleLayer.edge?.selector ?? "",
-                style: {
-                    ...currentEdgeStyle,
-                    arrowHead,
-                },
+                style: withArrowBranch(currentEdgeStyle, "arrowHead", arrowHead),
             });
         }
     };
@@ -261,10 +313,7 @@ export function StyleLayerPropertiesPanel({
         if (onEdgeUpdate) {
             onEdgeUpdate(layer.id, {
                 selector: layer.styleLayer.edge?.selector ?? "",
-                style: {
-                    ...currentEdgeStyle,
-                    arrowTail,
-                },
+                style: withArrowBranch(currentEdgeStyle, "arrowTail", arrowTail),
             });
         }
     };
@@ -273,10 +322,7 @@ export function StyleLayerPropertiesPanel({
         if (onEdgeUpdate) {
             onEdgeUpdate(layer.id, {
                 selector: layer.styleLayer.edge?.selector ?? "",
-                style: {
-                    ...currentEdgeStyle,
-                    label,
-                },
+                style: withRichTextBranch(currentEdgeStyle, "label", label),
             });
         }
     };
@@ -285,10 +331,7 @@ export function StyleLayerPropertiesPanel({
         if (onEdgeUpdate) {
             onEdgeUpdate(layer.id, {
                 selector: layer.styleLayer.edge?.selector ?? "",
-                style: {
-                    ...currentEdgeStyle,
-                    tooltip,
-                },
+                style: withRichTextBranch(currentEdgeStyle, "tooltip", tooltip),
             });
         }
     };

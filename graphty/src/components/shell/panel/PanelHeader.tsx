@@ -72,40 +72,6 @@ export function MoreGlyph(): React.JSX.Element {
 }
 
 /**
- * The ink the ACTIVE ring is drawn in: the same ink Mantine's `light` variant draws its
- * glyph in, so the ring and the glyph inside it read as one treatment.
- *
- * A Mantine CSS variable, which is one of the three colour sources this region is allowed
- * (see the authority note at the head of `../constants.ts`: `PANEL_INK`, the Mantine theme,
- * CSS variables -- never an artboard hex). `PANEL_INK` publishes the FILLED accent and the
- * ink that goes ON it, but not the light variant's own ink, and that is the one this needs:
- * measured in the running app, the filled accent rings at 3.12:1 against the header ground
- * but only 2.59:1 against the tint it encloses, while this ink measures 7.97:1 and 6.61:1 in
- * the dark scheme and 3.56:1 and 3.17:1 in the light one -- so the boundary clears 3:1 on
- * BOTH of its adjacent colours, in both schemes, rather than on one side of one scheme.
- */
-const ACTIVE_RING_INK = "var(--mantine-primary-color-light-color)";
-
-/**
- * The ring an ACTIVE header control draws inside its own 24px box.
- *
- * Mantine's `light` ground alone is not a state boundary: measured against this header's
- * ground it is 1.21:1, where WCAG 2.2 (1.4.11) asks 3:1 of the visual boundary that
- * distinguishes a control's state. The ring is that boundary. It is drawn as an INSET
- * shadow rather than a border so the 24px box and the row's cluster arithmetic do not move
- * between the two states, and it follows the control's own `radius="sm"`.
- *
- * Exported for the same reason `MoreGlyph` is: the inspector's header row draws the same
- * treatment on the same controls (6.8, one verb one drawing), and two copies of it would
- * be two treatments a month from now.
- * @param active - whether the control is drawing its active state.
- * @returns the ring style, or undefined for a resting control.
- */
-export function activeRingStyle(active: boolean): React.CSSProperties | undefined {
-    return active ? { boxShadow: `inset 0 0 0 1px ${ACTIVE_RING_INK}` } : undefined;
-}
-
-/**
  * The close control's accessible name: the tooltip with the key chip removed
  * (spec 04 section 8.2 obligation 1).
  */
@@ -152,7 +118,7 @@ export interface PanelHeaderProps {
     readonly actionsRef?: (node: HTMLDivElement | null) => void;
     /**
      * Whether the panel is latched open, which the `Keep open` toggle draws as an accent
-     * ring over a tinted ground and reports as its pressed state. The title never
+     * border over a tinted ground and reports as its pressed state. The title never
      * changes with it, and neither does the control's own word or drawing: an active
      * toggle does not rename itself (REGISTER-1.5 section 10.2).
      */
@@ -266,14 +232,26 @@ export function PanelHeader(props: PanelHeaderProps): React.JSX.Element {
 
                             Three channels carry the state, and the comment says three
                             because the code draws three (2026-09-13, second pass: the
-                            tinted ground alone measured 1.20:1 against this header, and a
+                            tinted ground alone measured 1.21:1 against this header, and a
                             claim that it "does not rest on colour alone" was not true of
-                            the code as written). The BOUNDARY is the accent ring, which is
-                            what meets 1.4.11's 3:1; the ground and the accent glyph are
-                            the recognisable treatment on top of it; and `aria-pressed`
-                            carries the state for a reader who sees none of them. The word
-                            and the drawing never change: one verb, one drawing (6.8), and
-                            an active toggle does not rename itself (REGISTER-1.5 10.2).
+                            the code as written). The BOUNDARY is the 1px accent border
+                            Mantine's `light` variant draws, which is what meets 1.4.11's
+                            3:1; the ground and the accent glyph are the recognisable
+                            treatment on top of it; and `aria-pressed` carries the state
+                            for a reader who sees none of them. The word and the drawing
+                            never change: one verb, one drawing (6.8), and an active toggle
+                            does not rename itself (REGISTER-1.5 10.2).
+
+                            That border comes from `@graphty/compact-mantine`'s ActionIcon
+                            theme, not from here (2026-09-13, third pass). This file drew
+                            it itself as an inset box-shadow, `activeRingStyle`, until the
+                            product owner ruled the bespoke control out: "the custom lock
+                            button was not necessary, it was a mistake. use the default
+                            button ... if the components are wrong, they should be fixed".
+                            The library was the wrong thing, so the library was fixed, and
+                            every toggle in the app inherits the boundary instead of these
+                            two header rows having one of their own. Do not reintroduce a
+                            local ring here; see `compactActionIconVariantVars`.
                         */}
                         <ActionIcon
                             type="button"
@@ -281,7 +259,6 @@ export function PanelHeader(props: PanelHeaderProps): React.JSX.Element {
                             size={PANEL_GRID.CONTROL_HEIGHT}
                             radius="sm"
                             c={latched ? undefined : PANEL_INK.CHROME}
-                            style={activeRingStyle(latched)}
                             aria-label={KEEP_OPEN_LABEL}
                             aria-pressed={latched}
                             data-testid="panel-header-keep-open"

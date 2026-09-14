@@ -22,7 +22,6 @@ import React from "react";
 
 import { keyChipFor } from "../bindings";
 import { PANEL_HEADER_HEIGHT, TOOLTIP_DELAY_MS } from "../constants";
-import { activeRingStyle } from "../panel/PanelHeader";
 import {
     INSPECTOR_CLUSTER_GAP,
     INSPECTOR_HEADER_CLUSTER_WIDTH,
@@ -45,13 +44,13 @@ export interface InspectorHeaderProps {
     /** Whether `Pin as A` is drawn: a node, edge, selection or result, and nothing else. */
     readonly showPin: boolean;
     /**
-     * Whether a pin is currently held, which the pin control draws as an accent ring over
-     * a tinted ground and reports as its pressed state.
+     * Whether a pin is currently held, which the pin control draws as an accent border
+     * over a tinted ground and reports as its pressed state.
      */
     readonly pinned?: boolean;
     /**
-     * Whether the column is latched open, which `Keep open` draws as an accent ring over a
-     * tinted ground and reports as its pressed state. This is not
+     * Whether the column is latched open, which `Keep open` draws as an accent border over
+     * a tinted ground and reports as its pressed state. This is not
      * {@link InspectorHeaderProps.pinned}: that is the comparison pin, which freezes the
      * content; this holds the column on screen (6.12).
      */
@@ -80,10 +79,14 @@ interface HeaderIconProps {
     readonly glyph: React.ReactNode;
     readonly pressed?: boolean;
     /**
-     * Whether the control draws ACTIVE: an accent ring over a tinted ground, with an
-     * accent glyph -- the shell's own pressed treatment (topbar/topBarControls.tsx) plus
-     * the boundary WCAG 1.4.11 asks for, which is {@link activeRingStyle}. It is
-     * deliberately not {@link HeaderIconProps.pressed}: the row's last control passes
+     * Whether the control draws ACTIVE: Mantine's `light` variant -- a tinted ground, an
+     * accent glyph and the 1px accent border `@graphty/compact-mantine`'s ActionIcon theme
+     * draws for that variant, which is the boundary WCAG 1.4.11 asks 3:1 of. Nothing here
+     * draws that boundary itself: this row spread a local `activeRingStyle` from the panel
+     * header until 2026-09-13, when the product owner ruled the bespoke control out and the
+     * library was fixed instead.
+     *
+     * It is deliberately not {@link HeaderIconProps.pressed}: the row's last control passes
      * `pressed` hardcoded true -- the column is open whenever this header is drawn -- so a
      * treatment keyed off `pressed` would light that chevron for ever.
      */
@@ -129,7 +132,7 @@ function HeaderIcon(props: HeaderIconProps): React.JSX.Element {
                 aria-pressed={pressed}
                 data-testid={testId}
                 onClick={onClick}
-                style={{ flex: "0 0 auto", ...activeRingStyle(active) }}
+                style={{ flex: "0 0 auto" }}
             >
                 {glyph}
             </ActionIcon>
@@ -232,7 +235,9 @@ export function InspectorHeader(props: InspectorHeaderProps): React.JSX.Element 
                     `active`, so a held pin rendered identically to an empty one -- the
                     exact defect reported against the latch, in the same header row. A pin
                     that is held and a pin that is not are two states of one control, and
-                    1.4.11 asks the same 3:1 boundary of this one as of that one. */}
+                    1.4.11 asks the same 3:1 boundary of this one as of that one. Both take
+                    it from the shared ActionIcon theme, which is where that boundary
+                    lives. */}
                 {showPin && onPin !== undefined && (
                     <HeaderIcon
                         words={INSPECTOR_HEADER_LABELS.pinAsA}
@@ -247,13 +252,14 @@ export function InspectorHeader(props: InspectorHeaderProps): React.JSX.Element 
 
                 {/* The latch, immediately left of the control that dismisses the column,
                     so the pair reads as keep-open against dismiss. It draws its latched
-                    state as an accent ring over a tinted ground, with an accent glyph
+                    state as an accent border over a tinted ground, with an accent glyph
                     (2026-09-13: until then the two states rendered byte for byte
                     identically -- `pressed` reached `aria-pressed` and nothing else -- and
                     the product owner could not tell a locked column from an unlocked one;
-                    the ring is the second pass, because the ground alone measured 1.20:1
-                    where 1.4.11 asks 3:1). The word and the padlock are the same in both
-                    states (6.8; REGISTER-1.5 10.2). */}
+                    the border is the second pass, because the ground alone measured 1.21:1
+                    where 1.4.11 asks 3:1, and the third pass moved it off a local helper
+                    and into the shared ActionIcon theme). The word and the padlock are the
+                    same in both states (6.8; REGISTER-1.5 10.2). */}
                 {onKeepOpenChange !== undefined && (
                     <HeaderIcon
                         words={INSPECTOR_HEADER_LABELS.keepOpen}

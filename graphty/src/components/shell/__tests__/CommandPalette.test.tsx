@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { fireEvent, render, screen } from "../../../test/test-utils";
+import { act, fireEvent, render, screen } from "../../../test/test-utils";
 import { COMMAND_PALETTE_EMPTY, CommandPalette, type CommandPaletteItem } from "../CommandPalette";
 
 const items: CommandPaletteItem[] = [
@@ -63,6 +63,33 @@ describe("CommandPalette", () => {
             });
 
             expect(screen.getByText(COMMAND_PALETTE_EMPTY)).toBeInTheDocument();
+        });
+    });
+
+    describe("opening it", () => {
+        /*
+           The palette exists to be typed into, so the field has to hold focus once the
+           trap has had its turn. Mantine's `useFocusTrap` looks for `[data-autofocus]`
+           inside the dialog in a `setTimeout`, and falls back to the first tabbable
+           child -- the modal's close button -- when it finds none, so React's own
+           `autoFocus` held focus for exactly one macrotask and then lost it. Waiting one
+           macrotask turn here is what makes this board fail on the defect rather than
+           pass on the focus that is about to be taken away. Product owner, 2026-09-13:
+           "opening the command palette doesn't select the text entry, so then I have to
+           click to enter the text entry".
+        */
+        it("puts focus in the field, after the dialog's focus trap has run", async () => {
+            renderPalette();
+
+            const field = await screen.findByLabelText("Search commands, nodes and edges");
+
+            await act(async () => {
+                await new Promise((resolve) => {
+                    setTimeout(resolve, 0);
+                });
+            });
+
+            expect(field).toHaveFocus();
         });
     });
 

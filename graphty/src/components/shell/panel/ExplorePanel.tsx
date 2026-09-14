@@ -1,6 +1,6 @@
 import { ActionRow, FieldRow, InfoCircle, PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
 import { ActionIcon, Box, Menu, Pill, Switch } from "@mantine/core";
-import React from "react";
+import React, { useState } from "react";
 
 import { keyChipFor } from "../bindings";
 import { COMING_GROUP_SENTENCE, ComingTag, PanelRows, PanelSection, SectionAddButton } from "./PanelSection";
@@ -120,11 +120,14 @@ export interface ExploreFilterChip {
  * Props of the Explore panel body.
  */
 export interface ExplorePanelProps {
-    /** The search query. */
+    /**
+     * The search query, when the caller holds it. Omitted, the field holds its own: a
+     * field the caller has not claimed still types (see {@link ExplorePanel}).
+     */
     readonly query?: string;
     /** Search query change. */
     readonly onQueryChange?: (query: string) => void;
-    /** Which set the search runs over. */
+    /** Which set the search runs over, when the caller holds it. */
     readonly scope?: ExploreSearchScope;
     /** Scope change. */
     readonly onScopeChange?: (scope: ExploreSearchScope) => void;
@@ -179,9 +182,9 @@ export interface ExplorePanelProps {
  */
 export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
     const {
-        query = "",
+        query,
         onQueryChange,
-        scope = "all",
+        scope,
         onScopeChange,
         visibleScopeLabel,
         onSelectAllVisible,
@@ -198,6 +201,24 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
         onSaveView,
         onAddNote,
     } = props;
+
+    /*
+        The field's own fallback state, used when the caller names no `query`.
+
+        React's rule: a field is controlled only when its value is SUPPLIED, so a
+        defaulted `value` is not a default -- it is a value pinned to the default, and
+        every keystroke against it is discarded. That was the defect the product owner
+        reported on 2026-09-13 ("I can't type in the search nodes and edges textbox
+        under explore"): this panel is drawn at its target shape whether or not its
+        caller has wired a row (Rule 7c), so an unclaimed field has to hold what is
+        typed rather than eat it. The shell DOES claim both values -- it holds them
+        beside the other values this panel remembers, because the panel body is
+        unmounted on a panel switch -- and a supplied value still wins here.
+    */
+    const [ownQuery, setOwnQuery] = useState("");
+    const [ownScope, setOwnScope] = useState<ExploreSearchScope>("all");
+    const shownQuery = query ?? ownQuery;
+    const shownScope = scope ?? ownScope;
 
     const selectAllTooltip = withChip(SELECT_ALL_VISIBLE_LABEL, keyChipFor("selectAllVisible"));
     const noteTooltip = withChip("Note", keyChipFor("addNote"));
@@ -236,7 +257,7 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
                     >
                         <input
                             type="text"
-                            value={query}
+                            value={shownQuery}
                             aria-label={SEARCH_LABEL}
                             // The `/` binding's receiver: the dispatcher owns the key
                             // and focuses this field through the one hook it can find
@@ -244,7 +265,10 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
                             data-testid="explore-search-input"
                             placeholder={SEARCH_LABEL}
                             onChange={(event) => {
-                                onQueryChange?.(event.currentTarget.value);
+                                const typed = event.currentTarget.value;
+
+                                setOwnQuery(typed);
+                                onQueryChange?.(typed);
                             }}
                             style={{
                                 flex: "1 1 0",
@@ -271,7 +295,7 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
                             <Menu.Target>
                                 <button
                                     type="button"
-                                    aria-label={`Search scope: ${SCOPE_LABELS[scope]}`}
+                                    aria-label={`Search scope: ${SCOPE_LABELS[shownScope]}`}
                                     data-testid="explore-search-scope"
                                     style={{
                                         display: "flex",
@@ -288,13 +312,14 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
                                         whiteSpace: "nowrap",
                                     }}
                                 >
-                                    {SCOPE_LABELS[scope]}
+                                    {SCOPE_LABELS[shownScope]}
                                     <UiGlyph name="chevronDown" size={PANEL_GRID.CHEVRON} />
                                 </button>
                             </Menu.Target>
                             <Menu.Dropdown>
                                 <Menu.Item
                                     onClick={() => {
+                                        setOwnScope("all");
                                         onScopeChange?.("all");
                                     }}
                                 >
@@ -302,6 +327,7 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
                                 </Menu.Item>
                                 <Menu.Item
                                     onClick={() => {
+                                        setOwnScope("visible");
                                         onScopeChange?.("visible");
                                     }}
                                 >

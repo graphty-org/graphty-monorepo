@@ -129,7 +129,24 @@ export function CommandPalette(props: CommandPaletteProps): React.JSX.Element {
         >
             <TextInput
                 size="compact"
-                autoFocus
+                /*
+                    The field is what the palette opens FOR, so the dialog's focus trap has
+                    to be told which control it is. Mantine's trap picks the target itself:
+                    `useFocusTrap` (@mantine/hooks 8.3.10,
+                    use-focus-trap.mjs:7-24) queries `[data-autofocus]` inside the trapped
+                    node and only falls back to "the first tabbable child" when it finds
+                    none -- and it does that inside a `setTimeout`, AFTER React has honoured
+                    its own `autoFocus`. So `autoFocus` alone left the field focused for one
+                    macrotask and then handed focus to the modal's close button, which is
+                    the first tabbable child of the dialog. `data-autofocus` reaches the
+                    `input` element itself (`InputBase` -> `Input` spreads its rest props
+                    onto the `Box component="input"`), which is why it is set here rather
+                    than on a wrapper. Product owner, 2026-09-13: "opening the command
+                    palette doesn't select the text entry, so then I have to click to enter
+                    the text entry". No timer of our own: the mechanism the library already
+                    runs is the one that has to be answered.
+                */
+                data-autofocus
                 value={query}
                 placeholder={COMMAND_PALETTE_PLACEHOLDER}
                 aria-label={COMMAND_PALETTE_PLACEHOLDER}

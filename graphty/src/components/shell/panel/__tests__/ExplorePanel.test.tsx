@@ -105,6 +105,52 @@ describe("ExplorePanel", () => {
 
             expect(onQueryChange).toHaveBeenCalledWith("acct");
         });
+
+        /* The field was a CONTROLLED input with a defaulted value: `value={query}` with
+           `query = ""`, so a caller that named neither the value nor the handler pinned
+           it to the empty string and every keystroke was discarded. Asserting that the
+           field renders passed all along; only typing into it fails. Product owner,
+           2026-09-13: "I can't type in the search nodes and edges textbox under
+           explore". */
+        it("keeps what is typed when the caller names no query", () => {
+            renderPanel();
+
+            const field = screen.getByRole("textbox", { name: "Search nodes and edges" });
+
+            fireEvent.change(field, { target: { value: "acct" } });
+
+            expect(field).toHaveValue("acct");
+        });
+
+        it("keeps typing into a query the caller does hold, and reports every keystroke", () => {
+            const onQueryChange = vi.fn();
+            const { rerender } = renderPanel({ query: "", onQueryChange });
+
+            const field = screen.getByRole("textbox", { name: "Search nodes and edges" });
+
+            fireEvent.change(field, { target: { value: "ac" } });
+
+            // A supplied value still wins: the field draws what its owner holds, so the
+            // shell's own state is what the reader sees.
+            expect(field).toHaveValue("");
+
+            rerender(
+                <ShellProvider initialShellWidth={1440} measureViewport={false} persist={false}>
+                    <ExplorePanel visibleScopeLabel="20 nodes" query="ac" onQueryChange={onQueryChange} />
+                </ShellProvider>,
+            );
+
+            expect(field).toHaveValue("ac");
+        });
+
+        it("draws the scope the reader picked when the caller names none", async () => {
+            renderPanel();
+
+            fireEvent.click(screen.getByTestId("explore-search-scope"));
+            fireEvent.click(await screen.findByRole("menuitem", { name: "Visible nodes" }));
+
+            expect(screen.getByTestId("explore-search-scope")).toHaveTextContent("Visible nodes");
+        });
     });
 
     describe("the two action rows", () => {
